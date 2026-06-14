@@ -7,7 +7,7 @@ from app.core.audit import audit_log
 from app.db import get_db_connection, get_plan_notification_context, get_table_name, refresh_bufor_queue
 from app.decorators import hall_restricted, roles_required
 from app.services.notification_service import notify_laboratory_about_zasyp, notify_workers_about_plan_batch, notify_workers_about_plan_change
-from app.services.planning_service import PlanningService
+from app.services.planning.mutation import PlanningMutationService
 
 
 def register_planning_creation_routes(planning_bp, *, return_url_builder):
@@ -29,7 +29,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
             tonaz = 0
 
         linia = request.form.get('linia', 'PSD')
-        success, message, plan_id = PlanningService.create_plan(
+        success, message, plan_id = PlanningMutationService.create_plan(
             data_planu,
             produkt,
             tonaz,

@@ -7,27 +7,17 @@
      data-sekcja="{{ sekcja }}"
      data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
-    <div class="card-header">
-        <strong class="card-title">
+    <div class="card-header" style="display: flex; align-items: center; width: 100%; gap: 12px; flex-wrap: wrap;">
+        <strong class="card-title" style="margin: 0; white-space: nowrap;">
             {{ order_index if order_index is defined else (loop.index if loop is defined else '') }}. {{ p[1] }}
-            {% if sekcja == 'Zasyp' %}
-            <span class="zlecenie-id-badge" title="Nr zlecenia w systemie">#{{ p[0] }}</span>
-            {% endif %}
-            {% if p[15] %}
-            <br><span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:10px;padding:1px 8px;font-size:0.75em;font-weight:700;margin-top:3px;">📦 przeniesione z {{ p[15] }}{% if p[16] and p[16]|int > 0 %}: {{ p[16]|int }} kg{% endif %}</span>
-            {% if p[16] and p[16]|int > 0 and p[2]|int > p[16]|int %}
-            <br><span style="display:inline-block;background:#d4edda;color:#155724;border:1px solid #28a745;border-radius:10px;padding:1px 8px;font-size:0.75em;font-weight:700;margin-top:2px;">➕ doplanowane: +{{ (p[2]|int - p[16]|int) }} kg</span>
-            {% endif %}
-            {% endif %}
         </strong>
-        <div class="header-actions">
+        {% if p[13] %}
+        <span class="date-badge" style="font-size: 0.8em; color: #334155; font-weight: bold; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">📅 {{ p[13] }}</span>
+        {% endif %}
+        
+        <div class="header-actions" style="display: flex; align-items: center; gap: 8px; margin: 0;">
             {% set role_lc = rola|string|trim|lower %}
-            {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
             <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
-            {% if checklist_ok %}
-            <span class="checklist-ok-badge"
-                  title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}">CHECKLISTA OK</span>
-            {% endif %}
             {% if p[3] == 'zaplanowane' and not is_readonly %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
@@ -39,10 +29,10 @@
             {% if (work_start_bypass_role or allowed) %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
                 style="display:inline;"
-                data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' else 0 }}"
+                data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
                 data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                 data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
-                onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
@@ -58,12 +48,12 @@
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% elif p[3] == 'w toku' %}
@@ -81,8 +71,24 @@
             {% endif %}
 
             {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
+                {% if linia == 'AGRO' %}
+                <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" style="display:inline;" data-confirm="Czy na pewno chcesz zawiesić to zlecenie?">
+                    <input type="hidden" name="linia" value="AGRO">
+                    <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                    <button type="submit" class="btn-stop-icon" style="background:#f59e0b;" title="Zawieś produkcję (Pauza)">⏸</button>
+                </form>
+                {% endif %}
                 <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
                     class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
+            {% endif %}
+            {% elif p[3] == 'zawieszone' %}
+            {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
+            <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>
+            </form>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
             {% if rola in ['lider', 'admin', 'masteradmin'] and not is_readonly %}
@@ -92,30 +98,48 @@
             {% endif %}
             {% endif %}
         </div>
+        
+        <div style="flex-grow: 1;"></div>
+        
+        {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
+        {% if checklist_ok %}
+        <span class="checklist-ok-badge"
+              title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}"
+              style="font-size: 0.7em; margin: 0; white-space: nowrap;">CHECKLISTA OK</span>
+        {% endif %}
+        
+        {% if p[7] and p[7]|int > 0 %}
+        <div style="white-space: nowrap; font-size: 0.9em; margin-left: 12px;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
+        {% endif %}
+        
     </div>
 
-    <div class="card-body">
-        <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
-        {% if p[7] and p[7]|int > 0 %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>{% endif %}
-        {% set typ_prod_display = p[9]|upper %}
-        {% if typ_prod_display == 'AGRO' or not typ_prod_display %}
-            {% set produkt_lc = p[1]|lower %}
-            {% if 'mleko' in produkt_lc or '20' in produkt_lc %}
-                {% set typ_prod_display = '20 KG' %}
-            {% else %}
-                {% set typ_prod_display = '25 KG' %}
+    <div class="card-body" style="display: flex; gap: 40px; padding-top: 8px;">
+        <div style="min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
+            <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
+            {% set typ_prod_display = p[9]|upper %}
+            {% if typ_prod_display == 'AGRO' or not typ_prod_display %}
+                {% set produkt_lc = p[1]|lower %}
+                {% if 'mleko' in produkt_lc or '20' in produkt_lc %}
+                    {% set typ_prod_display = '20 KG' %}
+                {% else %}
+                    {% set typ_prod_display = '25 KG' %}
+                {% endif %}
             {% endif %}
-        {% endif %}
-        <div class="card-row"><strong>Typ:</strong> {{ typ_prod_display }}</div>
-        {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
-        {% set req_folia = p[20] if p|length > 20 else '' %}
-        {% set req_etykieta = p[21] if p|length > 21 else '' %}
-        <div class="card-row"><strong>Folia:</strong> {{ req_folia or '- brak w planie -' }}</div>
-        <div class="card-row"><strong>Etykieta:</strong> {{ req_etykieta or '- brak w planie -' }}</div>
-        {% endif %}
-        {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
-        {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
-        {% if p[3] == 'w toku' and p[4] %}
+            <div class="card-row"><strong>Typ:</strong> {{ typ_prod_display }}</div>
+            {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
+            {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
+        </div>
+        <div style="min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
+            {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+            {% set req_folia = p[20] if p|length > 20 else '' %}
+            {% set req_etykieta = p[21] if p|length > 21 else '' %}
+            <div class="card-row"><strong>Folia:</strong> {{ req_folia or '- brak w planie -' }}</div>
+            <div class="card-row"><strong>Etykieta:</strong> {{ req_etykieta or '- brak w planie -' }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% if p[3] == 'w toku' and p[4] %}
         <div class="card-row"><strong>⏳ Czas od startu:</strong> <span class="order-elapsed duration-badge" data-start="{{ dzisiaj }} {{ p[4] }}:00">0s</span></div>
         {% endif %}
         {% if p[6] is not none and p[6] > 0 %}
@@ -126,7 +150,6 @@
         {% if p[3] == 'w toku' and linia == 'AGRO' %}
         {# Machine metrics moved to a separate panel on the right side #}
         {% endif %}
-    </div>
 
     <div class="card-actions">
         {% if sekcja != 'Magazyn' %}
@@ -140,6 +163,10 @@
                             data-action="edit-workowanie-production-date"
                             data-plan-id="{{ p[0] }}"
                             title="Zmien date produkcji dla zlecenia Workowanie">DATA PROD</button>
+                    <form action="/cofnij_palete/{{ p[0] }}" method="POST" style="display:inline;" data-confirm="Czy na pewno chcesz cofnąć ostatnią operację (paletę)?">
+                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                        <button type="submit" class="btn-action btn-warning" title="Cofnij ostatnią paletę" style="background-color: #f59e0b; color: white;">↩ COFNIJ</button>
+                    </form>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
@@ -155,7 +182,7 @@
             {% endif %}
 
             {# Detail toggle buttons - for active AND completed orders #}
-            {% if p[3] in ['w toku', 'zakonczone'] %}
+            {% if p[3] in ['w toku', 'zakonczone', 'zawieszone'] %}
                 {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
                 {% if palety_count > 0 %}
                     <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}" style="display:flex; align-items:center; gap:5px;">
@@ -164,7 +191,7 @@
                     </button>
                 {% endif %}
                 
-                {% if p[3] == 'zakonczone' and sekcja == 'Workowanie' and linia == 'AGRO' %}
+                {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja == 'Workowanie' and linia == 'AGRO' %}
                     <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
                         <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
                     </a>

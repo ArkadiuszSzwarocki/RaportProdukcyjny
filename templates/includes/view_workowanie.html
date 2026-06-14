@@ -91,6 +91,14 @@
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
                         </form>
 
+                        {% if linia == 'AGRO' %}
+                        <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" class="flex-1">
+                            <input type="hidden" name="linia" value="AGRO">
+                            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                            <button type="submit" class="btn-action btn-warning" title="Zawieś produkcję (np. koniec zmiany)">⏸ Zawieś (Pauza)</button>
+                        </form>
+                        {% endif %}
+
                         <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _('zakonczyc_zlecenie') }}">
                             <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-stop" aria-label="{{ _('zakonczy') }}">■ {{ _('zakonczy') }}</button>
@@ -121,11 +129,12 @@
         <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %} {% if aktywne %}opacity-60{% endif %}" data-id="{{ p[0] }}">
             <div class="flex-2">
                 {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">{{ _('oczekuje') }}</span>
+                {% elif p[3] == 'zawieszone' %}<span class="status-badge" style="background-color: #f59e0b; color: white;">zastopowane (pauza)</span>
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
                 
                     <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
                     
-                    {% if p[3] == 'zaplanowane' %}
+                    {% if p[3] in ['zaplanowane', 'zawieszone'] %}
                         <div class="text-muted small mt-5" style="margin-top: 4px; font-size: 0.85em; color: #64748b;">
                             {% if p|length > 9 and p[9] and p[9] != 'agro' %}
                                 <span style="margin-right: 8px;">⚖️ Worek: {{ p[9] }}</span>
@@ -148,15 +157,16 @@
             </div>
             
             <div>
-                {% if p[3] == 'zaplanowane' %}
+                {% if p[3] in ['zaplanowane', 'zawieszone'] %}
                     <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-start btn-small" aria-label="{{ _('start') }}">▶ {{ _('start') }}</button>
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <button type="submit" class="btn-start btn-small" aria-label="Start">▶ {% if p[3] == 'zawieszone' %}Wznów{% else %}{{ _('start') }}{% endif %}</button>
                     </form>
                 {% endif %}
                 
                 {% if rola in ['admin', 'masteradmin', 'lider'] %}
-                    <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                    <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" data-confirm="Wznowić {{ p[1]|e }}?">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="sekcja" value="Workowanie">
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
@@ -237,17 +247,32 @@
 
 <!-- Move modal for Workowanie -->
 <div id="moveModalWork" class="move-modal-work">
-    <h3 class="move-title-work">{{ _('przenies_zlecenie') }}</h3>
-    <div class="move-modal-field">
-        <label for="move_to_date_work">{{ _('plan') }}:</label>
-        <input type="date" id="move_to_date_work" value="{{ dzisiaj }}">
-    </div>
-    <div class="move-modal-actions d-flex gap-5">
-        <button type="button" onclick="confirmMoveWork()" class="btn-action btn-small">{{ _('przenies_zlecenie') }}</button>
-        <button type="button" onclick="document.getElementById('moveModalWork').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
+    <div class="move-modal-content">
+        <h3 class="move-title-work">Przenieś zlecenie</h3>
+        <div class="move-modal-field">
+            <label for="move_to_date_work">Nowa data:</label>
+            <input type="date" id="move_to_date_work" class="form-control" />
+        </div>
+        <div class="move-modal-actions d-flex gap-5">
+            <button type="button" onclick="document.getElementById('moveModalWork').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
+            <button type="button" onclick="confirmMoveWork()" class="btn-action btn-small btn-save">Przenieś</button>
+        </div>
     </div>
 </div>
 
+<!-- Generic Confirm Modal -->
+<div id="genericConfirmModal" class="move-modal-work" style="display:none;">
+    <div class="move-modal-content" style="max-width: 400px; text-align: center;">
+        <h3 class="move-title-work" style="color: #1e293b; margin-bottom: 15px;">Potwierdzenie</h3>
+        <div class="move-modal-field">
+            <p id="genericConfirmMsg" style="font-size: 1.1rem; color: #475569; margin-bottom: 25px;">Czy na pewno chcesz wykonać tę akcję?</p>
+        </div>
+        <div class="move-modal-actions d-flex gap-5" style="justify-content: center;">
+            <button type="button" onclick="document.getElementById('genericConfirmModal').style.display='none'" class="btn-action btn-small btn-cancel" style="min-width: 100px;">Anuluj</button>
+            <button type="button" id="genericConfirmBtn" class="btn-action btn-small btn-save" style="min-width: 100px; background-color: #ef4444;">Potwierdź</button>
+        </div>
+    </div>
+</div>
 <script>
 // Translation messages
 var wkMsgs = {
@@ -275,14 +300,39 @@ function deletePlan(id, data){
     .catch(function(){ alert('Błąd sieci'); });
 }
 
+// Global confirm modal function
+window.showConfirmModal = function(message, onConfirm) {
+    var modal = document.getElementById('genericConfirmModal');
+    if (!modal) {
+        alert('Brak modala potwierdzenia:\n' + message);
+        if(confirm(message)) onConfirm();
+        return;
+    }
+    var msgEl = document.getElementById('genericConfirmMsg');
+    var btn = document.getElementById('genericConfirmBtn');
+    
+    msgEl.innerText = message;
+    modal.style.display = 'block';
+    
+    var newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+        if (onConfirm) onConfirm();
+    });
+};
+
 // Event delegation for forms with data-confirm-msg
 document.addEventListener('submit', function(e){
     var form = e.target;
-    if(form.hasAttribute('data-confirm-msg')){
+    if(form.hasAttribute('data-confirm-msg') && !form.dataset.confirmed){
+        e.preventDefault();
         var msg = form.getAttribute('data-confirm-msg');
-        if(!confirm(msg)){
-            e.preventDefault();
-        }
+        window.showConfirmModal(msg, function() {
+            form.dataset.confirmed = 'true';
+            form.submit();
+        });
     }
 }, true);
 
@@ -290,6 +340,7 @@ document.addEventListener('submit', function(e){
 document.addEventListener('click', function(e){
     // Move order button
     if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'move-order'){
+        e.preventDefault();
         var id = e.target.getAttribute('data-order-id');
         var name = e.target.getAttribute('data-order-name');
         openMoveModalWork(id, name);
@@ -297,12 +348,13 @@ document.addEventListener('click', function(e){
     
     // Delete order button
     if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'delete-order'){
+        e.preventDefault();
         var id = e.target.getAttribute('data-order-id');
         var date = e.target.getAttribute('data-order-date');
         var msg = e.target.getAttribute('data-confirm-msg');
-        if(confirm(msg)){
+        window.showConfirmModal(msg, function() {
             deletePlan(id, date);
-        }
+        });
     }
 }, false);
 

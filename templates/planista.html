@@ -407,9 +407,11 @@
                                 <div class="actions-dropdown-divider"></div>
                                 {% endif %}
                                 
+                                {% if p.status != 'zakonczone' %}
                                 <button type="button" class="actions-dropdown-item text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p.id }}">
                                     📝 Edytuj tonaż
                                 </button>
+                                {% endif %}
                                 
                                 {% if remaining > 0 %}
                                 <button type="button" class="actions-dropdown-item text-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}', this)" title="Przenieś niezrealizowane zlecenie na następny dzień">
@@ -648,16 +650,20 @@
             safeAlert('Uwaga', 'Wybierz datę');
             return;
         }
-        fetch('/api/przenies_zlecenie/' + id, {
+        fetch('/api/przenies_zlecenie_ajax', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'nowa_data=' + encodeURIComponent(newDate) + '&linia=' + encodeURIComponent(currentLinia),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, to_date: newDate, linia: currentLinia }),
             credentials: 'same-origin'
-        }).then(r => r.text()).then(t => {
-            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
-                window.createQuickPopup._lastInst.close();
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                    window.createQuickPopup._lastInst.close();
+                }
+                location.reload();
+            } else {
+                safeAlert('Błąd', data.message || 'Wystąpił błąd podczas przenoszenia zlecenia.');
             }
-            location.reload();
         }).catch(err => {
             safeAlert('Błąd', 'Błąd: ' + err);
         });
@@ -839,15 +845,15 @@
         var opakowanieId = tr.getAttribute('data-opakowanie-id') || '';
         var etykietaId = tr.getAttribute('data-etykieta-id') || '';
 
-        var html = '<form id="editForm_' + id + '" class="form-group">';
-        html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
-        html += '<div class="form-group"><label>Typ:</label><input id="e_typ_' + id + '" name="typ" value="' + typ + '" readonly disabled></div>';
-        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
-        html += '<div class="form-group"><label>Data:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}"></div>';
-        html += '<div class="form-group"><label>Data produkcji (opcjonalnie):</label><input id="e_prod_date_' + id + '" name="data_produkcji" type="date" value="' + dataProdukcji + '"></div>';
+        var html = '<form id="editForm_' + id + '" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin: 0; padding: 10px 0;">';
+        html += '<div class="form-group" style="grid-column: 1 / -1;"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
+        html += '<div class="form-group"><label>Typ:</label><input id="e_typ_' + id + '" name="typ" value="' + typ + '" readonly disabled style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #f3f4f6;"></div>';
+        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
+        html += '<div class="form-group"><label>Data planu:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
+        html += '<div class="form-group"><label>Data produkcji (opcjonalnie):</label><input id="e_prod_date_' + id + '" name="data_produkcji" type="date" value="' + dataProdukcji + '" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
         
         if (currentLinia.toLowerCase() === 'agro') {
-            html += '<div class="form-group"><label style="font-weight: 600; color: #004d40;">Worek (wymagane):</label>';
+            html += '<div class="form-group" style="grid-column: 1 / -1; z-index: 10;"><label style="font-weight: 600; color: #004d40;">Worek (wymagane):</label>';
             html += '<div class="searchable-select-wrapper" id="wrapper_e_opakowanie_' + id + '">';
             html += '  <span class="input-badge-indicator" id="e_opakowanie_indicator_' + id + '"></span>';
             html += '  <input type="text" id="e_opakowanie_search_' + id + '" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">';
@@ -855,21 +861,24 @@
             html += '  <div id="e_opakowanie_dropdown_' + id + '" class="searchable-select-dropdown" style="display: none;"></div>';
             html += '</div></div>';
 
-            html += '<div class="form-group"><label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane):</label>';
+            html += '<div class="form-group" style="grid-column: 1 / -1; z-index: 9;"><label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane):</label>';
             html += '<div class="searchable-select-wrapper" id="wrapper_e_etykieta_' + id + '">';
             html += '  <span class="input-badge-indicator" id="e_etykieta_indicator_' + id + '"></span>';
             html += '  <input type="text" id="e_etykieta_search_' + id + '" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">';
             html += '  <input type="hidden" id="e_etykieta_' + id + '" name="etykieta_id">';
             html += '  <div id="e_etykieta_dropdown_' + id + '" class="searchable-select-dropdown" style="display: none;"></div>';
             html += '</div></div>';
+            
+            // Add style to fix dropdown clipping in this popup
+            html += '<style>#quickPopup, #quickPopup .qp-body { overflow: visible !important; }</style>';
         }
 
-        html += '<div class="d-flex gap-10 mt-15">';
+        html += '<div class="d-flex gap-10 mt-15" style="grid-column: 1 / -1; justify-content: flex-end; padding-top: 15px; border-top: 1px solid #e2e8f0;">';
         html += '  <button type="button" class="btn-action btn-success" onclick="submitEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
         html += '</div>';
         html += '</form>';
-        var popup = showQuickPopup('Edytuj zlecenie', html);
+        var popup = showQuickPopup('Edytuj zlecenie', html, { maxWidth: '1200px' });
         if (popup) window.createQuickPopup._lastInst = popup;
 
         if (currentLinia.toLowerCase() === 'agro') {

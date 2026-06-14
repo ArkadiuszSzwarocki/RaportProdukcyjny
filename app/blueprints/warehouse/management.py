@@ -8,7 +8,7 @@ from werkzeug.exceptions import HTTPException
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required, masteradmin_required
-from app.services.planning_service import PlanningService
+from app.services.planning.status import PlanningStatusService
 from app.utils.validation import require_field
 from app.utils.pallet_id import generate_pallet_id
 import threading
@@ -334,7 +334,7 @@ def register_warehouse_management_routes(
             # ---------------------------------------------
 
             try:
-                PlanningService.ensure_status_after_tonaz_update(plan_id, linia=linia)
+                PlanningStatusService.ensure_status_after_tonaz_update(plan_id, linia=linia)
             except Exception as error:
                 try:
                     current_app.logger.warning('Warning during status validation: %s', error)

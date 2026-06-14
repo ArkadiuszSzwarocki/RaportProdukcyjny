@@ -7,7 +7,7 @@ If no date provided, uses today's date.
 """
 import sys
 from app.core.factory import create_app
-from app.services.planning_service import PlanningService
+from app.services.planning.buffer import PlanningBufferService
 
 def main(date_arg=None):
   """Run przenies_niezrealizowane for given date (YYYY-MM-DD). If date_arg is None uses today."""
@@ -17,7 +17,7 @@ def main(date_arg=None):
       from datetime import date
       date_arg = date.today().isoformat()
     print(f"Triggering przenies_niezrealizowane for date: {date_arg}")
-    success, message, count = PlanningService.przenies_niezrealizowane(date_arg)
+    success, message, count = PlanningBufferService.przenies_niezrealizowane(date_arg)
     print('RESULT:')
     print('success=', success)
     print('message=', message)

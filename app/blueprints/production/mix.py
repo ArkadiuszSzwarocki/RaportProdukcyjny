@@ -49,7 +49,7 @@ def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=N
     else:
         cursor.execute(
             f"""
-            SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty
+            SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty, typ_produkcji
             FROM {table_plan}
             WHERE data_planu = %s AND sekcja='Workowanie' AND status='w toku'
             ORDER BY kolejnosc ASC
@@ -62,7 +62,7 @@ def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=N
     # 2. Get packaging items (opakowania)
     cursor.execute(
         f"""
-        SELECT id, nazwa, COALESCE(stan_magazynowy, 0) AS stan_magazynowy, gramatura
+        SELECT id, nazwa, COALESCE(stan_magazynowy, 0) AS stan_magazynowy
         FROM {table_opak}
         WHERE linia = 'AGRO'
         ORDER BY nazwa ASC
@@ -92,20 +92,12 @@ def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=N
             palety_kg_wykonane = float(pallet_stats.get('total_kg') or 0)
             palety_count = int(pallet_stats.get('cnt') or 0)
         
-        # Get bag weight from plan's opakowanie
-        cursor.execute(
-            f"""
-            SELECT o.gramatura
-            FROM {table_plan} p
-            LEFT JOIN {table_opak} o ON o.id = p.opakowanie_id
-            WHERE p.id = %s
-            LIMIT 1
-            """,
-            (plan_id,),
-        )
-        opak_row = cursor.fetchone()
-        if opak_row and opak_row.get('gramatura'):
-            bag_kg = float(opak_row['gramatura']) / 1000.0  # convert grams to kg
+        # Get bag weight from plan's typ_produkcji
+        import re as _re
+        typ_prod = str(active_plan.get('typ_produkcji') or '')
+        m = _re.search(r'(\d+)\s*$', typ_prod)
+        if m:
+            bag_kg = float(m.group(1))
     
     # 4. Calculate estimated bags used
     estimated_bags = 0

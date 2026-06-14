@@ -80,16 +80,27 @@ class ProductionQueries:
         else:
             extra_cols = ", NULL as opakowanie_nazwa, NULL as etykieta_nazwa"
 
+        if linia == 'AGRO':
+            date_cond = """(
+                DATE(data_planu) = %s 
+                OR (status IN ('zaplanowane', 'zakonczone', 'wstrzymane') AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY) AND data_planu <= DATE_ADD(%s, INTERVAL 7 DAY))
+                OR (status IN ('w toku', 'zawieszone') AND data_planu >= DATE_SUB(%s, INTERVAL 30 DAY))
+            )"""
+            params = (data_planu, data_planu, data_planu, data_planu, sekcja)
+        else:
+            date_cond = "DATE(data_planu) = %s"
+            params = (data_planu, sekcja)
+
         cursor.execute(
             f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
             f"data_planu, zasyp_id {extra_cols} "
             f"FROM {table_plan} "
-            f"WHERE DATE(data_planu) = %s AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
+            f"WHERE {date_cond} AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
             "kolejnosc ASC, id ASC",
-            (data_planu, sekcja)
+            params
         )
         
         rows = cursor.fetchall()

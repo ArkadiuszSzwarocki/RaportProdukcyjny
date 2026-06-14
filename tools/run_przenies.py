@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from app.services.planning_service import PlanningService
+from app.services.planning.buffer import PlanningBufferService
 from app.db import get_db_connection
 from app.core.factory import create_app
 
@@ -24,8 +24,8 @@ def dump_plans_for_date(date_str):
 
 if __name__ == '__main__':
     source_date = '2026-03-16'
-    print('Calling PlanningService.przenies_niezrealizowane for', source_date)
+    print('Calling PlanningBufferService.przenies_niezrealizowane for', source_date)
     with app.app_context():
-        res = PlanningService.przenies_niezrealizowane(source_date)
+        res = PlanningBufferService.przenies_niezrealizowane(source_date)
         print('\nResult:', res)
         dump_plans_for_date('2026-03-17')

@@ -9,9 +9,7 @@
             <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż ukryte zlecenia</span>
         </button>
         {% endif %}
-        <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-wrs" style="background: #9b59b6; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(155,89,182,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;" data-slide>
-            <span class="material-icons" style="font-size: 20px;">blender</span> Rozliczenie MIX
-        </a>
+
         <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" class="btn-wrs" style="background: #3498db; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(52,152,219,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;">
             <span class="material-icons" style="font-size: 20px;">print</span> Raport
         </a>

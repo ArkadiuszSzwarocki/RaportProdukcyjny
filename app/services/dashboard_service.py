@@ -324,7 +324,7 @@ class DashboardService:
         }
         try:
             from app.services.agro_warehouse_service import AgroWarehouseService
-            active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=dzisiaj)
+            active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=None)
             is_active_plan = bool(active_plan)
             if not active_plan:
                 # If no active plan, try to fetch the last finished plan of the day

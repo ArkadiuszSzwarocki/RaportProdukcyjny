@@ -4,6 +4,7 @@ import os
 import socket
 import time
 import threading
+from datetime import datetime, timedelta
 from flask import current_app
 from app.services.mqtt_service import start_mqtt_bridge
 
@@ -375,7 +376,7 @@ def _ensure_midnight_production_database():
 def _midnight_order_closer(interval_seconds=60):
     """Background thread: at 00:00, closes all unclosed orders from previous days with stop time 15:00."""
     from app.db import get_db_connection
-    from datetime import datetime, date
+    from datetime import datetime, date, timedelta
     
     _safe_log_info('Midnight Order Closer thread started')
     
@@ -394,19 +395,31 @@ def _midnight_order_closer(interval_seconds=60):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                # Close orders for both lines that are overdue (data_planu < today)
-                # Set real_stop to 15:00:00 of that plan date
-                for table in ['plan_produkcji', 'plan_produkcji_agro']:
-                    cursor.execute(f"""
-                        UPDATE {table} 
-                        SET status = 'zakonczone', 
-                            real_stop = CONCAT(data_planu, ' 15:00:00')
-                        WHERE status = 'w toku'
-                          AND data_planu < %s
-                    """, (now.date(),))
-                    
-                    if cursor.rowcount > 0:
-                        _safe_log_info('Auto-closed %s orders in %s', cursor.rowcount, table)
+                yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+                
+                # Close PSD orders that are overdue
+                cursor.execute("""
+                    UPDATE plan_produkcji 
+                    SET status = 'zakonczone', 
+                        real_stop = CONCAT(data_planu, ' 15:00:00')
+                    WHERE status = 'w toku'
+                      AND data_planu < %s
+                """, (now.date(),))
+                
+                if cursor.rowcount > 0:
+                    _safe_log_info('Auto-closed %s orders in plan_produkcji', cursor.rowcount)
+                
+                # Suspend AGRO orders that are overdue instead of closing them
+                cursor.execute("""
+                    UPDATE plan_produkcji_agro 
+                    SET status = 'zawieszone', 
+                        czas_pracy_sekundy = czas_pracy_sekundy + TIMESTAMPDIFF(SECOND, COALESCE(ostatnie_wznowienie, CONCAT(%s, ' 07:00:00')), CONCAT(%s, ' 15:00:00'))
+                    WHERE status = 'w toku'
+                      AND data_planu < %s
+                """, (yesterday_str, yesterday_str, now.date()))
+                
+                if cursor.rowcount > 0:
+                    _safe_log_info('Auto-suspended %s orders in plan_produkcji_agro', cursor.rowcount)
                 
                 conn.commit()
                 conn.close()

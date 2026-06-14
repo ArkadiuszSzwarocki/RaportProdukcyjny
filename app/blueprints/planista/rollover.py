@@ -4,7 +4,7 @@ from flask import current_app, jsonify, request
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import roles_required
-from app.services.planning_service import PlanningService
+from app.services.planning.buffer import PlanningBufferService
 
 
 def register_planista_rollover_routes(planista_bp):
@@ -25,7 +25,7 @@ def register_planista_rollover_routes(planista_bp):
                 return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
 
             linia = data_dict.get('linia') or 'PSD'
-            success, message, count = PlanningService.przenies_niezrealizowane(current_data, linia=linia)
+            success, message, count = PlanningBufferService.przenies_niezrealizowane(current_data, linia=linia)
 
             if success:
                 return jsonify({'success': True, 'message': message, 'count': count}), 200
@@ -70,7 +70,7 @@ def register_planista_rollover_routes(planista_bp):
                 LEFT JOIN {table_plan} w
                     ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
                 WHERE DATE(z.data_planu) = %s
-                  AND z.status = 'zakonczone'
+                  AND LOWER(z.status) IN ('zakonczone', 'zaplanowane', 'zawieszone')
                   AND LOWER(z.sekcja) = 'zasyp'
                   AND COALESCE(z.typ_zlecenia, '') != 'carry_over_ghost'
                 ORDER BY z.id
@@ -309,7 +309,7 @@ def register_planista_rollover_routes(planista_bp):
                 return jsonify({'success': False, 'message': 'Wybierz przynajmniej jedno zlecenie'}), 400
 
             linia = data_dict.get('linia') or 'PSD'
-            success, message, _count = PlanningService.przenies_niezrealizowane(
+            success, message, _count = PlanningBufferService.przenies_niezrealizowane(
                 current_data,
                 plan_ids_to_move=plan_ids,
                 linia=linia,

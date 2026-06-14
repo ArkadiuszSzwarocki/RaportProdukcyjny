@@ -50,14 +50,58 @@
     if (typeof window.safeAlert !== 'function') {
         window.safeAlert = function (title, message) {
             try {
-                if (typeof window.showQuickPopup === 'function') {
-                    window.showQuickPopup(title || '', '<div class="p-10">' + (message || '') + '</div>');
+                if (typeof window.openQuickPopup === 'function') {
+                    window.openQuickPopup('<h3>' + (title || '') + '</h3><div class="p-10">' + (message || '') + '</div>');
                     return;
                 }
-                alert((title ? title + "\n\n" : '') + (message || ''));
-            } catch (e) { alert(message || title || 'Error'); }
+            } catch (e) { console.error('Popup error:', e); }
         };
     }
+
+    document.addEventListener('submit', function(event) {
+        var form = event.target;
+        if (!form || !form.getAttribute) {
+            return;
+        }
+
+        if (form.getAttribute('data-confirm-handled') === 'true') {
+            return;
+        }
+
+        var message = form.getAttribute('data-confirm');
+        if (!message) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (typeof window.openQuickPopup === 'function') {
+            var html = '<h3>Potwierdzenie</h3>' +
+                       '<div class="p-10" style="margin-bottom: 20px;">' + message + '</div>' +
+                       '<div style="display:flex; gap:10px; justify-content:flex-end;">' +
+                       '<button type="button" class="btn-action btn-outline-warning" onclick="window.closeQuickPopup()">Anuluj</button>' +
+                       '<button type="button" class="btn-action btn-success" id="btn-custom-confirm-ok">OK</button>' +
+                       '</div>';
+            window.openQuickPopup(html);
+            
+            // Wait for next tick so modal is rendered
+            setTimeout(function() {
+                var okBtn = document.getElementById('btn-custom-confirm-ok');
+                if (okBtn) {
+                    okBtn.addEventListener('click', function() {
+                        form.setAttribute('data-confirm-handled', 'true');
+                        window.closeQuickPopup();
+                        form.submit();
+                    });
+                }
+            }, 10);
+        } else {
+            if (window.confirm(message)) {
+                form.setAttribute('data-confirm-handled', 'true');
+                form.submit();
+            }
+        }
+    }, false);
 
     /** Function for operators to notify the planner */
     window.notifyPlanner = function(sekcja, linia) {
@@ -278,7 +322,7 @@
         var requiredEtykieta = (form.getAttribute('data-required-etykieta') || '').trim();
 
         if (!requiredFolia || !requiredEtykieta) {
-            alert('❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
+            window.safeAlert('Błąd', '❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
             return;
         }
 
@@ -340,35 +384,6 @@
         var dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = yyyy + '-' + mm + '-' + dd;
 
-        var qualityTitle = document.createElement('div');
-        qualityTitle.textContent = 'Potwierdzenie jakości (druga osoba)';
-        qualityTitle.style.cssText = 'font-weight:700;color:#102a43;margin-top:14px;margin-bottom:4px;box-sizing:border-box;';
-        
-        var rolesHint = document.createElement('div');
-        rolesHint.innerHTML = 'Kto może potwierdzić: <span style="background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-weight:600;font-size:0.85em;white-space:nowrap;">Planista, Lider, Admin, MasterAdmin</span>';
-        rolesHint.style.cssText = 'font-size:0.85rem;color:#334e68;margin-bottom:10px;box-sizing:border-box;line-height:1.4;';
-
-        // Dummy fields to absorb browser auto-fill
-        var dummyUser = document.createElement('input');
-        dummyUser.type = 'text';
-        dummyUser.style.cssText = 'display:none;position:absolute;top:-9999px;left:-9999px;';
-        var dummyPass = document.createElement('input');
-        dummyPass.type = 'password';
-        dummyPass.style.cssText = 'display:none;position:absolute;top:-9999px;left:-9999px;';
-
-        var qualityLogin = document.createElement('input');
-        qualityLogin.type = 'text';
-        qualityLogin.placeholder = 'Login użytkownika jakości';
-        qualityLogin.autocomplete = 'new-password';
-        qualityLogin.value = '';
-        qualityLogin.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:8px;box-sizing:border-box;';
-
-        var qualityPassword = document.createElement('input');
-        qualityPassword.type = 'password';
-        qualityPassword.placeholder = 'Hasło użytkownika jakości';
-        qualityPassword.autocomplete = 'new-password';
-        qualityPassword.value = '';
-        qualityPassword.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:10px;box-sizing:border-box;';
 
         var errorBox = document.createElement('div');
         errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;box-sizing:border-box;';
@@ -396,13 +411,6 @@
                 return;
             }
 
-            var qualityLoginValue = (qualityLogin.value || '').trim();
-            var qualityPasswordValue = qualityPassword.value || '';
-            if (!qualityLoginValue || !qualityPasswordValue) {
-                errorBox.textContent = 'Podaj login i hasło do potwierdzenia jakości.';
-                return;
-            }
-
             var dateValue = (dateInput.value || '').trim();
             if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
                 errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
@@ -410,8 +418,6 @@
             }
 
             setHiddenFormValue(form, 'start_checklist_confirmed', '1');
-            setHiddenFormValue(form, 'quality_login', qualityLoginValue);
-            setHiddenFormValue(form, 'quality_password', qualityPasswordValue);
             setHiddenFormValue(form, 'data_produkcji', dateValue);
 
             overlay.remove();
@@ -432,29 +438,13 @@
         panel.appendChild(checklistBox);
         panel.appendChild(dateLabel);
         panel.appendChild(dateInput);
-        panel.appendChild(qualityTitle);
-        panel.appendChild(rolesHint);
-        panel.appendChild(dummyUser);
-        panel.appendChild(dummyPass);
-        panel.appendChild(qualityLogin);
-        panel.appendChild(qualityPassword);
+
         panel.appendChild(errorBox);
         panel.appendChild(actions);
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
 
-        // Periodically clear values to fight stubborn browser auto-fills on load
-        qualityLogin.value = '';
-        qualityPassword.value = '';
-        setTimeout(function() {
-            qualityLogin.value = '';
-            qualityPassword.value = '';
-            qualityLogin.focus();
-        }, 50);
-        setTimeout(function() {
-            qualityLogin.value = '';
-            qualityPassword.value = '';
-        }, 200);
+
     }
 
     function openAgroProductionDateModal(form, productName) {

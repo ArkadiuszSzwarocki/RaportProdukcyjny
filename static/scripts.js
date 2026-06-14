@@ -1509,6 +1509,13 @@
                 } else {
                     existingM.classList.remove('qp-dosypka-full');
                 }
+                if (opts.maxWidth) {
+                    existingM.style.maxWidth = opts.maxWidth;
+                    existingM.style.width = '100%';
+                } else {
+                    existingM.style.maxWidth = '';
+                    existingM.style.width = '';
+                }
 
                 // Initialize component initializers after content is updated
                 setTimeout(() => {
@@ -1534,6 +1541,10 @@
         if (isDosypkaPopup) {
             m.classList.add('qp-dosypka-full');
         }
+        if (opts.maxWidth) {
+            m.style.maxWidth = opts.maxWidth;
+            m.style.width = '100%';
+        }
 
         var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'
             + '<div class="qp-header-left" style="display:flex;align-items:center;gap:12px;">'
@@ -1553,7 +1564,7 @@
             + '.qp-header .header-title{font-size:18px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;font-family:inherit}'
             + '.qp-header .qp-close{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:#94a3b8;transition:all 0.2s ease;background:#f8fafc;border:none;cursor:pointer}'
             + '.qp-header .qp-close:hover{background:#fee2e2;color:#ef4444;transform:rotate(90deg)}'
-            + '.qp-body{padding:24px;max-height:70vh;overflow:auto;font-size:15px;line-height:1.6;color:#334155;background:#fff;font-family:inherit;scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent}'
+            + '.qp-body{padding:24px;max-height:85vh;overflow:auto;font-size:15px;line-height:1.6;color:#334155;background:#fff;font-family:inherit;scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent}'
             + '.qp-body::-webkit-scrollbar{width:6px}.qp-body::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:10px}'
             + '.qp-body .modern-table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid #f1f5f9}'
             + '.qp-body .modern-table th{background:#f8fafc;color:#64748b;padding:12px 16px;border-bottom:2px solid #f1f5f9;text-align:left;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.05em}'
@@ -1603,7 +1614,7 @@
             const qpBody = m.querySelector('.qp-body');
             if (qpBody) {
                 const mobileMaxHeight = 'calc(100vh - 88px)';
-                const desktopMaxHeight = '60vh';
+                const desktopMaxHeight = '85vh';
                 qpBody.style.maxHeight = qpBody.style.maxHeight || (window.innerWidth <= 768 ? mobileMaxHeight : desktopMaxHeight);
                 qpBody.style.overflow = qpBody.style.overflow || 'auto';
             }

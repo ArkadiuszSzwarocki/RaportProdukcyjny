@@ -1,293 +1,7 @@
 {% extends 'layout.html' %}
 
 {% block extra_css %}
-<style>
-    /* ======= Folio Page Styles ======= */
-    .folio-page {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 20px 16px 40px;
-    }
-
-    .folio-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 24px;
-    }
-
-    .folio-header h1 {
-        font-size: 1.45em;
-        font-weight: 800;
-        color: #1e293b;
-        margin: 0;
-    }
-
-    .folio-header .badge-plan {
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
-        border-radius: 20px;
-        padding: 4px 12px;
-        font-size: 0.82em;
-        color: #475569;
-        font-weight: 600;
-    }
-
-    /* ---- Summary Cards ---- */
-    .folio-summary-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-bottom: 28px;
-    }
-
-    .folio-summary-card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    }
-
-    .folio-summary-card .label {
-        font-size: 0.78em;
-        color: #64748b;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        margin-bottom: 6px;
-    }
-
-    .folio-summary-card .value {
-        font-size: 1.55em;
-        font-weight: 800;
-        color: #1e293b;
-        line-height: 1.1;
-    }
-
-    .folio-summary-card.card-danger .value { color: #dc2626; }
-    .folio-summary-card.card-success .value { color: #16a34a; }
-    .folio-summary-card.card-warn .value { color: #d97706; }
-
-    /* ---- Active Rolls ---- */
-    .section-title {
-        font-size: 0.9em;
-        font-weight: 700;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-        margin: 0 0 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .roll-card {
-        background: #fff;
-        border: 2px solid #dcfce7;
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
-        position: relative;
-    }
-
-    .roll-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 14px;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .roll-card-title {
-        font-size: 1.05em;
-        font-weight: 700;
-        color: #166534;
-    }
-
-    .roll-badge-active {
-        background: #dcfce7;
-        color: #166534;
-        border-radius: 20px;
-        padding: 3px 10px;
-        font-size: 0.75em;
-        font-weight: 700;
-    }
-
-    .roll-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 10px;
-        margin-bottom: 16px;
-    }
-
-    .roll-stat {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 10px 12px;
-        text-align: center;
-    }
-
-    .roll-stat .stat-label {
-        font-size: 0.72em;
-        color: #64748b;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        margin-bottom: 4px;
-    }
-
-    .roll-stat .stat-value {
-        font-size: 1.3em;
-        font-weight: 800;
-        color: #1e293b;
-    }
-
-    .roll-stat.stat-used .stat-value { color: #d97706; }
-    .roll-stat.stat-left .stat-value { color: #2563eb; }
-
-    /* Calculator preview */
-    .roll-calc-box {
-        background: linear-gradient(135deg, #fef9ee 0%, #fff8e1 100%);
-        border: 1px solid #fde68a;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 14px;
-        font-size: 0.88em;
-    }
-
-    .roll-calc-box .calc-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 3px 0;
-        color: #78350f;
-    }
-
-    .roll-calc-box .calc-row.calc-total {
-        border-top: 1px dashed #f59e0b;
-        margin-top: 6px;
-        padding-top: 6px;
-        font-weight: 800;
-        font-size: 1.02em;
-    }
-
-    .roll-calc-box .calc-losses { color: #dc2626; font-weight: 700; }
-
-    /* Close roll form */
-    .close-roll-form {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-radius: 10px;
-        padding: 14px 16px;
-    }
-
-    .close-roll-form .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr auto;
-        gap: 10px;
-        align-items: end;
-    }
-
-    .close-roll-form label {
-        font-size: 0.82em;
-        font-weight: 600;
-        color: #166534;
-        display: block;
-        margin-bottom: 5px;
-    }
-
-    .close-roll-form input[type="number"],
-    .close-roll-form select {
-        width: 100%;
-        border: 1px solid #86efac;
-        border-radius: 8px;
-        padding: 9px 10px;
-        font-size: 0.95em;
-        background: #fff;
-        box-sizing: border-box;
-    }
-
-    .btn-close-roll {
-        background: #16a34a;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 16px;
-        font-weight: 700;
-        cursor: pointer;
-        font-size: 0.9em;
-        white-space: nowrap;
-        transition: background 0.2s;
-    }
-
-    .btn-close-roll:hover { background: #15803d; }
-
-    /* ---- No active plan ---- */
-    .folio-no-plan {
-        text-align: center;
-        padding: 48px 20px;
-        color: #94a3b8;
-    }
-
-    .folio-no-plan .material-icons {
-        font-size: 56px;
-        color: #cbd5e1;
-        display: block;
-        margin-bottom: 12px;
-    }
-
-    /* ---- History Table ---- */
-    .folio-history-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.88em;
-        margin-top: 4px;
-    }
-
-    .folio-history-table th {
-        background: #f1f5f9;
-        color: #475569;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.75em;
-        letter-spacing: 0.4px;
-        padding: 8px 10px;
-        text-align: left;
-        border-bottom: 2px solid #e2e8f0;
-    }
-
-    .folio-history-table td {
-        padding: 8px 10px;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-    }
-
-    .folio-history-table tr:hover td { background: #f8fafc; }
-
-    .badge-zdarzenie {
-        display: inline-block;
-        border-radius: 20px;
-        padding: 2px 9px;
-        font-size: 0.75em;
-        font-weight: 700;
-    }
-
-    .badge-WSADZENIE   { background: #dbeafe; color: #1d4ed8; }
-    .badge-ZAMKNIECIE  { background: #dcfce7; color: #15803d; }
-    .badge-ROZLICZENIE { background: #f3f4f6; color: #374151; }
-    .badge-CZESCIOWE   { background: #fef3c7; color: #92400e; }
-
-    .losses-cell { color: #dc2626; font-weight: 700; }
-
-    @media (max-width: 720px) {
-        .folio-summary-grid { grid-template-columns: 1fr 1fr; }
-        .roll-stats-grid    { grid-template-columns: repeat(3, 1fr); }
-        .close-roll-form .form-row { grid-template-columns: 1fr; }
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agro_folio.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -319,259 +33,30 @@
     </div>
     {% else %}
 
-    <!-- Summary Cards -->
-    <div class="folio-summary-grid">
-        <div class="folio-summary-card">
-            <div class="label">📦 Pobranych</div>
-            <div class="value">{{ summary.suma_pobranych|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
-        </div>
-        <div class="folio-summary-card card-warn">
-            <div class="label">⚙️ Zużyto (licznik)</div>
-            <div class="value">{{ summary.suma_zuzyto|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
-        </div>
-        <div class="folio-summary-card {% if summary.suma_strat > 0 %}card-danger{% else %}card-success{% endif %}">
-            <div class="label">💔 Straty</div>
-            <div class="value">{{ summary.suma_strat|int }} <small style="font-size:0.5em;">szt.</small></div>
-        </div>
-        <div class="folio-summary-card">
-            <div class="label">🔄 Zwrócono</div>
-            <div class="value">{{ summary.suma_pozostalo|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
-        </div>
-    </div>
-
-    <!-- Kontekst produkcji z palet -->
-    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; display: flex; gap: 24px; flex-wrap: wrap; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons" style="color: #3b82f6; font-size: 20px;">local_shipping</span>
-            <div>
-                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Palety w zleceniu</div>
-                <div style="font-size: 1.3em; font-weight: 800; color: #1e293b;">{{ palety_count }} szt.</div>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons" style="color: #8b5cf6; font-size: 20px;">scale</span>
-            <div>
-                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Łączna waga</div>
-                <div style="font-size: 1.3em; font-weight: 800; color: #1e293b;">{{ '%.0f'|format(palety_kg) }} kg</div>
-            </div>
-        </div>
-        {% if bag_kg > 0 %}
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons" style="color: #10b981; font-size: 20px;">inventory_2</span>
-            <div>
-                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">
-                    Worki z palet ({{ bag_kg|int }} kg/worek · {{ active_plan.typ_produkcji }})
-                </div>
-                <div style="font-size: 1.6em; font-weight: 800; color: #1e293b;">{{ worki_z_palet }} szt.</div>
-            </div>
-        </div>
-        {% else %}
-        <div style="font-size: 0.85em; color: #ef4444; font-style: italic;">
-            ⚠️ Brak danych kg/worek — sprawdź pole Typ zlecenia (np. WORKI_ZGRZEWANE_20)
-        </div>
-        {% endif %}
-        <div style="margin-left: auto; font-size: 0.78em; color: #94a3b8; font-style: italic;">
-            Zlecenie #{{ active_plan.id }} · {{ active_plan.produkt }}
-        </div>
-    </div>
-
-    <!-- Dodawanie nowej rolki -->
-    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <p class="section-title" style="margin-top: 0; margin-bottom: 16px;">
-            <span class="material-icons" style="font-size: 20px; color: #3b82f6;">add_circle_outline</span>
-            Pobierz nową rolkę na maszynę
-        </p>
-        <form method="POST" action="{{ url_for('production.agro_folio_add_roll') }}" style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
-            <input type="hidden" name="plan_id" value="{{ active_plan.id }}">
-            <input type="hidden" name="data_planu" value="{{ data_planu }}">
-            
-            <div style="flex: 2; min-width: 250px;">
-                <label for="opakowanie_id" style="display: block; font-size: 0.8em; font-weight: 600; color: #475569; margin-bottom: 6px;">Wybierz folię z magazynu</label>
-                <select id="opakowanie_id" name="opakowanie_id" required style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95em;">
-                    <option value="">-- wybierz folię --</option>
-                    {% for item in available_packaging %}
-                    <option value="{{ item.id }}">
-                        {{ item.nazwa }} ({{ item.lokalizacja }}) — dostępnych: {{ item.stan_magazynowy|int }} szt.
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div style="flex: 1; min-width: 120px;">
-                <label for="ilosc_pobrana" style="display: block; font-size: 0.8em; font-weight: 600; color: #475569; margin-bottom: 6px;">Pobierana ilość (szt.)</label>
-                <input type="number" id="ilosc_pobrana" name="ilosc_pobrana" required min="1" step="1" placeholder="np. 700" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95em;">
-            </div>
-            
-            <button type="submit" style="background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; height: 42px;">
-                <span class="material-icons" style="font-size: 18px;">playlist_add</span>
-                Pobierz na produkcję
-            </button>
-        </form>
-    </div>
-
-    <!-- Aktywne rolki -->
-    {% if active_rolls %}
-    <p class="section-title">
-        <span class="material-icons" style="font-size: 18px; color: #16a34a;">fiber_manual_record</span>
-        Aktywne rolki na maszynie ({{ active_rolls|length }})
-    </p>
-
-    {% for roll in active_rolls %}
-    <div class="roll-card" id="roll-card-{{ roll.link_id }}">
-        <div class="roll-card-header">
-            <div class="roll-card-title">
-                <span class="material-icons" style="font-size: 18px; vertical-align: middle; color: #16a34a;">wrap_text</span>
-                {{ roll.nazwa }}
-            </div>
-            <span class="roll-badge-active">● Aktywna</span>
-        </div>
-
-        <div class="roll-stats-grid">
-            <div class="roll-stat">
-                <div class="stat-label">Pobrano</div>
-                <div class="stat-value">{{ roll.stan_poczatkowy|int }}</div>
-            </div>
-            <div class="roll-stat">
-                <div class="stat-label">Licznik START</div>
-                <div class="stat-value">{{ roll.licznik_start }}</div>
-            </div>
-            <div class="roll-stat">
-                <div class="stat-label">Licznik STOP (live)</div>
-                <div class="stat-value" id="live-stop-{{ roll.link_id }}">{{ roll.current_counter }}</div>
-            </div>
-            <div class="roll-stat stat-used">
-                <div class="stat-label">Zużyte (Δ)</div>
-                <div class="stat-value" id="live-used-{{ roll.link_id }}">{{ roll.live_zuzyte }}</div>
-            </div>
-            <div class="roll-stat stat-left">
-                <div class="stat-label">Zostało (est.)</div>
-                <div class="stat-value" id="live-left-{{ roll.link_id }}">{{ roll.szacowane_pozostalo|int }}</div>
-            </div>
-        </div>
-
-        <!-- Kalkulator strat -->
-        <div class="roll-calc-box" id="calc-box-{{ roll.link_id }}">
-            <div class="calc-row">
-                <span>Pobrano na produkcję:</span>
-                <strong>{{ roll.stan_poczatkowy|int }} szt.</strong>
-            </div>
-            <div class="calc-row">
-                <span>Zużyto (licznik MQTT):</span>
-                <strong id="calc-used-{{ roll.link_id }}">{{ roll.live_zuzyte }} szt.</strong>
-            </div>
-            <div class="calc-row">
-                <span>Wpisano — zostało na rolce:</span>
-                <strong id="calc-remains-{{ roll.link_id }}">— szt.</strong>
-            </div>
-            <div class="calc-row calc-total">
-                <span>Szacowane straty:</span>
-                <span class="losses-cell" id="calc-losses-{{ roll.link_id }}">— szt.</span>
-            </div>
-        </div>
-
-        <!-- Formularz zamknięcia rolki -->
-        <div class="close-roll-form">
-            <form method="POST" action="{{ url_for('production.agro_folio_close_roll') }}"
-                  onsubmit="return confirmCloseRoll(this)">
-                <input type="hidden" name="link_id" value="{{ roll.link_id }}">
-                <input type="hidden" name="data_planu" value="{{ data_planu }}">
-                <div class="form-row">
-                    <div>
-                        <label for="pozostalo_{{ roll.link_id }}">Pozostało na rolce (szt.)</label>
-                        <input type="number" id="pozostalo_{{ roll.link_id }}" name="pozostalo_szt"
-                               min="0" step="1" placeholder="np. 100"
-                               oninput="updateCalc({{ roll.link_id }}, {{ roll.stan_poczatkowy|int }}, {{ roll.live_zuzyte }}, this.value)">
-                    </div>
-                    <div>
-                        <label for="lokalizacja_{{ roll.link_id }}">Lokalizacja zwrotu</label>
-                        <select id="lokalizacja_{{ roll.link_id }}" name="lokalizacja_zwrotu" required>
-                            <option value="">-- wybierz --</option>
-                            {% for lok in lokalizacje_zwrotu %}
-                            <option value="{{ lok }}">{{ lok }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <button type="submit" class="btn-close-roll">
-                            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check_circle</span>
-                            Zamknij rolkę
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    {% endfor %}
-
-    {% else %}
-    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 28px; text-align: center; margin-bottom: 24px;">
-        <span class="material-icons" style="color: #94a3b8; font-size: 36px;">wrap_text</span>
-        <p style="color: #64748b; margin: 8px 0 0; font-size: 0.95em;">Brak aktywnych rolek na maszynie.<br>Dobij rolkę z widoku magazynu AGRO.</p>
-    </div>
-    {% endif %}
-
-    <!-- Historia rolek -->
-    <p class="section-title" style="margin-top: 24px;">
-        <span class="material-icons" style="font-size: 18px; color: #64748b;">history</span>
-        Historia rolek — zlecenie #{{ active_plan.id }}
-    </p>
-
-    {% if history %}
-    <div style="overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff;">
-        <table class="folio-history-table">
-            <thead>
-                <tr>
-                    <th>Typ</th>
-                    <th>Opakowanie</th>
-                    <th>START</th>
-                    <th>STOP</th>
-                    <th>Pobrano</th>
-                    <th>Zużyto (Δ)</th>
-                    <th>Zostało</th>
-                    <th style="color: #dc2626;">Straty</th>
-                    <th>Lokalizacja zwrotu</th>
-                    <th>Czas</th>
-                    <th>Operator</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in history %}
-                <tr>
-                    <td>
-                        <span class="badge-zdarzenie badge-{{ row.typ_zdarzenia or 'ROZLICZENIE' }}">
-                            {{ row.typ_zdarzenia or 'ROZLICZENIE' }}
-                        </span>
-                    </td>
-                    <td>{{ row.opakowanie_nazwa }}</td>
-                    <td>{{ row.licznik_start }}</td>
-                    <td>{{ row.licznik_stop }}</td>
-                    <td>{{ row.stan_przed|int }}</td>
-                    <td>{{ row.zuzyte_worki|int }}</td>
-                    <td>{{ row.pozostalo_na_rolce|int }}</td>
-                    <td class="{% if (row.straty_worki or 0) > 0 %}losses-cell{% endif %}">
-                        {% if (row.straty_worki or 0) > 0 %}
-                            ⚠️ {{ row.straty_worki|int }}
-                        {% else %}
-                            —
-                        {% endif %}
-                    </td>
-                    <td>{{ row.lokalizacja_zwrotu or '—' }}</td>
-                    <td style="white-space: nowrap;">
-                        {{ row.created_at.strftime('%d.%m %H:%M') if row.created_at else '—' }}
-                    </td>
-                    <td>{{ row.autor_login or '—' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div style="text-align: center; padding: 24px; color: #94a3b8; font-style: italic; font-size: 0.9em;">
-        Brak historii rolek dla tego zlecenia.
-    </div>
-    {% endif %}
-
+    
+    {% include 'agro/components/_folio_simulator.html' %}
+    {% include 'agro/components/_folio_summary.html' %}
+    {% include 'agro/components/_folio_add_form.html' %}
+    {% include 'agro/components/_folio_active_rolls.html' %}
+    {% include 'agro/components/_folio_history_table.html' %}
     {% endif %}{# end if active_plan #}
+    <!-- Custom Modal for Roll Close -->
+    <div id="folio-confirm-modal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+        <div class="custom-modal-content animate__animated animate__zoomIn" style="background: #ffffff; width: 100%; max-width: 450px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 10px; background: #f8fafc;">
+                <span class="material-icons" style="color: #f59e0b; font-size: 28px;">warning_amber</span>
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b;">Potwierdź zamknięcie</h3>
+            </div>
+            <div style="padding: 24px; font-size: 1rem; color: #334155; line-height: 1.5;" id="folio-confirm-text">
+                Czy na pewno chcesz zamknąć rolkę?
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 12px; background: #f8fafc;">
+                <button type="button" onclick="window.closeFolioConfirmModal()" class="btn-action btn-outline-secondary" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; border: 1px solid #cbd5e1; background: #fff; color: #475569;">Anuluj</button>
+                <button type="button" id="folio-confirm-ok-btn" class="btn-action btn-success" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; background: #27ae60; color: #fff; border: none;">ZAMKNIJ ROLKĘ</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -602,12 +87,30 @@
     // Expose globally for inline oninput handlers
     window.updateCalc = updateCalc;
 
+    var formToSubmit = null;
+
+    window.closeFolioConfirmModal = function() {
+        document.getElementById('folio-confirm-modal').style.display = 'none';
+        formToSubmit = null;
+    };
+
+    document.getElementById('folio-confirm-ok-btn').addEventListener('click', function() {
+        if (formToSubmit) {
+            formToSubmit.submit();
+        }
+    });
+
     // ---- Potwierdzenie zamknięcia rolki ----
-    function confirmCloseRoll(form) {
+    function confirmCloseRoll(event, form) {
+        if (event) event.preventDefault();
         var pozostaloInput = form.querySelector('input[name="pozostalo_szt"]');
         var pozostalo = parseFloat(pozostaloInput ? pozostaloInput.value : 0) || 0;
-        var msg = 'Zamknąć rolkę? Pozostałe ' + Math.round(pozostalo) + ' szt. zostaną zwrócone do magazynu.';
-        return window.confirm(msg);
+        var msg = 'Zamknąć rolkę? Pozostałe <strong style="color:#d97706;">' + Math.round(pozostalo) + ' szt.</strong> zostaną zwrócone do magazynu.';
+        
+        document.getElementById('folio-confirm-text').innerHTML = msg;
+        document.getElementById('folio-confirm-modal').style.display = 'flex';
+        formToSubmit = form;
+        return false;
     }
     window.confirmCloseRoll = confirmCloseRoll;
 

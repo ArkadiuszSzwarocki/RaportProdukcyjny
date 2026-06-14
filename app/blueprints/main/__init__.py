@@ -181,7 +181,8 @@ def index():
         plan_dnia = main_h_data.get('plan_dnia', [])
         if plan_dnia:
             for p in plan_dnia:
-                if len(p) > 3 and str(p[3]).strip().lower() == 'w toku':
+                status = str(p[3]).strip().lower()
+                if len(p) > 3 and status in ['w toku', 'zawieszone']:
                     has_active_order = True
                     break
 

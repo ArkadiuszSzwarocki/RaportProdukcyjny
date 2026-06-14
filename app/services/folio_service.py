@@ -67,7 +67,7 @@ class FolioService:
 
                 # Zużycie z licznika MQTT
                 live_zuzyte = 0
-                if current_counter > 0 and licznik_start > 0 and current_counter > licznik_start:
+                if current_counter >= 0 and licznik_start >= 0 and current_counter >= licznik_start:
                     live_zuzyte = current_counter - licznik_start
 
                 szacowane_pozostalo = max(stan_poczatkowy - live_zuzyte, 0)
@@ -100,7 +100,7 @@ class FolioService:
                        r.stan_przed, r.zuzyte_worki, r.stan_po,
                        r.straty_worki, r.pozostalo_na_rolce,
                        r.lokalizacja_zwrotu, r.licznik_start, r.licznik_stop,
-                       r.autor_login, r.created_at
+                       r.link_id, r.autor_login, r.created_at
                 FROM agro_workowanie_rozliczenie r
                 WHERE r.plan_id = %s
                 ORDER BY r.created_at ASC
@@ -143,32 +143,21 @@ class FolioService:
             conn.close()
 
     @staticmethod
-    def close_roll(
-        link_id: int,
-        pozostalo_szt: float,
-        lokalizacja_zwrotu: str,
-        user_login: str,
-    ) -> tuple[bool, Optional[str]]:
+    def close_roll(link_id: int, pozostalo_szt: float, user_login: str, custom_licznik_start=None, custom_licznik_stop=None) -> tuple[bool, str]:
         """
-        Zamknięcie rolki przez operatora.
-
-        Args:
-            link_id: ID rekordu agro_plan_opakowania
-            pozostalo_szt: Ile sztuk zostało na rolce (wpisane przez operatora)
-            lokalizacja_zwrotu: Lokalizacja do której trafi reszta (np. 'Magazyn folie')
-            user_login: Login operatora
-
-        Returns:
-            (success: bool, error_message: str | None)
+        Zamyka aktywną rolkę folii.
+        - Zapisuje stan końcowy w `agro_plan_opakowania`.
+        - Przywraca do magazynu `pozostalo_szt` (status: DO_ZWROTU).
+        - Zapisuje log w `agro_workowanie_rozliczenie` jako 'ZAMKNIECIE'.
+        - Zapisuje ruch magazynowy 'ZWROT_Z_PRODUKCJI'.
         """
         conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
         try:
-            cursor = conn.cursor(dictionary=True)
-
-            # 1. Pobierz dane linku
+            # 1. Pobierz dane podpięcia i rolki
             cursor.execute(
                 """
-                SELECT ap.id, ap.plan_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.licznik_start,
+                SELECT ap.plan_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.licznik_start,
                        o.nazwa AS opak_nazwa, o.stan_magazynowy AS stan_na_maszynie
                 FROM agro_plan_opakowania ap
                 JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
@@ -184,19 +173,29 @@ class FolioService:
             opakowanie_id = link['opakowanie_id']
             opak_nazwa = link.get('opak_nazwa') or ''
             stan_poczatkowy = float(link.get('stan_poczatkowy') or 0)
+            
             licznik_start = int(link.get('licznik_start') or 0)
+            if custom_licznik_start is not None:
+                licznik_start = custom_licznik_start
+                
             pozostalo_szt = max(float(pozostalo_szt), 0)
 
             # 2. Pobierz aktualny licznik MQTT (stop)
-            licznik_stop = _get_mqtt_counter()
+            if custom_licznik_stop is not None:
+                licznik_stop = custom_licznik_stop
+            else:
+                licznik_stop = _get_mqtt_counter()
 
             # 3. Wylicz zużycie z licznika i straty
             zuzyte_licznik = 0
-            if licznik_stop > 0 and licznik_start > 0 and licznik_stop > licznik_start:
+            if licznik_stop >= 0 and licznik_start >= 0 and licznik_stop >= licznik_start:
                 zuzyte_licznik = licznik_stop - licznik_start
 
-            # Straty = pobranych - zużyto_licznikiem - pozostało
-            straty = max(stan_poczatkowy - zuzyte_licznik - pozostalo_szt, 0)
+            # Fizyczne zużycie folii (ile faktycznie zniknęło z rolki)
+            fizycznie_zuzyto = stan_poczatkowy - pozostalo_szt
+            
+            # Straty = to co fizycznie zniknęło z rolki MINUS to co faktycznie maszyna wybiła na liczniku
+            straty = max(fizycznie_zuzyto - zuzyte_licznik, 0)
 
             # 4. Pobierz metadane zlecenia
             cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
@@ -208,44 +207,31 @@ class FolioService:
                 (pozostalo_szt, link_id)
             )
 
-            # 6. Zeruj stan na maszynie (rolka opuszcza maszynę)
-            cursor.execute(
-                "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'ZUŻYTE' WHERE id = %s",
-                (opakowanie_id,)
-            )
-
-            # 7. Jeśli zostało coś na rolce — zwróć do magazynu
-            if pozostalo_szt > 0 and lokalizacja_zwrotu and lokalizacja_zwrotu.strip():
-                # Sprawdź czy jest już wpis dla tej samej nazwy i lokalizacji
+            # 6. Zaktualizuj stan na maszynie (pozostaje na Maszynie)
+            if pozostalo_szt > 0:
                 cursor.execute(
-                    "SELECT id, stan_magazynowy FROM magazyn_opakowania WHERE nazwa = %s AND lokalizacja = %s LIMIT 1",
-                    (opak_nazwa, lokalizacja_zwrotu)
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'Maszyna', updated_at = NOW() WHERE id = %s",
+                    (pozostalo_szt, opakowanie_id)
                 )
-                existing = cursor.fetchone()
-                if existing:
-                    cursor.execute(
-                        "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, updated_at = NOW() WHERE id = %s",
-                        (pozostalo_szt, existing['id'])
-                    )
-                else:
-                    cursor.execute(
-                        "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
-                        (opak_nazwa, pozostalo_szt, lokalizacja_zwrotu)
-                    )
+            else:
+                cursor.execute(
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'ZUŻYTE', updated_at = NOW() WHERE id = %s",
+                    (opakowanie_id,)
+                )
 
-            # 8. Ruch magazynowy: ZWROT_Z_PRODUKCJI
+            # 8. Ruch magazynowy: ODPIECIE_OD_ZLECENIA
             table_ruch = get_table_name('magazyn_ruch', 'AGRO')
             try:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} "
                     "(surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                    "VALUES (%s, 'ZWROT_Z_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                    "VALUES (%s, 'ODPIECIE_OD_ZLECENIA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
                     (
                         opakowanie_id,
                         pozostalo_szt,
                         pozostalo_szt,
                         user_login,
-                        f"Zamknięcie rolki (plan #{plan_id}), zwrot na: {lokalizacja_zwrotu or 'brak'}",
+                        f"Zamknięcie rolki (plan #{plan_id}), pozostawiono na: Maszyna",
                     )
                 )
             except Exception as ruch_ex:
@@ -265,21 +251,12 @@ class FolioService:
                 (
                     plan_id, p_meta['data_planu'], p_meta['produkt'],
                     opakowanie_id, opak_nazwa,
-                    stan_poczatkowy, zuzyte_licznik, pozostalo_szt,
-                    straty, pozostalo_szt, lokalizacja_zwrotu or '',
+                    stan_poczatkowy, fizycznie_zuzyto, pozostalo_szt,
+                    straty, pozostalo_szt, 'Maszyna' if pozostalo_szt > 0 else '',
                     licznik_start, licznik_stop,
                     link_id, user_login,
                 )
             )
-
-            # 10. Zaktualizuj uszkodzone_worki w planie AGRO
-            try:
-                cursor.execute(
-                    "UPDATE plan_produkcji_agro SET uszkodzone_worki = COALESCE(uszkodzone_worki, 0) + %s WHERE id = %s",
-                    (int(straty), plan_id)
-                )
-            except Exception:
-                pass
 
             conn.commit()
             return True, None
@@ -304,3 +281,124 @@ class FolioService:
             'current_counter': current_counter,
             'active_rolls': rolls,
         }
+
+    @staticmethod
+    def undo_close_roll(rozliczenie_id: int, user_login: str) -> tuple[bool, str | None]:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT id, plan_id, opakowanie_id, straty_worki, link_id, pozostalo_na_rolce
+                FROM agro_workowanie_rozliczenie 
+                WHERE id = %s AND typ_zdarzenia = 'ZAMKNIECIE'
+            """, (rozliczenie_id,))
+            roz = cursor.fetchone()
+            if not roz:
+                return False, 'Nie znaleziono zamknięcia (lub wpis nie jest typu ZAMKNIĘCIE).'
+
+            plan_id = roz['plan_id']
+            opak_id = roz['opakowanie_id']
+            link_id = roz['link_id']
+            straty = float(roz['straty_worki'] or 0)
+
+            # Re-activate the roll link
+            if link_id:
+                cursor.execute(
+                    "UPDATE agro_plan_opakowania SET is_active = TRUE, stan_koncowy = NULL WHERE id = %s",
+                    (link_id,)
+                )
+
+            # Bring it back to Maszyna
+            cursor.execute(
+                "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna', updated_at = NOW() WHERE id = %s",
+                (opak_id,)
+            )
+
+            # Subtract from defective bags if needed
+            if straty > 0:
+                cursor.execute(
+                    "UPDATE plan_produkcji_agro SET uszkodzone_worki = GREATEST(COALESCE(uszkodzone_worki, 0) - %s, 0) WHERE id = %s",
+                    (int(straty), plan_id)
+                )
+
+            # Delete the movement log
+            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+            cursor.execute(f"""
+                DELETE FROM {table_ruch}
+                WHERE surowiec_id = %s AND typ_ruchu = 'ZWROT_Z_PRODUKCJI'
+                ORDER BY id DESC LIMIT 1
+            """, (opak_id,))
+
+            # Delete the history row
+            cursor.execute("DELETE FROM agro_workowanie_rozliczenie WHERE id = %s", (rozliczenie_id,))
+
+            conn.commit()
+            return True, None
+        except Exception as e:
+            try: conn.rollback()
+            except: pass
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def edit_active_roll(link_id: int, new_amount: float, user_login: str) -> tuple[bool, str | None]:
+        """Korekta ilości pobranej (wsadzenia) dla aktywnej rolki na maszynie."""
+        if new_amount <= 0:
+            return False, "Ilość musi być większa od zera."
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # Find the active roll link
+            cursor.execute("SELECT plan_id, opakowanie_id, stan_poczatkowy FROM agro_plan_opakowania WHERE id = %s AND is_active = TRUE", (link_id,))
+            link = cursor.fetchone()
+            if not link:
+                return False, "Nie znaleziono aktywnego podpięcia na maszynie."
+
+            opakowanie_id = link['opakowanie_id']
+            old_amount = float(link['stan_poczatkowy'] or 0)
+            diff = new_amount - old_amount
+
+            if diff == 0:
+                return True, None
+
+            # Check warehouse if diff > 0
+            if diff > 0:
+                cursor.execute("SELECT stan_magazynowy FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+                magazyn = cursor.fetchone()
+                if not magazyn or float(magazyn['stan_magazynowy'] or 0) < diff:
+                    return False, f"Brak wystarczającej ilości w magazynie do pobrania dodatkowych {diff} szt."
+
+            # Update link
+            cursor.execute("UPDATE agro_plan_opakowania SET stan_poczatkowy = %s WHERE id = %s", (new_amount, link_id))
+
+            # Update history row 'WSADZENIE'
+            cursor.execute("""
+                UPDATE agro_workowanie_rozliczenie 
+                SET stan_przed = %s 
+                WHERE link_id = %s AND typ_zdarzenia = 'WSADZENIE'
+            """, (new_amount, link_id))
+
+            # Update warehouse
+            cursor.execute("""
+                UPDATE magazyn_opakowania 
+                SET stan_magazynowy = stan_magazynowy - %s, updated_at = NOW() 
+                WHERE id = %s
+            """, (diff, opakowanie_id))
+
+            # Add movement
+            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+            cursor.execute(f"""
+                INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, status, autor_login, autor_data, komentarz)
+                VALUES (%s, 'KOREKTA', %s, 'POTWIERDZONE', %s, NOW(), %s)
+            """, (opakowanie_id, diff, user_login, f"Korekta wsadu rolki z {old_amount} na {new_amount} (różnica: {diff} szt.)"))
+
+            conn.commit()
+            return True, None
+        except Exception as e:
+            try: conn.rollback()
+            except: pass
+            return False, str(e)
+        finally:
+            conn.close()

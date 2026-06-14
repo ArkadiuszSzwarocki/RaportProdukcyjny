@@ -23,8 +23,16 @@
 
             <div>
                 {% if rola in ['lider', 'admin', 'masteradmin'] %}
+                {% if linia == 'AGRO' %}
+                <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" class="inline-block" style="display: inline-block;">
+                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                    <input type="hidden" name="linia" value="AGRO">
+                    <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                    <button type="submit" class="btn-action btn-warning">⏸ Zawieś (Pauza)</button>
+                </form>
+                {% endif %}
                 <form action="/koniec_zlecenie/{{ p[0] }}" method="POST"
-                    onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
+                    data-confirm="Czy na pewno ZAKOŃCZYĆ to zlecenie?" style="display: inline-block;">
                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
                     <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                     <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
@@ -78,8 +86,9 @@
                     {% for p in plan if p[3] != 'w toku' %}
                     <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
                         <div class="card-header">
-                            {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>{% elif
-                            p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
+                            {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
+                            {% elif p[3] == 'zawieszone' %}<span class="status-badge" style="background-color: #f59e0b; color: white;">ZASTOPOWANE</span>
+                            {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
                             <strong class="card-title">{{ p[1] }}</strong>
                         </div>
 
@@ -108,12 +117,13 @@
                         </div>
 
                         <div class="card-actions">
-                            {% if p[3] == 'zaplanowane' and rola in ['admin', 'masteradmin', 'lider', 'produkcja'] %}
+                            {% if p[3] in ['zaplanowane', 'zawieszone'] and rola in ['admin', 'masteradmin', 'lider', 'produkcja'] %}
                             {% if not queue.first_found %}
                                 {% set queue.first_found = true %}
                                 <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                                     <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                                    <button type="submit" class="btn-start">▶ START</button>
+                                    <input type="hidden" name="linia" value="{{ linia }}">
+                                    <button type="submit" class="btn-start">▶ {% if p[3] == 'zawieszone' %}WZNÓW{% else %}START{% endif %}</button>
                                 </form>
                             {% else %}
                                 <div class="text-muted small p-10 text-center" style="background: #f8f9fa; border-radius: 4px; border: 1px dashed #ccc;">
@@ -123,7 +133,7 @@
                             {% endif %}
                             {% if p[3] != 'zakonczone' and rola in ['admin', 'masteradmin', 'lider'] %}
                             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST"
-                                onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                                data-confirm="Wznowić {{ p[1]|e }}?">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="Zasyp">
                                 <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
@@ -188,7 +198,7 @@
     </script>
 
     {% if plan and rola != 'planista' and not aktywne %}
-    <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');">
+    <form action="/start_przejscie" method="POST" data-confirm="Rozpocząć PRZEJŚCIE?">
         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
         <button type="submit" class="btn-changeover">🔁 ZACZNIJ PRZEJŚCIE</button>
     </form>

@@ -450,21 +450,7 @@
         toggleAutoSzarzaMode(checkbox);
     }
 
-    function handleDocumentSubmit(event) {
-        var form = event.target;
-        if (!form || !form.getAttribute) {
-            return;
-        }
 
-        var message = form.getAttribute('data-confirm');
-        if (!message) {
-            return;
-        }
-
-        if (!global.confirm(message)) {
-            event.preventDefault();
-        }
-    }
 
     function init() {
         if (initialized) {
@@ -475,7 +461,7 @@
         initDebugLogging();
         document.addEventListener('click', handleDocumentClick, false);
         document.addEventListener('change', handleDocumentChange, false);
-        document.addEventListener('submit', handleDocumentSubmit, false);
+
 
         applyAutoSzarzaMode();
         closeAllModals();

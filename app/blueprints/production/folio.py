@@ -50,15 +50,14 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                            start_machine_counter, stop_machine_counter, opakowanie_id,
                            typ_produkcji
                     FROM {table_plan}
-                    WHERE data_planu = %s AND sekcja = 'Workowanie' AND status = 'w toku'
-                    ORDER BY real_start DESC
+                    WHERE sekcja = 'Workowanie' AND status IN ('w toku', 'zawieszone')
+                    ORDER BY FIELD(status, 'w toku', 'zawieszone') ASC, real_start DESC
                     LIMIT 1
-                    """,
-                    (data_planu,),
+                    """
                 )
             active_plan = cursor.fetchone()
 
-            # Jeśli brak aktywnego — szukaj ostatniego zakończonego z danego dnia
+            # Jeśli brak aktywnego globally — szukaj pierwszego zaplanowanego lub ostatniego zakończonego z danego dnia
             if not active_plan:
                 cursor.execute(
                     f"""
@@ -66,7 +65,7 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                            start_machine_counter, stop_machine_counter, opakowanie_id
                     FROM {table_plan}
                     WHERE data_planu = %s AND sekcja = 'Workowanie'
-                    ORDER BY FIELD(status, 'w toku', 'zakonczone', 'zaplanowane') ASC, real_stop DESC
+                    ORDER BY FIELD(status, 'zaplanowane', 'w toku', 'zawieszone', 'zakonczone') ASC, real_stop DESC, id ASC
                     LIMIT 1
                     """,
                     (data_planu,),
@@ -87,6 +86,37 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 history = FolioService.get_plan_folio_history(plan_id)
                 summary = FolioService.get_plan_folio_summary(plan_id)
 
+                # Włącz zużycie na żywo dla aktywnych rolek do podsumowania (top card) i historii
+                for roll in active_rolls:
+                    live_zuzyte = roll.get('live_zuzyte', 0)
+                    summary['suma_zuzyto'] += live_zuzyte
+                    
+                    # Filtrujemy zdarzenia WSADZENIE dla tego aktywnego linku
+                    wsadzenia = [h for h in history if h.get('typ_zdarzenia') == 'WSADZENIE' and h.get('link_id') == roll.get('link_id')]
+                    # Upewniamy się, że są posortowane rosnąco po czasie
+                    wsadzenia.sort(key=lambda x: x.get('created_at', ''))
+                    
+                    for i in range(len(wsadzenia)):
+                        h = wsadzenia[i]
+                        start = int(h.get('licznik_start') or 0)
+                        
+                        # Jeśli to nie jest ostatnie wsadzenie, stopem jest start następnego wsadzenia
+                        if i < len(wsadzenia) - 1:
+                            stop = int(wsadzenia[i+1].get('licznik_start') or 0)
+                        else:
+                            # Ostatnie wsadzenie kończy się na bieżącym liczniku
+                            stop = roll.get('current_counter', start)
+                        
+                        # Zabezpieczenie przed ujemnym zużyciem
+                        if stop < start:
+                            stop = start
+                            
+                        zuzyte_segment = stop - start
+                        h['licznik_stop'] = stop
+                        h['zuzyte_worki'] = zuzyte_segment
+                        h['stan_po'] = max(float(h.get('stan_przed') or 0) - zuzyte_segment, 0)
+                        h['pozostalo_na_rolce'] = h['stan_po']
+
                 # Palety dla tego zlecenia
                 cursor.execute(
                     """
@@ -100,12 +130,18 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 palety_count = int(pallet_row.get('cnt') or 0)
                 palety_kg = float(pallet_row.get('total_kg') or 0)
 
-                # Parsuj kg/worek z typ_produkcji (np. WORKI_ZGRZEWANE_20 → 20)
                 import re as _re
                 typ_prod = str(active_plan.get('typ_produkcji') or '')
                 m = _re.search(r'(\d+)\s*$', typ_prod)
                 bag_kg = float(m.group(1)) if m else 0.0
                 worki_z_palet = int(palety_kg / bag_kg) if bag_kg > 0 and palety_kg > 0 else 0
+
+                # Obliczamy na żywo brakujące "zepsute worki"
+                # (to co maszyna wybiła na liczniku MINUS to co faktycznie jest na paletach)
+                defective_bags = max(summary['suma_zuzyto'] - worki_z_palet, 0)
+                
+                # Straty całkowite to: Straty folii (z bazy z zamkniętych rolek) + uszkodzone worki na żywo
+                summary['suma_strat'] += defective_bags
 
             # Dostępne opakowania w magazynie (filtrowane po zapotrzebowaniu ze zlecenia)
             available_packaging = []
@@ -119,7 +155,9 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                     cursor.execute("""
                         SELECT id, nazwa, stan_magazynowy, lokalizacja 
                         FROM magazyn_opakowania 
-                        WHERE stan_magazynowy > 0 AND nazwa = %s
+                        WHERE nazwa = %s 
+                          AND stan_magazynowy > 0 
+                          AND IFNULL(lokalizacja, '') NOT IN ('', 'None', 'Maszyna', 'ZUZYTE', 'ZUŻYTE', 'DO_ZWROTU')
                         ORDER BY nazwa ASC
                     """, (req_opak['nazwa'],))
                     available_packaging = cursor.fetchall()
@@ -130,6 +168,7 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                     SELECT id, nazwa, stan_magazynowy, lokalizacja 
                     FROM magazyn_opakowania 
                     WHERE stan_magazynowy > 0 
+                      AND IFNULL(lokalizacja, '') NOT IN ('', 'None', 'Maszyna', 'ZUZYTE', 'ZUŻYTE', 'DO_ZWROTU')
                     ORDER BY nazwa ASC
                 """)
                 available_packaging = cursor.fetchall()
@@ -161,9 +200,12 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
         """Zamknięcie rolki przez operatora."""
         link_id = request.form.get('link_id', type=int)
         pozostalo_szt = request.form.get('pozostalo_szt', 0)
-        lokalizacja_zwrotu = request.form.get('lokalizacja_zwrotu', '').strip()
         data_planu = request.form.get('data_planu', str(date.today()))
-
+        
+        # New custom counters
+        licznik_start_input = request.form.get('licznik_start')
+        licznik_stop_input = request.form.get('licznik_stop')
+        
         if not link_id:
             flash('❌ Błąd: brak identyfikatora rolki.', 'danger')
             return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
@@ -172,20 +214,27 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
             pozostalo_szt = float(str(pozostalo_szt).replace(',', '.'))
         except (ValueError, TypeError):
             pozostalo_szt = 0.0
-
-        if not lokalizacja_zwrotu:
-            flash('❌ Wybierz lokalizację zwrotu rolki.', 'danger')
-            return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
+            
+        custom_licznik_start = None
+        custom_licznik_stop = None
+        try:
+            if licznik_start_input is not None:
+                custom_licznik_start = int(licznik_start_input)
+            if licznik_stop_input is not None:
+                custom_licznik_stop = int(licznik_stop_input)
+        except ValueError:
+            pass
 
         ok, err = FolioService.close_roll(
             link_id=link_id,
             pozostalo_szt=pozostalo_szt,
-            lokalizacja_zwrotu=lokalizacja_zwrotu,
             user_login=session.get('login', 'System'),
+            custom_licznik_start=custom_licznik_start,
+            custom_licznik_stop=custom_licznik_stop
         )
 
         if ok:
-            flash(f'✅ Rolka zamknięta. Zwrócono {pozostalo_szt:.0f} szt. na: {lokalizacja_zwrotu}.', 'success')
+            flash(f'✅ Rolka zamknięta. Pozostało {pozostalo_szt:.0f} szt. (rolka pozostała na maszynie).', 'success')
         else:
             flash(f'❌ Błąd zamknięcia rolki: {err}', 'danger')
 
@@ -220,6 +269,48 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
             flash(f'✅ Nowa rolka ({ilosc_pobrana} szt.) została dodana na maszynę.', 'success')
         else:
             flash(f'❌ Błąd dodawania rolki: {err}', 'danger')
+
+        return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
+
+    @production_bp.route('/agro/folio/undo_close_roll', methods=['POST'])
+    @login_required
+    @roles_required('lider', 'admin', 'pracownik', 'zarzad')
+    def agro_folio_undo_close_roll():
+        """Cofnięcie operacji zamknięcia rolki."""
+        rozliczenie_id = request.form.get('rozliczenie_id', type=int)
+        data_planu = request.form.get('data_planu', str(date.today()))
+
+        if not rozliczenie_id:
+            flash('❌ Błąd: Brak ID operacji do cofnięcia.', 'danger')
+            return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
+
+        ok, err = FolioService.undo_close_roll(rozliczenie_id, session.get('login', 'System'))
+        
+        if ok:
+            flash('✅ Operacja zamknięcia rolki została cofnięta.', 'success')
+        else:
+            flash(f'❌ Błąd cofania operacji: {err}', 'danger')
+
+        return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
+
+    @production_bp.route('/agro/folio/edit_active_roll', methods=['POST'])
+    @login_required
+    @roles_required('lider', 'admin', 'pracownik', 'zarzad')
+    def agro_folio_edit_active_roll():
+        """Korekta wsadzenia dla aktywnej rolki na maszynie."""
+        link_id = request.form.get('link_id', type=int)
+        new_amount = request.form.get('new_amount', type=float)
+        data_planu = request.form.get('data_planu', str(date.today()))
+
+        if not link_id or not new_amount:
+            flash('❌ Błąd: Brak ID rolki lub nowej ilości.', 'danger')
+            return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
+
+        ok, err = FolioService.edit_active_roll(link_id, new_amount, session.get('login', 'System'))
+        if ok:
+            flash(f'✅ Zaktualizowano wsadzenie aktywnej rolki na {new_amount} szt.', 'success')
+        else:
+            flash(f'❌ Błąd korekty rolki: {err}', 'danger')
 
         return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
 

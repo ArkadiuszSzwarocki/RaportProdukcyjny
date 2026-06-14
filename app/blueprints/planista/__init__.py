@@ -16,7 +16,7 @@ from app.db import get_db_connection, get_table_name
 from .rollover import register_planista_rollover_routes
 from app.dto.paleta import PaletaDTO
 from app.services.notification_service import notify_workers_about_plan_change
-from app.services.planning_service import PlanningService
+# removed PlanningService
 from datetime import date, datetime, timedelta
 from app.decorators import roles_required, dynamic_role_required
 

@@ -476,3 +476,58 @@ def register_api_runtime_routes(api_bp):
         except Exception as error:
             current_app.logger.exception('[PUSH] Error removing subscription: %s', error)
             return jsonify({'success': False, 'message': str(error)}), 500
+
+    @api_bp.route('/mqtt_simulate', methods=['POST'])
+    @login_required
+    def mqtt_simulate():
+        """Dodaje sztuczne wartości do liczników MQTT w celu testowania (w tym rozliczenia folii)."""
+        # Dostępne tylko dla masteradmin / admin
+        rola = (session.get('rola') or '').lower()
+        if rola not in ['masteradmin', 'admin', 'planista', 'lider']:
+            return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
+
+        try:
+            data = request.get_json() or {}
+            add_counter = int(data.get('add_counter', 0))
+            add_pallets = int(data.get('add_pallets', 0))
+            
+            from app.services.mqtt_service import simulate_machine_data, get_latest_data
+            from app.db import get_db_connection
+            
+            latest = get_latest_data()
+            current = latest.get('counter', 0)
+            
+            # Jeśli serwer został zrestartowany, licznik in-memory to 0. Musimy go najpierw "podciągnąć" 
+            # pod licznik_start aktywnych rolek, żeby przyrost był widoczny.
+            if current < 10:
+                conn = get_db_connection()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT MAX(licznik_start) FROM agro_plan_opakowania WHERE is_active = TRUE")
+                    max_start = cursor.fetchone()[0]
+                    if max_start and current < max_start:
+                        current = max_start
+                        simulate_machine_data(add_counter=(max_start - latest.get('counter', 0)))
+                except Exception:
+                    pass
+                finally:
+                    conn.close()
+
+            simulate_machine_data(add_counter=add_counter, add_pallets=add_pallets)
+            
+            latest = get_latest_data()
+            current_app.logger.info(
+                f"[MQTT-SIM] Użytkownik {session.get('login')} dodał {add_counter} worków. "
+                f"Nowy stan: counter={latest.get('counter')}, pallet={latest.get('pallet_counter')}"
+            )
+            return jsonify({
+                'success': True, 
+                'message': f'Zasymulowano produkcję: dodano {add_counter} worków.',
+                'new_state': {
+                    'counter': latest.get('counter'),
+                    'pallet_counter': latest.get('pallet_counter')
+                }
+            })
+        except Exception as error:
+            current_app.logger.error('[MQTT-SIM] Error: %s', error)
+            return jsonify({'success': False, 'message': str(error)}), 400

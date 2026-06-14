@@ -1082,7 +1082,7 @@ class AgroWarehouseService:
             base_query = (
                 f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, "
                 f"start_pallet_counter, opakowanie_id "
-                f"FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
+                f"FROM {table_plan} WHERE status IN ('w toku', 'zawieszone') AND sekcja='Workowanie'"
             )
 
             if target_date:
@@ -1229,13 +1229,25 @@ class AgroWarehouseService:
                 stan_po = float(res['stan_po'])
                 
                 # Fetch linking record
-                cursor.execute("SELECT opakowanie_id, stan_poczatkowy FROM agro_plan_opakowania WHERE id = %s", (link_id,))
+                cursor.execute("SELECT opakowanie_id, stan_poczatkowy, licznik_start FROM agro_plan_opakowania WHERE id = %s", (link_id,))
                 link_row = cursor.fetchone()
                 if not link_row: continue
                 
                 opak_id = link_row['opakowanie_id']
                 stan_przed = float(link_row['stan_poczatkowy'])
-                zuzycie = max(stan_przed - stan_po, 0)
+                old_start = int(link_row.get('licznik_start') or 0)
+                # Since plan is closed, we can try to find stop_machine_counter
+                cursor.execute("SELECT stop_machine_counter FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                p_cnt_row = cursor.fetchone()
+                old_stop = int(p_cnt_row.get('stop_machine_counter') or 0) if p_cnt_row else 0
+                
+                if old_stop > old_start and old_start > 0:
+                    zuzycie = old_stop - old_start
+                else:
+                    zuzycie = max(stan_przed - stan_po, 0)
+                    if old_stop == 0:
+                        old_stop = old_start + int(zuzycie)
+                
                 total_consumed += zuzycie
                 
                 # Update link record
@@ -1256,12 +1268,14 @@ class AgroWarehouseService:
                     INSERT INTO agro_workowanie_rozliczenie (
                         plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
                         stan_przed, wyprodukowano_szt, szt_na_palecie, palety_kg_wykonane,
-                        zuzyte_worki, stan_po, autor_login
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        zuzyte_worki, stan_po, autor_login,
+                        licznik_start, licznik_stop, typ_zdarzenia, link_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ZAMKNIECIE', %s)
                 """, (
                     plan_id, data_planu, produkt, opak_id, opak_nazwa,
                     stan_przed, palety_count, szt_na_palecie, total_kg,
-                    zuzycie, stan_po, user_login
+                    zuzycie, stan_po, user_login,
+                    old_start, old_stop, link_id
                 ))
                 
                 # Log to movement history
@@ -1274,14 +1288,11 @@ class AgroWarehouseService:
                     )
                 except: pass
             
-            # 4. Calculate total waste (damaged bags)
-            cursor.execute("SELECT start_machine_counter, stop_machine_counter FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
-            counters_row = cursor.fetchone()
-            if counters_row and counters_row['start_machine_counter'] > 0 and counters_row['stop_machine_counter'] > 0:
-                total_pulled = max(counters_row['stop_machine_counter'] - counters_row['start_machine_counter'], 0)
-                uszkodzone = max(total_pulled - expected_bags, 0)
-            else:
-                uszkodzone = max(total_consumed - expected_bags, 0)
+            # 4. Calculate total waste (damaged bags) based on GLOBAL machine usage
+            cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) as sum_z FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND typ_zdarzenia = 'ZAMKNIECIE'", (plan_id,))
+            z_row = cursor.fetchone()
+            total_pulled = float(z_row['sum_z'] if z_row else 0)
+            uszkodzone = max(total_pulled - expected_bags, 0)
             
             # 5. Update plan record
             cursor.execute(f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s", (int(uszkodzone), plan_id))
@@ -1313,9 +1324,17 @@ class AgroWarehouseService:
             nazwa = new_row['nazwa']
             lokalizacja = new_row['lokalizacja']
             
+            # Zdobądźmy aktualny licznik MQTT przed pętlą, bo będzie potrzebny do zamykania starych rolek
+            mqtt_licznik_start = 0
+            try:
+                from app.services.mqtt_service import get_latest_data
+                mqtt_licznik_start = int(get_latest_data().get('counter', 0) or 0)
+            except Exception:
+                pass
+
             # 2. Find any active links for this plan (to close them or carry over)
             cursor.execute("""
-                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, o.nazwa 
+                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, o.nazwa, ap.licznik_start
                 FROM agro_plan_opakowania ap
                 JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
                 WHERE ap.plan_id = %s AND ap.is_active = TRUE
@@ -1326,79 +1345,60 @@ class AgroWarehouseService:
             
             for al in active_links:
                 if al['nazwa'] == nazwa:
-                    # Same material name: calculate remaining qty on the fly and carry it over!
-                    # Fetch plan metadata
-                    cursor.execute("SELECT start_machine_counter, typ_produkcji, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
-                    plan_row = cursor.fetchone()
-                    live_total_pulled = 0
-                    if plan_row:
-                        table_palety = get_table_name('palety_workowanie', 'AGRO')
-                        cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(waga), 0) AS total_kg FROM {table_palety} WHERE plan_id = %s", (plan_id,))
-                        totals_row = cursor.fetchone() or {'cnt': 0, 'total_kg': 0}
-                        palety_count = int(totals_row.get('cnt') or 0)
-                        palety_kg_wykonane = float(totals_row.get('total_kg') or 0.0)
-                        
-                        bag_kg = 25.0
-                        typ_prod = plan_row['typ_produkcji'] or ''
-                        kg_match = re.search(r'(\d+)', typ_prod)
-                        if kg_match:
-                            bag_kg = float(kg_match.group(1))
-                        else:
-                            produkt_nazwa = str(plan_row['produkt'] or '').lower()
-                            if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
-                                bag_kg = 20.0
-                                
-                        estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
-                        live_total_pulled = estimated_bags
-                        
-                        start_machine_counter = int(plan_row['start_machine_counter'] or 0)
-                        try:
-                            from app.services.mqtt_service import get_latest_data
-                            latest_d = get_latest_data()
-                            current_counter = latest_d.get('counter', 0)
-                            if current_counter > start_machine_counter and start_machine_counter > 0:
-                                live_total_pulled = current_counter - start_machine_counter
-                        except:
-                            pass
-                            
-                    cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) AS total_zuzyte FROM agro_workowanie_rozliczenie WHERE plan_id = %s", (plan_id,))
-                    already_logged_row = cursor.fetchone()
-                    already_logged = float(already_logged_row.get('total_zuzyte') or 0) if already_logged_row else 0.0
+                    # Zamiast zamykać starą rolkę, po prostu powiększamy pulę aktywnej folii
+                    # Licznik start zostaje bez zmian (ten z pierwszej rolki)!
+                    # Rejestrujemy tylko zdarzenie WSADZENIE w historii.
                     
-                    stan_poczatkowy_al = float(al['stan_poczatkowy'] or 0)
-                    live_usage_for_roll = max(live_total_pulled - already_logged, 0)
-                    remaining = max(stan_poczatkowy_al - live_usage_for_roll, 0)
-                    
-                    carryover_qty += remaining
-                    
-                    # Close the old active link with stan_koncowy = remaining
-                    cursor.execute(
-                        "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
-                        (remaining, al['link_id'])
-                    )
-                    
-                    # Log to settlement history (agro_workowanie_rozliczenie)
-                    zuzycie_al = max(stan_poczatkowy_al - remaining, 0)
                     cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
                     p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+                    
+                    ilosc_docelowa = float(ilosc_pobrana) if ilosc_pobrana is not None else stan_poczatkowy_nowego
+                    
+                    c_counter = 0
+                    try:
+                        from app.services.mqtt_service import get_latest_data
+                        c_counter = int(get_latest_data().get('counter', 0) or 0)
+                    except: pass
+                    
+                    # Update existing active link -> add the new amount
+                    cursor.execute(
+                        "UPDATE agro_plan_opakowania SET stan_poczatkowy = stan_poczatkowy + %s WHERE id = %s",
+                        (ilosc_docelowa, al['link_id'])
+                    )
+                    
+                    # Log WSADZENIE in history for this specific roll addition
                     cursor.execute("""
                         INSERT INTO agro_workowanie_rozliczenie (
                             plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                            stan_przed, zuzyte_worki, stan_po, autor_login
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            stan_przed, zuzyte_worki, stan_po, autor_login,
+                            licznik_start, licznik_stop, typ_zdarzenia, link_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, %s, %s, 'WSADZENIE', %s)
                     """, (
-                        plan_id, p_meta['data_planu'], p_meta['produkt'], al['opakowanie_id'], al['nazwa'],
-                        stan_poczatkowy_al, zuzycie_al, remaining, user_login or 'System'
+                        plan_id, p_meta['data_planu'], p_meta['produkt'], opakowanie_id, nazwa,
+                        ilosc_docelowa, ilosc_docelowa, user_login or 'System',
+                        c_counter, c_counter, al['link_id']
                     ))
                     
-                    # Move to history table and delete from current
+                    # Odejmujemy ze stanu w magazynie i zapisujemy ruch magazynowy POBRANIE_DO_PRODUKCJI
+                    stan_pozostaly = stan_poczatkowy_nowego - ilosc_docelowa
+                    if stan_pozostaly > 0:
+                        cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
+                    else:
+                        cursor.execute(
+                            "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna' WHERE id = %s",
+                            (opakowanie_id,)
+                        )
+                        
+                    table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                     cursor.execute(
-                        "INSERT INTO magazyn_opakowania_historia (oryginalny_id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia) "
-                        "SELECT id, nr_palety, nazwa, 0, 'ZUŻYTE', nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia "
-                        "FROM magazyn_opakowania WHERE id = %s",
-                        (al['opakowanie_id'],)
+                        f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                        "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System',
+                         f"Dobrana rolka na produkcję AGRO (lok: {lokalizacja}) plan #{plan_id}")
                     )
-                    cursor.execute("DELETE FROM magazyn_opakowania WHERE id = %s", (al['opakowanie_id'],))
+                    
+                    conn.commit()
+                    return True, None
                 else:
                     # Different material: close it with 0 left and ZUŻYTE
                     stan_poczatkowy_al = float(al['stan_poczatkowy'] or 0)
@@ -1409,14 +1409,22 @@ class AgroWarehouseService:
                     
                     cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
                     p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+                    
+                    old_start = int(al.get('licznik_start') or 0)
+                    old_stop = mqtt_licznik_start if mqtt_licznik_start > old_start else old_start
+                    zuzyte_worki = old_stop - old_start
+                    straty = max(stan_poczatkowy_al - zuzyte_worki, 0)
+                    
                     cursor.execute("""
                         INSERT INTO agro_workowanie_rozliczenie (
                             plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                            stan_przed, zuzyte_worki, stan_po, autor_login
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            stan_przed, zuzyte_worki, stan_po, autor_login,
+                            licznik_start, licznik_stop, typ_zdarzenia, link_id, straty_worki
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ZAMKNIECIE', %s, %s)
                     """, (
                         plan_id, p_meta['data_planu'], p_meta['produkt'], al['opakowanie_id'], al['nazwa'],
-                        stan_poczatkowy_al, stan_poczatkowy_al, 0.0, user_login or 'System'
+                        stan_poczatkowy_al, zuzyte_worki, 0.0, user_login or 'System',
+                        old_start, old_stop, al['link_id'], straty
                     ))
                     
                     cursor.execute(
@@ -1437,13 +1445,7 @@ class AgroWarehouseService:
                     
             target_opakowanie_id = opakowanie_id
             
-            # Odczytaj aktualny licznik MQTT przy wsadzeniu rolki
-            mqtt_licznik_start = 0
-            try:
-                from app.services.mqtt_service import get_latest_data
-                mqtt_licznik_start = int(get_latest_data().get('counter', 0) or 0)
-            except Exception:
-                pass
+            # Licznik MQTT odczytany wcześniej
 
             if 0 < ilosc_docelowa < stan_poczatkowy_nowego:
                 # Rozdzielenie partii (utworzenie nowego rekordu dla maszyny, zostawienie reszty na starym)
@@ -1939,7 +1941,7 @@ class AgroWarehouseService:
     def auto_register_pallet(plan_id, linia='AGRO', source_instance=None):
         """Automatically registers a 1000kg pallet for a given plan."""
         from app.utils.pallet_id import generate_pallet_id
-        from app.services.planning_service import PlanningService
+        # removed PlanningService
         from app.core.audit import audit_log
         
         table_plan = get_table_name('plan_produkcji', linia)
@@ -2034,8 +2036,9 @@ class AgroWarehouseService:
             conn.commit()
             
             # Ensure status is updated (e.g. from 'w toku' to 'zakonczone' if target reached, though usually stays 'w toku')
+            from app.services.planning.status import PlanningStatusService
             try:
-                PlanningService.ensure_status_after_tonaz_update(plan_id, linia=linia)
+                PlanningStatusService.ensure_status_after_tonaz_update(plan_id, linia=linia)
             except Exception:
                 pass
 

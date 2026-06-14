@@ -1325,19 +1325,25 @@ def raport_palet():
             SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
                    z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
                    w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,
-                   z.typ_produkcji as zasyp_typ_produkcji
+                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
-            WHERE w.data_planu = %s AND w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+            WHERE w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
         """
-        params = [data_planu]
+        params = []
         
         if plan_id:
             query += " AND w.id = %s"
             params.append(plan_id)
+        else:
+            query += " AND w.data_planu = %s"
+            params.append(data_planu)
             
         cursor.execute(query, tuple(params))
         plans = cursor.fetchall()
+        
+        if plan_id and plans:
+            data_planu = str(plans[0]['data_planu'])
 
         report_data = []
         product_typ_cache = {}

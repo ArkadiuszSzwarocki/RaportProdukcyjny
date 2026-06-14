@@ -4,7 +4,8 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import hall_restricted, roles_required, masteradmin_required
-from app.services.planning_service import PlanningService
+from app.services.planning.status import PlanningStatusService
+from app.services.planning.mutation import PlanningMutationService
 
 
 def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
@@ -59,7 +60,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         data_planu = request.form.get('data_planu') or request.args.get('data') or str(date.today())
 
         current_app.logger.info('[REANIMATE] id=%s linia=%s sekcja=%s data=%s user=%s role=%s', id, linia, sekcja, data_planu, session.get('login'), session.get('rola'))
-        success, message = PlanningService.resume_plan(id, linia=linia)
+        success, message = PlanningStatusService.resume_plan(id, linia=linia)
         flash(message, 'success' if success else 'warning')
         return redirect(_build_context_return_url(linia, sekcja, data_planu))
 
@@ -69,7 +70,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
     def przywroc_usunietego_zlecenia(id):
         """Restore a deleted plan."""
         linia = request.args.get('linia') or request.form.get('linia', 'PSD')
-        success, message = PlanningService.restore_plan(id, linia=linia)
+        success, message = PlanningStatusService.restore_plan(id, linia=linia)
         return jsonify({'success': success, 'message': message}), 200 if success else 500
 
     @planning_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
@@ -84,7 +85,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
             flash('Nie podano statusu', 'warning')
             return redirect(return_url_builder())
 
-        success, message = PlanningService.change_status(id, status, linia=linia)
+        success, message = PlanningStatusService.change_status(id, status, linia=linia)
         flash(message, 'success' if success else 'warning')
         return redirect(return_url_builder())
 
@@ -102,7 +103,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
 
         current_app.logger.info(f'[PLAN-DELETE] Request to delete plan ID={id} (linia={linia}, tab={tab}, data={data_planu})')
 
-        success, message = PlanningService.delete_plan(id, linia=linia)
+        success, message = PlanningMutationService.delete_plan(id, linia=linia)
 
         if success:
             flash(message, 'success')

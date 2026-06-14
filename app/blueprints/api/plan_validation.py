@@ -13,9 +13,9 @@ def register_api_plan_validation_routes(api_bp):
     def validate_plan_anomalies():
         """Scan and fix plan anomalies for production plans."""
         try:
-            from app.services.planning_service import PlanningService
+            from app.services.planning.status import PlanningStatusService
 
-            success, message, fixed_count = PlanningService.validate_and_fix_anomalies()
+            success, message, fixed_count = PlanningStatusService.validate_and_fix_anomalies()
             return jsonify(
                 {
                     'success': success,

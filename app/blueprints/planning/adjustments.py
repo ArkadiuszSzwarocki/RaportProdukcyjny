@@ -7,7 +7,7 @@ from app.core.audit import audit_log
 from app.db import get_db_connection, get_plan_notification_context, get_table_name, log_plan_history
 from app.decorators import hall_restricted, roles_required, masteradmin_required
 from app.services.plan_movement_service import PlanMovementService
-from app.services.planning_service import PlanningService
+from app.services.planning.mutation import PlanningMutationService
 from app.services.notification_service import notify_workers_about_plan_change
 
 
@@ -23,19 +23,9 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             flash('Nowa data jest wymagana.', 'warning')
             return redirect(return_url_builder())
 
-        try:
-            block_conn = get_db_connection()
-            block_cursor = block_conn.cursor()
-            block_cursor.execute(f"SELECT data_planu FROM {get_table_name('plan_produkcji', linia)} WHERE id=%s", (id,))
-            row = block_cursor.fetchone()
-            block_conn.close()
-            if row and str(row[0]) < str(date.today()):
-                flash('Nie można przenosić zleceń z poprzednich dni.', 'warning')
-                return redirect(return_url_builder())
-        except Exception:
-            pass
 
-        success, message = PlanningService.reschedule_plan(id, nowa_data, linia=linia)
+
+        success, message = PlanningMutationService.reschedule_plan(id, nowa_data, linia=linia)
         flash(message, 'success' if success else 'warning')
         return redirect(return_url_builder())
 
@@ -108,9 +98,8 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if row[1] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
-                    flash('Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są do tego uprawnienia', 'warning')
-                    return redirect(return_url_builder())
+                flash('Edytowanie zakończonego zlecenia jest zakazane', 'warning')
+                return redirect(return_url_builder())
             elif row[1] == 'w toku':
                 if current_role in ['planista', 'lider']:
                     if not is_tonaz_only:
@@ -263,8 +252,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if before[5] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
-                    return jsonify({'success': False, 'message': 'Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są uprawnienia'}), 403
+                return jsonify({'success': False, 'message': 'Edytowanie zakończonego zlecenia jest zakazane'}), 403
 
             if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad', 'lider']:
                 if not is_tonaz_only:
@@ -514,19 +502,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         except Exception:
             return jsonify({'success': False, 'message': 'Błąd ID'}), 400
 
-        if not from_bufor:
-            try:
-                block_conn = get_db_connection()
-                block_cursor = block_conn.cursor()
-                block_cursor.execute(f"SELECT data_planu FROM {get_table_name('plan_produkcji', linia)} WHERE id=%s", (pid,))
-                row = block_cursor.fetchone()
-                block_conn.close()
-                if row and str(row[0]) < str(date.today()):
-                    return jsonify({'success': False, 'message': 'Nie można przenosić zleceń z poprzednich dni.'}), 400
-            except Exception:
-                pass
-
-        success, message = PlanningService.reschedule_plan(pid, to_date, linia=linia)
+        success, message = PlanningMutationService.reschedule_plan(pid, to_date, linia=linia)
         if success:
             audit_log('Przesunął zlecenie', f'ID={pid}, nowa data={to_date}')
             current_app.logger.info('Przesunięto zlecenie ID=%s na %s przez %s', pid, to_date, session.get('login'))
@@ -586,7 +562,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         current_app.logger.info('Usuwanie zlecenia ID=%s przez %s', id, session.get('login'))
 
         try:
-            success, message = PlanningService.delete_plan(id, linia=linia)
+            success, message = PlanningMutationService.delete_plan(id, linia=linia)
             current_app.logger.info('Wynik usunięcia zlecenia ID=%s: %s', id, message)
 
             if success:

@@ -29,14 +29,6 @@
                     background: #fff; padding: 8px 12px; margin-bottom: 8px; font-size: 0.88em;
                 }
             </style>
-            <div class="work-form">
-                <h3 style="margin-top: 0;"><span class="material-icons">inventory_2</span> Bieżący bilans worków (na żywo)</h3>
-                <div class="ctx-box">
-                    <div class="ctx-row"><span>Wykonano palet:</span><strong>{{ (wrctx.palety_count or 0) }} szt. / {{ (wrctx.palety_kg_wykonane or 0)|round(2) }} kg</strong></div>
-                    <div class="ctx-row"><span>Waga worka (typ):</span><strong>{{ (wrctx.bag_kg or 25.0) }} kg</strong></div>
-                    <div class="ctx-row"><span>Teoret. zużycie:</span><strong>{{ (wrctx.estimated_bags or 0)|int }} szt.</strong></div>
-                </div>
-            </div>
 
             <!-- Sekcja: Materiały pod bieżącą produkcję -->
             <div class="work-form" style="margin-top: 15px; border-color: #2ecc71; box-shadow: 0 4px 16px rgba(46,204,113,0.08);">

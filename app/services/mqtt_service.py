@@ -22,6 +22,11 @@ _latest_machine_data = {
     "recent_errors": [],
 }
 
+_simulated_offsets = {
+    "counter": 0,
+    "pallet_counter": 0
+}
+
 
 def _safe_env_int(name, default):
     try:
@@ -139,7 +144,9 @@ def on_message(client, userdata, msg):
 
             if "agroPakowaczka" in topic:
                 _latest_machine_data["bpm"] = _first_or_default(payload_data.get("wydajnoscAktualna"), 0)
-                _latest_machine_data["counter"] = _first_or_default(payload_data.get("licznikGlobalny"), 0)
+                
+                real_counter = _first_or_default(payload_data.get("licznikGlobalny"), 0)
+                _latest_machine_data["counter"] = real_counter + _simulated_offsets["counter"]
 
                 status_val = _first_or_default(payload_data.get("status"), 0)
                 _latest_machine_data["status"] = "PRACA" if status_val == 4 else ("STOP" if status_val == 0 else str(status_val))
@@ -152,7 +159,8 @@ def on_message(client, userdata, msg):
                 _latest_machine_data["is_wrapped"] = bool(wrapped)
 
             elif "agroPaletyzator" in topic:
-                _latest_machine_data["pallet_counter"] = _first_or_default(payload_data.get("licznikPalet_global"), 0)
+                real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), 0)
+                _latest_machine_data["pallet_counter"] = real_pallets + _simulated_offsets["pallet_counter"]
 
     except Exception as exc:
         _append_error(f"on_message exception: {exc}")
@@ -203,3 +211,18 @@ def start_mqtt_bridge():
 def get_latest_data():
     with _data_lock:
         return deepcopy(_latest_machine_data)
+
+def simulate_machine_data(add_counter=0, add_pallets=0, set_status="PRACA"):
+    """
+    Służy do symulacji pracy maszyny bez fizycznego podłączenia do MQTT.
+    Pozwala m.in. przetestować rozliczanie zużycia folii.
+    """
+    with _data_lock:
+        _simulated_offsets["counter"] += add_counter
+        _simulated_offsets["pallet_counter"] += add_pallets
+        
+        _latest_machine_data["counter"] += add_counter
+        _latest_machine_data["pallet_counter"] += add_pallets
+        if set_status:
+            _latest_machine_data["status"] = set_status
+        _latest_machine_data["last_update"] = time.time()

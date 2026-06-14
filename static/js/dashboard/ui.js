@@ -280,7 +280,7 @@
                 var month = String(currentDate.getMonth() + 1).padStart(2, '0');
                 var year = String(currentDate.getFullYear()).slice(-2);
                 dateDisplay.textContent = day + '.' + month + '.' + year;
-                updateWpisyForDate(newDateStr);
+                window.location.href = "?sekcja=" + document.querySelector("[data-sekcja]").getAttribute("data-sekcja") + "&linia=" + (document.querySelector("[data-linia]") ? document.querySelector("[data-linia]").getAttribute("data-linia") : "") + "&data=" + newDateStr;
             });
         });
     }
