@@ -95,61 +95,14 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         }
 
                 if sekcja in ('Workowanie', 'Czyszczenie'):
-                    # Role is normalized here to avoid case/whitespace mismatches.
-                    if role_lc in ('planista', 'admin', 'zarzad'):
-                        current_app.logger.debug(f'[KOLEJKA] bypass for role={role_lc} plan_id={id} produkt={produkt}')
-                    else:
-                        try:
-                            table_bufor = get_table_name('bufor', linia)
-                            current_app.logger.debug(f'[KOLEJKA] start_zlecenie check id={id} produkt="{produkt}" data_planu={data_planu}')
-
-                            cursor.execute(
-                                f"""
-                                SELECT MIN(b.kolejka)
-                                FROM {table_bufor} b
-                                WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
-                                  AND EXISTS (
-                                      SELECT 1 FROM {table_plan} w
-                                      WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('zaplanowane', 'w toku')
-                                        AND w.produkt = b.produkt AND w.data_planu = b.data_planu
-                                  )
-                                """,
-                                (data_planu,),
-                            )
-                            min_q_row = cursor.fetchone()
-                            global_min_queue = min_q_row[0] if min_q_row else None
-
-                            if global_min_queue is not None:
-                                cursor.execute(
-                                    f"""
-                                    SELECT kolejka FROM {table_bufor}
-                                    WHERE produkt = %s AND DATE(data_planu) = %s AND status = 'aktywny'
-                                    """,
-                                    (produkt, data_planu),
-                                )
-                                my_q_row = cursor.fetchone()
-                                my_q = my_q_row[0] if my_q_row else None
-
-                                if my_q is not None and my_q > global_min_queue:
-                                    cursor.execute(
-                                        f"SELECT produkt FROM {table_bufor} WHERE kolejka = %s AND status = 'aktywny' AND DATE(data_planu) = %s LIMIT 1",
-                                        (global_min_queue, data_planu),
-                                    )
-                                    earliest_row = cursor.fetchone()
-                                    earliest_produkt = earliest_row[0] if earliest_row else '?'
-
-                                    # Bypass FIFO for selected roles
-                                    role_lc = str(session.get('rola') or '').strip().lower()
-                                    can_bypass = role_lc in ['admin', 'lider', 'planista', 'zarzad']
-
-                                    if not can_bypass:
-                                        flash(
-                                            f"❌ Kolejkowanie Workowanie: W buforze znajduje się produkt przewidziany wcześniej do startu: {earliest_produkt}. Zalecana kolejność FIFO.",
-                                            'error',
-                                        )
-                                        return redirect(bezpieczny_powrot())
-                        except Exception as e:
-                            current_app.logger.exception('[KOLEJKA] FIFO check failed: %s', e)
+                    from app.services.workowanie_validation_service import WorkowanieValidationService
+                    
+                    is_valid, error_msg = WorkowanieValidationService.validate_start(
+                        plan_id=id, linia=linia, sekcja=sekcja, produkt=produkt, data_planu=data_planu, role_lc=role_lc
+                    )
+                    if not is_valid:
+                        flash(error_msg, 'error')
+                        return redirect(bezpieczny_powrot())
 
                 if status_obecny != 'w toku':
                     quality_login_used = None

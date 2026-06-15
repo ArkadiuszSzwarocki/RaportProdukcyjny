@@ -1,5 +1,5 @@
 {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
-{% if sekcja == 'Zasyp' %}
+{% if sekcja == 'Zasyp' and linia == 'AGRO' %}
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 {% set target_plans = [p] if p is defined and p else plan %}
 {% for p in target_plans %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
