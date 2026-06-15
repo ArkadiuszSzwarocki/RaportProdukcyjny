@@ -364,7 +364,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 except Exception as _sync_err:
                     current_app.logger.warning('[SYNC] Błąd synchronizacji tonaz Workowania: %s', _sync_err)
 
-            if linia == 'AGRO' and sekcja == 'Workowanie':
+            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
                 cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
                 if cursor.fetchone()[0] > 0:
                     flash('❌ Nie można zakończyć zlecenia: najpierw zamknij aktywną folię.', 'error')
@@ -474,7 +474,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             except Exception:
                 pass
 
-        if linia == 'AGRO' and sekcja == 'Workowanie':
+        if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
             return redirect(url_for('agro_warehouse.raport_palet', plan_id=id))
 
         return redirect(bezpieczny_powrot())
@@ -523,7 +523,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if row:
                 produkt, tonaz_rzeczywisty = row[0], row[1]
                 
-            if linia == 'AGRO' and sekcja == 'Workowanie':
+            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
                 cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
                 if cursor.fetchone()[0] > 0:
                     # Zamiast przekierowania (które psuje data-slide), renderujemy ten sam szablon z przekazanym błędem
@@ -538,7 +538,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 pass
 
         linked_packaging = []
-        if linia == 'AGRO' and sekcja == 'Workowanie':
+        if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
             from app.services.agro_warehouse_service import AgroWarehouseService
             linked_packaging = AgroWarehouseService.get_linked_packaging(id)
 

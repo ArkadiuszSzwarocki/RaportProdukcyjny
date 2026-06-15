@@ -63,7 +63,7 @@
             <strong>{{ tonaz if tonaz is not none else '0' }} kg</strong>?
         </p>
 
-        {% if sekcja == 'Workowanie' and linia|upper != 'AGRO' %}
+        {% if sekcja in ('Workowanie', 'Czyszczenie') and linia|upper != 'AGRO' %}
         <div class="koniec-zlecenie-warning-box">
             <label class="koniec-zlecenie-warning-label">
                 ⚠️ Rozliczenie zużycia opakowań
