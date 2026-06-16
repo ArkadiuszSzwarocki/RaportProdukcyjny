@@ -1346,8 +1346,23 @@ def raport_palet():
             query += " AND w.id = %s"
             params.append(plan_id)
         else:
-            query += " AND w.data_planu = %s"
-            params.append(data_planu)
+            # Parse data_planu to date object
+            if isinstance(data_planu, str):
+                try:
+                    dt = datetime.strptime(data_planu, '%Y-%m-%d').date()
+                except Exception:
+                    dt = date.today()
+            else:
+                dt = data_planu
+            
+            from datetime import timedelta
+            start_of_week = dt - timedelta(days=dt.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+            
+            query += " AND w.data_planu >= %s AND w.data_planu <= %s"
+            params.extend([start_of_week, end_of_week])
+            
+        query += " ORDER BY w.data_planu ASC, w.id ASC"
             
         cursor.execute(query, tuple(params))
         plans = cursor.fetchall()
@@ -1521,9 +1536,37 @@ def raport_palet():
                 'total_mix_kg': sum(m['waga_kg'] or 0 for m in mixes_summary)
             })
 
-        # If it's a selection call (header button without plan_id)
-        if not plan_id and len(plans) > 1 and request.args.get('select') == '1':
-            return render_template('agro_warehouse/raport_palet_select.html', plans=plans, data_planu=data_planu, is_ajax=is_ajax)
+        # If it's a selection call (without plan_id)
+        if not plan_id and len(plans) > 1:
+            for p in plans:
+                if p.get('data_planu'):
+                    if hasattr(p['data_planu'], 'strftime'):
+                        p['data_planu_fmt'] = p['data_planu'].strftime('%d.%m.%Y')
+                    else:
+                        p['data_planu_fmt'] = str(p['data_planu'])
+                else:
+                    p['data_planu_fmt'] = ''
+                p['produkt_nazwa'] = p.get('produkt', '')
+
+            # Parse data_planu to date object to compute week start/end for display
+            if isinstance(data_planu, str):
+                try:
+                    dt = datetime.strptime(data_planu, '%Y-%m-%d').date()
+                except Exception:
+                    dt = date.today()
+            else:
+                dt = data_planu
+            
+            from datetime import timedelta
+            start_of_week = dt - timedelta(days=dt.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+
+            return render_template('agro_warehouse/raport_palet_select.html', 
+                                   plans=plans, 
+                                   data_planu=data_planu, 
+                                   start_of_week=start_of_week.strftime('%d.%m.%Y'),
+                                   end_of_week=end_of_week.strftime('%d.%m.%Y'),
+                                   is_ajax=is_ajax)
 
         return render_template('agro_warehouse/raport_palet.html', 
                                report_data=report_data, 

@@ -68,7 +68,7 @@
         </a>
 
         {% if role_has_access('agro.pallet_report') %}
-        <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj) }}" 
+        <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" 
            class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
             Raport Palet AGRO
         </a>

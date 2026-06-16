@@ -294,6 +294,7 @@
         removeOpenStopParam();
         bindClosePopupActions();
         bindSlideLinks();
+        bindDateNavigation();
     }
 
     global.openQuickPopup = openQuickPopup;
