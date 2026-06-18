@@ -99,7 +99,12 @@
             {% elif p[3] == 'zawieszone' %}
             {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+                    data-start-checklist="1"
+                    data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
+                    data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                {% endif %}
+                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                 <input type="hidden" name="linia" value="{{ linia }}">
                 <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>
