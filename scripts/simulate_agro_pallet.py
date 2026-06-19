@@ -3,7 +3,7 @@ import time
 import paho.mqtt.client as mqtt
 
 # Konfiguracja identyczna jak w aplikacji
-MQTT_HOST = "176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud"
+MQTT_HOST = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 MQTT_USER = "Lstech"
 MQTT_PW = "Lstech123"
