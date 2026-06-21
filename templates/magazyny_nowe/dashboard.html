@@ -67,7 +67,7 @@ var allWarehouseItems = [
             displayId: {{ (item.displayId or '')|tojson }},
             id: {{ (item.id or '')|tojson }},
             linia: {{ (item.linia or '')|tojson }},
-            productName: {{ item.productName|tojson }}, 
+            productName: {{ item.get('productName')|tojson }}, 
             amount: {{ item.amount|default(0)|float }}, 
             type: {{ item.type|tojson }},
             location: {{ (item.location or '')|tojson }},

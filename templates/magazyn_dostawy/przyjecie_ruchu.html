@@ -636,10 +636,10 @@
     <div class="receipt-list">
         {% for item in dostawa.items_parsed %}
         {% set idx = loop.index0 %}
-        {% set qty = item.netWeight if item.netWeight else item.unitsPerPallet %}
-        {% set qty_unit = 'szt' if item.packageForm == 'packaging' else 'kg' %}
-        {% set dprod = item.data_produkcji[:10] if item.data_produkcji and item.data_produkcji is string else (item.data_produkcji.strftime('%Y-%m-%d') if item.data_produkcji else '') %}
-        {% set dexp = item.data_przydatnosci[:10] if item.data_przydatnosci and item.data_przydatnosci is string else (item.data_przydatnosci.strftime('%Y-%m-%d') if item.data_przydatnosci else '') %}
+        {% set qty = item.get('netWeight') if item.get('netWeight') else item.get('unitsPerPallet') %}
+        {% set qty_unit = 'szt' if item.get('packageForm') == 'packaging' else 'kg' %}
+        {% set dprod = item.get('data_produkcji')[:10] if item.get('data_produkcji') and item.get('data_produkcji') is string else (item.get('data_produkcji').strftime('%Y-%m-%d') if item.get('data_produkcji') else '') %}
+        {% set dexp = item.get('data_przydatnosci')[:10] if item.get('data_przydatnosci') and item.get('data_przydatnosci') is string else (item.get('data_przydatnosci').strftime('%Y-%m-%d') if item.get('data_przydatnosci') else '') %}
 
         <div id="row_{{ idx }}" class="receipt-item{% if item.accepted %} done{% elif item.rejected %} rejected{% endif %}">
             <div class="receipt-head">
@@ -695,7 +695,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.productName|tojson }}, {{ item.nr_partii|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
+                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ item.get('nr_partii')|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
                         <span class="material-icons" style="font-size: 16px;">print</span>
                         Dodrukuj etykietę (2 szt)
                     </button>
@@ -752,11 +752,11 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <button class="btn-reprint" style="height: 34px; width: 100%;" onclick="preprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.productName|tojson }}, {{ qty or 0 }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
+                    <button class="btn-reprint" style="height: 34px; width: 100%;" onclick="preprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ qty or 0 }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
                         <span class="material-icons" style="font-size: 16px;">print</span>
                         Drukuj etykiety (2 szt)
                     </button>
-                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get('id')|tojson }}, {{ idx }}, {{ item.productName|tojson }}, {{ qty|float }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})'>
+                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get("id")|tojson }}, {{ idx }}, {{ item.get("productName")|tojson }}, {{ qty|float }}, {{ "packaging" if item.get("packageForm") == "packaging" else "surowiec"|tojson }})'>
                         <span class="material-icons" style="font-size: 18px;">check_circle</span>
                         Potwierdź przyjęcie
                     </button>

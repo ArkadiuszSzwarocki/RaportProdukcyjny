@@ -121,7 +121,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
                             return redirect(bezpieczny_powrot())
 
-                        if status_obecny == 'zaplanowane':
+                        if status_obecny in ['zaplanowane', 'zawieszone']:
                             if not _is_truthy(request.form.get('start_checklist_confirmed')):
                                 flash('❌ Start zablokowany: operator musi potwierdzić checklistę folii i etykiety.', 'error')
                                 return redirect(bezpieczny_powrot())
