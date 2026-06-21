@@ -17,5 +17,6 @@ gTTS==2.4.0
 paho-mqtt==2.1.0
 flask-cors==4.0.0
 cryptography>=42.0.0
+pyopenssl>=23.0.0
 pywin32==312; sys_platform == 'win32'
 
