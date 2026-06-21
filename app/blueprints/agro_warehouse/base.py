@@ -1321,7 +1321,20 @@ def api_issue_warehouse():
 @login_required
 def raport_palet():
     """Generates a printable pallet report for AGRO line."""
-    data_planu = request.args.get('data', str(date.today()))
+    from datetime import date, timedelta
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    data_od = request.args.get('data_od', str(start_of_week))
+    data_do = request.args.get('data_do', str(end_of_week))
+    
+    # Backup for old links (like sidebar which might pass 'data')
+    legacy_data = request.args.get('data')
+    if legacy_data and not request.args.get('data_od'):
+        data_od = legacy_data
+        data_do = legacy_data
+
     plan_id = request.args.get('plan_id') # Specific order filter
     
     is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
@@ -1338,7 +1351,7 @@ def raport_palet():
                    z.typ_produkcji as zasyp_typ_produkcji, w.data_planu
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
-            WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+            WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
         """
         params = []
         
@@ -1346,14 +1359,18 @@ def raport_palet():
             query += " AND w.id = %s"
             params.append(plan_id)
         else:
-            query += " AND w.data_planu = %s"
-            params.append(data_planu)
+            query += " AND w.data_planu BETWEEN %s AND %s"
+            params.extend([data_od, data_do])
+            query += " AND w.status = 'zakonczone'"
+            query += " ORDER BY w.data_planu DESC, w.id DESC"
             
         cursor.execute(query, tuple(params))
         plans = cursor.fetchall()
         
         if plan_id and plans:
             data_planu = str(plans[0]['data_planu'])
+        else:
+            data_planu = data_od
 
         report_data = []
         product_typ_cache = {}
@@ -1521,9 +1538,8 @@ def raport_palet():
                 'total_mix_kg': sum(m['waga_kg'] or 0 for m in mixes_summary)
             })
 
-        # If it's a selection call (header button without plan_id)
-        if not plan_id and len(plans) > 1 and request.args.get('select') == '1':
-            return render_template('agro_warehouse/raport_palet_select.html', plans=plans, data_planu=data_planu, is_ajax=is_ajax)
+        if not plan_id:
+            return render_template('agro_warehouse/raport_palet_select.html', plans=plans, data_od=data_od, data_do=data_do, is_ajax=is_ajax)
 
         return render_template('agro_warehouse/raport_palet.html', 
                                report_data=report_data, 

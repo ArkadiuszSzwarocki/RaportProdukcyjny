@@ -174,7 +174,7 @@ def _run_mqtt_client():
         _append_error(f"paho-mqtt missing: {exc}")
         return
 
-    mqtt_host = os.getenv("MQTT_BROKER_HOST", "176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud")
+    mqtt_host = os.getenv("MQTT_BROKER_HOST", "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud")
     mqtt_port = int(os.getenv("MQTT_BROKER_PORT", "8883"))
     mqtt_username = os.getenv("MQTT_BROKER_USERNAME", "Lstech")
     mqtt_password = os.getenv("MQTT_BROKER_PASSWORD", "Lstech123")

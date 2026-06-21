@@ -6,7 +6,7 @@
      data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
      data-sekcja="{{ sekcja }}"
      data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
-    style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
+    style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower not in ['w toku', 'zawieszone'] %}display: none !important;{% endif %}">
     <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 12px;">
             <strong class="card-title" style="margin: 0; white-space: nowrap;">
@@ -35,7 +35,7 @@
             <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
             {% if p[3] == 'zaplanowane' and not is_readonly %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
-            {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
+            {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
             {% if not can_start_role %}
             <span class="btn-icon-disabled" title="Brak uprawnień">🔒</span>
             {% elif sekcja == 'Workowanie' %}
@@ -47,7 +47,7 @@
                 data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
                 data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                 data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
@@ -63,12 +63,12 @@
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% elif p[3] == 'w toku' %}
@@ -99,7 +99,7 @@
             {% elif p[3] == 'zawieszone' %}
             {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                style="display:inline;" data-confirm="Czy na pewno chcesz wznowić to zlecenie?">
                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                 <input type="hidden" name="linia" value="{{ linia }}">
                 <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>
@@ -193,7 +193,7 @@
                     </button>
                 {% endif %}
                 
-                {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja == 'Workowanie' and linia == 'AGRO' %}
+                {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja in ['Workowanie', 'Czyszczenie'] and linia == 'AGRO' %}
                     <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
                         <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
                     </a>

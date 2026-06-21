@@ -447,7 +447,7 @@
 
     }
 
-    function openCzyszczeniePackagingModal(form, planId) {
+    function openCzyszczeniePackagingModal(form, planId, sekcja) {
         var existingOverlay = document.getElementById('czyszczenie-packaging-overlay');
         if (existingOverlay) {
             existingOverlay.remove();
@@ -465,10 +465,24 @@
         title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
 
         var subtitle = document.createElement('p');
-        subtitle.textContent = 'Wybierz w co pakujesz produkt:';
+        subtitle.textContent = (sekcja === 'Zasyp') ? 'Podaj kod SSCC (jeśli dotyczy):' : 'Wybierz w co pakujesz produkt:';
         subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
 
-        // Typ pakowania
+        // SSCC Input (Zasyp)
+        var ssccContainer = document.createElement('div');
+        var ssccInput = document.createElement('input');
+        if (sekcja === 'Zasyp') {
+            var ssccLabel = document.createElement('label');
+            ssccLabel.textContent = 'Zeskanuj kod SSCC:';
+            ssccLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;font-weight:bold;';
+            ssccInput.type = 'text';
+            ssccInput.name = 'skan_sscc';
+            ssccInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+            ssccContainer.appendChild(ssccLabel);
+            ssccContainer.appendChild(ssccInput);
+        }
+
+        // Typ pakowania (Workowanie)
         var typSelect = document.createElement('select');
         typSelect.name = 'typ_pakowania';
         typSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
@@ -502,7 +516,6 @@
         typSelect.addEventListener('change', function() {
             if (this.value === 'Worki') {
                 foliaContainer.style.display = 'block';
-                // Load folie if empty
                 if (foliaSelect.options.length === 0) {
                     fetch('/api/opakowania/folie')
                         .then(r => r.json())
@@ -528,7 +541,6 @@
         var dateInput = document.createElement('input');
         dateInput.type = 'date';
         dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
-        
         var today = new Date();
         var yyyy = today.getFullYear();
         var mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -554,45 +566,63 @@
         confirmBtn.textContent = 'Zatwierdź';
         confirmBtn.style.cssText = 'padding:8px 16px;border:none;background:#102a43;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
         confirmBtn.addEventListener('click', function() {
-            if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
-                errorBox.textContent = 'Wybierz folię przed startem w workach!';
-                errorBox.style.display = 'block';
-                return;
-            }
-            if (!dateInput.value) {
-                errorBox.textContent = 'Wybierz datę produkcji!';
+            if (sekcja === 'Zasyp' && (!ssccInput.value || ssccInput.value.trim() === '')) {
+                errorBox.textContent = 'Proszę zeskanować kod SSCC!';
                 errorBox.style.display = 'block';
                 return;
             }
 
-            var hiddenTyp = document.createElement('input');
-            hiddenTyp.type = 'hidden';
-            hiddenTyp.name = 'typ_pakowania';
-            hiddenTyp.value = typSelect.value;
-            form.appendChild(hiddenTyp);
-
-            if (typSelect.value === 'Worki') {
-                var hiddenFolia = document.createElement('input');
-                hiddenFolia.type = 'hidden';
-                hiddenFolia.name = 'opakowanie_id';
-                hiddenFolia.value = foliaSelect.value;
-                form.appendChild(hiddenFolia);
+            if (sekcja !== 'Zasyp') {
+                if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
+                    errorBox.textContent = 'Wybierz folię przed startem w workach!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+                if (!dateInput.value) {
+                    errorBox.textContent = 'Wybierz datę produkcji!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
             }
 
-            var hiddenDate = document.createElement('input');
-            hiddenDate.type = 'hidden';
-            hiddenDate.name = 'data_produkcji';
-            hiddenDate.value = dateInput.value;
-            form.appendChild(hiddenDate);
+            if (sekcja === 'Zasyp') {
+                var hiddenSscc = document.createElement('input');
+                hiddenSscc.type = 'hidden';
+                hiddenSscc.name = 'skan_sscc';
+                hiddenSscc.value = ssccInput.value.trim();
+                form.appendChild(hiddenSscc);
+            } else {
+                var hiddenTyp = document.createElement('input');
+                hiddenTyp.type = 'hidden';
+                hiddenTyp.name = 'typ_pakowania';
+                hiddenTyp.value = typSelect.value;
+                form.appendChild(hiddenTyp);
+
+                if (typSelect.value === 'Worki') {
+                    var hiddenFolia = document.createElement('input');
+                    hiddenFolia.type = 'hidden';
+                    hiddenFolia.name = 'opakowanie_id';
+                    hiddenFolia.value = foliaSelect.value;
+                    form.appendChild(hiddenFolia);
+                }
+
+                var hiddenDate = document.createElement('input');
+                hiddenDate.type = 'hidden';
+                hiddenDate.name = 'data_produkcji';
+                hiddenDate.value = dateInput.value;
+                form.appendChild(hiddenDate);
+            }
 
             overlay.remove();
-            form.submit();
+            if (window.ajaxSubmitForm) {
+                window.ajaxSubmitForm(form);
+            } else {
+                form.submit();
+            }
         });
 
         overlay.addEventListener('click', function(event) {
-            if (event.target === overlay) {
-                overlay.remove();
-            }
+            if (event.target === overlay) overlay.remove();
         });
 
         actions.appendChild(cancelBtn);
@@ -600,14 +630,22 @@
 
         panel.appendChild(title);
         panel.appendChild(subtitle);
-        panel.appendChild(typSelect);
-        panel.appendChild(foliaContainer);
-        panel.appendChild(dateLabel);
-        panel.appendChild(dateInput);
+        if (sekcja === 'Zasyp') {
+            panel.appendChild(ssccContainer);
+        } else {
+            panel.appendChild(typSelect);
+            panel.appendChild(foliaContainer);
+            panel.appendChild(dateLabel);
+            panel.appendChild(dateInput);
+        }
         panel.appendChild(errorBox);
         panel.appendChild(actions);
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
+
+        if (sekcja === 'Zasyp') {
+            setTimeout(function() { ssccInput.focus(); }, 100);
+        }
     }
 
     function openAgroProductionDateModal(form, productName) {
@@ -709,13 +747,13 @@
 
     window.confirmStartOrder = function(form, productName, planId) {
         var liniaInput = form.querySelector('input[name="linia"]');
-        var linia = liniaInput ? liniaInput.value : '';
+        var linia = liniaInput ? liniaInput.value.trim().toUpperCase() : '';
         
         var sekcjaInput = form.querySelector('input[name="sekcja"]');
-        var sekcja = sekcjaInput ? sekcjaInput.value : '';
+        var sekcja = sekcjaInput ? sekcjaInput.value.trim() : '';
 
         if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
-            openCzyszczeniePackagingModal(form, planId);
+            openCzyszczeniePackagingModal(form, planId, sekcja);
             return false;
         }
 

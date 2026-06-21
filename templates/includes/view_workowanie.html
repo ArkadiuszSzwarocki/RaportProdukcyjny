@@ -158,9 +158,17 @@
             
             <div>
                 {% if p[3] in ['zaplanowane', 'zawieszone'] %}
-                    <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                    <form action="/start_zlecenie/{{ p[0] }}" method="POST" 
+                        {% if linia == 'AGRO' and p[3] == 'zaplanowane' %}
+                            class="d-inline start-form"
+                            data-start-checklist="1"
+                            data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
+                            data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                        {% endif %}
+                        {% if p[3] == 'zawieszone' %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="Workowanie">
                         <button type="submit" class="btn-start btn-small" aria-label="Start">▶ {% if p[3] == 'zawieszone' %}Wznów{% else %}{{ _('start') }}{% endif %}</button>
                     </form>
                 {% endif %}

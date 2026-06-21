@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25)]
 MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 25)] + ["MZ05-01", "MZ06-01"]
 KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 25)]
-PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES
+CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 99)]
+PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + CZ_TANK_CODES
 
 _DODATEK_NAME_REGEX = re.compile(r"\b(DOD|DODAT|DODATEK|DODATKI)\b", re.IGNORECASE)
 
@@ -117,6 +118,7 @@ class AgroWarehouseService:
             'BB': list(BB_TANK_CODES),
             'MZ': list(MZ_TANK_CODES),
             'KO': list(KO_TANK_CODES),
+            'CZ': list(CZ_TANK_CODES),
             'ALL': list(PRODUCTION_TANK_CODES),
         }
 

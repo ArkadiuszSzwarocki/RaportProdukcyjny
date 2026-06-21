@@ -5,7 +5,10 @@
             <h3 class="row items-center gap-10">
                 <span class="material-icons text-primary">inventory_2</span>
                 Paleta: <span id="modalDisplayId"></span>
-                <img id="modalQrCode" src="" alt="QR" width="40" height="40" style="margin-left: 15px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white; display: none;">
+                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalDisplayId').innerText).then(() => { const i = this.querySelector('.material-icons'); i.textContent='check'; i.style.color='#10b981'; setTimeout(()=>{i.textContent='content_copy'; i.style.color='inherit';}, 1500); })" style="background:none; border:none; cursor:pointer; color:#64748b; margin-left: -5px; padding: 4px; display:flex; align-items:center; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" title="Kopiuj numer palety">
+                    <span class="material-icons" style="font-size: 18px;">content_copy</span>
+                </button>
+                <img id="modalQrCode" src="" alt="QR" width="40" height="40" style="margin-left: 5px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white; display: none;">
             </h3>
             <button onclick="closePalletModal()" class="modal-premium-close">&times;</button>
         </div>

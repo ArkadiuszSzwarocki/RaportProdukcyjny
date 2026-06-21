@@ -2,7 +2,7 @@
 {# ns initialized in parent layout.html #}
 {% if plan is defined and plan %}
     {% for p in plan %}
-        {% if p[3]|lower == 'w toku' %}
+        {% if p[3]|lower in ['w toku', 'zawieszone'] %}
             {% set ns.is_active = true %}
             {% if ns.active_plan_id is none %}{% set ns.active_plan_id = p[0] %}{% endif %}
         {% endif %}

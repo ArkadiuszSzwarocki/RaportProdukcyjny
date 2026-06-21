@@ -195,7 +195,7 @@
                             
                             {% if p.status not in ['w toku', 'zakonczone'] %}
                             <div class="actions-dropdown-divider"></div>
-                            <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');" style="margin: 0; width: 100%;">
+                            <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" data-confirm="Usunąć zlecenie AGRO?" style="margin: 0; width: 100%;">
                                 <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
                                 <input type="hidden" name="linia" value="Agro">
                                 <input type="hidden" name="tab" value="agro">
@@ -421,7 +421,7 @@
                                 
                                 {% if p.status not in ['w toku', 'zakonczone'] %}
                                 <div class="actions-dropdown-divider"></div>
-                                <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie?');" style="margin: 0; width: 100%;">
+                                <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" data-confirm="Usunąć zlecenie?" style="margin: 0; width: 100%;">
                                     <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
                                     <input type="hidden" name="linia" value="PSD">
                                     <input type="hidden" name="tab" value="psd">
@@ -808,7 +808,14 @@
                 safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); 
             });
     }
-    function deletePlanConfirm(id, data) { if (!confirm('Usunąć?')) return; deletePlan(id, data); }
+    function deletePlanConfirm(id, data) {
+        if (typeof safeConfirm === 'function') {
+            safeConfirm('Czy na pewno chcesz usunąć to zlecenie?', function() { deletePlan(id, data); });
+        } else {
+            if (!confirm('Usunąć?')) return; 
+            deletePlan(id, data);
+        }
+    }
     function deletePlan(id, data) {
         fetch('/api/usun_plan_ajax/' + id, { method: 'POST' })
             .then(function (r) {
@@ -1279,7 +1286,8 @@
         });
         
         if (selectedIds.length === 0) {
-            alert('⚠️ Wybierz przynajmniej jedno zlecenie!');
+            if (typeof safeAlert === 'function') safeAlert('Uwaga', '⚠️ Wybierz przynajmniej jedno zlecenie!');
+            else alert('⚠️ Wybierz przynajmniej jedno zlecenie!');
             return;
         }
         
@@ -1299,7 +1307,14 @@
         msg += 'Razem do przeniesienia: ' + selectedTotalKg + ' kg\n\n';
         msg += 'Czy potwierdzasz?';
         
-        if (confirm(msg)) {
+        if (typeof safeConfirm === 'function') {
+            // Note: replace newlines with HTML linebreaks for popup
+            safeConfirm(msg.replace(/\n/g, '<br>'), function() {
+                console.log('[SELECT MODAL] User potwierdził - wysyłam do backendu');
+                performSelectiveMove(window.currentMoveDate, selectedIds);
+                closeSelectModal();
+            });
+        } else if (confirm(msg)) {
             console.log('[SELECT MODAL] User potwierdził - wysyłam do backendu');
             performSelectiveMove(window.currentMoveDate, selectedIds);
             closeSelectModal();
@@ -1327,10 +1342,12 @@
                 console.log('[MOVE] Response:', r);
                 var j = r.json;
                 if (r.ok && j && j.success) {
-                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
-                    setTimeout(function () { location.reload(); }, 400);
+                    if (typeof safeAlert === 'function') safeAlert('Sukces', '✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
+                    else alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
+                    setTimeout(function () { location.reload(); }, 2000);
                 } else {
-                    alert('✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
+                    if (typeof safeAlert === 'function') safeAlert('Błąd', '✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
+                    else alert('✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
                 }
             })
             .catch(function (err) {
@@ -1373,39 +1390,48 @@
         if (btn && btn.classList.contains('processing')) return;
         console.log('[MOVE SINGLE] Przenoszę plan ID:', planId, 'z daty:', currentDate);
         
-        // Confirm action
-        if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) {
-            return;
-        }
-
-        if (btn) btn.classList.add('processing');
-        
-        // Call endpoint to move only this plan
-        fetch('/api/przenies_wybrane_zlecenia', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                data: currentDate,
-                plan_ids: [planId],
-                linia: currentLinia
-            }),
-            credentials: 'same-origin'
-        })
-            .then(handleFetchResponse)
-            .then(function (j) {
-                console.log('[MOVE SINGLE] Response:', j);
-                if (j && j.success) {
-                    alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
-                    location.reload();
-                } else {
-                    if (btn) btn.classList.remove('processing');
-                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
-                }
+        var doMove = function() {
+            if (btn) btn.classList.add('processing');
+            
+            // Call endpoint to move only this plan
+            fetch('/api/przenies_wybrane_zlecenia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: currentDate,
+                    plan_ids: [planId],
+                    linia: currentLinia
+                }),
+                credentials: 'same-origin'
             })
-            .catch(function (err) {
-                console.error('[MOVE SINGLE] ERROR:', err);
-                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
-            });
+                .then(handleFetchResponse)
+                .then(function (j) {
+                    console.log('[MOVE SINGLE] Response:', j);
+                    if (j && j.success) {
+                        if (typeof safeAlert === 'function') safeAlert('Sukces', '✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
+                        else alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
+                        location.reload();
+                    } else {
+                        if (btn) btn.classList.remove('processing');
+                        if (typeof safeAlert === 'function') safeAlert('Błąd', '✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                        else alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                    }
+                })
+                .catch(function (err) {
+                    console.error('[MOVE SINGLE] ERROR:', err);
+                    if (typeof safeAlert === 'function') safeAlert('Błąd', '✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                    else alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                });
+        };
+        
+        // Confirm action
+        if (typeof safeConfirm === 'function') {
+            safeConfirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?', doMove);
+        } else {
+            if (confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) {
+                doMove();
+            }
+        }
     }
 
 </script>

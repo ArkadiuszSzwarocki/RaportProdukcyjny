@@ -280,7 +280,12 @@
           <div class="pallet-qty"><span id="palletQty">1600.0</span> kg</div>
           <!-- Szczegóły palety -->
           <div id="palletDetails" style="margin-top: 10px; font-size: 0.85em; color: #1e293b; font-weight: 500; line-height: 1.6;">
-            <div><strong>Nr/SSCC:</strong> <span id="palletSSCC">—</span></div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong>Nr/SSCC:</strong> <span id="palletSSCC" style="font-family: monospace;">—</span>
+              <button type="button" onclick="const t=document.getElementById('palletSSCC').innerText; if(t&&t!=='—'){navigator.clipboard.writeText(t).then(()=>{const i=this.querySelector('.material-icons'); i.textContent='check'; i.style.color='#10b981'; setTimeout(()=>{i.textContent='content_copy'; i.style.color='inherit';}, 1500);})}" style="background:none; border:none; cursor:pointer; color:#64748b; padding: 2px; display:flex; align-items:center; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'" title="Kopiuj numer palety">
+                  <span class="material-icons" style="font-size: 16px;">content_copy</span>
+              </button>
+            </div>
             <div><strong>Partia:</strong> <span id="palletPartia">—</span></div>
             <div><strong>Data prod.:</strong> <span id="palletDataProd">—</span></div>
             <div><strong>Ważność:</strong> <span id="palletDataWaz">—</span></div>
@@ -453,7 +458,7 @@ let pendingProductionLoc = null;
 
 function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
-  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('LINIA') || loc.startsWith('Z');
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ');
   
   if (isProduction) {
     pendingProductionLoc = loc;

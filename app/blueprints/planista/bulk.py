@@ -59,12 +59,28 @@ def register_planista_bulk_routes(planista_bp):
                 kolejnosc_val = (max_res[0] if max_res and max_res[0] is not None else 0) + 1
 
             insert_sql = (
-                f'INSERT INTO {table_plan} (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia) '
-                'VALUES (%s, %s, %s, %s, %s, %s, %s)'
+                f'INSERT INTO {table_plan} (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia, zasyp_id) '
+                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
             )
+            
+            # Create Zasyp row
             cursor.execute(
                 insert_sql,
-                (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val, 'czyszczenie'),
+                (data_planu, 'Zasyp', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val, 'czyszczenie', None),
+            )
+            zasyp_id = cursor.lastrowid
+            
+            # Create Workowanie row
+            cursor.execute(
+                f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND (is_deleted=0 OR is_deleted IS NULL) AND LOWER(sekcja) IN ('workowanie', 'czyszczenie')",
+                (data_planu,)
+            )
+            w_max = cursor.fetchone()
+            w_kol = (w_max[0] if w_max and w_max[0] is not None else 0) + 1
+            
+            cursor.execute(
+                insert_sql,
+                (data_planu, 'Workowanie', 'Czyszczenie', tonaz_val, 'zaplanowane', w_kol, 'czyszczenie', zasyp_id),
             )
             
             # Renormalize to fix any numbering issues

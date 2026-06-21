@@ -161,7 +161,7 @@ def register_warehouse_management_routes(
         elif len(nr_plomby) > 100:
             nr_plomby = nr_plomby[:100]
 
-        cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
+        cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji, zasyp_id FROM {table_plan} WHERE id=%s", (plan_id,))
         plan_row = cursor.fetchone()
 
         if not plan_row:
@@ -169,7 +169,7 @@ def register_warehouse_management_routes(
             return ('Błąd: Plan nie znaleziony', 404)
 
         now_ts = datetime.now()
-        plan_sekcja, _plan_data, plan_produkt, plan_data_produkcji = plan_row
+        plan_sekcja, _plan_data, plan_produkt, plan_data_produkcji, plan_zasyp_id = plan_row
 
         input_data_produkcji = str(request.form.get('data_produkcji') or '').strip()
         if input_data_produkcji:
@@ -216,15 +216,28 @@ def register_warehouse_management_routes(
             )
             reserved_row = cursor.fetchone()
 
+            nr_palety_czyszczenie = None
+            if plan_produkt == 'Czyszczenie':
+                cursor.execute(f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL LIMIT 1", (plan_id, plan_zasyp_id or -1))
+                sscc_row = cursor.fetchone()
+                if sscc_row and sscc_row[0]:
+                    nr_palety_czyszczenie = sscc_row[0]
+
             if reserved_row:
                 paleta_id = reserved_row[0]
-                nr_palety = reserved_row[1] or generate_pallet_id(linia)
+                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                    nr_palety = nr_palety_czyszczenie
+                else:
+                    nr_palety = reserved_row[1] or generate_pallet_id(linia)
                 cursor.execute(
                     f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, nr_plomby = COALESCE(%s, nr_plomby) WHERE id = %s",
                     (waga_input, now_ts, user_login, nr_palety, nr_plomby, paleta_id),
                 )
             else:
-                nr_palety = generate_pallet_id(linia)
+                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                    nr_palety = nr_palety_czyszczenie
+                else:
+                    nr_palety = generate_pallet_id(linia)
                 cursor.execute(
                     f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, nr_plomby) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, %s)",
                     (plan_id, waga_input, now_ts, user_login, nr_palety, nr_plomby),
@@ -260,21 +273,28 @@ def register_warehouse_management_routes(
                 (selected_data_produkcji, plan_id),
             )
 
-            # Log to palety_historia - utworzenie palety
+            is_original_czyszczenie = False
             try:
+                nazwa_do_historii = plan_produkt
+                if plan_produkt == 'Czyszczenie':
+                    is_original_czyszczenie = True
+                    nazwa_do_historii = "Maka Mix do Lnu"
+                    # Zaktualizuj nazwe produktu w zleceniu
+                    cursor.execute(f"UPDATE {table_plan} SET produkt = %s WHERE id = %s", (nazwa_do_historii, plan_id))
+                    plan_produkt = nazwa_do_historii
+
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s)",
-                    (paleta_id, linia, f"Utworzono paletę: {plan_produkt}, waga: {waga_input} kg", user_login)
+                    (paleta_id, linia, f"Utworzono paletę: {nazwa_do_historii}, waga: {waga_input} kg", user_login)
                 )
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
 
-            if plan_produkt != 'Czyszczenie':
-                # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
-                app_obj = current_app._get_current_object()
-                
-                def _async_print_label(paleta_id_local, nr_palety_local, app):
-                    with app.app_context():
+            # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
+            app_obj = current_app._get_current_object()
+            
+            def _async_print_label(paleta_id_local, nr_palety_local, app):
+                with app.app_context():
                         try:
                             from app.utils.pallet_label import prepare_pallet_label_data
                             conn2 = get_db_connection()
@@ -329,8 +349,8 @@ def register_warehouse_management_routes(
                     t.start()
                 except Exception as thr_err:
                     current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
-                # ---------------------------------------------
-            else:
+            # ---------------------------------------------
+            if is_original_czyszczenie:
                 # Rozliczenie straty worków dla czyszczenia
                 try:
                     cursor.execute(f"SELECT opakowanie_id FROM {table_plan} WHERE id=%s", (plan_id,))

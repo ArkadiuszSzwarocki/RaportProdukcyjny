@@ -120,7 +120,7 @@
                             {% if p[3] in ['zaplanowane', 'zawieszone'] and rola in ['admin', 'masteradmin', 'lider', 'produkcja'] %}
                             {% if not queue.first_found %}
                                 {% set queue.first_found = true %}
-                                <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                                <form action="/start_zlecenie/{{ p[0] }}" method="POST" {% if p[3] == 'zawieszone' %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
                                     <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                     <input type="hidden" name="linia" value="{{ linia }}">
                                     <button type="submit" class="btn-start">▶ {% if p[3] == 'zawieszone' %}WZNÓW{% else %}START{% endif %}</button>

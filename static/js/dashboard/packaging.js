@@ -34,66 +34,45 @@ function linkPackaging(opakId, planId) {
     desc.innerHTML = `Materiał: <strong>${name}</strong><br>Lokalizacja: <strong>${lok || '-'}</strong> | Stan: <strong>${stan} szt/kg</strong>`;
     desc.style.cssText = 'margin:0 0 16px 0;font-size:0.9rem;color:#334e68;line-height:1.4;box-sizing:border-box;';
 
-    // Total quantity field
+    // First field: Meters Input
+    var metersLabel = document.createElement('label');
+    metersLabel.textContent = 'Ilość pobranej folii (METRY):';
+    metersLabel.style.cssText = 'display:block;margin-bottom:6px;font-weight:600;color:#102a43;font-size:0.9rem;box-sizing:border-box;';
+
+    var metersInput = document.createElement('input');
+    metersInput.type = 'number';
+    metersInput.step = 'any';
+    metersInput.placeholder = 'np. 50';
+    metersInput.style.cssText = 'width:100%;padding:10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:14px;box-sizing:border-box;font-size:1rem;background:#f0f4f8;';
+
+    // Second field: Pieces Input
     var qtyLabel = document.createElement('label');
-    qtyLabel.textContent = 'Ilość do pobrania (szt / kg):';
-    qtyLabel.style.cssText = 'display:block;margin-bottom:6px;font-weight:600;color:#102a43;font-size:0.9rem;box-sizing:border-box;';
+    qtyLabel.textContent = 'Przeliczone sztuki na maszynę (worek to 0.842m):';
+    qtyLabel.style.cssText = 'display:block;margin-bottom:6px;font-weight:600;color:#486581;font-size:0.85rem;box-sizing:border-box;';
 
     var qtyInput = document.createElement('input');
     qtyInput.type = 'number';
+    qtyInput.step = 'any';
     qtyInput.placeholder = `Całość (${stan})`;
     qtyInput.style.cssText = 'width:100%;padding:10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:14px;box-sizing:border-box;font-size:1rem;';
 
-    // Calculator section (Rolls / Packs)
-    var calcBox = document.createElement('div');
-    calcBox.style.cssText = 'background:#f0f4f8;border:1px solid #d9e2ec;border-radius:8px;padding:12px;margin-bottom:16px;box-sizing:border-box;';
-
-    var calcTitle = document.createElement('div');
-    calcTitle.textContent = '🧮 Kalkulator rolek / paczek (opcjonalny):';
-    calcTitle.style.cssText = 'font-weight:700;color:#102a43;font-size:0.85rem;margin-bottom:8px;box-sizing:border-box;';
-
-    var calcInputs = document.createElement('div');
-    calcInputs.style.cssText = 'display:flex;gap:8px;box-sizing:border-box;';
-
-    var rollsCol = document.createElement('div');
-    rollsCol.style.cssText = 'flex:1;box-sizing:border-box;';
-    var rollsLabel = document.createElement('div');
-    rollsLabel.textContent = 'Liczba rolek/paczek';
-    rollsLabel.style.cssText = 'font-size:0.75rem;color:#486581;margin-bottom:4px;';
-    var rollsInput = document.createElement('input');
-    rollsInput.type = 'number';
-    rollsInput.placeholder = 'np. 6';
-    rollsInput.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #bcccdc;border-radius:6px;box-sizing:border-box;font-size:0.88rem;';
-
-    var sizeCol = document.createElement('div');
-    sizeCol.style.cssText = 'flex:1;box-sizing:border-box;';
-    var sizeLabel = document.createElement('div');
-    sizeLabel.textContent = 'Sztuk w rolce/paczce';
-    sizeLabel.style.cssText = 'font-size:0.75rem;color:#486581;margin-bottom:4px;';
-    var sizeInput = document.createElement('input');
-    sizeInput.type = 'number';
-    sizeInput.placeholder = 'np. 700';
-    sizeInput.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #bcccdc;border-radius:6px;box-sizing:border-box;font-size:0.88rem;';
-
-    rollsCol.appendChild(rollsLabel);
-    rollsCol.appendChild(rollsInput);
-    sizeCol.appendChild(sizeLabel);
-    sizeCol.appendChild(sizeInput);
-    calcInputs.appendChild(rollsCol);
-    calcInputs.appendChild(sizeCol);
-    calcBox.appendChild(calcTitle);
-    calcBox.appendChild(calcInputs);
-
-    // Auto-calculate listener
-    function updateFromCalc() {
-        var r = parseFloat(rollsInput.value || 0);
-        var s = parseFloat(sizeInput.value || 0);
-        if (r > 0 && s > 0) {
-            qtyInput.value = r * s;
+    metersInput.addEventListener('input', function() {
+        var m = parseFloat(metersInput.value || 0);
+        if (m > 0) {
+            qtyInput.value = Math.round(m / 0.842);
+        } else {
+            qtyInput.value = '';
         }
-    }
-    rollsInput.addEventListener('input', updateFromCalc);
-    sizeInput.addEventListener('input', updateFromCalc);
+    });
+
+    qtyInput.addEventListener('input', function() {
+        var q = parseFloat(qtyInput.value || 0);
+        if (q > 0) {
+            metersInput.value = (q * 0.842).toFixed(2);
+        } else {
+            metersInput.value = '';
+        }
+    });
 
     var errorBox = document.createElement('div');
     errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.85rem;margin-bottom:12px;box-sizing:border-box;';
@@ -149,9 +128,10 @@ function linkPackaging(opakId, planId) {
 
     panel.appendChild(title);
     panel.appendChild(desc);
+    panel.appendChild(metersLabel);
+    panel.appendChild(metersInput);
     panel.appendChild(qtyLabel);
     panel.appendChild(qtyInput);
-    panel.appendChild(calcBox);
     panel.appendChild(errorBox);
     panel.appendChild(actions);
     overlay.appendChild(panel);

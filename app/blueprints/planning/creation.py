@@ -462,12 +462,28 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
         # Dla Czyszczenia nie ustawiamy typ_opakowania (operator wybiera na workowaniu)
         typ_opak_db = None if sekcja == 'Czyszczenie' else typ_opakowania
         
-        cursor.execute(
-            f'INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_opakowania, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-            (data_planu, produkt, tonaz, status, sekcja, nk, typ, typ_opak_db, 0),
-        )
-        zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
-
+        if sekcja == 'Czyszczenie':
+            # Create Zasyp row
+            cursor.execute(
+                f'INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_opakowania, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                (data_planu, produkt, tonaz, status, 'Zasyp', nk, typ, None, 0),
+            )
+            zasyp_plan_id = cursor.lastrowid
+            
+            # Create Workowanie row
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja IN ('Workowanie', 'Czyszczenie')", (data_planu,))
+            res_w = cursor.fetchone()
+            nk_w = (res_w[0] if res_w and res_w[0] else 0) + 1
+            cursor.execute(
+                f'INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_opakowania, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                (data_planu, produkt, 0, status, 'Workowanie', nk_w, typ, None, 0, zasyp_plan_id),
+            )
+        else:
+            cursor.execute(
+                f'INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_opakowania, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                (data_planu, produkt, tonaz, status, sekcja, nk, typ, typ_opak_db, 0),
+            )
+            zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
         notify_workers_about_plan_change(
             plan_context={
                 'id': zasyp_plan_id,

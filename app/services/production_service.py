@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 
 class ProductionService:
     @staticmethod
-    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None) -> Tuple[List, Dict, int, int]:
+    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, Dict, int, int]:
         """Get production plans for section with formatting and palety mapping."""
         conn = None
         if cursor is None:
@@ -31,7 +31,9 @@ class ProductionService:
             dzisiaj, 
             sekcja if sekcja != 'Dashboard' else 'Workowanie',
             linia=linia,
-            cursor=cursor
+            cursor=cursor,
+            data_od=data_od,
+            data_do=data_do
         )
         
         _logger.info(f"get_production_plans(linia={linia}, sekcja={sekcja}) -> Found {len(plan_dnia)} plans from DB")
@@ -397,7 +399,7 @@ class ProductionService:
             WHERE DATE(p.data_planu) = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') AND p.status IN ('w toku', 'zaplanowane')
             AND (EXISTS (SELECT 1 FROM {table_szarze} s WHERE s.plan_id = p.id AND s.status = 'zarejestowana')
                  OR EXISTS (SELECT 1 FROM {table_bufor} b WHERE b.produkt = p.produkt AND b.status = 'aktywny'))
-            ORDER BY CASE p.status WHEN 'w toku' THEN 1 ELSE 2 END, p.kolejnosc ASC, p.id ASC
+            ORDER BY CASE p.status WHEN 'zakonczone' THEN 2 ELSE 1 END, p.id ASC
         """, (dzisiaj,))
         return [list(r) for r in cursor.fetchall()]
 

@@ -68,7 +68,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
 
-                if sekcja == 'Czyszczenie' and linia == 'AGRO':
+                is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+
+                if is_czyszczenie and linia == 'AGRO':
                     typ_pakowania = request.form.get('typ_pakowania')
                     if typ_pakowania == 'Worki':
                         nowe_opakowanie_id = request.form.get('opakowanie_id')
@@ -78,6 +80,12 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         elif not opakowanie_id:
                             flash('❌ Start zablokowany: dla Czyszczenia w workach musisz wybrać rolkę folii.', 'error')
                             return redirect(bezpieczny_powrot())
+
+                    if sekcja == 'Zasyp':
+                        skan_sscc = request.form.get('skan_sscc')
+                        if skan_sscc and skan_sscc.strip():
+                            cursor.execute(f"UPDATE {table_plan} SET skan_sscc=%s WHERE id=%s", (skan_sscc.strip(), id))
+                            current_app.logger.info('Ustawiono skan_sscc %s dla zlecenia %s', skan_sscc.strip(), id)
 
                 if sekcja in ('Workowanie', 'Czyszczenie'):
                     cursor.execute(
@@ -108,7 +116,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     quality_login_used = None
                     quality_role_used = None
 
-                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie:
                         if not opakowanie_id or not etykieta_id:
                             flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
                             return redirect(bezpieczny_powrot())
@@ -536,7 +544,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT produkt, typ_produkcji FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'",
+                f"SELECT produkt, typ_produkcji FROM {table_plan} WHERE id=%s AND sekcja IN ('Zasyp', 'Czyszczenie')",
                 (plan_id,),
             )
             plan = cursor.fetchone()

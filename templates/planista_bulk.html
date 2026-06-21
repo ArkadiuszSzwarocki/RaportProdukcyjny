@@ -1913,26 +1913,32 @@
     };
 
     window.deleteProduct = (id) => {
-      if (!confirm('Czy na pewno chcesz usunąć ten produkt?')) return;
-
-      fetch(`/api/produkty/${id}`, {
-        method: 'DELETE'
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.success) {
-                safeAlert('Sukces', 'Produkt usunięty');
-            loadProdukty(() => {
-              loadProductsForManagement();
-            });
-          } else {
-                safeAlert('Błąd', data.message || 'Błąd');
-          }
+      var doDelete = () => {
+        fetch(`/api/produkty/${id}`, {
+          method: 'DELETE'
         })
-        .catch(e => {
-          console.error(e);
-              safeAlert('Błąd sieci', 'Błąd sieci');
-        });
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+                  safeAlert('Sukces', 'Produkt usunięty');
+              loadProdukty(() => {
+                loadProductsForManagement();
+              });
+            } else {
+                  safeAlert('Błąd', data.message || 'Błąd');
+            }
+          })
+          .catch(e => {
+            console.error(e);
+                safeAlert('Błąd sieci', 'Błąd sieci');
+          });
+      };
+      
+      if (typeof safeConfirm === 'function') {
+        safeConfirm('Czy na pewno chcesz usunąć ten produkt?', doDelete);
+      } else {
+        if (confirm('Czy na pewno chcesz usunąć ten produkt?')) doDelete();
+      }
     };
 
     // Open/close management modal
