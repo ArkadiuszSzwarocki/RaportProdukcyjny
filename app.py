@@ -32,10 +32,19 @@ if __name__ == '__main__':
         # Domyślnie: produkcja (brak LOCAL_ENV=true) -> HTTPS, lokalnie -> HTTP
         use_ssl = not is_local
     
-    if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
-        ssl_context = (cert_path, key_path)
-        protocol = "https"
-        app.config['PREFERRED_URL_SCHEME'] = 'https'
+    if use_ssl:
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            ssl_context = (cert_path, key_path)
+            protocol = "https"
+            app.config['PREFERRED_URL_SCHEME'] = 'https'
+        else:
+            try:
+                ssl_context = 'adhoc'
+                protocol = "https"
+                app.config['PREFERRED_URL_SCHEME'] = 'https'
+            except Exception:
+                app.config['PREFERRED_URL_SCHEME'] = 'http'
+                protocol = "http"
     else:
         app.config['PREFERRED_URL_SCHEME'] = 'http'
 
