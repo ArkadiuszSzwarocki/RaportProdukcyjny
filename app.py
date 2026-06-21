@@ -19,14 +19,18 @@ if __name__ == '__main__':
     key_path = os.path.join('certs', 'key.pem')
     ssl_context = None
     
-    # Domyślnie używamy HTTP, chyba że wymuszono inaczej (lub brak błędu w przeglądarce)
-    # Rezygnujemy z automatycznego wymuszania HTTPS, aby uniknąć błędów CORS/Frame
+    # Domyślnie zakładamy HTTP
     protocol = "http"
     
-    # Możliwość wymuszenia SSL przez zmienną środowiskową.
-    # Domyślnie włączamy, żeby na QNAP działał HTTPS, jeśli certyfikaty istnieją
+    # Lokalnie chcemy HTTP (bo PWA i brak błędów certyfikatu), na QNAP chcemy HTTPS (bo port 443).
+    is_local = os.environ.get('LOCAL_ENV', 'false').lower() == 'true'
     use_ssl_env = os.environ.get('USE_SSL')
-    use_ssl = use_ssl_env.lower() == 'true' if use_ssl_env is not None else True
+    
+    if use_ssl_env is not None:
+        use_ssl = use_ssl_env.lower() == 'true'
+    else:
+        # Domyślnie: produkcja (brak LOCAL_ENV=true) -> HTTPS, lokalnie -> HTTP
+        use_ssl = not is_local
     
     if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
         ssl_context = (cert_path, key_path)
