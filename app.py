@@ -23,9 +23,10 @@ if __name__ == '__main__':
     # Rezygnujemy z automatycznego wymuszania HTTPS, aby uniknąć błędów CORS/Frame
     protocol = "http"
     
-    # Możliwość włączenia SSL przez zmienną środowiskową lub obecność plików
-    # Ale domyślnie zostawiamy HTTP dla stabilności na localhost
-    use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
+    # Możliwość wymuszenia SSL przez zmienną środowiskową.
+    # Domyślnie włączamy, żeby na QNAP działał HTTPS, jeśli certyfikaty istnieją
+    use_ssl_env = os.environ.get('USE_SSL')
+    use_ssl = use_ssl_env.lower() == 'true' if use_ssl_env is not None else True
     
     if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
         ssl_context = (cert_path, key_path)
