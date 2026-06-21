@@ -143,15 +143,14 @@ def create_app(config_secret_key=None, init_db=True):
         reloader_enabled = os.environ.get('FLASK_USE_RELOADER') == 'true' or os.environ.get('RELOADER_ENABLED') == 'true'
         
         is_reloader_parent = (
-            reloader_enabled
-            and (main_script.endswith('app.py') or 'app.py' in main_script)
-            and os.environ.get('WERZEUG_RUN_MAIN') != 'true'
+            (reloader_enabled or main_script.endswith('app.py') or 'app.py' in main_script)
+            and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
         )
         
         if is_reloader_parent:
-            app.logger.info('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERZEUG_RUN_MAIN=%s)', os.environ.get('WERZEUG_RUN_MAIN'))
+            app.logger.info('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
         else:
-            app.logger.info('Starting start_daemon_threads() in Flask process (WERZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERZEUG_RUN_MAIN'), reloader_enabled)
+            app.logger.info('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
             start_daemon_threads(app, cleanup_enabled=True)
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')
