@@ -24,13 +24,8 @@ if __name__ == '__main__':
     
     # Lokalnie chcemy HTTP (bo PWA i brak błędów certyfikatu), na QNAP chcemy HTTPS (bo port 443).
     is_local = os.environ.get('LOCAL_ENV', 'false').lower() == 'true'
-    use_ssl_env = os.environ.get('USE_SSL')
-    
-    if use_ssl_env is not None:
-        use_ssl = use_ssl_env.lower() == 'true'
-    else:
-        # Domyślnie: produkcja (brak LOCAL_ENV=true) -> HTTPS, lokalnie -> HTTP
-        use_ssl = not is_local
+    # Pobieramy flagę USE_SSL. Domyślnie false (HTTP), co jest idealne dla Nginx Proxy Manager.
+    use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
     
     if use_ssl:
         if os.path.exists(cert_path) and os.path.exists(key_path):
