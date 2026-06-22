@@ -4,6 +4,7 @@ import os
 import glob
 from datetime import timedelta
 from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
 from app.core.contexts import register_contexts
@@ -166,6 +167,9 @@ def create_app(config_secret_key=None, init_db=True):
         except Exception as e:
             app.logger.exception('setup_database() failed or skipped: %s', e)
     
+    # Poinstruowanie aplikacji, aby czytała oryginalne nagłówki przekazane przez Nginxa:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     return app
 
 
