@@ -8,7 +8,7 @@ from app.services.dashboard_context_service import DashboardContextService
 from app.services.magazyn_dostawy_service import MagazynDostawyService
 
 
-def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
+def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, data_od=None, data_do=None):
     """Load shared HR data and per-hall dashboard payload using a single connection."""
     halls_to_fetch = ['PSD', 'AGRO'] if aktywna_linia == 'ALL' else [aktywna_linia]
     halls_data = {}
@@ -32,7 +32,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
         zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj, linia=linia, cursor=cursor)
         quality_data = DashboardService.get_quality_and_leave_requests(role, linia=linia, cursor=cursor)
         shift_notes = DashboardService.get_shift_notes(dzisiaj, linia=linia) # TODO: support cursor in shift_notes if needed
-        plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj, linia=linia, cursor=cursor)
+        plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj, linia=linia, cursor=cursor, data_od=data_od, data_do=data_do)
         global_active = DashboardService.any_plan_in_progress(dzisiaj, linia=linia, cursor=cursor)
         buffer_queue = DashboardService.get_buffer_queue(dzisiaj, linia=linia, cursor=cursor)
         work_first_map = DashboardService.get_first_workowanie_map(dzisiaj, linia=linia, cursor=cursor)
@@ -60,7 +60,9 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
                 dzisiaj,
                 aktywna_sekcja,
                 linia=linia,
-                cursor=cursor
+                cursor=cursor,
+                data_od=data_od,
+                data_do=data_do
             )
 
         halls_data[linia] = {

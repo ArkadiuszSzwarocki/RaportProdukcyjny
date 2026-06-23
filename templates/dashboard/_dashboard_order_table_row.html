@@ -51,7 +51,7 @@
             {# Start/Stop buttons #}
             {% if p[3] == 'zaplanowane' and not is_readonly %}
                 {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
-                {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
+                {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
                 {% if not can_start_role %}
                     <span class="btn-icon-disabled" title="Brak uprawnień">🔒</span>
                 {% elif sekcja == 'Workowanie' %}
@@ -64,7 +64,7 @@
                             data-required-opakowanie="{{ p[20] if p|length > 20 and p[20] else '-' }}" 
                             data-required-etykieta="{{ p[21] if p|length > 21 and p[21] else '-' }}"
                         {% endif %}
-                        style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                        style="display:inline;" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <button type="submit" class="btn-icon-action" title="Rozpocznij zadanie" {% if product_active %}disabled{% endif %}>▶</button>
@@ -76,7 +76,7 @@
                     {% set allowed_z = (allowed_zasyp_start_ids is defined and (p[0] in allowed_zasyp_start_ids)) %}
                     {% set zasyp_start_bypass_role = role_lc in ['admin', 'masteradmin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
                     {% if (zasyp_start_bypass_role or allowed_z) %}
-                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <button type="submit" class="btn-icon-action" title="Rozpocznij zadanie" {% if product_active %}disabled{% endif %}>▶</button>
@@ -90,12 +90,7 @@
             {% elif p[3] == 'zawieszone' %}
                 {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
                 <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" 
-                    {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
-                        data-start-checklist="1" 
-                        data-required-opakowanie="{{ p[20] if p|length > 20 and p[20] else '-' }}" 
-                        data-required-etykieta="{{ p[21] if p|length > 21 and p[21] else '-' }}"
-                    {% endif %}
-                    style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                    style="display:inline;" data-confirm="Czy na pewno chcesz wznowić to zlecenie?">
                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
                     <input type="hidden" name="linia" value="{{ linia }}">
                     <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>

@@ -316,7 +316,7 @@ def assign_pallet_to_tank():
             table_surowce = get_table_name('magazyn_surowce', linia)
             
             cursor.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, nr_palety FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             paleta = cursor.fetchone()
@@ -356,6 +356,16 @@ def assign_pallet_to_tank():
             )
             
             if success:
+                if zbiornik.startswith('CZ') and plan_id:
+                    try:
+                        table_plan = get_table_name('plan_produkcji', linia)
+                        nr_palety_sscc = paleta.get('nr_palety')
+                        if nr_palety_sscc:
+                            cursor.execute(f"UPDATE {table_plan} SET skan_sscc = %s WHERE id = %s", (nr_palety_sscc, plan_id))
+                            conn.commit()
+                    except Exception as e:
+                        print(f"Error saving skan_sscc for CZ: {e}")
+
                 return jsonify({
                     'success': True,
                     'message': f'Przypisano {ilosc_kg} kg ({paleta["nazwa"]}) do zbiornika {zbiornik}'

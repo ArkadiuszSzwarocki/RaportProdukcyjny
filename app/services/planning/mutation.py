@@ -85,19 +85,51 @@ class PlanningMutationService:
             # Insert new plan (include optional fields if provided)
             # bufor_agro and plan_produkcji_agro don't have 'linia' column
             if str(linia).upper() == 'AGRO':
-                cursor.execute(f"""
-                    INSERT INTO {table_plan} 
-                    (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id))
+                if sekcja == 'Czyszczenie':
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, tonaz, initial_status, 'Zasyp', nk, typ_produkcji, 0, nazwa_zlecenia or '', 'czyszczenie', zasyp_id))
+                    plan_id = cursor.lastrowid
+                    cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja IN ('Workowanie', 'Czyszczenie')", (data_planu,))
+                    res_w = cursor.fetchone()
+                    nk_w = (res_w[0] if res_w and res_w[0] else 0) + 1
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, 0, initial_status, 'Workowanie', nk_w, typ_produkcji, 0, nazwa_zlecenia or '', 'czyszczenie', plan_id))
+                else:
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id))
+                    plan_id = cursor.lastrowid
             else:
-                cursor.execute(f"""
-                    INSERT INTO {table_plan} 
-                    (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id, linia))
-            
-            plan_id = cursor.lastrowid
+                if sekcja == 'Czyszczenie':
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, tonaz, initial_status, 'Zasyp', nk, typ_produkcji, 0, nazwa_zlecenia or '', 'czyszczenie', zasyp_id, linia))
+                    plan_id = cursor.lastrowid
+                    cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja IN ('Workowanie', 'Czyszczenie')", (data_planu,))
+                    res_w = cursor.fetchone()
+                    nk_w = (res_w[0] if res_w and res_w[0] else 0) + 1
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, 0, initial_status, 'Workowanie', nk_w, typ_produkcji, 0, nazwa_zlecenia or '', 'czyszczenie', plan_id, linia))
+                else:
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id, linia))
+                    plan_id = cursor.lastrowid
             conn.commit()
             conn.close()
             

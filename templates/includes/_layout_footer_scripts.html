@@ -2,8 +2,10 @@
     // Konfiguracja Telemetrii (HiveMQ Cloud) - musi być przed machine-stats.js
     window.MQTT_CONFIG = {
         host: '4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud',
+        port: 8884, // Port WebSockets w HiveMQ Cloud
+        clientId: 'web_' + Math.random().toString(16).substr(2, 8),
         protocol: 'wss',
-        path: '',
+        path: '/mqtt',
         username: 'Lstech',
         password: 'Lstech123'
     };

@@ -19,6 +19,11 @@ class WorkowanieValidationService:
         if sekcja not in ('Workowanie', 'Czyszczenie'):
             return True, ""
 
+        is_czyszczenie = sekcja == 'Czyszczenie' or (produkt and 'czyszczenie' in produkt.lower())
+        if is_czyszczenie:
+            logger.debug(f'[KOLEJKA] bypass for czyszczenie plan_id={plan_id}')
+            return True, ""
+
         # Jeżeli rola jest uprzywilejowana, omijamy walidację bufora i FIFO
         if role_lc in cls.BYPASS_ROLES:
             logger.debug(f'[KOLEJKA] bypass for role={role_lc} plan_id={plan_id} produkt={produkt}')

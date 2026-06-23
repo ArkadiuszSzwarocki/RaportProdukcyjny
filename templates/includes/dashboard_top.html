@@ -37,6 +37,31 @@
                 {% endif %}
             </h2>
             
+            {% if linia == 'AGRO' and sekcja == 'Zasyp' %}
+            <div class="day-tile m-0" data-sekcja="{{ sekcja }}" style="display: flex; gap: 10px; align-items: center; padding: 5px 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-od" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Od:</label>
+                    <input type="date" id="date-od" value="{{ data_od if data_od else dzisiaj.strftime('%Y-%m-%d') }}" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-do" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Do:</label>
+                    <input type="date" id="date-do" value="{{ data_do if data_do else dzisiaj.strftime('%Y-%m-%d') }}" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <button type="button" class="btn-action" onclick="applyDateRange()" style="background: #3498db; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Pokaż</button>
+            </div>
+            <script>
+                function applyDateRange() {
+                    var od = document.getElementById('date-od').value;
+                    var do_val = document.getElementById('date-do').value;
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('data_od', od);
+                    url.searchParams.set('data_do', do_val);
+                    // Also set 'data' to 'od' so that internal scripts expecting a single date don't break drastically
+                    url.searchParams.set('data', od);
+                    window.location.href = url.toString();
+                }
+            </script>
+            {% else %}
             <div class="day-tile m-0" data-sekcja="{{ sekcja }}">
                 {% set offset = 7 if linia == 'AGRO' else 1 %}
                 <button type="button" class="day-nav left" data-day-offset="-{{ offset }}">◀</button>
@@ -47,6 +72,7 @@
                 <button type="button" class="day-nav right" data-day-offset="{{ offset }}">▶</button>
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
             </div>
+            {% endif %}
         </div>
 
         <div class="d-flex align-center gap-12 header-stats">

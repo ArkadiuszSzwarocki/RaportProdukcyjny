@@ -9,21 +9,14 @@ from unittest.mock import MagicMock, patch, call
 # Add parent directory to path to import app
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Import Flask app directly from app.py module
-import importlib.util
-spec = importlib.util.spec_from_file_location("app_module", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.py"))
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-flask_app = app_module.app
-
 from app.services.leave_request_service import LeaveRequestService
 
 
 @pytest.fixture
-def app_context():
+def app_context(app):
     """Provide Flask app context for testing."""
-    with flask_app.app_context():
-        yield flask_app
+    with app.app_context():
+        yield app
 
 
 class TestSubmitLeaveRequest:

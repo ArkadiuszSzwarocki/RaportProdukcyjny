@@ -530,9 +530,13 @@ def start_daemon_threads(app, cleanup_enabled=False):
     if cleanup_enabled:
         try:
             # 1. Clean old reports
+            reports_folder = os.path.join(app.root_path, 'raporty')
+            if not os.path.exists(reports_folder):
+                reports_folder = os.path.join(os.path.dirname(app.root_path), 'raporty')
+                
             reports_thread = threading.Thread(
                 target=_cleanup_old_files,
-                kwargs={'folder': 'raporty', 'max_age_hours': 24, 'interval_seconds': 3600},
+                kwargs={'folder': reports_folder, 'max_age_hours': 24, 'interval_seconds': 3600},
                 daemon=True
             )
             reports_thread.start()

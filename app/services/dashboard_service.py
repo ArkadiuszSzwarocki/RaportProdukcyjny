@@ -95,8 +95,8 @@ class DashboardService:
         return WarehouseService.get_warehouse_data(dzisiaj, linia, cursor)
 
     @staticmethod
-    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None) -> Tuple[List, Dict, int, int]:
-        return ProductionService.get_production_plans(dzisiaj, sekcja, linia, cursor)
+    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, Dict, int, int]:
+        return ProductionService.get_production_plans(dzisiaj, sekcja, linia, cursor, data_od=data_od, data_do=data_do)
 
     @staticmethod
     def get_hr_and_leave_data(dzisiaj: date, cursor=None) -> Dict[str, Any]:
@@ -165,7 +165,7 @@ class DashboardService:
             return []
 
     @staticmethod
-    def get_full_plans_for_sections(dzisiaj: date, linia='PSD', cursor=None) -> Tuple[List, List]:
+    def get_full_plans_for_sections(dzisiaj: date, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, List]:
         """Fetch plans for Zasyp and Workowanie (Legacy return format for compatibility)."""
         close_conn = False
         if cursor is None:
@@ -173,8 +173,8 @@ class DashboardService:
             cursor = conn.cursor()
             close_conn = True
             
-        plans_zasyp, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Zasyp', linia, cursor)
-        plans_workowanie, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Workowanie', linia, cursor)
+        plans_zasyp, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Zasyp', linia, cursor, data_od=data_od, data_do=data_do)
+        plans_workowanie, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Workowanie', linia, cursor, data_od=data_od, data_do=data_do)
         
         if close_conn:
             conn.close()
@@ -287,8 +287,8 @@ class DashboardService:
         return res
 
     @staticmethod
-    def get_active_products(dzisiaj: date, linia='PSD', cursor=None) -> List[str]:
-        """List products that are currently in progress ('w toku')."""
+    def get_active_products(dzisiaj: date, linia='PSD', cursor=None) -> dict:
+        """List products that are currently in progress ('w toku'), grouped by sekcja."""
         close_conn = False
         if cursor is None:
             conn = get_db_connection()
@@ -297,11 +297,18 @@ class DashboardService:
             
         table = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            f"SELECT DISTINCT produkt FROM {table} WHERE DATE(data_planu) = %s "
+            f"SELECT DISTINCT sekcja, produkt FROM {table} WHERE DATE(data_planu) = %s "
             f"AND status = 'w toku' AND is_deleted = 0",
             (dzisiaj,)
         )
-        res = [r[0] for r in cursor.fetchall()]
+        
+        res = {}
+        for r in cursor.fetchall():
+            s = r[0]
+            p = r[1]
+            if s not in res:
+                res[s] = []
+            res[s].append(p)
         
         if close_conn: conn.close()
         return res

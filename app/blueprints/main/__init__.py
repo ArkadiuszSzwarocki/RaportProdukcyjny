@@ -54,6 +54,23 @@ def index():
             dzisiaj = date.fromisoformat(dzisiaj_str)
         except:
             dzisiaj = date.today()
+            
+        data_od_str = request.args.get('data_od')
+        data_do_str = request.args.get('data_do')
+        
+        # If user is on AGRO Workowanie or Zasyp, default to week range if no data_od/data_do is provided but they didn't explicitly pick a specific single day
+        if aktywna_linia == 'AGRO' and aktywna_sekcja in ('Workowanie', 'Zasyp'):
+            if not data_od_str and not data_do_str:
+                # If they just navigated without params, default to current week
+                from datetime import timedelta
+                start_of_week = dzisiaj - timedelta(days=dzisiaj.weekday())
+                end_of_week = start_of_week + timedelta(days=6)
+                data_od_str = str(start_of_week)
+                data_do_str = str(end_of_week)
+            elif data_od_str and not data_do_str:
+                data_do_str = data_od_str
+            elif data_do_str and not data_od_str:
+                data_od_str = data_do_str
 
         # Enforce dashboard access restriction: only MasterAdmin, Admin, Lider, Planista can view the dashboard
         if aktywna_sekcja.strip().lower() == 'dashboard':
@@ -84,7 +101,14 @@ def index():
 
         # Load everything via the central helper to ensure data parity with original system
         role = session.get('rola')
-        halls_ctx = build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role)
+        halls_ctx = build_dashboard_halls_context(
+            dzisiaj, 
+            aktywna_sekcja, 
+            aktywna_linia, 
+            role,
+            data_od=data_od_str,
+            data_do=data_do_str
+        )
         
         halls_data = halls_ctx['halls_data']
         halls_to_fetch = halls_ctx['halls_to_fetch']
@@ -138,6 +162,8 @@ def index():
             'rola': role,
             'dzisiaj': dzisiaj,
             'dzisiaj_fmt': dzisiaj.strftime('%d.%m.%Y'),
+            'data_od': data_od_str,
+            'data_do': data_do_str,
             'raporty_hr': hr_data['raporty_hr'],
             'zasyp_rozpoczete': main_h_data.get('zasyp_rozpoczete'),
             'next_workowanie_id': main_h_data.get('next_workowanie_id'),

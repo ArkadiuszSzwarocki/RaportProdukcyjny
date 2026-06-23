@@ -19,18 +19,27 @@ if __name__ == '__main__':
     key_path = os.path.join('certs', 'key.pem')
     ssl_context = None
     
-    # Domyślnie używamy HTTP, chyba że wymuszono inaczej (lub brak błędu w przeglądarce)
-    # Rezygnujemy z automatycznego wymuszania HTTPS, aby uniknąć błędów CORS/Frame
+    # Domyślnie zakładamy HTTP
     protocol = "http"
     
-    # Możliwość włączenia SSL przez zmienną środowiskową lub obecność plików
-    # Ale domyślnie zostawiamy HTTP dla stabilności na localhost
+    # Lokalnie chcemy HTTP (bo PWA i brak błędów certyfikatu), na QNAP chcemy HTTPS (bo port 443).
+    is_local = os.environ.get('LOCAL_ENV', 'false').lower() == 'true'
+    # Pobieramy flagę USE_SSL. Domyślnie false (HTTP), co jest idealne dla Nginx Proxy Manager.
     use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
     
-    if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
-        ssl_context = (cert_path, key_path)
-        protocol = "https"
-        app.config['PREFERRED_URL_SCHEME'] = 'https'
+    if use_ssl:
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            ssl_context = (cert_path, key_path)
+            protocol = "https"
+            app.config['PREFERRED_URL_SCHEME'] = 'https'
+        else:
+            try:
+                ssl_context = 'adhoc'
+                protocol = "https"
+                app.config['PREFERRED_URL_SCHEME'] = 'https'
+            except Exception:
+                app.config['PREFERRED_URL_SCHEME'] = 'http'
+                protocol = "http"
     else:
         app.config['PREFERRED_URL_SCHEME'] = 'http'
 

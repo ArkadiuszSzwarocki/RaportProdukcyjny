@@ -12,6 +12,7 @@ PRODUCTION_TANK_PATTERNS = [
     r'^MZ\d{1,2}$',      # MZ01, MZ02, ..., MZ24
     r'^MZ\d{2}-\d{2}$',  # MZ05-01, MZ06-01
     r'^KO\d{1,2}$',      # KO01, KO02, ..., KO24
+    r'^CZ\d{1,2}$',      # CZ01, CZ02, ... (Czyszczenie)
 ]
 
 def is_production_tank_code(location_code):
