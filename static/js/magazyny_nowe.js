@@ -498,7 +498,9 @@ function printCurrentPallet(triggerBtn) {
         .then(r => r.json())
         .then(async data => {
             if(data.success) {
-                alert('Etykieta została pomyślnie wysłana do drukarki: ' + data.message);
+                if (typeof showToast === 'function') {
+                    showToast('Etykieta wysłana do drukarki: ' + data.message, 'success');
+                }
                 return;
             }
 

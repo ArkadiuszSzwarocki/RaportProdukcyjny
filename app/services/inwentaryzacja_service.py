@@ -106,12 +106,26 @@ class InwentaryzacjaService:
                 if not l.startswith('R') and l and l[0].isdigit(): return 'R' + l
                 return l
 
+            matched_keys = set()
             # Helper to add items to map
             def add_to_map(rows):
                 for r in rows:
-                    raw_loc = r['lokalizacja']
+                    key = f"{r['typ_palety']}_{r['id']}"
+                    if key in counted_map:
+                        raw_loc = counted_map[key]['lokalizacja']
+                        r['counted'] = True
+                        r['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
+                        r['jednostka'] = counted_map[key]['jednostka'] or 'kg'
+                        matched_keys.add(key)
+                    else:
+                        raw_loc = r['lokalizacja']
+                        r['counted'] = False
+                        r['waga_faktyczna'] = None
+                        r['jednostka'] = r.get('jednostka') or 'kg'
+                        
                     loc = normalize_loc_key(raw_loc)
                     r['lokalizacja'] = loc # update it so frontend gets consistent value
+                    
                     if loc not in all_items: all_items[loc] = []
                     r['displayId'] = InwentaryzacjaService._build_display_id(
                         r.get('typ_palety'),
@@ -119,18 +133,8 @@ class InwentaryzacjaService:
                         r.get('nr_palety')
                     )
                     
-                    # Check if counted
-                    key = f"{r['typ_palety']}_{r['id']}"
-                    if key in counted_map:
-                        r['counted'] = True
-                        r['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
-                        r['jednostka'] = counted_map[key]['jednostka'] or 'kg'
-                    else:
-                        r['counted'] = False
-                        r['waga_faktyczna'] = None
-                        r['jednostka'] = r.get('jednostka') or 'kg'
-                    
                     all_items[loc].append(r)
+
 
             # LIKE patterns were already defined above in this function.
 
@@ -190,6 +194,29 @@ class InwentaryzacjaService:
                 }
                 all_items[loc].append(synthetic)
             
+            # 5. Add system items that were counted here but belong to another location in the system
+            for key, row in counted_map.items():
+                if key not in matched_keys:
+                    loc = row['lokalizacja']
+                    if loc not in all_items: all_items[loc] = []
+                    synthetic = {
+                        "id": row['paleta_id'],
+                        "nr_palety": row['nr_palety'],
+                        "nazwa": row['nazwa'],
+                        "nr_partii": row['nr_partii'],
+                        "stan_magazynowy": row['waga_systemowa'],
+                        "lokalizacja": loc,
+                        "data_produkcji": row['data_produkcji'].strftime('%Y-%m-%d') if hasattr(row['data_produkcji'], 'strftime') else row['data_produkcji'],
+                        "data_przydatnosci": row['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(row['data_przydatnosci'], 'strftime') else row['data_przydatnosci'],
+                        "typ_palety": row['typ_palety'],
+                        "linia": row['linia'],
+                        "displayId": InwentaryzacjaService._build_display_id(row.get('typ_palety'), row.get('paleta_id'), row.get('nr_palety')),
+                        "counted": True,
+                        "waga_faktyczna": row['waga_faktyczna'],
+                        "jednostka": row['jednostka'] or 'kg'
+                    }
+                    all_items[loc].append(synthetic)
+                    
             return all_items
         except Exception as e:
             print(f"Error in get_rack_data: {e}")
@@ -230,22 +257,40 @@ class InwentaryzacjaService:
 
             hall_contexts = ['PSD', 'AGRO']
             
+            matched_keys = set()
             # Helper to process pallets
             def process_pallet(p):
+                key = f"{p['typ_palety']}_{p['id']}"
+                if key in counted_map:
+                    # If it was moved to another location, don't return it for THIS location
+                    new_loc = counted_map[key]['lokalizacja'].strip().upper()
+                    requested_loc = lokalizacja.strip().upper()
+                    # Normalize both to check
+                    if new_loc.startswith('R-'): new_loc = 'R' + new_loc[2:]
+                    elif not new_loc.startswith('R') and new_loc and new_loc[0].isdigit(): new_loc = 'R' + new_loc
+                    
+                    req_l = requested_loc
+                    if req_l.startswith('R-'): req_l = 'R' + req_l[2:]
+                    elif not req_l.startswith('R') and req_l and req_l[0].isdigit(): req_l = 'R' + req_l
+                    
+                    if new_loc != req_l:
+                        return None
+                        
+                    p['counted'] = True
+                    p['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
+                    p['jednostka'] = counted_map[key]['jednostka'] or 'kg'
+                    p['lokalizacja'] = counted_map[key]['lokalizacja']
+                    matched_keys.add(key)
+                else:
+                    p['counted'] = False
+                    p['waga_faktyczna'] = None
+                    p['jednostka'] = p.get('jednostka') or 'kg'
+                    
                 p['displayId'] = InwentaryzacjaService._build_display_id(
                     p.get('typ_palety'),
                     p.get('id'),
                     p.get('nr_palety')
                 )
-                key = f"{p['typ_palety']}_{p['id']}"
-                if key in counted_map:
-                    p['counted'] = True
-                    p['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
-                    p['jednostka'] = counted_map[key]['jednostka'] or 'kg'
-                else:
-                    p['counted'] = False
-                    p['waga_faktyczna'] = None
-                    p['jednostka'] = p.get('jednostka') or 'kg'
                 return p
 
             # IN variants were already defined above in this function.
@@ -308,6 +353,27 @@ class InwentaryzacjaService:
                 }
                 all_pallets.append(synthetic)
                 
+            # 5. Add system items that were counted here but belong to another location in the system
+            for key, row in counted_map.items():
+                if key not in matched_keys:
+                    synthetic = {
+                        "id": row['paleta_id'],
+                        "nr_palety": row['nr_palety'],
+                        "nazwa": row['nazwa'],
+                        "nr_partii": row['nr_partii'],
+                        "stan_magazynowy": row['waga_systemowa'],
+                        "lokalizacja": row['lokalizacja'],
+                        "data_produkcji": row['data_produkcji'].strftime('%Y-%m-%d') if hasattr(row['data_produkcji'], 'strftime') else row['data_produkcji'],
+                        "data_przydatnosci": row['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(row['data_przydatnosci'], 'strftime') else row['data_przydatnosci'],
+                        "typ_palety": row['typ_palety'],
+                        "linia": row['linia'],
+                        "displayId": InwentaryzacjaService._build_display_id(row.get('typ_palety'), row.get('paleta_id'), row.get('nr_palety')),
+                        "counted": True,
+                        "waga_faktyczna": row['waga_faktyczna'],
+                        "jednostka": row['jednostka'] or 'kg'
+                    }
+                    all_pallets.append(synthetic)
+                    
             return all_pallets
         except Exception as e:
             print(f"Error in get_pallets_at_location: {e}")

@@ -553,11 +553,21 @@ function renderRackList(prefix) {
     let html = '<div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">';
     html += '<table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">';
     html += '<thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b;">';
-    html += '<tr><th style="padding: 12px 10px;">Lokalizacja</th><th style="padding: 12px 10px;">Produkt</th><th style="padding: 12px 10px; text-align: right;">Ilość Systemowa</th></tr>';
+    html += '<tr><th style="padding: 12px 10px;">Lokalizacja</th><th style="padding: 12px 10px;">Produkt</th><th style="padding: 12px 10px; text-align: right;">Status</th></tr>';
     html += '</thead><tbody>';
     
     allItemsOnRack.forEach(p => {
-        const sysColor = (p.counted) ? '#0f172a' : '#64748b';
+        let statusHtml = '';
+        if (p.counted) {
+            if (p.waga_faktyczna === p.stan_magazynowy) {
+                statusHtml = `<span style="color: #10b981;"><span class="material-icons" style="font-size: 14px; vertical-align: middle;">check_circle</span> ZGODNE</span>`;
+            } else {
+                statusHtml = `<span style="color: #ef4444;"><span class="material-icons" style="font-size: 14px; vertical-align: middle;">error</span> NIEZGODNE</span>`;
+            }
+        } else {
+            statusHtml = `<span style="color: #94a3b8;">DO SPRAWDZENIA</span>`;
+        }
+
         html += `<tr style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" onclick="highlightAndOpenSlot('${p.location}')" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
             <td style="padding: 12px 10px; font-weight: 800; color: #3b82f6; width: 30%;">${p.location}</td>
             <td style="padding: 12px 10px;">
@@ -566,8 +576,8 @@ function renderRackList(prefix) {
                     <span style="text-transform: uppercase;">${p.typ_palety}</span> • <span style="font-family: monospace;">${p.displayId}</span>
                 </div>
             </td>
-            <td style="padding: 12px 10px; text-align: right; font-weight: 800; color: ${sysColor}; width: 25%; font-size: 13px;">
-                ${p.stan_magazynowy || 0} ${p.jednostka || 'kg'}
+            <td style="padding: 12px 10px; text-align: right; font-weight: 800; width: 25%; font-size: 13px;">
+                ${statusHtml}
             </td>
         </tr>`;
     });
@@ -666,7 +676,7 @@ function openSlotDetail(locId) {
                         <div style="font-size: 11px; color: #64748b; font-family: monospace;">${p.displayId}</div>
                     </div>
                     <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                        <div>SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
+                        <div style="display: none;">SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
                         ${p.id ? `<button class="move-pallet-btn" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800;" title="Przenieś paletę w inne miejsce">
                             <span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś
                         </button>` : ''}
@@ -675,7 +685,7 @@ function openSlotDetail(locId) {
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                        <input type="number" step="0.1" class="weight-input slot-weight-input" placeholder="STAN FAKTYCZNY" value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                        <input type="number" step="0.1" inputmode="none" class="weight-input slot-weight-input" placeholder="STAN FAKTYCZNY" value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
                         <select class="slot-unit-select" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
                             <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
@@ -690,6 +700,11 @@ function openSlotDetail(locId) {
             content.appendChild(card);
             
             const input = card.querySelector('.slot-weight-input');
+            
+            // Allow soft keyboard to open on explicit user click/tap
+            const allowKeyboard = () => input.removeAttribute('inputmode');
+            input.addEventListener('click', allowKeyboard);
+            input.addEventListener('touchstart', allowKeyboard);
             const unitSelect = card.querySelector('.slot-unit-select');
             const saveBtn = card.querySelector('.save-btn');
             const indicator = card.querySelector('.slot-change-indicator');
@@ -710,7 +725,7 @@ function openSlotDetail(locId) {
                 if(w <= 0) {
                     indicator.style.background = '#fee2e2';
                     indicator.style.color = '#dc2626';
-                    indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO (${systemQty} ${p.jednostka || 'kg'} → 0)`;
+                    indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO`;
                     card.style.borderColor = '#fca5a5';
                     card.style.background = '#fff5f5';
                     nameEl.style.textDecoration = 'line-through';
@@ -718,7 +733,7 @@ function openSlotDetail(locId) {
                 } else if(w !== systemQty || unit !== (p.jednostka || 'kg')) {
                     indicator.style.background = '#fef9c3';
                     indicator.style.color = '#92400e';
-                    indicator.innerHTML = `✏️ Korekta: ${systemQty} ${p.jednostka || 'kg'} → <strong>${w} ${unit}</strong>`;
+                    indicator.innerHTML = `✏️ Zapisano: <strong>${w} ${unit}</strong> (Niezgodne z sys.)`;
                     card.style.borderColor = '#fbbf24';
                     card.style.background = '#fffbeb';
                     nameEl.style.textDecoration = 'none';
@@ -726,7 +741,7 @@ function openSlotDetail(locId) {
                 } else {
                     indicator.style.background = '#dcfce7';
                     indicator.style.color = '#166534';
-                    indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit}`;
+                    indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit} (Zgodne)`;
                     card.style.borderColor = '#10b981';
                     card.style.background = '#f0fdf4';
                     nameEl.style.textDecoration = 'none';
@@ -815,20 +830,40 @@ function openSlotDetail(locId) {
         });
         
         // Also add options to add/clear
+        const isOccupied = realItems.some(p => {
+            if (p.counted) return parseFloat(p.waga_faktyczna) > 0;
+            return parseFloat(p.stan_magazynowy) > 0;
+        });
+        const isRestrictedRack = /^R0?[1-7]/.test(locId) || /^R-0?[1-7]/.test(locId);
+        const canAddAnother = !(isRestrictedRack && isOccupied);
+
         const footerDiv = document.createElement('div');
         footerDiv.style.marginTop = '15px';
         footerDiv.style.display = 'grid';
-        footerDiv.style.gridTemplateColumns = '1fr 1fr';
+        footerDiv.style.gridTemplateColumns = canAddAnother ? '1fr 1fr' : '1fr';
         footerDiv.style.gap = '10px';
-        footerDiv.innerHTML = `
-            <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
-            <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
-        `;
+        
+        let footerHtml = '';
+        if (canAddAnother) {
+            footerHtml += `<button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>`;
+        }
+        footerHtml += `<button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>`;
+        
+        footerDiv.innerHTML = footerHtml;
         content.appendChild(footerDiv);
         document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
     }
-    
     detail.style.display = 'flex';
+    
+    // Autofocus "stan faktyczny" input if available but prevent mobile keyboard popup
+    setTimeout(() => {
+        const firstWeightInput = detail.querySelector('.slot-weight-input');
+        if (firstWeightInput) {
+            // It has inputmode="none" from the HTML, which guarantees no popup.
+            firstWeightInput.focus();
+            firstWeightInput.select();
+        }
+    }, 100);
 }
 
 function closeDetail() {
@@ -923,9 +958,16 @@ function renderPallets(pallets) {
     const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO').reverse(); // Odwrócenie listy (najnowsze na górze)
     currentPallets = realPallets;
     
+    const isOccupied = realPallets.some(p => {
+        if (p.counted) return parseFloat(p.waga_faktyczna) > 0;
+        return parseFloat(p.stan_magazynowy) > 0;
+    });
+    const isRestrictedRack = lastLocation && (/^R0?[1-7]/.test(lastLocation) || /^R-0?[1-7]/.test(lastLocation));
+    const canAddAnother = !(isRestrictedRack && isOccupied);
+
     const mainBtn = document.getElementById('btnAddPalletMain');
     if (mainBtn) {
-        mainBtn.style.display = 'flex';
+        mainBtn.style.display = canAddAnother ? 'flex' : 'none';
     }
     
     // Check if explicitly empty
@@ -967,7 +1009,7 @@ function renderPallets(pallets) {
                     <div style="font-size:11px; color:#64748b; font-family:monospace;">${p.displayId}</div>
                 </div>
                 <div style="text-align:right; font-size:11px; color:#64748b; font-weight:700; flex-shrink:0; margin-left:10px;">
-                    SYS: <span style="font-size:14px; font-weight:800; color:#334155;">${systemQty} ${p.jednostka || 'kg'}</span>
+                    <div style="display: none;">SYS: <span style="font-size:14px; font-weight:800; color:#334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
                 </div>
             </div>
             <div id="change-indicator-${index}" style="display:none; padding:6px 10px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:8px;"></div>
@@ -1005,7 +1047,7 @@ function renderPallets(pallets) {
                 // USUWANIE: czerwone przekreślenie
                 indicator.style.background = '#fee2e2';
                 indicator.style.color = '#dc2626';
-                indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO (${systemQty} ${p.jednostka || 'kg'} → 0)`;
+                indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO`;
                 card.style.borderColor = '#fca5a5';
                 card.style.background = '#fff5f5';
                 card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='line-through');
@@ -1014,7 +1056,7 @@ function renderPallets(pallets) {
                 // KOREKTA: żółte
                 indicator.style.background = '#fef9c3';
                 indicator.style.color = '#92400e';
-                indicator.innerHTML = `✏️ Korekta: ${systemQty} ${p.jednostka || 'kg'} → <strong>${w} ${unit}</strong>`;
+                indicator.innerHTML = `✏️ Zapisano: <strong>${w} ${unit}</strong> (Niezgodne z sys.)`;
                 card.style.borderColor = '#fbbf24';
                 card.style.background = '#fffbeb';
                 card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='none');
@@ -1023,7 +1065,7 @@ function renderPallets(pallets) {
                 // OK: zielone
                 indicator.style.background = '#dcfce7';
                 indicator.style.color = '#166534';
-                indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit}`;
+                indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit} (Zgodne)`;
                 card.style.borderColor = '#10b981';
                 card.style.background = '#f0fdf4';
                 card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='none');
@@ -1151,44 +1193,56 @@ let lookupTimeout = null;
 function handleSSCCInput() {
     const code = document.getElementById('newPalletSSCC').value.trim();
     const statusDiv = document.getElementById('lookupStatus');
+    const resultsDiv = document.getElementById('palletSearchResults');
     
     // Reset lookup state
     statusDiv.style.display = 'none';
     statusDiv.textContent = '';
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
     lookedUpPalletId = null;
     lookedUpSystemWeight = 0;
     
     if(lookupTimeout) clearTimeout(lookupTimeout);
-    if(code.length < 3) return;
+    if(code.length < 2) return;
     
     lookupTimeout = setTimeout(() => {
         statusDiv.style.display = 'block';
         statusDiv.style.color = '#3b82f6';
         statusDiv.textContent = 'Szukanie palety w bazie...';
         
-        fetch(`/magazyn/inwentaryzacja/api/lookup-pallet?code=${encodeURIComponent(code)}`)
+        fetch(`/magazyn/inwentaryzacja/api/search-pallets?query=${encodeURIComponent(code)}`)
         .then(r => r.json())
         .then(data => {
             if(data.success) {
-                const p = data.pallet;
-                lookedUpPalletId = p.id;
-                lookedUpSystemWeight = p.stan_magazynowy || 0;
+                const pallets = data.pallets;
+                if (pallets.length === 0) {
+                    statusDiv.style.color = '#64748b';
+                    statusDiv.textContent = '⚪ Nowy kod palety (brak w bazie danych)';
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
                 
-                statusDiv.style.color = '#10b981';
-                statusDiv.innerHTML = `🟢 Znaleziono w bazie: <strong>${p.nazwa}</strong> (Id: ${p.id})`;
+                // If exact match on nr_palety (e.g. barcode scanner)
+                const exactMatch = pallets.find(p => p.nr_palety && p.nr_palety.toUpperCase() === code.toUpperCase());
+                if (exactMatch) { 
+                    selectPalletFromResult(exactMatch);
+                    return;
+                }
                 
-                // Autofill other fields
-                document.getElementById('newPalletName').value = p.nazwa;
-                document.getElementById('newPalletType').value = p.typ_palety;
-                document.getElementById('newPalletWeight').value = p.stan_magazynowy;
-                document.getElementById('newPalletBatch').value = p.nr_partii || '';
-                document.getElementById('newPalletDateProd').value = p.data_produkcji || '';
-                document.getElementById('newPalletDateExp').value = p.data_przydatnosci || '';
-                document.getElementById('newPalletPackaging').value = p.typ_opakowania || 'brak';
-                document.getElementById('newPalletUnit').value = p.jednostka || 'kg';
-            } else {
-                statusDiv.style.color = '#64748b';
-                statusDiv.textContent = '⚪ Nowy kod palety (brak w bazie danych)';
+                // Otherwise show dropdown
+                statusDiv.style.display = 'none';
+                let html = '<div style="border:1px solid #e2e8f0; border-radius:8px; background:white; max-height:220px; overflow-y:auto; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); margin-top:5px;">';
+                pallets.forEach(p => {
+                    const jsData = encodeURIComponent(JSON.stringify(p));
+                    html += `<div onclick="selectPalletFromResult(JSON.parse(decodeURIComponent('${jsData}')))" style="padding:10px; border-bottom:1px solid #f1f5f9; cursor:pointer; font-size:12px; display:flex; flex-direction:column; gap:4px; transition:background 0.2s;" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='white'">
+                        <div style="font-weight:700; color:#1e293b;">${p.nazwa}</div>
+                        <div style="color:#64748b; font-size:11px;">SSCC: <span style="font-weight:600; color:#3b82f6;">${p.nr_palety || 'Brak'}</span> | Partia: ${p.nr_partii || 'Brak'} | Lok: ${p.lokalizacja || 'Brak'}</div>
+                    </div>`;
+                });
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
             }
         })
         .catch(err => {
@@ -1196,6 +1250,31 @@ function handleSSCCInput() {
             statusDiv.textContent = '🔴 Błąd podczas szukania';
         });
     }, 400);
+}
+
+function selectPalletFromResult(p) {
+    document.getElementById('palletSearchResults').style.display = 'none';
+    
+    lookedUpPalletId = p.id;
+    lookedUpSystemWeight = p.stan_magazynowy || 0;
+    
+    const statusDiv = document.getElementById('lookupStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.style.color = '#10b981';
+    statusDiv.innerHTML = `🟢 Znaleziono w bazie: <strong>${p.nazwa}</strong> (Id: ${p.id})`;
+    
+    // Autofill other fields
+    document.getElementById('newPalletSSCC').value = p.nr_palety || '';
+    document.getElementById('newPalletName').value = p.nazwa || '';
+    if (p.typ_palety) {
+        document.getElementById('newPalletType').value = p.typ_palety;
+    }
+    document.getElementById('newPalletWeight').value = p.stan_magazynowy || '0';
+    document.getElementById('newPalletBatch').value = p.nr_partii || '';
+    document.getElementById('newPalletDateProd').value = p.data_produkcji || '';
+    document.getElementById('newPalletDateExp').value = p.data_przydatnosci || '';
+    document.getElementById('newPalletPackaging').value = p.typ_opakowania || 'brak';
+    document.getElementById('newPalletUnit').value = p.jednostka || 'kg';
 }
 
 function generateLocalSSCC(type) {
@@ -1244,7 +1323,7 @@ function openNewPalletModal(loc, selectedType) {
     }
     
     document.getElementById('newPalletLoc').value = loc || lastLocation;
-    document.getElementById('newPalletSSCC').value = generateLocalSSCC(typeSelect.value);
+    document.getElementById('newPalletSSCC').value = '';
     document.getElementById('newPalletName').value = '';
     document.getElementById('newPalletWeight').value = '0';
     document.getElementById('newPalletUnit').value = (typeSelect.value === 'opakowanie') ? 'szt' : 'kg';
@@ -1254,6 +1333,7 @@ function openNewPalletModal(loc, selectedType) {
     document.getElementById('newPalletPackaging').value = 'brak';
     document.getElementById('newPalletModal').style.display = 'flex';
     document.getElementById('newPalletSSCC').focus();
+    document.getElementById('newPalletSSCC').select();
     
     fetchProductNames(typeSelect.value);
 }
@@ -1267,9 +1347,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('newPalletUnit').value = (val === 'opakowanie') ? 'szt' : 'kg';
             
             const ssccInput = document.getElementById('newPalletSSCC');
-            if (!ssccInput.value || /^(SUR|OPK|DOD|WG)\d+$/.test(ssccInput.value)) {
-                ssccInput.value = generateLocalSSCC(val);
-            }
             
             fetchProductNames(val);
         });
@@ -1366,9 +1443,10 @@ document.getElementById('instructionsModal').addEventListener('click', (e) => {
         <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px;">Wpisz dane palety, której nie ma w systemie.</p>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div>
-                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Palety / SSCC</label>
-                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz..." oninput="handleSSCCInput()">
+            <div style="position: relative;">
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Palety / SSCC / Nazwa</label>
+                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz aby wyszukać..." oninput="handleSSCCInput()">
+                <div id="palletSearchResults" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 2500;"></div>
                 <div id="lookupStatus" style="font-size: 12px; margin-top: 6px; font-weight: 700; display: none;"></div>
             </div>
             <div>

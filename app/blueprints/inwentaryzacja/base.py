@@ -219,6 +219,54 @@ def lookup_pallet():
     else:
         return jsonify({"success": False, "message": "Nie znaleziono palety o takim kodzie/SSCC"})
 
+@inwentaryzacja_bp.route('/api/search-pallets', methods=['GET'])
+def search_pallets():
+    query = request.args.get('query', '').strip().upper()
+    typ = request.args.get('typ', '').strip()
+    
+    if len(query) < 2:
+        return jsonify({"success": True, "pallets": []})
+        
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    like_q = f"%{query}%"
+    pallets = []
+    
+    try:
+        # Surowce
+        if not typ or typ == 'surowiec':
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE UPPER(nr_palety) LIKE %s OR UPPER(nazwa) LIKE %s OR UPPER(nr_partii) LIKE %s LIMIT 20", (like_q, like_q, like_q))
+            pallets.extend(cursor.fetchall())
+            
+        # Opakowania
+        if not typ or typ == 'opakowanie':
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE UPPER(nr_palety) LIKE %s OR UPPER(nazwa) LIKE %s OR UPPER(nr_partii) LIKE %s LIMIT 20", (like_q, like_q, like_q))
+            pallets.extend(cursor.fetchall())
+            
+        # Dodatki
+        if not typ or typ == 'dodatek':
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE UPPER(nr_palety) LIKE %s OR UPPER(nazwa) LIKE %s OR UPPER(nr_partii) LIKE %s LIMIT 20", (like_q, like_q, like_q))
+            pallets.extend(cursor.fetchall())
+            
+        # Wyroby gotowe
+        if not typ or typ == 'wyrób gotowy':
+            for hall in ['PSD', 'AGRO']:
+                table = get_table_name('magazyn_palety', hall)
+                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE UPPER(nr_palety) LIKE %s OR UPPER(produkt) LIKE %s OR UPPER(nr_partii) LIKE %s LIMIT 20", (like_q, like_q, like_q))
+                pallets.extend(cursor.fetchall())
+                
+        # Format dates and limit to 30 overall
+        for p in pallets[:30]:
+            if p.get('data_produkcji') and hasattr(p['data_produkcji'], 'strftime'):
+                p['data_produkcji'] = p['data_produkcji'].strftime('%Y-%m-%d')
+            if p.get('data_przydatnosci') and hasattr(p['data_przydatnosci'], 'strftime'):
+                p['data_przydatnosci'] = p['data_przydatnosci'].strftime('%Y-%m-%d')
+                
+        return jsonify({"success": True, "pallets": pallets[:30]})
+    finally:
+        conn.close()
+
 @inwentaryzacja_bp.route('/api/zamknij-sesje', methods=['POST'])
 def zamknij_sesje():
     sesja_id = request.json.get('sesja_id')
