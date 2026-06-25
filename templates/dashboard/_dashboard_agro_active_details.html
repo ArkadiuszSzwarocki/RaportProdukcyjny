@@ -1,6 +1,6 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
-<div class="active-order-szarze-wrap">
-    <div class="active-order-szarze-panel">
+<div class="active-order-szarze-wrap" style="margin: 0 !important; max-width: 100% !important; box-sizing: border-box;">
+    <div class="active-order-szarze-panel" style="width: 100%; box-sizing: border-box;">
         {% if sekcja == 'Zasyp' %}
         <div class="active-order-szarze-title">Lista zasypów zrobionych:</div>
         {% else %}
