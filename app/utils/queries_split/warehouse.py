@@ -83,9 +83,9 @@ class WarehouseQueries:
             f"(SELECT COUNT(1) FROM {table_palety} pw2 WHERE pw2.plan_id = pw.plan_id AND pw2.id <= pw.id) as seq "
             f", pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            "WHERE DATE(pw.data_dodania) = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') "
-            "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie')",
-            (data_planu,)
+            "WHERE p.sekcja IN ('Workowanie', 'Czyszczenie') "
+            "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie') "
+            "ORDER BY pw.data_dodania ASC"
         )
         result = cursor.fetchall()
         

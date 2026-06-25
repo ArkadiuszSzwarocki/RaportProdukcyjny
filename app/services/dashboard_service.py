@@ -388,7 +388,18 @@ class DashboardService:
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    f"SELECT COUNT(*), COALESCE(SUM(waga), 0) FROM {table_palety} WHERE plan_id=%s",
+                    f"""
+                    SELECT 
+                        COUNT(*), 
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN status = 'przyjeta' THEN COALESCE(NULLIF(waga_potwierdzona, 0), waga)
+                                ELSE waga 
+                            END
+                        ), 0) 
+                    FROM {table_palety} 
+                    WHERE plan_id=%s
+                    """,
                     (plan_id,),
                 )
                 totals_row = cursor.fetchone() or (0, 0)

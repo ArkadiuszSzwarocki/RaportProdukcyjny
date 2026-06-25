@@ -41,7 +41,6 @@
         }
         .plan-section {
             margin-bottom: 50px;
-            page-break-inside: avoid;
         }
         .plan-header {
             background-color: var(--bg);
@@ -51,6 +50,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
+            page-break-inside: avoid;
         }
         .plan-info h2 {
             margin: 0;
@@ -92,6 +92,9 @@
             padding: 12px;
             border-bottom: 1px solid var(--border);
             font-size: 0.95em;
+        }
+        tr {
+            page-break-inside: avoid;
         }
         .status-pill {
             padding: 4px 8px;
@@ -332,11 +335,34 @@
         {% else %}
             {% set teoret_zuzycie = (item.total_pallet_kg / bag_kg)|round(0)|int if bag_kg > 0 else 0 %}
         {% endif %}
+        {% set licznik_start = item.plan.start_machine_counter|default(0)|int %}
+        {% set licznik_stop = item.plan.stop_machine_counter|default(0)|int %}
+        {% set licznik_local = item.plan.stop_local_counter|default(0)|int %}
+        {% set is_running = (item.plan.status == 'w toku') %}
+        
+        {% if is_running and 'live_local_counter' in item.plan %}
+            {% set machine_counter = item.plan.live_local_counter|int %}
+            {% set source_text = "z licznika lokalnego maszyny na żywo" %}
+        {% elif licznik_local > 0 %}
+            {% set machine_counter = licznik_local %}
+            {% set source_text = "z zapisanego licznika lokalnego" %}
+        {% else %}
+            {% set machine_counter = (licznik_stop - licznik_start) if (licznik_stop >= licznik_start and licznik_stop > 0) else 0 %}
+            {% set source_text = "z licznika maszyny: " ~ licznik_stop ~ " - " ~ licznik_start %}
+        {% endif %}
+        
         {% set faktyczne_zuzycie = namespace(val=0.0) %}
         {% for op in item.opakowania %}
             {% set faktyczne_zuzycie.val = faktyczne_zuzycie.val + (op.zuzyte_worki or 0)|float %}
         {% endfor %}
-        {% set strata = (faktyczne_zuzycie.val - teoret_zuzycie)|int %}
+        
+        {% if machine_counter > 0 %}
+            {% set finalne_zuzycie = machine_counter %}
+        {% else %}
+            {% set finalne_zuzycie = faktyczne_zuzycie.val %}
+        {% endif %}
+        
+        {% set strata = (finalne_zuzycie - teoret_zuzycie)|int %}
 
         <div style="margin-top: 20px; padding: 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 6px solid #3498db; border-radius: 8px; font-size: 0.95em;">
             <strong style="font-size: 1.1em; color: var(--primary);">📊 Podsumowanie Bilansu i Straty {{ 'Big Bagów' if is_bigbag else 'Worków' }}:</strong>
@@ -350,8 +376,13 @@
                     <strong style="font-size: 1.1em; color: var(--primary);">{{ teoret_zuzycie }} szt.</strong> {% if not is_bigbag %}<span style="font-size: 0.85em; color: #777;">({{ bag_kg }} kg/worek)</span>{% else %}<span style="font-size: 0.85em; color: #777;">(1 paleta = 1 big bag)</span>{% endif %}
                 </div>
                 <div>
-                    <span style="color: #666; font-size: 0.9em;">Faktyczne zużycie (z rolek):</span><br>
-                    <strong style="font-size: 1.1em; color: var(--primary);">{{ '%.0f'|format(faktyczne_zuzycie.val) }} szt.</strong>
+                    <span style="color: #666; font-size: 0.9em;">Licznik szt. bieżących:</span><br>
+                    <strong style="font-size: 1.1em; color: var(--primary);">{{ '%.0f'|format(finalne_zuzycie) }} szt.</strong>
+                    {% if machine_counter > 0 %}
+                        <br><span style="font-size: 0.75em; color: #999;">({{ source_text }})</span>
+                    {% else %}
+                        <br><span style="font-size: 0.75em; color: #999;">(z rolek)</span>
+                    {% endif %}
                 </div>
                 <div>
                     <span style="color: #666; font-size: 0.9em;">Różnica / Strata (odpad):</span><br>

@@ -59,13 +59,19 @@ def _update_paleta_magazyn(cursor, paleta_id, nowa_waga, linia='PSD'):
     table_mag = get_table_name('magazyn_palety', linia)
     table_plan = get_table_name('plan_produkcji', linia)
 
-    cursor.execute(f"SELECT plan_id FROM {table_mag} WHERE id=%s", (paleta_id,))
+    cursor.execute(f"SELECT plan_id, paleta_workowanie_id FROM {table_mag} WHERE id=%s", (paleta_id,))
     row = cursor.fetchone()
     if not row:
         return {'found': False}
 
     plan_id = row[0]
+    paleta_workowanie_id = row[1] if len(row) > 1 else None
+    
     cursor.execute(f"UPDATE {table_mag} SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
+    if paleta_workowanie_id:
+        table_pal = get_table_name('palety_workowanie', linia)
+        cursor.execute(f"UPDATE {table_pal} SET waga_potwierdzona=%s WHERE id=%s", (nowa_waga, paleta_workowanie_id))
+
     cursor.execute(
         f"""
             UPDATE {table_plan} pp

@@ -739,6 +739,17 @@ def start_daemon_threads(app, cleanup_enabled=False):
                             
                             # Detect increment
                             last_cnt = plan_counters[plan_id]
+                            current_oproznianie = bool(data.get('oproznianie'))
+                            
+                            if current_pallet_cnt > last_cnt and current_oproznianie:
+                                _safe_log_warning(
+                                    "Opróżnianie aktywne. Ignorowanie sygnału wyjazdu z paletyzatora (licznika) dla plan ID=%s. Przesuwanie bazy na %s.",
+                                    plan_id,
+                                    current_pallet_cnt,
+                                )
+                                plan_counters[plan_id] = current_pallet_cnt
+                                continue
+
                             action = _resolve_pallet_counter_action(last_cnt, current_pallet_cnt)
 
                             if action == 'reset':

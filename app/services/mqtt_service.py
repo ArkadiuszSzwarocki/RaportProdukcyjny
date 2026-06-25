@@ -171,8 +171,24 @@ def on_message(client, userdata, msg):
                 real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), 0)
                 _latest_machine_data["pallet_counter"] = real_pallets + _simulated_offsets["pallet_counter"]
                 
-                _latest_machine_data["nrWarstwy"] = _first_or_default(payload_data.get("nrWarstwy"), 0)
-                _latest_machine_data["nrWorka"] = _first_or_default(payload_data.get("nrWorka"), 0)
+                current_layer = _first_or_default(payload_data.get("nrWarstwy"), 0)
+                current_bag = _first_or_default(payload_data.get("nrWorka"), 0)
+                
+                _latest_machine_data["nrWarstwy"] = current_layer
+                _latest_machine_data["nrWorka"] = current_bag
+                
+                oproznianie = _first_or_default(payload_data.get("oproznianie"), False)
+                _latest_machine_data["oproznianie"] = bool(oproznianie)
+                
+                # Snapshot values when oproznianie becomes active
+                if oproznianie and "oproznianie_snapshot" not in _latest_machine_data:
+                    _latest_machine_data["oproznianie_snapshot"] = {
+                        "nrWarstwy": current_layer,
+                        "nrWorka": current_bag,
+                        "timestamp": time.time()
+                    }
+                elif not oproznianie and "oproznianie_snapshot" in _latest_machine_data:
+                    del _latest_machine_data["oproznianie_snapshot"]
 
     except Exception as exc:
         _append_error(f"on_message exception: {exc}")

@@ -1348,7 +1348,9 @@ def raport_palet():
             SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
                    z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
                    w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,
-                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu
+                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,
+                   w.start_machine_counter, w.stop_machine_counter, w.status,
+                   w.stop_local_counter
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
             WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
@@ -1372,9 +1374,16 @@ def raport_palet():
         else:
             data_planu = data_od
 
+        from app.services.mqtt_service import get_latest_data
+        live_data = get_latest_data()
+
         report_data = []
         product_typ_cache = {}
         for p in plans:
+            # Inject live counter for running plans
+            if p.get('status') == 'w toku':
+                p['live_local_counter'] = live_data.get('local_counter', 0)
+                
             # 1. Fetch Inputs (Szarże + Mixes)
             # Batches (including confirmed add-ons)
             cursor.execute("""

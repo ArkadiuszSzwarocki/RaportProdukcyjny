@@ -344,11 +344,6 @@ def register_warehouse_management_routes(
         
                         except Exception as err:
                             app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
-                try:
-                    t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety, app_obj), daemon=True)
-                    t.start()
-                except Exception as thr_err:
-                    current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
             # ---------------------------------------------
             if is_original_czyszczenie:
                 # Rozliczenie straty worków dla czyszczenia
@@ -367,6 +362,12 @@ def register_warehouse_management_routes(
                     current_app.logger.error("Failed to deduct bags for Czyszczenie: %s", op_err)
 
             conn.commit()
+
+            try:
+                t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety, app_obj), daemon=True)
+                t.start()
+            except Exception as thr_err:
+                current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
 
             try:
                 PlanningStatusService.ensure_status_after_tonaz_update(plan_id, linia=linia)

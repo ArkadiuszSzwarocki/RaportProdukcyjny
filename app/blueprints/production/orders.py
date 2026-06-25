@@ -121,7 +121,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
                             return redirect(bezpieczny_powrot())
 
-                        if status_obecny in ['zaplanowane', 'zawieszone']:
+                        if status_obecny == 'zaplanowane':
                             if not _is_truthy(request.form.get('start_checklist_confirmed')):
                                 flash('❌ Start zablokowany: operator musi potwierdzić checklistę folii i etykiety.', 'error')
                                 return redirect(bezpieczny_powrot())
@@ -336,14 +336,16 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 
                 # Fetch stop counter
                 stop_counter = 0
+                stop_local = 0
                 try:
                     latest_d = get_latest_data()
                     stop_counter = latest_d.get('counter', 0)
+                    stop_local = latest_d.get('local_counter', 0)
                 except:
                     pass
                 
-                # Save stop_machine_counter
-                cursor.execute(f"UPDATE {table_plan} SET stop_machine_counter=%s WHERE id=%s", (stop_counter, id))
+                # Save stop_machine_counter and stop_local_counter
+                cursor.execute(f"UPDATE {table_plan} SET stop_machine_counter=%s, stop_local_counter=%s WHERE id=%s", (stop_counter, stop_local, id))
                 
                 # Get start_machine_counter
                 cursor.execute(f"SELECT start_machine_counter FROM {table_plan} WHERE id=%s", (id,))
