@@ -176,7 +176,28 @@ def register_api_runtime_routes(api_bp):
                 }
             )
 
-        return jsonify({'success': True, 'notifications': result, 'unread_count': len(result)})
+        # Sprawdzenie równoległych logowań
+        concurrent_alert = False
+        from app.db import get_all_active_sessions_for_user
+        import time
+        current_sid = session.get('session_tracking_id')
+        active_sessions = get_all_active_sessions_for_user(user_id)
+        if len(active_sessions) > 1:
+            latest_session = active_sessions[-1]
+            if latest_session.get('session_id') != current_sid:
+                latest_ts = latest_session.get('logged_in_at').timestamp() if latest_session.get('logged_in_at') else 0
+                accepted_ts = session.get('accepted_concurrent_ts', 0)
+                # Tylko powiadamiamy jeśli nowa sesja pojawiła się po naszym logowaniu/zaakceptowaniu
+                # i unikamy ostrzeżeń o zamierzchłych sesjach (< 1 dzień).
+                if latest_ts > accepted_ts and (time.time() - latest_ts) < 86400:
+                    concurrent_alert = True
+
+        return jsonify({
+            'success': True, 
+            'notifications': result, 
+            'unread_count': len(result),
+            'concurrent_alert': concurrent_alert
+        })
 
     @api_bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
     @login_required
@@ -385,6 +406,31 @@ def register_api_runtime_routes(api_bp):
             return jsonify({'success': False, 'message': 'Nie udało się odświeżyć sesji'}), 500
 
         return jsonify({'success': True})
+
+    @api_bp.route('/session/accept-concurrent', methods=['POST'])
+    @login_required
+    def session_accept_concurrent():
+        """Accepts concurrent logins by saving the timestamp to the session."""
+        import time
+        session['accepted_concurrent_ts'] = time.time()
+        return jsonify({'success': True})
+
+    @api_bp.route('/session/reject-concurrent', methods=['POST'])
+    @login_required
+    def session_reject_concurrent():
+        """Rejects concurrent logins by deactivating all other sessions for this user."""
+        user_id = session.get('user_id')
+        current_sid = session.get('session_tracking_id')
+        if not user_id or not current_sid:
+            return jsonify({'success': False, 'message': 'Brak danych sesji'}), 400
+            
+        from app.db import deactivate_other_user_sessions
+        ok = deactivate_other_user_sessions(user_id, current_sid)
+        if ok:
+            import time
+            session['accepted_concurrent_ts'] = time.time()
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'message': 'Błąd bazy danych'}), 500
 
     @api_bp.route('/session/close', methods=['POST'])
     @login_required

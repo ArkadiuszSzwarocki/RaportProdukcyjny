@@ -8,6 +8,9 @@ from copy import deepcopy
 _latest_machine_data = {
     "bpm": 0,
     "counter": 0,
+    "local_counter": 0,
+    "nrWarstwy": 0,
+    "nrWorka": 0,
     "status": "OFFLINE",
     "receptura": "Brak danych",
     "last_update": 0,
@@ -104,12 +107,15 @@ def on_connect(client, userdata, flags, rc, properties=None):
 def on_message(client, userdata, msg):
     topic = str(getattr(msg, "topic", "") or "")
     payload_raw = getattr(msg, "payload", b"")
-    payload_text = payload_raw.decode("utf-8", errors="replace") if isinstance(payload_raw, (bytes, bytearray)) else str(payload_raw)
+    payload_text = payload_raw.decode("utf-8", errors="replace").strip('\x00').strip() if isinstance(payload_raw, (bytes, bytearray)) else str(payload_raw).strip('\x00').strip()
     received_ts = time.time()
 
     try:
         parsed_payload = json.loads(payload_text)
-    except Exception:
+    except Exception as e:
+        import traceback
+        with open("C:/Users/Admin/Documents/GitHub/RaportProdukcyjny/json_error.log", "w") as f:
+            f.write(f"Error: {e}\nTraceback: {traceback.format_exc()}\nString: {repr(payload_text)}")
         parsed_payload = {"_raw": payload_text}
 
     if isinstance(parsed_payload, dict):
@@ -148,6 +154,9 @@ def on_message(client, userdata, msg):
                 real_counter = _first_or_default(payload_data.get("licznikGlobalny"), 0)
                 _latest_machine_data["counter"] = real_counter + _simulated_offsets["counter"]
 
+                local_counter = _first_or_default(payload_data.get("licznikLokalny"), 0)
+                _latest_machine_data["local_counter"] = local_counter
+
                 status_val = _first_or_default(payload_data.get("status"), 0)
                 _latest_machine_data["status"] = "PRACA" if status_val == 4 else ("STOP" if status_val == 0 else str(status_val))
 
@@ -161,6 +170,9 @@ def on_message(client, userdata, msg):
             elif "agroPaletyzator" in topic:
                 real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), 0)
                 _latest_machine_data["pallet_counter"] = real_pallets + _simulated_offsets["pallet_counter"]
+                
+                _latest_machine_data["nrWarstwy"] = _first_or_default(payload_data.get("nrWarstwy"), 0)
+                _latest_machine_data["nrWorka"] = _first_or_default(payload_data.get("nrWorka"), 0)
 
     except Exception as exc:
         _append_error(f"on_message exception: {exc}")

@@ -2613,6 +2613,65 @@ def deactivate_all_user_sessions(user_id):
         return False
 
 
+def get_all_active_sessions_for_user(user_id):
+    """Return all active sessions for a user, sorted by logged_in_at ASC."""
+    if not user_id:
+        return []
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT session_id, logged_in_at, ip_address, display_name 
+            FROM aktywne_sesje 
+            WHERE user_id = %s AND is_active = 1
+            ORDER BY logged_in_at ASC
+            """,
+            (user_id,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return []
+
+
+def deactivate_other_user_sessions(user_id, exclude_session_id):
+    """Mark all active sessions of a user as logged out, EXCEPT the specified one."""
+    if not user_id or not exclude_session_id:
+        return False
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE aktywne_sesje SET is_active = 0, last_seen = NOW() WHERE user_id = %s AND session_id != %s",
+            (user_id, exclude_session_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return False
+
+
 def is_session_active(session_id):
     """Check if the session tracking ID is still active in the database."""
     if not session_id:

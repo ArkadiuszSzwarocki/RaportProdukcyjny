@@ -156,8 +156,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                 real_start=COALESCE(real_start, NOW()),
                                 real_stop=NULL,
                                 ostatnie_wznowienie=NOW(),
-                                start_machine_counter=COALESCE(start_machine_counter, %s),
-                                start_pallet_counter=COALESCE(start_pallet_counter, %s),
+                                start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s),
+                                start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s),
                                 start_checklist_operator_login=%s,
                                 start_checklist_operator_at=COALESCE(start_checklist_operator_at, NOW())
                             WHERE id=%s
@@ -167,12 +167,12 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     else:
                         if linia == 'AGRO':
                             cursor.execute(
-                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, ostatnie_wznowienie=NOW(), start_machine_counter=COALESCE(start_machine_counter, %s), start_pallet_counter=COALESCE(start_pallet_counter, %s) WHERE id=%s",
+                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, ostatnie_wznowienie=NOW(), start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s), start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s) WHERE id=%s",
                                 (start_counter, start_pallet_counter, id),
                             )
                         else:
                             cursor.execute(
-                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, start_machine_counter=COALESCE(start_machine_counter, %s), start_pallet_counter=COALESCE(start_pallet_counter, %s) WHERE id=%s",
+                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s), start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s) WHERE id=%s",
                                 (start_counter, start_pallet_counter, id),
                             )
                     

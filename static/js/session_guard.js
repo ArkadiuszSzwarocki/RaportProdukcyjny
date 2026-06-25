@@ -185,6 +185,31 @@
                 }).then(function(r) {
                     if (r.status === 401) {
                         window.location.replace('/login');
+                        return;
+                    }
+                    if (r.ok) {
+                        r.json().then(function(data) {
+                            if (data && data.concurrent_alert && typeof Swal !== 'undefined' && !window._concurrentAlertShowing) {
+                                window._concurrentAlertShowing = true;
+                                Swal.fire({
+                                    title: 'Wykryto logowanie!',
+                                    text: 'Ktoś właśnie zalogował się na to konto z innego urządzenia.',
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'OK, akceptuję',
+                                    cancelButtonText: 'Wyloguj inne urządzenia',
+                                    allowOutsideClick: false,
+                                    allowEscapeKey: false
+                                }).then(function(result) {
+                                    window._concurrentAlertShowing = false;
+                                    if (result.isConfirmed) {
+                                        _originalFetch('/api/session/accept-concurrent', { method: 'POST' });
+                                    } else {
+                                        _originalFetch('/api/session/reject-concurrent', { method: 'POST' });
+                                    }
+                                });
+                            }
+                        }).catch(function(){});
                     }
                 }).catch(function() {});
             }

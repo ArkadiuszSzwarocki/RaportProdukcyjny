@@ -377,9 +377,9 @@ def login():
                     conn.commit()
                 except Exception:
                     pass
-                # record last activity timestamp for server-side inactivity logout
                 try:
                     session['last_activity'] = time.time()
+                    session['accepted_concurrent_ts'] = time.time()
                 except Exception:
                     pass
                 
@@ -496,11 +496,7 @@ def logout():
     audit_log('Wylogował się')
     current_app.logger.info("Użytkownik '%s' wylogował się", session.get('login', '—'))
     
-    user_id = session.get('user_id')
-    if user_id:
-        deactivate_all_user_sessions(user_id)
-    else:
-        deactivate_active_session(session.get('session_tracking_id'))
+    deactivate_active_session(session.get('session_tracking_id'))
         
     session.clear()
     resp = make_response(redirect('/login'))
@@ -521,11 +517,7 @@ def api_logout():
     except Exception:
         pass
     
-    user_id = session.get('user_id')
-    if user_id:
-        deactivate_all_user_sessions(user_id)
-    else:
-        deactivate_active_session(session.get('session_tracking_id'))
+    deactivate_active_session(session.get('session_tracking_id'))
         
     session.clear()
     return jsonify({'success': True, 'redirect': '/login'})

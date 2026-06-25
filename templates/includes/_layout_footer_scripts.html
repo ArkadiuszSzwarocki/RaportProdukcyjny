@@ -18,7 +18,7 @@
 <script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
-<script src="{{ url_for('static', filename='js/dashboard/machine-stats.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard/machine-stats-v2.js') }}?v=1"></script>
 
 <script>
     // PWA & Fullscreen + Web Push Notification Subscription
@@ -299,6 +299,28 @@
                 }
                 if (r.ok) {
                     const d = await r.json();
+                    
+                    if (d.concurrent_alert && typeof Swal !== 'undefined' && !window._concurrentAlertShowing) {
+                        window._concurrentAlertShowing = true;
+                        Swal.fire({
+                            title: 'Wykryto logowanie!',
+                            text: 'Ktoś właśnie zalogował się na to konto z innego urządzenia.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'OK, akceptuję',
+                            cancelButtonText: 'Wyloguj inne urządzenia',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then((result) => {
+                            window._concurrentAlertShowing = false;
+                            if (result.isConfirmed) {
+                                fetch('/api/session/accept-concurrent', { method: 'POST' });
+                            } else {
+                                fetch('/api/session/reject-concurrent', { method: 'POST' });
+                            }
+                        });
+                    }
+                    
                     const notifications = Array.isArray(d.notifications) ? d.notifications : [];
                     if (state.initialized) {
                         notifications.forEach(function(item) {

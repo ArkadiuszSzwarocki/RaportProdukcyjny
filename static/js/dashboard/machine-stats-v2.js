@@ -50,10 +50,17 @@
                 if (type === 'global') {
                     pill.textContent = data.counter + ' szt.';
                 } else {
-                    // Real/Current counter = global - start
-                    const startVal = Number(data.start_counter || 0);
-                    const realVal = Math.max(0, Number(data.counter) - startVal);
-                    pill.textContent = realVal + ' szt.';
+                    if (data.local_counter !== undefined) {
+                        pill.textContent = data.local_counter + ' szt.';
+                    } else {
+                        // Real/Current counter = global - start
+                        let startVal = Number(data.start_counter);
+                        if (isNaN(startVal) || data.start_counter === undefined) {
+                            startVal = Number(pill.getAttribute('data-start-counter') || 0);
+                        }
+                        const realVal = Math.max(0, Number(data.counter) - startVal);
+                        pill.textContent = realVal + ' szt.';
+                    }
                 }
                 pill.style.display = 'inline-block';
             }
@@ -68,7 +75,22 @@
             }
         });
 
-        // 4. Update Wrapped Status
+        // 4. Update Palletizer status
+        const warstwaEls = document.querySelectorAll('[data-machine-nr-warstwy]');
+        warstwaEls.forEach(el => {
+            if (data.nrWarstwy !== undefined) {
+                el.textContent = 'W: ' + data.nrWarstwy;
+            }
+        });
+        
+        const workiEls = document.querySelectorAll('[data-machine-nr-worka]');
+        workiEls.forEach(el => {
+            if (data.nrWorka !== undefined) {
+                el.textContent = 'Szt: ' + data.nrWorka;
+            }
+        });
+
+        // 5. Update Wrapped Status
         const wrappedIndicators = document.querySelectorAll('[data-machine-wrapped-indicator]');
         wrappedIndicators.forEach(ind => {
             ind.style.display = 'inline-block';
@@ -84,6 +106,48 @@
                 ind.style.opacity = '0.6';
             }
         });
+
+        // 6. Loss Calculator
+        const lossToggle = document.getElementById('calc-loss-toggle');
+        const lossResults = document.getElementById('loss-calc-results');
+        if (lossToggle && lossResults) {
+            if (!lossToggle.checked) {
+                lossResults.style.opacity = '0.3';
+            } else {
+                lossResults.style.opacity = '1';
+                
+                const bagsPerLayer = parseInt(document.getElementById('bags-per-layer').value) || 4;
+                const bagsPerPallet = parseInt(document.getElementById('bags-per-pallet').value) || 40;
+                
+                let produced = 0;
+                if (data.local_counter !== undefined && data.local_counter > 0) {
+                    produced = data.local_counter;
+                } else {
+                    const realPill = document.querySelector('[data-machine-counter-pill][data-counter-type="real"]');
+                    const startVal = Number(realPill ? realPill.getAttribute('data-start-counter') : 0);
+                    produced = Math.max(0, Number(data.counter || 0) - startVal);
+                }
+                
+                let stacked = 0;
+                const palletPill = document.querySelector('[data-machine-pallet-count-pill]');
+                if (palletPill) {
+                    const startPallets = Number(palletPill.getAttribute('data-start-pallet') || 0);
+                    const realPallets = Math.max(0, Number(data.pallet_counter || 0) - startPallets);
+                    
+                    const nrWarstwy = Number(data.nrWarstwy || 0);
+                    const nrWorka = Number(data.nrWorka || 0);
+                    const currentLayer = Math.max(0, nrWarstwy - 1);
+                    
+                    stacked = (realPallets * bagsPerPallet) + (currentLayer * bagsPerLayer) + nrWorka;
+                }
+                
+                const diff = Math.max(0, produced - stacked);
+                
+                document.getElementById('loss-produced').innerHTML = produced + ' <span style="font-size: 0.5em; font-weight: normal;">szt.</span>';
+                document.getElementById('loss-stacked').innerHTML = stacked + ' <span style="font-size: 0.5em; font-weight: normal;">szt.</span>';
+                document.getElementById('loss-difference').innerHTML = diff + ' <span style="font-size: 0.5em; font-weight: normal;">szt.</span>';
+            }
+        }
     }
 
     function setGlobalStatus(text, colorClass) {

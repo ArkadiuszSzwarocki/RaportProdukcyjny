@@ -30,6 +30,43 @@
                 }
             </style>
 
+            <!-- Sekcja: Analiza strat na żywo (Pakowaczka vs Paletyzator) -->
+            <div class="work-form" style="margin-top: 15px; border-color: #f39c12; box-shadow: 0 4px 16px rgba(243,156,18,0.08);">
+                <h3 style="color: #e67e22; margin-top: 0;"><span class="material-icons" style="color: #f39c12; vertical-align: middle;">analytics</span> Bilans i straty na żywo:</h3>
+                <div style="background: #fff8e1; border-radius: 8px; padding: 12px; border: 1px solid #ffe082; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <label style="font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <input type="checkbox" id="calc-loss-toggle" checked style="width: 18px; height: 18px;">
+                            Włącz kalkulator strat
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <label for="bags-per-layer" style="font-size: 0.9em; font-weight: 600;">Worków na warstwie:</label>
+                            <input type="number" id="bags-per-layer" value="4" min="1" max="20" style="width: 60px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; text-align: center; font-weight: bold;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <label for="bags-per-pallet" style="font-size: 0.9em; font-weight: 600;">Sztuk na palecie:</label>
+                            {% set domyslne_szt = (1000 / (wrctx.bag_kg or 25))|int %}
+                            <input type="number" id="bags-per-pallet" value="{{ domyslne_szt }}" min="1" max="100" style="width: 60px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; text-align: center; font-weight: bold;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; margin-top: 5px; flex-wrap: wrap;" id="loss-calc-results">
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e0e0e0; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #757575; font-weight: bold; text-transform: uppercase;">Wyprodukowano (Pakowaczka)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #2196f3;" id="loss-produced">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e0e0e0; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #757575; font-weight: bold; text-transform: uppercase;">Ułożono (Paletyzator)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #4caf50;" id="loss-stacked">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 2px solid #f44336; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #d32f2f; font-weight: bold; text-transform: uppercase;">Brakujące (Strata)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #f44336;" id="loss-difference">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Sekcja: Materiały pod bieżącą produkcję -->
             <div class="work-form" style="margin-top: 15px; border-color: #2ecc71; box-shadow: 0 4px 16px rgba(46,204,113,0.08);">
                 <h3 style="color: #27ae60;"><span class="material-icons" style="color: #2ecc71; vertical-align: middle;">settings_suggest</span> Materiały pod bieżącą produkcję:</h3>

@@ -8,11 +8,12 @@ import re
 
 # Wzorce kodów zbiorników produkcyjnych (NIE mogą być lokalizacjami magazynowymi!)
 PRODUCTION_TANK_PATTERNS = [
-    r'^BB\d{1,2}$',      # BB01, BB02, ..., BB24
-    r'^MZ\d{1,2}$',      # MZ01, MZ02, ..., MZ24
+    r'^BB\d{2}$',      # BB01, BB02, ..., BB24
+    r'^MZ\d{2}$',      # MZ01, MZ02, ..., MZ24
     r'^MZ\d{2}-\d{2}$',  # MZ05-01, MZ06-01
-    r'^KO\d{1,2}$',      # KO01, KO02, ..., KO24
-    r'^CZ\d{1,2}$',      # CZ01, CZ02, ... (Czyszczenie)
+    r'^KO\d{2}$',      # KO01, KO02, ..., KO24
+    r'^CZ\d{2}$',      # CZ01, CZ02, ... (Czyszczenie)
+    r'^WZ\d{2}$',      # WZ04 (new production tank)
 ]
 
 def is_production_tank_code(location_code):

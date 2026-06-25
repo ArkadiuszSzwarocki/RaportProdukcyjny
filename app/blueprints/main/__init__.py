@@ -208,7 +208,7 @@ def index():
         if plan_dnia:
             for p in plan_dnia:
                 status = str(p[3]).strip().lower()
-                if len(p) > 3 and status in ['w toku', 'zawieszone']:
+                if len(p) > 3 and status == 'w toku':
                     has_active_order = True
                     break
 

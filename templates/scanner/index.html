@@ -458,7 +458,7 @@ let pendingProductionLoc = null;
 
 function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
-  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ');
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ');
   
   if (isProduction) {
     pendingProductionLoc = loc;

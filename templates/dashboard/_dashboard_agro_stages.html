@@ -145,7 +145,7 @@
         </div>
         {% endif %}
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
             {% if etapy %}
             {% set agro_dosypka_ns = namespace(has_extra=false, rendered_plus=false, max_mixer_etap=4) %}
             {% for etap in etapy %}
@@ -263,7 +263,7 @@
                     {% endif %}
                 </div>
 
-                <div class="mb-5" style="padding-right: 40px; min-height: 68px; display: flex; flex-direction: column; justify-content: flex-start;">
+                <div class="mb-5" style="padding-right: 90px; min-height: 68px; display: flex; flex-direction: column; justify-content: flex-start;">
                     <div class="small" style="font-size:0.72em; color:#6b7280; min-height:16px; line-height:1.1; margin-bottom:4px;">
                         {% if etap.is_running %}
                         ▶ W TOKU

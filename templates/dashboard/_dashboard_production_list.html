@@ -154,7 +154,7 @@
             {% set g_loop_idx = namespace(val=0) %}
             
             {# 1. Active orders (w toku, zawieszone) #}
-            {% for p in plan if p[3]|lower in ['w toku', 'zawieszone'] %}
+            {% for p in plan if p[3]|lower == 'w toku' or (not agro_focus_mode and p[3]|lower == 'zawieszone') %}
                 {% set g_loop_idx.val = g_loop_idx.val + 1 %}
                 {% set order_index = g_loop_idx.val %}
                 {% if not (sekcja in ['Zasyp', 'Workowanie'] and ns.is_active and p[0] == ns.active_plan_id) %}

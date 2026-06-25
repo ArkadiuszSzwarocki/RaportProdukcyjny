@@ -423,9 +423,13 @@ class DashboardService:
             try:
                 from app.services.mqtt_service import get_latest_data
                 latest_d = get_latest_data()
-                current_counter = latest_d.get('counter', 0)
-                if current_counter >= start_machine_counter and start_machine_counter is not None:
-                    live_total_pulled = current_counter - start_machine_counter
+                local_c = latest_d.get('local_counter')
+                if local_c is not None and local_c > 0:
+                    live_total_pulled = local_c
+                else:
+                    current_counter = latest_d.get('counter', 0)
+                    if current_counter >= start_machine_counter and start_machine_counter is not None:
+                        live_total_pulled = current_counter - start_machine_counter
             except:
                 pass
             

@@ -260,29 +260,7 @@
     }
 
     function bindDateNavigation() {
-        var dateDisplay = document.getElementById('current-date-display');
-        var dateIso = document.getElementById('current-date-iso');
-        var wpisyContainer = document.getElementById('wpisy-container');
-        var dayNavButtons = document.querySelectorAll('.day-nav');
-        if (!dateDisplay || !dateIso || !wpisyContainer || !dayNavButtons.length) {
-            return;
-        }
-
-        dayNavButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                var offset = parseInt(button.getAttribute('data-day-offset'), 10);
-                var currentDate = parseIsoDate(dateIso.value);
-                currentDate.setDate(currentDate.getDate() + offset);
-
-                var newDateStr = toIsoDate(currentDate);
-                dateIso.value = newDateStr;
-                var day = String(currentDate.getDate()).padStart(2, '0');
-                var month = String(currentDate.getMonth() + 1).padStart(2, '0');
-                var year = String(currentDate.getFullYear()).slice(-2);
-                dateDisplay.textContent = day + '.' + month + '.' + year;
-                window.location.href = "?sekcja=" + document.querySelector("[data-sekcja]").getAttribute("data-sekcja") + "&linia=" + (document.querySelector("[data-linia]") ? document.querySelector("[data-linia]").getAttribute("data-linia") : "") + "&data=" + newDateStr;
-            });
-        });
+        // Obsolete - przeniesiono do page-helpers.js (shiftCurrentDay)
     }
 
     function init() {
