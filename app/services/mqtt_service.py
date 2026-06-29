@@ -47,6 +47,7 @@ _RECENT_MESSAGES_LIMIT = max(10, _safe_env_int("MQTT_RECENT_MESSAGES_LIMIT", 60)
 _RECENT_ERRORS_LIMIT = 25
 _SUBSCRIBE_TOPICS = _parse_subscribe_topics(os.getenv("MQTT_SUBSCRIBE_TOPICS", "#"))
 _mqtt_thread = None
+_active_mqtt_client = None
 _stop_event = threading.Event()
 _data_lock = threading.Lock()
 
@@ -208,6 +209,9 @@ def _run_mqtt_client():
     mqtt_password = os.getenv("MQTT_BROKER_PASSWORD", "Lstech123")
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+    global _active_mqtt_client
+    _active_mqtt_client = client
+    
     if mqtt_username:
         client.username_pw_set(mqtt_username, mqtt_password)
     if mqtt_port == 8883:
@@ -254,3 +258,26 @@ def simulate_machine_data(add_counter=0, add_pallets=0, set_status="PRACA"):
         if set_status:
             _latest_machine_data["status"] = set_status
         _latest_machine_data["last_update"] = time.time()
+
+def publish_command(topic: str, payload_dict: dict):
+    """
+    Asynchronously publishes a JSON command message to the specified topic using the active MQTT client.
+    Example payload_dict: {"d": {"zerowanieLicznikow": [1]}, "ts": "2026-06-24T..."}
+    """
+    global _active_mqtt_client
+    if _active_mqtt_client is None:
+        print(f"[MQTT-SERVER] Ostrzezenie: Nie mozna opublikowac - brak podlaczonego klienta dla topic={topic}")
+        return False
+        
+    try:
+        payload_json = json.dumps(payload_dict)
+        # Using QoS 1 for reliable delivery to the machine
+        info = _active_mqtt_client.publish(topic, payload_json, qos=1)
+        # wait_for_publish can be used, but since it's background we'll let paho handle queueing 
+        # so it won't block the caller too much. We can just trust it's in the client's queue.
+        print(f"[MQTT-SERVER] Opublikowano komende: {topic} -> {payload_json}")
+        return True
+    except Exception as e:
+        print(f"[MQTT-SERVER] Blad publikacji komendy: {str(e)}")
+        _append_error(f"publish_command error: {e}")
+        return False

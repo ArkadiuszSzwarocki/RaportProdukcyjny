@@ -299,16 +299,19 @@
     }
     
     .mqtt-filter-bar {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr auto;
-        gap: 10px;
-        margin-bottom: 12px;
-        align-items: end;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 16px;
+        align-items: flex-end;
     }
     
     .mqtt-filter-col {
-        display: grid;
-        gap: 4px;
+        flex: 1;
+        min-width: 220px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
     }
     
     .mqtt-filter-label {
@@ -317,6 +320,7 @@
         letter-spacing: 0.08em;
         font-weight: 700;
         color: #64748b;
+        margin: 0;
     }
     
     .mqtt-filter-input {

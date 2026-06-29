@@ -1,0 +1,329 @@
+/* SECTION 1: OVERLAYS & MODALS */
+/* ──────────────────────────────────────────── */
+
+/* Drawer (modal-like panel) styles for paleta */
+.drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s;
+    z-index: 9998;
+}
+
+.drawer-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 380px;
+    max-width: 95%;
+    background: #fff;
+    box-shadow: -12px 0 24px rgba(0, 0, 0, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.2, .8, .2, 1);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+
+.drawer.open {
+    transform: translateX(0);
+}
+
+.drawer .drawer-header {
+    padding: 14px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.drawer .drawer-body {
+    padding: 14px;
+    overflow: auto;
+}
+
+.drawer .form-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+@media (max-width: 600px) {
+    .drawer {
+        width: 100%;
+    }
+}
+
+/* ================= Quick popup (global) ================= */
+.quick-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+    z-index: 20001;
+    pointer-events: none;
+    will-change: opacity;
+}
+
+.quick-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+    display: block;
+    pointer-events: auto;
+}
+
+.quick-popup {
+    position: fixed;
+    left: 50%;
+    top: 10%;
+    transform: translateX(-50%) translateY(-8px) scale(0.98);
+    width: min(880px, calc(100% - 40px));
+    max-width: 95%;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border-radius: 10px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    z-index: 20002;
+    opacity: 0;
+    transition: transform 0.22s cubic-bezier(.2, .8, .2, 1), opacity 0.16s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    will-change: transform, opacity;
+}
+
+.quick-popup.open {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.quick-popup .qp-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.01), transparent);
+}
+
+.quick-popup .qp-header strong {
+    font-size: 1.05em;
+    font-weight: 800;
+    color: var(--primary-color);
+}
+
+.quick-popup .qp-close {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.quick-popup .qp-close:hover {
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--text-main);
+}
+
+.quick-popup .qp-body {
+    padding: 18px;
+    max-height: calc(80vh - 120px);
+    overflow: auto;
+}
+
+.quick-popup .qp-body .input-sm {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+    .quick-popup {
+        top: 1.5vh;
+        left: 50%;
+        width: calc(100% - 12px);
+        max-width: calc(100% - 12px);
+        max-height: 97vh;
+        border-radius: 12px;
+    }
+
+    .quick-popup .qp-header {
+        padding: 10px 12px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg-card);
+    }
+
+    .quick-popup .qp-body {
+        padding: 10px;
+        max-height: calc(97vh - 58px);
+    }
+}
+
+/* Modal for planning changes details */
+.info-details-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    width: 650px;
+    max-width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.info-details-modal.active {
+    display: block;
+    animation: modalScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.info-details-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 15px;
+}
+
+.fullscreen-modal {
+        position: fixed;
+        inset: 0;
+        background: white;
+        z-index: 12040;
+        opacity: 0;
+        transform: scale(.98);
+        transition: all .2s;
+        display: flex;
+        flex-direction: column;
+    }
+
+.fullscreen-modal.open {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+.fullscreen-modal .fs-body {
+        padding: 18px;
+        overflow: auto;
+        flex: 1;
+    }
+
+.wizard-modal {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) scale(.98);
+        background: white;
+        z-index: 12050;
+        width: min(760px, 96%);
+        border-radius: 8px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+        opacity: 0;
+        transition: all .22s;
+    }
+
+.wizard-modal .wiz-body {
+        padding: 18px;
+        max-height: 60vh;
+        overflow: auto;
+    }
+
+.wizard-modal .wiz-actions {
+        padding: 12px 18px;
+        border-top: 1px solid var(--border-color);
+        text-align: right;
+    }
+
+.wizard-modal.open {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+.slide-over-backdrop {
+        z-index: 10990;
+    }
+
+@media (max-width: 600px) {
+
+        .table th,
+        .table td {
+            padding: 6px 8px;
+            font-size: 0.9em;
+        }
+
+        .table-sm th,
+        .table-sm td {
+            padding: 4px 6px;
+            font-size: 0.85em;
+        }
+
+        .section-box {
+            margin-bottom: 12px;
+            padding: 0;
+        }
+
+        .p-15 {
+            padding: 10px;
+        }
+
+        .quick-popup {
+            width: calc(100% - 10px);
+            max-width: calc(100% - 10px);
+            max-height: 98vh;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            border-radius: 12px;
+        }
+
+        .quick-popup .qp-header {
+            padding: 10px 12px;
+        }
+
+        .quick-popup .qp-body {
+            padding: 8px;
+            max-height: calc(98vh - 56px);
+            overflow: auto;
+        }
+    }
+
+.modal {
+        display: none;
+    }
+
+.test-report-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 12050;
+        display: none;
+    }
+
+.test-report-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        animation: fadeIn 0.2s ease;
+    }

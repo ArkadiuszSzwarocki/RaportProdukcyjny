@@ -101,6 +101,28 @@
         width: 100%;
         min-width: 0;
     }
+    
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+        box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.1);
+    }
+    
+    .premium-table {
+        min-width: 600px; /* Zapewnia, że kolumny nie będą zgniecione, wymusza scroll poziomy */
+    }
+    
+    /* Zmniejszenie paddingów na mobilce */
+    .premium-table th, .premium-table td {
+        padding: 10px 8px !important;
+        font-size: 13px !important;
+    }
+    
+    .logistyka-container {
+        padding: 10px !important;
+    }
 }
 </style>
 

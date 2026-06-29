@@ -1,0 +1,49 @@
+<section>
+  <h2>📝 Notatki Zmiany</h2>
+
+  {# Nawigacja po datach #}
+  <div class="day-nav-bar">
+    <button class="day-nav-btn" data-direction="prev">◀</button>
+    <span id="date-display-global">{{ dzisiaj }}</span>
+    <button class="day-nav-btn" data-direction="next">▶</button>
+  </div>
+
+  <form action="/add_shift_note" method="post" id="noteForm" class="note-form">
+    <label class="note-label" for="noteTextarea">{{ _('notatka_label') }}</label>
+    <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="{{ _('wpisz_notatke') }}"
+      title="{{ _('notatka_zapisu') }}" aria-label="Notatka"></textarea>
+    <input type="hidden" name="date" value="{{ dzisiaj }}">
+    <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
+    <input type="hidden" name="linia" value="{{ linia }}">
+    <button type="submit" class="note-save-btn">{{ _('zapisz_notatke') }}</button>
+  </form>
+
+  <div class="notes-container">
+    <h3>📌 Zapisane Notatki</h3>
+    <div id="shift-notes-container">
+      {% if shift_notes %}
+      {% for n in shift_notes %}
+      <div class="note-card">
+        <div class="note-card-inner">
+          <div class="note-card-content">
+            <div class="note-meta">
+              <strong>📅 {{ n.date }}</strong> • <em>{{ n.author }}</em>
+            </div>
+            <div class="note-text">{{ n.note }}</div>
+          </div>
+          {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] and session.get('imie_nazwisko') == n.author or
+          session.get('login') == n.author %}
+          <div class="note-actions">
+            <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>
+            <button class="note-delete-btn" data-id="{{ n.id }}">🗑️ Usuń</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="no-notes">{{ _('brak_notatek_dodaj') }}</p>
+      {% endif %}
+    </div>
+  </div>
+</section>

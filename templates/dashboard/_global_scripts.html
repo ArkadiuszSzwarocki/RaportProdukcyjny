@@ -1,0 +1,337 @@
+<script>
+  document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('wn-approve') || e.target.classList.contains('wn-reject')) {
+      const id = e.target.getAttribute('data-id');
+      const action = e.target.classList.contains('wn-approve') ? 'approve' : 'reject';
+      fetch(`/api/wnioski/${id}/${action}`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json()).then(j => {
+          if (j && j.success) {
+            const tr = document.querySelector(`tr[data-id="${id}"]`);
+            if (tr) tr.remove();
+          } else {
+            alert((j && j.message) || 'Błąd');
+          }
+        }).catch(() => alert('Błąd sieci'));
+    }
+  });
+</script>
+
+<script>
+  // Note form submission - no auto-refresh, let flash message show
+  const noteForm = document.getElementById('noteForm');
+  if (noteForm) {
+    noteForm.addEventListener('submit', function (e) {
+      // Just submit normally, page will refresh after redirect
+    });
+  }
+
+  // Obsługa edycji i usuwania notatek
+  document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('note-delete-btn')) {
+      const id = e.target.getAttribute('data-id');
+      if (confirm('Czy na pewno chcesz usunąć tę notatkę?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/api/shift_note/${id}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+    if (e.target.classList.contains('note-edit-btn')) {
+      const id = e.target.getAttribute('data-id');
+      const noteCard = e.target.closest('.note-card');
+      const noteText = noteCard.querySelector('.note-text').innerText;
+      const newText = prompt('Edytuj notatkę:', noteText);
+      if (newText !== null && newText.trim() !== '') {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/api/shift_note/${id}/update`;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'note';
+        input.value = newText;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+  });
+</script>
+
+<script>
+  // Show/hide time inputs for Wyjscie prywatne in global dashboard absence form
+  document.addEventListener('DOMContentLoaded', function () {
+    var sel = document.getElementById('abs_typ_select');
+    var fromLabel = document.getElementById('abs_wyjscie_label_from');
+    var toLabel = document.getElementById('abs_wyjscie_label_to');
+    var koment = document.querySelector('input[name="komentarz"]');
+    function update() {
+      if (!sel) return;
+      if (sel.value === 'Wyjscie prywatne') {
+        fromLabel.classList.remove('hidden');
+        toLabel.classList.remove('hidden');
+        document.getElementById('abs_wyjscie_from').required = true;
+        document.getElementById('abs_wyjscie_to').required = true;
+        if (koment) { koment.required = false; }
+      } else {
+        fromLabel.classList.add('hidden');
+        toLabel.classList.add('hidden');
+        try { document.getElementById('abs_wyjscie_from').required = false; document.getElementById('abs_wyjscie_to').required = false; } catch (e) { }
+        if (sel.value === 'Nadgodziny') {
+          if (koment) { koment.required = true; }
+        } else {
+          if (koment) { koment.required = false; }
+        }
+      }
+    }
+    if (sel) { sel.addEventListener('change', update); update(); }
+  });
+</script>
+
+<script>
+  // ========== WYSŁIJ RAPORT MAILEM ==========
+  const _btnSendEmailReport = document.getElementById('btnSendEmailReport');
+  if (_btnSendEmailReport) _btnSendEmailReport.addEventListener('click', function (e) {
+    e.preventDefault();
+    this.disabled = true;
+    const originalText = this.textContent;
+    this.textContent = '⏳ Przetwarzam...';
+
+    try {
+      // 1. Najpierw zakończ zmianę (submit formularza)
+      const endShiftForm = document.getElementById('endShiftForm');
+
+      fetch(endShiftForm.action, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(response => {
+          if (!response.ok) throw new Error('Błąd przy zatwierdzaniu zmiany');
+          return true;
+        })
+        .then(result => {
+          // 2. Czekaj aż raporty się wygenerują
+          setTimeout(() => {
+            // 3. Pobierz konfiguracją odbiorców i otwórz maila
+            fetch('/api/email-config')
+              .then(response => {
+                if (!response.ok) throw new Error('Nie udało się pobrać konfiguracji');
+                return response.json();
+              })
+              .then(config => {
+                const recipients = config.recipients || [];
+
+                if (!config.configured || recipients.length === 0) {
+                  alert('⚠️ Brakuje skonfigurowanych odbiorców raportów.\nProszę skontaktować się z administratorem.');
+                  this.textContent = originalText;
+                  this.disabled = false;
+                  return;
+                }
+
+                const today = new Date();
+                const dateStr = today.toLocaleDateString('pl-PL');
+                const dateIso = today.toISOString().split('T')[0];
+                const userName = document.querySelector('span[data-user-name]')?.textContent || 'System';
+
+                const uncPath = '\\\\192.168.0.18\\raporty';
+                const files = [
+                  `${uncPath}\\Raport_${dateIso}.xlsx`,
+                  `${uncPath}\\Do_Maila_${dateIso}.txt`,
+                  `${uncPath}\\Raport_${dateIso}.pdf`
+                ];
+
+                const subject = `Raport produkcyjny z dnia ${dateStr}`;
+                let body = `Dzień dobry,\n\nPrzesyłam raport produkcyjny z dnia ${dateStr}.\n\n` +
+                  `W raporcie zawarte są:\n` +
+                  `- Dane produkcji\n` +
+                  `- Awarie i przestoje\n` +
+                  `- Obsada zmianowa\n\n` +
+                  `Pliki raportu dostępne tutaj:\n\n` +
+                  `Excel: ${files[0]}\n` +
+                  `Tekst: ${files[1]}\n` +
+                  `PDF: ${files[2]}\n\n` +
+                  `Pozdrawiam,\n${userName}`;
+
+                const mailtoLink = `mailto:${recipients.join(';')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                window.location.href = mailtoLink;
+
+                alert(`✅ Zmiana zakończona!\n✅ Raporty pobrane!\n✅ Poczta otwarta!\n\nRaporty wysłane do:\n${recipients.join('\n')}\n\nPliki do pobrania z sieci.`);
+
+                setTimeout(() => {
+                  this.textContent = originalText;
+                  this.disabled = false;
+                }, 1000);
+              });
+          }, 1500);
+        })
+        .catch(error => {
+          alert(`❌ Błąd:\n\n${error.message}`);
+          this.textContent = originalText;
+          this.disabled = false;
+        });
+    } catch (error) {
+      alert(`❌ Błąd wysyłania raportu:\n\n${error.message}\n\nSkontaktuj się z IT.`);
+      this.textContent = originalText;
+      this.disabled = false;
+    }
+  });
+
+  // ================= Zakończ zmianę (bez maila) =================
+  const endShiftForm = document.getElementById('endShiftForm');
+  if (endShiftForm) {
+    endShiftForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const submitBtn = this.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = '⏳ Przetwarzam...';
+
+      fetch(this.action, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: new FormData(this)
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Błąd przy zatwierdzaniu zmiany`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Raporty_${new Date().toISOString().split('T')[0]}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          alert('✅ Zmiana zakończona!\n✅ Raporty pobrane!');
+
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        })
+        .catch(error => {
+          alert(`ERROR Błąd przy zatwierdzaniu zmiany:\n\n${error.message}`);
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        });
+    });
+  }
+
+  // ========== DATE-BASED SHIFT NOTES FILTERING (AJAX) ==========
+  document.addEventListener('DOMContentLoaded', function () {
+    const dateDisplay = document.getElementById('date-display-global');
+    const notesContainer = document.getElementById('shift-notes-container');
+    const dayNavBtns = document.querySelectorAll('.day-nav-btn');
+    const dateInput = document.querySelector('input[name="date"]');
+
+    if (!dateDisplay || !notesContainer || dayNavBtns.length === 0) return;
+
+    let currentDate = new Date(dateDisplay.textContent.trim());
+    const linia = '{{ linia }}';
+
+    function updateShiftNotesForDate(dateStr) {
+      fetch(`/api/shift_notes_na_date?data=${dateStr}&linia=${linia}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data.success) {
+            notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _("blad_ladowania") }}</div>';
+            return;
+          }
+          notesContainer.innerHTML = '';
+          if (data.notes && data.notes.length > 0) {
+            data.notes.forEach(note => {
+              const noteCard = document.createElement('div');
+              noteCard.className = 'note-card';
+              noteCard.innerHTML = `
+              <div class="note-card-inner">
+                <div class="note-card-content">
+                  <div class="note-meta">
+                    <strong>📅 ${note.date}</strong> • <em>${note.author}</em> <span class="text-muted">${note.time}</span>
+                  </div>
+                  <div class="note-text">${note.note}</div>
+                </div>
+              </div>
+            `;
+              notesContainer.appendChild(noteCard);
+            });
+          } else {
+            notesContainer.innerHTML = '<p class="no-notes">{{ _("brak_notatek_wybranej_daty") }}</p>';
+          }
+        })
+        .catch(error => {
+          notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _("blad_ladowania") }}</div>';
+        });
+    }
+
+    dayNavBtns.forEach(btn => {
+      btn.addEventListener('click', function () {
+        const direction = this.getAttribute('data-direction');
+
+        if (direction === 'prev') {
+          currentDate.setDate(currentDate.getDate() - 1);
+        } else if (direction === 'next') {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        const dateStr = currentDate.toISOString().split('T')[0];
+        dateDisplay.textContent = dateStr;
+
+        if (dateInput) {
+          dateInput.value = dateStr;
+        }
+
+        updateShiftNotesForDate(dateStr);
+      });
+    });
+  });
+</script>
+
+<script>
+  // Obsługa aktualizacji uszkodzonych worków na Workowaniu
+  document.querySelectorAll('.uszkodzone-input').forEach(input => {
+    input.addEventListener('blur', function () {
+      const plan_id = this.getAttribute('data-plan-id');
+      const uszkodzone_ilosc = parseInt(this.value) || 0;
+      const linia = this.getAttribute('data-linia') || 'PSD';
+      
+      fetch('/api/update_uszkodzone_worki', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          plan_id: plan_id,
+          uszkodzone_worki: uszkodzone_ilosc,
+          linia: linia
+        })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (!data.success) {
+            alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować'));
+          } else {
+            this.style.backgroundColor = '#d4edda';
+            setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
+          }
+        })
+        .catch(error => {
+          alert('Błąd łączności z serwerem');
+        });
+    });
+
+    input.addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        this.blur();
+      }
+    });
+  });
+</script>

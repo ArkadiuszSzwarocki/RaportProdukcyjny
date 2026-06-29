@@ -1192,33 +1192,36 @@ function _updateFilterBanner(filter, visible, total) {
         banner = document.createElement('div');
         banner.id = 'filterStatusBanner';
         banner.style.cssText = [
-            'display:flex', 'align-items:center', 'gap:10px',
-            'padding:8px 14px', 'margin-bottom:8px',
-            'background:linear-gradient(135deg,#eff6ff,#dbeafe)',
-            'border:1px solid #93c5fd', 'border-radius:10px',
-            'font-size:13px', 'font-weight:600', 'color:#1d4ed8',
-            'flex-wrap:wrap'
+            'display:flex', 'align-items:center', 'gap:6px',
+            'padding:6px 10px', 'margin-bottom:8px',
+            'background:#eff6ff',
+            'border-radius:8px',
+            'font-size:12px', 'font-weight:500', 'color:#1d4ed8',
+            'flex-wrap:wrap', 'justify-content:space-between'
         ].join(';');
         tableWrapper.insertAdjacentElement('beforebegin', banner);
     }
 
     // Buduj treść bannera
     const parts = [];
-    if (hasSearch) parts.push(`🔍 Szukano: <strong>"${filter}"</strong>`);
-    if (hasWarehouse) parts.push(`🏭 Magazyn: <strong>${currentWarehouseId}</strong>`);
-    if (hasRack) parts.push(`📦 Regał: <strong>${currentSubWarehouseId}</strong>`);
+    if (hasSearch) parts.push(`<strong>"${filter}"</strong>`);
+    if (hasWarehouse) parts.push(`Magazyn: <strong>${currentWarehouseId}</strong>`);
+    if (hasRack) parts.push(`Regał: <strong>${currentSubWarehouseId}</strong>`);
 
     const hidden = total - visible;
     const resultInfo = hidden > 0
-        ? `<span style="margin-left:auto;background:#1d4ed8;color:#fff;padding:2px 10px;border-radius:20px;font-size:12px;">${visible} z ${total} rekordów</span>`
-        : `<span style="margin-left:auto;background:#10b981;color:#fff;padding:2px 10px;border-radius:20px;font-size:12px;">Wszystkie ${total} rekordów</span>`;
+        ? `<span style="background:#1d4ed8;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${visible} z ${total}</span>`
+        : `<span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">Wszystkie ${total}</span>`;
 
     banner.style.display = 'flex';
     banner.innerHTML = `
-        <span class="material-icons" style="font-size:18px;color:#2563eb;">filter_list</span>
-        <span>Przefiltrowano: ${parts.join(' &nbsp;·&nbsp; ')}</span>
-        ${resultInfo}
-        <button onclick="clearAllFilters()" style="border:none;background:none;cursor:pointer;color:#64748b;font-size:11px;padding:0 4px;" title="Wyczyść filtry">✕ wyczyść</button>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span>Przefiltrowano: ${parts.join(', ')}</span>
+            ${resultInfo}
+        </div>
+        <button onclick="clearAllFilters()" style="border:none;background:none;cursor:pointer;color:#64748b;font-size:16px;padding:0 4px;line-height:1;display:flex;align-items:center;" title="Wyczyść filtry">
+            <span class="material-icons" style="font-size:16px;">close</span>
+        </button>
     `;
 }
 

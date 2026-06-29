@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block head %}
+{{ super() }}
+<style>
+/* CSS tylko dla układu tabeli na ekranie */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header d-print-none" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
+    <h2 class="m-0" style="display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="color: #4f46e5; font-size: 28px;">history</span>
+        Historia Czyszczenia Magnesów
+    </h2>
+    <button class="btn-action btn-primary" onclick="printReport('Historia Czyszczenia Magnesów', 'magnetTable')" style="display: inline-flex; align-items: center; gap: 8px; font-weight: bold; border-radius: 8px; padding: 10px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; border: none; background: #2563eb; color: #fff;">
+        <span class="material-icons" style="font-size: 20px;">print</span> DRUKUJ RAPORT
+    </button>
+</div>
+
+<!-- Sekcja filtrów -->
+<section class="section-box p-15 p-15-bg d-print-none" style="margin-bottom: 25px; border-radius: 12px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.05); box-sizing: border-box; overflow: hidden;">
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: end; width: 100%; box-sizing: border-box;">
+        <div style="flex: 1 1 200px; min-width: 0;">
+            <label style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 4px; color: #64748b;">view_stream</span>Filtruj wg Linii
+            </label>
+            <select id="filterLinia" class="form-control" style="width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px 12px; font-weight: 500;">
+                <option value="">Wszystkie Linie</option>
+                <option value="EL01">EL01</option>
+                <option value="EL02">EL02</option>
+                <option value="PSD">PSD</option>
+            </select>
+        </div>
+        <div style="flex: 1 1 200px; min-width: 0;">
+            <label style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 4px; color: #64748b;">person</span>Filtruj wg Pracownika
+            </label>
+            <input type="text" id="filterWykonawca" class="form-control" placeholder="Wpisz nazwisko/login..." style="width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px 12px; font-weight: 500;">
+        </div>
+        <div style="flex: 1 1 200px; min-width: 0;">
+            <label style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 4px; color: #64748b;">event</span>Od daty (Wykonania)
+            </label>
+            <input type="date" id="filterDateOd" class="form-control" style="width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px 12px; font-weight: 500;">
+        </div>
+        <div style="flex: 1 1 200px; min-width: 0;">
+            <label style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 4px; color: #64748b;">event</span>Do daty (Wykonania)
+            </label>
+            <input type="date" id="filterDateDo" class="form-control" style="width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px 12px; font-weight: 500;">
+        </div>
+    </div>
+</section>
+
+<section class="section-box" style="border-radius: 12px; overflow: hidden; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px;">
+    <div style="overflow-x: auto;">
+        <table class="modern-table" id="magnetTable" style="width: 100%; min-width: 800px; text-align: left; border-collapse: collapse; margin: 0;">
+            <thead>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Linia</th>
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Data Zlecenia (Piątek)</th>
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Status</th>
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Data Wykonania</th>
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Wykonał (Login)</th>
+                    <th style="padding: 14px 16px; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 0.85rem;">Komentarz</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in history %}
+                <tr class="magnet-row hover-highlight" style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease-in-out;">
+                    <td class="col-linia" style="padding: 14px 16px;">
+                        <span class="status-badge status-linia" style="background: #e0e7ff; color: #4338ca; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;">{{ record.linia }}</span>
+                    </td>
+                    <td style="padding: 14px 16px; color: #475569; font-weight: 500;">
+                        <span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 4px; color: #94a3b8;">calendar_today</span>{{ record.data_planu.strftime('%Y-%m-%d') }}
+                    </td>
+                    <td style="padding: 14px 16px;">
+                        {% if record.status == 'completed' %}
+                            <span class="status-badge" style="background: #dcfce7; color: #166534; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: text-bottom;">check_circle</span> Wykonane
+                            </span>
+                        {% else %}
+                            <span class="status-badge" style="background: #fef08a; color: #854d0e; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: text-bottom;">schedule</span> Oczekuje
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="col-data" style="padding: 14px 16px; font-weight: 500; color: #0f172a;">
+                        {% if record.data_wykonania %}
+                            {{ record.data_wykonania.strftime('%Y-%m-%d') }} 
+                            <span class="text-muted d-print-none ms-2" style="color: #64748b !important; font-size: 0.85rem; font-weight: 600; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">{{ record.data_wykonania.strftime('%H:%M:%S') }}</span>
+                            <!-- Ukryty pełny string tylko dla wydruku: -->
+                            <span class="d-none d-print-inline ms-1" style="color: #64748b; font-size: 0.9em;">{{ record.data_wykonania.strftime('%H:%M:%S') }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8; font-style: italic;">Brak danych</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-wykonawca" style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                        {% if record.login_wykonawcy %}
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 24px; height: 24px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 12px;">
+                                    <span class="material-icons" style="font-size: 14px;">person</span>
+                                </div>
+                                {{ record.login_wykonawcy }}
+                            </div>
+                        {% else %}
+                            <span style="color: #94a3b8;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 16px; color: #475569; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ record.komentarz or '' }}">
+                        {{ record.komentarz or '-' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyFilterRowNative">
+                    <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8; font-style: italic; background: #f8fafc;">
+                        <span class="material-icons" style="font-size: 48px; display: block; margin-bottom: 12px; color: #cbd5e1;">search_off</span>
+                        <div style="font-size: 1.1rem; font-weight: 500; color: #64748b;">Brak wpisów w historii.</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+<style>
+.hover-highlight:hover {
+    background-color: #f8fafc !important;
+}
+</style>
+
+<script>
+function printReport(title, tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    
+    // Tworzymy klon tabeli
+    const clone = table.cloneNode(true);
+    
+    // Usuwamy wiersze ukryte przez filtr oraz te z napisem o braku wpisów, jeśli są niepotrzebne
+    const rows = clone.querySelectorAll('tbody tr');
+    rows.forEach(r => {
+        if (r.style.display === 'none') {
+            r.parentNode.removeChild(r);
+        }
+    });
+
+    // Czyścimy ikonki z klona, żeby nie wyglądały źle na papierze (nie ładujemy fontów material)
+    clone.querySelectorAll('.material-icons').forEach(icon => {
+        icon.parentNode.removeChild(icon);
+    });
+
+    let printWindow = window.open('', '_blank', 'width=1000,height=700');
+    if(!printWindow) {
+        alert("Zezwól na wyskakujące okna w przeglądarce, aby wydrukować raport.");
+        return;
+    }
+    
+    printWindow.document.write('<!DOCTYPE html><html><head><title>Wydruk Raportu - ' + title + '</title>');
+    printWindow.document.write(`
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; margin: 0; }
+            h2 { text-align: center; color: #1e293b; margin-bottom: 25px; font-size: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px 8px; text-align: left; }
+            th { background-color: #f8fafc; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 12px; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .status-badge { font-weight: bold; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+            .d-print-none { display: none !important; }
+            .d-print-inline { display: inline !important; }
+            @media print {
+                @page { margin: 1cm; size: landscape; }
+                body { padding: 0; }
+            }
+        </style>
+    `);
+    printWindow.document.write('</head><body>');
+    printWindow.document.write('<h2>' + title + ' (' + new Date().toLocaleDateString() + ')</h2>');
+    printWindow.document.write(clone.outerHTML);
+    
+    // Dodanie notki o podpisie elektronicznym na dole raportu
+    printWindow.document.write('<div style="margin-top: 40px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #cbd5e1; padding-top: 15px;">');
+    printWindow.document.write('<strong>INFORMACJA:</strong> Niniejszy raport został wygenerowany z systemu informatycznego. Wpisy przypisane do loginów pracowników stanowią podpis elektroniczny na podstawie wewnętrznego, bezpiecznego uwierzytelnienia. Zgodnie z procedurami zakładowymi, taka forma autoryzacji jest wiążąca, w pełni akceptowalna i zastępuje tradycyjny podpis odręczny.');
+    printWindow.document.write('</div>');
+    
+    printWindow.document.write('</body></html>');
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const filterLinia = document.getElementById('filterLinia');
+    const filterWykonawca = document.getElementById('filterWykonawca');
+    const filterDateOd = document.getElementById('filterDateOd');
+    const filterDateDo = document.getElementById('filterDateDo');
+
+    function applyFilters() {
+        const valLinia = filterLinia.value.toUpperCase();
+        const valWyk = filterWykonawca.value.toLowerCase().trim();
+        const valOd = filterDateOd.value;
+        const valDo = filterDateDo.value;
+        
+        const rows = document.querySelectorAll('.magnet-row');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            let show = true;
+            
+            const linia = row.querySelector('.col-linia').innerText.trim().toUpperCase();
+            const wyk = row.querySelector('.col-wykonawca').innerText.trim().toLowerCase();
+            const dataStrBlock = row.querySelector('.col-data').innerText.trim();
+            const dataStr = dataStrBlock.substring(0, 10);
+            
+            if (valLinia && linia !== valLinia) show = false;
+            if (valWyk && !wyk.includes(valWyk)) show = false;
+            
+            if (dataStr !== '-') {
+                if (valOd && dataStr < valOd) show = false;
+                if (valDo && dataStr > valDo) show = false;
+            } else {
+                // Jeśli brak daty wykonania, a mamy filtr na datę - ukrywamy? Tak jest logiczniej.
+                if (valOd || valDo) show = false;
+            }
+            
+            row.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        });
+
+        // Obsługa wiersza "Brak wpisów"
+        let emptyRow = document.getElementById('emptyFilterRow');
+        if (visibleCount === 0 && rows.length > 0) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.id = 'emptyFilterRow';
+                emptyRow.innerHTML = '<td colspan="6" class="text-center py-4 text-muted">Brak wpisów spełniających kryteria.</td>';
+                document.querySelector('#magnetTable tbody').appendChild(emptyRow);
+            } else {
+                emptyRow.style.display = '';
+            }
+        } else if (emptyRow) {
+            emptyRow.style.display = 'none';
+        }
+    }
+
+    filterLinia.addEventListener('change', applyFilters);
+    filterWykonawca.addEventListener('keyup', applyFilters);
+    filterDateOd.addEventListener('change', applyFilters);
+    filterDateDo.addEventListener('change', applyFilters);
+});
+</script>
+{% endblock %}
