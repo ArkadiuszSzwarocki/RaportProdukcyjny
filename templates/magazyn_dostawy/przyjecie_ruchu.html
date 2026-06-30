@@ -771,39 +771,23 @@
         {% endfor %}
     </div>
 
-    <!-- Modal Drukarki -->
+    <!-- Modal Potwierdzenia -->
     <div id="printerModal" class="premium-modal" style="display: none;">
         <div class="premium-modal-content">
             <div class="premium-modal-header">
-                <h3>Wybór Drukarki Etykiet</h3>
+                <h3>Potwierdzenie Przyjęcia</h3>
                 <button class="close-btn" onclick="closePrinterModal()">&times;</button>
             </div>
             <div class="premium-modal-body">
                 <p>Potwierdzasz przyjęcie pozycji:</p>
                 <p><strong id="modalProductName" style="font-size: 1.05rem; color: #1e3a8a;"></strong></p>
                 <p style="margin-top: 10px;">System automatycznie przypisze unikalne <strong>ID Palety</strong>.</p>
-                
-                <div class="field-box" style="margin-top: 15px;">
-                    <label for="modalPrinterSelect" style="color: #1e3a8a; font-weight: 800;">Gdzie wydrukować etykiety?</label>
-                    <select id="modalPrinterSelect" class="premium-select">
-                        <option value="">-- NIE DRUKUJ --</option>
-                        <option value="__PDF_PREVIEW__">-- PODGLAD / PDF (TEST) --</option>
-                        {% for pr in printers %}
-                        <option value="{{ pr.id }}" {% if loop.first %}selected{% endif %}>{{ pr.nazwa }} ({{ pr.lokalizacja }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <p style="font-size: 0.8rem; color: #64748b; margin-top: 12px; display: flex; align-items: center; gap: 4px;">
-                    <span class="material-icons" style="font-size: 16px; color: #3b82f6;">info</span>
-                    Drukarka: 2 etykiety. Podglad/PDF: otwarcie etykiety w nowej karcie.
-                </p>
             </div>
             <div class="premium-modal-footer">
                 <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
                 <button class="btn-confirm-print" onclick="confirmAcceptWithPrinter()">
-                    <span class="material-icons" style="font-size: 18px;">print</span>
-                    Potwierdź i Drukuj (2 szt)
+                    <span class="material-icons" style="font-size: 18px;">check_circle</span>
+                    Potwierdź
                 </button>
             </div>
         </div>
@@ -1072,10 +1056,6 @@ async function confirmAcceptWithPrinter() {
     if (!pendingAcceptItem) return;
 
     const { itemId, idx, location, productName, qty, pType, nrPartii, dataProdukcji, dataPrzydatnosci } = pendingAcceptItem;
-    const printerSelect = document.getElementById('modalPrinterSelect');
-    const printerId = printerSelect ? printerSelect.value : '';
-    const wantsPdfPreview = printerId === pdfPreviewPrinterId;
-    const previewWindow = wantsPdfPreview ? window.open('about:blank', '_blank', 'noopener') : null;
 
     closePrinterModal();
 
@@ -1096,7 +1076,7 @@ async function confirmAcceptWithPrinter() {
                 nr_partii: nrPartii,
                 data_produkcji: dataProdukcji,
                 data_przydatnosci: dataPrzydatnosci,
-                printer_id: (!printerId || wantsPdfPreview) ? null : printerId
+                printer_id: null
             })
         });
         const data = await res.json();

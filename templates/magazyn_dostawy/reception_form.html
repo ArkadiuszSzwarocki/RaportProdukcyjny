@@ -363,36 +363,21 @@
         </button>
     </div>
 
-    <!-- Modal Drukarki -->
+    <!-- Modal Potwierdzenia -->
     <div id="printerModal" class="premium-modal" style="display: none;">
         <div class="premium-modal-content">
             <div class="premium-modal-header">
-                <h3>Wybór Drukarki Etykiet</h3>
+                <h3>Potwierdzenie Zapisu</h3>
                 <button class="close-btn" onclick="closePrinterModal()">&times;</button>
             </div>
             <div class="premium-modal-body" style="text-align: left;">
                 <p>Zapisujesz przyjęcie dostawy zewnętrznej.</p>
                 <p>System automatycznie przypisze unikalne <strong>ID Palety (SSCC)</strong> dla każdej z pozycji, a zlecenie dostawy trafi do grupy oczekujących na potwierdzenie i wstawienie na regały.</p>
-                
-                <div class="field-box" style="margin-top: 15px;">
-                    <label for="modalPrinterSelect" style="color: #1e3a8a; font-weight: 800; display: block; margin-bottom: 5px; font-size: 0.75rem; text-transform: uppercase;">Gdzie wydrukować etykiety?</label>
-                    <select id="modalPrinterSelect" class="premium-select">
-                        <option value="">-- NIE DRUKUJ (Tylko zapisz dostawę) --</option>
-                        {% for pr in printers %}
-                        <option value="{{ pr.id }}" {% if loop.first %}selected{% endif %}>{{ pr.nazwa }} ({{ pr.lokalizacja }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <p style="font-size: 0.8rem; color: #64748b; margin-top: 12px; display: flex; align-items: center; gap: 4px;">
-                    <span class="material-icons" style="font-size: 16px; color: #3b82f6;">info</span>
-                    Dla każdej palety zostaną wydrukowane <strong>2 identyczne etykiety</strong>.
-                </p>
             </div>
             <div class="premium-modal-footer">
                 <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
                 <button class="btn-confirm-print" onclick="confirmSaveWithPrinter()">
-                    <span class="material-icons" style="font-size: 18px;">save</span>
+                    <span class="material-icons" style="font-size: 18px;">check_circle</span>
                     Potwierdź i Zapisz
                 </button>
             </div>
@@ -566,10 +551,8 @@
     }
 
     async function confirmSaveWithPrinter() {
-        const printerSelect = document.getElementById('modalPrinterSelect');
-        const printerId = printerSelect ? printerSelect.value : '';
         closePrinterModal();
-        await saveDostawa(printerId);
+        await saveDostawa(null);
     }
 
     async function saveDostawa(printerId = null) {
