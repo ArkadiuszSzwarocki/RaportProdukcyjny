@@ -15,6 +15,8 @@ from app.blueprints.api import api_bp
 from app.blueprints.planista import planista_bp
 from app.blueprints.auth import auth_bp
 from app.blueprints.quality import quality_bp
+from app.blueprints.quality.magnet_cleaning import magnet_cleaning_bp
+from app.blueprints.quality.separator_cleaning import separator_cleaning_bp
 from app.blueprints.shifts import shifts_bp
 from app.blueprints.panels import panels_bp
 from app.blueprints.production import production_bp
@@ -99,6 +101,8 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(quality_bp)
+    app.register_blueprint(magnet_cleaning_bp)
+    app.register_blueprint(separator_cleaning_bp)
     app.register_blueprint(shifts_bp)
     app.register_blueprint(panels_bp)
     app.register_blueprint(production_bp)

@@ -327,4 +327,35 @@
                 alert('Błąd komunikacji z serwerem: ' + error);
             });
     };
+    window.refreshSidebarBadges = function() {
+        fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Aktualizacja wskaźników (kropek) na głównych kategoriach
+                const currentMainBtns = document.querySelectorAll('.main-cat-btn');
+                const newMainBtns = doc.querySelectorAll('.main-cat-btn');
+                currentMainBtns.forEach((btn, idx) => {
+                    if (newMainBtns[idx]) {
+                        btn.innerHTML = newMainBtns[idx].innerHTML;
+                    }
+                });
+
+                // Aktualizacja badge w pod-kategoriach (Oczekujące itp.)
+                const currentSubItems = document.querySelectorAll('.nav-sub-item');
+                const newSubItems = doc.querySelectorAll('.nav-sub-item');
+                currentSubItems.forEach(currentLink => {
+                    if (currentLink.href) {
+                        const newLink = Array.from(newSubItems).find(l => l.href === currentLink.href);
+                        if (newLink) {
+                            currentLink.innerHTML = newLink.innerHTML;
+                        }
+                    }
+                });
+            })
+            .catch(err => console.error('[sidebar] Failed to refresh badges:', err));
+    };
+
 })();

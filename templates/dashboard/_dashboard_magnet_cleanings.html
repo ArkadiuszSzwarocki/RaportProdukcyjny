@@ -1,0 +1,289 @@
+<!-- CLEANING ALERT CONTAINERS -->
+<div id="magnet-cleaning-alert-container" style="display: none; grid-column: 1 / -1; margin-bottom: 15px; width: 100%;"></div>
+<div id="separator-cleaning-alert-container" style="display: none; grid-column: 1 / -1; margin-bottom: 15px; width: 100%;"></div>
+
+{% if sekcja == 'Zasyp' %}
+<div style="grid-column: 1 / -1; margin-bottom: 15px; display: flex; justify-content: flex-end; gap: 10px;">
+    <button class="btn btn-outline-primary btn-sm" onclick="promptAdhocCleaning()" style="font-weight: bold; border-radius: 8px;">
+        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">add_circle</span> Zgłoś dodatkowe czyszczenie magnesu
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="promptAdhocSeparatorCleaning()" style="font-weight: bold; border-radius: 8px;">
+        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">add_circle</span> Zgłoś dodatkowe czyszczenie separatora
+    </button>
+</div>
+{% endif %}
+
+<!-- Modal: Potwierdzenie Zwykłego Czyszczenia (Magnes) -->
+<div id="confirmMagnetModal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+        <div style="padding: 15px 20px; background-color: #fff3cd; border-bottom: 1px solid #ffeeba; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-weight: bold; color: #856404; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px;">help_outline</span> Potwierdzenie czyszczenia magnesu
+            </h5>
+            <button onclick="document.getElementById('confirmMagnetModal').style.display='none'" style="border: none; background: transparent; font-size: 24px; cursor: pointer; color: #856404; line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 20px; text-align: center;">
+            <h6 style="font-size: 1.1rem; color: #1e293b; margin: 0;">Czy na pewno chcesz potwierdzić wyczyszczenie magnesu na linii <strong id="confirmMagnetLiniaName"></strong>?</h6>
+            <input type="hidden" id="confirmMagnetTaskId">
+        </div>
+        <div style="padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 10px;">
+            <button class="btn btn-light" onclick="document.getElementById('confirmMagnetModal').style.display='none'">Anuluj</button>
+            <button class="btn btn-warning" onclick="submitConfirmMagnetCleaning()" style="font-weight: bold;">Tak, potwierdź</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Dodatkowe Czyszczenie (Ad-Hoc) (Magnes) -->
+<div id="adhocMagnetModal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+        <div style="padding: 15px 20px; background-color: #eff6ff; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-weight: bold; color: #1e40af; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px; color: #3b82f6;">add_circle</span> Zgłoś czyszczenie magnesu
+            </h5>
+            <button onclick="document.getElementById('adhocMagnetModal').style.display='none'" style="border: none; background: transparent; font-size: 24px; cursor: pointer; color: #1e40af; line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 20px;">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600; color: #334155;">Na jakiej linii wyczyszczono magnes?</label>
+                <select class="form-select" id="adhocMagnetLinia" style="border-radius: 8px; width: 100%; padding: 8px; border: 1px solid #cbd5e1;">
+                    {% if linia == 'PSD' %}
+                        <option value="PSD">PSD</option>
+                    {% else %}
+                        <option value="EL01">EL01</option>
+                        <option value="EL02">EL02</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="mb-3" style="margin-bottom: 0 !important;">
+                <label class="form-label" style="font-weight: 600; color: #334155;">Komentarz / Powód (opcjonalnie)</label>
+                <textarea class="form-control" id="adhocMagnetKomentarz" rows="2" placeholder="Zostaw puste dla domyślnego powiązania" style="border-radius: 8px; width: 100%; padding: 8px; border: 1px solid #cbd5e1;"></textarea>
+            </div>
+        </div>
+        <div style="padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn btn-outline-secondary" onclick="document.getElementById('adhocMagnetModal').style.display='none'" style="border-radius: 8px;">Anuluj</button>
+            <button class="btn btn-primary" onclick="submitAdhocCleaning()" style="font-weight: 600; border-radius: 8px;">Zgłoś czyszczenie</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Potwierdzenie Czyszczenia Separatora -->
+<div id="confirmSeparatorModal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+        <div style="padding: 15px 20px; background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px;">help_outline</span> Potwierdzenie czyszczenia separatora
+            </h5>
+            <button onclick="document.getElementById('confirmSeparatorModal').style.display='none'" style="border: none; background: transparent; font-size: 24px; cursor: pointer; color: #334155; line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 20px; text-align: center;">
+            <h6 style="font-size: 1.1rem; color: #1e293b; margin: 0;">Czy na pewno chcesz potwierdzić wyczyszczenie separatora <strong id="confirmSeparatorLiniaName"></strong>?</h6>
+            <input type="hidden" id="confirmSeparatorTaskId">
+        </div>
+        <div style="padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 10px;">
+            <button class="btn btn-light" onclick="document.getElementById('confirmSeparatorModal').style.display='none'">Anuluj</button>
+            <button class="btn btn-secondary" onclick="submitConfirmSeparatorCleaning()" style="font-weight: bold;">Tak, potwierdź</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Dodatkowe Czyszczenie (Ad-Hoc) (Separator) -->
+<div id="adhocSeparatorModal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: white; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+        <div style="padding: 15px 20px; background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0; font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px;">add_circle</span> Zgłoś czyszczenie separatora
+            </h5>
+            <button onclick="document.getElementById('adhocSeparatorModal').style.display='none'" style="border: none; background: transparent; font-size: 24px; cursor: pointer; color: #334155; line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 20px;">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600; color: #334155;">Który separator został wyczyszczony?</label>
+                <select class="form-select" id="adhocSeparatorLinia" style="border-radius: 8px; width: 100%; padding: 8px; border: 1px solid #cbd5e1;">
+                    {% if linia == 'PSD' %}
+                        <option value="SEPSD">SEPSD</option>
+                    {% else %}
+                        <option value="SE01">SE01</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="mb-3" style="margin-bottom: 0 !important;">
+                <label class="form-label" style="font-weight: 600; color: #334155;">Komentarz / Powód (opcjonalnie)</label>
+                <textarea class="form-control" id="adhocSeparatorKomentarz" rows="2" placeholder="Zostaw puste dla domyślnego powiązania" style="border-radius: 8px; width: 100%; padding: 8px; border: 1px solid #cbd5e1;"></textarea>
+            </div>
+        </div>
+        <div style="padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn btn-outline-secondary" onclick="document.getElementById('adhocSeparatorModal').style.display='none'" style="border-radius: 8px;">Anuluj</button>
+            <button class="btn btn-secondary" onclick="submitAdhocSeparatorCleaning()" style="font-weight: 600; border-radius: 8px;">Zgłoś czyszczenie</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentLinia = '{{ linia|default("") }}';
+        
+        // --- MAGNESY ---
+        fetch('/quality/magnet-cleaning/pending')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.tasks && data.tasks.length > 0) {
+                    // Filtrujemy zadania według tego, co ma widzieć dana linia produkcyjna
+                    let tasksToShow = data.tasks.filter(t => {
+                        if (currentLinia === 'PSD' && t.linia !== 'PSD') return false;
+                        if (currentLinia !== 'PSD' && t.linia === 'PSD') return false;
+                        return true;
+                    });
+                    
+                    if (tasksToShow.length > 0) {
+                        const container = document.getElementById('magnet-cleaning-alert-container');
+                        container.style.display = 'block';
+                        let html = `<div class="alert alert-warning" style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                            <h4 style="color: #856404; margin-top: 0;"><span class="material-icons" style="font-size: 24px; vertical-align: text-bottom; margin-right: 4px;">warning_amber</span> Przypomnienie o czyszczeniu magnesów!</h4>
+                            <p style="color: #856404; margin-bottom: 10px;">Masz zaległe czyszczenie magnesów do potwierdzenia z bieżącego lub ubiegłego piątku.</p>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">`;
+                        
+                        tasksToShow.forEach(task => {
+                            html += `<button class="btn btn-warning" onclick="openConfirmMagnetModal(${task.id}, '${task.linia}')" style="font-weight: bold; border-radius: 8px;">
+                                Potwierdź: ${task.linia} (Zaplanowano: ${task.data_planu})
+                            </button>`;
+                        });
+                        
+                        html += `</div></div>`;
+                        container.innerHTML = html;
+                    }
+                }
+            })
+            .catch(err => console.log('Błąd w pobieraniu magnesów:', err));
+
+        // --- SEPARATORY ---
+        fetch('/quality/separator-cleaning/pending')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.tasks && data.tasks.length > 0) {
+                    let tasksToShow = data.tasks.filter(t => {
+                        if (currentLinia === 'PSD' && t.linia !== 'SEPSD') return false;
+                        if (currentLinia !== 'PSD' && t.linia === 'SEPSD') return false;
+                        return true;
+                    });
+                    
+                    if (tasksToShow.length > 0) {
+                        const container = document.getElementById('separator-cleaning-alert-container');
+                        container.style.display = 'block';
+                        let html = `<div class="alert alert-secondary" style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                            <h4 style="color: #334155; margin-top: 0;"><span class="material-icons" style="font-size: 24px; vertical-align: text-bottom; margin-right: 4px;">notification_important</span> Przypomnienie o czyszczeniu separatorów!</h4>
+                            <p style="color: #334155; margin-bottom: 10px;">Masz zaległe czyszczenie separatorów do potwierdzenia.</p>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">`;
+                        
+                        tasksToShow.forEach(task => {
+                            html += `<button class="btn btn-secondary" onclick="openConfirmSeparatorModal(${task.id}, '${task.linia}')" style="font-weight: bold; border-radius: 8px;">
+                                Potwierdź: ${task.linia} (Zaplanowano: ${task.data_planu})
+                            </button>`;
+                        });
+                        
+                        html += `</div></div>`;
+                        container.innerHTML = html;
+                    }
+                }
+            })
+            .catch(err => console.log('Błąd w pobieraniu separatorów:', err));
+    });
+
+    // --- FUNKCJE MAGNESÓW ---
+    function openConfirmMagnetModal(taskId, linia) {
+        document.getElementById('confirmMagnetLiniaName').innerText = linia;
+        document.getElementById('confirmMagnetTaskId').value = taskId;
+        document.getElementById('confirmMagnetModal').style.display = 'flex';
+    }
+
+    function submitConfirmMagnetCleaning() {
+        const taskId = document.getElementById('confirmMagnetTaskId').value;
+        fetch('/quality/magnet-cleaning/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: taskId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) { window.location.reload(); } else { alert('Błąd: ' + data.message); }
+        }).catch(err => alert('Wystąpił błąd.'));
+    }
+
+    function promptAdhocCleaning() {
+        var sel = document.getElementById('adhocMagnetLinia');
+        if (sel && sel.options && sel.options.length > 0) {
+            sel.value = sel.options[0].value;
+        }
+        var kom = document.getElementById('adhocMagnetKomentarz');
+        if (kom) {
+            kom.value = '';
+        }
+        document.getElementById('adhocMagnetModal').style.display = 'flex';
+    }
+
+    function submitAdhocCleaning() {
+        const linia = document.getElementById('adhocMagnetLinia').value;
+        const komentarz = document.getElementById('adhocMagnetKomentarz').value;
+        fetch('/quality/magnet-cleaning/ad-hoc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ linia: linia, komentarz: komentarz })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) { window.location.reload(); } else { alert('Błąd: ' + data.message); }
+        }).catch(err => alert('Wystąpił błąd.'));
+    }
+
+    // --- FUNKCJE SEPARATORÓW ---
+    function openConfirmSeparatorModal(taskId, linia) {
+        document.getElementById('confirmSeparatorLiniaName').innerText = linia;
+        document.getElementById('confirmSeparatorTaskId').value = taskId;
+        document.getElementById('confirmSeparatorModal').style.display = 'flex';
+    }
+
+    function submitConfirmSeparatorCleaning() {
+        const taskId = document.getElementById('confirmSeparatorTaskId').value;
+        fetch('/quality/separator-cleaning/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: taskId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) { window.location.reload(); } else { alert('Błąd: ' + data.message); }
+        }).catch(err => alert('Wystąpił błąd.'));
+    }
+
+    function promptAdhocSeparatorCleaning() {
+        var sel = document.getElementById('adhocSeparatorLinia');
+        if (sel && sel.options && sel.options.length > 0) {
+            sel.value = sel.options[0].value;
+        }
+        var kom = document.getElementById('adhocSeparatorKomentarz');
+        if (kom) {
+            kom.value = '';
+        }
+        document.getElementById('adhocSeparatorModal').style.display = 'flex';
+    }
+
+    function submitAdhocSeparatorCleaning() {
+        const linia = document.getElementById('adhocSeparatorLinia').value;
+        const komentarz = document.getElementById('adhocSeparatorKomentarz').value;
+        fetch('/quality/separator-cleaning/ad-hoc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ linia: linia, komentarz: komentarz })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) { window.location.reload(); } else { alert('Błąd: ' + data.message); }
+        }).catch(err => alert('Wystąpił błąd.'));
+    }
+    
+    // Zamykanie modali przy kliknięciu w tło
+    window.addEventListener('click', function(event) {
+        if (event.target.classList.contains('custom-modal-backdrop')) {
+            event.target.style.display = 'none';
+        }
+    });
+</script>

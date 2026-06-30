@@ -1,0 +1,45 @@
+/* ======= Additional popup styles ======= */
+    .toast {
+        background: #222;
+        color: white;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: all .28s;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    }
+
+.toast.show {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+.toast-info {
+        background: #333;
+    }
+
+.toast-success {
+        background: var(--success-color);
+    }
+
+.toast-danger {
+        background: var(--danger-color);
+    }
+
+.toast-warning {
+        background: var(--warning-color);
+    }
+
+.alert {
+        padding: 10px 12px;
+        border-radius: 6px;
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+    }
+
+.alert-warning {
+        background: #fff3cd;
+    }

@@ -1,0 +1,121 @@
+{% for h_id in halls_to_fetch %}
+{% set h = halls_data[h_id] %}
+{# Full day production overview: Zasyp & Workowanie #}
+<section class="section-box p-15 p-15-bg" style="margin-bottom: 25px;">
+  <h3 class="m-0">📦 {{ _('podglad_produkcji') }} — {{ h.linia }}</h3>
+  <div class="production-flex-container">
+    <div class="production-flex-item">
+      <h4 class="m-0">{{ _('zasyp') }} — {{ dzisiaj }} <small class="text-muted">({{ h.plans_zasyp|length }}
+          planów)</small></h4>
+      {% if h.plans_zasyp %}
+      <table class="modern-table small production-table">
+        <thead>
+          <tr>
+            <th>{{ _('produkt') }}</th>
+            <th>{{ _('plan') }}</th>
+            <th>{{ _('wykonanie') }}</th>
+            <th>🚨 Uszkodzone</th>
+            <th>{{ _('godz') }}</th>
+            <th>{{ _('status') }}</th>
+            <th>{{ _('akcja') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in h.plans_zasyp %}
+          <tr>
+            <td><strong class="text-primary">{{ p[1] }}</strong></td>
+            <td>{{ p[2]|int }} kg</td>
+            <td>{{ p[7]|int }} kg</td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}"
+                value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
+                aria-label="Liczba uszkodzonych worków"></td>
+            <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
+            <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
+            <td>
+              {% if p[3] == 'zaplanowane' %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Zasyp">
+                <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
+              </form>
+              {% elif p[3] == 'w toku' %}
+              <a href="{{ url_for('main.index', sekcja='Zasyp', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="text-muted p-10">{{ _('brak_planow_zasyp') }}</div>
+      {% endif %}
+    </div>
+
+    <div class="production-flex-item">
+      <h4 class="m-0">{{ _('workowanie') }} — {{ dzisiaj }} <small class="text-muted">({{ h.plans_workowanie|length }}
+          planów)</small></h4>
+      {% if h.plans_workowanie %}
+      <table class="modern-table small production-table-workowanie">
+        <thead>
+          <tr>
+            <th>{{ _('produkt') }}</th>
+            <th>{{ _('plan') }}</th>
+            <th>{{ _('wykonanie') }}</th>
+            <th>🚨 Uszkodzono</th>
+            <th>{{ _('godz') }}</th>
+            <th>{{ _('status') }}</th>
+            <th>{{ _('akcja') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in h.plans_workowanie %}
+          <tr>
+            <td><strong class="text-primary">{{ p[1] }}</strong></td>
+            <td>{{ p[2]|int }} kg</td>
+            <td>{{ p[7]|int }} kg</td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}"
+                value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
+                aria-label="Liczba uszkodzonych worków"></td>
+            <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
+            <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
+            <td>
+              {% if p[3] == 'zaplanowane' %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
+                    class="d-inline start-form"
+                    data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
+                    data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
+                    data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                    onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Workowanie">
+                <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
+              </form>
+              {% elif p[3] == 'w toku' %}
+              <a href="{{ url_for('main.index', sekcja='Workowanie', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              {% elif p[3] == 'zawieszone' %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" 
+                {% if h.linia == 'AGRO' %}
+                  data-start-checklist="1"
+                  data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
+                  data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                {% endif %}
+                onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Workowanie">
+                <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ WZNÓW</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="text-muted p-10">{{ _('brak_planow_workowanie') }}</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endfor %}

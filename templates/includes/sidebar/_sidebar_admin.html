@@ -58,9 +58,11 @@
         <span>JAKOŚĆ</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="jakosc-sub" class="nav-sub {% if request.path.startswith('/jakosc') %}open{% endif %}">
+    <div id="jakosc-sub" class="nav-sub {% if request.path.startswith('/jakosc') or request.path.startswith('/quality/magnet-cleaning') %}open{% endif %}">
         <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_index' %}active{% endif %}">Strona Jakość</a>
         <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_podsumowanie_zasypow' %}active{% endif %}">Analiza zasypów</a>
+        <a href="{{ url_for('magnet_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'magnet_cleaning.get_history' %}active{% endif %}">Czyszczenie Magnesów</a>
+        <a href="{{ url_for('separator_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'separator_cleaning.get_history' %}active{% endif %}">Czyszczenie Separatorów</a>
     </div>
 </div>
 {% endif %}
