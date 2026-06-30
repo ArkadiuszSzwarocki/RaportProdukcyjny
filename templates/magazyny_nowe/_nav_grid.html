@@ -105,6 +105,9 @@
                 <button onclick="window.location.href='{{ url_for('magazyny_nowe.production_status', linia=linia) }}'" class="status-link-btn">
                     <span class="material-icons">analytics</span> STATUS PRODUKCJI
                 </button>
+                <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
+                    <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
+                </button>
             </div>
         </div>
     </div>

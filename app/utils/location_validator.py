@@ -96,3 +96,44 @@ def normalize_warehouse_location(location_code):
     
     normalized = str(location_code).strip().upper()
     return normalized if normalized else None
+
+def is_rack_location(location_code):
+    """
+    Sprawdza czy kod jest lokalizacją na regale.
+    Zwykle kody regałów mają format R + cyfry (np. R010101).
+    """
+    if not location_code:
+        return False
+    normalized = str(location_code).strip().upper()
+    return re.match(r'^R\d+$', normalized) is not None
+
+def check_rack_location_availability(location_code, current_nr_palety=None):
+    """
+    Sprawdza czy miejsce paletowe na regale jest wolne (nie zajęte przez inną paletę).
+    Zwraca (is_valid, error_msg).
+    """
+    if not location_code or not is_rack_location(location_code):
+        return True, None
+        
+    from app.core.database import get_db_connection
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        tables = ['magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki', 'magazyn_palety', 'magazyn_palety_agro']
+        
+        for t in tables:
+            query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s"
+            params = [location_code]
+            if current_nr_palety:
+                query += " AND nr_palety != %s"
+                params.append(current_nr_palety)
+                
+            cur.execute(query, tuple(params))
+            row = cur.fetchone()
+            if row:
+                return False, f"Lokalizacja {location_code} jest zajęta przez paletę {row['nr_palety']}!"
+        return True, None
+    except Exception as e:
+        return False, f"Błąd podczas sprawdzania dostępności lokalizacji: {e}"
+    finally:
+        conn.close()

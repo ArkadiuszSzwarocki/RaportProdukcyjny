@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Historia Stacji (BB, MZ, WZ) - AGRO{% endblock %}
+
+{% block extra_css %}
+<style>
+    .station-history-container {
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin: 20px auto;
+        max-width: 1200px;
+    }
+    .header-section {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f1f5f9;
+    }
+    .header-section h2 {
+        margin: 0;
+        color: #0f172a;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="station-history-container">
+    <div class="header-section">
+        <h2>
+            <span class="material-icons" style="color: #d946ef;">history</span> 
+            Historia Stacji Produkcyjnych (AGRO)
+        </h2>
+    </div>
+
+    <div class="table-container">
+        <table class="modern-table small compact-mobile" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Stacja</th>
+                    <th>Produkt</th>
+                    <th>Ilość [kg]</th>
+                    <th>Typ</th>
+                    <th>Użytkownik</th>
+                </tr>
+            </thead>
+            <tbody id="stationHistoryTableBody">
+                <tr><td colspan="6" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        fetchStationHistory();
+    });
+
+    function fetchStationHistory() {
+        fetch(`/magazyny-nowe/historia-stacji/data?linia=AGRO`)
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('stationHistoryTableBody');
+                if (!data.success) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Błąd: ${data.error}</td></tr>`;
+                    return;
+                }
+                
+                if (!data.data || data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Brak historii czyszczenia dla tej linii.</td></tr>';
+                    return;
+                }
+                
+                let html = '';
+                data.data.forEach(row => {
+                    let typeBadge = '';
+                    if (row.typ === 'cleaning') {
+                        typeBadge = '<span class="status-badge" style="background-color: #fee2e2; color: #b91c1c;">Czyszczenie</span>';
+                    } else if (row.typ === 'dosypka') {
+                        typeBadge = '<span class="status-badge" style="background-color: #dbeafe; color: #1d4ed8;">Dosypka</span>';
+                    } else if (row.typ === 'bufor_zasyp') {
+                        typeBadge = '<span class="status-badge" style="background-color: #fef3c7; color: #b45309;">Zasyp bufora</span>';
+                    } else {
+                        typeBadge = `<span class="status-badge">${row.typ}</span>`;
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td>${row.data}</td>
+                            <td style="font-weight: bold; color: #0284c7;">${row.stacja}</td>
+                            <td>${row.nazwa || '-'}</td>
+                            <td style="font-weight: bold; color: #16a34a;">${row.ilosc != null ? parseFloat(row.ilosc).toFixed(2) : '-'}</td>
+                            <td>${typeBadge}</td>
+                            <td>${row.user || '-'}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            })
+            .catch(err => {
+                document.getElementById('stationHistoryTableBody').innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Błąd komunikacji z serwerem</td></tr>`;
+                console.error(err);
+            });
+    }
+</script>
+{% endblock %}

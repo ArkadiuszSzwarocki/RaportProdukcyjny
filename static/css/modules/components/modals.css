@@ -96,7 +96,9 @@
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
     z-index: 20002;
     opacity: 0;
-    transition: transform 0.22s cubic-bezier(.2, .8, .2, 1), opacity 0.16s ease;
+    pointer-events: none;
+    visibility: hidden;
+    transition: transform 0.22s cubic-bezier(.2, .8, .2, 1), opacity 0.16s ease, visibility 0s linear 0.22s;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -105,6 +107,9 @@
 
 .quick-popup.open {
     opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+    transition-delay: 0s;
     transform: translateX(-50%) translateY(0) scale(1);
 }
 

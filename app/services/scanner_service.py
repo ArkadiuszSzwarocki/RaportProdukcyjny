@@ -564,7 +564,7 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
@@ -577,6 +577,12 @@ class ScannerService:
             stara_lokalizacja = (pallet.get('lokalizacja') or '').strip().upper()
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
+
+            # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
+            from app.utils.location_validator import check_rack_location_availability
+            is_loc_available, error_msg = check_rack_location_availability(nowa_lokalizacja, current_nr_palety=pallet.get('nr_palety'))
+            if not is_loc_available:
+                return False, error_msg
 
             now = datetime.now()
             stan = float(pallet['stan_magazynowy'] or 0)

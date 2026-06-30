@@ -9,7 +9,7 @@ Przepływ:
 """
 
 from flask import request, jsonify, render_template, session
-from app.blueprints.agro_warehouse import agro_warehouse_bp
+from .blueprint import agro_warehouse_bp
 from app.decorators import login_required, dynamic_role_required
 from app.db import get_db_connection
 from app.services.agro_warehouse_service import AgroWarehouseService

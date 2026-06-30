@@ -124,6 +124,19 @@ def _create_tables(cursor):
     """)
     
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS czyszczenie_separatorow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            linia VARCHAR(50) NOT NULL,
+            data_planu DATE NOT NULL,
+            data_wykonania DATETIME NULL,
+            login_wykonawcy VARCHAR(100) NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            komentarz TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS palety_workowanie (
             id INT AUTO_INCREMENT PRIMARY KEY,
             plan_id INT,
@@ -1319,6 +1332,7 @@ def setup_database():
         print("[OK] Baza danych jest gotowa!")
         
         # 6. Odświeź bufor dla obu linii
+        from app.repositories.production_repository import refresh_bufor_queue
         refresh_bufor_queue(linia='PSD')
         refresh_bufor_queue(linia='AGRO')
         

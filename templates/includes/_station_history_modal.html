@@ -1,0 +1,100 @@
+<!-- MODAL: Historia Stacji -->
+<div id="stationHistoryModal" class="modal-premium-overlay" style="display: none; z-index: 2000;">
+    <div class="modal-premium-content" style="max-width: 900px; padding: 25px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="modal-premium-header" style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #0f172a; font-size: 18px; display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #d946ef;">history</span> 
+                Historia Stacji Produkcyjnych
+            </h3>
+            <button onclick="closeStationHistoryModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body" style="flex-grow: 1; overflow-y: auto;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                <input type="date" id="historyFilterDataOd" class="modern-input" style="flex: 1; min-width: 120px;" placeholder="Data od">
+                <input type="date" id="historyFilterDataDo" class="modern-input" style="flex: 1; min-width: 120px;" placeholder="Data do">
+                <input type="text" id="historyFilterSurowiec" class="modern-input" style="flex: 2; min-width: 150px;" placeholder="Nazwa surowca">
+                <input type="text" id="historyFilterStacja" class="modern-input" style="flex: 1; min-width: 100px;" placeholder="Stacja (np. BB01)">
+                <button onclick="fetchStationHistory()" class="btn-premium" style="padding: 8px 15px;"><span class="material-icons" style="font-size:18px;">search</span>Szukaj</button>
+            </div>
+            <table class="modern-table small compact-mobile" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Stacja</th>
+                        <th>Produkt</th>
+                        <th>SSCC</th>
+                        <th>Ilość [kg]</th>
+                        <th>Typ</th>
+                        <th>Użytkownik</th>
+                    </tr>
+                </thead>
+                <tbody id="stationHistoryTableBody">
+                    <tr><td colspan="7" style="text-align: center;">Ładowanie danych...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function openStationHistoryModal() {
+    document.getElementById('stationHistoryModal').style.display = 'flex';
+    // set default dates to today and yesterday
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('historyFilterDataOd').value = yesterday.toISOString().split('T')[0];
+    document.getElementById('historyFilterDataDo').value = today.toISOString().split('T')[0];
+    fetchStationHistory();
+}
+
+function closeStationHistoryModal() {
+    document.getElementById('stationHistoryModal').style.display = 'none';
+}
+
+function fetchStationHistory() {
+    const tbody = document.getElementById('stationHistoryTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
+    
+    // Zmienna linia zależy od miejsca z którego wywołujemy. Default: AGRO
+    let linia = (typeof LINIA !== 'undefined') ? LINIA : 'AGRO';
+    const dataOd = document.getElementById('historyFilterDataOd').value;
+    const dataDo = document.getElementById('historyFilterDataDo').value;
+    const surowiec = document.getElementById('historyFilterSurowiec').value;
+    const stacja = document.getElementById('historyFilterStacja').value;
+    
+    let url = `/magazyny-nowe/historia-stacji/data?linia=${linia}`;
+    if(dataOd) url += `&dataOd=${dataOd}`;
+    if(dataDo) url += `&dataDo=${dataDo}`;
+    if(surowiec) url += `&surowiec=${encodeURIComponent(surowiec)}`;
+    if(stacja) url += `&stacja=${encodeURIComponent(stacja)}`;
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) throw new Error(data.error);
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Brak danych w historii stacji.</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.data.forEach(r => {
+                html += `<tr>
+                    <td>${r.data}</td>
+                    <td style="font-weight: bold; color: #0284c7;">${r.stacja}</td>
+                    <td>${r.nazwa}</td>
+                    <td style="font-size: 11px; color: #64748b;">${r.nr_palety}</td>
+                    <td style="font-weight: bold; color: #16a34a;">${r.ilosc.toFixed(1)}</td>
+                    <td><span class="status-badge">${r.typ}</span></td>
+                    <td>${r.user}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        })
+        .catch(err => {
+            console.error(err);
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd ładowania danych: ${err.message}</td></tr>`;
+        });
+}
+</script>

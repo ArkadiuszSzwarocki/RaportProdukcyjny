@@ -19,6 +19,11 @@
         </a>
         {% endif %}
 
+        <a href="{{ url_for('production.agro_station_history') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
+            Historia Stacji (BB/MZ/WZ)
+        </a>
+
         {% if role_has_access('agro.bufor') %}
         <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
             class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">

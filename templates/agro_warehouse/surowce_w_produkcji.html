@@ -44,6 +44,16 @@
                                 <div style="font-size: 16px; font-weight: 900; color: #1e293b; text-align: center; line-height: 1.2; margin-bottom: 8px;">
                                     {{ tank.surowiec_nazwa }}
                                 </div>
+                                {% if tank.nr_palety %}
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px;">
+                                    SSCC: {{ tank.nr_palety }}
+                                </div>
+                                {% endif %}
+                                {% if tank.data %}
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 8px;">
+                                    Wstawiono: {{ tank.data }}
+                                </div>
+                                {% endif %}
                                 <div style="background: #166534; color: white; padding: 4px 10px; border-radius: 8px; font-size: 18px; font-weight: 900; display: inline-block;">
                                     {{ tank.stan_systemowy }} {{ tank.jednostka or 'kg' }}
                                 </div>

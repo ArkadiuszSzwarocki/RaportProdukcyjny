@@ -803,6 +803,8 @@ class AgroWarehouseService:
         """Zwraca bieżące stany surowców pozostających w produkcji (BB/MZ/KO)."""
         table_surowce = get_table_name('magazyn_surowce', linia)
         table_ruch = get_table_name('magazyn_ruch', linia)
+        table_palety = 'magazyn_surowce'
+        
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -816,11 +818,14 @@ class AgroWarehouseService:
 
             q = (
                 f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
-                f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, "
+                f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, pal.nr_palety, "
                 f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
                 f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
                 f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
-                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
+                f"FROM {table_ruch} r "
+                f"LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+                f"LEFT JOIN {table_palety} pal ON r.surowiec_id = pal.id "
+                f"{plan_join} "
                 "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
                 "AND COALESCE(NULLIF(TRIM(r.zbiornik), ''), '') <> '' "
                 "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
@@ -844,6 +849,7 @@ class AgroWarehouseService:
                 result.append({
                     'ruch_id': r['ruch_id'],
                     'surowiec_id': r.get('surowiec_id'),
+                    'nr_palety': r.get('nr_palety') or '',
                     'nazwa': r.get('nazwa') or '',
                     'lokalizacja': r.get('lokalizacja') or '',
                     'zbiornik': zbiornik or '',
@@ -894,6 +900,7 @@ class AgroWarehouseService:
                 by_tank[tank_code] = {
                     'ruch_id': None,
                     'surowiec_id': None,
+                    'nr_palety': '',
                     'nazwa': '',
                     'surowiec_nazwa': '',
                     'lokalizacja': '',

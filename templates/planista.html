@@ -60,6 +60,19 @@
     </a>
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var plannerDateInput = document.querySelector('.planista-viewport .planista-date-input');
+    if (!plannerDateInput) return;
+    var tryOpenPicker = function () {
+        if (typeof plannerDateInput.showPicker === 'function') {
+            try { plannerDateInput.showPicker(); } catch (e) { }
+        }
+    };
+    plannerDateInput.addEventListener('click', tryOpenPicker);
+});
+</script>
+
 
 {% if aktywna_zakladka == 'agro' %}
 {# ===== ZAKŁADKA AGRO ===== #}

@@ -43,7 +43,7 @@ class MagazynyNoweService:
             is_valid, error_msg = validate_warehouse_location(new_location, allow_empty=False)
             if not is_valid:
                 return False, error_msg
-        
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -66,6 +66,14 @@ class MagazynyNoweService:
                 
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
+            nr_palety = row.get('nr_palety')
+            
+            # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
+            if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
+                from app.utils.location_validator import check_rack_location_availability
+                is_loc_available, loc_error_msg = check_rack_location_availability(new_location, current_nr_palety=nr_palety)
+                if not is_loc_available:
+                    return False, loc_error_msg
             
             amount_to_move = float(amount_to_move) if amount_to_move is not None else qty
             
