@@ -412,7 +412,7 @@ def preprint_labels_view():
         table_pal = get_table_name('palety_workowanie', linia)
         table_plan = get_table_name('plan_produkcji', linia)
 
-        status_filter_sql = "AND COALESCE(pw.status, '') NOT IN ('przyjeta', 'zamknieta')"
+        status_filter_sql = "AND COALESCE(pw.status, '') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie')"
         if not only_pending:
             status_filter_sql = "AND COALESCE(pw.status, '') != 'zamknieta'"
 

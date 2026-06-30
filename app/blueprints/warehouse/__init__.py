@@ -38,14 +38,14 @@ def _update_paleta_workowanie(cursor, paleta_id, waga, linia='PSD'):
     old_waga = row[2] if len(row) > 2 else 0
     old_waga_potwierdzona = row[3] if len(row) > 3 else 0
 
-    if status == 'przyjeta':
+    if status in ('przyjeta', 'w_magazynie'):
         cursor.execute(f"UPDATE {table_pal} SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
         action = 'waga_potwierdzona'
         old_waga_val = old_waga_potwierdzona
     else:
         cursor.execute(f"UPDATE {table_pal} SET waga=%s WHERE id=%s", (waga, paleta_id))
         cursor.execute(
-            f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+            f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND status NOT IN ('przyjeta', 'w_magazynie')) WHERE id = %s",
             (plan_id, plan_id),
         )
         action = 'waga'

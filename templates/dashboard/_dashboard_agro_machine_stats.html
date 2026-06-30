@@ -28,7 +28,7 @@
         <span class="stat-label">LICZNIK PALET (SYSTEM)</span>
         {% set current_pal_count = (palety_mapa.get(p[0], [])|length if palety_mapa else 0) %}
         {% set start_pal_c = workowanie_rozliczenie_ctx.active_plan.start_pallet_counter if workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.active_plan and workowanie_rozliczenie_ctx.active_plan.start_pallet_counter else 0 %}
-        <div class="machine-pallet-count-pill" data-machine-pallet-count-pill data-start-pallet="{{ start_pal_c }}" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 800; font-size: 1.1em; width: fit-content; padding: 6px 14px; border-radius: 8px;">{{ current_pal_count }} szt.</div>
+        <div class="machine-pallet-count-pill" data-machine-pallet-count-pill data-start-pallet="{{ start_pal_c }}" data-db-pallets="{{ current_pal_count }}" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 800; font-size: 1.1em; width: fit-content; padding: 6px 14px; border-radius: 8px;">{{ current_pal_count }} szt.</div>
     </div>
 </div>
 

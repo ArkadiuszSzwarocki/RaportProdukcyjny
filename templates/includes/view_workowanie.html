@@ -214,7 +214,7 @@
                             {% if pal[7] and pal[7] != '' %}
                                 {% if pal[7] == 'do_przyjecia' %}
                                     <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                {% elif pal[7] == 'przyjeta' %}
+                                {% elif pal[7] in ['przyjeta', 'w_magazynie'] %}
                                     <span class="badge badge-success">✅ Przyjęta</span>
                                 {% elif pal[7] == 'zamknieta' %}
                                     <span class="badge badge-secondary">🔒 Zamknięta</span>

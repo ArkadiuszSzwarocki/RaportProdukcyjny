@@ -477,6 +477,7 @@ function doMoveFromMainInput(loc) {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         surowiec_id: currentPallet.id,
+        type: currentPallet.inventory_type,
         lokalizacja: loc,
         linia: LINIA
       })
@@ -508,6 +509,7 @@ function doFinalDispatch() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       surowiec_id: currentPallet.id,
+      type: currentPallet.inventory_type,
       ilosc: qty,
       linia: LINIA,
       zbiornik: pendingProductionLoc,

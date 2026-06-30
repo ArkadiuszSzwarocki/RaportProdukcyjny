@@ -565,7 +565,7 @@ def register_warehouse_management_routes(
 
     @warehouse_bp.route('/confirm_delete_szarze_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_szarze_page')
     @warehouse_bp.route('/confirm_delete_zasyp_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_zasyp_page')
-    @masteradmin_required
+    @roles_required('masteradmin', 'admin', 'lider')
     def confirm_delete_szarze_page(szarza_id):
         """Render delete confirmation for zasyp (legacy route name)."""
         linia = resolve_request_linia()
@@ -825,7 +825,7 @@ def register_warehouse_management_routes(
                 try:
                     cursor.execute(f"SELECT data_planu, produkt, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
                     row = cursor.fetchone()
-                    if row and prev_status != 'przyjeta':
+                    if row and prev_status not in ('przyjeta', 'w_magazynie'):
                         cursor.execute(f"SELECT id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (row[0], row[1]))
                         mp = cursor.fetchone()
                         mp_id = mp[0] if mp else None
@@ -929,7 +929,7 @@ def register_warehouse_management_routes(
                                 cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s", (plan_id,))
                                 total_pallets = cursor.fetchone()[0] or 0
                                 
-                                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s AND status='przyjeta'", (plan_id,))
+                                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s AND status IN ('przyjeta', 'w_magazynie')", (plan_id,))
                                 accepted_pallets = cursor.fetchone()[0] or 0
                                 
                                 if total_pallets > 0 and total_pallets == accepted_pallets:
@@ -1106,7 +1106,7 @@ def register_warehouse_management_routes(
                 current_app.logger.warning('Failed to log history for deleted paleta %s: %s', id, hist_err)
             
             cursor.execute(
-                f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND status NOT IN ('przyjeta', 'w_magazynie')) WHERE id = %s",
                 (plan_id, plan_id),
             )
             conn.commit()

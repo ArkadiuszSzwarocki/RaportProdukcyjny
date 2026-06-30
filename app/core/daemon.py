@@ -675,41 +675,6 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         current_wrapped = bool(data.get('is_wrapped'))
                         heartbeat_note = f'plan={plan_id};counter={current_pallet_cnt};wrapped={int(current_wrapped)}'
 
-                        # Initialize wrapped baseline for new plans, then only print on False->True transitions.
-                        if plan_id not in plan_wrap_states:
-                            plan_wrap_states[plan_id] = current_wrapped
-                            _safe_log_info(
-                                'Tracking owijarka bit for plan ID=%s. Initial wrapped=%s (instance=%s)',
-                                plan_id,
-                                current_wrapped,
-                                _INSTANCE_ID,
-                            )
-                        else:
-                            prev_wrapped = plan_wrap_states.get(plan_id)
-                            if _is_rising_edge(prev_wrapped, current_wrapped):
-                                # ok_print, wrap_msg, printed_pallet_id = _print_wrapped_pallet_label_once(
-                                #     plan_id,
-                                #     last_printed_wrap_pallet_ids,
-                                #     linia='AGRO',
-                                # )
-                                ok_print, wrap_msg, printed_pallet_id = False, "Wydruk po owijarce wyłączony na życzenie", None
-                                if ok_print:
-                                    _safe_log_info(
-                                        'Wrap rising edge detected for plan ID=%s -> printed one label for pallet ID=%s (instance=%s).',
-                                        plan_id,
-                                        printed_pallet_id,
-                                        _INSTANCE_ID,
-                                    )
-                                else:
-                                    _safe_log_info(
-                                        'Wrap rising edge detected for plan ID=%s but label print skipped: %s (instance=%s).',
-                                        plan_id,
-                                        wrap_msg,
-                                        _INSTANCE_ID,
-                                    )
-                                heartbeat_note = f'{heartbeat_note};wrap_edge=1;print_ok={int(ok_print)};pallet_id={printed_pallet_id}'
-                            plan_wrap_states[plan_id] = current_wrapped
-                        
                         if current_pallet_cnt > 0:
                             # If we haven't tracked this plan yet, initialize it
                             if plan_id not in plan_counters:
@@ -843,6 +808,40 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                         current_pallet_cnt - plan_counters[plan_id],
                                         _INSTANCE_ID,
                                     )
+                        # Initialize wrapped baseline for new plans, then only print on False->True transitions.
+                        if plan_id not in plan_wrap_states:
+                            plan_wrap_states[plan_id] = current_wrapped
+                            _safe_log_info(
+                                'Tracking owijarka bit for plan ID=%s. Initial wrapped=%s (instance=%s)',
+                                plan_id,
+                                current_wrapped,
+                                _INSTANCE_ID,
+                            )
+                        else:
+                            prev_wrapped = plan_wrap_states.get(plan_id)
+                            if _is_rising_edge(prev_wrapped, current_wrapped):
+                                ok_print, wrap_msg, printed_pallet_id = _print_wrapped_pallet_label_once(
+                                    plan_id,
+                                    last_printed_wrap_pallet_ids,
+                                    linia='AGRO',
+                                )
+                                if ok_print:
+                                    _safe_log_info(
+                                        'Wrap rising edge detected for plan ID=%s -> printed one label for pallet ID=%s (instance=%s).',
+                                        plan_id,
+                                        printed_pallet_id,
+                                        _INSTANCE_ID,
+                                    )
+                                else:
+                                    _safe_log_info(
+                                        'Wrap rising edge detected for plan ID=%s but label print skipped: %s (instance=%s).',
+                                        plan_id,
+                                        wrap_msg,
+                                        _INSTANCE_ID,
+                                    )
+                                heartbeat_note = f'{heartbeat_note};wrap_edge=1;print_ok={int(ok_print)};pallet_id={printed_pallet_id}'
+                            plan_wrap_states[plan_id] = current_wrapped
+                        
                     else:
                         # No active plan, clear counters map to release memory and allow reset
                         plan_counters.clear()

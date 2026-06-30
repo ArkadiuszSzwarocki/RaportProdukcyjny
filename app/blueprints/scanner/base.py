@@ -13,6 +13,7 @@ Endpointy:
 from flask import Blueprint, request, jsonify, session, render_template
 from datetime import datetime
 from app.services.scanner_service import ScannerService
+from app.services.magazyny_nowe_service import MagazynyNoweService
 from app.services.print_server import get_printer
 
 scanner_bp = Blueprint('scanner', __name__, url_prefix='/agro/scanner')
@@ -54,6 +55,7 @@ def lookup():
 def dispatch():
     data = request.get_json(silent=True) or {}
     surowiec_id = data.get('surowiec_id')
+    pallet_type = data.get('type')
     ilosc       = data.get('ilosc')
     linia       = data.get('linia', 'AGRO')
     plan_id     = data.get('plan_id')
@@ -62,6 +64,9 @@ def dispatch():
 
     if not surowiec_id or ilosc is None:
         return jsonify({'success': False, 'error': 'Brak parametrów: surowiec_id, ilosc'}), 400
+
+    if not pallet_type:
+        pallet_type = 'Surowiec'
 
     try:
         ilosc = float(ilosc)
@@ -76,6 +81,7 @@ def dispatch():
         plan_id=plan_id,
         zbiornik=zbiornik,
         komentarz=komentarz,
+        pallet_type=pallet_type,
     )
     return jsonify({'success': ok, 'message': msg})
 
@@ -88,15 +94,21 @@ def dispatch():
 def move():
     data = request.get_json(silent=True) or {}
     surowiec_id = data.get('surowiec_id')
+    pallet_type = data.get('type')
     nowa_lokalizacja = data.get('lokalizacja')
     linia = data.get('linia', 'AGRO')
 
     if not surowiec_id or not nowa_lokalizacja:
         return jsonify({'success': False, 'error': 'Brak parametrów: surowiec_id, lokalizacja'}), 400
 
-    ok, msg = ScannerService.move_pallet(
-        surowiec_id=int(surowiec_id),
-        nowa_lokalizacja=nowa_lokalizacja,
+    # Default to Surowiec if no type is provided (for backward compatibility)
+    if not pallet_type:
+        pallet_type = 'Surowiec'
+
+    ok, msg = MagazynyNoweService.move_pallet(
+        pallet_id=int(surowiec_id),
+        pallet_type=pallet_type,
+        new_location=nowa_lokalizacja,
         worker_login=_worker(),
         linia=linia,
     )

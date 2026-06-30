@@ -455,6 +455,7 @@ class ScannerService:
         plan_id: int | None = None,
         zbiornik: str | None = None,
         komentarz: str | None = None,
+        pallet_type: str = 'Surowiec',
     ) -> tuple[bool, str]:
         """Pobiera `ilosc` kg z palety (surowiec_id) na produkcję.
 
@@ -463,7 +464,13 @@ class ScannerService:
         if ilosc <= 0:
             return False, "Ilość musi być > 0"
 
-        table_surowce = get_table_name('magazyn_surowce', linia)
+        if pallet_type == 'Opakowanie':
+            table_surowce = get_table_name('magazyn_opakowania', linia)
+        elif pallet_type == 'Dodatek':
+            table_surowce = 'magazyn_dodatki'
+        else:
+            table_surowce = get_table_name('magazyn_surowce', linia)
+            
         table_ruch    = get_table_name('magazyn_ruch',    linia)
         conn = get_db_connection()
         try:

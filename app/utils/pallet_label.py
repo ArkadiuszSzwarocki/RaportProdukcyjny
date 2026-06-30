@@ -5,7 +5,13 @@ def _get_val(row, key, index):
     if row is None:
         return None
     if isinstance(row, dict):
-        return row.get(key)
+        if key in row:
+            return row[key]
+        # fallback to getting by index for unaliased aggregations like COUNT(*)
+        try:
+            return list(row.values())[index]
+        except (IndexError, AttributeError):
+            return None
     try:
         return row[index]
     except (IndexError, TypeError):
@@ -143,7 +149,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         }
         
     # 2. Second attempt: Find in buffer table (palety_workowanie)
-    lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else "NULL AS nr_palety_lp"
+    lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else f"(SELECT COUNT(*) FROM {table_pal} sub WHERE sub.plan_id = pw.plan_id AND sub.id <= pw.id) AS nr_palety_lp"
 
     cursor.execute(f"""
         SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby

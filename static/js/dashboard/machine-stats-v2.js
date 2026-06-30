@@ -8,6 +8,20 @@
         let statusText = data.status;
         if (statusText === 4) statusText = 'PRACA';
         else if (statusText === 0) statusText = 'STOP';
+        
+        // Auto-refresh page if pallet counter increases (new pallet added by system)
+        if (data.pallet_counter !== undefined) {
+            if (window.lastMachinePalletCounter !== undefined && data.pallet_counter > window.lastMachinePalletCounter) {
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'auto-pallet-added' });
+                } else if (typeof global.performPartialReload === 'function') {
+                    global.performPartialReload({ force: true, preserveScroll: true, source: 'auto-pallet-added' });
+                } else {
+                    window.location.reload();
+                }
+            }
+            window.lastMachinePalletCounter = data.pallet_counter;
+        }
 
         // 1. Update top-bar elements (legacy)
         const topContainer = document.getElementById('machine-stats-container');
@@ -132,13 +146,21 @@
                 const palletPill = document.querySelector('[data-machine-pallet-count-pill]');
                 if (palletPill) {
                     const startPallets = Number(palletPill.getAttribute('data-start-pallet') || 0);
-                    const realPallets = Math.max(0, Number(data.pallet_counter || 0) - startPallets);
+                    
+                    if (window.palletDeletedOffset === undefined) {
+                        const dbPallets = Number(palletPill.getAttribute('data-db-pallets') || 0);
+                        const machinePallets = Math.max(0, Number(data.pallet_counter || 0) - startPallets);
+                        // The difference between machine counter and database is the number of deleted/missing pallets
+                        window.palletDeletedOffset = Math.max(0, machinePallets - dbPallets);
+                    }
+                    
+                    const realPallets = Math.max(0, Number(data.pallet_counter || 0) - startPallets) - window.palletDeletedOffset;
                     
                     const nrWarstwy = Number(data.nrWarstwy || 0);
                     const nrWorka = Number(data.nrWorka || 0);
                     const currentLayer = Math.max(0, nrWarstwy - 1);
                     
-                    stacked = (realPallets * bagsPerPallet) + (currentLayer * bagsPerLayer) + nrWorka;
+                    stacked = (Math.max(0, realPallets) * bagsPerPallet) + (currentLayer * bagsPerLayer) + nrWorka;
                 }
                 
                 const diff = Math.max(0, produced - stacked);
@@ -154,7 +176,14 @@
             const snapTs = data.oproznianie_snapshot.timestamp;
             if (window.lastOproznianieTimestamp !== snapTs) {
                 window.lastOproznianieTimestamp = snapTs;
-                showOproznianieModal(data.oproznianie_snapshot.nrWarstwy, data.oproznianie_snapshot.nrWorka);
+                
+                // Show modal ONLY on the Workowanie page, not on the global dashboard
+                const configElem = document.getElementById('dashboard-config');
+                const sekcja = configElem ? configElem.getAttribute('data-sekcja') : null;
+                
+                if (sekcja === 'Workowanie') {
+                    showOproznianieModal(data.oproznianie_snapshot.nrWarstwy, data.oproznianie_snapshot.nrWorka);
+                }
             }
         }
     }

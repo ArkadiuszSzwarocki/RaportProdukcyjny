@@ -393,7 +393,7 @@ class DashboardService:
                         COUNT(*), 
                         COALESCE(SUM(
                             CASE 
-                                WHEN status = 'przyjeta' THEN COALESCE(NULLIF(waga_potwierdzona, 0), waga)
+                                WHEN status IN ('przyjeta', 'w_magazynie') THEN COALESCE(NULLIF(waga_potwierdzona, 0), waga)
                                 ELSE waga 
                             END
                         ), 0) 

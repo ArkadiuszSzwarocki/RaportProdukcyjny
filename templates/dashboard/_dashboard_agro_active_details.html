@@ -62,7 +62,7 @@
                                              class="btn-action btn-purple btn-sm"
                                              title="Drukuj ponownie etykiety ZPL" style="font-size: 0.65rem; padding: 0 6px;">DRUKUJ</button>
                                      {% if rola in ['lider', 'admin', 'masteradmin'] %}
-                                     <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia, source='agro') }}"
+                                     <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia, source='dashboard') }}"
                                         class="btn-action btn-danger btn-sm"
                                         data-slide
                                         title="Usuń paletę" style="font-size: 0.65rem; padding: 0 6px;">USUŃ</a>

@@ -180,6 +180,9 @@ def on_message(client, userdata, msg):
                 oproznianie = _first_or_default(payload_data.get("oproznianie"), False)
                 _latest_machine_data["oproznianie"] = bool(oproznianie)
                 
+                sygnal_owijarki = _first_or_default(payload_data.get("sygnalDoOwijarkiStart"), False)
+                _latest_machine_data["sygnal_do_owijarki_start"] = bool(sygnal_owijarki)
+                
                 # Snapshot values when oproznianie becomes active
                 if oproznianie and "oproznianie_snapshot" not in _latest_machine_data:
                     _latest_machine_data["oproznianie_snapshot"] = {

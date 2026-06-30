@@ -155,7 +155,7 @@
                                             <td>
                                                 {% if pal.status == 'do_przyjecia' %}
                                                     <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                                {% elif pal.status == 'przyjeta' %}
+                                                {% elif pal.status in ['przyjeta', 'w_magazynie'] %}
                                                     <span class="badge badge-success">✅ Przyjęta</span>
                                                 {% else %}
                                                     <span class="badge">{{ pal.status }}</span>
