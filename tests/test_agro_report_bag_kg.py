@@ -1,5 +1,4 @@
-from app.blueprints.agro_warehouse.base import _extract_bag_kg, _resolve_report_bag_kg
-
+from app.blueprints.agro_warehouse.api_reports import _extract_bag_kg, _resolve_report_bag_kg
 
 class DummyCursor:
     def __init__(self, fetchone_rows=None):
