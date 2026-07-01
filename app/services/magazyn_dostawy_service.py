@@ -279,17 +279,20 @@ class MagazynDostawyService:
         lokalizacja_do = _norm_loc(data.get('lokalizacja_do', ''))
         global_skip_warehouse_lookup = _as_bool(data.get('skip_warehouse_lookup', data.get('skipWarehouseLookup', False)))
 
-        # Walidacja: lokalizacja_do NIE może być kodem zbiornika produkcyjnego
-        if lokalizacja_do:
-            is_valid, error_msg = validate_warehouse_location(lokalizacja_do, allow_empty=False)
-            if not is_valid:
-                return False, error_msg
-
         source_locations = sorted({
             _norm_loc(it.get('sourceSpot'))
             for it in items
             if _norm_loc(it.get('sourceSpot'))
         })
+
+        is_external = not bool(source_locations)
+        physical_insert_loc = 'OCZEKUJĄCE' if is_external else lokalizacja_do
+
+        # Walidacja: lokalizacja_do NIE może być kodem zbiornika produkcyjnego
+        if lokalizacja_do and not is_external:
+            is_valid, error_msg = validate_warehouse_location(lokalizacja_do, allow_empty=False)
+            if not is_valid:
+                return False, error_msg
 
         # Walidacja: żadna z lokalizacji źródłowych NIE może być kodem zbiornika
         for source_loc in source_locations:
@@ -307,7 +310,7 @@ class MagazynDostawyService:
         if not lokalizacja_z and source_locations:
             lokalizacja_z = source_locations[0] if len(source_locations) == 1 else 'WIELE'
 
-        if lokalizacja_do and lokalizacja_do not in known_target_locations:
+        if lokalizacja_do and lokalizacja_do not in known_target_locations and lokalizacja_do != 'OCZEKUJĄCE':
             return False, f"Nieznana lokalizacja docelowa: {lokalizacja_do}."
 
         if lokalizacja_do and any(_is_route_conflict(loc, lokalizacja_do) for loc in source_locations):
@@ -366,6 +369,8 @@ class MagazynDostawyService:
                         printer_ip = printer_info['ip']
                         printer_name = printer_info['nazwa']
                 
+                print_payloads = []
+                
                 for idx, item in enumerate(items):
                     if item.get('id') in (None, ''):
                         item['id'] = f"item_{idx}_{int(datetime.now().timestamp())}"
@@ -400,17 +405,17 @@ class MagazynDostawyService:
                     item['sourceSpot'] = 'DOSTAWA'
 
                     # DB INSERT
-                    cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja_do, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                     pallet_id = cursor.lastrowid
                     if not pallet_id or pallet_id == 0:
-                        cursor.execute(f"SELECT id FROM {target_table} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja_do,))
+                        cursor.execute(f"SELECT id FROM {target_table} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (physical_insert_loc,))
                         p_row = cursor.fetchone()
                         pallet_id = p_row['id'] if p_row else None
 
                     item['sourcePalletId'] = pallet_id
                     cursor.execute(
                         "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
-                        (pallet_id, linia, pallet_type, 'DOSTAWA', lokalizacja_do, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
+                        (pallet_id, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
                     )
                     
                     # Trigger physical printing for this pallet in the background!
@@ -436,19 +441,27 @@ class MagazynDostawyService:
                                     }
                                 }
                             }
-                            def run_print(p=payload):
-                                url = "http://127.0.0.1:3001/drukuj-zpl"
-                                for _ in range(2):
-                                    try:
-                                        requests.post(url, json=p, verify=False, timeout=3)
-                                    except Exception:
-                                        pass
-                            threading.Thread(target=run_print, daemon=True).start()
+                            print_payloads.append(payload)
                         except Exception as pe:
-                            print(f"Błąd uruchomienia wątku drukowania: {pe}")
+                            print(f"Błąd przygotowania danych do druku: {pe}")
                 
-                # Status is COMPLETED because external delivery is automatically accepted
-                status = 'COMPLETED'
+                # Start ONE thread to print all collected payloads sequentially
+                if print_payloads:
+                    def run_print_queue(payloads):
+                        import requests
+                        import urllib3
+                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                        url = "http://127.0.0.1:3001/drukuj-zpl"
+                        for p in payloads:
+                            for _ in range(2):
+                                try:
+                                    requests.post(url, json=p, verify=False, timeout=3)
+                                except Exception:
+                                    pass
+                    import threading
+                    threading.Thread(target=run_print_queue, args=(print_payloads,), daemon=True).start()
+                
+                # Status pozostaje jako OCZEKUJE, aby zlecenie widniało na liście 'Oczekujące'
 
             # DEDUPLICATE items before saving (by item ID)
             if items:
@@ -648,6 +661,20 @@ class MagazynDostawyService:
 
     @staticmethod
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
+        def _clean_date(d_str):
+            if not d_str: return None
+            s = str(d_str).strip()
+            if not s: return None
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', s): return s
+            try:
+                from dateutil import parser
+                return parser.parse(s).strftime('%Y-%m-%d')
+            except Exception:
+                return None
+        
+        data_produkcji = _clean_date(data_produkcji)
+        data_przydatnosci = _clean_date(data_przydatnosci)
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)

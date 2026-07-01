@@ -425,7 +425,7 @@
                 </div>
             </div>
 
-            <div class="meta-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px;">
+            <div class="meta-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 20px;">
                 <div class="meta-card">
                     <div class="meta-label">Data przyjęcia</div>
                     <div class="meta-value">
@@ -439,11 +439,23 @@
                 </div>
                 <div class="meta-card">
                     <div class="meta-label">Gdzie przyjęto (Lokalizacja)</div>
-                    <div class="meta-value">{{ dostawa.lokalizacja_do or '-' }}</div>
+                    <div class="meta-value">{{ lokalizacja_do_str or '-' }}</div>
                 </div>
                 <div class="meta-card">
                     <div class="meta-label">Osoba przyjmująca</div>
                     <div class="meta-value">{{ dostawa.created_by or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Status dostawy</div>
+                    <div class="meta-value" style="font-weight: 800;">
+                        {% if dostawa.status == 'COMPLETED' %}
+                            ZAKOŃCZONA
+                        {% elif dostawa.status == 'OCZEKUJE' %}
+                            OCZEKUJĄCA
+                        {% else %}
+                            {{ dostawa.status }}
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -467,7 +479,8 @@
                     <col class="c-batch" style="width: 5%;">
                     <col class="c-prod-date" style="width: 7%;">
                     <col class="c-exp-date" style="width: 7%;">
-                    <col class="c-time" style="width: 10%;">
+                    <col class="c-target" style="width: 8%;">
+                    <col class="c-time" style="width: 8%;">
                     <col class="c-status" style="width: auto;">
                     {% if ns.has_rejections %}
                     <col class="c-reason" style="width: 13%;">
@@ -483,7 +496,8 @@
                         <th>Partia</th>
                         <th>Data prod.</th>
                         <th>Data przyd.</th>
-                        <th>Czas przyjecia</th>
+                        <th>Dokąd</th>
+                        <th class="c-time">CZAS PRZYJ. / ROZLOK.</th>
                         <th class="c-status">Status</th>
                         {% if ns.has_rejections %}
                         <th>Powod odrzucenia</th>
@@ -501,6 +515,7 @@
                         <td>{{ row.nr_partii }}</td>
                         <td>{{ row.data_produkcji }}</td>
                         <td>{{ row.data_przydatnosci }}</td>
+                        <td>{{ row.target_location }}</td>
                         <td>
                             {% set dt = row.accepted_at if row.accepted else (row.rejected_at if row.rejected else '-') %}
                             {% if dt != '-' %}
@@ -539,6 +554,7 @@
                     <tr>
                         <th class="center" style="width: 42px;">Lp.</th>
                         <th>Nazwa produktu</th>
+                        <th>Status</th>
                         <th class="right" style="width: 100px;">Suma</th>
                         <th style="width: 60px;">Jm</th>
                     </tr>
@@ -548,15 +564,27 @@
                     <tr>
                         <td class="center">{{ row.lp }}</td>
                         <td>{{ row.product_name }}</td>
+                        <td>{{ row.status_label }}</td>
                         <td class="right">{{ '%.2f'|format(row.qty) }}</td>
                         <td>{{ row.unit }}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="center">Brak danych do podsumowania.</td>
+                        <td colspan="5" class="center">Brak danych do podsumowania.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                {% if summary_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="right" style="font-weight: 800;">RAZEM:</td>
+                        <td class="right" style="font-weight: 800;">
+                            {{ '%.2f'|format(summary_rows|map(attribute='qty')|sum) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
             </table>
 
             <div class="totals">
@@ -570,6 +598,10 @@
 
                 {% for row in rejected_total_rows %}
                 <div class="total-chip rejected">Odrzucono: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
+                {% endfor %}
+                
+                {% for row in pending_total_rows %}
+                <div class="total-chip pending">Oczekuje: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
                 {% endfor %}
 
                 {% for row in reported_total_rows %}

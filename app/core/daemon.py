@@ -706,9 +706,16 @@ def start_daemon_threads(app, cleanup_enabled=False):
                             last_cnt = plan_counters[plan_id]
                             current_oproznianie = bool(data.get('oproznianie'))
                             
-                            if current_pallet_cnt > last_cnt and current_oproznianie:
+                            oproznianie_snap = data.get('oproznianie_snapshot')
+                            recent_oproznianie = False
+                            if oproznianie_snap and oproznianie_snap.get('timestamp'):
+                                snap_ts = oproznianie_snap.get('timestamp')
+                                if (time.time() * 1000 - snap_ts) < 90000:  # 90 seconds
+                                    recent_oproznianie = True
+
+                            if current_pallet_cnt > last_cnt and (current_oproznianie or recent_oproznianie):
                                 _safe_log_warning(
-                                    "Opróżnianie aktywne. Ignorowanie sygnału wyjazdu z paletyzatora (licznika) dla plan ID=%s. Przesuwanie bazy na %s.",
+                                    "Opróżnianie aktywne lub niedawne. Ignorowanie sygnału wyjazdu z paletyzatora (licznika) dla plan ID=%s. Przesuwanie bazy na %s.",
                                     plan_id,
                                     current_pallet_cnt,
                                 )

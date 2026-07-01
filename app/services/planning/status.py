@@ -235,19 +235,6 @@ class PlanningStatusService:
                     "WHERE id=%s",
                     (new_status, plan_id)
                 )
-                if new_status == 'zakonczone':
-                    try:
-                        from app.services.mqtt_service import publish_command
-                        from datetime import datetime
-                        topic = "iot-2/type/cMT2108X2/id/agroPakowaczka/send"
-                        payload = {
-                            "d": { "zerowanieLicznikow": [1] },
-                            "ts": datetime.now().isoformat()
-                        }
-                        publish_command(topic, payload)
-                        current_app.logger.info(f"[MQTT] Polecenie zerowania licznikow wyslane pomyslnie dla zlecenia: {plan_id}")
-                    except Exception as ex:
-                        current_app.logger.error(f"[MQTT] Blad podczas wysylania zerowania dla zlecenia {plan_id}: {str(ex)}")
             else:
                 cursor.execute(
                     f"UPDATE {table_plan} SET status=%s WHERE id=%s",

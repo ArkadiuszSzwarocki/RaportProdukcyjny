@@ -390,6 +390,12 @@
                         {{ strata }} szt.
                     </strong>
                 </div>
+                <div>
+                    <span style="color: #666; font-size: 0.9em;">Odrzuty na przesiewaczu:</span><br>
+                    <strong style="color: red; font-size: 1.25em;">
+                        {{ item.plan.odrzuty_przesiewacz|default(0, true) }} kg
+                    </strong>
+                </div>
             </div>
         </div>
 

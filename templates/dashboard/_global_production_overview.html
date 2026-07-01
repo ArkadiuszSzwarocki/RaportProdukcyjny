@@ -15,6 +15,7 @@
             <th>{{ _('plan') }}</th>
             <th>{{ _('wykonanie') }}</th>
             <th>🚨 Uszkodzone</th>
+            <th class="text-danger">🗑️ Odrzuty (kg)</th>
             <th>{{ _('godz') }}</th>
             <th>{{ _('status') }}</th>
             <th>{{ _('akcja') }}</th>
@@ -30,6 +31,9 @@
                 data-linia="{{ h.linia }}"
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
+            <td><input type="number" step="0.1" class="odrzuty-input text-danger fw-bold" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}" style="width:70px; border-color:#dc3545;"
+                value="{{ p[15]|default(0, true) }}" min="0" placeholder="0.0" title="Odrzuty na przesiewaczu (kg)"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
             <td>
@@ -63,6 +67,7 @@
             <th>{{ _('plan') }}</th>
             <th>{{ _('wykonanie') }}</th>
             <th>🚨 Uszkodzono</th>
+            <th class="text-danger">🗑️ Odrzuty (kg)</th>
             <th>{{ _('godz') }}</th>
             <th>{{ _('status') }}</th>
             <th>{{ _('akcja') }}</th>
@@ -78,6 +83,9 @@
                 data-linia="{{ h.linia }}"
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
+            <td><input type="number" step="0.1" class="odrzuty-input text-danger fw-bold" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}" style="width:70px; border-color:#dc3545;"
+                value="{{ p[15]|default(0, true) }}" min="0" placeholder="0.0" title="Odrzuty na przesiewaczu (kg)"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
             <td>

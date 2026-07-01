@@ -55,6 +55,55 @@ def register_api_plan_ops_routes(api_bp):
             current_app.logger.exception('Error updating uszkodzone_worki: %s', error)
             return jsonify({'success': False, 'message': str(error)}), 500
 
+    @api_bp.route('/update_odrzuty_przesiewacz', methods=['POST'])
+    @login_required
+    def update_odrzuty_przesiewacz():
+        """Aktualizuj ilość odrzutów na przesiewaczu dla planu."""
+        try:
+            data = request.get_json()
+            plan_id = data.get('plan_id') or data.get('id')
+            odrzuty = float(data.get('odrzuty_przesiewacz', 0))
+            linia = data.get('linia', 'PSD').upper()
+
+            if not plan_id:
+                return jsonify({'success': False, 'message': 'Brak plan_id'}), 400
+
+            if odrzuty < 0:
+                return jsonify({'success': False, 'message': 'Ilość nie może być ujemna'}), 400
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor.execute(f"SELECT id FROM {table_plan} WHERE id = %s", (plan_id,))
+            if not cursor.fetchone():
+                conn.close()
+                return jsonify({'success': False, 'message': 'Zlecenie nie zostało znalezione'}), 404
+
+            cursor.execute(
+                f'UPDATE {table_plan} SET odrzuty_przesiewacz = %s WHERE id = %s',
+                (odrzuty, plan_id),
+            )
+
+            cursor.execute(
+                'INSERT INTO plan_history (plan_id, action, changes, user_login, created_at) VALUES (%s, %s, %s, %s, NOW())',
+                (plan_id, 'odrzuty_przesiewacz_update', f'Odrzuty przesiewacz: {odrzuty} kg ({linia})', session.get('login')),
+            )
+            conn.commit()
+            conn.close()
+
+            return jsonify(
+                {
+                    'success': True,
+                    'message': 'Zaktualizowano ilość odrzutów',
+                    'plan_id': plan_id,
+                }
+            )
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Nieprawidłowa liczba'}), 400
+        except Exception as error:
+            current_app.logger.exception('Error updating odrzuty_przesiewacz: %s', error)
+            return jsonify({'success': False, 'message': str(error)}), 500
+
     @api_bp.route('/get_deleted_plans/<date>', methods=['GET'])
     @roles_required('planista', 'admin')
     def get_deleted_plans(date):

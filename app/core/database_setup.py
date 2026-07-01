@@ -762,6 +762,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia'")
     _add_column_if_missing(cursor, "plan_produkcji", "nr_receptury", "VARCHAR(64) DEFAULT ''", "Dodawanie kolumny 'nr_receptury'")
     _add_column_if_missing(cursor, "plan_produkcji", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki'")
+    _add_column_if_missing(cursor, "plan_produkcji", "odrzuty_przesiewacz", "FLOAT DEFAULT 0", "Dodawanie kolumny 'odrzuty_przesiewacz'")
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
     _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
@@ -850,6 +851,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "nr_receptury", "VARCHAR(64) DEFAULT ''", "Dodawanie kolumny 'nr_receptury' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "odrzuty_przesiewacz", "FLOAT DEFAULT 0", "Dodawanie kolumny 'odrzuty_przesiewacz' (AGRO)")
     
     # Dodawanie lokalizacji dla wyrobów gotowych
     _add_column_if_missing(cursor, "magazyn_palety", "lokalizacja", "VARCHAR(50) DEFAULT 'MGW01'", "Dodawanie kolumny 'lokalizacja' do magazyn_palety")

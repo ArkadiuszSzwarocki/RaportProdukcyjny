@@ -8,6 +8,7 @@ from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
 from app.db import get_db_connection, get_table_name
 from .blueprint import agro_warehouse_bp
+from .api_reports import _resolve_report_bag_kg
 
 @agro_warehouse_bp.route('/agro/magazyn')
 @login_required
@@ -124,7 +125,7 @@ def raport_palet():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        query = "\n            SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, \n                   z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,\n                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,\n                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,\n                   w.start_machine_counter, w.stop_machine_counter, w.status\n            FROM plan_produkcji_agro w\n            LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id\n            WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)\n        "
+        query = "\n            SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, \n                   z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,\n                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,\n                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,\n                   w.start_machine_counter, w.stop_machine_counter, w.status,\n                   COALESCE(z.odrzuty_przesiewacz, w.odrzuty_przesiewacz, 0) as odrzuty_przesiewacz\n            FROM plan_produkcji_agro w\n            LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id\n            WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)\n        "
         params = []
         if plan_id:
             query += ' AND w.id = %s'

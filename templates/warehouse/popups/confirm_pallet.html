@@ -117,7 +117,9 @@
           } catch(e) {
             console.error('Failed to immediately disable parent row:', e);
           }
-          document.getElementById('difference-modal').style.display = 'none';
+          if (j.message) {
+            alert(j.message);
+          }
           closePopupAndReload();
           return;
         }

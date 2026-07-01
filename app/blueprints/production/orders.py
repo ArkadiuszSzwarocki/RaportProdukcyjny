@@ -388,6 +388,21 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     AgroWarehouseService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
 
             conn.commit()
+            
+            if str(linia).upper() == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+                try:
+                    from app.services.mqtt_service import publish_command
+                    from datetime import datetime
+                    topic = "iot-2/type/cMT2108X2/id/agroPakowaczka/send"
+                    payload = {
+                        "d": { "zerowanieLicznikow": [1] },
+                        "ts": datetime.now().isoformat()
+                    }
+                    publish_command(topic, payload)
+                    current_app.logger.info(f"[MQTT] Polecenie zerowania licznikow wyslane pomyslnie dla zlecenia: {id}")
+                except Exception as ex:
+                    current_app.logger.error(f"[MQTT] Blad podczas wysylania zerowania dla zlecenia {id}: {str(ex)}")
+            
             current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
             audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
             try:
@@ -417,6 +432,27 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     )
                 except Exception as e:
                     current_app.logger.warning('stop_any_running_etap failed for id=%s: %s', id, e)
+
+            # --- Automatyczny wydruk raportu na drukarce biurowej ---
+            try:
+                table_pal = get_table_name('palety_workowanie', linia)
+                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s", (id,))
+                total_pallets = cursor.fetchone()[0] or 0
+                
+                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s AND status IN ('przyjeta', 'w_magazynie')", (id,))
+                accepted_pallets = cursor.fetchone()[0] or 0
+                
+                if total_pallets > 0 and total_pallets == accepted_pallets:
+                    current_app.logger.info("Zlecenie %s zamkniete i wszystkie palety przyjete. Wyzwalanie wydruku biurowego.", id)
+                    from app.services.office_print_service import trigger_office_print
+                    typ = 'raport_palet_agro' if linia == 'AGRO' else 'raport_palet_psd'
+                    trigger_office_print(id, typ_raportu=typ)
+                    flash('Automatycznie wysłano raport na drukarkę.', 'success')
+                elif total_pallets > 0 and accepted_pallets < total_pallets:
+                    flash(f'Zlecenie zamknięte, ale magazyn nie przyjął jeszcze {total_pallets - accepted_pallets} palet. Raport wydrukuje się automatycznie, gdy magazynier przyjmie ostatnią.', 'info')
+            except Exception as auto_print_err:
+                current_app.logger.error("Auto print err na zamknieciu: %s", auto_print_err)
+            # --------------------------------------------------------
 
             try:
                 from app.db import refresh_bufor_queue

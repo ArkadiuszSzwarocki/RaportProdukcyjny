@@ -334,4 +334,43 @@
       }
     });
   });
+
+  // Obsługa aktualizacji odrzutów na przesiewaczu
+  document.querySelectorAll('.odrzuty-input').forEach(input => {
+    input.addEventListener('blur', function () {
+      const plan_id = this.getAttribute('data-plan-id');
+      const odrzuty_ilosc = parseFloat(this.value) || 0;
+      const linia = this.getAttribute('data-linia') || 'PSD';
+      
+      fetch('/api/update_odrzuty_przesiewacz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          plan_id: plan_id,
+          odrzuty_przesiewacz: odrzuty_ilosc,
+          linia: linia
+        })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (!data.success) {
+            alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować odrzutów'));
+          } else {
+            this.style.backgroundColor = '#f8d7da';
+            setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
+          }
+        })
+        .catch(error => {
+          alert('Błąd łączności z serwerem');
+        });
+    });
+
+    input.addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        this.blur();
+      }
+    });
+  });
 </script>

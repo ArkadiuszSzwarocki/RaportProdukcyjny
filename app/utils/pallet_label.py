@@ -24,7 +24,7 @@ def _format_date(date_val):
         return date_val.strftime('%Y-%m-%d')
     return str(date_val)
 
-def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
+def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=None):
     """
     Unifies finish-product label generation data between Flask routes
     (manual printing and dodaj_palete) and the PLC daemon.
@@ -45,22 +45,42 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         has_nr_palety_lp = False
     
     # 1. First attempt: Find in confirmed warehouse table
-    cursor.execute(f"""
-        SELECT
-            mp.produkt,
-            mp.waga_netto,
-            COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
-            COALESCE(pp.id, mp.plan_id) AS plan_id,
-            mp.nr_palety,
-            mp.paleta_workowanie_id,
-            pp.data_produkcji,
-            mp.nr_plomby
-        FROM {table_mag} mp
-        LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
-        WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
-        ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
-        LIMIT 1
-    """, (paleta_id, paleta_id, paleta_id))
+    if requested_plan_id:
+        cursor.execute(f"""
+            SELECT
+                mp.produkt,
+                mp.waga_netto,
+                COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
+                COALESCE(pp.id, mp.plan_id) AS plan_id,
+                mp.nr_palety,
+                mp.paleta_workowanie_id,
+                pp.data_produkcji,
+                mp.nr_plomby
+            FROM {table_mag} mp
+            LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
+            WHERE (mp.id = %s OR mp.paleta_workowanie_id = %s)
+              AND mp.plan_id = %s
+            ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+            LIMIT 1
+        """, (paleta_id, paleta_id, requested_plan_id, paleta_id))
+    else:
+        cursor.execute(f"""
+            SELECT
+                mp.produkt,
+                mp.waga_netto,
+                COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
+                COALESCE(pp.id, mp.plan_id) AS plan_id,
+                mp.nr_palety,
+                mp.paleta_workowanie_id,
+                pp.data_produkcji,
+                mp.nr_plomby
+            FROM {table_mag} mp
+            LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
+            WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
+            ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+            LIMIT 1
+        """, (paleta_id, paleta_id, paleta_id))
+        
     row = cursor.fetchone()
     
     if row:

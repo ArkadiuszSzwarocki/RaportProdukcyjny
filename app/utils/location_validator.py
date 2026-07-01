@@ -73,8 +73,12 @@ def validate_warehouse_location(location_code, allow_empty=True):
     normalized = str(location_code).strip().upper()
     
     if is_production_tank_code(normalized):
+        # Wyjątek: Zezwalamy na przesuwanie do zbiorników KO (np. częściowe worki)
+        if normalized.startswith('KO'):
+            return True, None
+            
         return False, (
-            f"{normalized} to kod zbiornika produkcyjnego (BB/MZ/KO są tylko do przypisywania surowców w produkcji). "
+            f"{normalized} to kod zbiornika produkcyjnego (BB/MZ są tylko do przypisywania surowców w produkcji). "
             "Użyj kodów regałów magazynowych (np. R021002, R030601)"
         )
     
@@ -122,7 +126,11 @@ def check_rack_location_availability(location_code, current_nr_palety=None):
         tables = ['magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki', 'magazyn_palety', 'magazyn_palety_agro']
         
         for t in tables:
-            query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s"
+            if t in ('magazyn_palety', 'magazyn_palety_agro'):
+                query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND waga_netto > 0"
+            else:
+                query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND stan_magazynowy > 0"
+            
             params = [location_code]
             if current_nr_palety:
                 query += " AND nr_palety != %s"
