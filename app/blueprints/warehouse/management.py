@@ -922,6 +922,7 @@ def register_warehouse_management_routes(
                         conn.commit()
                         
                         # --- Automatyczny wydruk raportu na drukarce biurowej, jeśli to ostatnia paleta w zakończonym zleceniu ---
+                        printed_msg = None
                         try:
                             cursor.execute(f"SELECT status FROM {table_plan} WHERE id=%s", (plan_id,))
                             plan_status_row = cursor.fetchone()
@@ -936,6 +937,8 @@ def register_warehouse_management_routes(
                                     current_app.logger.info("Magazynier przyjął ostatnią paletę zlecenia %s. Wyzwalanie wydruku biurowego.", plan_id)
                                     from app.services.office_print_service import trigger_office_print
                                     trigger_office_print(plan_id)
+                                    printed_msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport został wysłany na drukarkę."
+                                    flash(printed_msg, 'success')
                         except Exception as print_err:
                             current_app.logger.error('Failed to check/trigger auto-print for plan %s: %s', plan_id, print_err)
                         # ---------------------------------------------------------------------------------------------------------
@@ -964,6 +967,8 @@ def register_warehouse_management_routes(
         try:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 response_data = {'success': True, 'paleta_id': paleta_id}
+                if 'printed_msg' in locals() and printed_msg:
+                    response_data['message'] = printed_msg
                 if has_weight_difference and not force_accept_request:
                     response_data['has_difference'] = True
                     response_data['difference'] = weight_difference
@@ -1551,7 +1556,15 @@ def register_warehouse_management_routes(
 
             from app.utils.pallet_label import prepare_pallet_label_data
             source = request.args.get('source')
-            label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table=source)
+            
+            # Pobierz plan_id z requestu
+            req_plan_id_raw = None
+            if isinstance(payload, dict):
+                req_plan_id_raw = payload.get('plan_id') or payload.get('planId')
+            if req_plan_id_raw in (None, ''):
+                req_plan_id_raw = request.form.get('plan_id') or request.args.get('plan_id')
+
+            label_data = prepare_pallet_label_data(cursor, paleta_id, linia, requested_plan_id=req_plan_id_raw, source_table=source)
             
             if not label_data:
                 return jsonify({'success': False, 'message': 'Nie znaleziono palety (ani w buforze, ani w magazynie)'}), 404

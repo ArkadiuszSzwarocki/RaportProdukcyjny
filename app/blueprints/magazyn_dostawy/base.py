@@ -669,18 +669,81 @@ def raport_przesuniecia(dostawa_id):
         except Exception:
             items = []
 
+        actual_locations = {}
+        actual_times = {}
+        if items:
+            linia = dostawa.get('linia', 'PSD').upper()
+            from app.db import get_table_name
+            table_sur = get_table_name('magazyn_surowce', linia)
+            table_opk = get_table_name('magazyn_opakowania', linia)
+            
+            nr_palet_sur = []
+            nr_palet_opk = []
+            for it in items:
+                nr = it.get('nr_palety')
+                if nr:
+                    if it.get('packageForm') == 'packaging' or it.get('scannedType') == 'opakowanie':
+                        nr_palet_opk.append(nr)
+                    else:
+                        nr_palet_sur.append(nr)
+            
+            still_pending = False
+            try:
+                if nr_palet_sur:
+                    placeholders = ','.join(['%s']*len(nr_palet_sur))
+                    cursor.execute(f"SELECT nr_palety, lokalizacja, updated_at FROM {table_sur} WHERE nr_palety IN ({placeholders}) AND stan_magazynowy > 0", tuple(nr_palet_sur))
+                    for row in cursor.fetchall():
+                        actual_locations[row['nr_palety']] = row['lokalizacja']
+                        actual_times[row['nr_palety']] = row['updated_at']
+                        if row['lokalizacja'] == 'OCZEKUJĄCE':
+                            still_pending = True
+                if nr_palet_opk:
+                    placeholders = ','.join(['%s']*len(nr_palet_opk))
+                    cursor.execute(f"SELECT nr_palety, lokalizacja, updated_at FROM {table_opk} WHERE nr_palety IN ({placeholders}) AND stan_magazynowy > 0", tuple(nr_palet_opk))
+                    for row in cursor.fetchall():
+                        actual_locations[row['nr_palety']] = row['lokalizacja']
+                        actual_times[row['nr_palety']] = row['updated_at']
+                        if row['lokalizacja'] == 'OCZEKUJĄCE':
+                            still_pending = True
+                
+                if dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk):
+                    # Zmieniamy tymczasowo dla raportu (lub można zupdatować w DB)
+                    dostawa['status'] = 'COMPLETED'
+                    cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))
+                    conn.commit()
+            except Exception as e:
+                import logging
+                logging.warning(f"Error checking physical pallet locations for delivery {dostawa_id}: {e}")
+
         rows = []
         summary_map = {}
         reported_totals_by_unit = {}
         moved_totals_by_unit = {}
         rejected_totals_by_unit = {}
+        all_target_locations = set() # reload trigger
         for idx, item in enumerate(items, start=1):
-            qty_raw = item.get('netWeight') if item.get('netWeight') not in (None, '') else item.get('unitsPerPallet')
+            qty_raw = item.get('quantity') or item.get('netWeight') or item.get('unitsPerPallet') or 0
             qty = _safe_float(qty_raw)
             unit = 'szt' if item.get('packageForm') == 'packaging' else 'kg'
             product_name = (item.get('productName') or 'Brak nazwy').strip() or 'Brak nazwy'
             source_location = item.get('sourceSpot') or dostawa.get('lokalizacja_z') or '-'
             target_location = item.get('lokalizacja_przyjecia') or dostawa.get('lokalizacja_do') or '-'
+            nr_pal = item.get('nr_palety')
+            
+            accepted_at = item.get('accepted_at') or '-'
+            if nr_pal and actual_locations.get(nr_pal):
+                if actual_locations.get(nr_pal) != 'OCZEKUJĄCE':
+                    target_location = actual_locations.get(nr_pal)
+                    if actual_times.get(nr_pal):
+                        time_val = actual_times.get(nr_pal)
+                        try:
+                            accepted_at = time_val.strftime('%Y-%m-%d %H:%M:%S')
+                        except AttributeError:
+                            accepted_at = str(time_val)
+            
+            if target_location != '-':
+                all_target_locations.add(target_location)
+                
             accepted = bool(item.get('accepted'))
             rejected = bool(item.get('rejected'))
 
@@ -704,7 +767,7 @@ def raport_przesuniecia(dostawa_id):
                 'target_location': target_location,
                 'issued_by': item.get('issued_by') or dostawa.get('created_by') or '-',
                 'accepted_by': item.get('accepted_by') or '-',
-                'accepted_at': item.get('accepted_at') or '-',
+                'accepted_at': accepted_at,
                 'accepted': accepted,
                 'rejected': rejected,
                 'rejected_by': item.get('rejected_by') or '-',
@@ -714,17 +777,21 @@ def raport_przesuniecia(dostawa_id):
             }
             rows.append(row_data)
 
-            summary_key = (product_name, unit)
+            summary_key = (product_name, unit, status_label)
             reported_totals_by_unit[unit] = reported_totals_by_unit.get(unit, 0.0) + qty
+            summary_map[summary_key] = summary_map.get(summary_key, 0.0) + qty
             if accepted:
-                summary_map[summary_key] = summary_map.get(summary_key, 0.0) + qty
                 moved_totals_by_unit[unit] = moved_totals_by_unit.get(unit, 0.0) + qty
             elif rejected:
                 rejected_totals_by_unit[unit] = rejected_totals_by_unit.get(unit, 0.0) + qty
+            else:
+                if 'pending_totals_by_unit' not in locals():
+                    pending_totals_by_unit = {}
+                pending_totals_by_unit[unit] = pending_totals_by_unit.get(unit, 0.0) + qty
 
         summary_rows = []
-        for idx, ((name, unit), qty) in enumerate(sorted(summary_map.items(), key=lambda x: x[0][0].lower()), start=1):
-            summary_rows.append({'lp': idx, 'product_name': name, 'unit': unit, 'qty': qty})
+        for idx, ((name, unit, status_label), qty) in enumerate(sorted(summary_map.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
+            summary_rows.append({'lp': idx, 'product_name': name, 'unit': unit, 'qty': qty, 'status_label': status_label})
 
         def _to_total_rows(totals_dict):
             return [
@@ -736,9 +803,14 @@ def raport_przesuniecia(dostawa_id):
         reported_total_rows = _to_total_rows(reported_totals_by_unit)
         moved_total_rows = _to_total_rows(moved_totals_by_unit)
         rejected_total_rows = _to_total_rows(rejected_totals_by_unit)
+        pending_total_rows = _to_total_rows(locals().get('pending_totals_by_unit', {}))
         accepted_count = sum(1 for r in rows if r.get('accepted'))
         rejected_count = sum(1 for r in rows if r.get('rejected'))
         pending_count = max(len(rows) - accepted_count - rejected_count, 0)
+        
+        lokalizacja_do_str = dostawa.get('lokalizacja_do')
+        if not lokalizacja_do_str:
+            lokalizacja_do_str = ", ".join(sorted(all_target_locations)) if all_target_locations else '-'
 
         is_external = bool(dostawa.get('supplier')) or not dostawa.get('lokalizacja_z')
         template_name = 'magazyn_dostawy/raport_dostawy_zewnetrznej_print.html' if is_external else 'magazyn_dostawy/raport_przesuniecia_print.html'
@@ -752,9 +824,11 @@ def raport_przesuniecia(dostawa_id):
             reported_total_rows=reported_total_rows,
             moved_total_rows=moved_total_rows,
             rejected_total_rows=rejected_total_rows,
+            pending_total_rows=pending_total_rows,
             accepted_count=accepted_count,
             rejected_count=rejected_count,
             pending_count=pending_count,
+            lokalizacja_do_str=lokalizacja_do_str,
             created_at_str=_safe_datetime_str(dostawa.get('created_at')),
             confirmed_at_str=_safe_datetime_str(dostawa.get('potwierdzone_at')),
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

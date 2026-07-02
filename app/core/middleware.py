@@ -273,7 +273,7 @@ def enforce_session_timeout(app):
     """
     def middleware():
         try:
-            timeout_min = int(app.config.get('SESSION_TIMEOUT_MINUTES', 40))
+            timeout_min = int(app.config.get('SESSION_TIMEOUT_MINUTES', 720))
             if not session.get('zalogowany'):
                 return
 

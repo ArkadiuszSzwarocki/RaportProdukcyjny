@@ -2042,6 +2042,21 @@ class AgroWarehouseService:
                 (waga_input, plan_id),
             )
             
+            # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
+            try:
+                if paleta_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                    res_lp = cursor.fetchone()
+                    nr_palety_lp = int(res_lp[0]) if res_lp else 1
+                    try:
+                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                        if cursor.fetchone():
+                            cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
             conn.commit()
             
             # Ensure status is updated (e.g. from 'w toku' to 'zakonczone' if target reached, though usually stays 'w toku')

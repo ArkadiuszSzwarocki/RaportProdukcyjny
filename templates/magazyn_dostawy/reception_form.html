@@ -374,6 +374,15 @@
             <div class="premium-modal-body" style="text-align: left;">
                 <p>Zapisujesz przyjęcie dostawy zewnętrznej.</p>
                 <p>System automatycznie przypisze unikalne <strong>ID Palety (SSCC)</strong> dla każdej z pozycji, a zlecenie dostawy trafi do grupy oczekujących na potwierdzenie i wstawienie na regały.</p>
+                <div style="margin-top: 15px;">
+                    <label style="font-size: 11px; font-weight: 700; color: #475569;">WYDRUK ETYKIET (ZPL)</label>
+                    <select id="printerSelect" class="premium-select">
+                        <option value="">Brak wydruku (pomiń)</option>
+                        {% for printer in printers %}
+                            <option value="{{ printer.id }}">{{ printer.nazwa }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div class="premium-modal-footer">
                 <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
@@ -709,8 +718,9 @@
     }
 
     async function confirmSaveWithPrinter() {
+        const printerId = document.getElementById('printerSelect').value;
         closePrinterModal();
-        await saveDostawa(null);
+        await saveDostawa(printerId || null);
     }
 
     async function saveDostawa(printerId = null) {

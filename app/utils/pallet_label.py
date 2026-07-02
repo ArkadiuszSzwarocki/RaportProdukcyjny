@@ -24,7 +24,7 @@ def _format_date(date_val):
         return date_val.strftime('%Y-%m-%d')
     return str(date_val)
 
-def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', source_table=None):
+def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=None, source_table=None):
     """
     Unifies finish-product label generation data between Flask routes
     (manual printing and dodaj_palete) and the PLC daemon.
@@ -45,18 +45,31 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', source_table=None)
         has_nr_palety_lp = False
     
     # 1. First attempt: Find in confirmed warehouse table
+    params = []
+    where_parts = []
+
     if source_table == 'magazyn':
-        where_clause = "WHERE mp.id = %s"
+        where_parts.append("mp.id = %s")
+        params.append(paleta_id)
         order_clause = ""
-        params = (paleta_id,)
+        order_params = []
     elif source_table == 'workowanie':
-        where_clause = "WHERE mp.paleta_workowanie_id = %s"
+        where_parts.append("mp.paleta_workowanie_id = %s")
+        params.append(paleta_id)
         order_clause = ""
-        params = (paleta_id,)
+        order_params = []
     else:
-        where_clause = "WHERE mp.id = %s OR mp.paleta_workowanie_id = %s"
+        where_parts.append("(mp.id = %s OR mp.paleta_workowanie_id = %s)")
+        params.extend([paleta_id, paleta_id])
         order_clause = "ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC"
-        params = (paleta_id, paleta_id, paleta_id)
+        order_params = [paleta_id]
+        
+    if requested_plan_id:
+        where_parts.append("mp.plan_id = %s")
+        params.append(requested_plan_id)
+
+    where_clause = "WHERE " + " AND ".join(where_parts)
+    final_params = tuple(params + order_params)
 
     cursor.execute(f"""
         SELECT
@@ -73,7 +86,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', source_table=None)
         {where_clause}
         {order_clause}
         LIMIT 1
-    """, params)
+    """, final_params)
     row = cursor.fetchone()
     
     if row:

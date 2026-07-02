@@ -425,7 +425,7 @@
                 </div>
             </div>
 
-            <div class="meta-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px;">
+            <div class="meta-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 20px;">
                 <div class="meta-card">
                     <div class="meta-label">Data utworzenia</div>
                     <div class="meta-value">{{ created_at_str }}</div>
@@ -435,6 +435,18 @@
                     <div class="meta-value">
                         {% set d = confirmed_at_str if confirmed_at_str != '-' else created_at_str %}
                         {{ d.split('T')[0].split(' ')[0] if d != '-' else '-' }}
+                    </div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Status raportu</div>
+                    <div class="meta-value" style="font-weight: 800;">
+                        {% if dostawa.status == 'COMPLETED' %}
+                            ZAKOŃCZONA
+                        {% elif dostawa.status == 'OCZEKUJE' %}
+                            OCZEKUJĄCA
+                        {% else %}
+                            {{ dostawa.status }}
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -483,7 +495,7 @@
                         <th>Dokad</th>
                         <th>Wydal</th>
                         <th>Przyjal</th>
-                        <th>Czas przyjecia</th>
+                        <th class="c-time">CZAS PRZYJ. / ROZLOK.</th>
                         <th class="c-status">Status</th>
                         {% if ns.has_rejections %}
                         <th>Powod odrzucenia</th>
@@ -543,6 +555,7 @@
                     <tr>
                         <th class="center" style="width: 42px;">Lp.</th>
                         <th>Nazwa produktu</th>
+                        <th>Status</th>
                         <th class="right" style="width: 100px;">Suma</th>
                         <th style="width: 60px;">Jm</th>
                     </tr>
@@ -552,15 +565,27 @@
                     <tr>
                         <td class="center">{{ row.lp }}</td>
                         <td>{{ row.product_name }}</td>
+                        <td>{{ row.status_label }}</td>
                         <td class="right">{{ '%.2f'|format(row.qty) }}</td>
                         <td>{{ row.unit }}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="center">Brak danych do podsumowania.</td>
+                        <td colspan="5" class="center">Brak danych do podsumowania.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                {% if summary_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="right" style="font-weight: 800;">RAZEM:</td>
+                        <td class="right" style="font-weight: 800;">
+                            {{ '%.2f'|format(summary_rows|map(attribute='qty')|sum) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
             </table>
 
             <div class="totals">
@@ -574,6 +599,10 @@
 
                 {% for row in rejected_total_rows %}
                 <div class="total-chip rejected">Odrzucono: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
+                {% endfor %}
+                
+                {% for row in pending_total_rows %}
+                <div class="total-chip pending">Oczekuje: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
                 {% endfor %}
 
                 {% for row in reported_total_rows %}

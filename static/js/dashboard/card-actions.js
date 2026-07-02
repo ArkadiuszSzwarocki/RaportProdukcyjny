@@ -615,6 +615,37 @@
         }
     }
 
+    function handleChange(event) {
+        var odrzutyInput = event.target.closest('.odrzuty-input');
+        if (odrzutyInput) {
+            var planId = odrzutyInput.getAttribute('data-plan-id');
+            var linia = odrzutyInput.getAttribute('data-linia') || 'PSD';
+            var val = parseFloat(odrzutyInput.value) || 0;
+
+            fetch('/api/update_odrzuty_przesiewacz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan_id: planId,
+                    linia: linia,
+                    odrzuty_przesiewacz: val
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if(data.success) {
+                    odrzutyInput.style.backgroundColor = '#f8d7da';
+                    setTimeout(function() { odrzutyInput.style.backgroundColor = ''; }, 1000);
+                } else {
+                    notify('Błąd: ' + data.message, 'danger');
+                }
+            })
+            .catch(function(err) {
+                notify('Błąd sieci podczas zapisu odrzutów', 'danger');
+            });
+        }
+    }
+
     function init() {
         if (initialized) {
             return;
@@ -623,6 +654,7 @@
 
         document.addEventListener('submit', handleSubmit, false);
         document.addEventListener('click', handleClick, false);
+        document.addEventListener('change', handleChange, false);
     }
 
     global.dashboardCardActions = {

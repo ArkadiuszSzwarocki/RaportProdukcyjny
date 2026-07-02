@@ -2071,6 +2071,9 @@
         if (source) {
             url += '&source=' + encodeURIComponent(source);
         }
+        if (planId) {
+            url += '&plan_id=' + encodeURIComponent(planId);
+        }
         const fetchOptions = {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
