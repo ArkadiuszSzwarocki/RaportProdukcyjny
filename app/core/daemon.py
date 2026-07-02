@@ -230,7 +230,7 @@ def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AG
         printer = get_printer()
 
         from app.utils.pallet_label import prepare_pallet_label_data
-        label_data = prepare_pallet_label_data(cursor, pallet_id, linia)
+        label_data = prepare_pallet_label_data(cursor, pallet_id, linia, source_table='workowanie')
         if not label_data:
             return False, 'Nie udało się przygotować danych etykiety', pallet_id
 

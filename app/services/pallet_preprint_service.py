@@ -78,7 +78,7 @@ def preprint_labels(plan_id, count, linia='PSD', user_login='System', auto_print
                         from app.utils.pallet_label import prepare_pallet_label_data
                         conn2 = get_db_connection()
                         cur2 = conn2.cursor()
-                        label_data = prepare_pallet_label_data(cur2, rec['id'], linia)
+                        label_data = prepare_pallet_label_data(cur2, rec['id'], linia, source_table='workowanie')
                         cur2.close(); conn2.close()
                         if label_data:
                             printer.print_finished_product_label(label_data)

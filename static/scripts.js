@@ -2060,14 +2060,17 @@
 
     window.tryLocalBridgeFallback = tryLocalBridgeFallback;
 
-    window.drukujZPLDirect = function(paletaId, linia, planId, btn) {
+    window.drukujZPLDirect = function(paletaId, linia, planId, btn, source) {
         if (!paletaId) return;
 
         if (typeof showToast === 'function') showToast('Wysyłanie etykiety...', 'info');
 
         const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
 
-        const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
+        let url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
+        if (source) {
+            url += '&source=' + encodeURIComponent(source);
+        }
         const fetchOptions = {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },

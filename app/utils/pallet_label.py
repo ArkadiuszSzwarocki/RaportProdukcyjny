@@ -24,7 +24,7 @@ def _format_date(date_val):
         return date_val.strftime('%Y-%m-%d')
     return str(date_val)
 
-def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
+def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', source_table=None):
     """
     Unifies finish-product label generation data between Flask routes
     (manual printing and dodaj_palete) and the PLC daemon.
@@ -45,6 +45,19 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         has_nr_palety_lp = False
     
     # 1. First attempt: Find in confirmed warehouse table
+    if source_table == 'magazyn':
+        where_clause = "WHERE mp.id = %s"
+        order_clause = ""
+        params = (paleta_id,)
+    elif source_table == 'workowanie':
+        where_clause = "WHERE mp.paleta_workowanie_id = %s"
+        order_clause = ""
+        params = (paleta_id,)
+    else:
+        where_clause = "WHERE mp.id = %s OR mp.paleta_workowanie_id = %s"
+        order_clause = "ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC"
+        params = (paleta_id, paleta_id, paleta_id)
+
     cursor.execute(f"""
         SELECT
             mp.produkt,
@@ -57,10 +70,10 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
             mp.nr_plomby
         FROM {table_mag} mp
         LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
-        WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
-        ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+        {where_clause}
+        {order_clause}
         LIMIT 1
-    """, (paleta_id, paleta_id, paleta_id))
+    """, params)
     row = cursor.fetchone()
     
     if row:

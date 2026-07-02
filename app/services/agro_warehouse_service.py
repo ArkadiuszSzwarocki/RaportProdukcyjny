@@ -2056,7 +2056,7 @@ class AgroWarehouseService:
                     from app.utils.pallet_label import prepare_pallet_label_data
                     from app.services.print_server import get_printer
 
-                    label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
+                    label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table='workowanie')
                     if not label_data:
                         logger.warning(
                             'System auto-print skipped: missing label data for paleta_id=%s (plan_id=%s, source=%s)',
