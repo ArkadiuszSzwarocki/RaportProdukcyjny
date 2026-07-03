@@ -626,18 +626,9 @@ class MagazynDostawyService:
                         
                         is_partial = form_weight < (pallet_weight - 0.001) # Tolerance for floating point
                         
-                        if is_partial:
-                            # Subtract from source, don't move location
-                            cursor.execute(f"UPDATE {target_table} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (form_weight, p_id))
-                            item['is_partial'] = True
-                            # Location in 'item' will be buffer, but in DB source stays at source
-                        else:
-                            # Move whole pallet
-                            cursor.execute(f"UPDATE {target_table} SET lokalizacja = %s WHERE id = %s", (lokalizacja_do, p_id))
-                            item['is_partial'] = False
-
+                        item['is_partial'] = is_partial
                         item['originalSpot'] = item.get('originalSpot') or source_spot
-                        item['sourceSpot'] = lokalizacja_do
+                        item['sourceSpot'] = source_spot
                         item.pop('warehouseLookupSkipped', None)
                         item['sourcePalletId'] = p_id
                         if p_nr:
@@ -719,23 +710,6 @@ class MagazynDostawyService:
             nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'))
             pkg_form = target.get('packageForm', 'bags') # bags or big_bag
 
-            if target.get('packageForm') == 'packaging':
-                qty = float(target.get('unitsPerPallet') or 0)
-                cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
-                p_type = 'opakowanie'
-            else:
-                qty = float(target.get('netWeight') or 0)
-                cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
-                p_type = 'surowiec'
-
-            # Get the ID of the pallet (new or existing)
-            pallet_id = cursor.lastrowid
-            if not pallet_id or pallet_id == 0:
-                table_name = table_opk if target.get('packageForm') == 'packaging' else table_sur
-                cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja,))
-                p_row = cursor.fetchone()
-                pallet_id = p_row['id'] if p_row else None
-
             target['accepted'] = True
             target['accepted_by'] = login
             target['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -745,22 +719,70 @@ class MagazynDostawyService:
             target['data_produkcji'] = data_produkcji
             target['data_przydatnosci'] = data_przydatnosci
 
-            # 3. IF TRANSFER: Empty the source spot
             source_spot = target.get('sourceSpot')
+            source_pallet_id = target.get('sourcePalletId')
             is_partial = target.get('is_partial', False)
+            pallet_id = None
 
-            if source_spot and not is_partial:
-                # Find the pallet at source and zero it (in all 3 tables just in case)
-                cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (source_spot, product_name))
-                cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (source_spot, product_name))
-                cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (source_spot, product_name))
-            
-            # If it's partial, we already subtracted at Stage 1, so we just create the new one at destination (handled by next lines)
-                
+            if source_spot:
+                # It's a transfer
+                p_type = 'opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'
+                table_name = table_opk if p_type == 'opakowanie' else table_sur
+                qty = float(target.get('unitsPerPallet') if p_type == 'opakowanie' else target.get('netWeight') or 0)
+
+                if is_partial:
+                    if source_pallet_id:
+                        cursor.execute(f"UPDATE {table_name} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (qty, source_pallet_id))
+                    else:
+                        cursor.execute(f"UPDATE {table_name} SET stan_magazynowy = stan_magazynowy - %s WHERE lokalizacja = %s AND nazwa = %s AND nr_palety = %s AND stan_magazynowy >= %s", (qty, source_spot, product_name, nr_palety, qty))
+                    
+                    # Insert the new pallet at destination
+                    cursor.execute(f"INSERT INTO {table_name} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    pallet_id = cursor.lastrowid
+                else:
+                    if source_pallet_id:
+                        cursor.execute(f"UPDATE {table_name} SET lokalizacja = %s, stan_magazynowy = %s, nr_partii = %s, data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s, typ_opakowania = %s WHERE id = %s", (lokalizacja, qty, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id))
+                        pallet_id = source_pallet_id
+                    else:
+                        cursor.execute(f"UPDATE {table_name} SET lokalizacja = %s, stan_magazynowy = %s, nr_partii = %s, data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s WHERE lokalizacja = %s AND nazwa = %s AND nr_palety = %s AND stan_magazynowy > 0", (lokalizacja, qty, nr_partii, data_produkcji, data_przydatnosci, pkg_form, source_spot, product_name, nr_palety))
+                        cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND nazwa = %s AND nr_palety = %s LIMIT 1", (lokalizacja, product_name, nr_palety))
+                        row = cursor.fetchone()
+                        pallet_id = row['id'] if row else None
+
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
-                    (None, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
+                    (pallet_id, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
                 )
+
+            else:
+                # External reception
+                if target.get('packageForm') == 'packaging':
+                    qty = float(target.get('unitsPerPallet') or 0)
+                    cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    p_type = 'opakowanie'
+                    pallet_id = cursor.lastrowid
+                    if not pallet_id:
+                        cursor.execute(f"SELECT id FROM {table_opk} WHERE lokalizacja = %s AND nr_palety = %s LIMIT 1", (lokalizacja, nr_palety))
+                        row = cursor.fetchone()
+                        pallet_id = row['id'] if row else None
+                else:
+                    qty = float(target.get('netWeight') or 0)
+                    cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    p_type = 'surowiec'
+                    pallet_id = cursor.lastrowid
+                    if not pallet_id:
+                        cursor.execute(f"SELECT id FROM {table_sur} WHERE lokalizacja = %s AND nr_palety = %s LIMIT 1", (lokalizacja, nr_palety))
+                        row = cursor.fetchone()
+                        pallet_id = row['id'] if row else None
+            target['accepted_by'] = login
+            target['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            target['lokalizacja_przyjecia'] = lokalizacja
+            target['nr_partii'] = nr_partii
+            target['nr_palety'] = nr_palety
+            target['data_produkcji'] = data_produkcji
+            target['data_przydatnosci'] = data_przydatnosci
+
+
 
             # Log to palety_historia
             cursor.execute(

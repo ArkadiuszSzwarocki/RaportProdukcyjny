@@ -601,8 +601,9 @@
             });
             const data = await res.json();
             if (data.success) {
-                showToast('Zapisano pomyślnie!', 'success');
+                showToast('Zapisano pomyślnie! Otwieram raport...', 'success');
                 setTimeout(() => {
+                    window.open(`/magazyn-dostawy/raport-przesuniecia/${data.id}?linia={{ linia }}`, '_blank');
                     location.href = `/magazyn-dostawy/oczekujace?linia={{ linia }}`;
                 }, 500);
             } else {

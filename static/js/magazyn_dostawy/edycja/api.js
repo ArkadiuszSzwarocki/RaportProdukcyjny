@@ -200,10 +200,13 @@ async function savePrzesuniecie() {
         if (data.success) {
             clearDraftState();
             resetTransferFormAfterSave();
-            showToast('Zapisano pomyślnie!', 'success');
+            showToast('Zapisano pomyślnie! Otwieram raport...', 'success');
             if (typeof window.refreshSidebarBadges === 'function') {
                 window.refreshSidebarBadges();
             }
+            setTimeout(() => {
+                window.open(`/magazyn-dostawy/raport-przesuniecia/${data.id}?linia=${window.EdycjaConfig.linia}`, '_blank');
+            }, 500);
         } else {
             showToast('Błąd: ' + data.error, 'danger');
         }
