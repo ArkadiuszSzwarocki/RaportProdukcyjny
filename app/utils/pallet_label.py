@@ -24,7 +24,7 @@ def _format_date(date_val):
         return date_val.strftime('%Y-%m-%d')
     return str(date_val)
 
-def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=None):
+def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=None, source_table=None):
     """
     Unifies finish-product label generation data between Flask routes
     (manual printing and dodaj_palete) and the PLC daemon.
@@ -45,42 +45,48 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         has_nr_palety_lp = False
     
     # 1. First attempt: Find in confirmed warehouse table
-    if requested_plan_id:
-        cursor.execute(f"""
-            SELECT
-                mp.produkt,
-                mp.waga_netto,
-                COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
-                COALESCE(pp.id, mp.plan_id) AS plan_id,
-                mp.nr_palety,
-                mp.paleta_workowanie_id,
-                pp.data_produkcji,
-                mp.nr_plomby
-            FROM {table_mag} mp
-            LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
-            WHERE (mp.id = %s OR mp.paleta_workowanie_id = %s)
-              AND mp.plan_id = %s
-            ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
-            LIMIT 1
-        """, (paleta_id, paleta_id, requested_plan_id, paleta_id))
+    params = []
+    where_parts = []
+
+    if source_table == 'magazyn':
+        where_parts.append("mp.id = %s")
+        params.append(paleta_id)
+        order_clause = ""
+        order_params = []
+    elif source_table == 'workowanie':
+        where_parts.append("mp.paleta_workowanie_id = %s")
+        params.append(paleta_id)
+        order_clause = ""
+        order_params = []
     else:
-        cursor.execute(f"""
-            SELECT
-                mp.produkt,
-                mp.waga_netto,
-                COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
-                COALESCE(pp.id, mp.plan_id) AS plan_id,
-                mp.nr_palety,
-                mp.paleta_workowanie_id,
-                pp.data_produkcji,
-                mp.nr_plomby
-            FROM {table_mag} mp
-            LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
-            WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
-            ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
-            LIMIT 1
-        """, (paleta_id, paleta_id, paleta_id))
+        where_parts.append("(mp.id = %s OR mp.paleta_workowanie_id = %s)")
+        params.extend([paleta_id, paleta_id])
+        order_clause = "ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC"
+        order_params = [paleta_id]
         
+    if requested_plan_id:
+        where_parts.append("mp.plan_id = %s")
+        params.append(requested_plan_id)
+
+    where_clause = "WHERE " + " AND ".join(where_parts)
+    final_params = tuple(params + order_params)
+
+    cursor.execute(f"""
+        SELECT
+            mp.produkt,
+            mp.waga_netto,
+            COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
+            COALESCE(pp.id, mp.plan_id) AS plan_id,
+            mp.nr_palety,
+            mp.paleta_workowanie_id,
+            pp.data_produkcji,
+            mp.nr_plomby
+        FROM {table_mag} mp
+        LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
+        {where_clause}
+        {order_clause}
+        LIMIT 1
+    """, final_params)
     row = cursor.fetchone()
     
     if row:

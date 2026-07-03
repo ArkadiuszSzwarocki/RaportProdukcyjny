@@ -2,6 +2,7 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
 <style>
 .delivery-form-screen {
@@ -289,7 +290,7 @@
             
             <div class="delivery-date-card">
                 <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Data Przyjęcia</label>
-                <input type="date" id="delivery_date" 
+                <input type="text" id="delivery_date" class="flatpickr-date"
                        value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}">
             </div>
         </div>
@@ -394,7 +395,162 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/pl.js"></script>
 <script>
+    const flatpickrConfig = {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d.m.Y",
+        allowInput: true,
+        locale: "pl",
+        onReady: function(selectedDates, dateStr, instance) {
+            if (instance.altInput) {
+                instance.altInput.addEventListener('input', function(e) {
+                    if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') return;
+                    let v = this.value.replace(/[^\d]/g, '');
+                    if (v.length > 8) v = v.substring(0, 8);
+                    if (v.length >= 5) {
+                        this.value = v.substring(0, 2) + '.' + v.substring(2, 4) + '.' + v.substring(4);
+                    } else if (v.length >= 3) {
+                        this.value = v.substring(0, 2) + '.' + v.substring(2);
+                    }
+                });
+            }
+            
+            // Custom Drill-down Overlay (Year -> Month -> Day)
+            const calendar = instance.calendarContainer;
+            if (!calendar) return;
+            calendar.style.minHeight = "280px";
+            
+            const overlay = document.createElement("div");
+            overlay.style.position = "absolute";
+            overlay.style.top = "0";
+            overlay.style.left = "0";
+            overlay.style.width = "100%";
+            overlay.style.height = "100%";
+            overlay.style.backgroundColor = "#fff";
+            overlay.style.zIndex = "50";
+            overlay.style.display = "flex";
+            overlay.style.flexDirection = "column";
+            overlay.style.padding = "15px";
+            overlay.style.boxSizing = "border-box";
+            overlay.style.borderRadius = "5px";
+            
+            const title = document.createElement("div");
+            title.innerText = "Wybierz rok";
+            title.style.fontWeight = "700";
+            title.style.textAlign = "center";
+            title.style.marginBottom = "15px";
+            title.style.color = "#334155";
+            title.style.fontSize = "14px";
+            
+            const yearView = document.createElement("div");
+            yearView.style.display = "grid";
+            yearView.style.gridTemplateColumns = "1fr 1fr 1fr";
+            yearView.style.gap = "8px";
+            
+            const monthView = document.createElement("div");
+            monthView.style.display = "none";
+            monthView.style.gridTemplateColumns = "1fr 1fr 1fr";
+            monthView.style.gap = "8px";
+            
+            let selectedYear = new Date().getFullYear();
+            const currYear = new Date().getFullYear();
+            const years = [currYear - 1, currYear, currYear + 1, currYear + 2, currYear + 3];
+            
+            years.forEach(y => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.innerText = y;
+                btn.style.padding = "10px";
+                btn.style.border = "1px solid #e2e8f0";
+                btn.style.borderRadius = "6px";
+                btn.style.background = "#f8fafc";
+                btn.style.cursor = "pointer";
+                btn.style.fontWeight = "600";
+                btn.style.color = "#0f172a";
+                btn.onmouseover = () => btn.style.background = "#e2e8f0";
+                btn.onmouseout = () => btn.style.background = "#f8fafc";
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    selectedYear = y;
+                    yearView.style.display = "none";
+                    monthView.style.display = "grid";
+                    title.innerText = "Wybierz miesiąc (" + y + ")";
+                };
+                yearView.appendChild(btn);
+            });
+            
+            const months = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+            months.forEach((m, idx) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.innerText = m;
+                btn.style.padding = "8px 5px";
+                btn.style.border = "1px solid #e2e8f0";
+                btn.style.borderRadius = "6px";
+                btn.style.background = "#f8fafc";
+                btn.style.cursor = "pointer";
+                btn.style.fontWeight = "600";
+                btn.style.color = "#0f172a";
+                btn.onmouseover = () => btn.style.background = "#e2e8f0";
+                btn.onmouseout = () => btn.style.background = "#f8fafc";
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    instance.changeYear(selectedYear);
+                    instance.changeMonth(idx);
+                    overlay.style.display = "none";
+                };
+                monthView.appendChild(btn);
+            });
+            
+            const skipBtn = document.createElement("button");
+            skipBtn.type = "button";
+            skipBtn.innerText = "Pokaż dni";
+            skipBtn.style.marginTop = "auto";
+            skipBtn.style.padding = "8px";
+            skipBtn.style.border = "none";
+            skipBtn.style.background = "transparent";
+            skipBtn.style.color = "#3b82f6";
+            skipBtn.style.cursor = "pointer";
+            skipBtn.style.fontWeight = "600";
+            skipBtn.style.textDecoration = "underline";
+            skipBtn.onclick = function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                overlay.style.display = "none";
+            };
+
+            overlay.appendChild(title);
+            overlay.appendChild(yearView);
+            overlay.appendChild(monthView);
+            overlay.appendChild(skipBtn);
+            
+            overlay.style.display = "none";
+            calendar.appendChild(overlay);
+            
+            instance.customOverlay = overlay;
+            instance.customYearView = yearView;
+            instance.customMonthView = monthView;
+            instance.customTitle = title;
+        },
+        onOpen: function(selectedDates, dateStr, instance) {
+            if (instance.customOverlay) {
+                instance.customOverlay.style.display = "flex";
+                instance.customYearView.style.display = "grid";
+                instance.customMonthView.style.display = "none";
+                instance.customTitle.innerText = "Wybierz rok";
+            }
+        }
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        flatpickr("#delivery_date", flatpickrConfig);
+    });
+
     let items = {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }};
     const wszystkieProdukty = {{ wszystkie_produkty|tojson|safe }};
 
@@ -462,19 +618,21 @@
                 <td style="padding: 0 10px 10px 10px; border: none;">
                     <div style="display: flex; align-items: center; gap: 5px;">
                         <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 65px;">PRODUKCJA:</span>
-                        <input type="date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                        <input type="text" class="flatpickr-date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
                                style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
                     </div>
                 </td>
                 <td colspan="2" style="padding: 0 10px 10px 10px; border: none;">
                     <div style="display: flex; align-items: center; gap: 5px;">
                         <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 85px;">PRZYDATNOŚĆ:</span>
-                        <input type="date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                        <input type="text" class="flatpickr-date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
                                style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
                     </div>
                 </td>
             `;
             tbody.appendChild(row2);
+            
+            flatpickr(row2.querySelectorAll('.flatpickr-date'), flatpickrConfig);
         });
     }
 

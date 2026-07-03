@@ -299,7 +299,7 @@ def register_warehouse_management_routes(
                             from app.utils.pallet_label import prepare_pallet_label_data
                             conn2 = get_db_connection()
                             cur2 = conn2.cursor()
-                            label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia)
+                            label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia, source_table='workowanie')
                         except Exception as prep_err:
                             app.logger.error('Failed to prepare label data for paleta %s: %s', paleta_id_local, prep_err)
                             if 'conn2' in locals() and conn2:
@@ -1555,6 +1555,7 @@ def register_warehouse_management_routes(
                 )
 
             from app.utils.pallet_label import prepare_pallet_label_data
+            source = request.args.get('source')
             
             # Pobierz plan_id z requestu
             req_plan_id_raw = None
@@ -1563,7 +1564,7 @@ def register_warehouse_management_routes(
             if req_plan_id_raw in (None, ''):
                 req_plan_id_raw = request.form.get('plan_id') or request.args.get('plan_id')
 
-            label_data = prepare_pallet_label_data(cursor, paleta_id, linia, requested_plan_id=req_plan_id_raw)
+            label_data = prepare_pallet_label_data(cursor, paleta_id, linia, requested_plan_id=req_plan_id_raw, source_table=source)
             
             if not label_data:
                 return jsonify({'success': False, 'message': 'Nie znaleziono palety (ani w buforze, ani w magazynie)'}), 404

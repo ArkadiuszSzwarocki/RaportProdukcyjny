@@ -203,7 +203,7 @@ def podglad_etykiety_system(paleta_id):
     conn = get_db_connection()
     try:
         cursor = conn.cursor(dictionary=True)
-        label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
+        label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table='magazyn')
     finally:
         conn.close()
 

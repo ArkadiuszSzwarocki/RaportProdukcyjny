@@ -58,7 +58,7 @@
                                          class="btn-action btn-sm"
                                          data-slide
                                          title="Edytuj wagę palety" style="font-size: 0.65rem; padding: 0 6px;">EDYTUJ</a>
-                                     <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}', this)" 
+                                     <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}', this, 'workowanie')" 
                                              class="btn-action btn-purple btn-sm"
                                              title="Drukuj ponownie etykiety ZPL" style="font-size: 0.65rem; padding: 0 6px;">DRUKUJ</button>
                                      {% if rola in ['lider', 'admin', 'masteradmin'] %}

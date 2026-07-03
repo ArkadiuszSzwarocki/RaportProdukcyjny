@@ -782,6 +782,15 @@
                 <p>Potwierdzasz przyjęcie pozycji:</p>
                 <p><strong id="modalProductName" style="font-size: 1.05rem; color: #1e3a8a;"></strong></p>
                 <p style="margin-top: 10px;">System automatycznie przypisze unikalne <strong>ID Palety</strong>.</p>
+                <div style="margin-top: 15px;">
+                    <label style="font-size: 11px; font-weight: 700; color: #475569;">WYDRUK ETYKIET (ZPL)</label>
+                    <select id="modalPrinterSelect" class="premium-select">
+                        <option value="">Brak wydruku (pomiń)</option>
+                        {% for printer in printers %}
+                            <option value="{{ printer.id }}">{{ printer.nazwa }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div class="premium-modal-footer">
                 <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
@@ -1066,6 +1075,8 @@ async function confirmAcceptWithPrinter() {
     if (rejectBtn) rejectBtn.disabled = true;
     btn.textContent = 'Zapisywanie...';
 
+    const printerId = document.getElementById('modalPrinterSelect').value;
+
     try {
         const res = await fetch("{{ url_for('magazyn_dostawy.przyjmij_pozycje', dostawa_id=dostawa.id) }}", {
             method: 'POST',
@@ -1076,7 +1087,7 @@ async function confirmAcceptWithPrinter() {
                 nr_partii: nrPartii,
                 data_produkcji: dataProdukcji,
                 data_przydatnosci: dataPrzydatnosci,
-                printer_id: null
+                printer_id: printerId || null
             })
         });
         const data = await res.json();
