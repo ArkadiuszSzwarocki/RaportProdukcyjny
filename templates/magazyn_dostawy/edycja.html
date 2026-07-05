@@ -29,6 +29,16 @@
                 <input type="text" id="order_ref" class="premium-input" readonly
                        style="height: 28px; width: 100%; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; font-weight: 700; color: #64748b;">
             </div>
+            <div style="width: 200px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">DOKĄD (CEL)</label>
+                <select id="lokalizacja_do" class="premium-input" {% if is_readonly_issue %}disabled{% endif %}
+                        style="height: 28px; width: 100%; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; font-weight: 700; color: #1e293b; outline: none;">
+                    <option value="">Wydanie (brak celu)</option>
+                    {% for l in lokalizacje_do %}
+                        <option value="{{ l }}">{{ l }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
     </div>
 
@@ -102,7 +112,7 @@
                 <div style="flex: 1; min-width: 320px; max-width: 560px; background: #1e293b; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
                         <span class="material-icons" style="color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
-                        <input type="text" id="scanner_input" placeholder="Wpisz nazwę, regał, partię lub zeskanuj kod..." 
+                        <input type="text" id="scanner_input" placeholder="Wpisz nazwę, regał, partię lub zeskanuj kod..." autofocus
                                {% if is_readonly_issue %}disabled{% endif %}
                                list="palletGlobalSuggestionsList"
                                oninput="queueScannerSuggestions(this.value)"

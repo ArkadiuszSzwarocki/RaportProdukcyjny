@@ -39,12 +39,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const val = e.target.value.trim();
                 if (val) {
-                    lookupAndAddPallets(val);
-                    e.target.value = '';
+                    lookupAndAddPallets();
                 }
             }
         });
         scannerInput.addEventListener('input', (e) => queueScannerSuggestions(e.target.value));
+
+        // Global keydown listener to auto-focus scanner input
+        document.addEventListener('keydown', (e) => {
+            // Ignore if focus is already in an input, textarea, or contenteditable
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (activeTag === 'input' || activeTag === 'textarea' || document.activeElement.isContentEditable) {
+                return;
+            }
+            
+            // Ignore control keys (Ctrl, Alt, Meta)
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            
+            // If it's a printable character or number, focus the input
+            if (e.key.length === 1) {
+                scannerInput.focus();
+                // We do not prevent default, so the character will be typed into the focused input
+            }
+        });
     }
 
     const draft = getStoredDraftState();
