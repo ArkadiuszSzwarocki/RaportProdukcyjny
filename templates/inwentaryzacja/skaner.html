@@ -784,7 +784,7 @@ function openSlotDetail(locId) {
                 saveBtn.innerHTML = '<span class="material-icons">hourglass_top</span>';
                 saveBtn.style.background = '#94a3b8';
                 
-                fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+                smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -883,7 +883,7 @@ function markEmpty(locId) {
     // If there were items, we need to set them to 0
     const items = rackData[locId] || [];
     if(items.length === 0) {
-        fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+        smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -905,7 +905,7 @@ function markEmpty(locId) {
     } else {
         let count = 0;
         items.forEach(p => {
-            fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+            smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -1116,7 +1116,7 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
     
     if(btn) { btn.innerHTML = '<span class="material-icons">hourglass_top</span>'; btn.style.background='#94a3b8'; }
 
-    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+    smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -1158,7 +1158,7 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
 
 function finishInventory() {
     if(confirm('Zakończyć sesję inwentaryzacji #{{ sesja_id }}?\n\nSesja zostanie zamknięta. Możesz ją potem zatwierdzić z raportu.')) {
-        fetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
+        smartFetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({sesja_id: {{ sesja_id }}})
@@ -1367,7 +1367,7 @@ function saveNewPallet() {
 
     if(!sscc || !name || isNaN(weight)) return alert('Wypełnij wszystkie pola!');
     
-    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+    smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -1619,7 +1619,7 @@ function submitMoveLocation() {
     let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
     if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
     
-    fetch('/magazyny-nowe/api/pallet/move', {
+    smartFetch('/magazyny-nowe/api/pallet/move', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

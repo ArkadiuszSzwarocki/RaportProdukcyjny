@@ -343,29 +343,45 @@ def inject_delivery_counters():
         conn = get_db_connection()
         cursor = conn.cursor()
         counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
+        pallet_counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
         total_pending = 0
+        total_pallets = 0
 
         # 1) Oczekujące dostawy/przesunięcia z modułu magazyn_dostawy
         cursor.execute(
             """
-            SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, COUNT(*)
+            SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, items
             FROM magazyn_dostawy
             WHERE UPPER(TRIM(COALESCE(status, ''))) IN ('OCZEKUJE', 'PENDING')
-            GROUP BY UPPER(TRIM(COALESCE(linia, '')))
             """
         )
+        import json
         for row in cursor.fetchall():
             l = (row[0] or '').upper()
-            qty = int(row[1] or 0)
+            qty = 1
             total_pending += qty
             if l in counts:
                 counts[l] += qty
+                
+            items_json = row[1]
+            pallets_in_order = 0
+            if items_json:
+                try:
+                    items_arr = json.loads(items_json)
+                    pallets_in_order = sum(1 for item in items_arr if not item.get('accepted') and not item.get('rejected'))
+                except:
+                    pass
+            
+            total_pallets += pallets_in_order
+            if l in pallet_counts:
+                pallet_counts[l] += pallets_in_order
 
         counts['ALL'] = total_pending
+        pallet_counts['ALL'] = total_pallets
 
-        return dict(pending_deliveries=counts)
+        return dict(pending_deliveries=counts, pending_pallets=pallet_counts)
     except Exception:
-        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0})
+        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0}, pending_pallets={'PSD': 0, 'AGRO': 0, 'ALL': 0})
     finally:
         try:
             if conn:

@@ -203,7 +203,12 @@ def index():
     finally:
         conn.close()
 
-    return render_template('magazyny_nowe/dashboard.html', items=items, linia=linia, zakladki=magazyny_zakladki, aktywna_zakladka='all', stats=stats, printers=printers)
+    # FEFO Pallets
+    from app.services.dashboard_service import DashboardService
+    from datetime import date
+    fefo_pallets = DashboardService.get_expiring_pallets(date.today(), linia, days_threshold=30)
+
+    return render_template('magazyny_nowe/dashboard.html', items=items, linia=linia, zakladki=magazyny_zakladki, aktywna_zakladka='all', stats=stats, printers=printers, fefo_pallets=fefo_pallets)
 
 @magazyny_nowe_bp.route('/summary')
 def summary():

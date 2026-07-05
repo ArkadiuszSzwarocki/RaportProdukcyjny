@@ -703,7 +703,15 @@
 {# Dołączamy skrypty i modale z oryginalnego pliku #}
 {% include 'agro_warehouse/includes/modals.html' %}
 
-<script src="{{ url_for('static', filename='js/agro_warehouse.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/config.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/utils.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/groups.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/usage.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/inventory.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/misc.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/delivery.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/scanner.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/agro_warehouse/returns.js') }}?v={{ static_version }}"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="{{ url_for('static', filename='js/qr_scanner.js') }}?v={{ static_version }}"></script>
 <script>

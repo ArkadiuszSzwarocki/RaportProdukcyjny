@@ -607,6 +607,20 @@ class ScannerService:
                 )
             )
             conn.commit()
+
+            # Powiadom serwis dostaw, aby ewentualnie automatycznie przyjąć paletę w zleceniu
+            try:
+                import logging
+                logging.info(f"Triggering auto-accept for {pallet.get('nr_palety')} at {nowa_lokalizacja} by {worker_login}")
+                from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+                from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
+                from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+                from app.services.magazyn_dostawy.location_service import LocationService
+                AcceptanceService.auto_accept_by_pallet_no(pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
+            except Exception as ex:
+                import logging
+                logging.error(f"Błąd powiadamiania dostaw o przeniesieniu: {ex}")
+
             return True, f"Przeniesiono paletę [{pallet['nazwa']}] na lokalizację: {nowa_lokalizacja}"
         except Exception as e:
             conn.rollback()

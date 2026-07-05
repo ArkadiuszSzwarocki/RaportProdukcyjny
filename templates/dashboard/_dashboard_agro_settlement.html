@@ -197,9 +197,11 @@
     function confirmCloseRollInline(event, form, nazwaOpakowania) {
         event.preventDefault();
         var pozostalo = form.querySelector('input[name="pozostalo_szt"]').value;
-        if (confirm("Czy na pewno chcesz zamknąć rolkę " + nazwaOpakowania + "?\n\nZostanie zwrócone " + pozostalo + " sztuk na magazyn.")) {
-            form.submit();
-        }
+        AppDialog.confirm("Czy na pewno chcesz zamknąć rolkę " + nazwaOpakowania + "?\n\nZostanie zwrócone " + pozostalo + " sztuk na magazyn.").then(ok => {
+            if (ok) {
+                form.submit();
+            }
+        });
         return false;
     }
 </script>

@@ -140,6 +140,12 @@ def index():
         # AGRO MIX
         agro_mix_mapa, agro_mix_dostepne = build_agro_mix_context(dzisiaj, aktywna_linia, app.logger)
 
+        # FEFO Pallets
+        from app.services.dashboard_service import DashboardService
+        fefo_pallets = []
+        if aktywna_sekcja in ['dashboard', 'zasyp']:
+            fefo_pallets = DashboardService.get_expiring_pallets(dzisiaj, aktywna_linia, days_threshold=30)
+
         # Build final context
         context = {
             'halls_data': halls_data,
@@ -194,6 +200,7 @@ def index():
             'kgph_stats_mapa': zasyp_etapy_context['kgph_stats_mapa'],
             'agro_mix_mapa': agro_mix_mapa,
             'agro_mix_dostepne': agro_mix_dostepne,
+            'fefo_pallets': fefo_pallets,
         }
 
         # --- focus mode + rozliczenie context ---

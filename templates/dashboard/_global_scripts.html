@@ -9,9 +9,9 @@
             const tr = document.querySelector(`tr[data-id="${id}"]`);
             if (tr) tr.remove();
           } else {
-            alert((j && j.message) || 'Błąd');
+            AppDialog.alert((j && j.message) || 'Błąd');
           }
-        }).catch(() => alert('Błąd sieci'));
+        }).catch(() => AppDialog.alert('Błąd sieci'));
     }
   });
 </script>
@@ -29,31 +29,34 @@
   document.addEventListener('click', function (e) {
     if (e.target.classList.contains('note-delete-btn')) {
       const id = e.target.getAttribute('data-id');
-      if (confirm('Czy na pewno chcesz usunąć tę notatkę?')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/api/shift_note/${id}/delete`;
-        document.body.appendChild(form);
-        form.submit();
-      }
+      AppDialog.confirm('Czy na pewno chcesz usunąć tę notatkę?').then(ok => {
+        if (ok) {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/api/shift_note/${id}/delete`;
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
     }
     if (e.target.classList.contains('note-edit-btn')) {
       const id = e.target.getAttribute('data-id');
       const noteCard = e.target.closest('.note-card');
       const noteText = noteCard.querySelector('.note-text').innerText;
-      const newText = prompt('Edytuj notatkę:', noteText);
-      if (newText !== null && newText.trim() !== '') {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/api/shift_note/${id}/update`;
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'note';
-        input.value = newText;
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-      }
+      AppDialog.prompt('Edytuj notatkę:', noteText).then(newText => {
+        if (newText !== null && newText.trim() !== '') {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/api/shift_note/${id}/update`;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'note';
+          input.value = newText;
+          form.appendChild(input);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
     }
   });
 </script>
@@ -124,7 +127,7 @@
                 const recipients = config.recipients || [];
 
                 if (!config.configured || recipients.length === 0) {
-                  alert('⚠️ Brakuje skonfigurowanych odbiorców raportów.\nProszę skontaktować się z administratorem.');
+                  AppDialog.alert('⚠️ Brakuje skonfigurowanych odbiorców raportów.\nProszę skontaktować się z administratorem.');
                   this.textContent = originalText;
                   this.disabled = false;
                   return;
@@ -157,7 +160,7 @@
                 const mailtoLink = `mailto:${recipients.join(';')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                 window.location.href = mailtoLink;
 
-                alert(`✅ Zmiana zakończona!\n✅ Raporty pobrane!\n✅ Poczta otwarta!\n\nRaporty wysłane do:\n${recipients.join('\n')}\n\nPliki do pobrania z sieci.`);
+                AppDialog.alert(`✅ Zmiana zakończona!\n✅ Raporty pobrane!\n✅ Poczta otwarta!\n\nRaporty wysłane do:\n${recipients.join('\n')}\n\nPliki do pobrania z sieci.`);
 
                 setTimeout(() => {
                   this.textContent = originalText;
@@ -167,12 +170,12 @@
           }, 1500);
         })
         .catch(error => {
-          alert(`❌ Błąd:\n\n${error.message}`);
+          AppDialog.alert(`❌ Błąd:\n\n${error.message}`);
           this.textContent = originalText;
           this.disabled = false;
         });
     } catch (error) {
-      alert(`❌ Błąd wysyłania raportu:\n\n${error.message}\n\nSkontaktuj się z IT.`);
+      AppDialog.alert(`❌ Błąd wysyłania raportu:\n\n${error.message}\n\nSkontaktuj się z IT.`);
       this.textContent = originalText;
       this.disabled = false;
     }
@@ -212,14 +215,14 @@
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
 
-          alert('✅ Zmiana zakończona!\n✅ Raporty pobrane!');
+          AppDialog.alert('✅ Zmiana zakończona!\n✅ Raporty pobrane!');
 
           setTimeout(() => {
             window.location.reload();
           }, 1000);
         })
         .catch(error => {
-          alert(`ERROR Błąd przy zatwierdzaniu zmiany:\n\n${error.message}`);
+          AppDialog.alert(`ERROR Błąd przy zatwierdzaniu zmiany:\n\n${error.message}`);
           submitBtn.disabled = false;
           submitBtn.textContent = originalText;
         });
@@ -317,14 +320,14 @@
         .then(response => response.json())
         .then(data => {
           if (!data.success) {
-            alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować'));
+            AppDialog.alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować'));
           } else {
             this.style.backgroundColor = '#d4edda';
             setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
           }
         })
         .catch(error => {
-          alert('Błąd łączności z serwerem');
+          AppDialog.alert('Błąd łączności z serwerem');
         });
     });
 
@@ -356,14 +359,14 @@
         .then(response => response.json())
         .then(data => {
           if (!data.success) {
-            alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować odrzutów'));
+            AppDialog.alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować odrzutów'));
           } else {
             this.style.backgroundColor = '#f8d7da';
             setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
           }
         })
         .catch(error => {
-          alert('Błąd łączności z serwerem');
+          AppDialog.alert('Błąd łączności z serwerem');
         });
     });
 

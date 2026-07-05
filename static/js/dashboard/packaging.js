@@ -8,7 +8,7 @@ function linkPackaging(opakId, planId) {
     if (!select) return;
     const option = select.options[select.selectedIndex];
     if (!option || !option.value) {
-        alert('Proszę wybrać materiał!');
+        if (typeof AppDialog !== 'undefined') AppDialog.alert('Proszę wybrać materiał!'); else alert('Proszę wybrać materiał!');
         return;
     }
     const name = option.getAttribute('data-nazwa') || option.text;
@@ -113,8 +113,8 @@ function linkPackaging(opakId, planId) {
             body: JSON.stringify({ opakowanie_id: opakId, plan_id: planId, ilosc_pobrana: finalQty })
         }).then(r => r.json()).then(res => {
             if(res.success) location.reload();
-            else alert('Błąd: ' + (res.error || 'Nieznany'));
-        }).catch(err => alert('Błąd połączenia: ' + err));
+            else if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd: ' + (res.error || 'Nieznany')); else alert('Błąd: ' + (res.error || 'Nieznany'));
+        }).catch(err => { if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd połączenia: ' + err); else alert('Błąd połączenia: ' + err); });
     });
 
     overlay.addEventListener('click', function(event) {
@@ -222,7 +222,7 @@ function submitReturnPackaging() {
     const isPartial = typeNode && typeNode.value === 'partial';
     
     if(!qty || qty.trim() === '') qty = "0";
-    if(parseFloat(qty) > 0 && !loc) return alert('Podaj lokalizację zwrotu!');
+    if(parseFloat(qty) > 0 && !loc) return (typeof AppDialog !== 'undefined' ? AppDialog.alert('Podaj lokalizację zwrotu!') : alert('Podaj lokalizację zwrotu!'));
     
     fetch('/agro/api/opakowania/return', {
         method: 'POST',
@@ -236,7 +236,7 @@ function submitReturnPackaging() {
         })
     }).then(r => r.json()).then(res => {
         if (!res.success) {
-            alert('Błąd: ' + (res.error || 'Nieznany'));
+            if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd: ' + (res.error || 'Nieznany')); else alert('Błąd: ' + (res.error || 'Nieznany'));
             return;
         }
 
@@ -250,6 +250,8 @@ function submitReturnPackaging() {
                 const warnMsg = 'Zwrot zapisany, ale wydruk etykiety nie powiódł się: ' + (printResult.message || 'Nieznany błąd');
                 if (typeof showToast === 'function') {
                     showToast(warnMsg, 'warning');
+                } else if (typeof AppDialog !== 'undefined') {
+                    AppDialog.alert(warnMsg);
                 } else {
                     alert(warnMsg);
                 }

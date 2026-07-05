@@ -1,4 +1,4 @@
-from app.services.agro_warehouse_service import _get_auto_pallet_cooldown_seconds
+from app.repositories.agro_tanks_repository import _get_auto_pallet_cooldown_seconds
 
 
 def test_auto_pallet_cooldown_defaults_to_zero(monkeypatch):

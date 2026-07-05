@@ -932,7 +932,7 @@ function safeToast(msg, kind) {
     if (typeof showToast === 'function') {
         showToast(msg, kind || 'info');
     } else {
-        alert(msg);
+        AppDialog.alert(msg);
     }
 }
 
@@ -987,7 +987,7 @@ function markRowAsProcessed(idx, mode, reason) {
 
 async function cancelTransferOrder(dostawaId, orderRef) {
     const label = orderRef || dostawaId;
-    const ok = confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
+    const ok = await AppDialog.confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
     if (!ok) {
         return;
     }
@@ -1367,7 +1367,7 @@ async function preprintLabel(idx, nrPalety, productName, qty, pType) {
 async function rejectItem(itemId, idx) {
     const btn = document.getElementById(`btn_${idx}`);
     const rejectBtn = document.getElementById(`reject_btn_${idx}`);
-    const reason = prompt('Powód odrzucenia pozycji:', 'Brak palety do przyjęcia');
+    const reason = await AppDialog.prompt('Powód odrzucenia pozycji:', 'Brak palety do przyjęcia');
 
     if (reason === null) {
         return;

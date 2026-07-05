@@ -12,3 +12,12 @@
 @import url('./modules/components/misc.css');
 @import url('./modules/pages.css');
 @import url('./modules/mobile.css');
+
+/* Zmiana stylu dla niewype³nionych wymaganych pól podczas zapisu */
+.error-highlight-field {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.9) !important;
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+    transition: all 0.3s ease-in-out;
+}
+

@@ -88,7 +88,12 @@
       }
     }
   </style>
-  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
+  <h3 class="popup-title" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</span>
+    {% if sekcja in ['Workowanie', 'Czyszczenie'] %}
+    <span class="material-icons printer-settings-icon" onclick="openPrinterSettingsModal()" style="cursor:pointer;color:#64748b;font-size:24px;" title="Ustawienia drukarki ZPL">settings</span>
+    {% endif %}
+  </h3>
   {% if sekcja in ['Workowanie', 'Czyszczenie'] %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
   <form id="addPaletaForm" action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
@@ -99,6 +104,8 @@
     <input id="nr_plomby" name="nr_plomby" type="text" class="input-sm popup-input" maxlength="100" placeholder="Wpisz nr plomby (jeśli jest)" autocomplete="off">
     <input type="hidden" name="linia" value="{{ linia }}">
       <input type="hidden" name="sekcja" value="{{ sekcja }}">
+    <input type="hidden" name="printer_ip" class="workowanie-printer-ip" value="">
+    <input type="hidden" name="printer_name" class="workowanie-printer-name" value="">
     <input type="hidden" name="ui_trigger" value="button:dodaj_palete_popup">
     
     <div class="popup-button-group">
@@ -111,6 +118,9 @@
     (function(){
       var form = document.getElementById('addPaletaForm');
       if (!form) return;
+      if (typeof window.workowaniePopulatePrinter === 'function') {
+          window.workowaniePopulatePrinter(form);
+      }
       var submitBtn = document.getElementById('addPaletaSubmit');
       form.addEventListener('submit', function(ev){
         ev.preventDefault();

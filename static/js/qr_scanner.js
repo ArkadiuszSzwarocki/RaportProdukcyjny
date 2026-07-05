@@ -285,14 +285,14 @@ function handleLoginQrCode(qrText) {
                     }
                 }, 500);
             } else {
-                alert('Nie znaleziono formularza logowania');
+                AppDialog.alert('Nie znaleziono formularza logowania');
             }
         } else {
-            alert('Nieprawidłowy format kodu QR logowania');
+            AppDialog.alert('Nieprawidłowy format kodu QR logowania');
         }
     } catch (err) {
         console.error('Błąd przetwarzania QR logowania:', err);
-        alert('Błąd odczytu kodu QR: ' + err.message);
+        AppDialog.alert('Błąd odczytu kodu QR: ' + err.message);
     }
 }
 

@@ -12,7 +12,8 @@ from flask import request, jsonify, render_template, session
 from .blueprint import agro_warehouse_bp
 from app.decorators import login_required, dynamic_role_required
 from app.db import get_db_connection
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_surowce_service import AgroSurowceService
+from app.services.agro.agro_tanks_service import AgroTanksService
 import re
 
 
@@ -94,7 +95,7 @@ def check_tank_status():
         
         # Pobierz stan zbiornika
         linia = 'Agro'
-        snapshot = AgroWarehouseService.get_production_inventory_snapshot(linia=linia, show_empty=False)
+        snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia, show_empty=False)
         
         # Znajdź wpisy dla tego zbiornika
         surowce_w_zbiorniku = [
@@ -158,7 +159,7 @@ def empty_tank():
         linia = 'Agro'
         
         # Pobierz stan zbiornika
-        snapshot = AgroWarehouseService.get_production_inventory_snapshot(linia=linia, show_empty=False)
+        snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia, show_empty=False)
         surowce_w_zbiorniku = [
             item for item in snapshot
             if _normalize_tank_code(item.get('zbiornik', '')) == zbiornik and item.get('stan_systemowy', 0) > 0
@@ -345,7 +346,7 @@ def assign_pallet_to_tank():
                 }), 400
             
             # Użyj istniejącej metody use_for_production
-            success = AgroWarehouseService.use_for_production(
+            success = AgroSurowceService.use_for_production(
                 surowiec_id=surowiec_id,
                 ilosc=ilosc_kg,
                 worker_login=worker_login,

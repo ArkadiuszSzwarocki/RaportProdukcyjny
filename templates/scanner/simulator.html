@@ -113,7 +113,10 @@ function checkPrinterStatus() {
 
 function printTestPallet() {
     const id = document.getElementById('testPalletId').value;
-    if (!id) return alert('Wpisz ID palety');
+    if (!id) {
+        AppDialog.alert('Wpisz ID palety');
+        return;
+    }
     
     const btn = document.getElementById('printBtn');
     btn.disabled = true;
@@ -125,8 +128,8 @@ function printTestPallet() {
     })
     .then(r => r.json())
     .then(d => {
-        if (d.success) alert('Zlecenie wysłane pomyślnie!');
-        else alert('Błąd: ' + d.message);
+        if (d.success) AppDialog.alert('Zlecenie wysłane pomyślnie!');
+        else AppDialog.alert('Błąd: ' + d.message);
     })
     .finally(() => btn.disabled = false);
 }
@@ -139,10 +142,10 @@ function printDemoLabel() {
     })
     .then(r => r.json())
     .then(d => {
-        if (d.success) alert('Etykieta DEMO wysłana pomyślnie!');
-        else alert('Błąd: ' + d.message);
+        if (d.success) AppDialog.alert('Etykieta DEMO wysłana pomyślnie!');
+        else AppDialog.alert('Błąd: ' + d.message);
     })
-    .catch(e => alert('Błąd połączenia z serwerem: ' + e));
+    .catch(e => AppDialog.alert('Błąd połączenia z serwerem: ' + e));
 }
 
 // Init

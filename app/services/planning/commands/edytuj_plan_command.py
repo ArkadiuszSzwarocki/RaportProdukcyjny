@@ -1,0 +1,245 @@
+import json
+from flask import current_app
+from app.db import get_table_name, log_plan_history
+from app.services.notification_service import notify_workers_about_pallet_type_change
+
+class EdytujPlanCommand:
+    """Command to handle plan editing."""
+    
+    @staticmethod
+    def execute(conn, cursor, linia, pid, data, session):
+        table_plan = get_table_name('plan_produkcji', linia)
+        
+        produkt = data.get('produkt')
+        tonaz = data.get('tonaz')
+        sekcja = data.get('sekcja')
+        data_planu = data.get('data_planu')
+        typ_produkcji = data.get('typ_produkcji')
+        nazwa_zlecenia = data.get('nazwa_zlecenia')
+        data_produkcji = data.get('data_produkcji')
+        opakowanie_id = data.get('opakowanie_id')
+        etykieta_id = data.get('etykieta_id')
+        last_seen = data.get('last_updated')
+        rodzaj_palety = data.get('rodzaj_palety')
+
+        try:
+            tonaz_val = int(float(tonaz)) if tonaz is not None and str(tonaz).strip() != '' else None
+        except Exception:
+            tonaz_val = None
+
+        if linia.upper() == 'AGRO':
+            cursor.execute(
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id, rodzaj_palety, updated_at FROM {table_plan} WHERE id=%s",
+                (pid,),
+            )
+        else:
+            cursor.execute(
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id, rodzaj_palety, updated_at FROM {table_plan} WHERE id=%s",
+                (pid,),
+            )
+            
+        before = cursor.fetchone()
+        if not before:
+            return False, 'Nie znaleziono zlecenia', {}, 404
+
+        db_updated_at = str(before[14]) if before[14] else ''
+        collision_warning = False
+        if last_seen and db_updated_at and last_seen != db_updated_at:
+            current_app.logger.warning('PUŁAPKA DUPLIKATÓW: Wykryto próbę równoległej edycji zlecenia ID=%s', pid)
+            collision_warning = True
+
+        current_role = session.get('rola', '')
+        produkt_provided = produkt if produkt and (produkt.strip() if isinstance(produkt, str) else str(produkt).strip()) else None
+        sekcja_provided = sekcja if sekcja and (sekcja.strip() if isinstance(sekcja, str) else str(sekcja).strip()) else None
+        data_provided = data_planu if data_planu and str(data_planu).strip() else None
+        
+        is_tonaz_only = (
+            tonaz is not None
+            and str(tonaz).strip() != ''
+            and produkt_provided is None
+            and sekcja_provided is None
+            and data_provided is None
+        )
+
+        if before[5] == 'zakonczone':
+            return False, 'Edytowanie zakończonego zlecenia jest zakazane', {}, 403
+
+        if before[5] == 'w toku':
+            if current_role in ['planista', 'admin', 'zarzad', 'lider']:
+                if not is_tonaz_only:
+                    return False, 'Gdy zlecenie w toku, możesz zmieniać tylko kg', {}, 403
+            else:
+                return False, 'Nie można edytować zleceń w toku', {}, 403
+
+        updates = []
+        params = []
+        changes = {}
+        current_sekcja = before[3]
+
+        if produkt is not None and produkt != before[1]:
+            updates.append('produkt=%s')
+            params.append(produkt)
+            changes['produkt'] = {'before': before[1], 'after': produkt}
+            
+        if tonaz_val is not None and tonaz_val != (before[2] or 0):
+            updates.append('tonaz=%s')
+            params.append(tonaz_val)
+            changes['tonaz'] = {'before': before[2], 'after': tonaz_val}
+            
+        if sekcja and sekcja != before[3]:
+            updates.append('sekcja=%s')
+            params.append(sekcja)
+            changes['sekcja'] = {'before': before[3], 'after': sekcja}
+            current_sekcja = sekcja
+            
+        if typ_produkcji is not None and typ_produkcji != (before[6] or ''):
+            updates.append('typ_produkcji=%s')
+            params.append(typ_produkcji)
+            changes['typ_produkcji'] = {'before': before[6], 'after': typ_produkcji}
+            
+        if nazwa_zlecenia is not None and nazwa_zlecenia != (before[7] or ''):
+            updates.append('nazwa_zlecenia=%s')
+            params.append(nazwa_zlecenia)
+            changes['nazwa_zlecenia'] = {'before': before[7], 'after': nazwa_zlecenia}
+
+        if rodzaj_palety is not None and rodzaj_palety != before[13]:
+            updates.append('rodzaj_palety=%s')
+            params.append(rodzaj_palety)
+            changes['rodzaj_palety'] = {'before': before[13], 'after': rodzaj_palety}
+
+        if data_planu and data_planu != str(before[4]):
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
+            result = cursor.fetchone()
+            next_order = (result[0] if result and result[0] else 0) + 1
+            updates.append('data_planu=%s')
+            params.append(data_planu)
+            updates.append('kolejnosc=%s')
+            params.append(next_order)
+            changes['data_planu'] = {'before': str(before[4]), 'after': data_planu}
+
+        if before[9] == 'carry_over_ghost' and before[5] == 'zakonczone' and tonaz_val is not None and tonaz_val > 0:
+            updates.append('status=%s')
+            params.append('zaplanowane')
+            changes['status'] = {'before': 'zakonczone', 'after': 'zaplanowane'}
+
+        if linia.upper() == 'AGRO':
+            if opakowanie_id is not None:
+                try:
+                    opakowanie_id_int = int(opakowanie_id) if opakowanie_id not in (None, '', 'None') else None
+                except Exception:
+                    opakowanie_id_int = None
+            else:
+                opakowanie_id_int = before[11]
+
+            if etykieta_id is not None:
+                try:
+                    etykieta_id_int = int(etykieta_id) if etykieta_id not in (None, '', 'None') else None
+                except Exception:
+                    etykieta_id_int = None
+            else:
+                etykieta_id_int = before[12]
+
+            if not opakowanie_id_int or not etykieta_id_int:
+                return False, 'Dla linii AGRO wyznaczony worek (opakowanie) oraz etykieta są obowiązkowe!', {}, 400
+
+            if opakowanie_id is not None and opakowanie_id_int != before[11]:
+                updates.append('opakowanie_id=%s')
+                params.append(opakowanie_id_int)
+                changes['opakowanie_id'] = {'before': before[11], 'after': opakowanie_id_int}
+
+            if etykieta_id is not None and etykieta_id_int != before[12]:
+                updates.append('etykieta_id=%s')
+                params.append(etykieta_id_int)
+                changes['etykieta_id'] = {'before': before[12], 'after': etykieta_id_int}
+
+        if data_produkcji is not None:
+            data_prod_val = data_produkcji.strip() if data_produkcji and str(data_produkcji).strip() else None
+            before_prod_date = before[10]
+            if before_prod_date is not None and hasattr(before_prod_date, 'strftime'):
+                before_prod_date_str = before_prod_date.strftime('%Y-%m-%d')
+            else:
+                before_prod_date_str = str(before_prod_date) if before_prod_date else None
+
+            if data_prod_val != before_prod_date_str:
+                updates.append('data_produkcji=%s')
+                params.append(data_prod_val)
+                changes['data_produkcji'] = {'before': before_prod_date_str, 'after': data_prod_val}
+
+        if updates:
+            sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"
+            params.append(pid)
+            cursor.execute(sql, tuple(params))
+            
+            try:
+                if 'tonaz' in changes and (before[3] or '').lower() in ('workowanie', 'czyszczenie') and before[8]:
+                    table_bufor = get_table_name('bufor', linia)
+                    cursor.execute(
+                        f"UPDATE {table_bufor} SET tonaz_rzeczywisty = %s WHERE zasyp_id = %s AND status IN ('aktywny', 'zamkniete')",
+                        (changes['tonaz']['after'], before[8]),
+                    )
+            except Exception as error:
+                current_app.logger.error(f'Error syncing bufor.tonaz_rzeczywisty: {error}')
+
+            try:
+                if 'produkt' in changes and (before[3] or '').lower() == 'zasyp':
+                    table_bufor = get_table_name('bufor', linia)
+                    cursor.execute(
+                        f"UPDATE {table_bufor} SET produkt = %s WHERE zasyp_id = %s",
+                        (changes['produkt']['after'], pid),
+                    )
+            except Exception as error:
+                current_app.logger.error(f'Error syncing bufor.produkt: {error}')
+
+            try:
+                if (before[3] or '').lower() == 'zasyp':
+                    linked_updates = []
+                    linked_params = []
+                    for field in ['produkt', 'typ_produkcji', 'nazwa_zlecenia', 'data_planu', 'tonaz', 'opakowanie_id', 'etykieta_id', 'rodzaj_palety']:
+                        if field in changes:
+                            if field == 'tonaz' and (before[9] == 'carry_over_ghost' or 'carry-over' in (before[7] or '').lower()):
+                                continue
+                            linked_updates.append(f'{field}=%s')
+                            linked_params.append(changes[field]['after'])
+
+                    if linked_updates:
+                        linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s AND status='zaplanowane' AND LOWER(sekcja) IN ('workowanie', 'czyszczenie')"
+                        linked_params.append(pid)
+                        cursor.execute(linked_sql, tuple(linked_params))
+            except Exception as error:
+                current_app.logger.error(f'Error propagating Zasyp changes to Workowanie: {error}')
+
+            try:
+                user_login = session.get('login') or session.get('imie_nazwisko')
+            except Exception:
+                user_login = None
+
+            try:
+                log_plan_history(pid, 'edit', json.dumps(changes, default=str, ensure_ascii=False), user_login)
+            except Exception as error:
+                current_app.logger.error(f'Error logging plan history: {error}')
+
+            # Notify workers when pallet type is changed to 'eksportowa'
+            try:
+                if 'rodzaj_palety' in changes and changes['rodzaj_palety']['after'] == 'eksportowa':
+                    plan_ctx = {
+                        'id': pid,
+                        'produkt': before[1],
+                        'sekcja': before[3],
+                        'data_planu': str(before[4]),
+                    }
+                    author_name = user_login or 'Planista'
+                    user_id = session.get('user_id') or session.get('id')
+                    notify_workers_about_pallet_type_change(
+                        plan_context=plan_ctx,
+                        new_rodzaj_palety='eksportowa',
+                        author_name=author_name,
+                        conn=conn,
+                        cursor=cursor,
+                        created_by_user_id=user_id,
+                        linia=linia,
+                    )
+            except Exception as notify_err:
+                current_app.logger.warning(f'Could not send pallet type notification: {notify_err}')
+
+        message = 'UWAGA: Wykryto kolizję edycji!' if collision_warning else 'Zaktualizowano'
+        return True, message, changes, 200

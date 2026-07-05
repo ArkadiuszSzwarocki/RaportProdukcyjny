@@ -29,9 +29,26 @@
                         <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">{{ loop.index }}</td>
                         <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#{{ p[0] }}</td>
                         <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
-                            {{ p[1] }}
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span>{{ p[1] }}</span>
+                                {% if p|length > 29 and p[29] == 'eksportowa' %}
+                                <span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#ff4500,#ff6b00);color:#fff;border-radius:999px;padding:2px 8px;font-size:0.65rem;font-weight:800;letter-spacing:0.04em;" title="Paleta eksportowa">🚢 EKSPORT</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if sekcja == 'Workowanie' %}
+                                {% set req_folia = p[20] if p|length > 20 and p[20] else '' %}
+                                {% set req_etykieta = p[21] if p|length > 21 and p[21] else '' %}
+                                {% if req_folia or req_etykieta %}
+                                <div style="font-size: 0.8em; color: #64748b; margin-top: 6px; font-weight: 400;">
+                                    {% if req_folia %}<div style="margin-bottom: 2px;"><strong style="color: #475569;">📦 Folia:</strong> {{ req_folia }}</div>{% endif %}
+                                    {% if req_etykieta %}<div><strong style="color: #475569;">🏷️ Etykieta:</strong> {{ req_etykieta }}</div>{% endif %}
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                            
                             {% if p[15] %}
-                            <div style="font-size: 0.75em; color: #856404; background: #fff3cd; display: inline-block; padding: 1px 6px; border-radius: 4px; margin-top: 2px;">📦 przeniesione z {{ p[15] }}</div>
+                            <div style="font-size: 0.75em; color: #856404; background: #fff3cd; display: inline-block; padding: 1px 6px; border-radius: 4px; margin-top: 4px;">📦 przeniesione z {{ p[15] }}</div>
                             {% endif %}
                         </td>
                         <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">{{ p[2]|int }} kg</td>

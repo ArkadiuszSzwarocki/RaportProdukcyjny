@@ -92,13 +92,13 @@ document.getElementById('addLocForm').addEventListener('submit', function(e) {
         if(d.success) {
             window.location.reload();
         } else {
-            alert('Błąd: ' + d.error);
+            AppDialog.alert('Błąd: ' + d.error);
         }
-    }).catch(e => alert('Błąd sieci'));
+    }).catch(e => AppDialog.alert('Błąd sieci'));
 });
 
-function deleteLoc(id, nazwa) {
-    if(!confirm('Czy na pewno chcesz usunąć lokalizację/prefiks: ' + nazwa + '?')) return;
+async function deleteLoc(id, nazwa) {
+    if(!(await AppDialog.confirm('Czy na pewno chcesz usunąć lokalizację/prefiks: ' + nazwa + '?'))) return;
     
     fetch('{{ url_for("magazyn_dostawy.api_delete_lokalizacja", loc_id=0) }}'.replace('0', id), {
         method: 'DELETE'
@@ -106,9 +106,9 @@ function deleteLoc(id, nazwa) {
         if(d.success) {
             window.location.reload();
         } else {
-            alert('Błąd: ' + d.error);
+            AppDialog.alert('Błąd: ' + d.error);
         }
-    }).catch(e => alert('Błąd sieci'));
+    }).catch(e => AppDialog.alert('Błąd sieci'));
 }
 </script>
 {% endblock %}

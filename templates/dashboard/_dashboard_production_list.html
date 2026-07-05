@@ -2,7 +2,9 @@
 {% if sekcja != 'Magazyn' %}
     {% include 'dashboard/_dashboard_production_styles.html' %}
     
+    {% if rola != 'laborant' %}
     {% include 'dashboard/_dashboard_magnet_cleanings.html' %}
+    {% endif %}
     
     <div id="dashboard-production-section" class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
         {% if agro_focus_mode and not (sekcja == 'Workowanie' and linia == 'AGRO') %}
@@ -86,7 +88,7 @@
                                                 </option>
                                             {% endfor %}
                                         </select>
-                                        <button class="btn btn-primary" style="height: 36px; padding: 0 16px; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.85em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; white-space: nowrap; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
+                                        <button class="btn btn-primary" style="height: 36px; padding: 0 16px; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.85em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; white-space: nowrap; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { AppDialog.alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
                                             <span class="material-icons" style="font-size: 18px;">add_circle</span> PODEPNIJ MATERIAŁ
                                         </button>
                                     </div>

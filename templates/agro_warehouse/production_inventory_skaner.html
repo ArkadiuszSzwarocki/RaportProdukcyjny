@@ -96,7 +96,7 @@ function saveEntries() {
         });
     });
 
-    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -133,14 +133,14 @@ function finishSession() {
         });
     });
 
-    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ sesja_id: {{ sesja_id }}, updates: updates })
     }).then(r => r.json()).then(data => {
         if(data.success) {
             // Close session
-            fetch('/agro/api/inwentaryzacja-produkcji/zamknij', {
+            smartFetch('/agro/api/inwentaryzacja-produkcji/zamknij', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({sesja_id: {{ sesja_id }}})
@@ -274,7 +274,7 @@ function saveWeightFromDetail() {
         waga_faktyczna: val
     }];
     
-    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ sesja_id: {{ sesja_id }}, updates: updates })
@@ -339,7 +339,7 @@ function saveEntriesLocalToDom() {
 }
 
 function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd, dExp, actualWeight) {
-    fetch('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', {
+    smartFetch('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

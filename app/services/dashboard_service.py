@@ -80,6 +80,45 @@ class DashboardService:
         return StaffService.get_basic_staff_data(dzisiaj, linia, cursor)
 
     @staticmethod
+    def get_expiring_pallets(dzisiaj: date, linia='PSD', days_threshold=30, cursor=None) -> List[Dict]:
+        """Zwraca listę palet, którym kończy się termin przydatności w ciągu `days_threshold` dni."""
+        conn = None
+        close_cursor = False
+        if not cursor:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            close_cursor = True
+
+        try:
+            table_sur = get_table_name('magazyn_surowce', linia)
+            # Find pallets where data_przydatnosci is between today and today + 30 days
+            q = f"""
+                SELECT id, nr_palety, nazwa, nr_partii, lokalizacja, data_produkcji, data_przydatnosci, stan_magazynowy, rodzaj_opakowania, producent
+                FROM {table_sur}
+                WHERE stan_magazynowy > 0
+                  AND data_przydatnosci IS NOT NULL
+                  AND data_przydatnosci != ''
+                  AND data_przydatnosci >= %s
+                  AND data_przydatnosci <= DATE_ADD(%s, INTERVAL %s DAY)
+                ORDER BY data_przydatnosci ASC
+                LIMIT 50
+            """
+            # Format today as YYYY-MM-DD
+            today_str = dzisiaj.strftime('%Y-%m-%d')
+            cursor.execute(q, (today_str, today_str, days_threshold))
+            return cursor.fetchall()
+        except Exception as e:
+            import traceback
+            from flask import current_app
+            current_app.logger.error(f"Error fetching expiring pallets: {e}\n{traceback.format_exc()}")
+            return []
+        finally:
+            if close_cursor:
+                cursor.close()
+                if conn:
+                    conn.close()
+
+    @staticmethod
     def get_journal_entries(dzisiaj: date, sekcja: str, linia='PSD', cursor=None) -> List[List[Any]]:
         """Get and format journal entries for a section."""
         wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, sekcja, linia=linia)
@@ -330,20 +369,22 @@ class DashboardService:
             'all_warehouse_packaging': [],
         }
         try:
-            from app.services.agro_warehouse_service import AgroWarehouseService
-            active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=None)
+            from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
+            from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
+            from app.services.agro.agro_tanks_service import AgroTanksService
+            active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=None)
             is_active_plan = bool(active_plan)
             if not active_plan:
                 # If no active plan, try to fetch the last finished plan of the day
                 # to keep the settlement context visible for reports.
-                finished_plans = AgroWarehouseService.get_finished_plans_of_day(linia='AGRO', target_date=dzisiaj)
+                finished_plans = AgroTanksService.get_finished_plans_of_day(linia='AGRO', target_date=dzisiaj)
                 if finished_plans:
                     active_plan = finished_plans[0] # Take the most recent one
                 else:
                     return dict(default_ctx)
                 
             plan_id = int(active_plan['id'])
-            packaging_items = AgroWarehouseService.get_all_linked_packaging(plan_id) or []
+            packaging_items = AgroOpakowaniaPlanService.get_all_linked_packaging(plan_id) or []
             
             history = []
             conn_hist = get_db_connection()
@@ -360,7 +401,7 @@ class DashboardService:
                 print(f"Error fetching workowanie history: {e}")
             finally:
                 conn_hist.close()
-            all_warehouse_packaging = AgroWarehouseService.get_packaging_inventory(linia='AGRO') or []
+            all_warehouse_packaging = AgroOpakowaniaService.get_packaging_inventory(linia='AGRO') or []
             
             przydzielone_opakowanie_id = active_plan.get('opakowanie_id')
             if przydzielone_opakowanie_id:

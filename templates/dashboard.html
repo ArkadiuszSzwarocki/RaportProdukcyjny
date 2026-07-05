@@ -8,6 +8,38 @@
 {% block content %}
 {% include 'dashboard/_dashboard_banners.html' %}
 {% include 'includes/dashboard_top.html' %}
+
+{% if fefo_pallets %}
+<div class="fefo-alert" style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <span class="material-icons" style="color: #ef4444;">warning</span>
+        <h3 style="margin: 0; color: #991b1b; font-size: 16px;">Kończący się termin przydatności (FEFO) - Magazyn</h3>
+    </div>
+    <div style="max-height: 200px; overflow-y: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 1px solid #fca5a5; color: #991b1b; text-align: left;">
+                    <th style="padding: 5px;">Nr Palety</th>
+                    <th style="padding: 5px;">Nazwa</th>
+                    <th style="padding: 5px;">Lokalizacja</th>
+                    <th style="padding: 5px;">Data Ważności</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in fefo_pallets %}
+                <tr style="border-bottom: 1px solid #fee2e2;">
+                    <td style="padding: 5px;"><strong>{{ p.nr_palety }}</strong></td>
+                    <td style="padding: 5px;">{{ p.nazwa }}</td>
+                    <td style="padding: 5px;">{{ p.lokalizacja }}</td>
+                    <td style="padding: 5px; color: #ef4444; font-weight: bold;">{{ p.data_przydatnosci.strftime('%Y-%m-%d') if p.data_przydatnosci else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 {% include 'dashboard/_dashboard_warehouse.html' %}
 {% include 'includes/dashboard_wpisy.html' %}
 

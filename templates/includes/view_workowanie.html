@@ -8,8 +8,23 @@
     {% if aktywne %}
         {% for p in aktywne %}
         <div class="plan-box">
-            <h3 class="header-title">📦 {{ _('odbior_palet') }}: {{ p[1] }}</h3>
-            
+            <h3 class="header-title">📦 {{ _('odbior_palet') }}: {{ p[1] }}
+                {% if p|length > 29 and p[29] == 'eksportowa' %}
+                <span class="badge-eksport-inline">🚢 EKSPORT</span>
+                {% endif %}
+            </h3>
+
+            {% if p|length > 29 and p[29] == 'eksportowa' %}
+            <!-- BANER PALETY EKSPORTOWEJ - widoczny dla operatora przy aktywnym zleceniu -->
+            <div class="eksport-pallet-alert" role="alert" aria-live="assertive">
+                <div class="eksport-pallet-alert__icon">🚢</div>
+                <div class="eksport-pallet-alert__content">
+                    <strong class="eksport-pallet-alert__title">ZLECENIE EKSPORTOWE</strong>
+                    <span class="eksport-pallet-alert__msg">Wymagane są <u>PALETY EKSPORTOWE</u> — upewnij się, że załadowałeś właściwy rodzaj palet!</span>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Pasek Telemetrii Maszyny -->
             <div class="machine-telemetry-bar mb-10" style="display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <span class="machine-status-pill status-idle" data-machine-status-pill>Łączenie...</span>
@@ -73,8 +88,17 @@
 
                 <div class="flex-1 d-flex flex-column gap-10">
                     {% if rola in ['produkcja','lider','admin', 'masteradmin','pracownik'] %}
-                    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue">
-                        <label class="header-title">{{ _('dodaj_pelna_palete') }}</label>
+                    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue" onsubmit="window.workowaniePopulatePrinter && window.workowaniePopulatePrinter(this)">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label class="header-title" style="margin-bottom: 0;">{{ _('dodaj_pelna_palete') }}</label>
+                            <button type="button" onclick="openPrinterSettingsModal()" class="btn-action btn-sm btn-outline-secondary" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #cbd5e1; background: #fff;" title="Ustawienia Drukarki ZPL">
+                                <span class="material-icons" style="font-size: 16px;">print</span>
+                                <span class="material-icons" style="font-size: 14px;">settings</span>
+                            </button>
+                        </div>
+                        
+                        <input type="hidden" name="printer_ip" class="workowanie-printer-ip" value="">
+                        <input type="hidden" name="printer_name" class="workowanie-printer-name" value="">
                         
                         <div class="d-flex justify-center align-center gap-10">
                             <input type="number" step="1" name="waga_palety" value="1000" class="input-sm w-70" aria-label="Waga palety (kg)" onclick="this.select()" required>
@@ -131,7 +155,10 @@
                 {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">{{ _('oczekuje') }}</span>
                 {% elif p[3] == 'zawieszone' %}<span class="status-badge" style="background-color: #f59e0b; color: white;">zastopowane (pauza)</span>
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
-                
+                {% if p|length > 29 and p[29] == 'eksportowa' %}
+                <span class="badge-eksport">🚢 PALETY EKSPORTOWE</span>
+                {% endif %}
+
                     <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
                     
                     {% if p[3] in ['zaplanowane', 'zawieszone'] %}
@@ -158,12 +185,15 @@
             
             <div>
                 {% if p[3] in ['zaplanowane', 'zawieszone'] %}
-                    <form action="/start_zlecenie/{{ p[0] }}" method="POST" 
+                    <form action="/start_zlecenie/{{ p[0] }}" method="POST"
                         {% if linia == 'AGRO' and p[3] == 'zaplanowane' %}
                             class="d-inline start-form"
                             data-start-checklist="1"
                             data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                             data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                        {% endif %}
+                        {% if p|length > 29 and p[29] == 'eksportowa' %}
+                            data-eksport-pallet="1"
                         {% endif %}
                         {% if p[3] == 'zawieszone' %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
@@ -308,28 +338,6 @@ function deletePlan(id, data){
     .catch(function(){ alert('Błąd sieci'); });
 }
 
-// Global confirm modal function
-window.showConfirmModal = function(message, onConfirm) {
-    var modal = document.getElementById('genericConfirmModal');
-    if (!modal) {
-        alert('Brak modala potwierdzenia:\n' + message);
-        if(confirm(message)) onConfirm();
-        return;
-    }
-    var msgEl = document.getElementById('genericConfirmMsg');
-    var btn = document.getElementById('genericConfirmBtn');
-    
-    msgEl.innerText = message;
-    modal.style.display = 'block';
-    
-    var newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    
-    newBtn.addEventListener('click', function() {
-        modal.style.display = 'none';
-        if (onConfirm) onConfirm();
-    });
-};
 
 // Event delegation for forms with data-confirm-msg
 document.addEventListener('submit', function(e){

@@ -1,8 +1,12 @@
 import re
 from flask import render_template, request, jsonify, session, redirect, url_for, current_app, flash
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_surowce_service import AgroSurowceService
+from app.services.agro.agro_tanks_service import AgroTanksService
 from app.services.dashboard_service import DashboardService
-from app.services.magazyn_dostawy_service import MagazynDostawyService
+from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
+from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+from app.services.magazyn_dostawy.location_service import LocationService
 from app.services.production_inventory_service import ProductionInventoryService
 from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
@@ -61,7 +65,7 @@ def report_warehouse():
         date_to = request.args.get('date_to')
         fmt = request.args.get('format', 'csv')
         limit = min(int(request.args.get('limit', 1000)), 10000)
-        rows = AgroWarehouseService.get_warehouse_entries(limit=limit, linia=linia, date_from=date_from, date_to=date_to)
+        rows = AgroSurowceService.get_warehouse_entries(limit=limit, linia=linia, date_from=date_from, date_to=date_to)
         if fmt == 'json':
             return jsonify({'success': True, 'rows': rows, 'count': len(rows)})
         import io, csv
@@ -84,7 +88,7 @@ def report_production():
         linia = request.args.get('linia', 'Agro')
         fmt = request.args.get('format', 'csv')
         limit = min(int(request.args.get('limit', 500)), 10000)
-        rows = AgroWarehouseService.get_production_moves(limit=limit, linia=linia)
+        rows = AgroTanksService.get_production_moves(limit=limit, linia=linia)
         if fmt == 'json':
             return jsonify({'success': True, 'rows': rows, 'count': len(rows)})
         import io, csv
@@ -109,7 +113,7 @@ def report_combined():
         date_to = request.args.get('date_to')
         fmt = request.args.get('format', 'csv')
         limit = min(int(request.args.get('limit', 2000)), 20000)
-        rows = AgroWarehouseService.get_combined_report(limit=limit, linia=linia, date_from=date_from, date_to=date_to)
+        rows = AgroSurowceService.get_combined_report(limit=limit, linia=linia, date_from=date_from, date_to=date_to)
         if fmt == 'json':
             return jsonify({'success': True, 'rows': rows, 'count': len(rows)})
         import io, csv

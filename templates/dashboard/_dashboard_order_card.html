@@ -9,13 +9,16 @@
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower not in ['w toku', 'zawieszone'] %}display: none !important;{% endif %}">
     <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <strong class="card-title" style="margin: 0; white-space: nowrap;">
+            <strong class="card-title" style="margin: 0; white-space: nowrap; {% if rola == 'laborant' %}font-size: 1.4em;{% endif %}">
                 {{ order_index if order_index is defined else (loop.index if loop is defined else '') }}. {{ p[1] }}
             </strong>
+            {% if p|length > 29 and p[29] == 'eksportowa' %}
+            <span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#ff4500,#ff6b00);color:#fff;border-radius:999px;padding:2px 8px;font-size:0.70rem;font-weight:800;letter-spacing:0.04em;" title="Paleta eksportowa">🚢 EKSPORT</span>
+            {% endif %}
             {% if p[7] and p[7]|int > 0 %}
             <div style="white-space: nowrap; font-size: 0.9em;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
             {% endif %}
-            {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
                 <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty (kg):</strong>
                 <input type="number" step="0.1" class="odrzuty-input form-control form-control-sm text-danger fw-bold" style="width: 70px; padding: 2px 4px; height: 26px; border-color: #dc3545;" data-plan-id="{{ p[0] }}" data-linia="{{ linia }}" value="{{ p[15]|default(0, true) }}" min="0" {% if is_readonly %}readonly{% endif %}>
@@ -139,11 +142,20 @@
             {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
         </div>
         <div style="min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
-            {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
-            {% set req_folia = p[20] if p|length > 20 else '' %}
-            {% set req_etykieta = p[21] if p|length > 21 else '' %}
-            <div class="card-row"><strong>Folia:</strong> {{ req_folia or '- brak w planie -' }}</div>
-            <div class="card-row"><strong>Etykieta:</strong> {{ req_etykieta or '- brak w planie -' }}</div>
+            {% if sekcja == 'Workowanie' %}
+            {% set folia = p[27] if p|length > 27 else '' %}
+            {% set etykieta = p[28] if p|length > 28 else '' %}
+            {% set rodzaj_palety = p[29] if p|length > 29 else 'krajowa' %}
+            {% if linia == 'AGRO' %}
+            <div class="card-row"><strong>Folia:</strong> <span style="color: #4b5563;">{{ folia or '- brak -' }}</span></div>
+            <div class="card-row"><strong>Etykieta:</strong> <span style="color: #4b5563;">{{ etykieta or '- brak -' }}</span></div>
+            {% endif %}
+            <div class="card-row" style="display: flex; align-items: center;">
+                <strong>Typ zlecenia:</strong> 
+                <span class="status-badge {% if rodzaj_palety|lower == 'eksport' %}status-wstrzymane{% else %}status-zakonczone{% endif %}" style="font-size:0.7em; margin-left: 6px; padding: 2px 6px;">
+                    {{ rodzaj_palety|upper }}
+                </span>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -166,15 +178,13 @@
             {% if p[3] == 'w toku' and not is_readonly %}
                 {% if sekcja == 'Workowanie' %}
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                    
                     <button type="button"
                             class="btn-action btn-blue"
                             data-action="edit-workowanie-production-date"
                             data-plan-id="{{ p[0] }}"
                             title="Zmien date produkcji dla zlecenia Workowanie">DATA PROD</button>
-                    <form action="/cofnij_palete/{{ p[0] }}" method="POST" style="display:inline;" data-confirm="Czy na pewno chcesz cofnąć ostatnią operację (paletę)?">
-                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-action btn-warning" title="Cofnij ostatnią paletę" style="background-color: #f59e0b; color: white;">↩ COFNIJ</button>
-                    </form>
+                            
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
@@ -192,7 +202,7 @@
             {# Detail toggle buttons - for active AND completed orders #}
             {% if p[3] in ['w toku', 'zakonczone', 'zawieszone'] %}
                 {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
-                {% if palety_count > 0 %}
+                {% if palety_count > 0 and not (linia == 'AGRO' and sekcja == 'Workowanie') and not (rola == 'laborant' and sekcja == 'Zasyp') %}
                     <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}" style="display:flex; align-items:center; gap:5px;">
                         <span class="material-icons" style="font-size:16px;">visibility</span>
                         {% if sekcja == 'Zasyp' %}ZASYPY{% else %}PALETY{% endif %} ({{ palety_count }})

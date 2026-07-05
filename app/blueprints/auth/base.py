@@ -401,7 +401,14 @@ def login():
         return redirect(target)
     
     try:
-        resp = make_response(render_template('login.html'))
+        import time
+        t0 = time.time()
+        html = render_template('login.html')
+        t1 = time.time()
+        current_app.logger.info(f"PROFILING: render_template took {t1 - t0:.2f}s")
+        resp = make_response(html)
+        t2 = time.time()
+        current_app.logger.info(f"PROFILING: make_response took {t2 - t1:.2f}s")
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         resp.headers['Pragma'] = 'no-cache'
         return resp

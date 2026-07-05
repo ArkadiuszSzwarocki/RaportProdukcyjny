@@ -146,6 +146,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 </td>
                 <td>
                     <strong class="text-primary">{{ p.produkt }}</strong>
+                    {% if p.get('rodzaj_palety') == 'eksportowa' %}
+                    <span class="badge-plan-eksport" title="To zlecenie wymaga palet eksportowych">🚢 EKSPORT</span>
+                    {% endif %}
                     {% if p.opakowanie_nazwa or p.etykieta_nazwa %}
                     <div style="font-size: 0.82em; margin-top: 4px; line-height: 1.4;">
                         {% if p.opakowanie_nazwa %}
@@ -355,6 +358,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 </td>
                 <td>
                     <strong class="text-primary">{{ p.produkt }}</strong>
+                    {% if p.get('rodzaj_palety') == 'eksportowa' %}
+                    <span class="badge-plan-eksport" title="To zlecenie wymaga palet eksportowych">🚢 EKSPORT</span>
+                    {% endif %}
                     {% if p.przeniesiony_z %}
                     <br><span style="display:inline-block;background:#e8f4fd;color:#1565c0;border:1px solid #90caf9;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ p.przeniesiony_z }}{% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 %}: {{ p.przeniesiony_tonaz|int }} kg{% endif %}</span>
                     {% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 and p.tonaz|int > p.przeniesiony_tonaz|int %}
@@ -871,6 +877,7 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
         html += '<div class="form-group"><label>Data planu:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
         html += '<div class="form-group"><label>Data produkcji (opcjonalnie):</label><input id="e_prod_date_' + id + '" name="data_produkcji" type="date" value="' + dataProdukcji + '" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></div>';
+        html += '<div class="form-group"><label>Rodzaj palety:</label><select name="rodzaj_palety" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"><option value="krajowa">Krajowa (Zwykła)</option><option value="eksportowa" ' + (plan.rodzaj_palety === 'eksportowa' ? 'selected' : '') + '>Eksportowa</option></select></div>';
         
         if (currentLinia.toLowerCase() === 'agro') {
             html += '<div class="form-group" style="grid-column: 1 / -1; z-index: 10;"><label style="font-weight: 600; color: #004d40;">Worek (wymagane):</label>';
@@ -926,7 +933,9 @@ document.addEventListener('DOMContentLoaded', function () {
         var dt = document.getElementById('e_date_' + id).value;
         var dp = document.getElementById('e_prod_date_' + id).value;
         
-        var payload = { id: id, produkt: prod, tonaz: ton, data_planu: dt, data_produkcji: dp, linia: currentLinia };
+        var rpSelect = document.querySelector('#editForm_' + id + ' select[name="rodzaj_palety"]');
+        var rp = rpSelect ? rpSelect.value : 'krajowa';
+        var payload = { id: id, produkt: prod, tonaz: ton, data_planu: dt, data_produkcji: dp, linia: currentLinia, rodzaj_palety: rp };
         
         if (currentLinia.toLowerCase() === 'agro') {
             var opakSel = document.getElementById('e_opakowanie_' + id);

@@ -241,13 +241,13 @@
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;
-                alert((data && data.message) || 'Błąd podczas potwierdzania');
+                AppDialog.alert((data && data.message) || 'Błąd podczas potwierdzania');
             }
         } catch (e) {
             btn.disabled = false;
             try { if (originalText) btn.textContent = originalText; } catch (_) { }
             debugError('dosypki: confirm error', e);
-            alert('Błąd sieci');
+            AppDialog.alert('Błąd sieci');
         } finally {
             setConfirmOverlay(container, false);
         }

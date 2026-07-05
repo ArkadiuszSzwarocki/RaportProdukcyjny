@@ -247,13 +247,13 @@ function safeToast(msg, kind) {
     if (typeof showToast === 'function') {
         showToast(msg, kind || 'info');
     } else {
-        alert(msg);
+        AppDialog.alert(msg);
     }
 }
 
 async function cancelTransferOrder(dostawaId, orderRef) {
     const label = orderRef || dostawaId;
-    const ok = confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
+    const ok = await AppDialog.confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
     if (!ok) {
         return;
     }

@@ -1,5 +1,6 @@
 from app.db import get_db_connection, get_table_name
-from app.services.agro_warehouse_service import AgroWarehouseService, _normalize_tank_code, _classify_tank_zone
+from app.services.agro.agro_surowce_service import AgroSurowceService
+from app.services.agro.agro_tanks_service import AgroTanksService, _normalize_tank_code, _classify_tank_zone
 from datetime import datetime
 
 class ProductionInventoryService:
@@ -42,7 +43,7 @@ class ProductionInventoryService:
             
             # Immediately generate entries based on the snapshot for this location
             # We fetch all tanks, filter by the requested lokalizacja, and insert them.
-            snapshot = AgroWarehouseService.get_production_inventory_snapshot(limit=4000, linia=linia, show_empty=True)
+            snapshot = AgroTanksService.get_production_inventory_snapshot(limit=4000, linia=linia, show_empty=True)
             
             lokalizacja_upper = lokalizacja.upper()
             
@@ -176,7 +177,7 @@ class ProductionInventoryService:
                 
                 # First, if the material was changed, zero out the old material
                 if wpis.get('old_ruch_id'):
-                    AgroWarehouseService.adjust_production_inventory(
+                    AgroTanksService.adjust_production_inventory(
                         ruch_id=wpis['old_ruch_id'],
                         actual_qty=0,
                         worker_login=user_login,
@@ -188,7 +189,7 @@ class ProductionInventoryService:
                     # Existing material, update weight if changed
                     diff = waga_fakt - waga_sys
                     if abs(diff) > 0.001:
-                        AgroWarehouseService.adjust_production_inventory(
+                        AgroTanksService.adjust_production_inventory(
                             ruch_id=wpis['ruch_id'],
                             actual_qty=waga_fakt,
                             worker_login=user_login,
@@ -201,7 +202,7 @@ class ProductionInventoryService:
                     if waga_fakt > 0 and wpis['surowiec_nazwa'] and wpis['surowiec_nazwa'] != 'PUSTY ZBIORNIK':
                         if wpis.get('paleta_id'):
                             # Create via use_for_production
-                            AgroWarehouseService.use_for_production(
+                            AgroSurowceService.use_for_production(
                                 surowiec_id=wpis['paleta_id'],
                                 ilosc=waga_fakt,
                                 worker_login=user_login,
@@ -213,7 +214,7 @@ class ProductionInventoryService:
                             # Manually insert into magazyn_ruch because there is no warehouse pallet ID
                             from datetime import datetime
                             table_ruch = get_table_name('magazyn_ruch', linia)
-                            zbiornik_val = AgroWarehouseService.normalize_production_tank(wpis['zbiornik']) or wpis['zbiornik']
+                            zbiornik_val = AgroTanksService.normalize_production_tank(wpis['zbiornik']) or wpis['zbiornik']
                             cursor.execute(
                                 f"INSERT INTO {table_ruch} (surowiec_nazwa, typ_ruchu, ilosc, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, komentarz, zbiornik) "
                                 "VALUES (%s, 'PRODUKCJA', %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s)",

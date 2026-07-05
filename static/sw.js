@@ -1,21 +1,57 @@
 // AgroMES Service Worker v2 — PWA + Web Push Notifications
 const CACHE_NAME = 'agromes-v2';
 
+const CACHE_ASSETS = [
+  '/static/css/style.css',
+  '/static/scripts.js',
+  '/static/fonts/MaterialIcons-Regular.woff2',
+  '/static/agro_logo.png'
+];
+
 self.addEventListener('install', (e) => {
   console.log('[SW] Install');
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(CACHE_ASSETS))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
   console.log('[SW] Activate');
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+    ))
+  );
   e.waitUntil(clients.claim());
 });
 
 self.addEventListener('fetch', (e) => {
-  // Minimal fetch pass-through for PWA requirements
+  // Ignorujemy API zapytań (smartFetch obsłuży błędy offline za pomocą localStorage)
+  if (e.request.method !== 'GET') return;
+  if (e.request.url.includes('/api/')) return;
+
   e.respondWith(
-    fetch(e.request).catch(() => {
-      return new Response('Brak połączenia z siecią', { status: 503 });
+    fetch(e.request).then(response => {
+      // Jeśli to HTML lub static resource, aktualizujemy cache (Network First)
+      if (response && response.status === 200) {
+        const resClone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(e.request, resClone);
+        });
+      }
+      return response;
+    }).catch(() => {
+      // Offline fallback
+      return caches.match(e.request).then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return new Response('<b>Brak zasięgu WiFi. Sprawdź połączenie i odśwież stronę.</b>', { 
+            status: 200, 
+            headers: {'Content-Type': 'text/html; charset=utf-8'}
+        });
+      });
     })
   );
 });

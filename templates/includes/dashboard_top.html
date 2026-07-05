@@ -30,7 +30,7 @@
         <div class="header-title-row d-flex align-center gap-10">
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <strong>{{ _(sekcja.lower()) if sekcja != 'Zasyp' else 'Zasyp ' ~ linia }}</strong>
-                {% if linia == 'AGRO' and sekcja == 'Zasyp' and rola in ['laborant', 'laboratorium', 'planista', 'admin', 'zarzad', 'lider'] %}
+                {% if linia == 'AGRO' and sekcja == 'Zasyp' and rola in ['laborant', 'laboratorium', 'admin', 'masteradmin'] %}
                     <button class="btn-action" data-action="send-zwolnienie-mieszalnika" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
                         <span class="material-icons" style="font-size:16px;">lock_open</span> Zwalniam mieszalnik
                     </button>
@@ -47,7 +47,7 @@
                     <label for="date-do" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Do:</label>
                     <input type="date" id="date-do" value="{{ data_do if data_do else dzisiaj.strftime('%Y-%m-%d') }}" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
                 </div>
-                <button type="button" class="btn-action" onclick="applyDateRange()" style="background: #3498db; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Pokaż</button>
+                <button type="button" class="btn-action" onclick="applyDateRange()" style="background: #3498db; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Pokaż <span class="material-icons" style="font-size: 16px; margin-left: 5px;">settings</span></button>
             </div>
             <script>
                 function applyDateRange() {
@@ -71,6 +71,9 @@
                 </div>
                 <button type="button" class="day-nav right" data-day-offset="{{ offset }}">▶</button>
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
+                <button type="button" onclick="if(typeof openPrinterSettingsModal === 'function') { openPrinterSettingsModal(); } else { alert('Opcja wyboru drukarki jest niedostępna na tym widoku.'); }" style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; outline: none;" title="Ustawienia Drukarki ZPL">
+                    <span class="material-icons" style="font-size: 20px; color: #7f8c8d; margin-left: 10px; transition: color 0.2s;" onmouseover="this.style.color='#3498db'" onmouseout="this.style.color='#7f8c8d'">print</span>
+                </button>
             </div>
             {% endif %}
         </div>

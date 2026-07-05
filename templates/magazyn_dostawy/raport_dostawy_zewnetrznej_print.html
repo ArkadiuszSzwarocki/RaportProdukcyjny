@@ -425,7 +425,7 @@
                 </div>
             </div>
 
-            <div class="meta-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 20px;">
+            <div class="meta-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px;">
                 <div class="meta-card">
                     <div class="meta-label">Data przyjęcia</div>
                     <div class="meta-value">
@@ -438,11 +438,7 @@
                     <div class="meta-value">{{ dostawa.supplier or '-' }}</div>
                 </div>
                 <div class="meta-card">
-                    <div class="meta-label">Gdzie przyjęto (Lokalizacja)</div>
-                    <div class="meta-value">{{ lokalizacja_do_str or '-' }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Osoba przyjmująca</div>
+                    <div class="meta-label">Utworzył (z biura)</div>
                     <div class="meta-value">{{ dostawa.created_by or '-' }}</div>
                 </div>
                 <div class="meta-card">
@@ -481,6 +477,7 @@
                     <col class="c-exp-date" style="width: 7%;">
                     <col class="c-target" style="width: 8%;">
                     <col class="c-time" style="width: 8%;">
+                    <col class="c-user" style="width: 8%;">
                     <col class="c-status" style="width: auto;">
                     {% if ns.has_rejections %}
                     <col class="c-reason" style="width: 13%;">
@@ -498,6 +495,7 @@
                         <th>Data przyd.</th>
                         <th>Dokąd</th>
                         <th class="c-time">CZAS PRZYJ. / ROZLOK.</th>
+                        <th>KTO PRZYJĄŁ</th>
                         <th class="c-status">Status</th>
                         {% if ns.has_rejections %}
                         <th>Powod odrzucenia</th>
@@ -524,6 +522,7 @@
                                 -
                             {% endif %}
                         </td>
+                        <td>{{ row.accepted_by if row.accepted else (row.rejected_by if row.rejected else '-') }}</td>
                         <td class="center c-status">
                             {% if row.rejected %}
                             <span class="pill pill-rejected">{{ row.status_label }}</span>

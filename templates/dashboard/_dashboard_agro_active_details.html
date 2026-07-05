@@ -1,11 +1,24 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 <div class="active-order-szarze-wrap" style="margin: 0 !important; max-width: 100% !important; box-sizing: border-box;">
     <div class="active-order-szarze-panel" style="width: 100%; box-sizing: border-box;">
-        {% if sekcja == 'Zasyp' %}
-        <div class="active-order-szarze-title">Lista zasypów zrobionych:</div>
-        {% else %}
-        <div class="active-order-szarze-title">Lista utworzonych palet:</div>
-        {% endif %}
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative;">
+            {% if sekcja == 'Zasyp' %}
+            <div class="active-order-szarze-title">Lista zasypów zrobionych:</div>
+            {% else %}
+            <div class="active-order-szarze-title">Lista utworzonych palet:</div>
+            {% endif %}
+            
+            {% if not is_readonly and p[3] == 'w toku' and sekcja == 'Workowanie' %}
+            <form action="/cofnij_palete/{{ p[0] }}" method="POST" style="position: absolute; top: -5px; right: 5px; margin: 0; z-index: 10;">
+                 <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                 <input type="hidden" name="linia" value="{{ linia }}">
+                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                 <button type="button" onclick="var form = this.closest('form'); AppDialog.confirm('Czy na pewno chcesz cofnąć ostatnią paletę?').then(function(ok) { if(ok) form.submit(); });" style="background: #f59e0b; color: white; border: none; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.15s ease;" title="Cofnij ostatnią paletę" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                     <span class="material-icons" style="font-size: 16px;">undo</span>
+                 </button>
+            </form>
+            {% endif %}
+        </div>
         {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
         {% if fb_palety %}
             {% set total_count = fb_palety|length %}

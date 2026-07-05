@@ -415,35 +415,45 @@ class PrintServer:
 ^XZ"""
 
     def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
-        """Wysyła dane palety do mostka z bezpośrednio wygenerowanym kodem ZPL 4x6."""
+        """Wysyła dane palety do kolejki z wygenerowanym kodem ZPL 4x6."""
         zpl_string = self.build_pallet_label_zpl(label_data)
-
-        payload = {
-            "drukarka": override_name or self.printer_name,
-            "ip": override_ip or self.printer_ip,
-            "dane": zpl_string
-        }
-        return self._send_to_bridge(payload)
+        return self.queue_print_job(zpl_string, override_ip, override_name)
 
     def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
-        """Wysyła dane palety wyrobu gotowego do mostka ZPL 4x6 z bezp. wygenerowanym kodem ZPL."""
+        """Wysyła dane palety wyrobu gotowego do kolejki z wygenerowanym kodem ZPL 4x6."""
         zpl_string = self.build_finished_product_label_zpl(label_data)
+        return self.queue_print_job(zpl_string, override_ip, override_name)
 
-        payload = {
-            "drukarka": override_name or self.printer_name,
-            "ip": override_ip or self.printer_ip,
-            "dane": zpl_string
-        }
-        return self._send_to_bridge(payload)
+    def queue_print_job(self, zpl_content: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+        """Dodaje etykietę do asynchronicznej kolejki wydruków w bazie danych."""
+        try:
+            from app.db import get_db_connection
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                target_ip = override_ip or self.printer_ip
+                target_name = override_name or self.printer_name
+                
+                cursor.execute("""
+                    INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)
+                    VALUES (%s, %s, %s, 'PENDING')
+                """, (target_ip, target_name, zpl_content))
+                conn.commit()
+                return True, "Dodano do kolejki druku"
+            finally:
+                conn.close()
+        except Exception as e:
+            import traceback
+            error_msg = f"Błąd kolejkowania wydruku: {e}\n{traceback.format_exc()}"
+            print(error_msg)
+            return False, f"Błąd bazy danych: {e}"
 
     def print_zpl_label(self, zpl_string: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
-        """Wysyła surowy kod ZPL do mostka druku."""
-        payload = {
-            "drukarka": override_name or self.printer_name,
-            "ip": override_ip or self.printer_ip,
-            "dane": str(zpl_string or ''),
-        }
-        return self._send_to_bridge(payload)
+        """
+        Zamiast wysyłać od razu do drukarki i blokować wątek, zakolejkuj wydruk.
+        Wątek w tle (Spooler) wyśle go do mostka/drukarki.
+        """
+        return self.queue_print_job(zpl_string, override_ip, override_name)
 
     def build_login_qr_label_zpl(self, qr_data: str, login_display: str = '') -> str:
         """Buduje ZPL dla małej etykiety QR z loginem i hasłem (1cm x 1cm).
@@ -484,12 +494,7 @@ class PrintServer:
         zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{label_data.get('lokalizacja')}^FS"
         zpl += "^XZ"
         
-        payload = {
-            "drukarka": self.printer_name,
-            "ip": self.printer_ip,
-            "dane": zpl
-        }
-        return self._send_to_bridge(payload)
+        return self.queue_print_job(zpl, self.printer_ip, self.printer_name)
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         target_name = payload.get('drukarka') or self.printer_name

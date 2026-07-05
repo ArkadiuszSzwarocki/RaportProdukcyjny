@@ -752,6 +752,21 @@
         var sekcjaInput = form.querySelector('input[name="sekcja"]');
         var sekcja = sekcjaInput ? sekcjaInput.value.trim() : '';
 
+        // --- EXPORT PALLET CHECK ---
+        // If the order requires export pallets, force operator confirmation before start
+        var isEksportPallet = form && form.getAttribute('data-eksport-pallet') === '1';
+        if (isEksportPallet) {
+            var confirmed = window.confirm(
+                '🚢 ZLECENIE EKSPORTOWE\n\n' +
+                'To zlecenie wymaga PALET EKSPORTOWYCH.\n\n' +
+                '✅ Upewnij się, że:\n' +
+                '  • załadowałeś palety EKSPORTOWE (nie krajowe)\n' +
+                '  • palety są właściwe dla tego zlecenia\n\n' +
+                'Czy palety eksportowe są załadowane i gotowe?'
+            );
+            if (!confirmed) return false;
+        }
+
         if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
             openCzyszczeniePackagingModal(form, planId, sekcja);
             return false;
@@ -770,6 +785,7 @@
             return true;
         }
     };
+
 
     /** Initialize a custom, premium, keyboard-navigable and accent-insensitive searchable select dropdown */
     window.initSearchableSelect = function(hiddenInputId, searchInputId, dropdownId, indicatorId, dataList, isEtykieta) {

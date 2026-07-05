@@ -54,6 +54,32 @@
         });
     }
 
+    // --- GLOBALNA WALIDACJA FORMULARZY ---
+    // Podświetlanie na czerwono i scrollowanie do brakujących pól
+    function initFormValidationHighlight() {
+        document.addEventListener('invalid', function(e) {
+            let target = e.target;
+            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+                target.classList.add('error-highlight-field');
+                
+                let removeHighlight = function() {
+                    target.classList.remove('error-highlight-field');
+                    target.removeEventListener('input', removeHighlight);
+                    target.removeEventListener('change', removeHighlight);
+                };
+                target.addEventListener('input', removeHighlight);
+                target.addEventListener('change', removeHighlight);
+
+                if (target.form) {
+                    let firstInvalid = target.form.querySelector(':invalid');
+                    if (firstInvalid === target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+        }, true); // Use capture phase because 'invalid' doesn't bubble
+    }
+
     // --- Elementy DOM (Dashboard - Awarie) ---
     const czasInput = document.getElementById('czasStart');
     const poleTekstowe = document.getElementById('opisProblemu');
@@ -399,6 +425,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         // Uruchomienie mechanizmu scrolla
         initScrollPreservation();
+        initFormValidationHighlight();
 
         // Uruchomienie inteligentnego odpytywania
         startSmartPolling();
@@ -701,66 +728,78 @@
         const isSupported = (section === 'zasyp' || section === 'workowanie' || section === 'magazyn' || path.includes('/magazyn') || path.includes('/dashboard'));
         if (!isSupported) return;
         
+        const doAjaxSubmit = () => {
+            const url = form.action || window.location.href;
+            const formData = new FormData(form);
+            
+            // Disable submit buttons to prevent double-clicks
+            const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            submitBtns.forEach(btn => btn.disabled = true);
+            
+            // Fetch silently
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(async function (response) {
+                if (response.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                
+                let json = null;
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.indexOf('application/json') !== -1) {
+                    try {
+                        json = await response.json();
+                    } catch (err) {}
+                }
+                
+                if (json && json.success === false) {
+                    alert(json.message || 'Błąd operacji');
+                    submitBtns.forEach(btn => btn.disabled = false);
+                    return;
+                }
+                
+                // Do a silent partial reload to pull the new data
+                await performPartialReload({ force: true, preserveScroll: true, source: 'form-ajax' });
+                
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Zapisano!', 'success');
+                }
+            })
+            .catch(function (error) {
+                console.error('AJAX submit failed', error);
+                alert('Błąd sieci podczas zapisywania');
+                submitBtns.forEach(btn => btn.disabled = false);
+            });
+        };
+
         // Handle confirmation dialogs
         if (form.hasAttribute('data-confirm-msg') || form.hasAttribute('data-confirm')) {
             const msg = form.getAttribute('data-confirm-msg') || form.getAttribute('data-confirm');
-            if (!confirm(msg)) {
-                e.preventDefault();
-                return;
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (typeof window.showConfirmModal === 'function') {
+                window.showConfirmModal(msg, function() {
+                    doAjaxSubmit();
+                });
+            } else {
+                if (confirm(msg)) {
+                    doAjaxSubmit();
+                }
             }
+            return;
         }
         
         e.preventDefault();
         e.stopPropagation();
-        
-        const url = form.action || window.location.href;
-        const formData = new FormData(form);
-        
-        // Disable submit buttons to prevent double-clicks
-        const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
-        submitBtns.forEach(btn => btn.disabled = true);
-        
-        // Fetch silently
-        fetch(url, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(async function (response) {
-            if (response.status === 401) {
-                window.location.reload();
-                return;
-            }
-            
-            let json = null;
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.indexOf('application/json') !== -1) {
-                try {
-                    json = await response.json();
-                } catch (err) {}
-            }
-            
-            if (json && json.success === false) {
-                alert(json.message || 'Błąd operacji');
-                submitBtns.forEach(btn => btn.disabled = false);
-                return;
-            }
-            
-            // Do a silent partial reload to pull the new data
-            await performPartialReload({ force: true, preserveScroll: true, source: 'form-ajax' });
-            
-            if (typeof window.showToast === 'function') {
-                window.showToast('Zapisano!', 'success');
-            }
-        })
-        .catch(function (error) {
-            console.error('AJAX submit failed', error);
-            alert('Błąd sieci podczas zapisywania');
-            submitBtns.forEach(btn => btn.disabled = false);
-        });
+        doAjaxSubmit();
     }, true); // Use capturing phase to intercept before other handlers
 
     // --- Global spinner for slow navigations / long fetches ---
@@ -877,7 +916,43 @@
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */
 
+    /* ─── Audio Notifications ─────────────────────────────────── */
+    var AudioContextCls = window.AudioContext || window.webkitAudioContext;
+    var globalAudioCtx = AudioContextCls ? new AudioContextCls() : null;
+
+    function playToastBeep(type) {
+      if (!globalAudioCtx) return;
+      try {
+        if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+        var osc = globalAudioCtx.createOscillator();
+        var gainNode = globalAudioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(globalAudioCtx.destination);
+
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, globalAudioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1200, globalAudioCtx.currentTime + 0.1);
+          gainNode.gain.setValueAtTime(0.3, globalAudioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, globalAudioCtx.currentTime + 0.1);
+          osc.start(globalAudioCtx.currentTime);
+          osc.stop(globalAudioCtx.currentTime + 0.1);
+        } else if (type === 'warn' || type === 'warning' || type === 'danger' || type === 'error') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(300, globalAudioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(150, globalAudioCtx.currentTime + 0.3);
+          gainNode.gain.setValueAtTime(0.3, globalAudioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, globalAudioCtx.currentTime + 0.3);
+          osc.start(globalAudioCtx.currentTime);
+          osc.stop(globalAudioCtx.currentTime + 0.3);
+        }
+      } catch (e) {
+        console.warn("Audio play failed", e);
+      }
+    }
+
     function showToast(message, type, sticky = false, onClick = null) {
+        playToastBeep(type);
         try {
             type = type || 'info';
             const container = document.getElementById('toastContainer') || (function () { const c = document.createElement('div'); c.id = 'toastContainer'; document.body.appendChild(c); return c; })();
@@ -1734,6 +1809,41 @@
         return { close: remove, element: m };
     }
 
+window.showConfirmModal = function(message, onConfirm) {
+    let modal = document.getElementById('rp-global-confirm-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'rp-global-confirm-modal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+        modal.innerHTML = `
+            <div style="background:#fff;padding:25px;border-radius:12px;width:90%;max-width:450px;box-shadow:0 15px 35px rgba(0,0,0,0.25);">
+                <h3 style="margin-top:0;margin-bottom:15px;font-size:1.2rem;display:flex;align-items:center;gap:10px;color:#2c3e50;">
+                    <span class="material-icons" style="color:#e67e22;font-size:28px;">help_outline</span> 
+                    Potwierdzenie
+                </h3>
+                <div id="rp-global-confirm-msg" style="margin-bottom:25px;color:#34495e;line-height:1.5;"></div>
+                <div style="display:flex;justify-content:flex-end;gap:12px;">
+                    <button type="button" class="btn-action" style="background:#f1f2f6;color:#2f3542;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;" onclick="document.getElementById('rp-global-confirm-modal').style.display='none'">Anuluj</button>
+                    <button type="button" id="rp-global-confirm-btn" class="btn-action" style="background:#e67e22;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;">OK</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    document.getElementById('rp-global-confirm-msg').innerText = message;
+    modal.style.display = 'flex';
+    
+    const btn = document.getElementById('rp-global-confirm-btn');
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+        if (onConfirm) onConfirm();
+    });
+};
+
     function showQuickPopup(title, html, opts) { return createQuickPopup(title, html, opts); }
     window.createQuickPopup = createQuickPopup;
     window.showQuickPopup = showQuickPopup;
@@ -2074,6 +2184,12 @@
         if (planId) {
             url += '&plan_id=' + encodeURIComponent(planId);
         }
+        
+        const prefIp = localStorage.getItem('agromes_preferred_zpl_printer');
+        const prefName = localStorage.getItem('agromes_preferred_zpl_printer_name');
+        if (prefIp) url += '&printer_ip=' + encodeURIComponent(prefIp.replace('net:', ''));
+        if (prefName) url += '&printer_name=' + encodeURIComponent(prefName);
+
         const fetchOptions = {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -2160,3 +2276,330 @@
     document.addEventListener('DOMContentLoaded', window.restorePrintIcons);
 
 })();
+
+/* =========================================================
+   OFFLINE QUEUE MANAGER & SMART FETCH (PWA SPOOLER)
+   ========================================================= */
+
+class OfflineQueueManager {
+    constructor() {
+        this.queueKey = 'agromes_offline_queue';
+        this.syncing = false;
+        this.initListeners();
+        this.updateIndicator();
+    }
+
+    getQueue() {
+        try {
+            const data = localStorage.getItem(this.queueKey);
+            return data ? JSON.parse(data) : [];
+        } catch(e) {
+            return [];
+        }
+    }
+
+    saveQueue(queue) {
+        localStorage.setItem(this.queueKey, JSON.stringify(queue));
+        this.updateIndicator();
+    }
+
+    enqueue(url, options, meta) {
+        const queue = this.getQueue();
+        queue.push({
+            id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            url: url,
+            options: {
+                method: options.method || 'GET',
+                headers: options.headers || {},
+                body: options.body || null
+            },
+            meta: meta || {},
+            timestamp: Date.now()
+        });
+        this.saveQueue(queue);
+    }
+
+    dequeue(id) {
+        const queue = this.getQueue();
+        const filtered = queue.filter(item => item.id !== id);
+        this.saveQueue(filtered);
+    }
+
+    async sync() {
+        if (this.syncing) return;
+        if (!navigator.onLine) return;
+
+        const queue = this.getQueue();
+        if (queue.length === 0) return;
+
+        this.syncing = true;
+        if (window.showToast) {
+            showToast('Rozpoczynam synchronizacj� z serwerem (' + queue.length + ' zada�)...', 'info');
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const item of queue) {
+            try {
+                // Ensure internet connection hasn't dropped mid-sync
+                if (!navigator.onLine) break;
+
+                const response = await fetch(item.url, item.options);
+                if (response.ok) {
+                    this.dequeue(item.id);
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch(e) {
+                // Network error, stop syncing, try again later
+                failCount++;
+                break;
+            }
+        }
+
+        this.syncing = false;
+        
+        if (successCount > 0 && window.showToast) {
+            showToast('Synchronizacja zako�czona: wys�ano ' + successCount + ' zada�.', 'success');
+            if (failCount > 0) {
+                showToast('Pozosta�o ' + failCount + ' zada� w kolejce (b��d wysy�ania).', 'warning');
+            }
+        }
+        this.updateIndicator();
+    }
+
+    initListeners() {
+        window.addEventListener('online', () => {
+            setTimeout(() => this.sync(), 2000); // Wait a bit for actual connectivity
+        });
+        
+        // Auto-sync every 30 seconds if online
+        setInterval(() => {
+            if (navigator.onLine && this.getQueue().length > 0) {
+                this.sync();
+            }
+        }, 30000);
+    }
+
+    updateIndicator() {
+        const queue = this.getQueue();
+        const count = queue.length;
+        let indicator = document.getElementById('offline-queue-indicator');
+        
+        if (count > 0) {
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'offline-queue-indicator';
+                indicator.style.position = 'fixed';
+                indicator.style.bottom = '20px';
+                indicator.style.right = '20px';
+                indicator.style.background = '#ef4444';
+                indicator.style.color = 'white';
+                indicator.style.padding = '10px 15px';
+                indicator.style.borderRadius = '20px';
+                indicator.style.fontSize = '13px';
+                indicator.style.fontWeight = 'bold';
+                indicator.style.zIndex = '9999';
+                indicator.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                indicator.style.cursor = 'pointer';
+                indicator.onclick = () => {
+                    if(confirm('Masz ' + count + ' zada� w kolejce. Chcesz spr�bowa� zsynchronizowa� wymuszenie?')) {
+                        this.sync();
+                    }
+                };
+                document.body.appendChild(indicator);
+            }
+            indicator.innerHTML = '<span class="material-icons" style="font-size: 16px; vertical-align: text-bottom; margin-right: 5px;">cloud_off</span> ' + count + ' w kolejce';
+            indicator.style.display = 'block';
+        } else {
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+        }
+    }
+}
+
+window.OfflineQueue = new OfflineQueueManager();
+
+/**
+ * smartFetch wrapper
+ * Przechwytuje failed to fetch (sie� pad�a) i wrzuca do Offline Queue.
+ * Udaje, �e API odpowiedzia�o sukcesem na backendzie, �eby UI mog�o si� zaktualizowa�.
+ */
+window.smartFetch = async function(url, options, meta = {}) {
+    // If clearly offline right now
+    if (!navigator.onLine && options && options.method && options.method !== 'GET') {
+        window.OfflineQueue.enqueue(url, options, meta);
+        if (window.showToast) {
+            showToast('Zapisano w kolejce offline!', 'warning');
+        }
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true, offlineQueued: true, message: 'Zapisano w kolejce offline' }),
+            text: async () => JSON.stringify({ success: true, offlineQueued: true })
+        });
+    }
+
+    try {
+        const response = await fetch(url, options);
+        // We only queue actual network failures (fetch throws TypeError), not 4xx/5xx HTTP errors
+        return response;
+    } catch (e) {
+        if (options && options.method && options.method !== 'GET') {
+            console.warn('[smartFetch] Sie� pad�a podczas fetch. Wrzucam do Offline Queue.', e);
+            window.OfflineQueue.enqueue(url, options, meta);
+            if (window.showToast) {
+                showToast('Brak sieci. Zadanie czeka w kolejce offline.', 'warning');
+            }
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ success: true, offlineQueued: true, message: 'Zapisano w kolejce offline po b��dzie' }),
+                text: async () => JSON.stringify({ success: true, offlineQueued: true })
+            });
+        } else {
+            // For GET requests we just rethrow
+            throw e;
+        }
+    }
+};
+
+
+// Printer settings modal logic
+window.openPrinterSettingsModal = function() {
+    let modal = document.getElementById('printer-settings-modal');
+    if (!modal) {
+        modal = document.createElement('view-printer-modal');
+        modal.id = 'printer-settings-modal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+        modal.innerHTML = `
+            <div style="background:#fff;padding:20px;border-radius:8px;width:90%;max-width:400px;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="margin-top:0;margin-bottom:15px;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
+                    <span class="material-icons">print</span> Ustawienia drukarki ZPL
+                </h3>
+                <div style="margin-bottom:15px;">
+                    <label style="display:block;margin-bottom:5px;font-weight:500;">Wybierz drukarkę docelową:</label>
+                    <select id="printer-select" class="input-modern w-100" style="padding:8px;border:1px solid #ccc;border-radius:4px;">
+                        <option value="">Wczytywanie...</option>
+                    </select>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:10px;">
+                    <button type="button" class="btn-action btn-outline-secondary" onclick="document.getElementById('printer-settings-modal').style.display='none'">Anuluj</button>
+                    <button type="button" class="btn-action btn-blue" onclick="savePrinterSelection()">Zapisz</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    modal.style.display = 'flex';
+    
+    // Fetch printers
+    fetch('/magazyn-dostawy/api/active-printers')
+        .then(r => r.json())
+        .then(data => {
+            const select = document.getElementById('printer-select');
+            select.innerHTML = '<option value="">(domyślna)</option>';
+            if (data.success && data.printers) {
+                data.printers.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.selection_value;
+                    opt.textContent = p.nazwa + (p.ip ? ' (' + p.ip + ')' : '');
+                    opt.dataset.ip = p.ip || '';
+                    opt.dataset.name = p.nazwa || '';
+                    select.appendChild(opt);
+                });
+                
+                const pref = localStorage.getItem('agromes_preferred_zpl_printer');
+                if (pref) {
+                    select.value = pref;
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching printers:', err);
+            document.getElementById('printer-select').innerHTML = '<option value="">Błąd ładowania</option>';
+        });
+};
+
+window.savePrinterSelection = function() {
+    const select = document.getElementById('printer-select');
+    const selected = select.options[select.selectedIndex];
+    
+    if (selected && selected.value) {
+        localStorage.setItem('agromes_preferred_zpl_printer', selected.value);
+        localStorage.setItem('agromes_preferred_zpl_printer_name', selected.dataset.name);
+        if (typeof showToast === 'function') showToast('Drukarka ustawiona: ' + selected.dataset.name, 'success');
+    } else {
+        localStorage.removeItem('agromes_preferred_zpl_printer');
+        localStorage.removeItem('agromes_preferred_zpl_printer_name');
+        if (typeof showToast === 'function') showToast('Przywrócono domyślną drukarkę', 'info');
+    }
+    
+    document.getElementById('printer-settings-modal').style.display = 'none';
+};
+
+window.workowaniePopulatePrinter = function(form) {
+    const prefIp = localStorage.getItem('agromes_preferred_zpl_printer');
+    const prefName = localStorage.getItem('agromes_preferred_zpl_printer_name');
+    if (prefIp && form.querySelector('.workowanie-printer-ip')) {
+        form.querySelector('.workowanie-printer-ip').value = prefIp.replace('net:', '');
+    }
+    if (prefName && form.querySelector('.workowanie-printer-name')) {
+        form.querySelector('.workowanie-printer-name').value = prefName;
+    }
+};
+window.openOperatorPrinterSettings = function() {
+    fetch('/api/printers')
+        .then(r => r.json())
+        .then(j => {
+            if (j && j.success) {
+                let html = '<div style="padding:10px;">';
+                html += '<p>Wybierz domy�ln� drukark� ZPL dla tego urz�dzenia:</p>';
+                html += '<select id="operatorZplPrinterSelect" class="form-control" style="width:100%; padding:8px; border-radius:4px; margin-bottom:15px;">';
+                html += '<option value="">-- Automatycznie --</option>';
+                
+                const currentPrefName = localStorage.getItem('agromes_preferred_zpl_printer_name') || '';
+                
+                j.printers.forEach(p => {
+                    const sel = (p.nazwa === currentPrefName) ? 'selected' : '';
+                    html += `<option value="${p.ip}" data-name="${p.nazwa}" ${sel}>${p.nazwa} (${p.ip})</option>`;
+                });
+                
+                html += '</select>';
+                html += '<div style="display:flex; justify-content:flex-end; gap:10px;">';
+                html += '<button type="button" class="btn-action btn-green" onclick="saveOperatorPrinterSettings()">Zapisz</button>';
+                html += '<button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
+                html += '</div></div>';
+                
+                const popup = showQuickPopup('Ustawienia Drukarki ZPL', html);
+                if (popup) window.createQuickPopup._lastInst = popup;
+            } else {
+                safeAlert('B��d', 'Nie uda�o si� pobra� listy drukarek.');
+            }
+        })
+        .catch(e => safeAlert('B��d', 'Wyst�pi� b��d podczas pobierania drukarek.'));
+};
+
+window.saveOperatorPrinterSettings = function() {
+    const sel = document.getElementById('operatorZplPrinterSelect');
+    if (!sel) return;
+    
+    const ip = sel.value;
+    if (ip) {
+        const option = sel.options[sel.selectedIndex];
+        const name = option.getAttribute('data-name');
+        localStorage.setItem('agromes_preferred_zpl_printer', 'net:' + ip);
+        localStorage.setItem('agromes_preferred_zpl_printer_name', name);
+        safeAlert('Sukces', 'Zapisano preferowan� drukark�: ' + name);
+    } else {
+        localStorage.removeItem('agromes_preferred_zpl_printer');
+        localStorage.removeItem('agromes_preferred_zpl_printer_name');
+        safeAlert('Sukces', 'Wyczyszczono preferowan� drukark�. U�yty zostanie automat.');
+    }
+    
+    if(window.createQuickPopup && window.createQuickPopup._lastInst) {
+        window.createQuickPopup._lastInst.close();
+    }
+};

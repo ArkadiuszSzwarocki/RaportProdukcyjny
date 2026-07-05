@@ -510,6 +510,66 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
     except Exception:
         _safe_log_exception('Unconfirmed palety monitor terminating unexpectedly')
 
+def _print_spooler_loop(interval_seconds: int = 5):
+    """Monitoruje tabelę print_jobs i wysyła zakolejkowane wydruki w tle."""
+    try:
+        from app.db import get_db_connection
+        from app.services.print_server import PrintServer
+        printer = PrintServer()
+
+        _safe_log_info(f'Started Print Spooler daemon thread, interval {interval_seconds}s')
+        while True:
+            try:
+                conn = get_db_connection()
+                try:
+                    cursor = conn.cursor(dictionary=True)
+                    # Szukamy zadań PENDING lub ERROR z liczbą prób < 3
+                    cursor.execute("""
+                        SELECT id, printer_ip, printer_name, zpl_content, retry_count
+                        FROM print_jobs 
+                        WHERE status = 'PENDING' OR (status = 'ERROR' AND retry_count < 3)
+                        ORDER BY id ASC LIMIT 5
+                    """)
+                    jobs = cursor.fetchall()
+
+                    for job in jobs:
+                        job_id = job['id']
+                        zpl = job['zpl_content']
+                        ip = job['printer_ip']
+                        name = job['printer_name']
+                        retry = job['retry_count']
+
+                        # Ustawiamy status na PRINTING
+                        cursor.execute("UPDATE print_jobs SET status='PRINTING' WHERE id=%s", (job_id,))
+                        conn.commit()
+
+                        try:
+                            # Wysyłka do mostka
+                            payload = {"drukarka": name, "ip": ip, "dane": zpl}
+                            success, msg = printer._send_to_bridge(payload)
+                            
+                            if success:
+                                cursor.execute("UPDATE print_jobs SET status='DONE', updated_at=NOW() WHERE id=%s", (job_id,))
+                            else:
+                                cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
+                                               (msg, retry + 1, job_id))
+                            conn.commit()
+                        except Exception as e:
+                            import traceback
+                            err = f"{e}\n{traceback.format_exc()}"
+                            cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
+                                           (err, retry + 1, job_id))
+                            conn.commit()
+                finally:
+                    conn.close()
+            except Exception as error:
+                if not _is_transient_db_connectivity_error(error):
+                    _safe_log_exception('Error in Print Spooler monitor loop')
+            
+            time.sleep(interval_seconds)
+    except Exception:
+        _safe_log_exception('Print Spooler monitor terminating unexpectedly')
+
 
 def start_daemon_threads(app, cleanup_enabled=False):
     """Start background daemon threads.
@@ -582,6 +642,18 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start midnight closer thread')
 
+    # Start Print Spooler thread
+    try:
+        spooler_thread = threading.Thread(
+            target=_print_spooler_loop,
+            kwargs={'interval_seconds': 5},
+            daemon=True
+        )
+        spooler_thread.start()
+        _safe_log_info('Started Print Spooler daemon thread')
+    except Exception:
+        _safe_log_exception('Failed to start Print Spooler thread')
+
     # Start MQTT Cloud Bridge (Server-side proxy)
     try:
         start_mqtt_bridge()
@@ -591,7 +663,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
     # Start AGRO Pallet Auto-Register thread
     try:
         from app.services.mqtt_service import get_latest_data
-        from app.services.agro_warehouse_service import AgroWarehouseService
+        from app.services.agro.agro_tanks_service import AgroTanksService
         
         def _agro_pallet_auto_register_loop():
             _safe_log_info(
@@ -665,7 +737,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         continue
 
                 try:
-                    active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
+                    active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO')
                     if active_plan:
                         plan_id = active_plan['id']
                         
@@ -776,7 +848,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
 
                                 successful_regs = 0
                                 for step_idx in range(1, registrations_to_run + 1):
-                                    success = AgroWarehouseService.auto_register_pallet(
+                                    success = AgroTanksService.auto_register_pallet(
                                         plan_id,
                                         linia='AGRO',
                                         source_instance=_INSTANCE_ID,

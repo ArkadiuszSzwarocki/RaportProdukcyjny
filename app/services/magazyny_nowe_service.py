@@ -9,28 +9,64 @@ class MagazynyNoweService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            # W zależności od typu, uderzamy do odpowiedniej tabeli magazyn_ruch
-            # Surowce, Opakowania używają zazwyczaj magazyn_ruch
-            # Wyroby gotowe używają magazyn_palety (dane dodania itp)
             
+            # Pobieramy pełną historię z nowej tabeli palety_historia
+            cursor.execute("""
+                SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
+                FROM palety_historia
+                WHERE paleta_id = %s
+                ORDER BY data_ruchu DESC
+            """, (pallet_id,))
+            historia_nowa = cursor.fetchall()
+            
+            # Pobieramy historię wsteczną z tabel legacy
             table_ruch = get_table_name('magazyn_ruch', linia)
+            historia_stara = []
             
             if pallet_type in ['Surowiec', 'Opakowanie']:
-                # W RaportProdukcyjny magazyn_ruch łączy się po surowiec_id
                 cursor.execute(f"""
-                    SELECT id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz 
+                    SELECT id, typ_ruchu, autor_login, autor_data, komentarz 
                     FROM {table_ruch} 
                     WHERE surowiec_id = %s 
                     ORDER BY autor_data DESC
                 """, (pallet_id,))
-                return cursor.fetchall()
+                historia_stara = cursor.fetchall()
             else:
-                # Wyroby gotowe: prosta historia z magazyn_palety (lub brak w zależności od implementacji)
-                cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu FROM {get_table_name('magazyn_palety', linia)} WHERE id = %s", (pallet_id,))
+                cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz FROM {get_table_name('magazyn_palety', linia)} WHERE id = %s", (pallet_id,))
                 row = cursor.fetchone()
                 if row:
-                    return [row]
-                return []
+                    historia_stara.append(row)
+                    
+            # Combine
+            combined = historia_nowa + historia_stara
+            
+            # Sort po dacie upewniając się, że autor_data jest datetime
+            def get_dt(x):
+                dt = x.get('autor_data')
+                from datetime import datetime
+                if isinstance(dt, datetime):
+                    return dt
+                if isinstance(dt, str):
+                    try: return datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
+                    except: pass
+                return datetime.min
+                
+            combined.sort(key=get_dt, reverse=True)
+            
+            # Deduplikacja by nie wyświetlać tego samego ruchu dwa razy jeśli został zapisany w obu tabelach
+            seen = set()
+            deduped = []
+            for h in combined:
+                # prosty klucz deduplikacyjny na podstawie daty (co do minuty) i typu ruchu
+                dt = get_dt(h)
+                key = f"{dt.strftime('%Y-%m-%d %H:%M')}_{h.get('typ_ruchu')}_{h.get('autor_login')}"
+                if key not in seen:
+                    seen.add(key)
+                    # Format date to string for JSON serialization
+                    h['autor_data'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
+                    deduped.append(h)
+                    
+            return deduped
         finally:
             conn.close()
 
@@ -40,9 +76,32 @@ class MagazynyNoweService:
         
         # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
         if new_location:
+            new_location = new_location.strip().upper()
             is_valid, error_msg = validate_warehouse_location(new_location, allow_empty=False)
             if not is_valid:
                 return False, error_msg
+
+            # Sprawdzenie ze słownikiem dozwolonych lokalizacji (jak w głównym skanerze)
+            conn_dict = get_db_connection()
+            try:
+                cur_dict = conn_dict.cursor()
+                cur_dict.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje")
+                dozwolone = [row[0].upper() for row in cur_dict.fetchall()]
+            except Exception as e:
+                dozwolone = []
+                print(f"Błąd ładowania słownika lokalizacji: {e}")
+            finally:
+                conn_dict.close()
+
+            if dozwolone:
+                is_dict_valid = False
+                for dozw_lok in dozwolone:
+                    if new_location.startswith(dozw_lok):
+                        is_dict_valid = True
+                        break
+                
+                if not is_dict_valid:
+                    return False, f"BŁĄD: Lokalizacja '{new_location}' nie występuje w dozwolonym słowniku (Baza: Ustawienia)."
 
         conn = get_db_connection()
         try:
@@ -131,7 +190,52 @@ class MagazynyNoweService:
                     )
             except Exception as e:
                 print("Błąd zapisu ruchu:", e)
-
+            # --- AUTO-AKCEPTACJA DOSTAWY ZEWNĘTRZNEJ ---
+            # Jeśli przenoszona paleta wisiała w "Oczekujące na Przyjęcie", zdejmujemy ją stamtąd.
+            if nr_palety:
+                try:
+                    import json
+                    cur_dict = conn.cursor(dictionary=True)
+                    cur_dict.execute("SELECT id, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
+                    pending_deliveries = cur_dict.fetchall()
+                    for d in pending_deliveries:
+                        if not d.get('items'): continue
+                        try:
+                            d_items = json.loads(d['items'])
+                            changed = False
+                            for item in d_items:
+                                if not item.get('accepted') and not item.get('rejected'):
+                                    if item.get('nr_palety') == nr_palety or item.get('sourcePalletNo') == nr_palety:
+                                        item['accepted'] = True
+                                        item['accepted_by'] = worker_login
+                                        item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                                        item['lokalizacja_przyjecia'] = new_location
+                                        changed = True
+                            if changed:
+                                all_processed = all(i.get('accepted') or i.get('rejected') for i in d_items)
+                                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
+                                cur_dict.execute("UPDATE magazyn_dostawy SET items = %s, status = %s WHERE id = %s", (json.dumps(d_items), new_status, d['id']))
+                                
+                                if new_status == 'COMPLETED':
+                                    try:
+                                        from flask import url_for
+                                        from app.services.office_print_service import trigger_office_print_url
+                                        report_url = url_for(
+                                            'magazyn_dostawy.raport_przesuniecia',
+                                            dostawa_id=d['id'],
+                                            linia=linia,
+                                            internal_print=1,
+                                            _external=True
+                                        )
+                                        trigger_office_print_url(report_url, 'raport_dostawy_zewnetrznej', prefix="dostawa_zewn_")
+                                    except Exception as print_e:
+                                        print("Błąd uruchomienia wydruku raportu po przyjęciu:", print_e)
+                                        
+                        except Exception as inner_e:
+                            print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)
+                except Exception as e:
+                    print("Błąd podczas automatycznego przyjmowania dostawy ze skanera:", e)
+            
             conn.commit()
             return True, "Pomyślnie przeniesiono."
         except Exception as e:

@@ -5,6 +5,17 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
 <style>
+.flatpickr-date.form-control, .flatpickr-date {
+    width: 100% !important;
+    height: 36px !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 6px !important;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    margin: 0 !important;
+}
 .delivery-form-screen {
     max-width: 1480px;
 }
@@ -273,7 +284,7 @@
 </style>
 
 <div class="logistyka-container p-20 delivery-form-screen" style="margin: 0 auto; font-family: sans-serif;">
-    
+    <form id="receptionForm" onsubmit="event.preventDefault(); openPrinterModal();">
     <div class="delivery-hero">
         <div class="delivery-hero-head">
             <div>
@@ -291,7 +302,7 @@
             <div class="delivery-date-card">
                 <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Data Przyjęcia</label>
                 <input type="text" id="delivery_date" class="flatpickr-date"
-                       value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}">
+                       value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}" required>
             </div>
         </div>
     </div>
@@ -301,22 +312,23 @@
             <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Informacje o Dostawie</h6>
         </div>
         <div class="delivery-panel-body">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: end;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: end;">
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">NUMER WZ / DOKUMENTU</label>
-                    <input type="text" id="order_ref" class="premium-input" value="{{ dostawa.order_ref if dostawa else '' }}" placeholder="np. WZ/2024/123" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    <input type="text" id="order_ref" class="premium-input" value="{{ dostawa.order_ref if dostawa else '' }}" placeholder="np. WZ/2024/123" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;" required>
                 </div>
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOSTAWCA</label>
-                    <input type="text" id="supplier" class="premium-input" value="{{ dostawa.supplier if dostawa else '' }}" placeholder="Nazwa dostawcy" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    <input type="text" id="supplier" class="premium-input" value="{{ dostawa.supplier if dostawa else '' }}" placeholder="Nazwa dostawcy" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;" required>
                 </div>
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">LICZBA PALET W DOSTAWIE</label>
                     <input type="number" id="pallets_count" class="premium-input" min="0" onchange="generateRows(this.value)" placeholder="Wpisz np. 5" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
                 </div>
-                <div style="display: flex; flex-direction: column;">
+                <div style="display: none; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOMYŚLNA LOKALIZACJA</label>
                     <select id="default_loc" class="premium-input" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: white;">
+                        <option value="OCZEKUJĄCE" {% if not dostawa or dostawa.lokalizacja_do == 'OCZEKUJĄCE' %}selected{% endif %}>OCZEKUJĄCE</option>
                         {% for loc in lokalizacje %}
                         <option value="{{ loc }}" {% if dostawa and dostawa.lokalizacja_do == loc %}selected{% endif %}>{{ loc }}</option>
                         {% endfor %}
@@ -337,12 +349,15 @@
             <table id="itemsTable" style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 50px;">#</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b;">PRODUKT</th>
-                        <th style="padding: 12px 20px; text-align: right; font-size: 11px; color: #64748b; width: 120px;">ILOŚĆ</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 80px;">J.M.</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 140px;">TYP OPAK.</th>
-                        <th style="padding: 12px 20px; text-align: center; font-size: 11px; color: #64748b; width: 100px;">AKCJA</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; width: 30px;">#</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; min-width: 120px;">PRODUKT</th>
+                        <th style="padding: 12px 10px; text-align: right; font-size: 11px; color: #64748b; width: 80px;">ILOŚĆ</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; width: 60px;">J.M.</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; width: 100px;">TYP OPAK.</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; min-width: 160px;">PARTIA</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; width: 110px;">PRODUKCJA</th>
+                        <th style="padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; width: 110px;">PRZYDATNOŚĆ</th>
+                        <th style="padding: 12px 10px; text-align: center; font-size: 11px; color: #64748b; width: 70px;">AKCJA</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -358,11 +373,12 @@
            class="btn-cancel-reception">
             Anuluj
         </a>
-        <button onclick="openPrinterModal()" 
+        <button type="submit" 
                 class="btn-save-reception">
             <span class="material-icons" style="font-size: 18px;">save</span> ZAPISZ
         </button>
     </div>
+    </form>
 
     <!-- Modal Potwierdzenia -->
     <div id="printerModal" class="premium-modal" style="display: none;">
@@ -566,73 +582,59 @@
         noItems.style.display = 'none';
 
         items.forEach((item, index) => {
-            // First Row: Product and Quantity
+            // Single Row Layout
             const row1 = document.createElement('tr');
-            row1.style.background = index % 2 === 0 ? '#fff' : '#fcfcfc';
+            row1.style.background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+            row1.style.borderBottom = '1px solid #e2e8f0';
+            
+            const inputStyle = "width: 100%; height: 36px; border: 1px solid #94a3b8; border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);";
+
             row1.innerHTML = `
-                <td rowspan="2" style="padding: 10px 20px; font-size: 13px; color: #64748b; border-bottom: 2px solid #e2e8f0; vertical-align: middle;">${index + 1}</td>
-                <td style="padding: 10px 10px 5px 20px; border: none;">
+                <td style="padding: 10px 10px; font-size: 13px; color: #64748b; vertical-align: middle;">${index + 1}</td>
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
                     <input type="text" value="${item.productName || ''}" onchange="updateItem(${index}, 'productName', this.value)"
                            list="productsList" placeholder="Wybierz produkt"
-                           style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 13px;">
+                           style="${inputStyle}" required>
                 </td>
-                <td style="padding: 10px 10px 5px 10px; border: none;">
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
                     <input type="number" value="${item.quantity || item.netWeight || item.unitsPerPallet || ''}" 
                            onchange="updateItem(${index}, 'quantity', this.value)" placeholder="0"
-                           style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right;">
+                           style="${inputStyle} text-align: right;" required min="0.001" step="0.001">
                 </td>
-                <td style="padding: 10px 10px 5px 10px; border: none;">
-                    <select onchange="updateItem(${index}, 'unit', this.value)" style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px;">
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
+                    <select onchange="updateItem(${index}, 'unit', this.value)" style="${inputStyle}">
                         <option value="kg" ${item.unit === 'kg' || (!item.unit && item.packageForm !== 'packaging') ? 'selected' : ''}>kg</option>
                         <option value="szt" ${item.unit === 'szt' || item.packageForm === 'packaging' ? 'selected' : ''}>szt</option>
                     </select>
                 </td>
-                <td style="padding: 10px 10px 5px 10px; border: none;">
-                    <select onchange="updateItem(${index}, 'packageForm', this.value)" style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px;">
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
+                    <select onchange="updateItem(${index}, 'packageForm', this.value)" style="${inputStyle}">
                         <option value="bags" ${item.packageForm === 'bags' ? 'selected' : ''}>Worek</option>
                         <option value="big_bag" ${item.packageForm === 'big_bag' ? 'selected' : ''}>Big-Bag</option>
                         <option value="packaging" ${item.packageForm === 'packaging' ? 'selected' : ''}>Opakowanie</option>
                     </select>
                 </td>
-                <td rowspan="2" style="padding: 10px 20px; text-align: center; border-bottom: 2px solid #e2e8f0; vertical-align: middle;">
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
+                    <input type="text" value="${item.nr_partii || ''}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                           placeholder="Nr partii" style="${inputStyle}">
+                </td>
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
+                    <input type="text" class="flatpickr-date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                           style="${inputStyle}" placeholder="Produkcja">
+                </td>
+                <td style="padding: 10px 10px; border: none; vertical-align: middle;">
+                    <input type="text" class="flatpickr-date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                           style="${inputStyle}" placeholder="Przydatność">
+                </td>
+                <td style="padding: 10px 10px; text-align: center; vertical-align: middle;">
                     <div style="display: flex; gap: 10px; justify-content: center;">
-                        ${index > 0 ? `<button onclick="copyFromPrevious(${index})" style="background:none; border:none; color:#94a3b8; cursor:pointer;"><span class="material-icons" style="font-size:18px;">content_copy</span></button>` : ''}
-                        <button onclick="removeItem(${index})" style="background:none; border:none; color:#ef4444; cursor:pointer;"><span class="material-icons" style="font-size:18px;">delete</span></button>
+                        ${index > 0 ? `<button onclick="copyFromPrevious(${index})" style="background:none; border:none; color:#94a3b8; cursor:pointer;" title="Kopiuj z poprzedniego"><span class="material-icons" style="font-size:18px;">content_copy</span></button>` : ''}
+                        <button onclick="removeItem(${index})" style="background:none; border:none; color:#ef4444; cursor:pointer;" title="Usuń"><span class="material-icons" style="font-size:18px;">delete</span></button>
                     </div>
                 </td>
             `;
             tbody.appendChild(row1);
-
-            // Second Row: Batch and Dates
-            const row2 = document.createElement('tr');
-            row2.style.background = index % 2 === 0 ? '#fff' : '#fcfcfc';
-            row2.style.borderBottom = '2px solid #e2e8f0';
-            row2.innerHTML = `
-                <td style="padding: 0 10px 10px 20px; border: none;">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 45px;">PARTIA:</span>
-                        <input type="text" value="${item.nr_partii || ''}" onchange="updateItem(${index}, 'nr_partii', this.value)"
-                               placeholder="Nr partii" style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 6px; font-size: 11px;">
-                    </div>
-                </td>
-                <td style="padding: 0 10px 10px 10px; border: none;">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 65px;">PRODUKCJA:</span>
-                        <input type="text" class="flatpickr-date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
-                               style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
-                    </div>
-                </td>
-                <td colspan="2" style="padding: 0 10px 10px 10px; border: none;">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 85px;">PRZYDATNOŚĆ:</span>
-                        <input type="text" class="flatpickr-date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
-                               style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(row2);
-            
-            flatpickr(row2.querySelectorAll('.flatpickr-date'), flatpickrConfig);
+            flatpickr(row1.querySelectorAll('.flatpickr-date'), flatpickrConfig);
         });
     }
 

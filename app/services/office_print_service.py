@@ -74,6 +74,10 @@ def _print_pdf(pdf_path, printer_name_or_ip):
         from app.services.print_server import get_printer
         printer = get_printer()
         
+        # Ensure the local bridge is running
+        if hasattr(printer, '_ensure_bridge_running'):
+            printer._ensure_bridge_running()
+            
         # Determine bridge URL
         base_url = printer._normalize_bridge_base()
         url = f"{base_url}/drukuj-pdf"
@@ -129,6 +133,12 @@ def trigger_office_print(plan_id, typ_raportu='raport_palet_agro'):
         conn.close()
 
 def _generate_and_print_url_thread(report_url, printer_name_or_ip, prefix="raport_"):
+    # Force report_url to use 127.0.0.1 to avoid NAT loopback issues with Playwright
+    import urllib.parse
+    parsed = urllib.parse.urlparse(report_url)
+    if parsed.netloc:
+        report_url = parsed._replace(netloc="127.0.0.1:8082", scheme="http").geturl()
+
     fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix=prefix)
     os.close(fd)
     try:

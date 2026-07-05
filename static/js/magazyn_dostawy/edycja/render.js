@@ -4,8 +4,8 @@
 function notifyReadOnly() {
         if (typeof showToast === 'function') {
             showToast('Status OCZEKUJE: formularz wydania działa w trybie podglądu.', 'warning');
-        } else {
-            alert('Status OCZEKUJE: formularz wydania działa w trybie podglądu.');
+        } else if (typeof AppDialog !== 'undefined') {
+            AppDialog.alert('Status OCZEKUJE: formularz wydania działa w trybie podglądu.');
         }
     }
 

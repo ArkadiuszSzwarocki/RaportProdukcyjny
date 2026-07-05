@@ -1,7 +1,7 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_tanks_service import AgroTanksService
 
 
 def _mock_connection_with_cursor(cursor):
@@ -20,10 +20,10 @@ def test_get_active_workowanie_plan_falls_back_when_today_has_no_row():
     cursor.fetchone.side_effect = [None, fallback_plan]
     conn = _mock_connection_with_cursor(cursor)
 
-    with patch('app.services.agro_warehouse_service.get_db_connection', return_value=conn), patch(
-        'app.services.agro_warehouse_service.get_table_name', return_value='plan_produkcji_agro'
+    with patch('app.repositories.agro_tanks_repository.get_db_connection', return_value=conn), patch(
+        'app.repositories.agro_tanks_repository.get_table_name', return_value='plan_produkcji_agro'
     ):
-        result = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
+        result = AgroTanksService.get_active_workowanie_plan(linia='AGRO')
 
     assert result == fallback_plan
     assert cursor.execute.call_count == 2
@@ -46,10 +46,10 @@ def test_get_active_workowanie_plan_with_target_date_skips_fallback():
     cursor.fetchone.return_value = expected_plan
     conn = _mock_connection_with_cursor(cursor)
 
-    with patch('app.services.agro_warehouse_service.get_db_connection', return_value=conn), patch(
-        'app.services.agro_warehouse_service.get_table_name', return_value='plan_produkcji_agro'
+    with patch('app.repositories.agro_tanks_repository.get_db_connection', return_value=conn), patch(
+        'app.repositories.agro_tanks_repository.get_table_name', return_value='plan_produkcji_agro'
     ):
-        result = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=target_date)
+        result = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=target_date)
 
     assert result == expected_plan
     assert cursor.execute.call_count == 1

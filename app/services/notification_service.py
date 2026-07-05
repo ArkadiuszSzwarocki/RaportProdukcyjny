@@ -116,3 +116,47 @@ def notify_workers_about_plan_batch(data_planu, plans_count, author_name, sekcja
         conn=conn,
         cursor=cursor,
     )
+
+
+def notify_workers_about_pallet_type_change(plan_context, new_rodzaj_palety, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
+    """Notify workers when planner changes pallet type to 'eksportowa' for a production order.
+
+    Sends an urgent notification to workowanie operators so they know to load
+    export pallets instead of standard ones before starting the affected order.
+
+    Args:
+        plan_context: Dict with plan data (produkt, sekcja, data_planu, id).
+        new_rodzaj_palety: The new pallet type value ('eksportowa' / 'krajowa').
+        author_name: Display name of the planner making the change.
+        conn: Optional DB connection (reused if provided).
+        cursor: Optional DB cursor (reused if provided).
+        created_by_user_id: ID of user triggering the notification.
+        linia: Production line ('PSD' / 'AGRO').
+    """
+    if not plan_context:
+        return []
+
+    if new_rodzaj_palety != 'eksportowa':
+        return []
+
+    produkt = plan_context.get('produkt') or 'Zlecenie'
+    data_planu = plan_context.get('data_planu')
+    sekcja = plan_context.get('sekcja') or 'Workowanie'
+
+    tytul = f'🚢 Palety eksportowe: {produkt}'
+    tresc = (
+        f'{_display_name(author_name)} ustawił PALETY EKSPORTOWE dla zlecenia {produkt}. '
+        f'Przed startem tego zlecenia załaduj palety eksportowe!'
+    )
+
+    return create_notifications(
+        typ='plan',
+        tytul=tytul,
+        tresc=tresc,
+        recipient_roles=EMPLOYEE_NOTIFICATION_ROLES,
+        link_url=build_section_link(data_planu, 'Workowanie'),
+        plan_id=plan_context.get('id'),
+        created_by_user_id=created_by_user_id,
+        conn=conn,
+        cursor=cursor,
+    )

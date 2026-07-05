@@ -184,12 +184,12 @@
                         }
                     } catch (error) {
                         console.error(error);
-                        global.alert('Błąd: nie udało się otworzyć popupu');
+                        if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd: nie udało się otworzyć popupu'); else global.alert('Błąd: nie udało się otworzyć popupu');
                     }
                 })
                 .catch(function (error) {
                     console.error('fetch popup failed', error);
-                    global.alert('Błąd ładowania zawartości');
+                    if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd ładowania zawartości'); else global.alert('Błąd ładowania zawartości');
                 });
         }, false);
     }

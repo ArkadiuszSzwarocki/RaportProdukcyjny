@@ -84,8 +84,8 @@
             stopStyle.id = 'dashboard-stop-decision-style';
             stopStyle.textContent = '' +
                 '#stop-decision-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:10000; }' +
-                '#stop-decision-modal.open { display:flex; }' +
-                '#stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:560px; max-width:92vw; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; }' +
+                '#stop-decision-modal.open { display:flex !important; }' +
+                '#stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:560px !important; max-width:92vw !important; margin:auto !important; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; flex-shrink: 0; }' +
                 '#stop-decision-modal h3 { margin:0 0 10px 0; font-size:1.1em; text-align:center; }' +
                 '#stop-decision-modal .actions { display:grid; grid-template-columns:1fr; gap:10px; margin-top:12px; }' +
                 '#stop-decision-modal .action-group { border:1px solid #e7edf3; border-radius:10px; padding:10px; background:#fbfdff; }' +

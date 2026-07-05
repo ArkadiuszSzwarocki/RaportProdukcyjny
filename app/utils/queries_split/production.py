@@ -106,7 +106,7 @@ class ProductionQueries:
             f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
-            f"data_planu, zasyp_id, COALESCE(odrzuty_przesiewacz, 0) as odrzuty_przesiewacz {extra_cols} "
+            f"data_planu, zasyp_id, COALESCE(odrzuty_przesiewacz, 0) as odrzuty_przesiewacz, rodzaj_palety {extra_cols} "
             f"FROM {table_plan} "
             f"WHERE {date_cond} AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
             f"{order_cond}",

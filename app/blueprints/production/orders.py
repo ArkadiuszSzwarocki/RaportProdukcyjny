@@ -331,7 +331,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     flash('❌ Nie można zakończyć zlecenia: najpierw zamknij aktywną folię.', 'error')
                     return redirect(bezpieczny_powrot())
 
-                from app.services.agro_warehouse_service import AgroWarehouseService
+                from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
                 from app.services.mqtt_service import get_latest_data
                 
                 # Fetch stop counter
@@ -385,7 +385,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 
                 if packaging_results:
                     szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
-                    AgroWarehouseService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
+                    AgroOpakowaniaPlanService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
 
             conn.commit()
             
@@ -538,8 +538,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
         linked_packaging = []
         if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
-            from app.services.agro_warehouse_service import AgroWarehouseService
-            linked_packaging = AgroWarehouseService.get_linked_packaging(id)
+            from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
+            linked_packaging = AgroOpakowaniaPlanService.get_linked_packaging(id)
 
         return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty, linked_packaging=linked_packaging, linia=linia)
 

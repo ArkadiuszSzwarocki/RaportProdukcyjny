@@ -222,12 +222,12 @@
         const weightToTake = parseFloat(weightInput.value.replace(',', '.'));
         
         if (isNaN(weightToTake) || weightToTake <= 0) {
-            alert('Wprowadź prawidłową wagę.');
+            AppDialog.alert('Wprowadź prawidłową wagę.');
             weightInput.focus();
             return;
         }
         if (weightToTake >= currentPallet.waga) {
-            alert(`Waga do zabrania (${weightToTake} kg) musi być MNIEJSZA niż dostępna waga (${currentPallet.waga} kg). Aby przenieść całą paletę użyj opcji "Przesunięcia".`);
+            AppDialog.alert(`Waga do zabrania (${weightToTake} kg) musi być MNIEJSZA niż dostępna waga (${currentPallet.waga} kg). Aby przenieść całą paletę użyj opcji "Przesunięcia".`);
             weightInput.focus();
             return;
         }
@@ -251,7 +251,7 @@
             const result = await response.json();
             
             if (!response.ok || !result.success) {
-                alert(result.error || 'Wystąpił błąd podczas podziału palety.');
+                AppDialog.alert(result.error || 'Wystąpił błąd podczas podziału palety.');
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 isSubmitting = false;
@@ -276,7 +276,7 @@
 
         } catch (err) {
             console.error(err);
-            alert('Błąd połączenia z serwerem.');
+            AppDialog.alert('Błąd połączenia z serwerem.');
             btn.innerHTML = originalText;
             btn.disabled = false;
             isSubmitting = false;

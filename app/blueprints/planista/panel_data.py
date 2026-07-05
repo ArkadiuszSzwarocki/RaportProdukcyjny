@@ -15,7 +15,8 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id, data_produkcji
+               zasyp_id, data_produkcji,
+               COALESCE(rodzaj_palety, 'krajowa') AS rodzaj_palety
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
         ORDER BY kolejnosc
@@ -29,7 +30,8 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id, data_produkcji
+               zasyp_id, data_produkcji,
+               COALESCE(rodzaj_palety, 'krajowa') AS rodzaj_palety
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
         ORDER BY kolejnosc

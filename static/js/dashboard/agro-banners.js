@@ -487,10 +487,6 @@
     }
 
     function sendZwolnienieMieszalnika() {
-        if (!global.confirm('Czy na pewno chcesz wysłać wielki komunikat o wyczyszczonym mieszalniku do wszystkich operatorów AGRO?')) {
-            return;
-        }
-
         fetch('/api/zasyp/zwolnij_mieszalnik', {
             method: 'POST',
             credentials: 'same-origin',

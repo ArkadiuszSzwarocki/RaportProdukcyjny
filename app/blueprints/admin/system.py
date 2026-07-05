@@ -25,10 +25,10 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/centrum/audyt')
     @dynamic_role_required('centrum')
     def admin_centrum_audyt():
-        from app.services.agro_warehouse_service import AgroWarehouseService
+        from app.services.agro.agro_surowce_service import AgroSurowceService
 
         linia = request.args.get('linia', 'Agro')
-        history = AgroWarehouseService.get_history(limit=50, linia=linia)
+        history = AgroSurowceService.get_history(limit=50, linia=linia)
         return render_template('centrum_audyt.html', history=history)
 
     @admin_bp.route('/admin/centrum/visual-inspector')

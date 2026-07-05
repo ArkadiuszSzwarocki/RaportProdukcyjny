@@ -1,8 +1,12 @@
 import re
 from flask import render_template, request, jsonify, session, redirect, url_for, current_app, flash
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_surowce_service import AgroSurowceService
+from app.services.agro.agro_tanks_service import AgroTanksService
 from app.services.dashboard_service import DashboardService
-from app.services.magazyn_dostawy_service import MagazynDostawyService
+from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
+from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+from app.services.magazyn_dostawy.location_service import LocationService
 from app.services.production_inventory_service import ProductionInventoryService
 from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
@@ -250,11 +254,11 @@ def history_production_inventory(tank_code):
 @dynamic_role_required('magazyn.inventory')
 def production_inventory_tank_history(tank_code):
     linia = request.args.get('linia', 'Agro')
-    normalized_tank = AgroWarehouseService.normalize_production_tank(tank_code)
+    normalized_tank = AgroTanksService.normalize_production_tank(tank_code)
     if not normalized_tank:
         return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
     limit = min(int(request.args.get('limit', 300)), 2000)
-    history_rows = AgroWarehouseService.get_production_tank_history(normalized_tank, limit=limit, linia=linia)
+    history_rows = AgroTanksService.get_production_tank_history(normalized_tank, limit=limit, linia=linia)
     return render_template('agro_warehouse/production_inventory_history.html', linia=linia, rola=session.get('rola'), tank_code=normalized_tank, history_rows=history_rows)
 
 @agro_warehouse_bp.route('/agro/api/inventory', methods=['POST'])
@@ -274,7 +278,7 @@ def api_inventory():
         except Exception:
             return (jsonify({'success': False, 'error': 'Nieprawidłowa ilość'}), 400)
         worker = session.get('login')
-        AgroWarehouseService.adjust_inventory(surowiec_id, qty, worker, linia=linia, komentarz=komentarz)
+        AgroSurowceService.adjust_inventory(surowiec_id, qty, worker, linia=linia, komentarz=komentarz)
         return jsonify({'success': True})
     except Exception as e:
         current_app.logger.error(f'Error in api_inventory: {e}')
@@ -295,7 +299,7 @@ def api_bulk_inventory():
             qty = it.get('actual_qty')
             note = it.get('komentarz', 'Inwentaryzacja zbiorcza')
             if s_id and qty is not None:
-                AgroWarehouseService.adjust_inventory(s_id, float(qty), worker, linia=linia, komentarz=note)
+                AgroSurowceService.adjust_inventory(s_id, float(qty), worker, linia=linia, komentarz=note)
                 updated_count += 1
         return jsonify({'success': True, 'updated': updated_count})
     except Exception as e:
@@ -307,7 +311,7 @@ def api_bulk_inventory():
 def api_locations_inventory():
     try:
         linia = request.args.get('linia', 'Agro')
-        rows = AgroWarehouseService.get_inventory(linia=linia)
+        rows = AgroSurowceService.get_inventory(linia=linia)
         items = []
         for r in rows:
             items.append({'id': r['id'], 'nazwa': r.get('nazwa'), 'lokalizacja': r.get('lokalizacja'), 'stan_magazynowy': float(r['stan_magazynowy']) if r.get('stan_magazynowy') is not None else 0})
@@ -322,7 +326,7 @@ def api_production_inventory():
     try:
         linia = request.args.get('linia', 'Agro')
         limit = min(int(request.args.get('limit', 500)), 2000)
-        items = AgroWarehouseService.get_production_inventory(limit=limit, linia=linia)
+        items = AgroTanksService.get_production_inventory(limit=limit, linia=linia)
         return jsonify({'success': True, 'items': items, 'count': len(items)})
     except Exception as e:
         current_app.logger.error(f'Error in api_production_inventory: {e}')
@@ -336,7 +340,7 @@ def api_production_inventory_snapshot():
         limit = min(int(request.args.get('limit', 4000)), 8000)
         show_empty_raw = str(request.args.get('show_empty', '')).strip().lower()
         show_empty = show_empty_raw in ('1', 'true', 'yes', 'y', 'on')
-        items = AgroWarehouseService.get_production_inventory_snapshot(limit=limit, linia=linia, show_empty=show_empty)
+        items = AgroTanksService.get_production_inventory_snapshot(limit=limit, linia=linia, show_empty=show_empty)
         return jsonify({'success': True, 'items': items, 'count': len(items)})
     except Exception as e:
         current_app.logger.error(f'Error in api_production_inventory_snapshot: {e}')
@@ -369,7 +373,7 @@ def api_adjust_production_inventory():
             if qty_val < 0:
                 errors.append({'ruch_id': ruch_id, 'error': 'Ilość nie może być ujemna'})
                 continue
-            ok, err = AgroWarehouseService.adjust_production_inventory(ruch_id, qty_val, worker_login=worker, linia=linia, komentarz=komentarz)
+            ok, err = AgroTanksService.adjust_production_inventory(ruch_id, qty_val, worker_login=worker, linia=linia, komentarz=komentarz)
             if ok:
                 updated += 1
             else:

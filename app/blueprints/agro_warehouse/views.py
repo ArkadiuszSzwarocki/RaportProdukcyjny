@@ -1,8 +1,13 @@
 import re
 from flask import render_template, request, jsonify, session, redirect, url_for, current_app, flash
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
+from app.services.agro.agro_surowce_service import AgroSurowceService
+from app.services.agro.agro_tanks_service import AgroTanksService
 from app.services.dashboard_service import DashboardService
-from app.services.magazyn_dostawy_service import MagazynDostawyService
+from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
+from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+from app.services.magazyn_dostawy.location_service import LocationService
 from app.services.production_inventory_service import ProductionInventoryService
 from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
@@ -20,24 +25,24 @@ def index():
         dzisiaj = datetime.strptime(request.args.get('data'), '%Y-%m-%d').date() if request.args.get('data') else _date.today()
     except Exception:
         dzisiaj = _date.today()
-    inventory = AgroWarehouseService.get_inventory_grouped(linia=linia)
-    inventory_by_location = AgroWarehouseService.get_inventory_by_location(linia=linia)
-    history = AgroWarehouseService.get_history(limit=50, linia=linia)
-    pending = AgroWarehouseService.get_history(status='OCZEKUJACE', linia=linia)
-    dictionary = AgroWarehouseService.get_dictionary()
+    inventory = AgroSurowceService.get_inventory_grouped(linia=linia)
+    inventory_by_location = AgroSurowceService.get_inventory_by_location(linia=linia)
+    history = AgroSurowceService.get_history(limit=50, linia=linia)
+    pending = AgroSurowceService.get_history(status='OCZEKUJACE', linia=linia)
+    dictionary = AgroSurowceService.get_dictionary()
     try:
-        current_plan = AgroWarehouseService.get_current_running_plan(linia=linia)
+        current_plan = AgroTanksService.get_current_running_plan(linia=linia)
         current_plan_id = current_plan['id'] if current_plan else None
         current_plan_name = current_plan['produkt'] if current_plan else None
     except Exception:
         current_plan_id = None
         current_plan_name = None
     try:
-        pending_wg = MagazynDostawyService.get_pending_production_pallets('AGRO')
+        pending_wg = DeliveryQueries.get_pending_production_pallets('AGRO')
     except Exception:
         pending_wg = []
     try:
-        production_tanks = AgroWarehouseService.get_production_tanks()
+        production_tanks = AgroTanksService.get_production_tanks()
     except Exception:
         production_tanks = {'BB': [], 'MZ': [], 'KO': [], 'ALL': []}
     magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia)
@@ -50,7 +55,7 @@ def opakowania():
     """Simple view for packaging warehouse (magazyn_opakowania) in AGRO."""
     linia = request.args.get('linia', 'Agro')
     try:
-        items = AgroWarehouseService.get_packaging_inventory(linia=linia)
+        items = AgroOpakowaniaService.get_packaging_inventory(linia=linia)
     except Exception:
         items = []
     return render_template('agro_warehouse/opakowania.html', items=items, linia=linia)
@@ -60,7 +65,7 @@ def opakowania():
 @dynamic_role_required('agro.magazyn')
 def surowce_w_produkcji():
     linia = request.args.get('linia', 'AGRO')
-    snapshot = AgroWarehouseService.get_production_inventory_snapshot(linia=linia, show_empty=True)
+    snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia, show_empty=True)
     import re
 
     def get_group(tank):

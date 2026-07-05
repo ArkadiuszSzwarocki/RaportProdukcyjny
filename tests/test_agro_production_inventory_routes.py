@@ -1,3 +1,4 @@
+from app.services.agro.agro_tanks_service import AgroTanksService
 import pytest
 from unittest.mock import patch
 
@@ -27,7 +28,7 @@ def test_snapshot_endpoint_defaults_show_empty_false(client):
     fake_items = [{'zbiornik': 'BB01', 'stan_systemowy': 125.0, 'is_empty': False}]
 
     with patch(
-        'app.blueprints.agro_warehouse.base.AgroWarehouseService.get_production_inventory_snapshot',
+        'app.blueprints.agro_warehouse.base.AgroTanksService.get_production_inventory_snapshot',
         return_value=fake_items,
     ) as mock_snapshot:
         response = client.get('/agro/api/production_inventory_snapshot?linia=AGRO')
@@ -45,7 +46,7 @@ def test_snapshot_endpoint_accepts_show_empty_flag(client):
     fake_items = [{'zbiornik': 'BB01', 'stan_systemowy': 0.0, 'is_empty': True}]
 
     with patch(
-        'app.blueprints.agro_warehouse.base.AgroWarehouseService.get_production_inventory_snapshot',
+        'app.blueprints.agro_warehouse.base.AgroTanksService.get_production_inventory_snapshot',
         return_value=fake_items,
     ) as mock_snapshot:
         response = client.get('/agro/api/production_inventory_snapshot?linia=AGRO&limit=123&show_empty=1')
@@ -78,7 +79,7 @@ def test_tank_history_endpoint_renders_history_page(client):
     ]
 
     with patch('app.core.contexts.inject_role_permissions', return_value=_allow_all_permissions()), patch(
-        'app.blueprints.agro_warehouse.base.AgroWarehouseService.get_production_tank_history',
+        'app.blueprints.agro_warehouse.base.AgroTanksService.get_production_tank_history',
         return_value=fake_history,
     ) as mock_history:
         response = client.get('/agro/magazyn/inwentaryzacja-produkcji/historia/BB01?linia=AGRO')

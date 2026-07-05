@@ -5,7 +5,10 @@ Opis: Agregator danych dashboardu. Ładuje dane HR, plany produkcji i kontekst d
 from app.db import get_db_connection, get_table_name
 from app.services.dashboard_service import DashboardService
 from app.services.dashboard_context_service import DashboardContextService
-from app.services.magazyn_dostawy_service import MagazynDostawyService
+from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
+from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+from app.services.magazyn_dostawy.location_service import LocationService
 
 
 def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, data_od=None, data_do=None):
@@ -51,7 +54,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
         if aktywna_sekcja == 'Magazyn':
             magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia, cursor=cursor)
             try:
-                pending_wg = MagazynDostawyService.get_pending_production_pallets(str(linia).upper())
+                pending_wg = DeliveryQueries.get_pending_production_pallets(str(linia).upper())
             except Exception:
                 pending_wg = []
 

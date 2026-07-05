@@ -31,8 +31,10 @@
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Oczekujące Przyjęcia</span>
+                {% set pallet_map = pending_pallets if pending_pallets is defined else {'PSD': 0, 'AGRO': 0} %}
+                {% set pending_pallets_for_hall = (pallet_map.get('ALL', (pallet_map.get('PSD', 0) + pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else pallet_map.get(hall_key, 0))|int %}
                 {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
-                <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_for_hall > 99 else pending_for_hall }}</span>
+                <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_for_hall > 99 else pending_for_hall }}/{{ '99+' if pending_pallets_for_hall > 99 else pending_pallets_for_hall }}</span>
                 {% endif %}
             </span>
         </a>

@@ -13,7 +13,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required
 from app.services.folio_service import FolioService
-from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
 
 
 def register_production_folio_routes(production_bp, bezpieczny_powrot):
@@ -271,7 +271,7 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
             flash('❌ Błąd: Podaj ilość do pobrania na maszynę.', 'danger')
             return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
 
-        ok, err = AgroWarehouseService.link_packaging_to_plan(
+        ok, err = AgroOpakowaniaPlanService.link_packaging_to_plan(
             opakowanie_id=opakowanie_id,
             plan_id=plan_id,
             ilosc_pobrana=ilosc_pobrana,

@@ -100,7 +100,7 @@ function isItemComplete(item) {
     }
 
 function normalizeLocation(value) {
-        return String(value || '').trim().toUpperCase();
+        return String(value || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
     }
 
 function isSameLocation(left, right) {

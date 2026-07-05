@@ -60,20 +60,24 @@ class ProductionService:
             if len(p) > 14 and p[14]:
                 zasyp_id_original_map[p[0]] = p[14]
             
-            # Extract opakowanie_nazwa and etykieta_nazwa if present
-            opak_nazwa = p[15] if len(p) > 15 else None
-            etyk_nazwa = p[16] if len(p) > 16 else None
+            # Extract extra columns properly based on SQL select list
+            odrzuty = p[15] if len(p) > 15 else 0
+            rodzaj_palety = p[16] if len(p) > 16 else 'krajowa'
+            opak_nazwa = p[17] if len(p) > 17 else None
+            etyk_nazwa = p[18] if len(p) > 18 else None
             
-            # Shrink back to 15 items to not mess up fixed index assignments
+            # Shrink back to 15 items (indices 0-14) to clear the dynamically added extra_cols
             while len(p) > 15:
                 p.pop()
 
-            # Ensure we have enough space for extra metadata (indices 15+)
-            while len(p) < 29:
+            # Ensure we have enough space for extra metadata (indices 15-29)
+            while len(p) < 30:
                 p.append(None)
                 
+            p[15] = odrzuty
             p[27] = opak_nazwa
             p[28] = etyk_nazwa
+            p[29] = rodzaj_palety
             
             src = przeniesione_map.get(p[0], '')
             if not src:
