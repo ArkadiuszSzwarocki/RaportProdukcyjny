@@ -4,6 +4,8 @@ import datetime
 import os
 import re
 
+_DODATEK_NAME_REGEX = re.compile(r'DODATEK')
+
 def _normalize_tank_code(value):
     normalized = str(value or '').strip().upper()
     return normalized or None
