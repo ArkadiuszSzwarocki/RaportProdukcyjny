@@ -70,7 +70,8 @@ def _create_tables(cursor):
             kolejnosc INT DEFAULT 0,
             typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
             wyjasnienie_rozbieznosci TEXT,
-            data_produkcji DATE DEFAULT NULL
+            data_produkcji DATE DEFAULT NULL,
+            rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'
         )
     """)
 
@@ -97,7 +98,8 @@ def _create_tables(cursor):
             is_deleted BOOLEAN DEFAULT 0,
             deleted_at DATETIME NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            data_produkcji DATE DEFAULT NULL
+            data_produkcji DATE DEFAULT NULL,
+            rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'
         )
     """)
 
@@ -1147,6 +1149,21 @@ def _migrate_columns(cursor):
     except Exception as e:
         print(f"[WARN] Failed to add index idx_agro_mix_zuzyte: {e}")
 
+    try:
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'rodzaj_palety'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'")
+            print("[OK] Added column rodzaj_palety to plan_produkcji")
+    except Exception as e:
+        print(f"[WARN] Failed to add column rodzaj_palety to plan_produkcji: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji_agro LIKE 'rodzaj_palety'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji_agro ADD COLUMN rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'")
+            print("[OK] Added column rodzaj_palety to plan_produkcji_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add column rodzaj_palety to plan_produkcji_agro: {e}")
 
 
 
