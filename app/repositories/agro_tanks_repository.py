@@ -6,6 +6,12 @@ import re
 
 _DODATEK_NAME_REGEX = re.compile(r'DODATEK')
 
+BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25)]
+MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 25)] + ["MZ05-01", "MZ06-01"]
+KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 25)]
+CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 99)]
+PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + CZ_TANK_CODES + ["WZ04"]
+
 def _normalize_tank_code(value):
     normalized = str(value or '').strip().upper()
     return normalized or None
