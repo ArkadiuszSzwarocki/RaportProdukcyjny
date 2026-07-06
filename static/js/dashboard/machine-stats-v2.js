@@ -174,8 +174,10 @@
         // 7. Opróżnianie Paletyzatora (Emptying Palletizer)
         if (data.oproznianie && data.oproznianie_snapshot) {
             const snapTs = data.oproznianie_snapshot.timestamp;
-            if (window.lastOproznianieTimestamp !== snapTs) {
+            const lastLocalTs = localStorage.getItem('lastOproznianieTs');
+            if (lastLocalTs !== String(snapTs) && window.lastOproznianieTimestamp !== snapTs) {
                 window.lastOproznianieTimestamp = snapTs;
+                localStorage.setItem('lastOproznianieTs', snapTs);
                 
                 // Show modal ONLY on the Workowanie page, not on the global dashboard
                 const configElem = document.getElementById('dashboard-config');
