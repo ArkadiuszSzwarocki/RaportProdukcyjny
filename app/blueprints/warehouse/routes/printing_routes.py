@@ -14,6 +14,7 @@ from app.utils.validation import require_field
 from app.utils.pallet_id import generate_pallet_id
 
 from .palety_helpers import _resolve_plan_id_for_paleta
+from .misc_routes import _parse_data_produkcji_input
 
 def _select_preferred_printer(cursor):
     """Pick production printer first, then fallback to any active printer."""
@@ -473,25 +474,23 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
                 candidate_target_ip = cand_ip or printer.printer_ip
                 candidate_ok = True
     
-                for copy_num in range(1, 3):
-                    print_ok, print_msg = printer.print_finished_product_label(
-                        label_data,
-                        override_ip=cand_ip,
-                        override_name=cand_name,
+                print_ok, print_msg = printer.print_finished_product_label(
+                    label_data,
+                    override_ip=cand_ip,
+                    override_name=cand_name,
+                    copies=2
+                )
+                if not print_ok:
+                    candidate_ok = False
+                    msg = print_msg
+                    current_app.logger.warning(
+                        'Ręczny wydruk paleta_id=%s nieudany (drukarka=%s, ip=%s, próba=%s): %s',
+                        paleta_id,
+                        candidate_target_name,
+                        candidate_target_ip,
+                        candidate_index,
+                        print_msg,
                     )
-                    if not print_ok:
-                        candidate_ok = False
-                        msg = f"{print_msg} (kopia {copy_num}/2)"
-                        current_app.logger.warning(
-                            'Ręczny wydruk paleta_id=%s nieudany na kopii %s/2 (drukarka=%s, ip=%s, próba=%s): %s',
-                            paleta_id,
-                            copy_num,
-                            candidate_target_name,
-                            candidate_target_ip,
-                            candidate_index,
-                            print_msg,
-                        )
-                        break
     
                 if candidate_ok:
                     ok = True

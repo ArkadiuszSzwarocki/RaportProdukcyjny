@@ -591,7 +591,7 @@ class AgroTanksRepository:
                     return False
                 
                 waga_input = 1000
-                now_ts = datetime.now()
+                now_ts = datetime.datetime.now()
                 user_login = 'System'
                 source_instance = str(source_instance or 'unknown')[:120]
                 cooldown_seconds = _get_auto_pallet_cooldown_seconds()
@@ -699,27 +699,24 @@ class AgroTanksRepository:
                                 override_name = printer_row[1] if len(printer_row) > 1 else None
                                 override_ip = printer_row[2] if len(printer_row) > 2 else None
 
-                            for copy_num in range(1, 3):
-                                ok, print_msg = printer.print_finished_product_label(
-                                    label_data,
-                                    override_ip=override_ip,
-                                    override_name=override_name,
-                                )
-                                logger.info(
-                                    'System auto-print copy %s/2 for paleta=%s (plan_id=%s, source=%s): success=%s, printer=%s, ip=%s, msg=%s',
-                                    copy_num,
-                                    nr_palety,
-                                    plan_id,
-                                    source_instance,
-                                    ok,
-                                    override_name or printer.printer_name,
-                                    override_ip or printer.printer_ip,
-                                    print_msg,
-                                )
-                                if not ok:
-                                    break
+                            ok, print_msg = printer.print_finished_product_label(
+                                label_data,
+                                override_ip=override_ip,
+                                override_name=override_name,
+                                copies=2
+                            )
+                            logging.info(
+                                'System auto-print for paleta=%s (plan_id=%s, source=%s): success=%s, printer=%s, ip=%s, msg=%s',
+                                nr_palety,
+                                plan_id,
+                                source_instance,
+                                ok,
+                                override_name or printer.printer_name,
+                                override_ip or printer.printer_ip,
+                                print_msg,
+                            )
                     except Exception as print_err:
-                        logger.error(
+                        logging.error(
                             'System auto-print failed for paleta=%s (plan_id=%s, source=%s): %s',
                             nr_palety,
                             plan_id,

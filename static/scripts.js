@@ -2177,7 +2177,7 @@ window.showConfirmModal = function(message, onConfirm) {
 
         const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
 
-        let url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
+        let url = '/api/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         if (source) {
             url += '&source=' + encodeURIComponent(source);
         }

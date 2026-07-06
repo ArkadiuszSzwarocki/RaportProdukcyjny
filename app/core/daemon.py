@@ -523,6 +523,15 @@ def _print_spooler_loop(interval_seconds: int = 5):
                 conn = get_db_connection()
                 try:
                     cursor = conn.cursor(dictionary=True)
+                    
+                    # Ensure only one worker processes the print queue
+                    cursor.execute("SELECT GET_LOCK('print_spooler_daemon_leader', 0)")
+                    lock_result = cursor.fetchone()
+                    got_lock = list(lock_result.values())[0] if lock_result else 0
+                    
+                    if not got_lock:
+                        continue
+
                     # Szukamy zadań PENDING lub ERROR z liczbą prób < 3
                     cursor.execute("""
                         SELECT id, printer_ip, printer_name, zpl_content, retry_count
@@ -560,6 +569,9 @@ def _print_spooler_loop(interval_seconds: int = 5):
                             cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
                                            (err, retry + 1, job_id))
                             conn.commit()
+                            
+                    if got_lock:
+                        cursor.execute("SELECT RELEASE_LOCK('print_spooler_daemon_leader')")
                 finally:
                     conn.close()
             except Exception as error:
@@ -679,7 +691,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
             # Map plan_id -> last pallet id printed by wrap rising edge
             last_printed_wrap_pallet_ids = {}
             next_heartbeat_at = 0.0
-            leader_lock_name = 'agro_pallet_daemon_leader'
+            leader_lock_name = 'agro_pallet_daemon_leader_v2'
             leader_lock_conn = None
             next_lock_retry_at = 0.0
             

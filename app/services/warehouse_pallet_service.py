@@ -379,15 +379,15 @@ class WarehousePalletService:
                     has_weight_difference = False
     
             if is_ajax and check_only_request:
-                return jsonify(
+                return (
                     {
                         'success': True,
                         'check_only': True,
                         'has_difference': has_weight_difference,
                         'difference': weight_difference,
                         'requires_confirmation': has_weight_difference,
-                    }
-                ), 200
+                    }, 200, None
+                )
     
             try:
                 if provided_netto is not None:
@@ -408,7 +408,7 @@ class WarehousePalletService:
             stored_netto = None
             try:
                 cursor.execute(
-                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s",
+                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s",
                     (paleta_id,),
                 )
                 prev_row = cursor.fetchone()
@@ -462,14 +462,17 @@ class WarehousePalletService:
                     cursor.execute(f"SELECT data_planu, produkt, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
                     row = cursor.fetchone()
                     if row and prev_status not in ('przyjeta', 'w_magazynie'):
-                        cursor.execute(f"SELECT id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (row[0], row[1]))
-                        mp = cursor.fetchone()
-                        mp_id = mp[0] if mp else None
+                        if linia == 'AGRO':
+                            mp_id = plan_id
+                        else:
+                            cursor.execute(f"SELECT id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (row[0], row[1]))
+                            mp = cursor.fetchone()
+                            mp_id = mp[0] if mp else None
     
                         nr_partii = request.form.get('nr_partii')
                         
                         # Check request.form, then fallback to plan's data_produkcji, then fallback to plan's date, then fallback to current date
-                        data_produkcji = data_produkcji
+                        data_produkcji = request.form.get('data_produkcji') if request else None
                         if not data_produkcji or not data_produkcji.strip():
                             plan_prod_date = row[2]
                             if plan_prod_date:

@@ -336,7 +336,7 @@ class PrintServer:
             return str(value).replace('.0', '')
         return '0'
 
-    def build_pallet_label_zpl(self, label_data: dict) -> str:
+    def build_pallet_label_zpl(self, label_data: dict, copies: int = 1) -> str:
         """Buduje ZPL dla etykiety surowca/opakowania."""
         nr_palety = str(label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
         if not nr_palety:
@@ -385,9 +385,10 @@ class PrintServer:
 ^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
 ^FO40,1050^A0N,60,60^FDILOSC/WAGA:^FS
 ^FO350,1040^A0N,80,80^FD{qty_display} {jednostka}^FS
+^PQ{copies}
 ^XZ"""
 
-    def build_finished_product_label_zpl(self, label_data: dict) -> str:
+    def build_finished_product_label_zpl(self, label_data: dict, copies: int = 1) -> str:
         """Buduje ZPL dla etykiety wyrobu gotowego."""
         nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
         product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
@@ -412,16 +413,17 @@ class PrintServer:
 {plomba_line}
 ^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
 ^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^PQ{copies}
 ^XZ"""
 
-    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
         """Wysyła dane palety do kolejki z wygenerowanym kodem ZPL 4x6."""
-        zpl_string = self.build_pallet_label_zpl(label_data)
+        zpl_string = self.build_pallet_label_zpl(label_data, copies=copies)
         return self.queue_print_job(zpl_string, override_ip, override_name)
 
-    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
         """Wysyła dane palety wyrobu gotowego do kolejki z wygenerowanym kodem ZPL 4x6."""
-        zpl_string = self.build_finished_product_label_zpl(label_data)
+        zpl_string = self.build_finished_product_label_zpl(label_data, copies=copies)
         return self.queue_print_job(zpl_string, override_ip, override_name)
 
     def queue_print_job(self, zpl_content: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:

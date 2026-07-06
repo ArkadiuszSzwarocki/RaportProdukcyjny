@@ -223,6 +223,8 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         )
         
         if is_ajax:
+            if isinstance(result, dict):
+                return jsonify(result), status_code
             return jsonify({'success': status_code < 400, 'message': result}), status_code
         if status_code != 302:
             flash(result, 'error' if status_code >= 400 else 'success')
