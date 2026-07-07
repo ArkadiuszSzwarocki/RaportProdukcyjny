@@ -366,7 +366,8 @@ def raport_przesuniecia(dostawa_id):
                         if row['lokalizacja'] == 'OCZEKUJĄCE':
                             still_pending = True
                 
-                if dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk):
+                is_external = not dostawa.get('lokalizacja_z')
+                if is_external and dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk):
                     # Zmieniamy tymczasowo dla raportu (lub można zupdatować w DB)
                     dostawa['status'] = 'COMPLETED'
                     cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))

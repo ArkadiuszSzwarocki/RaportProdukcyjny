@@ -88,10 +88,19 @@ class AcceptanceService:
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w surowcach!", None
                     cursor.execute(f"SELECT 1 FROM {table_opk} WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w opakowaniach!", None
-                if target.get('packageForm') == 'packaging':
+                    cursor.execute(f"SELECT 1 FROM magazyn_dodatki WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w dodatkach!", None
+
+                p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
+
+                if target.get('packageForm') == 'packaging' or p_type_scanned == 'opakowanie':
                     qty = float(target.get('unitsPerPallet') or 0)
                     cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                     p_type = 'opakowanie'
+                elif p_type_scanned == 'dodatek':
+                    qty = float(target.get('netWeight') or 0)
+                    cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
+                    p_type = 'dodatek'
                 else:
                     qty = float(target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
@@ -100,7 +109,7 @@ class AcceptanceService:
                 # Get the ID of the pallet (new or existing)
                 pallet_id = cursor.lastrowid
                 if not pallet_id or pallet_id == 0:
-                    table_name = table_opk if target.get('packageForm') == 'packaging' else table_sur
+                    table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)
                     cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja,))
                     p_row = cursor.fetchone()
                     pallet_id = p_row['id'] if p_row else None

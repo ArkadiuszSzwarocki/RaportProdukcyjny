@@ -151,6 +151,9 @@ class DeliveryCommandService:
                                 if not restored:
                                     cursor.execute(f"UPDATE {table_opk} SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (orig_loc, curr_loc, p_name))
                                     restored = cursor.rowcount > 0
+                                if not restored:
+                                    cursor.execute(f"UPDATE magazyn_dodatki SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (orig_loc, curr_loc, p_name))
+                                    restored = cursor.rowcount > 0
                                 
                                 if restored:
                                     cursor.execute(

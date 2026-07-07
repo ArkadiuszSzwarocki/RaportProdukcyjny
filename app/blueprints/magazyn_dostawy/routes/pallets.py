@@ -531,9 +531,9 @@ def get_available_pallets():
         q3 = f"""
             SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'dodatek' as type
             FROM magazyn_dodatki
-            WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause} AND linia = %s
+            WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
         """
-        cursor.execute(q3, (params if params else []) + [linia])
+        cursor.execute(q3, params if params else [])
         pallets.extend(cursor.fetchall())
 
         pallets.sort(key=lambda x: (str(x.get('lokalizacja') or ''), str(x.get('nazwa') or ''), x.get('id') or 0))
@@ -635,7 +635,7 @@ def api_info_paleta():
             table_pal = get_table_name('palety_workowanie', linia)
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(f'''
-                SELECT pw.id, pw.nr_palety, pw.waga, p.produkt, '' as lokalizacja, pw.plan_id, 'produkcja' as source, %s as linia, p.data as data_planu
+                SELECT pw.id, pw.nr_palety, pw.waga, p.produkt, '' as lokalizacja, pw.plan_id, 'produkcja' as source, %s as linia, p.data_planu as data_planu
                 FROM {table_pal} pw
                 JOIN {table_plan} p ON pw.plan_id = p.id
                 WHERE UPPER(pw.nr_palety) = UPPER(%s) AND pw.waga > 0
@@ -761,6 +761,8 @@ def api_podzial_palety():
         now_dt = datetime.now()
 
         new_pallet_id = None
+        plan_id = None
+        label_url = ''
         
         if mother_table in ('surowiec', 'opakowanie', 'dodatek'):
             if mother_table == 'surowiec':
@@ -782,6 +784,19 @@ def api_podzial_palety():
                 pal.get('nr_partii'), pal.get('certyfikat'), pal.get('lokalizacja'), login, now_dt
             ))
             new_pallet_id = cursor.lastrowid
+            
+            import urllib.parse
+            query_params = urllib.parse.urlencode({
+                'nr_palety': new_sscc,
+                'product_name': pal.get('nazwa') or '',
+                'nr_partii': pal.get('nr_partii') or '',
+                'data_produkcji': str(pal.get('data_produkcji') or ''),
+                'data_przydatnosci': str(pal.get('termin_przydatnosci') or ''),
+                'qty': weight_to_take,
+                'p_type': mother_table,
+                'linia': linia
+            })
+            label_url = f"/magazyn-dostawy/podglad-etykiety?{query_params}"
         else:
             # Update mother pallet
             t_mother = get_table_name('magazyn_palety' if mother_table == 'magazyn' else 'palety_workowanie', linia)
@@ -813,12 +828,14 @@ def api_podzial_palety():
                     new_prod_id, plan_id, pal.get('data_planu'), pal.get('produkt'), weight_to_take,
                     new_sscc, pal.get('lokalizacja'), login, now_dt, now_dt, linia
                 ))
+            
+            label_url = f"/magazyn-dostawy/podglad-etykiety-system/{new_pallet_id}?linia={linia}"
 
         conn.commit()
 
         return jsonify({
             'success': True, 
-            'label_url': f"/magazyn-dostawy/podglad-etykiety-system/{new_pallet_id}?linia={linia}",
+            'label_url': label_url,
             'new_pallet': {
                 'id': new_pallet_id,
                 'nr_palety': new_sscc,

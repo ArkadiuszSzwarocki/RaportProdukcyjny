@@ -93,7 +93,7 @@ class DashboardService:
             table_sur = get_table_name('magazyn_surowce', linia)
             # Find pallets where data_przydatnosci is between today and today + 30 days
             q = f"""
-                SELECT id, nr_palety, nazwa, nr_partii, lokalizacja, data_produkcji, data_przydatnosci, stan_magazynowy, rodzaj_opakowania, producent
+                SELECT id, nr_palety, nazwa, nr_partii, lokalizacja, data_produkcji, data_przydatnosci, stan_magazynowy
                 FROM {table_sur}
                 WHERE stan_magazynowy > 0
                   AND data_przydatnosci IS NOT NULL
