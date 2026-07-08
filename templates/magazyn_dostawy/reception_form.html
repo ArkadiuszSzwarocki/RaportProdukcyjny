@@ -517,7 +517,7 @@
                     e.stopPropagation();
                     e.preventDefault();
                     instance.changeYear(selectedYear);
-                    instance.changeMonth(idx);
+                    instance.changeMonth(idx, false);
                     overlay.style.display = "none";
                 };
                 monthView.appendChild(btn);
