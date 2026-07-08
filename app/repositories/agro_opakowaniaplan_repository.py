@@ -670,7 +670,7 @@ class AgroOpakowaniaPlanRepository:
                 'tryb_zwrotu': 'CZESCIOWY' if is_partial else 'CALKOWITY',
             }
 
-            if print_result['requested']:
+            if False:  # TYMCZASOWO WYŁĄCZONE DRUKOWANIE ETYKIET PO OWIJARCE
                 try:
                     ok, msg = AgroOpakowaniaPlanRepository.print_packaging_return_label(return_label)
                     print_result['success'] = bool(ok)
