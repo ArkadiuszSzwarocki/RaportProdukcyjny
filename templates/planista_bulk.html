@@ -76,8 +76,9 @@
           </select>
         </div>
         <div class="form-field">
-          <label style="display:flex;align-items:center;gap:6px;">🚢 Rodzaj palety</label>
-          <select id="inpRodzajPalety" aria-label="Rodzaj palety" style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; font-size: 0.95rem; cursor: pointer;">
+          <label style="display:flex;align-items:center;gap:6px;">🚢 Rodzaj palety <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpRodzajPalety" aria-label="Rodzaj palety" required style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; font-size: 0.95rem; cursor: pointer;">
+            <option value="">-- Wybierz rodzaj palety --</option>
             <option value="krajowa">🏠 Krajowa (zwykła)</option>
             <option value="eksportowa">🚢 Eksportowa</option>
           </select>
