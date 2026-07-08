@@ -222,3 +222,63 @@ def raport_palet():
         return (f'Błąd generowania raportu: {str(e)}', 500)
     finally:
         conn.close()
+
+
+@agro_warehouse_bp.route('/agro/raport_palet_daily', methods=['GET'])
+@login_required
+def raport_palet_daily():
+    """Daily pallet report for AGRO line. Shows pallets created on a given day and allows CSV export."""
+    from datetime import datetime, date, timedelta
+    data_str = request.args.get('data') or request.args.get('date') or date.today().isoformat()
+    try:
+        day = datetime.strptime(data_str, '%Y-%m-%d').date()
+    except Exception:
+        day = date.today()
+    next_day = day + timedelta(days=1)
+
+    export = request.args.get('export') == 'csv'
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT p.id as paleta_id, COALESCE(m.nr_palety, p.nr_palety) as nr_palety, p.waga, p.status,
+                   p.data_dodania, p.dodal_login as dodal, COALESCE(m.potwierdzil_login, p.potwierdzil_login) as potwierdzil,
+                   w.produkt, w.id as plan_id
+            FROM palety_agro p
+            LEFT JOIN magazyn_palety_agro m ON m.paleta_workowanie_id = p.id
+            LEFT JOIN plan_produkcji_agro w ON w.id = p.plan_id
+            WHERE p.data_dodania >= %s AND p.data_dodania < %s
+            ORDER BY p.data_dodania ASC
+            """,
+            (day.isoformat(), next_day.isoformat()),
+        )
+        rows = cursor.fetchall()
+        if export:
+            # stream CSV
+            import io, csv
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['data_dodania', 'nr_palety', 'produkt', 'waga_kg', 'plan_id', 'dodal', 'potwierdzil', 'status'])
+            for r in rows:
+                writer.writerow([
+                    r.get('data_dodania').strftime('%Y-%m-%d %H:%M:%S') if r.get('data_dodania') else '',
+                    r.get('nr_palety') or '',
+                    r.get('produkt') or '',
+                    r.get('waga') or 0,
+                    r.get('plan_id') or '',
+                    r.get('dodal') or '',
+                    r.get('potwierdzil') or '',
+                    r.get('status') or '',
+                ])
+            output.seek(0)
+            return Response(output.getvalue(), mimetype='text/csv', headers={
+                'Content-Disposition': f'attachment; filename=raport_palet_agro_{day.isoformat()}.csv'
+            })
+
+        return render_template('agro_warehouse/raport_palet_daily.html', rows=rows, day=day)
+    except Exception as e:
+        current_app.logger.error(f'Error generating daily pallet report: {e}')
+        return (f'Błąd generowania raportu: {e}', 500)
+    finally:
+        conn.close()

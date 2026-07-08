@@ -1,0 +1,201 @@
+{% extends 'layout.html' %}
+
+{% block title %}System Traceability (Śledzenie Partii){% endblock %}
+
+{% block extra_css %}
+<style>
+    .traceability-container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .search-section {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+    
+    .search-input-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .search-input-group input {
+        flex: 1;
+        padding: 15px;
+        font-size: 1.1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    
+    .search-input-group input:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .search-input-group button {
+        padding: 15px 30px;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .search-input-group button:hover {
+        background: #2563eb;
+    }
+
+    /* Trace Nodes */
+    .trace-tree {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        position: relative;
+    }
+    
+    .trace-level {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .trace-level-title {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .trace-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #3b82f6;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    .trace-card.type-delivery { border-left-color: #f59e0b; }
+    .trace-card.type-plan { border-left-color: #8b5cf6; }
+    .trace-card.type-pallet { border-left-color: #10b981; }
+    .trace-card.type-material { border-left-color: #ef4444; }
+    
+    .trace-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+    
+    .trace-card-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .trace-card-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: #f1f5f9;
+        color: #475569;
+    }
+    
+    .trace-card-body {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        font-size: 0.9rem;
+        color: #475569;
+    }
+    
+    .trace-detail span {
+        display: block;
+        font-size: 0.8rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+    }
+    
+    .trace-detail strong {
+        color: #1e293b;
+    }
+    
+    /* Loading Spinner */
+    .loader {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3b82f6;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+        display: none;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .error-alert {
+        background: #fef2f2;
+        border: 1px solid #f87171;
+        color: #991b1b;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="traceability-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="m-0"><i class="fas fa-project-diagram text-primary"></i> System Traceability</h2>
+    </div>
+
+    <div class="search-section">
+        <form id="traceForm" onsubmit="performSearch(event)">
+            <label class="form-label text-muted fw-bold mb-2">Skanuj lub wprowadź numer partii surowca / numer palety wyrobu gotowego</label>
+            <div class="search-input-group">
+                <input type="text" id="searchInput" placeholder="np. LOT-2026..., PSD..., AGR..." required autocomplete="off" autofocus>
+                <button type="submit" id="searchBtn">
+                    <i class="fas fa-search"></i> Szukaj
+                </button>
+            </div>
+            <div class="mt-2 text-muted small">
+                System automatycznie rozpozna rodzaj wyszukiwania (partia lub wyprodukowana paleta).
+            </div>
+        </form>
+    </div>
+
+    <div id="loader" class="loader"></div>
+    <div id="errorAlert" class="error-alert"></div>
+    <div id="resultsContainer"></div>
+
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script src="{{ url_for('static', filename='js/traceability.js') }}?v={{ static_version }}"></script>
+{% endblock %}

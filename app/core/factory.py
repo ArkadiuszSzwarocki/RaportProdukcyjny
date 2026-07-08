@@ -36,6 +36,7 @@ from app.blueprints.mom import mom_bp
 from app.blueprints.magazyny_nowe import magazyny_nowe_bp
 from app.blueprints.scanner import scanner_bp
 from app.blueprints.magazyn_dostawy import magazyn_dostawy_bp
+from app.blueprints.traceability import traceability_bp
 from app.blueprints.inwentaryzacja import inwentaryzacja_bp
 from app.blueprints.inwentaryzacja_produkcji import inwentaryzacja_produkcji_bp
 from app import db
@@ -124,6 +125,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(magazyny_nowe_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(magazyn_dostawy_bp)
+    app.register_blueprint(traceability_bp)
     app.register_blueprint(inwentaryzacja_bp)
     app.register_blueprint(inwentaryzacja_produkcji_bp)
 

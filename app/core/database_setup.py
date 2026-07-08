@@ -495,6 +495,24 @@ def _create_tables(cursor):
         )
     """)
 
+    # Tabela składników receptury AGRO — powiązana przez nr_receptury z produkty_receptury
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receptury_agro_skladniki (
+            id              INT AUTO_INCREMENT PRIMARY KEY,
+            nr_receptury    VARCHAR(64) NOT NULL,
+            nazwa_produktu  VARCHAR(100) NOT NULL,
+            kolejnosc       INT DEFAULT 0,
+            skladnik_nazwa  VARCHAR(255) NOT NULL,
+            ilosc_kg_szarza FLOAT NULL DEFAULT NULL,
+            typ             VARCHAR(50) DEFAULT 'surowiec',
+            aktywny         TINYINT(1) DEFAULT 1,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_receptury_agro_nr (nr_receptury),
+            INDEX idx_receptury_agro_aktywny (aktywny)
+        )
+    """)
+
     # MOM — rozliczenie materiałowe per zlecenie AGRO
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS mom_rozliczenia (

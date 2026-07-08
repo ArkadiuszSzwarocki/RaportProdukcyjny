@@ -14,7 +14,7 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['magazyny_nowe', 'magazyn_dostawy', 'scanner'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['magazyny_nowe', 'magazyn_dostawy', 'scanner', 'traceability'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('magazyny_nowe.index', linia=effective_hall) }}" class="nav-sub-item {% if request.blueprint == 'magazyny_nowe' %}active{% endif %}">Wszystkie Magazyny</a>
         {% endif %}
@@ -56,6 +56,10 @@
         
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
+        
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+        
+        <a href="{{ url_for('traceability.index') }}" class="nav-sub-item {% if request.blueprint == 'traceability' %}active{% endif %}">Traceability (Śledzenie partii)</a>
         
     </div>
 </div>

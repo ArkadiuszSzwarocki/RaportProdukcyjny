@@ -63,21 +63,23 @@ class ProductionService:
             # Extract extra columns properly based on SQL select list
             odrzuty = p[15] if len(p) > 15 else 0
             rodzaj_palety = p[16] if len(p) > 16 else 'krajowa'
-            opak_nazwa = p[17] if len(p) > 17 else None
-            etyk_nazwa = p[18] if len(p) > 18 else None
+            nr_receptury_val = p[17] if len(p) > 17 else ''
+            opak_nazwa = p[18] if len(p) > 18 else None
+            etyk_nazwa = p[19] if len(p) > 19 else None
             
             # Shrink back to 15 items (indices 0-14) to clear the dynamically added extra_cols
             while len(p) > 15:
                 p.pop()
 
-            # Ensure we have enough space for extra metadata (indices 15-29)
-            while len(p) < 30:
+            # Ensure we have enough space for extra metadata (indices 15-30)
+            while len(p) < 31:
                 p.append(None)
                 
             p[15] = odrzuty
             p[27] = opak_nazwa
             p[28] = etyk_nazwa
             p[29] = rodzaj_palety
+            p[30] = nr_receptury_val
             
             src = przeniesione_map.get(p[0], '')
             if not src:

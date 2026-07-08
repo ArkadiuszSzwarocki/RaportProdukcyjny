@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Raport Palet AGRO - {{ day }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Raport Palet AGRO — {{ day }}</h1>
+    <div style="margin-bottom:12px;">
+        <a href="{{ url_for('agro_warehouse.raport_palet_daily', data=day.isoformat(), export='csv') }}" class="btn-action">Eksportuj CSV</a>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Data dodania</th>
+                <th>Nr palety</th>
+                <th>Produkt</th>
+                <th>Waga (kg)</th>
+                <th>Plan / Zlecenie</th>
+                <th>Dodał</th>
+                <th>Potwierdził</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in rows %}
+            <tr>
+                <td>{{ r.data_dodania.strftime('%Y-%m-%d %H:%M:%S') if r.data_dodania else '' }}</td>
+                <td>{{ r.nr_palety or '' }}</td>
+                <td>{{ r.produkt or '' }}</td>
+                <td>{{ r.waga or 0 }}</td>
+                <td>{{ r.plan_id or '' }}</td>
+                <td>{{ r.dodal or '' }}</td>
+                <td>{{ r.potwierdzil or '' }}</td>
+                <td>{{ r.status or '' }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8">Brak danych dla wybranego dnia.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

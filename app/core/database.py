@@ -103,4 +103,7 @@ def get_table_name(base_table, linia='PSD'):
     return resolve_table_name(base_table, linia)
 
 _persisted_db = _load_persisted_database_name()
+if _persisted_db:
+    with _DB_CONFIG_LOCK:
+        DB_CONFIG['database'] = _persisted_db
 
