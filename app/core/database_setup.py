@@ -1041,6 +1041,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_operator_at", "DATETIME NULL", "Dodawanie kolumny 'start_checklist_operator_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'start_checklist_quality_login' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_at", "DATETIME NULL", "Dodawanie kolumny 'start_checklist_quality_at' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "nr_partii", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_partii' - numer partii produkcji (AGRO)")
 
     # Rejestr produktów - domyślny worek/folia i etykieta
     _add_column_if_missing(cursor, "produkty_receptury", "opakowanie_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'opakowanie_id' do rejestru produktów")

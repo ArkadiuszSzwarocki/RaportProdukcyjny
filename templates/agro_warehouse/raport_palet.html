@@ -175,6 +175,9 @@
             <div class="plan-info">
                 <h2>{{ item.plan.produkt }}</h2>
                 <small>{{ item.plan.nazwa_zlecenia or '' }}</small>
+                {% if item.plan.nr_partii %}
+                <div style="margin-top: 6px; font-size: 0.95em; color: #555;"><strong>Nr Partii:</strong> {{ item.plan.nr_partii }}</div>
+                {% endif %}
             </div>
             <div class="plan-stats">
                 <div class="stat-item">

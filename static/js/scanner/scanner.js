@@ -233,14 +233,63 @@ function lookupPallet(code) {
   .then(r => r.json())
   .then(d => {
     if (d.success) {
-      showPallet(d.pallet);
-      showToast('✅ Znaleziono: ' + d.pallet.nazwa, 'success');
+      if (d.pallet.is_station) {
+        showStation(d.pallet);
+        showToast(`✅ Znaleziono stację: ${d.pallet.station_code}`, 'success');
+      } else {
+        showPallet(d.pallet);
+        showToast('✅ Znaleziono: ' + d.pallet.nazwa, 'success');
+      }
     } else {
       hidePallet();
+      hideStation();
       showToast('❌ ' + d.error, 'danger');
     }
   })
   .catch(e => showToast('Błąd sieci: ' + e, 'danger'));
+}
+
+function showStation(station) {
+  hidePallet();
+  const stationCard = document.getElementById('stationCard');
+  const stationCodeEl = document.getElementById('stationCode');
+  const itemsListEl = document.getElementById('stationItemsList');
+  const noStationMsg = document.getElementById('nostationMsg');
+
+  stationCodeEl.textContent = station.station_code;
+  itemsListEl.innerHTML = '';
+
+  if (station.items && station.items.length > 0) {
+    station.items.forEach(item => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'station-item';
+      itemEl.onclick = () => showPallet(item);
+      
+      itemEl.innerHTML = `
+        <div class="station-item-name">${item.nazwa}</div>
+        <div class="station-item-details">
+          <span><strong>Ilość:</strong> ${parseFloat(item.stan_magazynowy).toFixed(1)} kg</span>
+          <span><strong>ID:</strong> ${item.inventory_code}</span>
+          ${item.nr_partii ? `<span><strong>Partia:</strong> ${item.nr_partii}</span>` : ''}
+        </div>
+      `;
+      itemsListEl.appendChild(itemEl);
+    });
+    noStationMsg.style.display = 'none';
+  } else {
+    noStationMsg.style.display = 'block';
+  }
+
+  stationCard.style.display = 'block';
+  scanInput.value = '';
+  scanInput.focus();
+}
+
+function hideStation() {
+  const stationCard = document.getElementById('stationCard');
+  if (stationCard) {
+    stationCard.style.display = 'none';
+  }
 }
 
 function showPallet(p) {
@@ -326,6 +375,7 @@ function hidePallet() {
   if(iconEl) iconEl.style.color = '';
 }
 hidePallet();
+hideStation();
 
 /* ─── Print ───────────────────────────────────────────────── */
 let currentPrintType = 'pallet';

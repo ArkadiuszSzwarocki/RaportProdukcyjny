@@ -65,8 +65,8 @@
                 </button>
             </form>
             {% endif %}
-            {% if linia == 'AGRO' %}
-            {# Przycisk Receptura — zawsze widoczny dla uprawnionych w sekcji Zasyp AGRO #}
+            {% if linia == 'AGRO' and rola != 'laborant' %}
+            {# Przycisk Receptura — widoczny dla uprawnionych (nie dla laboranta) #}
             {% set plan_nr_receptury = p[30] if p|length > 30 else '' %}
             <button type="button"
                     class="btn-action"

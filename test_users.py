@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find users table."""
+"""Find valid login credentials."""
 
 import sys
 sys.path.insert(0, '.')
@@ -10,13 +10,12 @@ conn = get_db_connection()
 try:
     cursor = conn.cursor(dictionary=True)
     
-    print("=== Tables in database ===\n")
-    cursor.execute("SHOW TABLES")
+    print("=== Available users ===\n")
+    cursor.execute("SELECT id, login, rola FROM uzytkownicy LIMIT 10")
     rows = cursor.fetchall()
     
     for row in rows:
-        table_name = list(row.values())[0]
-        print(f"  {table_name}")
+        print(f"ID: {row.get('id')}, Login: {row.get('login')}, Role: {row.get('rola')}")
     
 finally:
     conn.close()

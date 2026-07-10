@@ -17,6 +17,7 @@
                 <th>Data dodania</th>
                 <th>Nr palety</th>
                 <th>Produkt</th>
+                <th>Nr Partii</th>
                 <th>Waga (kg)</th>
                 <th>Plan / Zlecenie</th>
                 <th>Dodał</th>
@@ -30,6 +31,7 @@
                 <td>{{ r.data_dodania.strftime('%Y-%m-%d %H:%M:%S') if r.data_dodania else '' }}</td>
                 <td>{{ r.nr_palety or '' }}</td>
                 <td>{{ r.produkt or '' }}</td>
+                <td>{{ r.nr_partii or '' }}</td>
                 <td>{{ r.waga or 0 }}</td>
                 <td>{{ r.plan_id or '' }}</td>
                 <td>{{ r.dodal or '' }}</td>
@@ -37,7 +39,7 @@
                 <td>{{ r.status or '' }}</td>
             </tr>
         {% else %}
-            <tr><td colspan="8">Brak danych dla wybranego dnia.</td></tr>
+            <tr><td colspan="9">Brak danych dla wybranego dnia.</td></tr>
         {% endfor %}
         </tbody>
     </table>

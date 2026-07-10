@@ -244,7 +244,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     mother_id: currentPallet.id,
-                    mother_table: currentPallet.table,
+                    source: currentPallet.source,
                     weight_to_take: weightToTake
                 })
             });

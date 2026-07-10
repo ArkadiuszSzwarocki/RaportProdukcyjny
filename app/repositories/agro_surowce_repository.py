@@ -414,8 +414,15 @@ class AgroSurowceRepository:
             try:
                 cursor = conn.cursor()
                 
-                # Update stock for THIS SPECIFIC PALLET/SPOT
-                cursor.execute(f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (ilosc, surowiec_id))
+                # Normalize tank code for lokalizacja field
+                raw_zbiornik = _normalize_tank_code(zbiornik)
+                zbiornik_val = AgroTanksRepository.normalize_production_tank(raw_zbiornik) or raw_zbiornik
+                
+                # Update stock AND lokalizacja (move from warehouse to production tank)
+                cursor.execute(
+                    f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s, lokalizacja = %s WHERE id = %s", 
+                    (ilosc, zbiornik_val, surowiec_id)
+                )
                 
                 # Get new level for audit
                 cursor.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
@@ -423,8 +430,6 @@ class AgroSurowceRepository:
                 
                 # Add movement record
                 plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
-                raw_zbiornik = _normalize_tank_code(zbiornik)
-                zbiornik_val = AgroTanksRepository.normalize_production_tank(raw_zbiornik) or raw_zbiornik
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
                     "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",

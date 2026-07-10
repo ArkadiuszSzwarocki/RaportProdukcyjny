@@ -130,7 +130,7 @@ def raport_palet():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        query = "\n            SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, \n                   z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,\n                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,\n                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,\n                   w.start_machine_counter, w.stop_machine_counter, w.status,\n                   COALESCE(z.odrzuty_przesiewacz, w.odrzuty_przesiewacz, 0) as odrzuty_przesiewacz\n            FROM plan_produkcji_agro w\n            LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id\n            WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)\n        "
+        query = "\n            SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, \n                   z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,\n                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania, w.nr_partii,\n                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,\n                   w.start_machine_counter, w.stop_machine_counter, w.status,\n                   COALESCE(z.odrzuty_przesiewacz, w.odrzuty_przesiewacz, 0) as odrzuty_przesiewacz\n            FROM plan_produkcji_agro w\n            LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id\n            WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)\n        "
         params = []
         if plan_id:
             query += ' AND w.id = %s'
@@ -244,7 +244,7 @@ def raport_palet_daily():
             """
             SELECT p.id as paleta_id, COALESCE(m.nr_palety, p.nr_palety) as nr_palety, p.waga, p.status,
                    p.data_dodania, p.dodal_login as dodal, COALESCE(m.potwierdzil_login, p.potwierdzil_login) as potwierdzil,
-                   w.produkt, w.id as plan_id
+                   w.produkt, w.id as plan_id, w.nr_partii
             FROM palety_agro p
             LEFT JOIN magazyn_palety_agro m ON m.paleta_workowanie_id = p.id
             LEFT JOIN plan_produkcji_agro w ON w.id = p.plan_id
@@ -259,12 +259,13 @@ def raport_palet_daily():
             import io, csv
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(['data_dodania', 'nr_palety', 'produkt', 'waga_kg', 'plan_id', 'dodal', 'potwierdzil', 'status'])
+            writer.writerow(['data_dodania', 'nr_palety', 'produkt', 'nr_partii', 'waga_kg', 'plan_id', 'dodal', 'potwierdzil', 'status'])
             for r in rows:
                 writer.writerow([
                     r.get('data_dodania').strftime('%Y-%m-%d %H:%M:%S') if r.get('data_dodania') else '',
                     r.get('nr_palety') or '',
                     r.get('produkt') or '',
+                    r.get('nr_partii') or '',
                     r.get('waga') or 0,
                     r.get('plan_id') or '',
                     r.get('dodal') or '',

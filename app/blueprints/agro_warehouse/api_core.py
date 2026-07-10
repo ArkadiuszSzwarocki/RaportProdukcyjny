@@ -15,14 +15,19 @@ from .blueprint import agro_warehouse_bp
 
 @agro_warehouse_bp.route('/agro/api/magazyn/surowce-w-produkcji/historia/<tank_code>')
 @login_required
-@dynamic_role_required('agro.magazyn')
 def api_surowce_w_produkcji_historia(tank_code):
     linia = request.args.get('linia', 'AGRO')
     limit = min(int(request.args.get('limit', 50)), 100)
     history_rows = AgroTanksService.get_production_tank_history(tank_code, limit=limit, linia=linia)
     for row in history_rows:
         if row.get('autor_data'):
-            row['autor_data_str'] = row['autor_data'].strftime('%d.%m.%Y %H:%M')
+            data_val = row['autor_data']
+            if hasattr(data_val, 'strftime'):
+                # Jest to obiekt datetime
+                row['autor_data_str'] = data_val.strftime('%d.%m.%Y %H:%M')
+            else:
+                # Już jest stringiem
+                row['autor_data_str'] = str(data_val)
         else:
             row['autor_data_str'] = ''
     return jsonify({'success': True, 'historia': history_rows})
@@ -86,7 +91,33 @@ def api_history():
         rows = AgroSurowceService.get_history(limit=limit, linia=linia, data=data, plan_id=plan_id)
         result = []
         for h in rows:
-            result.append({'id': h['id'], 'surowiec_nazwa': h.get('surowiec_nazwa') or '', 'lokalizacja': h.get('lokalizacja') or '', 'typ_ruchu': h.get('typ_ruchu') or '', 'ilosc': float(h['ilosc']) if h.get('ilosc') is not None else 0, 'ilosc_po': float(h['ilosc_po']) if h.get('ilosc_po') is not None else None, 'status': h.get('status') or '', 'autor_login': h.get('autor_login') or '', 'autor_data': h['autor_data'].strftime('%d.%m.%Y %H:%M') if h.get('autor_data') else '', 'autor_date_only': h['autor_data'].strftime('%d.%m.%Y') if h.get('autor_data') else '', 'autor_time_only': h['autor_data'].strftime('%H:%M') if h.get('autor_data') else '', 'potwierdzil_login': h.get('potwierdzil_login') or '', 'potwierdzil_data': h['potwierdzil_data'].strftime('%H:%M') if h.get('potwierdzil_data') else '', 'plan_id': h.get('plan_id'), 'plan_name': h.get('plan_name') or '', 'zbiornik': h.get('zbiornik') or '', 'komentarz': h.get('komentarz') or ''})
+            # Helper to safely format datetime or string
+            def safe_format_date(val, fmt):
+                if not val:
+                    return ''
+                if hasattr(val, 'strftime'):
+                    return val.strftime(fmt)
+                return str(val)
+            
+            result.append({
+                'id': h['id'],
+                'surowiec_nazwa': h.get('surowiec_nazwa') or '',
+                'lokalizacja': h.get('lokalizacja') or '',
+                'typ_ruchu': h.get('typ_ruchu') or '',
+                'ilosc': float(h['ilosc']) if h.get('ilosc') is not None else 0,
+                'ilosc_po': float(h['ilosc_po']) if h.get('ilosc_po') is not None else None,
+                'status': h.get('status') or '',
+                'autor_login': h.get('autor_login') or '',
+                'autor_data': safe_format_date(h.get('autor_data'), '%d.%m.%Y %H:%M'),
+                'autor_date_only': safe_format_date(h.get('autor_data'), '%d.%m.%Y'),
+                'autor_time_only': safe_format_date(h.get('autor_data'), '%H:%M'),
+                'potwierdzil_login': h.get('potwierdzil_login') or '',
+                'potwierdzil_data': safe_format_date(h.get('potwierdzil_data'), '%H:%M'),
+                'plan_id': h.get('plan_id'),
+                'plan_name': h.get('plan_name') or '',
+                'zbiornik': h.get('zbiornik') or '',
+                'komentarz': h.get('komentarz') or ''
+            })
         return jsonify({'success': True, 'history': result, 'count': len(result)})
     except Exception as e:
         current_app.logger.error(f'Error in api_history: {e}')

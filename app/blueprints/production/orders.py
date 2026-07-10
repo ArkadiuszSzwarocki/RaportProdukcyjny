@@ -5,6 +5,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
+from app.repositories.production_repository import log_plan_history
 from app.services.zasyp_etapy_service import ZasypEtapyService
 from werkzeug.security import check_password_hash
 
@@ -137,7 +138,15 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     # Capture machine counter for AGRO Workowanie
                     start_counter = 0
                     start_pallet_counter = 0
+                    nr_partii_cleaned = None
                     if sekcja == 'Workowanie' and linia == 'AGRO':
+                        # Validate batch number (required for AGRO Workowanie)
+                        nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
+                        if not (nr_partii_post and nr_partii_post.strip()):
+                            flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
+                            return redirect(bezpieczny_powrot())
+                        nr_partii_cleaned = nr_partii_post.strip()
+                        
                         try:
                             latest_d = get_latest_data()
                             start_counter = latest_d.get('counter', 0)
@@ -182,12 +191,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         cursor.execute(f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s", (data_prod_post.strip(), id))
                         current_app.logger.info('Ustawiono własną datę produkcji %s dla zlecenia ID=%s', data_prod_post.strip(), id)
 
+                    # Update batch number if provided
+                    if nr_partii_cleaned:
+                        cursor.execute(f"UPDATE {table_plan} SET nr_partii = %s WHERE id = %s", (nr_partii_cleaned, id))
+                        current_app.logger.info('Ustawiono nr partii %s dla zlecenia ID=%s', nr_partii_cleaned, id)
+                        log_plan_history(id, 'batch_number_set', f'nr_partii={nr_partii_cleaned}', user_login=session.get('login'))
+
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
 
                     audit_details = f'ID={id}, produkt={produkt}, sekcja={sekcja}'
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         audit_details += (
-                            f', operator={session.get("login")}, checklist=OK'
+                            f', operator={session.get("login")}, checklist=OK, nr_partii={nr_partii_cleaned}'
                         )
                     audit_log('Uruchomił zlecenie', audit_details)
                     flash(f"✅ Uruchomiono: {produkt}", 'success')
