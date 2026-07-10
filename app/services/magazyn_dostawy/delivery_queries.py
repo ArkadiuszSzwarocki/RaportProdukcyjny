@@ -1,4 +1,5 @@
 from app.db import get_db_connection, get_table_name
+from app.services.magazyn_dostawy.location_service import LocationService
 import json
 from datetime import datetime
 import uuid
@@ -66,61 +67,69 @@ class DeliveryQueries:
             try:
                 cursor = conn.cursor(dictionary=True)
                 normalized_line = str(linia or 'PSD').upper()
-                is_psd = normalized_line == 'PSD'
-                table_prod = 'palety_workowanie' if is_psd else 'palety_agro'
-                table_plan = 'plan_produkcji' if is_psd else 'plan_produkcji_agro'
-                table_wh = 'magazyn_palety' if is_psd else 'magazyn_palety_agro'
-                plan_product_col = 'plan.produkt'
                 
-                # Check if table exists (safety)
-                cursor.execute("SHOW TABLES LIKE %s", (table_prod,))
-                if not cursor.fetchone():
-                    return []
-
-                cursor.execute("SHOW TABLES LIKE %s", (table_wh,))
-                has_wh_table = bool(cursor.fetchone())
-
-                suggested_location_sql = "''"
-                if has_wh_table:
-                    suggested_location_sql = (
-                        f"COALESCE((SELECT w.lokalizacja FROM {table_wh} w "
-                        f"WHERE w.produkt = {plan_product_col} "
-                        "AND w.lokalizacja IS NOT NULL AND w.lokalizacja <> '' "
-                        "ORDER BY COALESCE(w.data_potwierdzenia, w.created_at, w.id) DESC LIMIT 1), '')"
-                    )
-
-                query = f"""
-                    SELECT p.*, plan.produkt as nazwa_produktu, 
-                           plan.nazwa_zlecenia as numer_zlecenia,
-                           {suggested_location_sql} AS suggested_location
-                    FROM {table_prod} p
-                    LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
-                    WHERE p.status = 'do_przyjecia'
-                    ORDER BY p.data_dodania DESC
-                """
-                if is_psd:
-                    query = f"""
-                        SELECT p.*, plan.produkt as nazwa_produktu,
-                               plan.nazwa_zlecenia as numer_zlecenia,
-                               {suggested_location_sql} AS suggested_location
-                        FROM {table_prod} p
-                        LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
-                        WHERE p.status = 'do_przyjecia'
-                        ORDER BY p.data_dodania DESC
-                    """
-
-                cursor.execute(query)
-                rows = cursor.fetchall()
-                for row in rows:
-                    suggested_location = LocationService._normalize_location_code(row.get('suggested_location'))
-                    row['suggested_location'] = suggested_location
-                    row['target_zone'] = LocationService._derive_target_zone(suggested_location)
-                return rows
+                # Uniwersalny skaner - pobieraj ze wszystkich linii
+                if normalized_line == 'ALL':
+                    all_pallets = []
+                    for line in ['PSD', 'AGRO']:
+                        try:
+                            line_pallets = DeliveryQueries._get_pending_production_for_line(cursor, line)
+                            all_pallets.extend(line_pallets)
+                        except Exception as e:
+                            print(f"Error fetching pending production pallets for {line}: {e}")
+                    return all_pallets
+                else:
+                    return DeliveryQueries._get_pending_production_for_line(cursor, normalized_line)
             except Exception as e:
                 print(f"Error fetching pending production pallets: {e}")
                 return []
             finally:
                 conn.close()
+
+    @staticmethod
+    def _get_pending_production_for_line(cursor, linia='PSD'):
+            """Helper function to get pending production pallets for a specific line."""
+            normalized_line = str(linia or 'PSD').upper()
+            is_psd = normalized_line == 'PSD'
+            table_prod = 'palety_workowanie' if is_psd else 'palety_agro'
+            table_plan = 'plan_produkcji' if is_psd else 'plan_produkcji_agro'
+            table_wh = 'magazyn_palety' if is_psd else 'magazyn_palety_agro'
+            plan_product_col = 'plan.produkt'
+            
+            # Check if table exists (safety)
+            cursor.execute("SHOW TABLES LIKE %s", (table_prod,))
+            if not cursor.fetchone():
+                return []
+
+            cursor.execute("SHOW TABLES LIKE %s", (table_wh,))
+            has_wh_table = bool(cursor.fetchone())
+
+            suggested_location_sql = "''"
+            if has_wh_table:
+                suggested_location_sql = (
+                    f"COALESCE((SELECT w.lokalizacja FROM {table_wh} w "
+                    f"WHERE w.produkt = {plan_product_col} "
+                    "AND w.lokalizacja IS NOT NULL AND w.lokalizacja <> '' "
+                    "ORDER BY COALESCE(w.data_potwierdzenia, w.created_at, w.id) DESC LIMIT 1), '')"
+                )
+
+            query = f"""
+                SELECT p.*, plan.produkt as nazwa_produktu, 
+                       plan.nazwa_zlecenia as numer_zlecenia,
+                       {suggested_location_sql} AS suggested_location
+                FROM {table_prod} p
+                LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
+                WHERE p.status = 'do_przyjecia'
+                ORDER BY p.data_dodania DESC
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            for row in rows:
+                suggested_location = LocationService._normalize_location_code(row.get('suggested_location'))
+                row['suggested_location'] = suggested_location
+                row['target_zone'] = LocationService._derive_target_zone(suggested_location)
+            return rows
 
     def get_raport(date_from=None, date_to=None):
             conn = get_db_connection()

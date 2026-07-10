@@ -24,7 +24,7 @@ class EdytujPlanCommand:
 
         try:
             tonaz_val = int(float(tonaz)) if tonaz is not None and str(tonaz).strip() != '' else None
-        except Exception:
+        except (ValueError, TypeError):
             tonaz_val = None
 
         if linia.upper() == 'AGRO':
