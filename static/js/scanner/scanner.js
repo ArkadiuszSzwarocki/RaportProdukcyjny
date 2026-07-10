@@ -72,7 +72,7 @@ function triggerScan() {
   const code = scanInput.value.trim();
   if (code) {
     if (currentPallet) {
-      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-');
+      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-') || code.startsWith('PAL-');
       if (code.length > 10 || isPalletPrefix) {
         lookupPallet(code);
       } else {
@@ -98,6 +98,14 @@ async function doMoveFromMainInput(loc) {
   const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ');
   
   if (isProduction) {
+    // Wyroby gotowe nie mogą być przekazywane na produkcję
+    if (currentPallet.inventory_type === 'Wyrób Gotowy') {
+      showToast('❌ Wyrobów gotowych nie można przekazać na produkcję', 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+      return;
+    }
+    
     pendingProductionLoc = loc;
     document.getElementById('dispatchModalLoc').textContent = loc;
     document.getElementById('dispatchModalQty').value = currentPallet.stan_magazynowy;
@@ -302,6 +310,33 @@ function showPallet(p) {
   document.getElementById('palletName').textContent = p.nazwa;
   document.getElementById('palletQty').textContent  = parseFloat(p.stan_magazynowy).toFixed(1);
   
+  // Badge typu palety
+  const typePill = document.getElementById('palletTypePill');
+  if (typePill) {
+    const invType = p.inventory_type || 'Surowiec';
+    typePill.textContent = invType;
+    typePill.style.display = 'inline-block';
+    
+    // Kolory w zależności od typu
+    if (invType === 'Wyrób Gotowy') {
+      typePill.className = 'pill';
+      typePill.style.background = '#10b981';
+      typePill.style.color = '#fff';
+    } else if (invType === 'Surowiec') {
+      typePill.className = 'pill';
+      typePill.style.background = '#3b82f6';
+      typePill.style.color = '#fff';
+    } else if (invType === 'Opakowanie') {
+      typePill.className = 'pill';
+      typePill.style.background = '#f59e0b';
+      typePill.style.color = '#fff';
+    } else {
+      typePill.className = 'pill';
+      typePill.style.background = '#6b7280';
+      typePill.style.color = '#fff';
+    }
+  }
+  
   // Extra details
   document.getElementById('palletSSCC').textContent = p.nr_palety || p.inventory_code || '—';
   document.getElementById('palletPartia').textContent = p.nr_partii || '—';
@@ -363,12 +398,15 @@ function hidePallet() {
   document.getElementById('palletCard').classList.remove('visible');
   document.getElementById('nopalletMsg').style.display = '';
   
+  const typePill = document.getElementById('palletTypePill');
+  if (typePill) typePill.style.display = 'none';
+  
   const barContainer = document.getElementById('palletTimeoutBarContainer');
   if (barContainer) barContainer.style.display = 'none';
 
   const titleEl = document.querySelector('.scan-title');
   if(titleEl) titleEl.innerHTML = '<span class="material-icons" style="color:var(--primary-color);">barcode_reader</span> Skanuj kod regału lub palety';
-  scanInput.placeholder = 'R030101 albo SUR-42';
+  scanInput.placeholder = 'R030101, SUR-42, PAL-15';
   scanInput.style.borderColor = '';
   scanInput.style.borderWidth = '';
   const iconEl = document.querySelector('.input-icon');

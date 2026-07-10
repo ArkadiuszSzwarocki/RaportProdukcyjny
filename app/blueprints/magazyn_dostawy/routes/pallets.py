@@ -475,68 +475,104 @@ def get_available_pallets():
     skip_lookup_raw = str(request.args.get('skip_warehouse_lookup', '') or '').strip().lower()
     skip_warehouse_lookup = skip_lookup_raw in ('1', 'true', 'yes', 'on')
     
+    # Uniwersalny skaner - szukaj we wszystkich liniach gdy podano kod/nr palety
+    search_all_lines = bool(prefix and prefix not in ('MP01', 'MS01', 'MGW01', 'MOP01', 'OSIP'))
+    
     conn = get_db_connection()
     try:
         cursor = conn.cursor(dictionary=True)
-        table_sur = get_table_name('magazyn_surowce', linia)
-        table_opk = get_table_name('magazyn_opakowania', linia)
         
-        # Flexible filtering logic (match dashboard.html + search by pallet id/no/name)
-        where_clause = "1=1"
-        params = []
-
-        if not prefix:
-            where_clause = "1=1"
-        elif prefix == 'MP01':
-            where_clause = "(lokalizacja LIKE 'MP01%' OR lokalizacja LIKE 'R01%' OR lokalizacja LIKE 'R02%' OR lokalizacja LIKE 'R03%')"
-            params = []
-        elif prefix == 'MS01':
-            where_clause = "(lokalizacja LIKE 'MS01%' OR lokalizacja LIKE 'R04%' OR lokalizacja LIKE 'R05%' OR lokalizacja LIKE 'R06%' OR lokalizacja LIKE 'R07%')"
-            params = []
-        elif prefix == 'MGW01':
-            where_clause = "lokalizacja LIKE 'MGW01%'"
-        elif prefix == 'MOP01':
-            where_clause = "lokalizacja LIKE 'MOP01%'"
-        elif prefix == 'OSIP':
-            where_clause = "lokalizacja LIKE '%%OSIP%%'"
-        else:
-            where_clause = """(
-                REPLACE(REPLACE(REPLACE(lokalizacja, '_', ''), '-', ''), ' ', '') LIKE %s OR
-                nazwa LIKE %s OR
-                COALESCE(nr_partii, '') LIKE %s OR
-                COALESCE(nr_palety, '') LIKE %s OR
-                CAST(id AS CHAR) = %s
-            )"""
-            clean_prefix = prefix.replace('_', '').replace('-', '').replace(' ', '')
-            like_prefix = f"{clean_prefix}%"
-            like_any = f"%{prefix}%"
-            params = [like_prefix, like_any, like_any, like_any, prefix]
-
+        # Lista linii do przeszukania
+        lines_to_search = ['PSD', 'AGRO'] if search_all_lines else [linia]
+        
         pallets = []
-        q1 = f"""
-            SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'surowiec' as type
-            FROM {table_sur} 
-            WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
-        """
-        cursor.execute(q1, params if params else [])
-        pallets.extend(cursor.fetchall())
+        for current_linia in lines_to_search:
+            table_sur = get_table_name('magazyn_surowce', current_linia)
+            table_opk = get_table_name('magazyn_opakowania', current_linia)
+            
+            # Flexible filtering logic (match dashboard.html + search by pallet id/no/name)
+            where_clause = "1=1"
+            params = []
 
-        q2 = f"""
-            SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'opakowanie' as type
-            FROM {table_opk}
-            WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
-        """
-        cursor.execute(q2, params if params else [])
-        pallets.extend(cursor.fetchall())
+            if not prefix:
+                where_clause = "1=1"
+            elif prefix == 'MP01':
+                where_clause = "(lokalizacja LIKE 'MP01%' OR lokalizacja LIKE 'R01%' OR lokalizacja LIKE 'R02%' OR lokalizacja LIKE 'R03%')"
+                params = []
+            elif prefix == 'MS01':
+                where_clause = "(lokalizacja LIKE 'MS01%' OR lokalizacja LIKE 'R04%' OR lokalizacja LIKE 'R05%' OR lokalizacja LIKE 'R06%' OR lokalizacja LIKE 'R07%')"
+                params = []
+            elif prefix == 'MGW01':
+                where_clause = "lokalizacja LIKE 'MGW01%'"
+            elif prefix == 'MOP01':
+                where_clause = "lokalizacja LIKE 'MOP01%'"
+            elif prefix == 'OSIP':
+                where_clause = "lokalizacja LIKE '%%OSIP%%'"
+            else:
+                where_clause = """(
+                    REPLACE(REPLACE(REPLACE(lokalizacja, '_', ''), '-', ''), ' ', '') LIKE %s OR
+                    nazwa LIKE %s OR
+                    COALESCE(nr_partii, '') LIKE %s OR
+                    COALESCE(nr_palety, '') LIKE %s OR
+                    CAST(id AS CHAR) = %s
+                )"""
+                clean_prefix = prefix.replace('_', '').replace('-', '').replace(' ', '')
+                like_prefix = f"{clean_prefix}%"
+                like_any = f"%{prefix}%"
+                params = [like_prefix, like_any, like_any, like_any, prefix]
 
-        q3 = f"""
-            SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'dodatek' as type
-            FROM magazyn_dodatki
-            WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
-        """
-        cursor.execute(q3, params if params else [])
-        pallets.extend(cursor.fetchall())
+            q1 = f"""
+                SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'surowiec' as type
+                FROM {table_sur} 
+                WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
+            """
+            cursor.execute(q1, params if params else [])
+            pallets.extend(cursor.fetchall())
 
+            q2 = f"""
+                SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'opakowanie' as type
+                FROM {table_opk}
+                WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
+            """
+            cursor.execute(q2, params if params else [])
+            pallets.extend(cursor.fetchall())
+
+            # Wyroby gotowe - użyj oddzielnego where_clause dla produkt zamiast nazwa
+            table_wg = get_table_name('magazyn_palety', current_linia)
+            if params:  # Jeśli mamy parametry wyszukiwania
+                where_clause_wg = """(
+                    REPLACE(REPLACE(REPLACE(COALESCE(lokalizacja, 'MGW01'), '_', ''), '-', ''), ' ', '') LIKE %s OR
+                    COALESCE(produkt, '') LIKE %s OR
+                    COALESCE(nr_partii, '') LIKE %s OR
+                    COALESCE(nr_palety, '') LIKE %s OR
+                    CAST(id AS CHAR) = %s
+                )"""
+                params_wg = params.copy()
+            else:
+                where_clause_wg = where_clause
+                params_wg = []
+
+            q4 = f"""
+                SELECT id, nr_palety, produkt as nazwa, waga_netto as stan_magazynowy, 
+                       COALESCE(lokalizacja, 'MGW01') as lokalizacja, nr_partii, 
+                       data_produkcji, data_przydatnosci, 'wyrob_gotowy' as type
+                FROM {table_wg}
+                WHERE {'1=1' if skip_warehouse_lookup else 'COALESCE(waga_netto, 0) > 0'} AND {where_clause_wg}
+            """
+            cursor.execute(q4, params_wg)
+            pallets.extend(cursor.fetchall())
+
+            # Dodatki są wspólne dla wszystkich linii - dodaj tylko raz
+            if current_linia == lines_to_search[0]:
+                q3 = f"""
+                    SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'dodatek' as type
+                    FROM magazyn_dodatki
+                    WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
+                """
+                cursor.execute(q3, params if params else [])
+                pallets.extend(cursor.fetchall())
+        
+        # Sortowanie i deduplikacja
         pallets.sort(key=lambda x: (str(x.get('lokalizacja') or ''), str(x.get('nazwa') or ''), x.get('id') or 0))
 
         # Reservation guard: exclude pallets already used in other pending transfers.

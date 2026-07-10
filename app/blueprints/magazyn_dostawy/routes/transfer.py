@@ -26,7 +26,8 @@ def lista_dostaw():
 @magazyn_dostawy_bp.route('/oczekujace')
 def oczekujace():
     linia = request.args.get('linia', 'PSD').upper()
-    dostawy = DeliveryQueries.get_oczekujace(linia)
+    # Uniwersalny skaner - pobieraj dane ze wszystkich linii dla pending_scan_items
+    dostawy = DeliveryQueries.get_oczekujace('ALL')
     pending_scan_items = []
 
     def _safe_date(value):

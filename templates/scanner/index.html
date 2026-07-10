@@ -17,7 +17,7 @@
       <div style="position: relative; flex: 1;">
         <span class="material-icons input-icon">qr_code</span>
         <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
-               placeholder="R030101 albo SUR-42" autofocus>
+               placeholder="R030101, SUR-42, PAL-15" autofocus>
       </div>
       <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
         <span class="material-icons">qr_code_scanner</span>
@@ -40,6 +40,9 @@
         <div>
           <div class="pallet-loc" id="palletLoc">R030101</div>
           <div class="pallet-name" id="palletName">Mąka Pszenna</div>
+          <div class="row gap-8 mb-8 wrap">
+            <span class="pill" id="palletTypePill" style="display: none;"></span>
+          </div>
           <div class="pallet-qty"><span id="palletQty">1600.0</span> kg</div>
           <!-- Szczegóły palety -->
           <div id="palletDetails" style="margin-top: 10px; font-size: 0.85em; color: #1e293b; font-weight: 500; line-height: 1.6;">

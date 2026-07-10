@@ -18,7 +18,7 @@ import re
 
 class ScannerService:
     SCAN_TOKEN_PATTERN = re.compile(
-        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
+        r'(R\d{6}|[A-Z]{3}\d{18,20}|SUR-?\d+|OPK-?\d+|DOD-?\d+|PAL-?\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
         re.IGNORECASE,
     )
 
@@ -39,10 +39,10 @@ class ScannerService:
         if gs1_00_match:
             return gs1_00_match.group(1)
 
-        # Fallback dla etykiet zawierających sam 18-cyfrowy SSCC w dłuższym tekście.
-        digits_18_match = re.search(r'\b\d{18}\b', code)
-        if digits_18_match:
-            return digits_18_match.group(0)
+        # Fallback dla etykiet zawierających sam 18-20 cyfrowy SSCC w dłuższym tekście.
+        digits_18_20_match = re.search(r'\b\d{18,20}\b', code)
+        if digits_18_20_match:
+            return digits_18_20_match.group(0)
 
         # Zebra zwykle wysyła czysty tekst + Enter, ale część etykiet QR może mieć prefixy/URL.
         match = ScannerService.SCAN_TOKEN_PATTERN.search(code)
@@ -52,16 +52,27 @@ class ScannerService:
         return code
 
     @staticmethod
+    @staticmethod
     def _extract_prefixed_id(code: str) -> tuple[str | None, int | None]:
-        match = re.match(r'^(SUR|OPK|DOD|PAL)-(\d+)$', str(code or '').strip().upper())
+        # Obsługa zarówno SUR-123 jak i SUR123
+        match = re.match(r'^(SUR|OPK|DOD|PAL)-?(\d+)$', str(code or '').strip().upper())
         if not match:
             return None, None
-        return match.group(1), int(match.group(2))
+        prefix = match.group(1)
+        digits = match.group(2)
+        
+        # Jeśli liczba ma więcej niż 10 cyfr, to prawdopodobnie SSCC/nr_palety, nie ID
+        # W takim przypadku zwracamy None, żeby lookup szukał po nr_palety
+        if len(digits) > 10:
+            return None, None
+            
+        return prefix, int(digits)
 
     @staticmethod
     def _is_sscc_code(code: str) -> bool:
         normalized = str(code or '').strip().upper()
-        return bool(re.match(r'^([A-Z]{3}\d{18}|\d{18}|00\d{18})$', normalized))
+        # Obsługa SSCC 18-20 cyfr oraz z prefiksami literowymi
+        return bool(re.match(r'^([A-Z]{3}\d{18,20}|\d{18,20}|00\d{18,20})$', normalized))
 
     @staticmethod
     def _lookup_inventory_row(
@@ -134,7 +145,7 @@ class ScannerService:
         if item_id is not None:
             try:
                 cur.execute(
-                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, 'MGW01' AS lokalizacja, "
+                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
                     f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
                     f"data_produkcji, data_przydatnosci "
                     f"FROM {table_name} WHERE id = %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
@@ -192,12 +203,38 @@ class ScannerService:
     # ─────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def lookup_by_location(location_code: str, linia: str = 'Agro') -> dict | None:
+    def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
         """Zwraca dane pozycji magazynowej dla kodu lokalizacji lub ID.
 
         Obsługiwane prefiksy: SUR-, OPK-, DOD-, PAL-, SSCC AAA+18 cyfr oraz kody lokalizacji.
         Returns None jeśli nie znaleziono pozycji z ilością > 0.
+        
+        Args:
+            location_code: Kod do wyszukania (QR, barcode, ID, lokalizacja)
+            linia: Preferowana linia produkcyjna (domyślnie 'Agro')
+            try_all_lines: Jeśli True i nie znaleziono w podanej linii, próbuje w innych liniach (domyślnie True)
         """
+        # Najpierw spróbuj w podanej linii
+        result = ScannerService._lookup_by_location_internal(location_code, linia)
+        if result:
+            return result
+        
+        # Jeśli nie znaleziono i try_all_lines=True, spróbuj w innych liniach
+        if try_all_lines:
+            other_lines = ['AGRO', 'PSD', 'Agro', 'Psd']
+            normalized_linia = str(linia).upper()
+            for other_linia in other_lines:
+                if str(other_linia).upper() == normalized_linia:
+                    continue  # Już sprawdziliśmy tę linię
+                result = ScannerService._lookup_by_location_internal(location_code, other_linia)
+                if result:
+                    return result
+        
+        return None
+
+    @staticmethod
+    def _lookup_by_location_internal(location_code: str, linia: str) -> dict | None:
+        """Wewnętrzna funkcja wyszukiwania dla konkretnej linii produkcyjnej."""
         location_code = ScannerService._normalize_scanned_code(location_code)
         if not location_code:
             return None
