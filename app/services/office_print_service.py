@@ -21,11 +21,12 @@ def _generate_and_print_thread(plan_id, printer_name_or_ip):
         # Determine the URL for the report
         # We need to render the report without navbar and extra UI elements.
         # The raport_palet page has CSS for print: @media print.
-        report_url = f"http://127.0.0.1:8082/agro/raport_palet?plan_id={plan_id}&internal_print=1"
+        protocol = "https" if str(os.environ.get('USE_SSL', 'false')).lower() == 'true' else "http"
+        report_url = f"{protocol}://127.0.0.1:8082/agro/raport_palet?plan_id={plan_id}&internal_print=1"
         
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context()
+            browser = p.chromium.launch(headless=True, args=['--no-proxy-server'])
+            context = browser.new_context(ignore_https_errors=True)
             page = context.new_page()
             
             # Navigate and wait for network to be idle
@@ -137,15 +138,16 @@ def _generate_and_print_url_thread(report_url, printer_name_or_ip, prefix="rapor
     import urllib.parse
     parsed = urllib.parse.urlparse(report_url)
     if parsed.netloc:
-        report_url = parsed._replace(netloc="127.0.0.1:8082", scheme="http").geturl()
+        protocol = "https" if str(os.environ.get('USE_SSL', 'false')).lower() == 'true' else parsed.scheme
+        report_url = parsed._replace(netloc="127.0.0.1:8082", scheme=protocol).geturl()
 
     fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix=prefix)
     os.close(fd)
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context()
+            browser = p.chromium.launch(headless=True, args=['--no-proxy-server'])
+            context = browser.new_context(ignore_https_errors=True)
             page = context.new_page()
             page.goto(report_url, wait_until="networkidle")
             page.wait_for_timeout(1000)
