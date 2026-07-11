@@ -1,13 +1,13 @@
 """Trasy i endpointy dla modulu mixowania palet."""
 
 from flask import render_template, request, jsonify, session
-from app.decorators import dynamic_role_required
+from app.decorators import roles_required
 from app.blueprints.magazyn_dostawy.base import magazyn_dostawy_bp
 from app.services.magazyn_dostawy.pallet_split_service import PalletSplitService
 from app.services.magazyn_dostawy.pallet_mix_service import PalletMixService
 
 @magazyn_dostawy_bp.route('/mixowanie')
-@dynamic_role_required('magazyn_dostawy')
+@roles_required('lider', 'masteradmin', 'admin', 'magazynier', 'zarzad')
 def mixowanie():
     """Renderuje główny widok mixowania palet."""
     # Podobnie jak podział, użytkownik wybiera linię (AGRO/PSD) - używamy sesji.
@@ -16,7 +16,7 @@ def mixowanie():
 
 
 @magazyn_dostawy_bp.route('/api/mixowanie/scan', methods=['POST'])
-@dynamic_role_required('magazyn_dostawy')
+@roles_required('lider', 'masteradmin', 'admin', 'magazynier', 'zarzad')
 def api_mix_scan():
     """Skanuje paletę, by pobrać dane komponentu do mixu."""
     data = request.get_json() or {}
@@ -45,7 +45,7 @@ def api_mix_scan():
 
 
 @magazyn_dostawy_bp.route('/api/mixowanie/finalize', methods=['POST'])
-@dynamic_role_required('magazyn_dostawy')
+@roles_required('lider', 'masteradmin', 'admin', 'magazynier', 'zarzad')
 def api_mix_finalize():
     """Finalizuje proces mixowania i tworzy nową paletę MIX."""
     data = request.get_json() or {}
