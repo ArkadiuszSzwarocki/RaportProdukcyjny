@@ -34,7 +34,7 @@ SSCC_SEARCH_SPECS: tuple[dict[str, Any], ...] = (
         'source': 'magazyn',
         'table_base': 'magazyn_palety',
         'select': (
-            "id, nr_palety, waga_netto AS waga, produkt, lokalizacja, "
+            "id, nr_palety, waga_netto AS waga, produkt, COALESCE(lokalizacja, IF(%s='AGRO', 'MGW02', 'MGW01')) AS lokalizacja, "
             "plan_id, 'magazyn' AS source, %s AS linia, data_planu"
         ),
         'where': "UPPER(nr_palety) = UPPER(%s) AND waga_netto > 0",
@@ -43,7 +43,7 @@ SSCC_SEARCH_SPECS: tuple[dict[str, Any], ...] = (
         'source': 'produkcja',
         'table_base': 'palety_workowanie',
         'select': (
-            "pw.id, pw.nr_palety, pw.waga, p.produkt, '' AS lokalizacja, "
+            "pw.id, pw.nr_palety, pw.waga, p.produkt, IF(%s='AGRO', 'MGW02', 'MGW01') AS lokalizacja, "
             "pw.plan_id, 'produkcja' AS source, %s AS linia, p.data_planu AS data_planu"
         ),
         'from_extra': (
@@ -115,7 +115,16 @@ class PalletSplitService:
                         f"SELECT {spec['select']} FROM {from_clause} "
                         f"WHERE {spec['where']} LIMIT 1"
                     )
-                    params = (linia, sscc) if spec['source'] != 'dodatek' else (sscc,)
+                    
+                    if spec['source'] == 'magazyn':
+                        params = (linia, linia, sscc)
+                    elif spec['source'] == 'produkcja':
+                        params = (linia, linia, sscc)
+                    elif spec['source'] != 'dodatek':
+                        params = (linia, sscc)
+                    else:
+                        params = (sscc,)
+                        
                     cursor.execute(query, params)
                     row = cursor.fetchone()
                     if row:
@@ -125,7 +134,7 @@ class PalletSplitService:
             conn.close()
 
     @staticmethod
-    def find_by_id(mother_id: int, source: str) -> tuple[dict[str, Any] | None, str | None]:
+    def find_by_id(mother_id: int, source: str, requested_linia: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
         source = str(source or '').strip().lower()
         conn = get_db_connection()
         try:
@@ -137,7 +146,8 @@ class PalletSplitService:
                     return (row, 'PSD') if row else (None, None)
 
                 table_base = 'magazyn_surowce' if source == 'surowiec' else 'magazyn_opakowania'
-                for linia in LINIE:
+                linie_do_sprawdzenia = [requested_linia] if requested_linia else LINIE
+                for linia in linie_do_sprawdzenia:
                     table = get_table_name(table_base, linia)
                     cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (mother_id,))
                     row = cursor.fetchone()
@@ -146,7 +156,8 @@ class PalletSplitService:
                 return None, None
 
             table_base = 'magazyn_palety' if source == 'magazyn' else 'palety_workowanie'
-            for linia in LINIE:
+            linie_do_sprawdzenia = [requested_linia] if requested_linia else LINIE
+            for linia in linie_do_sprawdzenia:
                 table = get_table_name(table_base, linia)
                 cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (mother_id,))
                 row = cursor.fetchone()
@@ -162,6 +173,7 @@ class PalletSplitService:
         source: str,
         weight_to_take: float,
         user_login: str = 'System',
+        linia: str | None = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         source = str(source or '').strip().lower()
         weight_to_take = round(float(weight_to_take or 0), 3)
@@ -169,7 +181,7 @@ class PalletSplitService:
         if not mother_id or weight_to_take <= 0:
             return False, 'Błędne dane wejściowe.', None
 
-        pal, linia = PalletSplitService.find_by_id(mother_id, source)
+        pal, linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=linia)
         if not pal or not linia:
             return False, 'Nie znaleziono palety bazowej w bazie danych.', None
 
@@ -313,7 +325,8 @@ class PalletSplitService:
         else:
             table = 'magazyn_dodatki'
 
-        lokalizacja = pal.get('lokalizacja')
+        mother_lokalizacja = pal.get('lokalizacja')
+        child_lokalizacja = mother_lokalizacja if mother_lokalizacja else 'BF_MS01'
         typ_palety = HISTORIA_TYP[source]
         product_name = pal.get('nazwa')
 
@@ -332,7 +345,7 @@ class PalletSplitService:
                 new_sscc, product_name, weight_to_take,
                 pal.get('data_produkcji'), pal.get('termin_przydatnosci'),
                 pal.get('nr_partii'), pal.get('certyfikat'),
-                lokalizacja, user_login, now_dt,
+                child_lokalizacja, user_login, now_dt,
             ),
         )
         new_pallet_id = cursor.lastrowid
@@ -348,19 +361,19 @@ class PalletSplitService:
 
         PalletSplitService._log_historia(
             cursor, mother_id, linia, typ_palety, 'PODZIAL_ODJECIE',
-            user_login, mother_comment, lokalizacja, lokalizacja,
+            user_login, mother_comment, mother_lokalizacja, mother_lokalizacja,
         )
         PalletSplitService._log_historia(
             cursor, new_pallet_id, linia, typ_palety, 'PODZIAL_UTWORZENIE',
-            user_login, child_comment, lokalizacja, lokalizacja,
+            user_login, child_comment, child_lokalizacja, child_lokalizacja,
         )
         PalletSplitService._log_magazyn_ruch(
             cursor, linia, mother_id, 'PODZIAL', -weight_to_take, new_weight,
-            lokalizacja, user_login, now_dt, mother_comment, product_name,
+            mother_lokalizacja, user_login, now_dt, mother_comment, product_name,
         )
         PalletSplitService._log_magazyn_ruch(
             cursor, linia, new_pallet_id, 'PODZIAL', weight_to_take, weight_to_take,
-            lokalizacja, user_login, now_dt, child_comment, product_name,
+            child_lokalizacja, user_login, now_dt, child_comment, product_name,
         )
 
         return {
@@ -395,7 +408,8 @@ class PalletSplitService:
         mother_sscc: str,
     ) -> dict[str, Any]:
         typ_palety = HISTORIA_TYP[source]
-        lokalizacja = pal.get('lokalizacja') or ''
+        mother_lokalizacja = pal.get('lokalizacja') or ''
+        child_lokalizacja = mother_lokalizacja if mother_lokalizacja else 'BF_MS01'
         plan_id = pal.get('plan_id')
         produkt = pal.get('produkt')
         data_planu = pal.get('data_planu')
@@ -416,39 +430,34 @@ class PalletSplitService:
             )
             prod_mother_id = mother_id
 
-        table_prod = get_table_name('palety_workowanie', linia)
-        cursor.execute(
-            f"""
-            INSERT INTO {table_prod} (
-                plan_id, waga, data_dodania, nr_palety, nr_plomby, status,
-                data_potwierdzenia, dodal_login, potwierdzil_login
-            ) VALUES (%s, %s, %s, %s, %s, 'przyjeta', %s, %s, %s)
-            """,
-            (
-                plan_id, weight_to_take, now_dt, new_sscc, nr_plomby,
-                now_dt, user_login, user_login,
-            ),
-        )
-        new_prod_id = cursor.lastrowid
-        new_pallet_id = new_prod_id
+        new_prod_id = None
+        new_pallet_id = None
         mag_pallet_id = None
 
+        # Wstaw do palety_workowanie tylko wtedy, gdy znamy plan_id (tabela wymaga plan_id NOT NULL)
+        if plan_id is not None:
+            table_prod = get_table_name('palety_workowanie', linia)
+            prod_cols = "plan_id, waga, data_dodania, nr_palety, nr_plomby, status, data_potwierdzenia, dodal_login, potwierdzil_login"
+            prod_vals = "(%s, %s, %s, %s, %s, 'przyjeta', %s, %s, %s)"
+            prod_params = (plan_id, weight_to_take, now_dt, new_sscc, nr_plomby, now_dt, user_login, user_login)
+
+            cursor.execute(f"INSERT INTO {table_prod} ({prod_cols}) VALUES {prod_vals}", prod_params)
+            new_prod_id = cursor.lastrowid
+            new_pallet_id = new_prod_id
+
+        # Update magazyn_palety jeśli źródło to magazyn
         if source == 'magazyn':
             table_mag = get_table_name('magazyn_palety', linia)
-            cursor.execute(
-                f"""
-                INSERT INTO {table_mag} (
-                    paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto,
-                    nr_palety, nr_plomby, lokalizacja, user_login,
-                    data_potwierdzenia, created_at, linia
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    new_prod_id, plan_id, data_planu, produkt, weight_to_take,
-                    new_sscc, nr_plomby, lokalizacja or None, user_login,
-                    now_dt, now_dt, linia,
-                ),
-            )
+            if plan_id is not None:
+                mag_cols = "paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, nr_palety, nr_plomby, lokalizacja, user_login, data_potwierdzenia, created_at, linia"
+                mag_vals = "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                mag_params = (new_prod_id, plan_id, data_planu, produkt, weight_to_take, new_sscc, nr_plomby, child_lokalizacja, user_login, now_dt, now_dt, linia)
+            else:
+                mag_cols = "paleta_workowanie_id, data_planu, produkt, waga_netto, nr_palety, nr_plomby, lokalizacja, user_login, data_potwierdzenia, created_at, linia"
+                mag_vals = "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                mag_params = (new_prod_id, data_planu, produkt, weight_to_take, new_sscc, nr_plomby, child_lokalizacja, user_login, now_dt, now_dt, linia)
+
+            cursor.execute(f"INSERT INTO {table_mag} ({mag_cols}) VALUES {mag_vals}", mag_params)
             mag_pallet_id = cursor.lastrowid
             new_pallet_id = mag_pallet_id
 
@@ -464,11 +473,11 @@ class PalletSplitService:
 
         PalletSplitService._log_historia(
             cursor, mother_hist_id, linia, typ_palety, 'PODZIAL_ODJECIE',
-            user_login, mother_comment, lokalizacja or None, lokalizacja or None,
+            user_login, mother_comment, mother_lokalizacja or None, mother_lokalizacja or None,
         )
         PalletSplitService._log_historia(
             cursor, new_pallet_id, linia, typ_palety, 'PODZIAL_UTWORZENIE',
-            user_login, child_comment, lokalizacja or None, lokalizacja or None,
+            user_login, child_comment, child_lokalizacja, child_lokalizacja,
         )
 
         return {

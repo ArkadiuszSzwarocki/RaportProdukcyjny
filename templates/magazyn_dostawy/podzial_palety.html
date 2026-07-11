@@ -2,123 +2,303 @@
 {% block title %}Podział Palety - Magazyn{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2 class="text-slate-800 font-bold m-0" style="font-size: 24px;">
-                <span class="material-icons text-primary align-middle me-2" style="font-size: 28px;">call_split</span>
-                Podział Palety (Workowanie)
-            </h2>
-            <p class="text-muted mt-1">Zeskanuj kod SSCC palety-matki, aby utworzyć z niej nową paletę.</p>
-        </div>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<style>
+.premium-screen {
+    max-width: 1440px;
+}
+
+.premium-hero {
+    border-radius: 12px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.premium-hero-title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.premium-hero-subtitle {
+    margin: 4px 0 0 44px;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.premium-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    height: 100%;
+}
+
+.premium-card-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.premium-card-header h5 {
+    margin: 0;
+    font-weight: 800;
+    color: #334155;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.premium-input {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+    transition: all 0.2s ease !important;
+}
+
+.premium-input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.info-row {
+    display: flex;
+    padding: 8px 0;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    width: 40%;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    width: 60%;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 0.95rem;
+}
+
+@media (max-width: 576px) {
+    .info-row {
+        flex-direction: column;
+    }
+    .info-label, .info-value {
+        width: 100%;
+    }
+    .info-label {
+        margin-bottom: 2px;
+        font-size: 0.75rem;
+    }
+    .premium-hero-title {
+        font-size: 1.1rem;
+    }
+    .premium-hero-subtitle {
+        margin-left: 0;
+        margin-top: 8px;
+    }
+    .hero-icon-container {
+        display: none !important;
+    }
+}
+</style>
+
+<div class="container-fluid py-3 premium-screen mx-auto">
+    <div class="premium-hero shadow-sm">
+        <h2 class="premium-hero-title">
+            <div class="hero-icon-container" style="background: #eff6ff; padding: 8px; border-radius: 8px; display: flex; border: 1px solid #bfdbfe;">
+                <span class="material-icons text-primary fs-3">call_split</span>
+            </div>
+            Podział Palety (Workowanie)
+        </h2>
+        <p class="premium-hero-subtitle">Zeskanuj kod SSCC palety-matki, aby wydzielić z niej nową paletę w systemie.</p>
     </div>
 
     <div class="row">
         <!-- Sekcja skanera -->
-        <div class="col-md-5 mb-4">
-            <div class="section-box p-4" style="background: linear-gradient(145deg, #ffffff, #f8f9fa); border: 2px solid #e2e8f0;">
-                <label class="form-label font-bold text-slate-700" style="font-size: 18px;">
-                    <span class="material-icons align-middle text-primary">qr_code_scanner</span> Skanuj Kod Palety (SSCC)
-                </label>
-                <div class="input-group">
-                    <input type="text" id="splitScannerInput" class="form-control form-control-lg text-center fw-bold" 
-                           style="font-size: 24px; letter-spacing: 2px; border: 2px solid #3b82f6; border-right: none;" 
-                           placeholder="Zeskanuj kod..." autocomplete="off" autofocus>
-                    <button class="btn btn-primary" type="button" id="splitSearchBtn" style="border: 2px solid #3b82f6; font-weight: bold; font-size: 18px; padding-left: 20px; padding-right: 20px;">Szukaj</button>
+        <div class="col-md-5 mb-4" id="scanSectionContainer">
+            <div class="premium-card">
+                <div class="premium-card-header">
+                    <span class="material-icons text-primary">qr_code_scanner</span>
+                    <h5>Skanuj Kod Palety</h5>
                 </div>
-                <div class="form-text text-center mt-2">Kursor musi znajdować się w tym polu podczas skanowania. Możesz też wpisać kod ręcznie i kliknąć Szukaj.</div>
-                
-                <div id="scanLoading" class="text-center mt-4 d-none">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Wczytywanie...</span>
+                <div class="card-body p-3">
+                    <div class="input-group mb-2">
+                        <input type="text" id="splitScannerInput" class="form-control premium-input text-center" 
+                               placeholder="Zeskanuj kod SSCC..." autocomplete="off" autofocus>
                     </div>
-                    <p class="text-muted mt-2">Wyszukiwanie palety w systemie...</p>
-                </div>
-                
-                <div id="scanError" class="alert alert-danger mt-4 d-none">
-                    <span class="material-icons align-middle me-1">error_outline</span>
-                    <span id="scanErrorMsg">Nie znaleziono palety.</span>
+                    <button class="btn-action btn-blue w-100 d-flex justify-content-center align-items-center py-2" style="font-size: 0.95rem;" type="button" id="splitSearchBtn">
+                        <span class="material-icons me-1 fs-5">search</span>
+                        Szukaj Palety
+                    </button>
+                    <div class="form-text text-center text-muted small mt-2">
+                        Kursor musi znajdować się w tym polu podczas skanowania czytnikiem.
+                    </div>
+                    
+                    <div id="scanLoading" class="text-center mt-4 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Wczytywanie...</span>
+                        </div>
+                        <p class="text-muted mt-2">Wyszukiwanie palety w systemie...</p>
+                    </div>
+                    
+                    <div id="scanError" class="alert alert-danger mt-4 d-none d-flex align-items-center">
+                        <span class="material-icons me-2">error_outline</span>
+                        <span id="scanErrorMsg">Nie znaleziono palety.</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Sekcja szczegółów i podziału (ukryta przed skanem) -->
+        <!-- Sekcja szczegółów i podziału -->
         <div class="col-md-7 mb-4 d-none" id="splitDetailsSection">
-            <div class="section-box p-4" style="border-left: 5px solid #10b981;">
-                <h4 class="font-bold text-slate-800 mb-4 border-bottom pb-2">Informacje o Palecie Matce</h4>
-                
-                <div class="row mb-3">
-                    <div class="col-sm-4 text-muted font-bold">Kod SSCC (ID):</div>
-                    <div class="col-sm-8 fw-bold" id="motherSscc">-</div>
+            <div class="premium-card border-success" style="border-width: 2px;">
+                <div class="premium-card-header bg-success" style="color: white; border-color: #15803d;">
+                    <span class="material-icons text-white">inventory_2</span>
+                    <h5 style="color: white;">Informacje o Palecie Matce</h5>
                 </div>
-                <div class="row mb-3">
-                    <div class="col-sm-4 text-muted font-bold">Produkt:</div>
-                    <div class="col-sm-8 text-primary fw-bold" style="font-size: 18px;" id="motherProduct">-</div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-sm-4 text-muted font-bold">Obecna Lokalizacja:</div>
-                    <div class="col-sm-8 fw-bold"><span class="badge bg-secondary" id="motherLocation" style="font-size: 14px;">-</span></div>
-                </div>
-                <div class="row mb-4">
-                    <div class="col-sm-4 text-muted font-bold">Dostępna Waga:</div>
-                    <div class="col-sm-8 text-success fw-bold" style="font-size: 22px;"><span id="motherWeight">0</span> kg</div>
-                </div>
-                
-                <hr class="mb-4">
-                <h4 class="font-bold text-slate-800 mb-3">Utwórz nową paletę</h4>
-                
-                <div class="row align-items-center mb-4">
-                    <div class="col-sm-6">
-                        <label class="form-label font-bold text-slate-700">Waga do zabrania (kg):</label>
-                        <div class="input-group">
-                            <input type="number" id="splitWeightInput" class="form-control form-control-lg fw-bold" 
-                                   min="1" step="0.1" placeholder="Naciśnij i wpisz..." style="font-size: 22px;">
-                            <span class="input-group-text font-bold">kg</span>
+                <div class="card-body p-3">
+                    
+                    <div class="info-row">
+                        <div class="info-label">Kod SSCC (ID)</div>
+                        <div class="info-value" id="motherSscc">-</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Produkt</div>
+                        <div class="info-value text-primary fs-6" id="motherProduct">-</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Obecna Lokalizacja</div>
+                        <div class="info-value">
+                            <span class="badge bg-secondary px-2 py-1 fs-6 rounded-pill" id="motherLocation">-</span>
                         </div>
                     </div>
-                    <div class="col-sm-6">
-                        <div class="alert alert-info py-2 px-3 mb-0">
-                            <strong>Uwaga:</strong> Nowa paleta odziedziczy produkt, partię i daty, a stara paleta pozostanie pomniejszona o zabraną wagę.
+                    <div class="info-row border-0 mb-3 pb-0">
+                        <div class="info-label align-self-center">Dostępna Waga</div>
+                        <div class="info-value text-success fs-4">
+                            <span id="motherWeight">0</span> kg
                         </div>
                     </div>
-                </div>
-                
-                <div class="d-grid gap-2">
-                    <button type="button" id="splitConfirmBtn" class="btn btn-success btn-lg font-bold" style="font-size: 20px;">
-                        <span class="material-icons align-middle me-2">print</span>
-                        Zatwierdź i Drukuj Etykietę
-                    </button>
-                    <button type="button" id="splitCancelBtn" class="btn btn-outline-secondary">
-                        Anuluj i skanuj inną
-                    </button>
+                    
+                    <hr class="my-3" style="border-color: #cbd5e1;">
+                    
+                    <div id="splitFormElements">
+                        <h5 class="font-bold text-slate-800 mb-3" style="font-size: 1.1rem;">Utwórz nową paletę</h5>
+                        
+                        <div class="row align-items-center mb-3">
+                            <div class="col-md-5 mb-3 mb-md-0">
+                                <label class="form-label info-label mb-1">Waga do zabrania (kg)</label>
+                                <div class="input-group">
+                                    <input type="number" id="splitWeightInput" class="form-control premium-input" 
+                                           min="1" step="0.1" placeholder="Wpisz wagę...">
+                                    <span class="input-group-text font-bold bg-light border-1" style="border-color: #cbd5e1;">kg</span>
+                                </div>
+                            </div>
+                            <div class="col-md-7 pl-md-3">
+                                <div class="alert alert-info py-2 px-3 mb-0 small d-flex align-items-start" style="border-radius: 8px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a;">
+                                    <span class="material-icons me-2 fs-5 text-primary mt-1">info</span>
+                                    <div style="font-size: 0.85rem; line-height: 1.3;">
+                                        <strong>Uwaga:</strong> Nowa paleta odziedziczy parametry, stara pozostanie pomniejszona o wagę.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 mt-3 pt-3 border-top flex-wrap">
+                            <button type="button" id="splitConfirmBtn" class="btn-action btn-green flex-grow-1 py-2" style="font-size: 0.95rem;">
+                                <span class="material-icons me-1 fs-5">call_split</span>
+                                Zatwierdź Podział
+                            </button>
+                            <button type="button" id="splitCancelBtn" class="btn-action btn-secondary py-2 px-3" style="font-size: 0.95rem;">
+                                <span class="material-icons me-1 fs-5">close</span>
+                                Anuluj
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sekcja po pomyślnym podziale (przyciski druku) -->
+                    <div id="splitSuccessElements" class="d-none text-center">
+                        <div class="mb-4">
+                            <span class="material-icons text-success mb-2" style="font-size: 3rem;">check_circle</span>
+                            <h4 class="text-success font-bold">Podział zakończony!</h4>
+                            <p class="text-muted mb-0">Utworzono nową paletę: <strong id="successNewPalletSscc"></strong></p>
+                            <p class="text-muted">Zaktualizowano wagę palety matki: <strong id="successMotherPalletSscc"></strong></p>
+                        </div>
+                        
+                        <div class="d-flex flex-column gap-2 mx-auto" style="max-width: 400px;">
+                            <button type="button" id="btnPrintNew" class="btn-action btn-blue py-2" style="font-size: 0.95rem; border-radius: 10px; justify-content: flex-start; padding-left: 15px;">
+                                <span class="material-icons me-2 fs-4">print</span>
+                                <div>
+                                    <div style="font-weight: 800; text-align: left;">Drukuj etykietę NOWEJ palety</div>
+                                    <div style="font-size: 0.75rem; text-align: left; opacity: 0.9;">Oderwana część (Córka)</div>
+                                </div>
+                            </button>
+                            <button type="button" id="btnPrintMother" class="btn-action py-2" style="font-size: 0.95rem; border-radius: 10px; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; justify-content: flex-start; padding-left: 15px;">
+                                <span class="material-icons me-2 fs-4" style="color: #64748b;">print</span>
+                                <div>
+                                    <div style="font-weight: 800; text-align: left;">Drukuj etykietę STAREJ palety</div>
+                                    <div style="font-size: 0.75rem; text-align: left; opacity: 0.9;">Zaktualizowana (Matka)</div>
+                                </div>
+                            </button>
+                            
+                            <hr class="my-2" style="border-color: #e2e8f0;">
+                            
+                            <button type="button" class="btn-action btn-secondary py-2" style="font-size: 0.95rem; border-radius: 10px;" onclick="window.location.reload()">
+                                <span class="material-icons me-2 fs-5">qr_code_scanner</span>
+                                Podziel kolejną paletę
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal podglądu/druku (opcjonalny fallback) -->
-<div class="modal fade" id="printModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title font-bold"><span class="material-icons align-middle me-2">check_circle</span>Podział Zakończony</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- Modal Wyboru Drukarki ZPL -->
+<div id="zplPrinterModal" class="modal-premium-overlay d-none" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; z-index: 9999; align-items: center; justify-content: center;">
+    <div class="modal-premium-content" style="background: #ffffff; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); padding: 24px; max-width: 450px; width: 90%;">
+        <div class="modal-premium-header" style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 15px;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #0f172a;">
+                <span class="material-icons" style="color: #3b82f6">print</span> Wybierz Drukarkę ZPL
+            </h3>
+        </div>
+        <div class="modal-premium-body">
+            <div style="font-size: 15px; color: #334155; margin-bottom: 20px; line-height: 1.5;">
+                <select id="zplPrinterSelect" class="form-control" style="width: 100%; font-size: 16px; padding: 10px;"></select>
+                <div id="zplPrinterLoading" class="text-center mt-2 d-none text-muted small">Wczytywanie drukarek...</div>
             </div>
-            <div class="modal-body text-center p-4">
-                <p class="fs-5 mb-4">Nowa paleta <strong id="newPalletSscc" class="text-primary"></strong> została utworzona pomyślnie!</p>
-                <div class="d-grid gap-3">
-                    <button type="button" id="forcePrintBtn" class="btn btn-primary btn-lg">
-                        <span class="material-icons align-middle me-2">print</span> Ponów Druk Etykiety ZPL
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal" onclick="resetSplitter()">
-                        Skanuj Następną
-                    </button>
-                </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                <button type="button" id="btnZplCancel" class="btn-action btn-secondary" style="margin-right: 10px; min-width: 100px;">Anuluj</button>
+                <button type="button" id="btnZplPrint" class="btn-action btn-blue" style="min-width: 100px;">Drukuj ZPL</button>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block footer_scripts %}
@@ -128,6 +308,7 @@
 
     const scannerInput = document.getElementById('splitScannerInput');
     const detailsSection = document.getElementById('splitDetailsSection');
+    const scanSectionContainer = document.getElementById('scanSectionContainer');
     const scanLoading = document.getElementById('scanLoading');
     const scanError = document.getElementById('scanError');
     const scanErrorMsg = document.getElementById('scanErrorMsg');
@@ -135,11 +316,22 @@
     // Ustalanie linii ze zmiennej sesyjnej/globalnej z backendu (lub domyślnie PSD)
     const currentLinia = "{{ session.get('aktywna_linia', 'AGRO') }}";
 
+    let lastPrintedMotherId = null;
+    let lastPrintedMotherSource = null;
+    let lastPrintedMotherLinia = null;
+    let lastPrintedNewId = null;
+    let lastPrintedNewSource = null;
+    let lastPrintedNewLinia = null;
+
     function resetSplitter() {
         currentPallet = null;
         scannerInput.value = '';
         scannerInput.disabled = false;
         detailsSection.classList.add('d-none');
+        detailsSection.className = 'col-md-7 mb-4 d-none';
+        scanSectionContainer.classList.remove('d-none');
+        document.getElementById('splitFormElements').classList.remove('d-none');
+        document.getElementById('splitSuccessElements').classList.add('d-none');
         scanError.classList.add('d-none');
         document.getElementById('splitWeightInput').value = '';
         scannerInput.focus();
@@ -183,6 +375,8 @@
             weightInput.value = '';
             weightInput.max = currentPallet.waga;
             
+            scanSectionContainer.classList.add('d-none');
+            detailsSection.className = 'col-md-12 mb-4';
             detailsSection.classList.remove('d-none');
             setTimeout(() => weightInput.focus(), 100);
             
@@ -245,6 +439,7 @@
                 body: JSON.stringify({
                     mother_id: currentPallet.id,
                     source: currentPallet.source,
+                    linia: currentPallet.linia,
                     weight_to_take: weightToTake
                 })
             });
@@ -258,21 +453,29 @@
                 return;
             }
 
-            // Sukces - odpal druk
+            // Sukces - schowaj formularz, pokaż przyciski druku
             const newPallet = result.new_pallet;
-            document.getElementById('newPalletSscc').textContent = newPallet.nr_palety;
             
-            // Bezpośredni druk ZPL
-            drukujZPLDirect(newPallet.id, newPallet.linia || currentLinia, newPallet.plan_id);
-
-            // Pokaż modal potwierdzenia
-            const printModal = new bootstrap.Modal(document.getElementById('printModal'));
-            printModal.show();
+            // Automatyczny druk ZPL w tle został wyłączony, pracownik sam wybierze, co chce drukować
+            // drukujZPLDirect(newPallet.id, newPallet.linia || currentLinia, newPallet.plan_id, newPallet.source);
             
-            // Ustaw listener na ponowienie druku
-            document.getElementById('forcePrintBtn').onclick = () => {
-                drukujZPLDirect(newPallet.id, newPallet.linia || currentLinia, newPallet.plan_id);
-            };
+            document.getElementById('splitFormElements').classList.add('d-none');
+            document.getElementById('splitSuccessElements').classList.remove('d-none');
+            
+            document.getElementById('successNewPalletSscc').textContent = newPallet.nr_palety;
+            document.getElementById('successMotherPalletSscc').textContent = currentPallet.nr_palety || currentPallet.id;
+            
+            lastPrintedNewId = newPallet.id;
+            lastPrintedNewSource = newPallet.source;
+            lastPrintedNewLinia = newPallet.linia || currentPallet.linia || currentLinia;
+            
+            lastPrintedMotherId = currentPallet.id;
+            lastPrintedMotherSource = currentPallet.source;
+            lastPrintedMotherLinia = currentPallet.linia || currentLinia;
+            
+            isSubmitting = false;
+            btn.innerHTML = originalText;
+            btn.disabled = false;
 
         } catch (err) {
             console.error(err);
@@ -283,20 +486,105 @@
         }
     });
 
-    // Używamy globalnej funkcji z layoutu, jeśli istnieje. Jeśli nie, tworzymy własny minimalny klient druku.
-    function drukujZPLDirect(paleta_id, linia, plan_id) {
+    // Używamy zaktualizowanego, autentycznego endpointu dla ZPL
+    function drukujZPLDirect(paleta_id, linia, plan_id, source, printer_id = null) {
         if (!paleta_id) return;
-        const printUrl = `/drukuj-zpl/${paleta_id}?linia=${encodeURIComponent(linia || 'AGRO')}&plan_id=${encodeURIComponent(plan_id || '')}`;
-        fetch(printUrl)
+        const srcQuery = source ? `&source=${encodeURIComponent(source)}` : '';
+        const printUrl = `/api/drukuj_etykiete_zpl/${paleta_id}?linia=${encodeURIComponent(linia || 'AGRO')}&plan_id=${encodeURIComponent(plan_id || '')}${srcQuery}`;
+        
+        fetch(printUrl, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ printer_id: printer_id })
+        })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    console.log('Wysłano do druku:', data);
+                    AppDialog.alert(`Zlecono wydruk ZPL na urządzenie.`, 'Sukces');
                 } else {
-                    console.warn('Błąd druku ZPL:', data.error);
+                    AppDialog.alert('Błąd druku ZPL: ' + (data.error || 'Nieznany błąd'));
                 }
             })
-            .catch(err => console.error('Błąd wywołania druku ZPL:', err));
+            .catch(err => {
+                console.error('Błąd wywołania druku ZPL:', err);
+                AppDialog.alert('Wystąpił błąd komunikacji podczas próby wydruku.');
+            });
     }
+
+    // --- Modal wyboru drukarki ---
+    let pendingPrintData = null; // Przechowuje dane do druku: { id, linia, source }
+
+    async function openPrinterModal(paletaId, linia, source) {
+        pendingPrintData = { id: paletaId, linia: linia, source: source };
+        document.getElementById('zplPrinterModal').classList.remove('d-none');
+        
+        const select = document.getElementById('zplPrinterSelect');
+        const loading = document.getElementById('zplPrinterLoading');
+        
+        select.innerHTML = '';
+        loading.classList.remove('d-none');
+        
+        try {
+            const resp = await fetch('/magazyn-dostawy/api/active-printers');
+            const data = await resp.json();
+            
+            loading.classList.add('d-none');
+            
+            if (data.success && data.printers && data.printers.length > 0) {
+                data.printers.forEach(p => {
+                    if(p.id) {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = `${p.nazwa} (${p.ip}) - ${p.lokalizacja || 'Magazyn'}`;
+                        select.appendChild(opt);
+                    }
+                });
+            } else {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Brak dodanych drukarek w ustawieniach!';
+                opt.disabled = true;
+                select.appendChild(opt);
+            }
+        } catch(e) {
+            loading.classList.add('d-none');
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Błąd pobierania listy drukarek';
+            opt.disabled = true;
+            select.appendChild(opt);
+        }
+    }
+
+    document.getElementById('btnZplCancel').addEventListener('click', function() {
+        document.getElementById('zplPrinterModal').classList.add('d-none');
+        pendingPrintData = null;
+    });
+
+    document.getElementById('btnZplPrint').addEventListener('click', function() {
+        const printerId = document.getElementById('zplPrinterSelect').value;
+        if (!printerId) {
+            AppDialog.alert('Wybierz drukarkę z listy przed wydrukiem.');
+            return;
+        }
+        
+        if (pendingPrintData) {
+            drukujZPLDirect(pendingPrintData.id, pendingPrintData.linia, null, pendingPrintData.source, printerId);
+        }
+        
+        document.getElementById('zplPrinterModal').classList.add('d-none');
+    });
+
+    // Obsługa przycisków drukowania po podziale
+    document.getElementById('btnPrintNew').addEventListener('click', function() {
+        if (!lastPrintedNewId) return;
+        openPrinterModal(lastPrintedNewId, lastPrintedNewLinia, lastPrintedNewSource);
+    });
+
+    document.getElementById('btnPrintMother').addEventListener('click', function() {
+        if (!lastPrintedMotherId) return;
+        openPrinterModal(lastPrintedMotherId, lastPrintedMotherLinia, lastPrintedMotherSource);
+    });
+
 </script>
 {% endblock %}

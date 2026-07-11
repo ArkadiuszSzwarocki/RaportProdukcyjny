@@ -29,12 +29,12 @@ class EdytujPlanCommand:
 
         if linia.upper() == 'AGRO':
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id, rodzaj_palety, updated_at FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s",
                 (pid,),
             )
         else:
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id, rodzaj_palety, updated_at FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s",
                 (pid,),
             )
             
@@ -49,27 +49,8 @@ class EdytujPlanCommand:
             collision_warning = True
 
         current_role = session.get('rola', '')
-        produkt_provided = produkt if produkt and (produkt.strip() if isinstance(produkt, str) else str(produkt).strip()) else None
-        sekcja_provided = sekcja if sekcja and (sekcja.strip() if isinstance(sekcja, str) else str(sekcja).strip()) else None
-        data_provided = data_planu if data_planu and str(data_planu).strip() else None
-        
-        is_tonaz_only = (
-            tonaz is not None
-            and str(tonaz).strip() != ''
-            and produkt_provided is None
-            and sekcja_provided is None
-            and data_provided is None
-        )
-
         if before[5] == 'zakonczone':
             return False, 'Edytowanie zakończonego zlecenia jest zakazane', {}, 403
-
-        if before[5] == 'w toku':
-            if current_role in ['planista', 'admin', 'zarzad', 'lider']:
-                if not is_tonaz_only:
-                    return False, 'Gdy zlecenie w toku, możesz zmieniać tylko kg', {}, 403
-            else:
-                return False, 'Nie można edytować zleceń w toku', {}, 403
 
         updates = []
         params = []
@@ -164,6 +145,14 @@ class EdytujPlanCommand:
                 updates.append('data_produkcji=%s')
                 params.append(data_prod_val)
                 changes['data_produkcji'] = {'before': before_prod_date_str, 'after': data_prod_val}
+
+        if before[5] == 'w toku':
+            if current_role in ['planista', 'admin', 'zarzad', 'lider']:
+                non_tonaz_changes = [k for k in changes.keys() if k != 'tonaz']
+                if non_tonaz_changes:
+                    return False, 'Gdy zlecenie w toku, możesz zmieniać tylko kg', {}, 403
+            else:
+                return False, 'Nie można edytować zleceń w toku', {}, 403
 
         if updates:
             sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"

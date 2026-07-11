@@ -664,6 +664,7 @@ def api_podzial_palety():
     mother_id = data.get('mother_id')
     source = data.get('mother_table') or data.get('source') or 'magazyn'
     weight_to_take = _safe_float(data.get('weight_to_take', 0))
+    linia = data.get('linia')
     login = session.get('login', 'System')
 
     try:
@@ -672,6 +673,7 @@ def api_podzial_palety():
             source=source,
             weight_to_take=weight_to_take,
             user_login=login,
+            linia=linia,
         )
         if not ok:
             return jsonify({'success': False, 'error': message})
