@@ -185,6 +185,9 @@ class PalletSplitService:
         if not pal or not linia:
             return False, 'Nie znaleziono palety bazowej w bazie danych.', None
 
+        if pal.get('is_blocked'):
+            return False, 'Paleta jest zablokowana (np. przypisana do dokumentu) i nie może zostać podzielona.', None
+
         current_weight = PalletSplitService._get_weight(pal, source)
         if weight_to_take >= current_weight:
             return (
