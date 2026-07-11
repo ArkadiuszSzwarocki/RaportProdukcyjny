@@ -574,6 +574,13 @@ def get_available_pallets():
         
         # Sortowanie i deduplikacja
         pallets.sort(key=lambda x: (str(x.get('lokalizacja') or ''), str(x.get('nazwa') or ''), x.get('id') or 0))
+        
+        unique_pallets = {}
+        for p in pallets:
+            key = f"{p['type']}_{p['id']}"
+            if key not in unique_pallets:
+                unique_pallets[key] = p
+        pallets = list(unique_pallets.values())
 
         # Reservation guard: exclude pallets already used in other pending transfers.
         cursor.execute(
