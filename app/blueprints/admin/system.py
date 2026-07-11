@@ -460,12 +460,16 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         # Fetch system printers
         system_printers = []
         try:
-            import win32print
-            system_printers = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
-        except ImportError:
-            # We are on Linux or win32print is not installed
+            import platform
             import subprocess
-            try:
+            if platform.system() == 'Windows':
+                # Use PowerShell to get printers. win32print often fails when running as a Windows Service.
+                result = subprocess.run(['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    system_printers = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+                else:
+                    flash(f"Błąd PowerShell podczas pobierania drukarek: {result.stderr}", "warning")
+            else:
                 # Try to list printers on Linux using lpstat
                 result = subprocess.run(['lpstat', '-p'], capture_output=True, text=True)
                 if result.returncode == 0:
@@ -474,8 +478,6 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                             parts = line.split(' ')
                             if len(parts) >= 2:
                                 system_printers.append(parts[1])
-            except Exception:
-                pass
         except Exception as e:
             flash(f"Błąd pobierania drukarek z systemu: {e}", "warning")
             
