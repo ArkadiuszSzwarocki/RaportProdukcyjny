@@ -28,12 +28,22 @@ def podglad_etykiety():
     linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
     qty = _safe_float(request.args.get('qty', 0))
 
-    if typ_surowca == 'packaging':
-        typ_label = 'OPAKOWANIE'
-    elif typ_surowca in {'wyrob_gotowy', 'finished', 'gotowy'}:
-        typ_label = 'WYRÓB GOTOWY'
-    else:
+    nr_upper = nr_palety.upper()
+    if nr_upper.startswith('SUR'):
         typ_label = 'SUROWIEC'
+    elif nr_upper.startswith('AGR') or nr_upper.startswith('PSD') or nr_upper.startswith('MIX'):
+        typ_label = 'WYRÓB GOTOWY'
+    elif nr_upper.startswith('OPA'):
+        typ_label = 'OPAKOWANIE'
+    elif nr_upper.startswith('DOD'):
+        typ_label = 'DODATEK'
+    else:
+        if typ_surowca == 'packaging':
+            typ_label = 'OPAKOWANIE'
+        elif typ_surowca in {'wyrob_gotowy', 'finished', 'gotowy'}:
+            typ_label = 'WYRÓB GOTOWY'
+        else:
+            typ_label = 'SUROWIEC'
 
     return render_template(
         'magazyn_dostawy/etykieta_podglad.html',
@@ -76,6 +86,16 @@ def podglad_etykiety_system(paleta_id):
     except Exception:
         nr_palety_lp = None
 
+    nr_upper = nr_palety.upper()
+    if nr_upper.startswith('SUR'):
+        typ_label_sys = 'SUROWIEC'
+    elif nr_upper.startswith('OPA'):
+        typ_label_sys = 'OPAKOWANIE'
+    elif nr_upper.startswith('DOD'):
+        typ_label_sys = 'DODATEK'
+    else:
+        typ_label_sys = 'WYROB GOTOWY'
+
     return render_template(
         'magazyn_dostawy/etykieta_podglad_system.html',
         nr_palety=nr_palety,
@@ -92,7 +112,7 @@ def podglad_etykiety_system(paleta_id):
 ^CI28
 ^PW812^LL1214
 ^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FDWYROB GOTOWY - {linia}^FS
+^FO40,60^A0N,50,50^FD{typ_label_sys} - {linia}^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
 ^FO250,340^BQN,2,10^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
