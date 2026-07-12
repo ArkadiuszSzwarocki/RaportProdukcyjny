@@ -115,14 +115,14 @@ class PalletMixService:
             cursor.execute(
                 f"""
                 INSERT INTO {table_mix} (
-                    nr_palety, nazwa, stan_magazynowy, data_produkcji, termin_przydatnosci,
-                    nr_partii, certyfikat, lokalizacja, uzytkownik_dodajacy, data_dodania
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    nr_palety, nazwa, stan_magazynowy, data_produkcji, data_przydatnosci,
+                    nr_partii, lokalizacja, linia, typ_opakowania
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'mix')
                 """,
                 (
                     new_sscc, mix_name, total_weight,
                     min_data_produkcji, min_termin_przydatnosci,
-                    nr_partii_mix, None, child_lokalizacja, user_login, now_dt
+                    nr_partii_mix, child_lokalizacja, linia
                 )
             )
             new_mix_id = cursor.lastrowid

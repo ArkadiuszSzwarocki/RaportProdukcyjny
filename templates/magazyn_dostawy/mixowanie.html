@@ -221,57 +221,69 @@
     }
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('input') && !e.target.closest('button') && !e.target.closest('.modal-premium-overlay')) {
+        if (!e.target.closest('input') && !e.target.closest('button') && !e.target.closest('select') && !e.target.closest('.modal-premium-overlay')) {
             focusScanner();
         }
     });
 
+    function handleScannerSubmit() {
+        const sscc = scannerInput.value.trim().replace(/[\r\n]+/g, '');
+        if (!sscc) return;
+        
+        scannerInput.disabled = true;
+        scanLoading.classList.remove('d-none');
+
+        fetch('/magazyn-dostawy/api/mixowanie/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sscc: sscc })
+        })
+        .then(res => res.json())
+        .then(data => {
+            scanLoading.classList.add('d-none');
+            if (!data.success) {
+                AppDialog.alert(data.error, "Błąd Skanowania");
+                resumeScanner();
+                return;
+            }
+            
+            // Sprawdzamy czy ta paleta już jest w mixie
+            if (components.find(c => c.mother_id === data.mother_id && c.source === data.source)) {
+                AppDialog.alert("Ta paleta została już dodana do mixu!", "Uwaga");
+                resumeScanner();
+                return;
+            }
+
+            currentScannedPallet = data;
+            
+            // Pokazujemy modal wagi
+            document.getElementById('wmProduct').textContent = data.produkt;
+            document.getElementById('wmSscc').textContent = data.nr_palety;
+            document.getElementById('wmMaxQty').textContent = parseFloat(data.waga).toFixed(2) + ' kg';
+            document.getElementById('wmInputQty').value = '';
+            
+            document.getElementById('weightModalOverlay').classList.remove('d-none');
+            setTimeout(() => document.getElementById('wmInputQty').focus(), 100);
+        })
+        .catch(err => {
+            scanLoading.classList.add('d-none');
+            AppDialog.alert('Błąd połączenia z serwerem.', 'Błąd serwera');
+            resumeScanner();
+        });
+    }
+
     scannerInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const sscc = scannerInput.value.trim().replace(/[\r\n]+/g, '');
-            if (!sscc) return;
-            
-            scannerInput.disabled = true;
-            scanLoading.classList.remove('d-none');
+            handleScannerSubmit();
+        }
+    });
 
-            fetch('/magazyn-dostawy/api/mixowanie/scan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sscc: sscc })
-            })
-            .then(res => res.json())
-            .then(data => {
-                scanLoading.classList.add('d-none');
-                if (!data.success) {
-                    AppDialog.alert(data.error, "Błąd Skanowania");
-                    resumeScanner();
-                    return;
-                }
-                
-                // Sprawdzamy czy ta paleta już jest w mixie
-                if (components.find(c => c.mother_id === data.mother_id && c.source === data.source)) {
-                    AppDialog.alert("Ta paleta została już dodana do mixu!", "Uwaga");
-                    resumeScanner();
-                    return;
-                }
-
-                currentScannedPallet = data;
-                
-                // Pokazujemy modal wagi
-                document.getElementById('wmProduct').textContent = data.produkt;
-                document.getElementById('wmSscc').textContent = data.nr_palety;
-                document.getElementById('wmMaxQty').textContent = parseFloat(data.waga).toFixed(2) + ' kg';
-                document.getElementById('wmInputQty').value = '';
-                
-                document.getElementById('weightModalOverlay').classList.remove('d-none');
-                setTimeout(() => document.getElementById('wmInputQty').focus(), 100);
-            })
-            .catch(err => {
-                scanLoading.classList.add('d-none');
-                AppDialog.alert('Błąd połączenia z serwerem.', 'Błąd serwera');
-                resumeScanner();
-            });
+    scannerInput.addEventListener('input', function(e) {
+        const val = this.value.trim().replace(/[\r\n]+/g, '');
+        // Autowysyłanie przy 18 znakach (pełen SSCC) lub 6 znakach (skrócony numer)
+        if (val.length === 18 || val.length === 6) {
+            handleScannerSubmit();
         }
     });
 
