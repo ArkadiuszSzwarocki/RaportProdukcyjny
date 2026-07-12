@@ -262,6 +262,11 @@ class PalletSplitService:
 
     @staticmethod
     def _get_weight(pal: dict[str, Any], source: str) -> float:
+        # find_by_sscc ujednolica wszystkie kolumny wagowe do aliasu 'waga'
+        if 'waga' in pal and pal['waga'] is not None:
+            return float(pal['waga'])
+            
+        # Fallback dla wyników z find_by_id (gdzie robimy SELECT *)
         if source in INVENTORY_SOURCES:
             return float(pal.get('stan_magazynowy') or 0)
         if source == 'magazyn':
