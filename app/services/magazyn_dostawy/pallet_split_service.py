@@ -203,6 +203,12 @@ class PalletSplitService:
         if pal.get('is_blocked'):
             return False, 'Paleta jest zablokowana (np. przypisana do dokumentu) i nie może zostać podzielona.', None
 
+        # Kategoryczny zakaz dzielenia palet MIX
+        nr_palety_check = str(pal.get('nr_palety', '')).upper()
+        produkt_check = str(pal.get('produkt') or pal.get('nazwa') or '').upper()
+        if nr_palety_check.startswith('MIX') or produkt_check.startswith('MIX'):
+            return False, 'Kategoryczny zakaz dzielenia palet MIX.', None
+
         current_weight = PalletSplitService._get_weight(pal, source)
         if weight_to_take >= current_weight:
             return (
@@ -360,13 +366,13 @@ class PalletSplitService:
         cursor.execute(
             f"""
             INSERT INTO {table} (
-                nr_palety, nazwa, stan_magazynowy, data_produkcji, termin_przydatnosci,
+                nr_palety, nazwa, stan_magazynowy, data_produkcji, data_przydatnosci,
                 nr_partii, certyfikat, lokalizacja, uzytkownik_dodajacy, data_dodania
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 new_sscc, product_name, weight_to_take,
-                pal.get('data_produkcji'), pal.get('termin_przydatnosci'),
+                pal.get('data_produkcji'), pal.get('termin_przydatnosci') or pal.get('data_przydatnosci'),
                 pal.get('nr_partii'), pal.get('certyfikat'),
                 child_lokalizacja, user_login, now_dt,
             ),
