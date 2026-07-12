@@ -17,7 +17,7 @@ import json
 from datetime import datetime
 from ..base import magazyn_dostawy_bp
 
-@magazyn_dostawy_bp.route('/podglad-etykiety')
+@magazyn_dostawy_bp.route('/podglad-etykiety', methods=['GET', 'POST'])
 def podglad_etykiety():
     nr_palety = str(request.args.get('nr_palety', '') or '').strip() or '---'
     product_name = str(request.args.get('product_name', '') or '').strip() or 'Brak nazwy'
@@ -48,7 +48,7 @@ def podglad_etykiety():
         generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     )
 
-@magazyn_dostawy_bp.route('/podglad-etykiety-system/<int:paleta_id>')
+@magazyn_dostawy_bp.route('/podglad-etykiety-system/<int:paleta_id>', methods=['GET', 'POST'])
 def podglad_etykiety_system(paleta_id):
     linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
     autoprint = str(request.args.get('autoprint', '') or '').strip().lower() in {'1', 'true', 'yes'}
@@ -101,6 +101,45 @@ def podglad_etykiety_system(paleta_id):
 ^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
 ^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
 ^XZ"""
+    )
+
+@magazyn_dostawy_bp.route('/podglad-etykiety-mix', methods=['GET', 'POST'])
+def podglad_etykiety_mix():
+    import json
+    import urllib.parse
+    mix_sscc = str(request.args.get('mix_sscc', '')).strip()
+    linia = str(request.args.get('linia', 'AGRO')).strip()
+    comps_raw = request.args.get('comps', '[]')
+    try:
+        comps = json.loads(urllib.parse.unquote(comps_raw))
+    except Exception:
+        comps = []
+        
+    zpl_string = f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FDSKLADNIKI MIX - {linia}^FS
+^FO40,150^A0N,55,55^FB720,1,0,C^FD{mix_sscc}^FS
+"""
+    y_pos = 250
+    for idx, c in enumerate(comps):
+        if y_pos > 1050:
+            break # out of bounds
+        zpl_string += f"""^FO40,{y_pos}^A0N,35,35^FD{idx+1}. {c.get('produkt')[:35]}^FS
+^FO60,{y_pos+45}^A0N,30,30^FD{c.get('sscc')} - {c.get('waga')} kg^FS
+"""
+        y_pos += 100
+        
+    zpl_string += "^XZ"
+    
+    return render_template(
+        'magazyn_dostawy/etykieta_podglad_system.html',
+        nr_palety=mix_sscc,
+        linia=linia,
+        generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        autoprint=False,
+        zpl_string=zpl_string
     )
 
 @magazyn_dostawy_bp.route('/preprint', methods=['POST','GET'])

@@ -90,6 +90,16 @@ def api_mix_finalize():
         # URL dla nowej palety MIX
         mix_url = PalletSplitService.build_label_url(result['mix_pallet'])
         print_urls.append(mix_url)
+        
+        # URL dla etykiety składników MIX (dodatkowa 3. etykieta)
+        import json
+        import urllib.parse
+        comps_encoded = urllib.parse.quote(json.dumps([
+            {'sscc': s['mother_nr_palety'], 'produkt': s['produkt'], 'waga': s['weight_taken']} 
+            for s in result['sources']
+        ]))
+        components_url = f"/magazyn-dostawy/podglad-etykiety-mix?mix_sscc={result['mix_pallet']['nr_palety']}&linia={linia}&comps={comps_encoded}"
+        print_urls.append(components_url)
 
         return jsonify({
             'success': True,

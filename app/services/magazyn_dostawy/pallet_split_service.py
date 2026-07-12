@@ -249,6 +249,10 @@ class PalletSplitService:
     def build_label_url(new_pallet: dict[str, Any]) -> str:
         source = new_pallet.get('source', '')
         if source in INVENTORY_SOURCES:
+            p_type_to_use = source
+            if str(new_pallet.get('nr_palety', '')).startswith('MIX'):
+                p_type_to_use = 'wyrob_gotowy'
+                
             query_params = urllib.parse.urlencode({
                 'nr_palety': new_pallet.get('nr_palety', ''),
                 'product_name': new_pallet.get('produkt') or new_pallet.get('nazwa') or '',
@@ -256,7 +260,7 @@ class PalletSplitService:
                 'data_produkcji': str(new_pallet.get('data_produkcji') or ''),
                 'data_przydatnosci': str(new_pallet.get('termin_przydatnosci') or new_pallet.get('data_przydatnosci') or ''),
                 'qty': new_pallet.get('waga', 0),
-                'p_type': source,
+                'p_type': p_type_to_use,
                 'linia': new_pallet.get('linia', 'AGRO'),
             })
             return f"/magazyn-dostawy/podglad-etykiety?{query_params}"
