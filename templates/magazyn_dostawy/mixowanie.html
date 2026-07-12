@@ -381,7 +381,8 @@
             return;
         }
 
-        AppDialog.confirm(`Czy na pewno chcesz utworzyć paletę MIX, podsumowując ${components.length} pobrań?`, 'Potwierdzenie Mixowania', () => {
+        AppDialog.confirm(`Czy na pewno chcesz utworzyć paletę MIX, podsumowując ${components.length} pobrań?`, 'Potwierdzenie Mixowania').then(agreed => {
+            if (!agreed) return;
             
             isSubmitting = true;
             document.getElementById('btnSubmitMix').classList.add('d-none');
@@ -412,7 +413,7 @@
                     });
                 }
                 
-                AppDialog.alert(`Zakończono pomyślnie. Nowy MIX: ${data.new_mix_sscc}`, 'Sukces', () => {
+                AppDialog.alert(`Zakończono pomyślnie. Nowy MIX: ${data.new_mix_sscc}`, 'Sukces').then(() => {
                     window.location.reload();
                 });
             })
