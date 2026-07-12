@@ -1076,6 +1076,7 @@ async function confirmAcceptWithPrinter() {
     btn.textContent = 'Zapisywanie...';
 
     const printerId = document.getElementById('modalPrinterSelect').value;
+    const wantsPdfPreview = printerId === pdfPreviewPrinterId;
 
     try {
         const res = await fetch("{{ url_for('magazyn_dostawy.przyjmij_pozycje', dostawa_id=dostawa.id) }}", {
