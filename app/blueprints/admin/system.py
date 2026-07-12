@@ -478,6 +478,9 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                             parts = line.split(' ')
                             if len(parts) >= 2:
                                 system_printers.append(parts[1])
+        except FileNotFoundError:
+            # lpstat or powershell is missing
+            pass
         except Exception as e:
             flash(f"Błąd pobierania drukarek z systemu: {e}", "warning")
             
