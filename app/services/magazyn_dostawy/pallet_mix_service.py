@@ -60,11 +60,12 @@ class PalletMixService:
                 mother_id = int(comp.get('mother_id', 0))
                 source = str(comp.get('source', '')).strip().lower()
                 weight_to_take = round(float(comp.get('weight_to_take', 0)), 3)
+                comp_linia = comp.get('linia')
 
                 if mother_id <= 0 or weight_to_take <= 0:
                     return False, f"Błędne dane komponentu (ID: {mother_id}, Waga: {weight_to_take}).", None
 
-                pal, pal_linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=linia)
+                pal, pal_linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=comp_linia)
                 if not pal or not pal_linia:
                     return False, f"Nie znaleziono palety bazowej (ID: {mother_id}, Źródło: {source}).", None
 
