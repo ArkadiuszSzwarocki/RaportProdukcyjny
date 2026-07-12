@@ -29,14 +29,12 @@ def podglad_etykiety():
     qty = _safe_float(request.args.get('qty', 0))
 
     nr_upper = nr_palety.upper()
-    if nr_upper.startswith('SUR'):
+    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD'):
         typ_label = 'SUROWIEC'
     elif nr_upper.startswith('AGR') or nr_upper.startswith('PSD') or nr_upper.startswith('MIX'):
         typ_label = 'WYRÓB GOTOWY'
     elif nr_upper.startswith('OPA'):
         typ_label = 'OPAKOWANIE'
-    elif nr_upper.startswith('DOD'):
-        typ_label = 'DODATEK'
     else:
         if typ_surowca == 'packaging':
             typ_label = 'OPAKOWANIE'
@@ -87,12 +85,10 @@ def podglad_etykiety_system(paleta_id):
         nr_palety_lp = None
 
     nr_upper = nr_palety.upper()
-    if nr_upper.startswith('SUR'):
+    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD'):
         typ_label_sys = 'SUROWIEC'
     elif nr_upper.startswith('OPA'):
         typ_label_sys = 'OPAKOWANIE'
-    elif nr_upper.startswith('DOD'):
-        typ_label_sys = 'DODATEK'
     else:
         typ_label_sys = 'WYROB GOTOWY'
 

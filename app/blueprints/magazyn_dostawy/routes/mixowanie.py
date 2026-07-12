@@ -29,9 +29,9 @@ def api_mix_scan():
     if not pal:
         return jsonify({'success': False, 'error': f'Nie odnaleziono palety: {sscc}'})
 
-    # Zakaz mixowania surowców (SSCC zaczynające się od SUR)
-    if sscc.upper().startswith('SUR'):
-        return jsonify({'success': False, 'error': 'Zakaz mixowania surowców (paleta SUR).'})
+    # Zakaz mixowania surowców (SSCC zaczynające się od SUR lub DOD)
+    if sscc.upper().startswith('SUR') or sscc.upper().startswith('DOD'):
+        return jsonify({'success': False, 'error': 'Zakaz mixowania surowców (paleta SUR/DOD).'})
 
     # Ograniczenie by można było uzywać tylko surowców/opakowań (chociaż usługa wspiera wszystkie)
     if pal.get('is_blocked'):

@@ -64,7 +64,7 @@ class PalletMixService:
                 if not mother_sscc or weight_to_take <= 0:
                     return False, f"Błędne dane komponentu (SSCC: {mother_sscc}, Waga: {weight_to_take}).", None
                     
-                if mother_sscc.upper().startswith('SUR'):
+                if mother_sscc.upper().startswith('SUR') or mother_sscc.upper().startswith('DOD'):
                     return False, f"Zakaz mixowania surowców (paleta: {mother_sscc}).", None
 
                 pal = PalletSplitService.find_by_sscc(mother_sscc)
