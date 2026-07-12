@@ -57,17 +57,20 @@ class PalletMixService:
             cursor = conn.cursor(dictionary=True)
 
             for comp in components:
-                mother_id = int(comp.get('mother_id', 0))
-                source = str(comp.get('source', '')).strip().lower()
+                # Używamy nr_palety (sscc) zamiast mother_id do znalezienia palety
+                mother_sscc = str(comp.get('nr_palety', '')).strip()
                 weight_to_take = round(float(comp.get('weight_to_take', 0)), 3)
-                comp_linia = comp.get('linia')
 
-                if mother_id <= 0 or weight_to_take <= 0:
-                    return False, f"Błędne dane komponentu (ID: {mother_id}, Waga: {weight_to_take}).", None
+                if not mother_sscc or weight_to_take <= 0:
+                    return False, f"Błędne dane komponentu (SSCC: {mother_sscc}, Waga: {weight_to_take}).", None
 
-                pal, pal_linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=comp_linia)
-                if not pal or not pal_linia:
-                    return False, f"Nie znaleziono palety bazowej (ID: {mother_id}, Źródło: {source}).", None
+                pal = PalletSplitService.find_by_sscc(mother_sscc)
+                if not pal:
+                    return False, f"Nie znaleziono palety bazowej o numerze SSCC: {mother_sscc}.", None
+
+                mother_id = pal['id']
+                source = pal['source']
+                pal_linia = pal.get('linia', linia)
 
                 if pal.get('is_blocked'):
                     return False, f"Paleta {pal.get('nr_palety')} jest zablokowana i nie może być użyta w mixie.", None

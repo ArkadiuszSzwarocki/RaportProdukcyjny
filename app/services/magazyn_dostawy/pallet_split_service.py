@@ -169,20 +169,35 @@ class PalletSplitService:
 
     @staticmethod
     def split_pallet(
-        mother_id: int,
-        source: str,
-        weight_to_take: float,
+        mother_sscc: str = None,
+        weight_to_take: float = 0.0,
         user_login: str = 'System',
         linia: str | None = None,
+        mother_id: int = None,
+        source: str = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
-        source = str(source or '').strip().lower()
         weight_to_take = round(float(weight_to_take or 0), 3)
 
-        if not mother_id or weight_to_take <= 0:
-            return False, 'Błędne dane wejściowe.', None
+        if weight_to_take <= 0:
+            return False, 'Błędne dane wejściowe (waga musi być > 0).', None
 
-        pal, linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=linia)
-        if not pal or not linia:
+        # Szukamy po SSCC jeśli podano (priorytet)
+        pal = None
+        if mother_sscc:
+            pal = PalletSplitService.find_by_sscc(mother_sscc)
+            if pal:
+                linia = pal.get('linia', linia)
+                source = pal['source']
+                mother_id = pal['id']
+
+        # Fallback na stary sposób wyszukiwania po ID
+        if not pal and mother_id and source:
+            source = str(source or '').strip().lower()
+            pal, found_linia = PalletSplitService.find_by_id(mother_id, source, requested_linia=linia)
+            if pal and found_linia:
+                linia = found_linia
+
+        if not pal:
             return False, 'Nie znaleziono palety bazowej w bazie danych.', None
 
         if pal.get('is_blocked'):

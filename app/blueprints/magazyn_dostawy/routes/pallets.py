@@ -669,6 +669,7 @@ def api_info_paleta():
 def api_podzial_palety():
     data = request.json or {}
     mother_id = data.get('mother_id')
+    mother_sscc = data.get('mother_sscc')
     source = data.get('mother_table') or data.get('source') or 'magazyn'
     weight_to_take = _safe_float(data.get('weight_to_take', 0))
     linia = data.get('linia')
@@ -676,11 +677,13 @@ def api_podzial_palety():
 
     try:
         ok, message, new_pallet = PalletSplitService.split_pallet(
-            mother_id=mother_id,
-            source=source,
+            mother_sscc=mother_sscc,
             weight_to_take=weight_to_take,
             user_login=login,
             linia=linia,
+            # Zostawiamy opcjonalne id/source dla kompatybilności, ale SSCC ma priorytet
+            mother_id=mother_id,
+            source=source
         )
         if not ok:
             return jsonify({'success': False, 'error': message})
