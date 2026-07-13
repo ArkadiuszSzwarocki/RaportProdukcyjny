@@ -121,12 +121,12 @@ class ReportGenerationService:
         Returns:
             Tuple of (xls_path, txt_path, pdf_path) - any can be None if generation failed
         """
-        # Import report generators (may not be available in test/dev environment)
+        # Import report generators
         try:
-            from app.generator_raportow import generuj_paczke_raportow  # type: ignore
+            from scripts.generator_raportow import generuj_paczke_raportow  # type: ignore
         except (ImportError, ModuleNotFoundError):
             try:
-                from generator_raportow import generuj_paczke_raportow  # type: ignore
+                from app.generator_raportow import generuj_paczke_raportow  # type: ignore
             except (ImportError, ModuleNotFoundError):
                 return None, None, None
         

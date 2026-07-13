@@ -1,4 +1,4 @@
-﻿  (function () {
+  (function () {
     const globalOpakowania = window.PlanistaBulkConfig.data.opakowania;
     const globalEtykiety = window.PlanistaBulkConfig.data.etykiety;
 
@@ -53,6 +53,103 @@
     const agroFieldsContainer = document.getElementById('agroFieldsContainer');
     const packagingTypeRow = document.getElementById('packagingTypeRow');
     const inpTypOpakowania = document.getElementById('inpTypOpakowania');
+    const inpTermin = document.getElementById('inpTermin');
+    const customTerminContainer = document.getElementById('customTerminContainer');
+
+    const btnRaportDnia = document.getElementById('btnRaportDnia');
+    const raportDniaModalBackdrop = document.getElementById('raportDniaModalBackdrop');
+    const raportDniaModal = document.getElementById('raportDniaModal');
+    const raportDniaContent = document.getElementById('raportDniaContent');
+    const btnRaportDniaClose = document.getElementById('btnRaportDniaClose');
+    const btnRaportDniaCloseBottom = document.getElementById('btnRaportDniaCloseBottom');
+
+    function closeRaportDniaModal() {
+      if(raportDniaModalBackdrop) raportDniaModalBackdrop.style.display = 'none';
+      if(raportDniaModal) {
+          raportDniaModal.style.display = 'none';
+          raportDniaModal.style.flexDirection = 'column';
+      }
+    }
+
+    if (btnRaportDnia) {
+      btnRaportDnia.addEventListener('click', function() {
+        if(raportDniaModalBackdrop) raportDniaModalBackdrop.style.display = 'block';
+        if(raportDniaModal) {
+            raportDniaModal.style.display = 'flex';
+        }
+        
+        const dataPlanu = document.getElementById('data_planu').value;
+        const linia = (sekcjaSelect.value === 'Agro') ? 'AGRO' : 'PSD';
+        
+        raportDniaContent.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">Ładowanie danych...</div>';
+        
+        fetch(`/planista/api/raport_dnia?data=${dataPlanu}&linia=${linia}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.error || data.message || data.success === false) {
+              const errorMsg = data.error || data.message || "Wystąpił nieznany błąd";
+              raportDniaContent.innerHTML = `<div style="color: red; padding: 20px; text-align: center;">Błąd: ${errorMsg}</div>`;
+              return;
+            }
+            
+            let html = `
+              <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                  <div style="font-size: 0.85em; color: #64748b; margin-bottom: 5px;">Pełna suma wyprodukowanych palet</div>
+                  <div style="font-size: 1.5em; font-weight: 700; color: #0f172a;">${data.total_palet} szt.</div>
+                </div>
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                  <div style="font-size: 0.85em; color: #64748b; margin-bottom: 5px;">Łączna waga</div>
+                  <div style="font-size: 1.5em; font-weight: 700; color: #0f172a;">${data.total_waga} kg</div>
+                </div>
+              </div>
+              <h4 style="margin: 0 0 10px 0; color: #334155;">Rozbicie na zlecenia:</h4>
+            `;
+            
+            if (!data.items || data.items.length === 0) {
+              html += '<div style="padding: 20px; text-align: center; color: #94a3b8;">Brak wyprodukowanych palet w tym dniu.</div>';
+            } else {
+              html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">';
+              html += '<thead style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;"><tr>';
+              html += '<th style="padding: 10px; text-align: left;">Zlecenie</th>';
+              html += '<th style="padding: 10px; text-align: center;">Ilość palet</th>';
+              html += '<th style="padding: 10px; text-align: right;">Suma Wagi (kg)</th>';
+              html += '</tr></thead><tbody>';
+              
+              data.items.forEach(item => {
+                html += `<tr style="border-bottom: 1px solid #e2e8f0;">`;
+                html += `<td style="padding: 10px; color: #334155;"><strong>${item.produkt}</strong> <span style="color: #94a3b8; font-size: 0.85em;">(#${item.plan_id})</span></td>`;
+                html += `<td style="padding: 10px; text-align: center; font-weight: 600;">${item.ilosc_palet}</td>`;
+                html += `<td style="padding: 10px; text-align: right; color: #0284c7;">${item.laczna_waga || 0}</td>`;
+                html += `</tr>`;
+              });
+              
+              html += '</tbody></table>';
+            }
+            
+            raportDniaContent.innerHTML = html;
+          })
+          .catch(err => {
+            console.error('Error fetching raport dnia:', err);
+            raportDniaContent.innerHTML = `<div style="color: red; padding: 20px; text-align: center;">Błąd pobierania danych.</div>`;
+          });
+      });
+    }
+
+    if (btnRaportDniaClose) btnRaportDniaClose.addEventListener('click', closeRaportDniaModal);
+    if (btnRaportDniaCloseBottom) btnRaportDniaCloseBottom.addEventListener('click', closeRaportDniaModal);
+    if (raportDniaModalBackdrop) raportDniaModalBackdrop.addEventListener('click', closeRaportDniaModal);
+
+    window.toggleCustomTermin = function() {
+      if (inpTermin && inpTermin.value === 'inna') {
+        customTerminContainer.style.display = 'block';
+        document.getElementById('inpTerminCustom').required = true;
+      } else {
+        customTerminContainer.style.display = 'none';
+        document.getElementById('inpTerminCustom').required = false;
+        document.getElementById('inpTerminCustom').value = '';
+      }
+    };
 
     // Planning info elements
     const planningInfoBanner = document.getElementById('planningInfoBanner');
@@ -441,6 +538,13 @@
       const rodzajPaletyEl = document.getElementById('inpRodzajPalety');
       const rodzajPalety = rodzajPaletyEl ? rodzajPaletyEl.value : 'krajowa';
 
+      let termin = inpTermin ? inpTermin.value : '';
+      if (termin === 'inna') {
+        const customDate = document.getElementById('inpTerminCustom').value;
+        if (!customDate) { return safeAlert('Błąd', 'Podaj datę przydatności'); }
+        termin = customDate;
+      }
+
       if (!produkt) { return safeAlert('Błąd', 'Wybierz produkt ze listy'); }
       if (tonaz === null || tonaz <= 0) { return safeAlert('Błąd', 'Podaj poprawną wagę (kg) większą od 0'); }
 
@@ -476,6 +580,7 @@
                      `<td>${tonaz}</td>` +
                      `<td>${typ}</td>` +
                      `<td>${rodzajPaletyCellHtml}</td>` +
+                     `<td>${termin}</td>` +
                      `<td class="col-worek" style="${isAgro ? '' : 'display: none;'}">${opakowanieNazwa}</td>` +
                      `<td class="col-etykieta" style="${isAgro ? '' : 'display: none;'}"><span style="display: inline-flex; align-items: center; gap: 6px;">${etykietaNazwa} ${etykietaBadge}</span></td>` +
                      `<td><button type="button" class="delete-button">🗑️</button></td>`;
@@ -486,6 +591,7 @@
       tr.dataset.typ = typ;
       tr.dataset.typOpakowania = typOpakowania;
       tr.dataset.rodzaj_palety = rodzajPalety;
+      tr.dataset.terminPrzydatnosci = termin;
       if (isAgro) {
         tr.dataset.opakowanieId = opakowanieId;
         tr.dataset.opakowanieNazwa = opakowanieNazwa;
@@ -573,6 +679,7 @@
         typ_produkcji: r.dataset.typ,
         typ_opakowania: r.dataset.typOpakowania || 'worki',
         sekcja: sekcja,
+        termin_przydatnosci: r.dataset.terminPrzydatnosci,
         opakowanie_id: r.dataset.opakowanieId ? parseInt(r.dataset.opakowanieId) : null,
         etykieta_id: r.dataset.etykietaId ? parseInt(r.dataset.etykietaId) : null
       }));

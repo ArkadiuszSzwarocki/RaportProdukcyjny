@@ -207,11 +207,12 @@
                     <th class="text-center" style="width:8%;">Dosypki</th>
                     <th class="text-center" style="width:9%;">Razem kg</th>
                     <th class="text-center" style="width:12%;">kg/h<br><small>prod. / rzeczyw.</small></th>
+                    <th class="text-center" style="width:5%;"><span class="material-icons" style="font-size: 16px;" title="Akcje">print</span></th>
                 </tr>
             </thead>
             <tbody>
             {% for r in zlecenia_rows %}
-            <tr style="cursor: pointer;" onclick="const t = document.getElementById('sz_det_tbl_{{ loop.index }}'); t.style.display = t.style.display === 'none' ? 'table-row' : 'none';">
+            <tr id="zlecenie_row_{{ loop.index }}" style="cursor: pointer;" onclick="const t = document.getElementById('sz_det_tbl_{{ loop.index }}'); t.style.display = t.style.display === 'none' ? 'table-row' : 'none';">
                 <td><strong>{{ r.data_planu }}</strong><br><small class="text-muted">#{{ r.plan_id }}</small></td>
                 <td>
                     {{ r.produkt }}
@@ -263,6 +264,9 @@
                     {% else %}
                         —
                     {% endif %}
+                </td>
+                <td class="text-center">
+                    <button onclick="event.stopPropagation(); printOrder({{ loop.index }});" class="btn-action btn-outline" style="padding: 4px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; color: #475569;" title="Drukuj to zlecenie">🖨️</button>
                 </td>
             </tr>
             <tr id="sz_det_tbl_{{ loop.index }}" style="display:none; background-color: #fafbfc;">
@@ -323,4 +327,85 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+function printOrder(index) {
+    const row = document.getElementById(`zlecenie_row_${index}`);
+    const detTable = document.getElementById(`sz_det_tbl_${index}`);
+    
+    // Create an iframe to print
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-9999px';
+    document.body.appendChild(printFrame);
+    
+    const doc = printFrame.contentWindow.document;
+    
+    doc.write('<html><head><title>Raport Zlecenia</title>');
+    doc.write('<style>');
+    doc.write('body { font-family: "Segoe UI", Arial, sans-serif; margin: 20px; color: #333; }');
+    doc.write('h2 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 22px; text-transform: uppercase; }');
+    doc.write('.order-summary { margin-bottom: 25px; padding: 15px; border: 2px solid #000; background: #fafafa; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; }');
+    doc.write('.order-summary-item { display: flex; flex-direction: column; }');
+    doc.write('.order-summary-item strong { font-size: 11px; text-transform: uppercase; color: #555; margin-bottom: 4px; }');
+    doc.write('.order-summary-item span { font-size: 16px; font-weight: bold; color: #000; }');
+    doc.write('h3 { font-size: 16px; margin-bottom: 10px; color: #000; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; }');
+    doc.write('table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }');
+    doc.write('th, td { border: 1px solid #000 !important; padding: 8px !important; text-align: center !important; font-size: 12px !important; display: table-cell !important; }');
+    doc.write('tr { display: table-row !important; }');
+    doc.write('thead { display: table-header-group !important; }');
+    doc.write('tbody { display: table-row-group !important; }');
+    doc.write('th { background-color: #f1f5f9 !important; font-weight: bold !important; }');
+    doc.write('.btn-action, button, .text-muted { display: none !important; }');
+    doc.write('</style>');
+    doc.write('</head><body>');
+    doc.write('<h2>Raport Czasu Pracy Zlecenia</h2>');
+    
+    // Klonujemy wiersz, aby bezpiecznie modyfikować DOM
+    const clonedRow = row.cloneNode(true);
+    const helperText = clonedRow.querySelector('div[style*="font-size:0.75em"]');
+    if(helperText) helperText.remove();
+    
+    const dataStr = clonedRow.cells[0].innerText.replace(/\n/g, ' ').trim();
+    const produktStr = clonedRow.cells[1].innerText.trim();
+    const totalTime = clonedRow.cells[clonedRow.cells.length - 7].innerText.trim();
+    const razemKg = clonedRow.cells[clonedRow.cells.length - 3].innerText.trim();
+    const kgH = clonedRow.cells[clonedRow.cells.length - 2].innerText.replace(/\s+/g, ' ').trim();
+    
+    doc.write('<div class="order-summary">');
+    doc.write(`<div class="order-summary-item"><strong>Data i Zlecenie</strong><span>${dataStr}</span></div>`);
+    doc.write(`<div class="order-summary-item" style="flex: 2;"><strong>Produkt</strong><span>${produktStr}</span></div>`);
+    doc.write(`<div class="order-summary-item"><strong>Łączny Czas</strong><span>${totalTime}</span></div>`);
+    doc.write(`<div class="order-summary-item"><strong>Wyprodukowano</strong><span>${razemKg}</span></div>`);
+    doc.write(`<div class="order-summary-item"><strong>Wydajność</strong><span>${kgH}</span></div>`);
+    doc.write('</div>');
+    
+    // Tabela szczegółów zlecenia (cykle zasypów)
+    const innerTable = detTable.querySelector('table');
+    if (innerTable) {
+        doc.write('<h3>Historia zmierzonych cykli (Zasypów)</h3>');
+        
+        // Zabezpieczenie przed responsywnymi stylami kopiowanymi w atrybucie style (czyszczenie klas)
+        const printTable = innerTable.cloneNode(true);
+        printTable.className = '';
+        
+        doc.write(printTable.outerHTML);
+    } else {
+        doc.write('<p>Brak szczegółów dla tego zlecenia.</p>');
+    }
+    
+    doc.write('</body></html>');
+    doc.close();
+    
+    printFrame.contentWindow.focus();
+    setTimeout(() => {
+        printFrame.contentWindow.print();
+        setTimeout(() => {
+            document.body.removeChild(printFrame);
+        }, 500);
+    }, 500);
+}
+</script>
 {% endblock %}

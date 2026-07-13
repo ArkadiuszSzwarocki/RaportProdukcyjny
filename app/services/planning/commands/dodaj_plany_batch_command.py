@@ -44,6 +44,7 @@ class DodajPlanyBatchCommand:
             typ = (plan.get('typ_produkcji') or '').strip() or 'worki_zgrzewane_25'
             typ_opakowania = (plan.get('typ_opakowania') or '').strip() or 'worki'
             rodzaj_palety = (plan.get('rodzaj_palety') or '').strip() or 'krajowa'
+            termin_przydatnosci = plan.get('termin_przydatnosci') or None
             sekcja = (plan.get('sekcja') or 'Zasyp').strip()
             sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Zasyp'
             nr = plan.get('nr_receptury') or ''
@@ -85,24 +86,24 @@ class DodajPlanyBatchCommand:
                 nk_agro = max_seq_map_agro.get('Agro', 0) + 1
                 max_seq_map_agro['Agro'] = nk_agro
                 cursor.execute(
-                    f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                    (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, typ, nr, 0, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety),
+                    f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety, termin_przydatnosci) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                    (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, typ, nr, 0, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety, termin_przydatnosci),
                 )
 
                 nk_work_agro = max_seq_map_agro.get('Workowanie', 0) + 1
                 max_seq_map_agro['Workowanie'] = nk_work_agro
                 zasyp_id_agro = cursor.lastrowid
                 cursor.execute(
-                    f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, typ, 0, zasyp_id_agro, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety),
+                    f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety, termin_przydatnosci) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, typ, 0, zasyp_id_agro, opakowanie_id, etykieta_id, typ_opakowania, rodzaj_palety, termin_przydatnosci),
                 )
                 continue
 
             nk_zasyp = max_seq_map.get('Zasyp', 0) + 1
             max_seq_map['Zasyp'] = nk_zasyp
             cursor.execute(
-                f'INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty, typ_opakowania, rodzaj_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk_zasyp, typ, nr, 0, typ_opakowania, rodzaj_palety),
+                f'INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty, typ_opakowania, rodzaj_palety, termin_przydatnosci) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk_zasyp, typ, nr, 0, typ_opakowania, rodzaj_palety, termin_przydatnosci),
             )
 
             if sekcja == 'Zasyp':
@@ -110,8 +111,8 @@ class DodajPlanyBatchCommand:
                 max_seq_map['Workowanie'] = nk_work
                 zasyp_id_created = cursor.lastrowid
                 cursor.execute(
-                    f'INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id, typ_opakowania, rodzaj_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created, typ_opakowania, rodzaj_palety),
+                    f'INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id, typ_opakowania, rodzaj_palety, termin_przydatnosci) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created, typ_opakowania, rodzaj_palety, termin_przydatnosci),
                 )
 
         notify_workers_about_plan_batch(

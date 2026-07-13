@@ -10,12 +10,14 @@
         </button>
         {% endif %}
 
+        {% if rola not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=wrctx.active_plan.id) }}" class="btn-wrs" style="background: #3498db; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(52,152,219,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;">
             <span class="material-icons" style="font-size: 20px;">print</span> Raport
         </a>
         <a href="{{ url_for('production.agro_folio_rozliczenie', data=dzisiaj) }}" class="btn-wrs" style="background: #e67e22; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(230,126,34,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;">
             <span class="material-icons" style="font-size: 20px;">wrap_text</span> Folia
         </a>
+        {% endif %}
     </div>
 
 </div>

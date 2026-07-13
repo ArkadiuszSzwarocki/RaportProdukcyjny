@@ -106,29 +106,23 @@ def _load_shift_notes(date_str: str, linia: str = 'PSD') -> str:
 
 
 def _get_leader_name(session_data: dict, form_data: dict):
-    lider_name = "Nieznany"
+    lider_name = session_data.get('imie_nazwisko') or session_data.get('login', 'Nieznany')
     uwagi_extra = ""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        lider_id = form_data.get('lider_id') or session_data.get('pracownik_id')
-        if lider_id:
-            cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (lider_id,))
-            row = cursor.fetchone()
-            if row and row[0]:
-                lider_name = row[0]
         prowadzacy_id = form_data.get('lider_prowadzacy_id')
         if prowadzacy_id:
+            conn = get_db_connection()
+            cursor = conn.cursor()
             cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (prowadzacy_id,))
             row2 = cursor.fetchone()
             if row2 and row2[0]:
                 uwagi_extra = f"\nLider prowadzacy: {row2[0]}\n"
-        cursor.close()
-        conn.close()
-        logger.info("[SHIFT_CLOSE] Lider: %s", lider_name)
+            cursor.close()
+            conn.close()
     except Exception as exc:
-        logger.warning("[SHIFT_CLOSE] Nie mozna pobrac lidera: %s", exc)
-        lider_name = session_data.get('login', 'Nieznany')
+        logger.warning("[SHIFT_CLOSE] Nie mozna pobrac lidera prowadzacego: %s", exc)
+    
+    logger.info("[SHIFT_CLOSE] Lider: %s", lider_name)
     return lider_name, uwagi_extra
 
 

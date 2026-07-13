@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from pathlib import Path
 from datetime import datetime
 from app.db import get_db_connection, get_table_name
 import logging
@@ -26,7 +27,18 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] Fetching production data for {data_raportu}")
     print(f"[GENERATOR] Fetching production data...")
     table_plan = get_table_name('plan_produkcji', linia)
-    df_plan = pd.read_sql(f"SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s", conn, params=(data_raportu,))
+    table_palety = get_table_name('palety_workowanie', linia)
+    sql_plan = f"""
+        SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, real_start, real_stop, nazwa_zlecenia 
+        FROM {table_plan} 
+        WHERE data_planu = %s 
+           OR DATE(real_start) = %s 
+           OR DATE(real_stop) = %s 
+           OR id IN (
+               SELECT plan_id FROM {table_palety} WHERE DATE(data_dodania) = %s
+           )
+    """
+    df_plan = pd.read_sql(sql_plan, conn, params=(data_raportu, data_raportu, data_raportu, data_raportu))
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
     print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
     
@@ -73,7 +85,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                    COALESCE(o.komentarz, '') AS komentarz
             FROM obecnosc o
             JOIN pracownicy p ON o.pracownik_id = p.id
-            WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') != 'obecny'
+            WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
             ORDER BY typ, p.imie_nazwisko
         """, conn, params=(data_raportu,))
     except Exception as _e:
@@ -164,7 +176,16 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
 
         prod_rows = []
         for _, row in df_plan.iterrows():
-            prod_rows.append((row.get('sekcja', ''), row.get('produkt', ''), row.get('tonaz', None), row.get('tonaz_rzeczywisty', None)))
+            prod_rows.append((
+                row.get('sekcja', ''), 
+                row.get('produkt', ''), 
+                row.get('tonaz', None), 
+                row.get('tonaz_rzeczywisty', None),
+                row.get('real_start', None),
+                row.get('real_stop', None),
+                row.get('nazwa_zlecenia', ''),
+                row.get('id', '')
+            ))
 
         # Sortuj: najpierw według kolejności produktu w planie (`kolejnosc`/id),
         # potem po nazwie produktu, a wewnątrz produktu uporządkuj sekcje: Zasyp -> Workowanie -> Magazyn
@@ -191,28 +212,68 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         nieobecni_rows = [(r.get('pracownik', ''), r.get('typ', ''), r.get('komentarz', '')) for _, r in df_nieobecni.iterrows()]
         nadgodziny_rows = [(r.get('pracownik', ''), r.get('ilosc_nadgodzin', 0), r.get('powod', ''), r.get('status', '')) for _, r in df_nadgodziny.iterrows()]
 
+        try:
+            table_palety = get_table_name('palety_workowanie', linia)
+            sql_palety = f"""
+                SELECT p.id as plan_id, p.nazwa_zlecenia, p.produkt, COUNT(pw.id) as ilosc_palet, SUM(pw.waga) as laczna_waga
+                FROM {table_palety} pw
+                JOIN {table_plan} p ON pw.plan_id = p.id
+                WHERE DATE(pw.data_dodania) = %s
+                GROUP BY p.id, p.nazwa_zlecenia, p.produkt
+                ORDER BY MIN(pw.id) ASC
+            """
+            df_palety = pd.read_sql(sql_palety, conn, params=(data_raportu,))
+            palety_rows = []
+            for _, r in df_palety.iterrows():
+                zlec = r.get('nazwa_zlecenia')
+                if not zlec or not str(zlec).strip():
+                    zlec = f"ID: {r.get('plan_id', '')}"
+                palety_rows.append((zlec, r.get('produkt', ''), r.get('ilosc_palet', 0), r.get('laczna_waga', 0)))
+        except Exception as e:
+            logger.error(f"[GENERATOR] Error fetching palety_rows: {e}")
+            palety_rows = []
+
         print(f"[GENERATOR] About to call generuj_pdf with data={data_raportu}, prod_rows count={len(prod_rows)}, awarie_rows count={len(awarie_rows)}, hr_rows count={len(hr_rows)}")
         import sys
         sys.stdout.flush()
         sys.stderr.flush()
         
         pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows,
+                               folder, linia,
                                obsada_rows=obsada_rows, nieobecni_rows=nieobecni_rows,
-                               bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows)
+                               bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows,
+                               palety_rows=palety_rows)
         
         print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
         sys.stdout.flush()
         
         logger.info(f"[GENERATOR] pdf_name returned: {pdf_name} (type={type(pdf_name).__name__})")
-        pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
-        # Rename PDF to include line name if possible or handle it in raporty.py
-        if pdf_path and os.path.exists(pdf_path):
-             new_pdf_name = f"Raport_{linia}_{data_raportu}.pdf"
-             new_pdf_path = os.path.join('raporty', new_pdf_name)
-             import shutil
-             shutil.move(pdf_path, new_pdf_path)
-             pdf_path = new_pdf_path
-        logger.info(f"[GENERATOR] pdf_path constructed: {pdf_path}")
+        # Użyj absolutnych ścieżek — CWD serwera Flask może się różnić od root projektu
+        _base = Path(__file__).resolve().parent.parent
+        _raporty_abs = _base / 'raporty'
+        if pdf_name:
+            pdf_abs = _raporty_abs / pdf_name
+            new_pdf_name = f"Raport_{linia}_{data_raportu}.pdf"
+            new_pdf_abs = _raporty_abs / new_pdf_name
+            if pdf_abs.exists():
+                import shutil
+                shutil.move(str(pdf_abs), str(new_pdf_abs))
+                pdf_path = str(new_pdf_abs)
+            elif new_pdf_abs.exists():
+                # Już istnieje pod docelową nazwą (np. po poprzednim wywołaniu)
+                pdf_path = str(new_pdf_abs)
+            else:
+                # Fallback: szukaj pod _new.pdf (plik mógł być zablokowany)
+                fallback = _raporty_abs / pdf_name.replace('.pdf', '_new.pdf')
+                if fallback.exists():
+                    import shutil
+                    shutil.move(str(fallback), str(new_pdf_abs))
+                    pdf_path = str(new_pdf_abs)
+                else:
+                    logger.warning("[GENERATOR] PDF file not found at %s or %s", pdf_abs, fallback)
+                    pdf_path = None
+        else:
+            pdf_path = None
         logger.info(f"[GENERATOR] PDF generated successfully: {pdf_name}")
     except Exception as e:
         import traceback

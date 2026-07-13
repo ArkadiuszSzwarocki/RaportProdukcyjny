@@ -39,6 +39,20 @@
         </h2>
     </div>
 
+    <!-- Filtry -->
+    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
+        <label style="font-weight: bold; color: #475569; font-size: 14px; display: flex; align-items: center; gap: 5px;">
+            <span class="material-icons" style="font-size: 18px;">filter_alt</span> Filtruj:
+        </label>
+        <input type="date" id="historyFilterDataOd" class="modern-input" style="flex: 1; min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data od">
+        <input type="date" id="historyFilterDataDo" class="modern-input" style="flex: 1; min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data do">
+        <input type="text" id="historyFilterSurowiec" class="modern-input" style="flex: 2; min-width: 180px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Wpisz nazwę surowca...">
+        <input type="text" id="historyFilterStacja" class="modern-input" style="flex: 1; min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Wpisz stację (np. BB19)">
+        <button onclick="fetchStationHistory()" style="padding: 8px 20px; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: background 0.2s;">
+            <span class="material-icons" style="font-size:18px;">search</span> Szukaj
+        </button>
+    </div>
+
     <div class="table-container">
         <table class="modern-table small compact-mobile" style="width: 100%;">
             <thead>
@@ -46,13 +60,14 @@
                     <th>Data</th>
                     <th>Stacja</th>
                     <th>Produkt</th>
+                    <th>SSCC</th>
                     <th>Ilość [kg]</th>
                     <th>Typ</th>
                     <th>Użytkownik</th>
                 </tr>
             </thead>
             <tbody id="stationHistoryTableBody">
-                <tr><td colspan="6" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>
+                <tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>
             </tbody>
         </table>
     </div>
@@ -66,17 +81,31 @@
     });
 
     function fetchStationHistory() {
-        fetch(`/magazyny-nowe/historia-stacji/data?linia=AGRO`)
+        const dataOd = document.getElementById('historyFilterDataOd').value;
+        const dataDo = document.getElementById('historyFilterDataDo').value;
+        const surowiec = document.getElementById('historyFilterSurowiec').value;
+        const stacja = document.getElementById('historyFilterStacja').value;
+        
+        let url = `/magazyny-nowe/historia-stacji/data?linia=PSD`;
+        if(dataOd) url += `&dataOd=${dataOd}`;
+        if(dataDo) url += `&dataDo=${dataDo}`;
+        if(surowiec) url += `&surowiec=${encodeURIComponent(surowiec)}`;
+        if(stacja) url += `&stacja=${encodeURIComponent(stacja)}`;
+
+        const tbody = document.getElementById('stationHistoryTableBody');
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
+
+        fetch(url)
             .then(res => res.json())
             .then(data => {
                 const tbody = document.getElementById('stationHistoryTableBody');
                 if (!data.success) {
-                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Błąd: ${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd: ${data.error}</td></tr>`;
                     return;
                 }
                 
                 if (!data.data || data.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Brak historii czyszczenia dla tej linii.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Brak danych w historii stacji.</td></tr>';
                     return;
                 }
                 
@@ -98,6 +127,7 @@
                             <td>${row.data}</td>
                             <td style="font-weight: bold; color: #0284c7;">${row.stacja}</td>
                             <td>${row.nazwa || '-'}</td>
+                            <td style="font-size: 11px; color: #64748b;">${row.nr_palety || '-'}</td>
                             <td style="font-weight: bold; color: #16a34a;">${row.ilosc != null ? parseFloat(row.ilosc).toFixed(2) : '-'}</td>
                             <td>${typeBadge}</td>
                             <td>${row.user || '-'}</td>
@@ -107,7 +137,7 @@
                 tbody.innerHTML = html;
             })
             .catch(err => {
-                document.getElementById('stationHistoryTableBody').innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Błąd komunikacji z serwerem</td></tr>`;
+                document.getElementById('stationHistoryTableBody').innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd komunikacji z serwerem</td></tr>`;
                 console.error(err);
             });
     }

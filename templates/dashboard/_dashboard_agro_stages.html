@@ -1,6 +1,10 @@
 {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
 {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
+{% set role_lc = rola|string|trim|lower %}
+{% if role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO' and sekcja == 'Workowanie' %}
+    {% set is_readonly = true %}
+{% endif %}
 {% set target_plans = [p] if p is defined and p else plan %}
 {% for p in target_plans %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
 {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}

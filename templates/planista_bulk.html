@@ -1,4 +1,4 @@
-﻿{% extends 'layout.html' %}
+{% extends 'layout.html' %}
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/planista_bulk.css') }}?v=1">
@@ -37,6 +37,24 @@
       <button type="button" id="btnManageProducts" class="btn-manage-products">
         ⚙️ Zarządzaj produktami
       </button>
+      <button type="button" id="btnRaportDnia" class="btn-manage-products" style="background-color: #3b82f6; border-color: #2563eb; color: white;">
+        📊 Raport Dnia
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal Raportu Dnia -->
+  <div id="raportDniaModalBackdrop" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000;"></div>
+  <div id="raportDniaModal" class="modal-content" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 600px; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1001; padding: 20px; max-height: 80vh; display: flex; flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #0f172a;">📊 Raport z wyprodukowanych palet</h3>
+        <button type="button" id="btnRaportDniaClose" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+    </div>
+    <div id="raportDniaContent" style="overflow-y: auto; flex: 1;">
+        <div style="text-align: center; padding: 20px; color: #64748b;">Ładowanie danych...</div>
+    </div>
+    <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: right;">
+        <button type="button" id="btnRaportDniaCloseBottom" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">Zamknij</button>
     </div>
   </div>
 
@@ -97,6 +115,22 @@
         </div>
       </div>
       
+      <!-- LINIA 2.6: TERMIN PRZYDATNOŚCI -->
+      <div class="form-row form-row-2-6" style="margin-top: 10px;">
+        <div class="form-field" style="flex: 1;">
+          <label>Termin przydatności <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpTermin" aria-label="Termin przydatności" onchange="toggleCustomTermin()" required>
+            <option value="8 miesięcy">8 miesięcy</option>
+            <option value="12 miesięcy">12 miesięcy</option>
+            <option value="inna">Inna (wybierz datę)</option>
+          </select>
+          <div id="customTerminContainer" style="display: none; margin-top: 8px;">
+            <label style="font-size: 0.85em; color: #64748b;">Podaj datę przydatności:</label>
+            <input type="date" id="inpTerminCustom" style="width: 100%;">
+          </div>
+        </div>
+      </div>
+      
       <!-- LINIA 3: AGRO specyficzne pola (opakowanie i etykieta) -->
       <div id="agroFieldsContainer" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
         <div class="form-row form-row-3">
@@ -145,6 +179,7 @@
           <th>{{ _('waga_kg_symbol') }}</th>
           <th>{{ _('typ_produkcji') }}</th>
           <th>🚢 Paleta</th>
+          <th>Termin</th>
           <th class="col-worek" style="display: none;">Worek</th>
           <th class="col-etykieta" style="display: none;">Etykieta</th>
           <th>Akcje</th>

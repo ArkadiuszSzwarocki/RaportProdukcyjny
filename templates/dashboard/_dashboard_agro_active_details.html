@@ -1,4 +1,8 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
+{% set role_lc = rola|string|trim|lower %}
+{% if role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO' and sekcja == 'Workowanie' %}
+    {% set is_readonly = true %}
+{% endif %}
 <div class="active-order-szarze-wrap" style="margin: 0 !important; max-width: 100% !important; box-sizing: border-box;">
     <div class="active-order-szarze-panel" style="width: 100%; box-sizing: border-box;">
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative;">
@@ -32,7 +36,9 @@
                     <div class="active-order-szarze-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
                         <span>#{{ loop_idx }} • {{ pal[1] }}</span>
                         {% if pal|length>4 and pal[4] %}
-                        <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em; margin-inline:2px;">{{ pal[4]|upper }}</span>
+                        {% set raw_status = pal[4]|upper %}
+                        {% set disp_status = 'W_MAGAZYNIE' if raw_status in ['PRZYJETA', 'PRZYJĘTA'] else raw_status %}
+                        <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em; margin-inline:2px;">{{ disp_status }}</span>
                         {% endif %}
                         <strong class="text-primary" style="white-space: nowrap;">{{ pal[0]|int }} kg</strong>
                         {% if pal|length > 5 %}

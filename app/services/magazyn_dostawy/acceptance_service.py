@@ -450,7 +450,7 @@ class AcceptanceService:
                     """, (pallet_id, 
                           pallet.get('plan_id'), 
                           pallet.get('data_planu'), 
-                          pallet.get('produkt_nazwa') or pallet.get('produkt') or 'Wyrób Gotowy', 
+                          pallet.get('produkt_nazwa') or pallet.get('produkt') or '', 
                           confirmed_netto, 
                           float(pallet.get('waga_brutto') or 0), 
                           float(pallet.get('tara') or 0), 
