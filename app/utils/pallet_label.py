@@ -43,6 +43,13 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         has_nr_palety_lp = bool(cursor.fetchone())
     except Exception:
         has_nr_palety_lp = False
+
+    has_nr_partii = False
+    try:
+        cursor.execute(f"SHOW COLUMNS FROM {table_plan} LIKE 'nr_partii'")
+        has_nr_partii = bool(cursor.fetchone())
+    except Exception:
+        has_nr_partii = False
     
     # 1. First attempt: Find in confirmed warehouse table
     params = []
@@ -71,6 +78,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     where_clause = "WHERE " + " AND ".join(where_parts)
     final_params = tuple(params + order_params)
 
+    partia_select = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
     cursor.execute(f"""
         SELECT
             mp.produkt,
@@ -80,7 +88,8 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             mp.nr_palety,
             mp.paleta_workowanie_id,
             pp.data_produkcji,
-            mp.nr_plomby
+            mp.nr_plomby,
+            {partia_select}
         FROM {table_mag} mp
         LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
         {where_clause}
@@ -98,6 +107,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         pw_id_from_mag = _get_val(row, 'paleta_workowanie_id', 5)
         custom_data_prod = _get_val(row, 'data_produkcji', 6)
         nr_plomby = _get_val(row, 'nr_plomby', 7)
+        nr_partii_db = _get_val(row, 'nr_partii', 8)
         
         # Decide production date
         if custom_data_prod:
@@ -171,14 +181,16 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             'data': data_str,
             'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}",
             'nr_palety_lp': nr_palety_lp,
-            'nr_plomby': nr_plomby
+            'nr_plomby': nr_plomby,
+            'nr_partii': nr_partii_db
         }
         
     # 2. Second attempt: Find in buffer table (palety_workowanie)
     lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else f"(SELECT COUNT(*) FROM {table_pal} sub WHERE sub.plan_id = pw.plan_id AND sub.id <= pw.id) AS nr_palety_lp"
 
+    partia_select_pw = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
     cursor.execute(f"""
-        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby
+        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         WHERE pw.id = %s
@@ -196,6 +208,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     custom_data_prod = _get_val(pw_row, 'data_produkcji', 5)
     stored_nr_palety_lp = _get_val(pw_row, 'nr_palety_lp', 6)
     nr_plomby = _get_val(pw_row, 'nr_plomby', 7)
+    nr_partii_db = _get_val(pw_row, 'nr_partii', 8)
     
     # Decide production date
     if custom_data_prod:
@@ -250,5 +263,6 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         'data': data_str,
         'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})",
         'nr_palety_lp': nr_palety_lp,
-        'nr_plomby': nr_plomby
+        'nr_plomby': nr_plomby,
+        'nr_partii': nr_partii_db
     }

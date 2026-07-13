@@ -397,8 +397,10 @@ class PrintServer:
         nr_palety_lp = label_data.get('nr_palety_lp') or ''
         linia = str(label_data.get('linia') or '').strip()
         nr_plomby = str(label_data.get('nr_plomby') or '').strip()
+        nr_partii = str(label_data.get('nr_partii') or '').strip()
 
         plomba_line = f"^FO40,950^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
+        partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
         
         return f"""^XA
 ^CI28
@@ -410,6 +412,7 @@ class PrintServer:
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
 ^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp}^FS
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
+{partia_line}
 {plomba_line}
 ^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
 ^FO40,1100^A0N,100,100^FD{qty_display} kg^FS

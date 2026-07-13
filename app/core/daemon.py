@@ -197,6 +197,9 @@ def _select_preferred_printer(cursor):
 
 def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AGRO'):
     """On wrap rising edge print exactly one label for the newest pallet of active plan."""
+    # Automated printing after wrapper is disabled upon user request
+    return False, 'Automatyczny wydruk po owijarce został wyłączony', None
+
     from app.db import get_db_connection, get_table_name
     from app.services.print_server import get_printer
 

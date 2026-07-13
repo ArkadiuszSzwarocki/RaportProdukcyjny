@@ -571,7 +571,18 @@ def get_available_pallets():
                 cursor.execute(q3, params if params else [])
                 pallets.extend(cursor.fetchall())
         
-        # Sortowanie i deduplikacja
+        # Deduplikacja (ponieważ surowce/opakowania mogą być współdzielone i pobrane 2 razy w pętli)
+        unique_pallets = []
+        seen = set()
+        for p in pallets:
+            key = (p.get('type'), p.get('id'))
+            if key not in seen:
+                seen.add(key)
+                unique_pallets.append(p)
+        
+        pallets = unique_pallets
+
+        # Sortowanie
         pallets.sort(key=lambda x: (str(x.get('lokalizacja') or ''), str(x.get('nazwa') or ''), x.get('id') or 0))
 
         # Reservation guard: exclude pallets already used in other pending transfers.
