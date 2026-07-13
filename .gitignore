@@ -61,6 +61,7 @@ debug_*.txt
 *.db
 *.sqlite
 *.sqlite3
+.active_db_name
 
 # Excel exports (if saved locally)
 *.xlsx

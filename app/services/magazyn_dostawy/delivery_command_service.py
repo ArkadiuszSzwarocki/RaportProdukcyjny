@@ -460,10 +460,11 @@ class DeliveryCommandService:
                             is_partial = form_weight < (pallet_weight - 0.001) # Tolerance for floating point
                             
                             if is_partial:
-                                # Subtract from source, don't move location
+                                # Subtract from source
                                 cursor.execute(f"UPDATE {target_table} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (form_weight, p_id))
+                                # Create new partial pallet at destination
+                                cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) SELECT nazwa, %s, %s, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania FROM {target_table} WHERE id = %s", (form_weight, lokalizacja_do, p_id))
                                 item['is_partial'] = True
-                                # Location in 'item' will be buffer, but in DB source stays at source
                             else:
                                 # Move whole pallet
                                 cursor.execute(f"UPDATE {target_table} SET lokalizacja = %s WHERE id = %s", (lokalizacja_do, p_id))
@@ -476,14 +477,19 @@ class DeliveryCommandService:
                             if p_nr:
                                 item['sourcePalletNo'] = p_nr
                                 item['nr_palety'] = p_nr
+                            item['accepted'] = True
+                            item['accepted_by'] = login
+                            item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            item['lokalizacja_przyjecia'] = lokalizacja_do
+
                             cursor.execute(
-                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_START', %s, %s, %s, %s)",
-                                (p_id, linia, p_type, source_spot, lokalizacja_do, f"Przesunięcie {order_ref}: {source_spot} -> {lokalizacja_do}", login)
+                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_COMPLETED', %s, %s, %s, %s)",
+                                (p_id, linia, p_type, source_spot, lokalizacja_do, f"Przesunięcie {order_ref}: {source_spot} -> {lokalizacja_do} (zakończone automatycznie)", login)
                             )
                         updated_items.append(item)
                     
-                    # Update items with the transfer staging location
-                    cursor.execute("UPDATE magazyn_dostawy SET items=%s WHERE id=%s", (json.dumps(updated_items), dostawa_id))
+                    # Update items and mark as COMPLETED
+                    cursor.execute("UPDATE magazyn_dostawy SET items=%s, status='COMPLETED', potwierdzone_przez=%s, potwierdzone_at=%s WHERE id=%s", (json.dumps(updated_items), login, datetime.now(), dostawa_id))
 
                 conn.commit()
                 return True, dostawa_id

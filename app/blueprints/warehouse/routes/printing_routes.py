@@ -530,3 +530,8 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
             cursor.close()
             conn.close()
 
+    @warehouse_bp.route('/drukuj-zpl/<int:paleta_id>', methods=['GET'])
+    def legacy_drukuj_zpl_redirect(paleta_id):
+        """Redirect legacy manual GET requests to the label preview page."""
+        linia = request.args.get('linia', 'PSD')
+        return redirect(url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=paleta_id, linia=linia))

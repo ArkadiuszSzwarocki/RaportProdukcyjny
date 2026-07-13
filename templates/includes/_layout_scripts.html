@@ -384,14 +384,19 @@
         var dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = yyyy + '-' + mm + '-' + dd;
 
+        var isCzyszczenie = (productName || '').toLowerCase().indexOf('czyszczenie') !== -1;
+
         var nrPartiiLabel = document.createElement('label');
-        nrPartiiLabel.innerHTML = 'Nr Partii: <span style="color:#c81e1e;">*</span>';
+        nrPartiiLabel.innerHTML = 'Nr Partii: ' + (isCzyszczenie ? '<span style="color:#627d98;font-size:0.85em;">(opcjonalnie)</span>' : '<span style="color:#c81e1e;">*</span>');
         nrPartiiLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;box-sizing:border-box;';
 
         var nrPartiiInput = document.createElement('input');
         nrPartiiInput.type = 'text';
         nrPartiiInput.placeholder = 'Wpisz numer partii produkcji...';
         nrPartiiInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;';
+        if (isCzyszczenie) {
+            nrPartiiInput.value = 'CZYSZCZENIE';
+        }
 
         var errorBox = document.createElement('div');
         errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;box-sizing:border-box;';
@@ -414,9 +419,12 @@
         });
 
         confirmBtn.addEventListener('click', function() {
-            if (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked) {
+            if (!isCzyszczenie && (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked)) {
                 errorBox.textContent = 'Potwierdź oba punkty checklisty operatora.';
                 return;
+            }
+            if (isCzyszczenie && (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked)) {
+                // Dla czyszczenia przymykamy na to oko, chociaż checklist może w ogóle nie dotyczyć
             }
 
             var dateValue = (dateInput.value || '').trim();
@@ -426,7 +434,7 @@
             }
 
             var nrPartiiValue = (nrPartiiInput.value || '').trim();
-            if (!nrPartiiValue) {
+            if (!isCzyszczenie && !nrPartiiValue) {
                 errorBox.textContent = 'Nr Partii jest wymagany.';
                 return;
             }

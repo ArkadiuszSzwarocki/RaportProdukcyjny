@@ -95,7 +95,7 @@ class WarehousePalletService:
             reserved_row = cursor.fetchone()
     
             nr_palety_czyszczenie = None
-            if plan_produkt == 'Czyszczenie':
+            if plan_produkt and 'czyszczenie' in plan_produkt.lower():
                 cursor.execute(f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL LIMIT 1", (plan_id, plan_zasyp_id or -1))
                 sscc_row = cursor.fetchone()
                 if sscc_row and sscc_row[0]:
@@ -103,7 +103,7 @@ class WarehousePalletService:
     
             if reserved_row:
                 paleta_id = reserved_row[0]
-                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
                     nr_palety = nr_palety_czyszczenie
                 else:
                     nr_palety = reserved_row[1] or generate_pallet_id(linia)
@@ -112,7 +112,7 @@ class WarehousePalletService:
                     (waga_input, now_ts, user_login, nr_palety, nr_plomby, paleta_id),
                 )
             else:
-                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
                     nr_palety = nr_palety_czyszczenie
                 else:
                     nr_palety = generate_pallet_id(linia)
@@ -154,7 +154,7 @@ class WarehousePalletService:
             is_original_czyszczenie = False
             try:
                 nazwa_do_historii = plan_produkt
-                if plan_produkt == 'Czyszczenie':
+                if plan_produkt and 'czyszczenie' in plan_produkt.lower():
                     is_original_czyszczenie = True
                     nazwa_do_historii = "Maka Mix do Lnu"
                     # Zaktualizuj nazwe produktu w zleceniu
@@ -285,6 +285,23 @@ class WarehousePalletService:
                 pass
             except Exception:
                 pass
+                
+            if is_original_czyszczenie:
+                try:
+                    from flask import request as flask_request
+                    WarehousePalletService.zatwierdz_palete(
+                        paleta_id=paleta_id,
+                        linia=linia,
+                        provided_netto=waga_input,
+                        provided_brutto=None,
+                        user_login=user_login,
+                        check_only_request=False,
+                        is_ajax=is_ajax,
+                        safe_return_url=safe_return_url,
+                        request=flask_request
+                    )
+                except Exception as auto_zatw_err:
+                    pass
     
         except Exception as error:
             try:

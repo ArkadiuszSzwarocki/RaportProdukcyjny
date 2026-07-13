@@ -141,14 +141,20 @@ class ScannerService:
         partial_pallet_no: str | None = None,
     ) -> dict | None:
         table_name = get_table_name('magazyn_palety', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+        
+        select_clause = (
+            f"SELECT m.id, m.produkt AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
+            f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
+            f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, m.data_przydatnosci "
+            f"FROM {table_name} m "
+            f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id "
+        )
 
         if item_id is not None:
             try:
                 cur.execute(
-                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
-                    f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci "
-                    f"FROM {table_name} WHERE id = %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
+                    select_clause + f"WHERE m.id = %s AND COALESCE(m.waga_netto, 0) > 0 LIMIT 1",
                     (item_id,),
                 )
                 return cur.fetchone()
@@ -158,10 +164,7 @@ class ScannerService:
         if pallet_no is not None:
             try:
                 cur.execute(
-                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
-                    f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci "
-                    f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
+                    select_clause + f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s AND COALESCE(m.waga_netto, 0) > 0 LIMIT 1",
                     (str(pallet_no).upper(),),
                 )
                 return cur.fetchone()
@@ -171,10 +174,7 @@ class ScannerService:
         if partial_pallet_no is not None:
             try:
                 cur.execute(
-                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
-                    f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci "
-                    f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) LIKE %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
+                    select_clause + f"WHERE UPPER(COALESCE(m.nr_palety, '')) LIKE %s AND COALESCE(m.waga_netto, 0) > 0 LIMIT 1",
                     ('%' + str(partial_pallet_no).upper(),),
                 )
                 return cur.fetchone()
@@ -187,11 +187,8 @@ class ScannerService:
 
         try:
             cur.execute(
-                f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, %s AS lokalizacja, "
-                f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                f"data_produkcji, data_przydatnosci "
-                f"FROM {table_name} WHERE COALESCE(waga_netto, 0) > 0 "
-                "ORDER BY COALESCE(data_potwierdzenia, created_at) DESC, id DESC LIMIT 1",
+                select_clause + f"WHERE UPPER(COALESCE(m.lokalizacja, 'MGW01')) = %s AND COALESCE(m.waga_netto, 0) > 0 "
+                "ORDER BY COALESCE(m.data_potwierdzenia, m.created_at) DESC, m.id DESC LIMIT 1",
                 (normalized_location,),
             )
             return cur.fetchone()
@@ -258,7 +255,7 @@ class ScannerService:
                         f"SELECT id, {qty_col} AS ilosc, nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
                         f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
                         f"data_produkcji, data_przydatnosci "
-                        f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s LIMIT 1"
+                        f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} DESC, id DESC LIMIT 1"
                     )
                     cur.execute(sql, (normalized_for_lookup,))
                     row = cur.fetchone()
@@ -377,11 +374,14 @@ class ScannerService:
                 ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
             ]
 
+            is_new_pallet_format = bool(re.match(r'^[A-Z]{3}\d{18}$', location_code))
+
             should_check_unconfirmed = (
                 is_sscc
                 or is_partial_sscc
                 or prefixed_type == 'PAL'
                 or (prefixed_type is None and numeric_id is not None)
+                or is_new_pallet_format
             )
             if should_check_unconfirmed:
                 table_prod = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
@@ -391,7 +391,7 @@ class ScannerService:
                     if numeric_lookup is not None and not is_sscc:
                         # Search by numeric ID or pallet number.
                         cur.execute(
-                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
                             f"FROM {table_prod} p "
                             f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                             f"WHERE (p.id = %s OR UPPER(COALESCE(p.nr_palety,'')) = %s) AND p.status = 'do_przyjecia'",
@@ -401,7 +401,7 @@ class ScannerService:
                         # SSCC or barcode — search only by nr_palety.
                         if is_partial_sscc and not is_sscc:
                             cur.execute(
-                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
                                 f"FROM {table_prod} p "
                                 f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                                 f"WHERE UPPER(COALESCE(p.nr_palety,'')) LIKE %s AND p.status = 'do_przyjecia'",
@@ -409,7 +409,7 @@ class ScannerService:
                             )
                         else:
                             cur.execute(
-                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
                                 f"FROM {table_prod} p "
                                 f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                                 f"WHERE UPPER(COALESCE(p.nr_palety,'')) = %s AND p.status = 'do_przyjecia'",
@@ -424,7 +424,9 @@ class ScannerService:
                             'stan_magazynowy': float(unconf_row['waga'] or 0),
                             'lokalizacja': '',
                             'inventory_type': 'Wyrób Gotowy',
-                            'is_unconfirmed_wg': True
+                            'is_unconfirmed_wg': True,
+                            'data_produkcji': unconf_row['data_produkcji'],
+                            'nr_partii': unconf_row['nr_partii']
                         }
                 except Exception:
                     pass
@@ -468,15 +470,15 @@ class ScannerService:
                         )
                 return None
 
-            if is_sscc or is_partial_sscc:
+            if is_sscc or is_partial_sscc or is_new_pallet_format:
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                     sscc_row = ScannerService._lookup_inventory_row(
                         cur,
                         base_table,
                         linia,
                         qty_col=qty_col,
-                        pallet_no=location_code if is_sscc else None,
-                        partial_pallet_no=location_code if is_partial_sscc and not is_sscc else None,
+                        pallet_no=location_code if (is_sscc or is_new_pallet_format) else None,
+                        partial_pallet_no=location_code if is_partial_sscc and not is_sscc and not is_new_pallet_format else None,
                     )
                     if sscc_row:
                         return _normalize_lookup_item(
@@ -492,8 +494,8 @@ class ScannerService:
                 fg_row = ScannerService._lookup_finished_goods(
                     cur, 
                     linia, 
-                    pallet_no=location_code if is_sscc else None,
-                    partial_pallet_no=location_code if is_partial_sscc and not is_sscc else None,
+                    pallet_no=location_code if (is_sscc or is_new_pallet_format) else None,
+                    partial_pallet_no=location_code if is_partial_sscc and not is_sscc and not is_new_pallet_format else None,
                 )
                 if fg_row:
                     return _normalize_lookup_item(

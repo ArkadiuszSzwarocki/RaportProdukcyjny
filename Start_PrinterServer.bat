@@ -25,8 +25,8 @@ echo.
 echo [START] Uruchamiam Printer Server...
 echo.
 
-REM Sprawdz czy port 3001 jest wolny
-netstat -ano | findstr ":3001" >nul
+REM Sprawdz czy port 3001 jest wolny (szukamy tylko LISTENING, ignorujemy TIME_WAIT)
+netstat -ano | findstr ":3001" | findstr "LISTENING" >nul
 if %errorlevel% equ 0 (
     echo [WARN] Port 3001 jest zajety! Mozliwe ze serwer juz dziala.
     echo.

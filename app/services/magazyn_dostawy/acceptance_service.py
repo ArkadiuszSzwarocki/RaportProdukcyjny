@@ -399,7 +399,7 @@ class AcceptanceService:
                 
                 # 1. Fetch pallet data
                 query = f"""
-                    SELECT p.*, plan.produkt_nazwa, plan.data_planu
+                    SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
                     FROM {table_prod} p
                     LEFT JOIN plan_produkcji plan ON p.plan_id = plan.id
                     WHERE p.id = %s AND p.status = 'do_przyjecia'

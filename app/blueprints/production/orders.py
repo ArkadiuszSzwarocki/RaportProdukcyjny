@@ -142,10 +142,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         # Validate batch number (required for AGRO Workowanie)
                         nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
-                        if not (nr_partii_post and nr_partii_post.strip()):
+                        if not is_czyszczenie and not (nr_partii_post and nr_partii_post.strip()):
                             flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
                             return redirect(bezpieczny_powrot())
-                        nr_partii_cleaned = nr_partii_post.strip()
+                        nr_partii_cleaned = nr_partii_post.strip() if nr_partii_post else 'CZYSZCZENIE'
                         
                         try:
                             latest_d = get_latest_data()

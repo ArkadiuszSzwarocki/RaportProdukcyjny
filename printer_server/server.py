@@ -173,18 +173,18 @@ def drukuj_zpl():
         # Generowanie ZPL z obiektu JSON (identycznie jak w Mlecznej Drodze)
         p = dane.get('palletData') if isinstance(dane, dict) and 'palletData' in dane else dane
         
-        id_palety = p.get('nrPalety') or p.get('displayId') or p.get('id') or 'Brak ID'
-        nazwa = p.get('nazwa') or p.get('productName') or 'Brak Nazwy'
-        partia = p.get('batchNumber') or p.get('batchId') or '---'
+        id_palety = p.get('nrPalety') or p.get('nr_palety') or p.get('displayId') or p.get('id') or 'Brak ID'
+        nazwa = p.get('nazwa') or p.get('product_name') or p.get('productName') or 'Brak Nazwy'
+        partia = p.get('batchNumber') or p.get('nr_partii') or p.get('batchId') or '---'
         uwagi = p.get('labAnalysisNotes') or p.get('labNotes') or ''
         
-        d_prod_raw = p.get('dataProdukcji') or p.get('productionDate') or '---'
+        d_prod_raw = p.get('dataProdukcji') or p.get('data_produkcji') or p.get('productionDate') or '---'
         d_prod = d_prod_raw.split('T')[0] if 'T' in d_prod_raw else d_prod_raw
         
-        d_wazn_raw = p.get('dataPrzydatnosci') or p.get('expiryDate') or '---'
+        d_wazn_raw = p.get('dataPrzydatnosci') or p.get('data_przydatnosci') or p.get('expiryDate') or '---'
         d_wazn = d_wazn_raw.split('T')[0] if 'T' in d_wazn_raw else d_wazn_raw
 
-        waga_value = p.get('currentWeight') or p.get('quantityKg') or p.get('producedWeight') or 0
+        waga_value = p.get('currentWeight') or p.get('qty') or p.get('quantityKg') or p.get('producedWeight') or p.get('waga') or 0
         try:
             waga = f"{float(waga_value):.0f}"
         except:
@@ -192,7 +192,13 @@ def drukuj_zpl():
 
         logger.info(f"- Etykieta: paleta={id_palety}, produkcja={d_prod}, waznosc={d_wazn}, waga={waga}kg")
 
-        tytul = 'SUROWIEC' if 'raw' in str(typ).lower() else 'WYRÓB GOTOWY'
+        typ_str = str(typ).lower() if typ else str(p.get('p_type', '')).lower()
+        if 'packaging' in typ_str or 'opakowanie' in typ_str:
+            tytul = 'OPAKOWANIE'
+        elif 'raw' in typ_str or 'surowiec' in typ_str:
+            tytul = 'SUROWIEC'
+        else:
+            tytul = 'WYRÓB GOTOWY'
         
         # Konstrukcja ZPL dopasowana do etykiety 4x6 cala (101.6mm x 150mm)
         # Przy 203 DPI to ok. 800 x 1200 punktów
@@ -205,31 +211,27 @@ def drukuj_zpl():
         # Ramka zewnętrzna (nieco szersza, by lepiej wykorzystać 4 cale)
         zpl_string += "^FO10,10^GB780,1180,4^FS\n"
         
-        # Nagłówek (Surowiec / Wyrób Gotowy)
+        # Nagłówek (Surowiec / Wyrób Gotowy / Opakowanie)
         zpl_string += f"^FO40,50^A0N,40,40^FD{tytul}^FS\n"
         
         # Nazwa Produktu
         zpl_string += f"^FO40,110^A0N,60,60^FB720,2,0,L^FD{str(nazwa)[:60]}^FS\n"
         
-        # Kod QR (Wyśrodkowany, współczynnik powiększenia 8)
-        zpl_string += f"^FO300,250^BQN,2,8^FDQA,{id_palety}^FS\n"
+        # Kod QR (Wyśrodkowany, współczynnik powiększenia 12)
+        zpl_string += f"^FO250,190^BQN,2,12^FDQA,{id_palety}^FS\n"
         
         # Tekst ID palety pod kodem QR (wyśrodkowany bold)
-        zpl_string += f"^FO40,465^A0N,35,35^FB720,1,0,C^FD{id_palety}^FS\n"
+        zpl_string += f"^FO40,510^A0N,35,35^FB720,1,0,C^FD{id_palety}^FS\n"
         
         # Dane produkcyjne
-        zpl_string += f"^FO60,520^A0N,35,35^FDPARTIA: {partia}^FS\n"
-        zpl_string += f"^FO60,570^A0N,35,35^FDPRODUKCJA: {d_prod}^FS\n"
+        zpl_string += f"^FO60,560^A0N,35,35^FDPARTIA: {partia}^FS\n"
+        zpl_string += f"^FO60,610^A0N,35,35^FDPRODUKCJA: {d_prod}^FS\n"
         if tytul != 'WYRÓB GOTOWY':
-            zpl_string += f"^FO60,620^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
-        
-        if uwagi:
-            uwagi_clean = str(uwagi).replace('\n', ' ')
-            zpl_string += f"^FO60,680^A0N,30,30^FB700,6,0,L^FDNOTATKI LAB: {uwagi_clean}^FS\n"
+            zpl_string += f"^FO60,660^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
             
         # Waga (w 2 liniach: naglowek + wartosc)
-        zpl_string += "^FO60,970^A0N,72,72^FDWAGA NETTO:^FS\n"
-        zpl_string += f"^FO60,1050^A0N,100,100^FD{waga} kg^FS\n"
+        zpl_string += "^FO60,950^A0N,72,72^FDWAGA NETTO:^FS\n"
+        zpl_string += f"^FO60,1030^A0N,100,100^FD{waga} kg^FS\n"
         zpl_string += "^XZ"
 
     try:

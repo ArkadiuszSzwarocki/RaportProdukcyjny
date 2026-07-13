@@ -285,10 +285,15 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         
         return jsonify({'success': status_code < 400, 'message': result}), status_code
 
-    @warehouse_bp.route('/api/usun_palete_ajax/<int:paleta_id>', methods=['POST'])
+    @warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
     @roles_required('produkcja', 'lider', 'admin')
-    def usun_palete_ajax(paleta_id):
+    def usun_palete_ajax():
         """Delete paleta (AJAX)."""
+        from flask import request
+        paleta_id = request.json.get('id')
+        if not paleta_id:
+            return jsonify({'success': False, 'message': 'Brak ID palety'}), 400
+        
         from app.services.warehouse_pallet_service import WarehousePalletService
         linia = resolve_request_linia()
         user_login = session.get('login', 'System')
