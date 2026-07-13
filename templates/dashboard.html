@@ -48,6 +48,29 @@
         {% include 'dashboard/_dashboard_planner_alerts.html' %}
         <!-- agro-session-running-hint -->
         {% include 'dashboard/_dashboard_agro_active.html' %}
+        
+        {# LABORANT: Przycisk do otwarcia modala z widokiem surowców #}
+        {% if rola == 'laborant' and sekcja == 'Zasyp' and linia == 'AGRO' %}
+        <div class="section-box p-0" style="background: #f9f5f0; border-left: 5px solid #d35400; margin-bottom: 20px;">
+            <div class="p-15 p-15-bg d-flex justify-between align-center" style="background: #ffe6cc;">
+                <div>
+                    <h3 style="margin: 0; color: #d35400; font-size: 1.1em;">
+                        📦 Surowce w produkcji
+                    </h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.85em; color: #666;">
+                        Podgląd bieżącego stanu surowców i historii zmian
+                    </p>
+                </div>
+                <button type="button" 
+                        onclick="openSurowceWProdukcjiModal()" 
+                        class="btn-action btn-info" 
+                        style="padding: 10px 20px; font-size: 0.95em; white-space: nowrap; position: relative;">
+                    📋 Pokaż surowce
+                </button>
+            </div>
+        </div>
+        {% endif %}
+        
         {% include 'dashboard/_dashboard_production_list.html' %}
         {% if sekcja != 'Zasyp' %}
             {% include 'dashboard/_dashboard_agro_stages.html' %}
@@ -55,6 +78,9 @@
     </div>
 
     {% include 'dashboard/_dashboard_packaging.html' %}
+
+    {# Include modala laboranta (funkcje będą dostępne globalnie) #}
+    {% include 'dashboard/_dashboard_laborant_surowce_w_produkcji.html' %}
 
 <!-- CORE DASHBOARD ASSETS & FOOTER -->
 {% endblock %}
@@ -81,4 +107,4 @@
     <script src="{{ url_for('static', filename='js/dashboard/bootstrap.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
 
     {% include 'includes/dashboard_modals.html' %}
-{% endblock %}
+{% endblock %}

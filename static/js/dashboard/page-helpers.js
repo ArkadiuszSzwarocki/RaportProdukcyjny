@@ -193,7 +193,12 @@
             global.dashboardScheduler.addTask('dashboard-paleta-live-timers', 1000, updatePaletaTimers, { runImmediately: false });
             return;
         }
-        global.clearInterval(paletaTimersInterval);
+        // Wyczyść poprzedni interval zanim stworzysz nowy, jeśli już istnieje
+        if (paletaTimersInterval !== null) {
+            global.clearInterval(paletaTimersInterval);
+            paletaTimersInterval = null;
+        }
+        // Stwórz nowy interval tylko jeśli poprzedni był do czyszczenia
         paletaTimersInterval = global.setInterval(updatePaletaTimers, 1000);
     }
 

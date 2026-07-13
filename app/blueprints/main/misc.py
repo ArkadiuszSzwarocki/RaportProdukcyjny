@@ -26,6 +26,12 @@ def register_main_misc_routes(main_bp):
         """Silence favicon/apple-touch-icon 404 noise in logs."""
         return ('', 204)
 
+    @main_bp.route('/robots.txt')
+    def robots():
+        """Disallow indexing and silence 404 noise."""
+        from flask import Response
+        return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
+
     @main_bp.route('/debug/modal-move', methods=['POST'])
     def debug_modal_move() -> Tuple[str, int]:
         """Log modal-move debug data from client (AJAX)."""

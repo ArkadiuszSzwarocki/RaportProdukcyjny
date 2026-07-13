@@ -22,21 +22,25 @@ def zapisz_dostawe():
     if success:
         dostawa_id = result
         is_external = bool(request.json.get('supplier')) or not request.json.get('lokalizacja_z')
-        try:
-            from app.services.office_print_service import trigger_office_print_url
-            linia = request.json.get('linia', 'PSD')
-            report_url = url_for(
-                'magazyn_dostawy.raport_przesuniecia',
-                dostawa_id=dostawa_id,
-                linia=linia,
-                internal_print=1,
-                _external=True
-            )
-            report_type = 'raport_dostawy_zewnetrznej' if is_external else 'raport_przesuniecia'
-            prefix = "dostawa_zewn_" if is_external else "przesuniecie_"
-            trigger_office_print_url(report_url, report_type, prefix=prefix)
-        except Exception as e:
-            print(f"Error triggering print in zapisz_dostawe: {e}")
+        
+        # Drukujemy od razu po etapie 1 TYLKO dla dostaw zewnętrznych.
+        # Przesunięcia wewnętrzne drukują się dopiero po etapie 2 (przyjęciu).
+        if is_external:
+            try:
+                from app.services.office_print_service import trigger_office_print_url
+                linia = request.json.get('linia', 'PSD')
+                report_url = url_for(
+                    'magazyn_dostawy.raport_przesuniecia',
+                    dostawa_id=dostawa_id,
+                    linia=linia,
+                    internal_print=1,
+                    _external=True
+                )
+                report_type = 'raport_dostawy_zewnetrznej'
+                prefix = "dostawa_zewn_"
+                trigger_office_print_url(report_url, report_type, prefix=prefix)
+            except Exception as e:
+                print(f"Error triggering print in zapisz_dostawe: {e}")
 
         return jsonify({"success": True, "id": result})
     return jsonify({"success": False, "error": result}), 500

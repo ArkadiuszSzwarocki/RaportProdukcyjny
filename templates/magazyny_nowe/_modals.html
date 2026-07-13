@@ -1,6 +1,6 @@
 <!-- MODAL: Szczegóły Palety -->
 <div id="palletModal" class="modal-premium-overlay" style="display: none;">
-    <div class="modal-premium-content" id="palletModalContent" style="max-width: 600px; transform: scale(0.95); transition: transform 0.2s ease;">
+    <div class="modal-premium-content" id="palletModalContent" style="max-width: 600px; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.2s ease;">
         <div class="modal-premium-header">
             <h3 class="row items-center gap-10">
                 <span class="material-icons text-primary">inventory_2</span>
@@ -77,7 +77,7 @@
                 </button>
             </div>
             {% endif %}
-            <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; max-height: 150px; overflow-y: auto; padding-right: 5px;">
                 <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
             </div>
 

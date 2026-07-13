@@ -123,6 +123,9 @@ class MagazynyNoweService:
             if not row:
                 return False, "Paleta nie znaleziona."
                 
+            if row.get('is_blocked'):
+                return False, f"BŁĄD: Paleta #{pallet_id} jest ZABLOKOWANA i nie może być przenoszona!"
+                
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')

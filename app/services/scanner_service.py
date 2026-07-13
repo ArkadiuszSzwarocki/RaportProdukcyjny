@@ -30,11 +30,6 @@ class ScannerService:
 
         code = re.sub(r'[\r\n\t]+', ' ', code).strip()
 
-        # Zebra zwykle wysyła czysty tekst + Enter, ale część etykiet QR może mieć prefixy/URL.
-        match = ScannerService.SCAN_TOKEN_PATTERN.search(code)
-        if match:
-            return match.group(1).upper()
-
         # GS1 SSCC często pojawia się jako AI(00) + 18 cyfr lub "00" + 18 cyfr.
         gs1_ai_match = re.search(r'\(00\)\s*(\d{18})', code)
         if gs1_ai_match:
@@ -48,6 +43,11 @@ class ScannerService:
         digits_18_20_match = re.search(r'\b\d{18,20}\b', code)
         if digits_18_20_match:
             return digits_18_20_match.group(0)
+
+        # Zebra zwykle wysyła czysty tekst + Enter, ale część etykiet QR może mieć prefixy/URL.
+        match = ScannerService.SCAN_TOKEN_PATTERN.search(code)
+        if match:
+            return match.group(1).upper()
 
         return code
 
@@ -238,6 +238,121 @@ class ScannerService:
         location_code = ScannerService._normalize_scanned_code(location_code)
         if not location_code:
             return None
+
+        # ========== PRIORYTET 1: Bezpośrednie wyszukiwanie po nr_palety we wszystkich tabelach magazynowych ==========
+        # Ignorujemy stan magazynowy, szukamy po numerze palety
+        normalized_for_lookup = str(location_code).upper()
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            inventory_sources = [
+                ('magazyn_surowce', 'stan_magazynowy', 'Surowiec', 'SUR', True, True, True),
+                ('magazyn_opakowania', 'stan_magazynowy', 'Opakowanie', 'OPK', False, False, False),
+                ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
+            ]
+            
+            for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+                table_name = get_table_name(base_table, linia)
+                try:
+                    sql = (
+                        f"SELECT id, {qty_col} AS ilosc, nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
+                        f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
+                        f"data_produkcji, data_przydatnosci "
+                        f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s LIMIT 1"
+                    )
+                    cur.execute(sql, (normalized_for_lookup,))
+                    row = cur.fetchone()
+                    if row:
+                        return _normalize_lookup_item(
+                            row,
+                            inventory_type=inv_type,
+                            inventory_key=code_prefix,
+                            code_prefix=code_prefix,
+                            can_dispatch=can_dispatch,
+                            can_split=can_split,
+                            can_print_label=can_print,
+                        )
+                except Exception:
+                    pass
+            
+            # ========== PRIORYTET 2: Jeśli nie znaleziono w magazynach, szukaj w historii ruchów (produkcja) ==========
+            try:
+                table_ruch = get_table_name('magazyn_ruch', linia)
+                sql = (
+                    f"SELECT r.*, m.nazwa, m.nr_partii, m.data_produkcji, m.data_przydatnosci "
+                    f"FROM {table_ruch} r "
+                    f"LEFT JOIN {get_table_name('magazyn_surowce', linia)} m ON r.surowiec_id = m.id "
+                    f"WHERE UPPER(COALESCE(r.nr_palety, '')) = %s "
+                    f"ORDER BY r.created_at DESC, r.id DESC LIMIT 1"
+                )
+                cur.execute(sql, (normalized_for_lookup,))
+                row = cur.fetchone()
+                if row:
+                    return {
+                        'id': row.get('surowiec_id') or row.get('id'),
+                        'nazwa': row.get('nazwa') or '',
+                        'stan_magazynowy': float(row.get('ilosc', 0) or 0),
+                        'lokalizacja': (row.get('lokalizacja_do') or row.get('lokalizacja') or '').strip().upper(),
+                        'nr_palety': row.get('nr_palety') or '',
+                        'nr_partii': row.get('nr_partii') or '',
+                        'data_produkcji': row.get('data_produkcji').strftime('%Y-%m-%d') if row.get('data_produkcji') else '',
+                        'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else '',
+                        'inventory_type': 'Surowiec (Produkcja)',
+                        'inventory_key': 'SUR',
+                        'inventory_code': f"SUR-{row.get('surowiec_id', row.get('id'))}",
+                        'can_dispatch': False,
+                        'can_split': False,
+                        'can_print_label': False,
+                        'unit': 'kg',
+                    }
+            except Exception:
+                pass
+        finally:
+            conn.close()
+
+        # Nowa obsługa dla stacji zasypowych - zwraca listę
+        if location_code.startswith(('OS', 'BB', 'MZ', 'KO', 'PSD', 'MIX', 'BF_')):
+            conn = get_db_connection()
+            try:
+                cur = conn.cursor(dictionary=True)
+                items = []
+                inventory_sources = [
+                    ('magazyn_surowce', 'stan_magazynowy', 'Surowiec', 'SUR', True, True, True),
+                    ('magazyn_opakowania', 'stan_magazynowy', 'Opakowanie', 'OPK', False, False, False),
+                    ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
+                ]
+                for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+                    table_name = get_table_name(base_table, linia)
+                    sql = (
+                        f"SELECT id, {qty_col} AS ilosc, nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
+                        f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
+                        f"data_produkcji, data_przydatnosci "
+                        f"FROM {table_name} WHERE UPPER(COALESCE(lokalizacja, '')) = %s AND COALESCE({qty_col}, 0) > 0"
+                    )
+                    cur.execute(sql, (location_code,))
+                    rows = cur.fetchall()
+                    for row in rows:
+                        items.append(_normalize_lookup_item(
+                            row,
+                            inventory_type=inv_type,
+                            inventory_key=code_prefix,
+                            code_prefix=code_prefix,
+                            can_dispatch=can_dispatch,
+                            can_split=can_split,
+                            can_print_label=can_print,
+                        ))
+                
+                if items:
+                    # Zwracamy specjalny obiekt z listą, aby frontend mógł to obsłużyć
+                    return {
+                        'is_station': True,
+                        'station_code': location_code,
+                        'items': items
+                    }
+
+            finally:
+                conn.close()
+
 
         prefixed_type, prefixed_id = ScannerService._extract_prefixed_id(location_code)
         is_sscc = ScannerService._is_sscc_code(location_code)
@@ -529,12 +644,19 @@ class ScannerService:
 
             now = datetime.now()
             plan_id_val   = int(plan_id) if plan_id not in (None, '', 0, '0') else None
-            zbiornik_val  = zbiornik.strip() if zbiornik and str(zbiornik).strip() else None
+            
+            # Normalize and validate zbiornik (REQUIRED for production dispatch)
+            zbiornik_normalized = str(zbiornik or '').strip().upper() if zbiornik else None
+            if not zbiornik_normalized:
+                return False, "⚠️ Brak kodu zbiornika! Podaj zbiornik (np. BB02, MZ07) aby przenieść surowiec na produkcję."
+            
+            zbiornik_val = zbiornik_normalized
+            lokalizacja_val = zbiornik_val  # lokalizacja = zbiornik (move to tank)
 
-            # Zmniejsz stan
+            # Zmniejsz stan I zmień lokalizację na zbiornik
             cur.execute(
-                f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s",
-                (ilosc, surowiec_id)
+                f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s, lokalizacja = %s WHERE id = %s",
+                (ilosc, lokalizacja_val, surowiec_id)
             )
             # Nowy stan
             cur.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))

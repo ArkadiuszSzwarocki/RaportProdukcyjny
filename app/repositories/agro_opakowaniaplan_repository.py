@@ -619,7 +619,7 @@ class AgroOpakowaniaPlanRepository:
                             (final_stan, link['id']),
                         )
 
-                        cursor.execute(f"SELECT data_planu, produkt FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
+                        cursor.execute(f"SELECT data_planu, produkt, nr_partii FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
                         p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
 
                         cursor.execute(
@@ -659,6 +659,22 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
+            # Pobierz nr_partii jeśli jest dostępny
+            nr_partii = ''
+            if link:
+                try:
+                    plan_id = link['plan_id']
+                    conn = get_db_connection()
+                    try:
+                        cursor = conn.cursor(dictionary=True)
+                        cursor.execute(f"SELECT nr_partii FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
+                        plan_row = cursor.fetchone()
+                        nr_partii = plan_row.get('nr_partii', '') if plan_row else ''
+                    finally:
+                        conn.close()
+                except Exception:
+                    nr_partii = ''
+
             return_label = {
                 'opakowanie_id': opakowanie_id,
                 'opakowanie_nazwa': opak_nazwa,
@@ -668,9 +684,10 @@ class AgroOpakowaniaPlanRepository:
                 'data_odlozenia': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'odlozyl': user_login or 'System',
                 'tryb_zwrotu': 'CZESCIOWY' if is_partial else 'CALKOWITY',
+                'nr_partii': nr_partii,
             }
 
-            if print_result['requested']:
+            if False:  # TYMCZASOWO WYŁĄCZONE DRUKOWANIE ETYKIET PO OWIJARCE
                 try:
                     ok, msg = AgroOpakowaniaPlanRepository.print_packaging_return_label(return_label)
                     print_result['success'] = bool(ok)
@@ -726,11 +743,14 @@ class AgroOpakowaniaPlanRepository:
             data_odlozenia = _sanitize_zpl_text(label_data.get('data_odlozenia'), 32) or datetime.now().strftime('%Y-%m-%d %H:%M')
             operator = _sanitize_zpl_text(label_data.get('odlozyl'), 36) or 'SYSTEM'
             tryb_zwrotu = _sanitize_zpl_text(label_data.get('tryb_zwrotu'), 16) or 'ZWROT'
+            nr_partii = _sanitize_zpl_text(label_data.get('nr_partii'), 32) or ''
 
             qr_payload = _sanitize_zpl_text(
                 f"{opakowanie_nazwa}|{ilosc_przy_zwrocie}|{pozostalo_na_rolce}|{lokalizacja}|{data_odlozenia}|{operator}",
                 160,
             )
+
+            nr_partii_line = f"^FO650,1120^A0N,28,28^FR^FDRR: {nr_partii}^FS" if nr_partii else ""
 
             return f"""^XA
     ^CI28
@@ -745,6 +765,7 @@ class AgroOpakowaniaPlanRepository:
     ^FO40,510^A0N,34,34^FDDATA ODLOZENIA: {data_odlozenia}^FS
     ^FO40,570^A0N,34,34^FDODLOZYL: {operator}^FS
     ^FO470,690^BY3^BQN,2,7^FDLA,{qr_payload}^FS
+    {nr_partii_line}
     ^XZ"""
 
     def print_packaging_return_label(label_data):

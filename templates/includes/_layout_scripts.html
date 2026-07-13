@@ -384,6 +384,14 @@
         var dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = yyyy + '-' + mm + '-' + dd;
 
+        var nrPartiiLabel = document.createElement('label');
+        nrPartiiLabel.innerHTML = 'Nr Partii: <span style="color:#c81e1e;">*</span>';
+        nrPartiiLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;box-sizing:border-box;';
+
+        var nrPartiiInput = document.createElement('input');
+        nrPartiiInput.type = 'text';
+        nrPartiiInput.placeholder = 'Wpisz numer partii produkcji...';
+        nrPartiiInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;';
 
         var errorBox = document.createElement('div');
         errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;box-sizing:border-box;';
@@ -417,8 +425,15 @@
                 return;
             }
 
+            var nrPartiiValue = (nrPartiiInput.value || '').trim();
+            if (!nrPartiiValue) {
+                errorBox.textContent = 'Nr Partii jest wymagany.';
+                return;
+            }
+
             setHiddenFormValue(form, 'start_checklist_confirmed', '1');
             setHiddenFormValue(form, 'data_produkcji', dateValue);
+            setHiddenFormValue(form, 'nr_partii', nrPartiiValue);
 
             overlay.remove();
             form.submit();
@@ -438,6 +453,8 @@
         panel.appendChild(checklistBox);
         panel.appendChild(dateLabel);
         panel.appendChild(dateInput);
+        panel.appendChild(nrPartiiLabel);
+        panel.appendChild(nrPartiiInput);
 
         panel.appendChild(errorBox);
         panel.appendChild(actions);

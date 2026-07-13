@@ -229,6 +229,7 @@ class AgroTanksRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def get_production_inventory(limit=500, linia='Agro'):
             """Zwraca bieżące stany surowców pozostających w produkcji (BB/MZ/KO)."""
             table_surowce = get_table_name('magazyn_surowce', linia)
@@ -299,6 +300,7 @@ class AgroTanksRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def get_production_inventory_snapshot(limit=4000, linia='Agro', show_empty=False):
             """Zwraca aktualny snapshot produkcji: maksymalnie 1 surowiec na zbiornik.
 

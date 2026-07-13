@@ -57,6 +57,8 @@
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
         
+        <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
+        
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
         <a href="{{ url_for('traceability.index') }}" class="nav-sub-item {% if request.blueprint == 'traceability' %}active{% endif %}">Traceability (Śledzenie partii)</a>

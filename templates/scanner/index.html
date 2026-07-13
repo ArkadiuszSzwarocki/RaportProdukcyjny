@@ -67,6 +67,18 @@
     <div id="nopalletMsg" class="text-muted small italic" style="display:none;">Zeskanuj kod żeby zobaczyć dane.</div>
   </div>
 
+  <!-- STATION (SILLO) INFO -->
+  <div class="scan-card" id="stationCard" style="display:none;">
+    <div class="scan-title">
+      <span class="material-icons" style="color:#f97316;">warehouse</span>
+      Zawartość stacji <span id="stationCode" style="font-weight: bold;"></span>
+    </div>
+    <div id="stationItemsList" class="station-items-list">
+      <!-- Items will be injected here by JS -->
+    </div>
+    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Brak surowców na tej stacji.</div>
+  </div>
+
   
 </div><!-- /scanner-wrap -->
 
@@ -127,6 +139,43 @@
 <div id="toast"></div>
 
 <script src="{{ url_for('static', filename='js/scanner/scanner.js') }}"></script>
+
+<style>
+.station-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.station-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.station-item:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.station-item-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 1.05em;
+}
+.station-item-details {
+  font-size: 0.85em;
+  color: #475569;
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+</style>
 
 <!-- PRINTER MODAL -->
 <div class="modal-overlay" id="printerOverlay" style="display:none; z-index:9000;">

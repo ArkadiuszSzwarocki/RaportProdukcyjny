@@ -282,6 +282,34 @@ class DeliveryCommandService:
                             deduped_items.append(item)
                     items = deduped_items
 
+                # BLOKADA PALET W DOKUMENCIE
+                if not is_external_reception:
+                    table_sur = get_table_name('magazyn_surowce', linia)
+                    table_opk = get_table_name('magazyn_opakowania', linia)
+                    table_got = get_table_name('magazyn_palety', linia)
+                    
+                    def toggle_block(item_list, blocked_val):
+                        if not item_list: return
+                        for it in item_list:
+                            pid = it.get('sourcePalletId')
+                            if not pid: continue
+                            src = str(it.get('source') or '').lower()
+                            tbl = table_got if src in ['magazyn', 'produkcja', 'wyrob_gotowy'] else (table_opk if src == 'opakowanie' else (table_sur if src == 'surowiec' else None))
+                            if not tbl and src == 'dodatek': tbl = 'magazyn_dodatki'
+                            if tbl:
+                                try:
+                                    cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
+                                except Exception:
+                                    pass
+
+                    # 1. Zdejmujemy blokadę ze wszystkich starych palet
+                    if old_items:
+                        toggle_block(old_items, 0)
+                    
+                    # 2. Nakładamy blokadę na aktualne palety w dokumencie (ponieważ status to nie zakończone/anulowane)
+                    if status not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE']:
+                        toggle_block(items, 1)
+
                 if old_data:
                     cursor.execute("""
                         UPDATE magazyn_dostawy
@@ -498,6 +526,20 @@ class DeliveryCommandService:
                                 "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_CANCEL', %s, %s, %s, %s)",
                                 (None, linia, 'mix', curr_loc, orig_loc, f"Anulowanie przesunięcia {order_ref}", login)
                             )
+
+                # Zwalnianie blokad na paletach przy anulowaniu
+                table_got = get_table_name('magazyn_palety', linia)
+                for it in items:
+                    pid = it.get('sourcePalletId')
+                    if not pid: continue
+                    src = str(it.get('scannedType') or it.get('type') or '').lower()
+                    tbl = table_got if src in ['magazyn', 'produkcja', 'wyrob_gotowy'] else (table_opk if src == 'opakowanie' else (table_sur if src == 'surowiec' else None))
+                    if not tbl and src == 'dodatek': tbl = 'magazyn_dodatki'
+                    if tbl:
+                        try:
+                            cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (pid,))
+                        except Exception:
+                            pass
 
                 # Mark as CANCELLED instead of deleting
                 cursor.execute("UPDATE magazyn_dostawy SET status = 'CANCELLED' WHERE id = %s", (dostawa_id,))

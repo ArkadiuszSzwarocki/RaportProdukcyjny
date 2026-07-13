@@ -26,12 +26,12 @@
                         <tr>
                             <td class="font-bold">{{ a.nazwa_raportu }}</td>
                             <td>
-                                <select name="printer_{{ a.typ_raportu }}" class="form-control" style="width: 100%; max-width: 400px;">
-                                    <option value="">-- Brak przypisanej drukarki --</option>
+                                <input type="text" list="printers_list_{{ a.typ_raportu }}" name="printer_{{ a.typ_raportu }}" value="{{ a.nazwa_drukarki or '' }}" placeholder="Wpisz nazwę lub IP..." class="form-control" style="width: 100%; max-width: 400px;">
+                                <datalist id="printers_list_{{ a.typ_raportu }}">
                                     {% for sp in system_printers %}
-                                    <option value="{{ sp }}" {% if a.nazwa_drukarki == sp %}selected{% endif %}>{{ sp }}</option>
+                                    <option value="{{ sp }}">{{ sp }}</option>
                                     {% endfor %}
-                                </select>
+                                </datalist>
                             </td>
                             <td>
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">

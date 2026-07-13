@@ -100,7 +100,8 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            <!-- Formularz zamknięcia rolki (inline) -->
+                            <!-- Formularz zamknięcia rolki (inline) - tylko dla nie-laborantów -->
+                            {% if rola != 'laborant' %}
                             <div style="margin-top: 5px; background: #f0fdf4; padding: 10px 15px; border-radius: 8px; border: 1px solid #c8e6c9;">
                                 <form method="POST" action="{{ url_for('production.agro_folio_close_roll') }}" onsubmit="return confirmCloseRollInline(event, this, '{{ opakowanie.nazwa|e }}')" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
                                     <input type="hidden" name="link_id" value="{{ opakowanie.link_id }}">
@@ -118,6 +119,7 @@
                                     </button>
                                 </form>
                             </div>
+                            {% endif %}
                         </div>
                     {% endfor %}
                     </div>

@@ -67,10 +67,12 @@
                             {% elif sekcja == 'Workowanie' %}
                             <div style="display:flex; gap:4px; align-items:center; flex-wrap: wrap;">
                                 {% if pal|length>2 and pal[2] > 0 %}
+                                     {% if rola != 'laborant' %}
                                      <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2], linia=linia) }}"
                                          class="btn-action btn-sm"
                                          data-slide
                                          title="Edytuj wagę palety" style="font-size: 0.65rem; padding: 0 6px;">EDYTUJ</a>
+                                     {% endif %}
                                      <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}', this, 'workowanie')" 
                                              class="btn-action btn-purple btn-sm"
                                              title="Drukuj ponownie etykiety ZPL" style="font-size: 0.65rem; padding: 0 6px;">DRUKUJ</button>

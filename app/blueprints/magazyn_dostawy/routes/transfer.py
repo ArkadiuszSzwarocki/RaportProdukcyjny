@@ -127,12 +127,14 @@ def edycja_dostawy(dostawa_id=None):
 
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
+        table_wg = get_table_name('magazyn_palety', linia)
         wszystkie_produkty = set()
         for query, p in [
             ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
             (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
             (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
-            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
+            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,)),
+            (f"SELECT DISTINCT produkt as nazwa FROM {table_wg}", ())
         ]:
             cursor.execute(query, p)
             wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])

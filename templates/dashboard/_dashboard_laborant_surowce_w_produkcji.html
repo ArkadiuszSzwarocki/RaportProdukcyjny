@@ -1,0 +1,531 @@
+{# === MODAL LABORANTA: Surowce w produkcji (zbiorniki na zasypie AGRO) === #}
+{% if rola == 'laborant' and sekcja == 'Zasyp' and linia == 'AGRO' %}
+
+<div id="modal-surowce-w-produkcji" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: #fff; border-radius: 8px; width: 95%; max-width: 1200px; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="padding: 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100;">
+            <h2 style="margin: 0; color: #333;">📦 Surowce w produkcji</h2>
+            <button type="button" 
+                    onclick="closeSurowceWProdukcjiModal()" 
+                    style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">
+                ×
+            </button>
+        </div>
+        
+        <div class="p-20" id="surowce-w-produkcji-container" style="min-height: 300px;">
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <span class="material-icons" style="font-size: 48px; color: #ddd; display: block; margin-bottom: 10px;">hourglass_empty</span>
+                Ładowanie danych...
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .surowce-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        margin-bottom: 20px;
+    }
+    .surowce-table th,
+    .surowce-table td {
+        padding: 12px 10px;
+        text-align: left;
+        border-bottom: 1px solid #e8e8e8;
+        font-size: 0.9em;
+    }
+    .surowce-table th {
+        background: #f5f5f5;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #d35400;
+    }
+    .surowce-table tbody tr:hover {
+        background: #fafafa;
+    }
+    .zbiornik-code {
+        font-weight: 700;
+        color: #d35400;
+        font-family: monospace;
+        font-size: 1.05em;
+    }
+    .surowce-name {
+        color: #333;
+        font-weight: 500;
+    }
+    .surowce-ilosc {
+        text-align: right;
+        color: #666;
+        font-family: monospace;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 0.8em;
+        font-weight: 600;
+    }
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+    .status-empty {
+        background: #e2e3e5;
+        color: #383d41;
+    }
+    .historia-btn {
+        background: transparent;
+        border: 1px solid #d35400;
+        color: #d35400;
+        padding: 4px 8px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.85em;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .historia-btn:hover {
+        background: #d35400;
+        color: #fff;
+    }
+    .zbiornik-group {
+        margin-bottom: 20px;
+    }
+    .zbiornik-group-title {
+        background: #f0f0f0;
+        padding: 8px 12px;
+        font-weight: 700;
+        color: #555;
+        font-size: 0.95em;
+        margin-bottom: 0;
+        border-left: 3px solid #d35400;
+    }
+    .p-20 {
+        padding: 20px;
+    }
+    
+    /* Badge z licznikiem nowych danych */
+    #badge-nowe-surowce {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #e74c3c;
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        animation: pulse-badge 1.5s infinite;
+    }
+    
+    /* Pulsowanie przycisku */
+    @keyframes pulse-badge {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+    }
+    
+    .btn-surowce-pulse {
+        animation: pulse-btn 1.2s infinite;
+    }
+    
+    @keyframes pulse-btn {
+        0%, 100% { box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        50% { box-shadow: 0 4px 20px rgba(231, 76, 60, 0.5); }
+    }
+    
+    /* Toast notyfikacja */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10002;
+        max-width: 400px;
+    }
+    
+    .toast {
+        background: #27ae60;
+        color: white;
+        padding: 16px 20px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        margin-bottom: 10px;
+        animation: slideIn 0.3s ease-out;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 500;
+    }
+    
+    .toast.error {
+        background: #e74c3c;
+    }
+    
+    .toast.info {
+        background: #3498db;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+    
+    .toast-icon {
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+</style>
+
+<script>
+// ========== ZMIENNE GLOBALNE ==========
+let surowceBackgroundData = null;
+let surowceNewChangesCount = 0;
+let surowceRefreshTimer = null;
+
+// ========== TOAST NOTYFIKACJE ==========
+function showToast(message, type = 'success', duration = 4000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const iconMap = {
+        'success': '✓',
+        'error': '✕',
+        'info': 'ℹ'
+    };
+    
+    toast.innerHTML = `<span class="toast-icon">${iconMap[type] || '•'}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+// ========== BADGE Z LICZNIKIEM ==========
+function updateBadgeCount() {
+    const btn = document.querySelector('[onclick="openSurowceWProdukcjiModal()"]');
+    if (!btn) return;
+    
+    // Usuń stary badge
+    const oldBadge = btn.querySelector('#badge-nowe-surowce');
+    if (oldBadge) oldBadge.remove();
+    
+    // Dodaj nowy badge jeśli są nowe zmany
+    if (surowceNewChangesCount > 0) {
+        btn.style.position = 'relative';
+        const badge = document.createElement('div');
+        badge.id = 'badge-nowe-surowce';
+        badge.textContent = Math.min(surowceNewChangesCount, 99);
+        btn.appendChild(badge);
+        
+        // Pulsuj przycisk
+        btn.classList.add('btn-surowce-pulse');
+    } else {
+        btn.classList.remove('btn-surowce-pulse');
+    }
+}
+
+// ========== ODŚWIEŻANIE W TLE ==========
+function startBackgroundRefresh() {
+    if (surowceRefreshTimer) return; // już działa
+    
+    function refreshInBackground() {
+        fetch('/agro/api/production_inventory_snapshot?show_empty=1')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.items) return;
+                
+                // Policz ile zmian od ostatniego otwarcia
+                if (surowceBackgroundData) {
+                    // Porównaj ilości
+                    let changesCount = 0;
+                    data.items.forEach(newTank => {
+                        const oldTank = surowceBackgroundData.find(t => t.zbiornik === newTank.zbiornik);
+                        if (!oldTank || oldTank.stan_systemowy !== newTank.stan_systemowy) {
+                            changesCount++;
+                        }
+                    });
+                    
+                    if (changesCount > 0) {
+                        surowceNewChangesCount += changesCount;
+                        updateBadgeCount();
+                        showToast(`✨ Nowe dane surowców (${changesCount} zmian)`, 'info', 3000);
+                    }
+                }
+                
+                surowceBackgroundData = data.items;
+            })
+            .catch(err => console.error('Background refresh error:', err));
+    }
+    
+    // Pierwsze odświeżenie za 5 sekund
+    surowceRefreshTimer = setInterval(refreshInBackground, 5000);
+}
+
+function stopBackgroundRefresh() {
+    if (surowceRefreshTimer) {
+        clearInterval(surowceRefreshTimer);
+        surowceRefreshTimer = null;
+    }
+}
+
+// ========== GŁÓWNE FUNKCJE ==========
+function openSurowceWProdukcjiModal() {
+    const modal = document.getElementById('modal-surowce-w-produkcji');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    
+    // Wyczyść licznik i animację
+    surowceNewChangesCount = 0;
+    updateBadgeCount();
+    
+    loadSurowceWProdukcji();
+    startBackgroundRefresh();
+}
+
+function closeSurowceWProdukcjiModal() {
+    const modal = document.getElementById('modal-surowce-w-produkcji');
+    if (modal) modal.style.display = 'none';
+    stopBackgroundRefresh();
+}
+
+function loadSurowceWProdukcji() {
+    const container = document.getElementById('surowce-w-produkcji-container');
+    container.innerHTML = '<div style="text-align: center; padding: 40px 20px; color: #999;"><span class="material-icons" style="font-size: 48px; color: #ddd; display: block; margin-bottom: 10px;">hourglass_empty</span>Ładowanie danych...</div>';
+    
+    fetch('/agro/api/production_inventory_snapshot?show_empty=1')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.items) {
+                container.innerHTML = '<p style="color: #c0392b; padding: 20px;">Błąd ładowania danych</p>';
+                return;
+            }
+            
+            renderSurowceTable(data.items, container);
+        })
+        .catch(err => {
+            console.error('Error loading production inventory:', err);
+            container.innerHTML = '<p style="color: #c0392b; padding: 20px;">Błąd ładowania danych: ' + err.message + '</p>';
+        });
+}
+
+function renderSurowceTable(tanks, container) {
+    // Filtruj tylko zbiorniki BB i MZ
+    const filtered_tanks = tanks.filter(tank => {
+        const strefa = tank.strefa || 'INNE';
+        return strefa === 'BB' || strefa === 'MZ';
+    });
+    
+    // Grupuj zbiorniki po strefie (BB, MZ)
+    const grouped = { 'BB': [], 'MZ': [] };
+    
+    filtered_tanks.forEach(tank => {
+        const strefa = tank.strefa || 'INNE';
+        if (grouped[strefa]) {
+            grouped[strefa].push(tank);
+        }
+    });
+    
+    let html = '';
+    
+    for (const [strefa, tanks_in_zone] of Object.entries(grouped)) {
+        if (tanks_in_zone.length === 0) continue;
+        
+        // Zagłówek strefy
+        const strefaLabel = {
+            'BB': '📊 Waga01 (BB)',
+            'MZ': '📏 Waga02 (MZ)'
+        }[strefa] || strefa;
+        
+        html += `<div class="zbiornik-group">`;
+        html += `<div class="zbiornik-group-title">${strefaLabel}</div>`;
+        html += `<table class="surowce-table">`;
+        html += `<thead><tr>
+                    <th style="width: 15%;">Zbiornik</th>
+                    <th style="width: 35%;">Surowiec</th>
+                    <th style="width: 20%;">Ilość</th>
+                    <th style="width: 15%;">Status</th>
+                    <th style="width: 15%; text-align: center;">Historia</th>
+                </tr></thead>`;
+        html += `<tbody>`;
+        
+        tanks_in_zone.forEach(tank => {
+            const zbiornik = tank.zbiornik || '---';
+            const surowiec_nazwa = tank.surowiec_nazwa || (tank.is_empty ? '(puste)' : '---');
+            const stan = (tank.stan_systemowy || 0).toFixed(2);
+            const is_empty = tank.is_empty || tank.stan_systemowy <= 0;
+            const status_class = is_empty ? 'status-empty' : 'status-active';
+            const status_label = is_empty ? 'Puste' : 'Aktywne';
+            
+            html += `<tr>
+                        <td class="zbiornik-code">${zbiornik}</td>
+                        <td class="surowce-name">${surowiec_nazwa}</td>
+                        <td class="surowce-ilosc">${stan} kg</td>
+                        <td><span class="status-badge ${status_class}">${status_label}</span></td>
+                        <td style="text-align: center;">
+                            <button type="button" 
+                                    class="historia-btn"
+                                    onclick="openHistoriaModal('${zbiornik}')"
+                                    title="Pokaż historię zmian na zbiorniku ${zbiornik}">
+                                📋 Historia
+                            </button>
+                        </td>
+                    </tr>`;
+        });
+        
+        html += `</tbody></table>`;
+        html += `</div>`;
+    }
+    
+    if (!html) {
+        html = '<p style="color: #999; padding: 20px; text-align: center;">Brak danych o zbiornikach w produkcji</p>';
+    }
+    
+    container.innerHTML = html;
+}
+
+function openHistoriaModal(zbiornik) {
+    if (!zbiornik) return;
+    
+    // Tworzymy modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'historia-modal-' + zbiornik;
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: #fff; border-radius: 8px; width: 90%; max-width: 900px; max-height: 80vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="padding: 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: #333;">Historia zmian surowca — Zbiornik ${zbiornik}</h3>
+                <button type="button" onclick="document.getElementById('historia-modal-${zbiornik}').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+            </div>
+            <div id="historia-content-${zbiornik}" style="padding: 20px;">
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <span class="material-icons" style="font-size: 48px; color: #ddd; display: block; margin-bottom: 10px;">hourglass_empty</span>
+                    Ładowanie historii...
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Ładujemy historię
+    const url = `/agro/api/magazyn/surowce-w-produkcji/historia/${encodeURIComponent(zbiornik)}?limit=50&linia=AGRO`;
+    console.log('Fetching history from:', url);
+    
+    fetch(url)
+        .then(r => {
+            console.log('Response status:', r.status);
+            return r.json();
+        })
+        .then(data => {
+            console.log('History data:', data);
+            if (!data.success) {
+                renderHistoriaError(zbiornik, data.error || 'Błąd ładowania historii');
+                return;
+            }
+            if (!data.historia || data.historia.length === 0) {
+                renderHistoriaError(zbiornik, 'Brak historii zmian dla tego zbiornika');
+                return;
+            }
+            renderHistoriaContent(zbiornik, data.historia);
+        })
+        .catch(err => {
+            console.error('Error loading tank history:', err);
+            renderHistoriaError(zbiornik, 'Błąd ładowania historii: ' + err.message);
+        });
+}
+
+function renderHistoriaError(zbiornik, msg) {
+    const content = document.getElementById('historia-content-' + zbiornik);
+    if (content) {
+        content.innerHTML = `<p style="color: #c0392b; text-align: center; padding: 20px;">${msg}</p>`;
+    }
+}
+
+function renderHistoriaContent(zbiornik, historia) {
+    const content = document.getElementById('historia-content-' + zbiornik);
+    if (!content) return;
+    
+    if (!historia || historia.length === 0) {
+        content.innerHTML = '<p style="color: #999; text-align: center; padding: 40px 20px;">Brak historii zmian dla tego zbiornika</p>';
+        return;
+    }
+    
+    let html = `<table class="surowce-table" style="margin-bottom: 0;">`;
+    html += `<thead><tr>
+                <th style="width: 25%;">Data i godzina</th>
+                <th style="width: 35%;">Surowiec</th>
+                <th style="width: 15%;">Ilość</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 10%;">Kto</th>
+            </tr></thead>`;
+    html += `<tbody>`;
+    
+    historia.forEach((entry, idx) => {
+        const data = entry.autor_data_str || entry.autor_data || '---';
+        const surowiec = entry.surowiec_nazwa || '---';
+        const ilosc = entry.ilosc !== undefined ? (entry.ilosc.toFixed(2) + ' kg') : '---';
+        const status = entry.status || '---';
+        const kto = entry.autor_login || '---';
+        
+        const status_class = status === 'POTWIERDZONE' ? 'status-active' : 'status-empty';
+        
+        html += `<tr>
+                    <td>${data}</td>
+                    <td><strong>${surowiec}</strong></td>
+                    <td style="text-align: right; font-family: monospace;">${ilosc}</td>
+                    <td><span class="status-badge ${status_class}" style="font-size: 0.75em;">${status}</span></td>
+                    <td style="font-size: 0.85em; color: #666;">${kto}</td>
+                </tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    content.innerHTML = html;
+}
+</script>
+{% endif %}
+
