@@ -148,7 +148,7 @@ def register_planista_bulk_routes(planista_bp):
         return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja, opakowania=opakowania, etykiety=etykiety)
 
     @planista_bp.route('/planista/api/raport_dnia', methods=['GET'])
-    @roles_required('planista', 'admin', 'zarzad', 'masteradmin')
+    @roles_required('planista', 'admin', 'lider', 'zarzad', 'masteradmin')
     def api_raport_dnia():
         data_planu = request.args.get('data')
         linia = request.args.get('linia', 'PSD')
