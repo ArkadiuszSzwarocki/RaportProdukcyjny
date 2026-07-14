@@ -21,8 +21,12 @@
       {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] %}
       <div class="end-shift-wrapper-top" style="margin-left: auto;">
         <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
-          id="endShiftForm" style="display: flex; gap: 10px;">
+          id="endShiftForm" style="display: flex; gap: 10px; align-items: center;">
           <input type="hidden" name="linia" value="{{ linia }}">
+          <label for="raport_date_picker" style="font-size: 0.85rem; color: #64748b; white-space: nowrap;">📅 Data:</label>
+          <input type="date" id="raport_date_picker" name="data"
+            style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: #f8fafc; color: #1e293b; cursor: pointer;">
+          <script>document.getElementById('raport_date_picker').value = new Date().toISOString().slice(0, 10);</script>
           <button type="submit" class="btn-action btn-success btn-end-shift-large" style="white-space: nowrap;">
             🏁 {{ _('zakonczy_zmiane_i_pobierz_raporty') }}
           </button>

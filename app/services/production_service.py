@@ -382,7 +382,7 @@ class ProductionService:
                 # Ujednolicony kształt dla widoku kart dashboardu:
                 # [0]=waga, [1]=godzina, [2]=paleta_id, [3]=lista_dodatkowa, [4]=status, [5]=autor, [6]=uwagi
                 cursor.execute(
-                    f"SELECT plan_id, id, waga, TIME(data_dodania), status, COALESCE(dodal_login, '') "
+                    f"SELECT plan_id, id, waga, DATE_FORMAT(data_dodania, '%Y-%m-%d %H:%i'), status, COALESCE(dodal_login, '') "
                     f"FROM {table_details} WHERE plan_id IN ({fmt_ids}) ORDER BY id ASC",
                     plan_ids,
                 )

@@ -13,6 +13,7 @@ Schemat lokalizacji: R[regał:02d][rząd:02d][miejsce:02d]  np. R030102
 
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import re
 
 
@@ -144,9 +145,9 @@ class ScannerService:
         table_plan = get_table_name('plan_produkcji', linia)
         
         select_clause = (
-            f"SELECT m.id, m.produkt AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
+            f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
             f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
-            f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, m.data_przydatnosci "
+            f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
             f"FROM {table_name} m "
             f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id "
         )
@@ -391,7 +392,7 @@ class ScannerService:
                     if numeric_lookup is not None and not is_sscc:
                         # Search by numeric ID or pallet number.
                         cur.execute(
-                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii, plan.termin_przydatnosci as data_przydatnosci "
                             f"FROM {table_prod} p "
                             f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                             f"WHERE (p.id = %s OR UPPER(COALESCE(p.nr_palety,'')) = %s) AND p.status = 'do_przyjecia'",
@@ -401,7 +402,7 @@ class ScannerService:
                         # SSCC or barcode — search only by nr_palety.
                         if is_partial_sscc and not is_sscc:
                             cur.execute(
-                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
+                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii, plan.termin_przydatnosci as data_przydatnosci "
                                 f"FROM {table_prod} p "
                                 f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                                 f"WHERE UPPER(COALESCE(p.nr_palety,'')) LIKE %s AND p.status = 'do_przyjecia'",
@@ -409,7 +410,7 @@ class ScannerService:
                             )
                         else:
                             cur.execute(
-                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii "
+                                f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa, plan.data_produkcji, plan.nr_partii, plan.termin_przydatnosci as data_przydatnosci "
                                 f"FROM {table_prod} p "
                                 f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
                                 f"WHERE UPPER(COALESCE(p.nr_palety,'')) = %s AND p.status = 'do_przyjecia'",
@@ -420,13 +421,14 @@ class ScannerService:
                         return {
                             'id': unconf_row['id'],
                             'nr_palety': unconf_row['nr_palety'],
-                            'nazwa': unconf_row['nazwa'] or 'Wyrób Gotowy',
+                            'nazwa': unconf_row['nazwa'] or '',
                             'stan_magazynowy': float(unconf_row['waga'] or 0),
                             'lokalizacja': '',
                             'inventory_type': 'Wyrób Gotowy',
                             'is_unconfirmed_wg': True,
                             'data_produkcji': unconf_row['data_produkcji'],
-                            'nr_partii': unconf_row['nr_partii']
+                            'nr_partii': unconf_row['nr_partii'],
+                            'data_przydatnosci': unconf_row.get('data_przydatnosci')
                         }
                 except Exception:
                     pass
@@ -853,6 +855,25 @@ def _normalize_lookup_item(
     qty = float(row.get('ilosc', row.get('stan_magazynowy', 0)) or 0)
     location = str(row.get('lokalizacja') or location_fallback or '').strip().upper()
 
+    dp = row.get('data_produkcji')
+    dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
+
+    dz = row.get('data_przydatnosci')
+    dz_str = ''
+    if dz:
+        if hasattr(dz, 'strftime'):
+            dz_str = dz.strftime('%Y-%m-%d')
+        else:
+            dz_str = str(dz).strip()
+            match = re.search(r'^(\d+)\s*mies', dz_str, re.IGNORECASE)
+            if match and dp:
+                try:
+                    months = int(match.group(1))
+                    dp_date = dp if hasattr(dp, 'strftime') else datetime.strptime(dp_str, '%Y-%m-%d').date()
+                    dz_str = (dp_date + relativedelta(months=months)).strftime('%Y-%m-%d')
+                except Exception:
+                    pass
+
     return {
         'id': row['id'],
         'nazwa': row.get('nazwa') or '',
@@ -860,8 +881,8 @@ def _normalize_lookup_item(
         'lokalizacja': location,
         'nr_palety': row.get('nr_palety') or f"{code_prefix}-{row['id']}",
         'nr_partii': row.get('nr_partii', ''),
-        'data_produkcji': row.get('data_produkcji').strftime('%Y-%m-%d') if row.get('data_produkcji') else '',
-        'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else '',
+        'data_produkcji': dp_str,
+        'data_przydatnosci': dz_str,
         'inventory_type': inventory_type,
         'inventory_key': inventory_key,
         'inventory_code': f"{code_prefix}-{row['id']}",

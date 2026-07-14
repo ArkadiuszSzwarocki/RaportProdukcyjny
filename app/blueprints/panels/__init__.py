@@ -36,8 +36,8 @@ def panel_wnioski_page():
         if rola in ['admin', 'lider', 'masteradmin']:
             # Admin and lider see all pending requests
             cursor.execute("""
-                SELECT lr.*, p.imie, p.nazwisko 
-                FROM leave_requests lr 
+                SELECT lr.*, p.imie_nazwisko AS pracownik 
+                FROM wnioski_wolne lr 
                 JOIN pracownicy p ON lr.pracownik_id = p.id 
                 WHERE lr.status = 'pending' 
                 ORDER BY lr.data_od DESC
@@ -46,8 +46,8 @@ def panel_wnioski_page():
             
             # Also show recently approved/rejected for context
             cursor.execute("""
-                SELECT lr.*, p.imie, p.nazwisko 
-                FROM leave_requests lr 
+                SELECT lr.*, p.imie_nazwisko AS pracownik 
+                FROM wnioski_wolne lr 
                 JOIN pracownicy p ON lr.pracownik_id = p.id 
                 WHERE lr.status IN ('approved', 'rejected') 
                 AND lr.data_od >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -60,8 +60,8 @@ def panel_wnioski_page():
             user_id = session.get('user_id')
             if user_id:
                 cursor.execute("""
-                    SELECT lr.*, p.imie, p.nazwisko 
-                    FROM leave_requests lr 
+                    SELECT lr.*, p.imie_nazwisko AS pracownik 
+                    FROM wnioski_wolne lr 
                     JOIN pracownicy p ON lr.pracownik_id = p.id 
                     WHERE lr.pracownik_id = %s 
                     ORDER BY lr.data_od DESC
@@ -72,7 +72,7 @@ def panel_wnioski_page():
                 wnioski = [w for w in all_wnioski if w['status'] == 'pending']
                 approved_wnioski = [w for w in all_wnioski if w['status'] in ('approved', 'rejected')]
         
-        return render_template('panel_wnioski.html', wnioski=wnioski, approved_wnioski=approved_wnioski)
+        return render_template('panels/wnioski_panel.html', wnioski=wnioski, approved_wnioski=approved_wnioski)
         
     except Exception as e:
         current_app.logger.error(f"Error loading panel_wnioski_page: {e}")

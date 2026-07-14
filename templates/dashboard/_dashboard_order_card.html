@@ -1,4 +1,8 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
+{% set role_lc = rola|string|trim|lower %}
+{% if role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO' and sekcja == 'Workowanie' %}
+    {% set is_readonly = true %}
+{% endif %}
 <div class="card {% if p[3]|lower == 'zakonczone' %}card-completed{% endif %}" 
      data-id="{{ p[0] }}" 
      data-order-title="{{ p[1] }}"
@@ -210,9 +214,11 @@
                 {% endif %}
                 
                 {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja in ['Workowanie', 'Czyszczenie'] and linia == 'AGRO' %}
+                    {% if rola not in ['laborant', 'laboratorium'] %}
                     <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
                         <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
                     </a>
+                    {% endif %}
                 {% endif %}
             {% endif %}
         {% endif %}

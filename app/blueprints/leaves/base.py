@@ -751,7 +751,7 @@ def pobierz_raport():
         # NAJPIERW: Spróbuj wygenerować raport bezpośrednio z DB
         current_app.logger.debug("pobierz_raport: generating report for %s", dzisiaj)
         try:
-            from app.generator_raportow import generuj_paczke_raportow
+            from scripts.generator_raportow import generuj_paczke_raportow
             
             conn = get_db_connection()
             cursor = conn.cursor()

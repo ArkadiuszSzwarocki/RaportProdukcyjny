@@ -1,6 +1,6 @@
 from datetime import date
 
-from flask import current_app, redirect, render_template, request, session, url_for
+from flask import current_app, redirect, render_template, request, session, url_for, jsonify
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import roles_required
@@ -146,3 +146,49 @@ def register_planista_bulk_routes(planista_bp):
             except: pass
             
         return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja, opakowania=opakowania, etykiety=etykiety)
+
+    @planista_bp.route('/planista/api/raport_dnia', methods=['GET'])
+    @roles_required('planista', 'admin', 'zarzad', 'masteradmin')
+    def api_raport_dnia():
+        data_planu = request.args.get('data')
+        linia = request.args.get('linia', 'PSD')
+        if not data_planu:
+            return jsonify({'error': 'Brak daty'}), 400
+            
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_palety = get_table_name('palety_workowanie', linia)
+            
+            sql = f"""
+                SELECT 
+                    p.id as plan_id,
+                    p.produkt,
+                    COUNT(pw.id) as ilosc_palet,
+                    SUM(pw.waga) as laczna_waga
+                FROM {table_palety} pw
+                JOIN {table_plan} p ON pw.plan_id = p.id
+                WHERE DATE(pw.data_dodania) = %s
+                GROUP BY p.id, p.produkt
+                ORDER BY p.id
+            """
+            cursor.execute(sql, (data_planu,))
+            rows = cursor.fetchall()
+            
+            total_palet = sum(r['ilosc_palet'] for r in rows)
+            total_waga = sum(float(r['laczna_waga'] or 0) for r in rows)
+            
+            return jsonify({
+                'data': data_planu,
+                'linia': linia,
+                'total_palet': total_palet,
+                'total_waga': total_waga,
+                'items': rows
+            })
+        except Exception as e:
+            current_app.logger.error(f"Raport dnia error: {e}")
+            return jsonify({'error': str(e)}), 500
+        finally:
+            try: conn.close()
+            except: pass
