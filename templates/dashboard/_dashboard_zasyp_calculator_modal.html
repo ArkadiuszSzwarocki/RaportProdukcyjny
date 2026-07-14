@@ -1,0 +1,113 @@
+<!-- KALKULATOR ZASYPU (ZAMÓWIENIA) MODAL -->
+<div id="zasyp-calculator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: #fff; width: 95%; max-width: 800px; border-radius: 12px; padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <!-- HEADER -->
+        <div class="modal-header" style="background: linear-gradient(135deg, #1e293b, #334155); color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                    <span class="material-icons" style="font-size: 24px;">calculate</span>
+                </div>
+                <div>
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Kalkulator Zamówień</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #cbd5e1;">Oblicz zapotrzebowanie i wygeneruj zamówienie</p>
+                </div>
+            </div>
+            <button onclick="closeZasypCalculatorModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s;">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- BODY -->
+        <div class="modal-body" style="padding: 24px; overflow-y: auto;">
+            
+            <!-- WIELKOŚĆ ZLECENIA -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px;">
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px;">Wielkość zlecenia (w tonach)</label>
+                    <div style="position: relative;">
+                        <input type="number" id="calc-order-tons" step="0.01" min="0" placeholder="np. 12" style="width: 100%; padding: 10px 12px 10px 40px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; font-weight: 600;">
+                        <span class="material-icons" style="position: absolute; left: 12px; top: 12px; color: #94a3b8; font-size: 20px;">scale</span>
+                        <span style="position: absolute; right: 16px; top: 12px; color: #64748b; font-weight: 600;">t</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABELA SUROWCÓW -->
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #1e293b;">Lista surowców (receptura)</h3>
+                    <button type="button" onclick="addCalculatorRow()" style="background: #e0e7ff; color: #4338ca; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <span class="material-icons" style="font-size: 16px;">add</span> Dodaj surowiec
+                    </button>
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;" id="calc-items-table">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0;">
+                            <th style="text-align: left; padding: 8px; font-size: 13px; color: #64748b; width: 60%;">Surowiec</th>
+                            <th style="text-align: left; padding: 8px; font-size: 13px; color: #64748b; width: 30%;">Przelicznik (kg / 1 t)</th>
+                            <th style="text-align: right; padding: 8px; font-size: 13px; color: #64748b; width: 10%;">Akcja</th>
+                        </tr>
+                    </thead>
+                    <tbody id="calc-items-tbody">
+                        <!-- Dynamic rows -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- AKCJA -->
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+                <button type="button" onclick="checkStockAndCalculate()" style="background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
+                    <span class="material-icons" style="font-size: 20px;">fact_check</span> Sprawdź Magazyny
+                </button>
+            </div>
+
+            <!-- WYNIKI -->
+            <div id="calc-results-section" style="display: none; margin-top: 24px; border-top: 2px dashed #cbd5e1; padding-top: 24px;">
+                <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #1e293b;">Wynik sprawdzenia stanów</h3>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                    <thead style="background: #f1f5f9;">
+                        <tr>
+                            <th style="text-align: left; padding: 10px; font-size: 13px; color: #475569;">Surowiec</th>
+                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Potrzebne</th>
+                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Na stanie</th>
+                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Do zamówienia</th>
+                        </tr>
+                    </thead>
+                    <tbody id="calc-results-tbody">
+                        <!-- Wyniki -->
+                    </tbody>
+                </table>
+
+                <div id="calc-order-action-container" style="display: none; justify-content: flex-end;">
+                    <button type="button" onclick="submitCalculatorOrder()" style="background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
+                        <span class="material-icons" style="font-size: 20px;">send</span> Zamów Brakujące Surowce
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<template id="calc-row-template">
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 8px;">
+            <select class="calc-surowiec-select" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
+                <option value="">-- Wybierz --</option>
+            </select>
+        </td>
+        <td style="padding: 8px;">
+            <div style="position: relative;">
+                <input type="number" class="calc-rate-input" step="0.001" min="0" placeholder="0" style="width: 100%; padding: 8px 30px 8px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
+                <span style="position: absolute; right: 10px; top: 9px; font-size: 12px; color: #94a3b8; font-weight: bold;">kg</span>
+            </div>
+        </td>
+        <td style="padding: 8px; text-align: right;">
+            <button type="button" onclick="this.closest('tr').remove()" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 4px;" title="Usuń wiersz">
+                <span class="material-icons" style="font-size: 20px;">delete</span>
+            </button>
+        </td>
+    </tr>
+</template>

@@ -161,7 +161,7 @@ class AgroOpakowaniaRepository:
                 try:
                     cursor.execute(
                         f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) VALUES (%s, 'INWENTARYZACJA', %s, %s, 'POTWIERDZONE', %s, %s, %s)",
-                        (record_id, delta, actual_qty, worker_login, datetime.now(), 'Inwentaryzacja opakowania')
+                        (record_id, delta, actual_qty, worker_login, datetime.datetime.now(), 'Inwentaryzacja opakowania')
                     )
                 except Exception:
                     # If ruch table missing or insert fails, ignore audit

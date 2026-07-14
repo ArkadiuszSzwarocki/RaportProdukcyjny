@@ -57,8 +57,12 @@
             <div><strong>Data przydatności:</strong> <span id="palletDataWaz">—</span></div>
           </div>
         </div>
+      <div id="scannerReturnBtnContainer" style="margin-top: 16px; width: 100%; display: none;">
+        <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="openScannerReturnModal()" style="background:#059669; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px; border: none; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.3);">
+          <span class="material-icons" style="font-size:22px;">keyboard_return</span> Zwróć na magazyn
+        </button>
       </div>
-      <div style="margin-top: 16px; width: 100%;">
+      <div style="margin-top: 8px; width: 100%;">
         <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="printLabel('pallet')" style="background:#1e293b; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px;">
           <span class="material-icons" style="font-size:22px;">print</span> Drukuj etykietę ZPL
         </button>
@@ -213,6 +217,35 @@
     <div class="row justify-between mt-20" style="margin-top: 16px;">
       <button class="btn btn-outline" onclick="closeDispatchModal()" style="padding: 8px 16px;">Anuluj</button>
       <button class="btn btn-primary" onclick="doFinalDispatch()" style="padding: 8px 16px; background: #d97706 !important;">Zatwierdź</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER RETURN MODAL -->
+<div class="modal-overlay" id="scannerReturnOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:8px;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#10b981; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:1.3em;">keyboard_return</span>
+        Zwrot na magazyn
+      </h3>
+      <button onclick="closeScannerReturnModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+    
+    <div style="font-size: 14px; color: #94a3b8; margin-bottom: 16px;">
+      Zwracasz surowiec ze stacji <strong id="scannerReturnLoc" style="color: #fff; font-size: 16px;"></strong>
+    </div>
+
+    <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Ilość do zwrotu (kg):</label>
+    <div style="position: relative;">
+      <input type="number" id="scannerReturnQty" step="0.1" placeholder="Wpisz wagę..."
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+      <span id="scannerReturnMaxQty" style="position: absolute; right: 10px; top: 10px; color: #64748b; font-size: 0.9em; font-weight: bold; pointer-events: none;"></span>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; gap:8px; margin-top:20px; border-top:1px solid #334155; padding-top:12px;">
+      <button onclick="closeScannerReturnModal()" style="flex: 1; padding:10px; font-size:0.95em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button onclick="submitScannerReturn()" style="flex: 1; padding:10px; font-size:0.95em; border:none; background:#10b981; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(16, 185, 129, 0.3);">Zwróć</button>
     </div>
   </div>
 </div>

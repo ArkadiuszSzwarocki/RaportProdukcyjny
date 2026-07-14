@@ -7,13 +7,19 @@
     {% endif %}
     
     <div id="dashboard-production-section" class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
-        {% if agro_focus_mode and not (sekcja == 'Workowanie' and linia == 'AGRO') %}
-        <div class="toggle-focus-wrapper" style="grid-column: 1 / -1; margin-bottom: 8px; display: flex; justify-content: flex-start;">
+        <div style="grid-column: 1 / -1; margin-bottom: 8px; display: flex; justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
+            {% if agro_focus_mode and not (sekcja == 'Workowanie' and linia == 'AGRO') %}
             <button id="toggle-focus-plan-btn" class="btn-action btn-outline-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onclick="window.toggleFocusPlan(this)">
                 <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż ukryte zlecenia</span>
             </button>
+            {% endif %}
+            
+            {% if sekcja == 'Zasyp' %}
+            <button type="button" class="btn-action btn-outline-primary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); background: #f8fafc; border: 1px solid #cbd5e1; color: #3b82f6;" onclick="window.openZasypCalculatorModal()">
+                <span class="material-icons" style="font-size: 18px;">calculate</span> Kalkulator Zapotrzebowania
+            </button>
+            {% endif %}
         </div>
-        {% endif %}
         
         {% if agro_focus_mode %}
         <script>

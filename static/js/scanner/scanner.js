@@ -343,6 +343,15 @@ function showPallet(p) {
   document.getElementById('palletDataProd').textContent = p.data_produkcji || '—';
   document.getElementById('palletDataWaz').textContent = p.data_przydatnosci || '—';
 
+  // Check if pallet is on a production station
+  const locUpper = (p.lokalizacja || '').toUpperCase();
+  const isProductionStation = locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO');
+  
+  const returnBtn = document.getElementById('scannerReturnBtnContainer');
+  if (returnBtn) {
+    returnBtn.style.display = isProductionStation ? 'block' : 'none';
+  }
+
   document.getElementById('palletCard').classList.add('visible');
   document.getElementById('nopalletMsg').style.display = 'none';
 
@@ -669,3 +678,69 @@ function showToast(msg, type) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.style.display = 'none', 4000);
 }
+
+/* ─── Scanner Return to Warehouse ─────────────────────────── */
+function openScannerReturnModal() {
+  if (!currentPallet) return;
+  
+  const loc = currentPallet.lokalizacja || 'Nieznana stacja';
+  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+  
+  document.getElementById('scannerReturnLoc').textContent = loc;
+  document.getElementById('scannerReturnQty').value = maxQty;
+  document.getElementById('scannerReturnMaxQty').textContent = `Max: ${maxQty.toFixed(1)} kg`;
+  
+  document.getElementById('scannerReturnOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('scannerReturnQty').focus(), 100);
+}
+
+function closeScannerReturnModal() {
+  document.getElementById('scannerReturnOverlay').style.display = 'none';
+  scanInput.focus();
+}
+
+function submitScannerReturn() {
+  if (!currentPallet) return;
+  
+  const qtyInput = document.getElementById('scannerReturnQty');
+  const qty = parseFloat(qtyInput.value);
+  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+  
+  if (isNaN(qty) || qty <= 0) {
+    showToast('Podaj prawidłową ilość większą od 0', 'warn');
+    return;
+  }
+  
+  if (qty > maxQty) {
+    showToast(`Ilość nie może być większa niż ${maxQty} kg`, 'danger');
+    return;
+  }
+  
+  fetch('/agro/api/return', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      surowiec_id: currentPallet.id,
+      ilosc: qty,
+      ruch_produkcja_id: null,
+      komentarz: `Zwrot przez skaner ze stacji ${currentPallet.lokalizacja}`,
+      linia: LINIA,
+      lokalizacja: 'ZWROT'
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('Pomyślnie zwrócono na magazyn', 'success');
+      closeScannerReturnModal();
+      hidePallet();
+    } else {
+      showToast('Błąd: ' + d.error, 'danger');
+    }
+  })
+  .catch(e => {
+    console.error('Błąd zwrotu:', e);
+    showToast('Błąd połączenia z serwerem', 'danger');
+  });
+}
+

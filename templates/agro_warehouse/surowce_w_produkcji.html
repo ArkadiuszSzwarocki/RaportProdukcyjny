@@ -180,6 +180,7 @@ function closeTankHistoryModal() {
 
 let currentTankCode = null;
 let currentPalletData = null;
+let currentTankStatusData = null;
 
 // Główna funkcja obsługi kliknięcia w kafelek
 function handleTankClick(tankCode) {
@@ -198,6 +199,7 @@ function handleTankClick(tankCode) {
             return;
         }
         
+        currentTankStatusData = data;
         // Pokaż menu akcji
         showTankActionMenu(tankCode, data);
     })
@@ -215,6 +217,7 @@ function showTankActionMenu(tankCode, statusData) {
     const btnEmpty = document.getElementById('tam-btnEmpty');
     const btnAssign = document.getElementById('tam-btnAssign');
     const btnHistory = document.getElementById('tam-btnHistory');
+    const btnReturn = document.getElementById('tam-btnReturn');
     
     if (statusData.zajety && statusData.surowce.length > 0) {
         // Zbiornik zajęty
@@ -228,7 +231,8 @@ function showTankActionMenu(tankCode, statusData) {
                 <div style="margin-top: 8px; font-size: 13px; color: #78350f;">Suma: ${statusData.suma_kg} kg</div>
             </div>
         `;
-        btnEmpty.style.display = 'block';
+        btnEmpty.style.display = 'flex';
+        btnReturn.style.display = 'flex';
     } else {
         // Zbiornik pusty
         statusEl.innerHTML = `
@@ -237,6 +241,7 @@ function showTankActionMenu(tankCode, statusData) {
             </div>
         `;
         btnEmpty.style.display = 'none';
+        btnReturn.style.display = 'none';
     }
     
     document.getElementById('tankActionModal').style.display = 'flex';
@@ -245,6 +250,67 @@ function showTankActionMenu(tankCode, statusData) {
 function closeTankActionModal() {
     document.getElementById('tankActionModal').style.display = 'none';
     currentTankCode = null;
+    currentTankStatusData = null;
+}
+
+// Zwróć surowiec na magazyn
+function returnCurrentTankToWarehouse() {
+    if (!currentTankCode || !currentTankStatusData || !currentTankStatusData.surowce || currentTankStatusData.surowce.length === 0) return;
+    
+    const surowiec = currentTankStatusData.surowce[0];
+    const maxIlosc = surowiec.ilosc_kg;
+    const surowiecId = surowiec.surowiec_id;
+    const ruchProdukcjaId = surowiec.ruch_id;
+    
+    if (!surowiecId) {
+        if (typeof showToast === 'function') showToast('Błąd: brak ID surowca', 'error');
+        return;
+    }
+    
+    const qtyStr = prompt(`Podaj ilość (kg) do zwrócenia ze zbiornika ${currentTankCode} na magazyn:\n(Dostępne: ${maxIlosc} kg)`, maxIlosc);
+    if (qtyStr === null) return;
+    
+    const qty = parseFloat(qtyStr.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+        if (typeof showToast === 'function') showToast('Błąd: podano nieprawidłową ilość', 'error');
+        return;
+    }
+    
+    if (qty > maxIlosc) {
+        if (typeof showToast === 'function') showToast(`Błąd: Ilość większa niż dostępna na zbiorniku (${maxIlosc} kg)`, 'error');
+        return;
+    }
+    
+    if (!confirm(`Czy na pewno chcesz zwrócić ${qty} kg surowca ze zbiornika ${currentTankCode} na magazyn?\n(Zostanie przypisana lokalizacja ZWROT)`)) {
+        return;
+    }
+    
+    fetch('/agro/api/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            surowiec_id: surowiecId,
+            ilosc: qty,
+            ruch_produkcja_id: ruchProdukcjaId,
+            komentarz: `Zwrot ze zbiornika ${currentTankCode}`,
+            linia: 'AGRO',
+            lokalizacja: 'ZWROT'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showToast === 'function') showToast('Sukces: Surowiec zwrócony na magazyn', 'success');
+            closeTankActionModal();
+            setTimeout(() => location.reload(), 800);
+        } else {
+            if (typeof showToast === 'function') showToast('Błąd: ' + data.error, 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Błąd zwrotu:', err);
+        if (typeof showToast === 'function') showToast('Błąd połączenia z serwerem', 'error');
+    });
 }
 
 // Opróżnij zbiornik
@@ -416,8 +482,11 @@ document.head.appendChild(style);
         <div id="tam-status"></div>
         
         <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="tam-btnReturn" onclick="returnCurrentTankToWarehouse()" style="background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px;">keyboard_return</span> ZWRÓĆ SUROWIEC NA MAGAZYN
+            </button>
             <button id="tam-btnEmpty" onclick="emptyCurrentTank()" style="background: #ef4444; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                <span class="material-icons" style="font-size: 20px;">delete_sweep</span> OPRÓŻNIJ ZBIORNIK
+                <span class="material-icons" style="font-size: 20px;">delete_sweep</span> OPRÓŻNIJ ZBIORNIK (ARCHIWUM)
             </button>
             <button id="tam-btnAssign" onclick="openAssignModal()" style="background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <span class="material-icons" style="font-size: 20px;">add_circle</span> PRZYPISZ PALETĘ

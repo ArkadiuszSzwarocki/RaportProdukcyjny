@@ -63,6 +63,17 @@
         
         <a href="{{ url_for('traceability.index') }}" class="nav-sub-item {% if request.blueprint == 'traceability' %}active{% endif %}">Traceability (Śledzenie partii)</a>
         
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+        
+        <a href="{{ url_for('magazyny_nowe.zamowienia', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyny_nowe.zamowienia' %}active{% endif %}">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">Zamówienia</span>
+                <span id="sidebarOrdersBadge" class="nav-pending-badge" aria-label="Nowe zamówienia" style="{% if not pending_orders_count or pending_orders_count == 0 %}display: none;{% endif %}">
+                    {{ pending_orders_count if pending_orders_count else 0 }}
+                </span>
+            </span>
+        </a>
+        
     </div>
 </div>
 

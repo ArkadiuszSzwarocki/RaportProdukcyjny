@@ -390,6 +390,29 @@ def inject_delivery_counters():
             pass
 
 
+def inject_pending_orders_count():
+    """Wstrzykuje liczbę nowych zamówień magazynowych (status=NOWE)."""
+    conn = None
+    try:
+        if not session.get('zalogowany'):
+            return dict(pending_orders_count=0)
+
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM magazyn_zamowienia WHERE status = 'NOWE'")
+        count = cursor.fetchone()[0]
+        return dict(pending_orders_count=count)
+    except Exception:
+        return dict(pending_orders_count=0)
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+
 def inject_today_date():
     """Inject current date 'dzisiaj' into templates globally to prevent UndefinedError in sidebar."""
     from datetime import date
@@ -439,6 +462,7 @@ def register_contexts(app):
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
+    app.context_processor(inject_pending_orders_count)
     app.context_processor(inject_database_info)
     app.context_processor(inject_today_date)
     app.context_processor(inject_system_errors_count)

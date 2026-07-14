@@ -155,7 +155,7 @@ class AgroTanksRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, ruch_zrodlowy_id, lokalizacja) "
                     "VALUES (%s, 'ZWROT', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (surowiec_id, ilosc, stan_po, worker_login, datetime.now(), worker_login, datetime.now(), plan_id_val, komentarz, ruch_ref, lok_val)
+                    (surowiec_id, ilosc, stan_po, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), plan_id_val, komentarz, ruch_ref, lok_val)
                 )
 
                 # Log to palety_historia
@@ -469,9 +469,9 @@ class AgroTanksRepository:
                         delta,
                         float(actual_qty),
                         worker_login,
-                        datetime.now(),
+                        datetime.datetime.now(),
                         worker_login,
-                        datetime.now(),
+                        datetime.datetime.now(),
                         base_move.get('plan_id'),
                         opis,
                         ruch_id,
@@ -758,7 +758,7 @@ class AgroTanksRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, komentarz) "
                     "VALUES (%s, 'KOREKTA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s)",
-                    (surowiec_id, 0, stan, worker_login, datetime.now(), worker_login, datetime.now(), f'Zmiana nazwy na: {new_name}')
+                    (surowiec_id, 0, stan, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), f'Zmiana nazwy na: {new_name}')
                 )
                 conn.commit()
                 return True

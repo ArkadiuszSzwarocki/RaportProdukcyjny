@@ -280,3 +280,15 @@ def production_status():
     linia = request.args.get('linia', 'PSD').upper()
     return render_template('magazyny_nowe/production_status.html', linia=linia)
 
+@magazyny_nowe_bp.route('/zamowienia')
+def zamowienia():
+    """Strona zamówień surowców z magazynu (lista)."""
+    linia = request.args.get('linia', 'PSD').upper()
+    return render_template('magazyny_nowe/zamowienia.html', linia=linia)
+
+@magazyny_nowe_bp.route('/zamowienia/nowe')
+def zamowienie_nowe():
+    """Strona tworzenia nowego zamówienia (koszyk)."""
+    linia = request.args.get('linia', 'PSD').upper()
+    return render_template('magazyny_nowe/zamowienie_nowe.html', linia=linia)
+

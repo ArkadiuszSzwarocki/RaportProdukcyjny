@@ -288,7 +288,7 @@ class AgroSurowceRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_nazwa, typ_ruchu, ilosc, status, autor_login, autor_data, komentarz, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania) "
                     "VALUES (%s, 'PRZYJECIE', %s, 'OCZEKUJACE', %s, %s, %s, %s, %s, %s, %s)",
-                    (nazwa, ilosc, author_login, datetime.now(), komentarz, nr_partii, data_produkcji, data_przydatnosci, pkg_form)
+                    (nazwa, ilosc, author_login, datetime.datetime.now(), komentarz, nr_partii, data_produkcji, data_przydatnosci, pkg_form)
                 )
                 
                 conn.commit()
@@ -389,7 +389,7 @@ class AgroSurowceRepository:
                 # Update history
                 cursor.execute(
                     f"UPDATE {table_ruch} SET surowiec_id = %s, lokalizacja = %s, status = 'POTWIERDZONE', potwierdzil_login = %s, potwierdzil_data = %s WHERE id = %s",
-                    (surowiec_id, lokalizacja, worker_login, datetime.now(), ruch_id)
+                    (surowiec_id, lokalizacja, worker_login, datetime.datetime.now(), ruch_id)
                 )
                 
                 # Log to palety_historia
@@ -433,7 +433,7 @@ class AgroSurowceRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
                     "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",
-                    (surowiec_id, -ilosc, stan_po, worker_login, datetime.now(), worker_login, datetime.now(), plan_id_val, komentarz, zbiornik_val)
+                    (surowiec_id, -ilosc, stan_po, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), plan_id_val, komentarz, zbiornik_val)
                 )
 
                 # Log to palety_historia
@@ -464,7 +464,7 @@ class AgroSurowceRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, status, autor_login, autor_data, komentarz) "
                     "VALUES (%s, %s, 'WYDANIE_ZEW', %s, 'OCZEKUJACE', %s, %s, %s)",
-                    (surowiec_id, nazwa, ilosc, worker_login, datetime.now(), komentarz)
+                    (surowiec_id, nazwa, ilosc, worker_login, datetime.datetime.now(), komentarz)
                 )
                 conn.commit()
                 return True
@@ -491,7 +491,7 @@ class AgroSurowceRepository:
                 
                 cursor.execute(
                     f"UPDATE {table_ruch} SET status = 'POTWIERDZONE', potwierdzil_login = %s, potwierdzil_data = %s, ilosc_po = %s WHERE id = %s",
-                    (worker_login, datetime.now(), stan_po, ruch_id)
+                    (worker_login, datetime.datetime.now(), stan_po, ruch_id)
                 )
                 conn.commit()
                 return True
@@ -520,7 +520,7 @@ class AgroSurowceRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                     "VALUES (%s, 'INWENTARYZACJA', %s, %s, 'POTWIERDZONE', %s, %s, %s)",
-                    (surowiec_id, delta, actual_qty, worker_login, datetime.now(), komentarz or 'Korekta inwentaryzacyjna')
+                    (surowiec_id, delta, actual_qty, worker_login, datetime.datetime.now(), komentarz or 'Korekta inwentaryzacyjna')
                 )
                 
                 conn.commit()
@@ -547,7 +547,7 @@ class AgroSurowceRepository:
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                     "VALUES (%s, 'WYDANIE_MAG', %s, %s, 'POTWIERDZONE', %s, %s, %s)",
-                    (surowiec_id, -ilosc, stan_po, worker_login, datetime.now(), komentarz or 'Wydanie z magazynu')
+                    (surowiec_id, -ilosc, stan_po, worker_login, datetime.datetime.now(), komentarz or 'Wydanie z magazynu')
                 )
                 
                 conn.commit()

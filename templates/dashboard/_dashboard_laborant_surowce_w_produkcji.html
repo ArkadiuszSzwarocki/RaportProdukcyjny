@@ -1,5 +1,5 @@
-{# === MODAL LABORANTA: Surowce w produkcji (zbiorniki na zasypie AGRO) === #}
-{% if rola == 'laborant' and sekcja == 'Zasyp' and linia == 'AGRO' %}
+{# === MODAL: Surowce w produkcji (zbiorniki na zasypie AGRO) === #}
+{% if sekcja == 'Zasyp' and linia == 'AGRO' %}
 
 <div id="modal-surowce-w-produkcji" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
     <div style="background: #fff; border-radius: 8px; width: 95%; max-width: 1200px; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
@@ -393,13 +393,21 @@ function renderSurowceTable(tanks, container) {
                         <td class="surowce-name">${surowiec_nazwa}</td>
                         <td class="surowce-ilosc">${stan} kg</td>
                         <td><span class="status-badge ${status_class}">${status_label}</span></td>
-                        <td style="text-align: center;">
+                        <td style="text-align: center; display: flex; gap: 5px; justify-content: center;">
                             <button type="button" 
                                     class="historia-btn"
                                     onclick="openHistoriaModal('${zbiornik}')"
                                     title="Pokaż historię zmian na zbiorniku ${zbiornik}">
                                 📋 Historia
                             </button>
+                            ${!is_empty ? `
+                            <button type="button" 
+                                    class="historia-btn"
+                                    style="border-color: #e74c3c; color: #e74c3c;"
+                                    onclick="returnSurowiecToWarehouse(${tank.surowiec_id}, ${stan}, ${tank.ruch_id || 'null'}, '${zbiornik}')"
+                                    title="Zwróć surowiec ze stacji ${zbiornik} na magazyn">
+                                ↩️ Zwróć
+                            </button>` : ''}
                         </td>
                     </tr>`;
         });
@@ -525,6 +533,58 @@ function renderHistoriaContent(zbiornik, historia) {
     
     html += `</tbody></table>`;
     content.innerHTML = html;
+}
+
+function returnSurowiecToWarehouse(surowiecId, maxIlosc, ruchProdukcjaId, zbiornik) {
+    if (!surowiecId) {
+        showToast('Brak ID surowca do zwrotu.', 'error');
+        return;
+    }
+    
+    const qtyStr = prompt(`Podaj ilość (kg) do zwrócenia ze zbiornika ${zbiornik} na magazyn:\n(Dostępne: ${maxIlosc} kg)`, maxIlosc);
+    if (qtyStr === null) return; // anulowano
+    
+    const qty = parseFloat(qtyStr.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+        showToast('Podano nieprawidłową ilość.', 'error');
+        return;
+    }
+    
+    if (qty > maxIlosc) {
+        showToast(`Ilość większa niż dostępna na zbiorniku (${maxIlosc} kg).`, 'error');
+        return;
+    }
+
+    const confirmReturn = confirm(`Czy na pewno chcesz zwrócić ${qty} kg surowca ze zbiornika ${zbiornik} na magazyn? (Lokalizacja zostanie usunięta, paleta będzie wymagała ponownego rozlokowania skanerem)`);
+    if (!confirmReturn) return;
+
+    fetch('/agro/api/return', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            surowiec_id: surowiecId,
+            ilosc: qty,
+            ruch_produkcja_id: ruchProdukcjaId,
+            komentarz: `Zwrot ze zbiornika ${zbiornik}`,
+            linia: 'AGRO',
+            lokalizacja: 'ZWROT' // Przypisz lokalizację ZWROT
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Surowiec został poprawnie zwrócony na magazyn.', 'success');
+            loadSurowceWProdukcji(); // Odśwież listę
+        } else {
+            showToast('Błąd podczas zwrotu: ' + (data.error || 'Nieznany błąd'), 'error');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('Błąd połączenia z serwerem.', 'error');
+    });
 }
 </script>
 {% endif %}

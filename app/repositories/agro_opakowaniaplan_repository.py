@@ -681,7 +681,7 @@ class AgroOpakowaniaPlanRepository:
                 'ilosc_przy_zwrocie': ilosc_przy_zwrocie,
                 'pozostalo_na_rolce': pozostalo_na_rolce,
                 'lokalizacja': final_loc,
-                'data_odlozenia': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'data_odlozenia': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'odlozyl': user_login or 'System',
                 'tryb_zwrotu': 'CZESCIOWY' if is_partial else 'CALKOWITY',
                 'nr_partii': nr_partii,
@@ -740,7 +740,7 @@ class AgroOpakowaniaPlanRepository:
             ilosc_przy_zwrocie = _format_quantity_label(label_data.get('ilosc_przy_zwrocie'))
             pozostalo_na_rolce = _format_quantity_label(label_data.get('pozostalo_na_rolce'))
             lokalizacja = _sanitize_zpl_text(label_data.get('lokalizacja'), 48) or 'BRAK'
-            data_odlozenia = _sanitize_zpl_text(label_data.get('data_odlozenia'), 32) or datetime.now().strftime('%Y-%m-%d %H:%M')
+            data_odlozenia = _sanitize_zpl_text(label_data.get('data_odlozenia'), 32) or datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
             operator = _sanitize_zpl_text(label_data.get('odlozyl'), 36) or 'SYSTEM'
             tryb_zwrotu = _sanitize_zpl_text(label_data.get('tryb_zwrotu'), 16) or 'ZWROT'
             nr_partii = _sanitize_zpl_text(label_data.get('nr_partii'), 32) or ''
