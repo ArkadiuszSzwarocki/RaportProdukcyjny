@@ -189,8 +189,16 @@ def drukuj_zpl():
             waga = f"{float(waga_value):.0f}"
         except:
             waga = str(waga_value)
+            
+        unit_raw = p.get('unit') or p.get('jednostka') or 'kg'
+        if unit_raw.lower() in ['szt.', 'szt', 'pcs']:
+            naglowek_wagi = "ILOSC:"
+            waga_text = f"{waga} szt."
+        else:
+            naglowek_wagi = "WAGA NETTO:"
+            waga_text = f"{waga} kg"
 
-        logger.info(f"- Etykieta: paleta={id_palety}, produkcja={d_prod}, waznosc={d_wazn}, waga={waga}kg")
+        logger.info(f"- Etykieta: paleta={id_palety}, produkcja={d_prod}, waznosc={d_wazn}, ilosc/waga={waga_text}")
 
         typ_str = str(typ).lower() if typ else str(p.get('p_type', '')).lower()
         if 'packaging' in typ_str or 'opakowanie' in typ_str:
@@ -230,8 +238,8 @@ def drukuj_zpl():
             zpl_string += f"^FO60,660^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
             
         # Waga (w 2 liniach: naglowek + wartosc)
-        zpl_string += "^FO60,950^A0N,72,72^FDWAGA NETTO:^FS\n"
-        zpl_string += f"^FO60,1030^A0N,100,100^FD{waga} kg^FS\n"
+        zpl_string += f"^FO60,950^A0N,72,72^FD{naglowek_wagi}^FS\n"
+        zpl_string += f"^FO60,1030^A0N,100,100^FD{waga_text}^FS\n"
         zpl_string += "^XZ"
 
     try:

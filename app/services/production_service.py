@@ -165,10 +165,23 @@ class ProductionService:
         prods = [p[1] for p in plan_dnia]
         fmt = ",".join(["%s"] * len(prods))
         if sekcja in ('Workowanie', 'Czyszczenie') and prods:
+            work_ids = [p[0] for p in plan_dnia]
+            fmt_w = ",".join(["%s"] * len(work_ids))
+            
+            cursor.execute(f"""
+                SELECT w.id, COALESCE(z.tonaz_rzeczywisty, 0)
+                FROM {table_plan} w
+                JOIN {table_plan} z ON w.zasyp_id = z.id
+                WHERE w.id IN ({fmt_w}) AND z.sekcja = 'Zasyp'
+            """, work_ids)
+            zasyp_by_id = {r[0]: r[1] for r in cursor.fetchall()}
+            
             cursor.execute(f"SELECT produkt, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt IN ({fmt})", (dzisiaj, *prods))
             weights = {r[0]: r[1] for r in cursor.fetchall()}
             for p in plan_dnia: 
-                zw = weights.get(p[1])
+                zw = zasyp_by_id.get(p[0])
+                if not zw:
+                    zw = weights.get(p[1])
                 if zw: p[2] = zw
         elif sekcja == 'Zasyp' and prods:
             cursor.execute(f"SELECT produkt, SUM(uszkodzone_worki) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND produkt IN ({fmt}) GROUP BY produkt", (dzisiaj, *prods))

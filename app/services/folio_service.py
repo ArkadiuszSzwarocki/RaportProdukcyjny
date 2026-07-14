@@ -292,6 +292,7 @@ class FolioService:
                                         "productionDate": str(rolka_dane.get('data_produkcji')) if rolka_dane.get('data_produkcji') else '---',
                                         "expiryDate": str(rolka_dane.get('data_przydatnosci')) if rolka_dane.get('data_przydatnosci') else '---',
                                         "currentWeight": float(pozostalo_szt),
+                                        "unit": "szt.",
                                         "labNotes": f"ZAMKNIĘTO ROLKĘ"
                                     }
                                 }
