@@ -74,9 +74,47 @@ class MagazynyNoweService:
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
         """Przenosi paletę na nową lokalizację. Jeśli amount_to_move < ilość systemowa, dzieli paletę."""
         
-        # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
         if new_location:
             new_location = new_location.strip().upper()
+            
+            # --- ZASYP / PRZEKAZANIE NA PRODUKCJĘ ---
+            from app.utils.location_validator import is_production_tank_code
+            if is_production_tank_code(new_location):
+                if pallet_type != 'Surowiec':
+                    return False, f"BŁĄD: Do stacji zasypowej ({new_location}) można wydać tylko Surowce."
+                    
+                # Pobieramy ilość do wydania
+                conn_tmp = get_db_connection()
+                try:
+                    cur_tmp = conn_tmp.cursor()
+                    table_surowce = get_table_name('magazyn_surowce', linia)
+                    cur_tmp.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (pallet_id,))
+                    row_tmp = cur_tmp.fetchone()
+                    if not row_tmp:
+                        return False, "Nie znaleziono palety surowca."
+                    qty = amount_to_move if amount_to_move is not None else float(row_tmp[0])
+                finally:
+                    conn_tmp.close()
+                    
+                # Wywołaj proces zasypu (dokładnie tak jak w skanerze głównym)
+                from app.services.scanner_service import ScannerService
+                try:
+                    success, msg, extra_data = ScannerService.dispatch_to_production(
+                        surowiec_id=pallet_id,
+                        ilosc=qty,
+                        worker_login=worker_login,
+                        linia=linia,
+                        zbiornik=new_location,
+                        komentarz="Zasyp (z panelu magazynu)"
+                    )
+                    if success:
+                        return True, f"Przekazano na produkcję ({new_location})."
+                    return False, f"Błąd przekazania: {msg}"
+                except Exception as e:
+                    return False, f"Błąd krytyczny zasypu: {str(e)}"
+                    
+            # --- ZWYKŁE PRZESUNIĘCIE MAGAZYNOWE ---
+            from app.utils.location_validator import validate_warehouse_location
             is_valid, error_msg = validate_warehouse_location(new_location, allow_empty=False)
             if not is_valid:
                 return False, error_msg

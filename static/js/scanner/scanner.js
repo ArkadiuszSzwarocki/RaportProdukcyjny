@@ -95,7 +95,7 @@ let pendingProductionLoc = null;
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
-  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('OS');
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('OS') || loc.startsWith('PSD') || loc.startsWith('MIX') || loc.startsWith('BF_');
   
   if (isProduction) {
     // Wyroby gotowe nie mogą być przekazywane na produkcję
@@ -345,7 +345,7 @@ function showPallet(p) {
 
   // Check if pallet is on a production station
   const locUpper = (p.lokalizacja || '').toUpperCase();
-  const isProductionStation = locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO');
+  const isProductionStation = locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('OS') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX') || locUpper.startsWith('BF_');
   
   const returnBtn = document.getElementById('scannerReturnBtnContainer');
   if (returnBtn) {

@@ -248,32 +248,10 @@ def get_user_redirect_target(role, group):
         return '/planista'
         
     if normalized_role in ['masteradmin', 'admin', 'lider']:
-        return '/'
+        return '/agro/scanner/ui'
         
-    # For other roles, find their first allowed section
-    from app.core.contexts import inject_role_permissions
-    role_checker = inject_role_permissions().get('role_has_access')
-    
-    user_grupa = (group or 'PSD').upper().strip()
-    aktywna_linia = user_grupa if user_grupa in ['PSD', 'AGRO'] else 'PSD'
-    line_lower = aktywna_linia.lower()
-    sections_to_check = ['Zasyp', 'Workowanie', 'Bufor', 'Magazyn']
-    
-    found_allowed_sec = None
-    for sec in sections_to_check:
-        page_key = f"{line_lower}.{sec.lower()}"
-        if role_checker and role_checker(page_key):
-            found_allowed_sec = sec
-            break
-            
-    if found_allowed_sec:
-        from flask import url_for
-        try:
-            return url_for('main.index', sekcja=found_allowed_sec, linia=aktywna_linia)
-        except Exception:
-            return f"/?sekcja={found_allowed_sec}&linia={aktywna_linia}"
-        
-    return '/'
+    # For other roles, just redirect to the scanner as the default first view
+    return '/agro/scanner/ui'
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])

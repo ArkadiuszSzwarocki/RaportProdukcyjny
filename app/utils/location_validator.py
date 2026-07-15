@@ -14,6 +14,9 @@ PRODUCTION_TANK_PATTERNS = [
     r'^KO\d{2}$',      # KO01, KO02, ..., KO24
     r'^CZ\d{2}$',      # CZ01, CZ02, ... (Czyszczenie)
     r'^WZ\d{2}$',      # WZ04 (new production tank)
+    r'^PSD\d*$',       # PSD, PSD01, PSD02
+    r'^MIX\d*$',       # MIX, MIX01
+    r'^BF_\w*$',       # BF_...
 ]
 
 def is_production_tank_code(location_code):

@@ -30,6 +30,10 @@ register_main_reporting_routes(main_bp)
 @login_required
 def index():
     try:
+        # Default redirect to scanner if no section/args are provided
+        if not request.args:
+            return redirect('/agro/scanner/ui')
+
         # Detect hall view from session or query param
         sess_hall = session.get('selected_hall_view')
         user_grupa = session.get('grupa', 'PSD').upper()
