@@ -612,13 +612,13 @@ class ScannerService:
         zbiornik: str | None = None,
         komentarz: str | None = None,
         pallet_type: str = 'Surowiec',
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, dict | None]:
         """Pobiera `ilosc` kg z palety (surowiec_id) na produkcję.
 
-        Returns (success, message)
+        Returns (success, message, extra_data)
         """
         if ilosc <= 0:
-            return False, "Ilość musi być > 0"
+            return False, "Ilość musi być > 0", None
 
         if pallet_type == 'Opakowanie':
             table_surowce = get_table_name('magazyn_opakowania', linia)
@@ -637,14 +637,14 @@ class ScannerService:
             )
             pallet = cur.fetchone()
             if not pallet:
-                return False, f"Paleta #{surowiec_id} nie istnieje"
+                return False, f"Paleta #{surowiec_id} nie istnieje", None
 
             if pallet.get('is_blocked'):
-                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może zostać wydana na produkcję!"
+                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może zostać wydana na produkcję!", None
 
             stan = float(pallet['stan_magazynowy'] or 0)
             if ilosc > stan:
-                return False, f"Za duża ilość — dostępne: {stan:.1f} kg"
+                return False, f"Za duża ilość — dostępne: {stan:.1f} kg", None
 
             now = datetime.now()
             plan_id_val   = int(plan_id) if plan_id not in (None, '', 0, '0') else None
@@ -652,16 +652,27 @@ class ScannerService:
             # Normalize and validate zbiornik (REQUIRED for production dispatch)
             zbiornik_normalized = str(zbiornik or '').strip().upper() if zbiornik else None
             if not zbiornik_normalized:
-                return False, "⚠️ Brak kodu zbiornika! Podaj zbiornik (np. BB02, MZ07) aby przenieść surowiec na produkcję."
+                return False, "⚠️ Brak kodu zbiornika! Podaj zbiornik (np. BB02, MZ07) aby przenieść surowiec na produkcję.", None
             
             zbiornik_val = zbiornik_normalized
             lokalizacja_val = zbiornik_val  # lokalizacja = zbiornik (move to tank)
 
-            # Zmniejsz stan I zmień lokalizację na zbiornik
-            cur.execute(
-                f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s, lokalizacja = %s WHERE id = %s",
-                (ilosc, lokalizacja_val, surowiec_id)
-            )
+            is_partial = ilosc < stan
+            lokalizacja_zrodlowa = (pallet.get('lokalizacja') or '').strip()
+
+            if is_partial:
+                # Częściowe pobranie: nie zmieniamy lokalizacji palety-matki
+                cur.execute(
+                    f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s",
+                    (ilosc, surowiec_id)
+                )
+            else:
+                # Cała paleta pobrana: ustawiamy stan na 0 i przenosimy do zbiornika
+                cur.execute(
+                    f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s, lokalizacja = %s WHERE id = %s",
+                    (ilosc, lokalizacja_val, surowiec_id)
+                )
+
             # Nowy stan
             cur.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
             stan_po = float(cur.fetchone()['stan_magazynowy'] or 0)
@@ -674,16 +685,28 @@ class ScannerService:
                 "VALUES (%s,%s,'PRODUKCJA',%s,%s,%s,'POTWIERDZONE',%s,%s,%s,%s,%s,%s,%s)",
                 (
                     surowiec_id, pallet['nazwa'], -ilosc, stan_po,
-                    pallet.get('lokalizacja'),
+                    lokalizacja_zrodlowa,
                     worker_login, now, worker_login, now,
                     plan_id_val, komentarz, zbiornik_val
                 )
             )
             conn.commit()
-            return True, f"Przekazano {ilosc:.1f} kg [{pallet['nazwa']}] na produkcję. Pozostało: {stan_po:.1f} kg"
+
+            extra_data = {
+                'is_partial': is_partial,
+                'stan_po': stan_po,
+                'ilosc_pobrana': ilosc,
+                'zbiornik': zbiornik_val,
+                'pallet_name': pallet['nazwa'],
+                'nr_palety': pallet.get('nr_palety') or f"{pallet_type[:3].upper()}-{surowiec_id}",
+                'lokalizacja_zrodlowa': lokalizacja_zrodlowa,
+                'id': surowiec_id
+            }
+
+            return True, f"Przekazano {ilosc:.1f} kg [{pallet['nazwa']}] na produkcję. Pozostało: {stan_po:.1f} kg", extra_data
         except Exception as e:
             conn.rollback()
-            return False, f"Błąd: {e}"
+            return False, f"Błąd: {e}", None
         finally:
             conn.close()
 

@@ -73,7 +73,7 @@ def dispatch():
     except (TypeError, ValueError):
         return jsonify({'success': False, 'error': 'Nieprawidłowa ilość'}), 400
 
-    ok, msg = ScannerService.dispatch_to_production(
+    ok, msg, extra_data = ScannerService.dispatch_to_production(
         surowiec_id=int(surowiec_id),
         ilosc=ilosc,
         worker_login=_worker(),
@@ -83,6 +83,34 @@ def dispatch():
         komentarz=komentarz,
         pallet_type=pallet_type,
     )
+
+    if ok and extra_data and extra_data.get('is_partial'):
+        try:
+            from app.services.print_server import get_printer
+            from datetime import datetime
+            printer = get_printer()
+            
+            # 1. Drukowanie zaktualizowanej palety matki (2 sztuki)
+            label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
+            if label_data:
+                printer.print_pallet_label(label_data)
+                printer.print_pallet_label(label_data)
+                
+            # 2. Drukowanie etykiety dla zasypanego worka (1 sztuka)
+            worek_label_data = {
+                'id': str(surowiec_id),
+                'nr_palety': extra_data.get('nr_palety', ''),
+                'nazwa': f"WOREK {extra_data.get('zbiornik', '')} - {extra_data.get('pallet_name', '')}",
+                'ilosc': extra_data.get('ilosc_pobrana', 0),
+                'lokalizacja': extra_data.get('zbiornik', ''),
+                'qr_data': f"WOREK|{extra_data.get('zbiornik', '')}|{extra_data.get('pallet_name', '')}",
+                'data': datetime.now().strftime('%d.%m.%Y %H:%M'),
+            }
+            printer.print_pallet_label(worek_label_data)
+            msg += " (Wysłano etykiety do druku: 2x paleta-matka, 1x worek)"
+        except Exception as e:
+            msg += f" (Błąd automatycznego druku etykiet: {e})"
+
     return jsonify({'success': ok, 'message': msg})
 
 

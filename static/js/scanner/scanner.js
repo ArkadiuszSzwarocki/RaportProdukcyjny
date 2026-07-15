@@ -95,7 +95,7 @@ let pendingProductionLoc = null;
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
-  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ');
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('OS');
   
   if (isProduction) {
     // Wyroby gotowe nie mogą być przekazywane na produkcję
