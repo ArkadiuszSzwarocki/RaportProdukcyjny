@@ -110,7 +110,7 @@ def podglad_etykiety_system(paleta_id):
 ^FO20,20^GB772,1174,4^FS
 ^FO40,60^A0N,50,50^FD{typ_label_sys} - {linia}^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
-^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
+^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
 ^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp or ''}^FS
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS

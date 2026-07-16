@@ -49,9 +49,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             cursor = conn.cursor()
             opakowanie_id = None
             etykieta_id = None
+            db_nr_partii = None
             if linia == 'AGRO':
                 cursor.execute(
-                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id FROM {table_plan} WHERE id=%s",
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id, nr_partii FROM {table_plan} WHERE id=%s",
                     (id,),
                 )
             else:
@@ -65,7 +66,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
             if z:
                 if linia == 'AGRO':
-                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id = z
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id, db_nr_partii = z
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
 
@@ -143,8 +144,11 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         # Validate batch number (required for AGRO Workowanie)
                         nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
                         if not is_czyszczenie and not (nr_partii_post and nr_partii_post.strip()):
-                            flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
-                            return redirect(bezpieczny_powrot())
+                            if status_obecny == 'zawieszone' and db_nr_partii:
+                                nr_partii_post = db_nr_partii
+                            else:
+                                flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
+                                return redirect(bezpieczny_powrot())
                         nr_partii_cleaned = nr_partii_post.strip() if nr_partii_post else 'CZYSZCZENIE'
                         
                         try:

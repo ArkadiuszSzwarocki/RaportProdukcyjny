@@ -369,8 +369,12 @@ class PrintServer:
             conn.close()
         except Exception:
             pass
-        
         display_name = f"{symbol} - {product_name}" if symbol else product_name
+
+        if jednostka == 'kg':
+            waga_line = f"^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} kg^FS"
+        else:
+            waga_line = f"^FO40,1000^A0N,70,70^FDILOSC:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} {jednostka}^FS"
 
         return f"""^XA
 ^CI28
@@ -378,13 +382,12 @@ class PrintServer:
 ^FO20,20^GB772,1174,4^FS
 ^FO40,60^A0N,50,50^FDSUROWIEC^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{display_name}^FS
-^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
+^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
 ^FO40,750^A0N,50,50^FDPARTIA: {nr_partii}^FS
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 ^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
-^FO40,1050^A0N,60,60^FDILOSC/WAGA:^FS
-^FO350,1040^A0N,80,80^FD{qty_display} {jednostka}^FS
+{waga_line}
 ^PQ{copies}
 ^XZ"""
 
