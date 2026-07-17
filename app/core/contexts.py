@@ -289,7 +289,7 @@ def inject_globals():
     app_version = get_app_version()
     
     # Increase this number to force browser to reload static files (css/js)
-    static_version = 46
+    static_version = 47
     
     return dict(static_version=static_version, app_version=app_version, db_name=active_db)
 

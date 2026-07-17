@@ -138,6 +138,31 @@ Inwentaryzacja Magazynu
                 <span class="material-icons" style="font-size: 24px;">search</span>
             </button>
         </div>
+    </div>
+
+    <!-- BLIND SCAN SECTION -->
+    <div id="blindScanContainer" class="scanner-card" style="display: none; max-width: 500px; margin: 0 auto; background: #fff8f1; border-color: #fdba74;">
+        <div style="padding: 10px 5px; color: #f97316; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span class="material-icons" style="font-size: 24px;">my_location</span>
+                <span id="blindActiveLocation"></span>
+            </div>
+            <button onclick="clearSkaner()" style="font-size:12px; font-weight:700; color:#f97316; background:none; border:none; cursor:pointer; text-decoration:underline;">Zmień</button>
+        </div>
+        <label style="display: block; font-size: 12px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase;">
+            Zeskanuj kod SSCC palety
+        </label>
+        <div class="input-group" style="margin-bottom: 15px;">
+            <span class="material-icons input-icon" style="color: #f97316;">qr_code_scanner</span>
+            <input type="text" id="blindSsccInput" class="scanner-input" style="border-color: #f97316; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
+                   onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleBlindSSCCScan(this.value); this.value='';}">
+        </div>
+        
+        <div id="blindScannedList" style="margin-top: 20px; border-top: 1px solid #fed7aa; padding-top: 15px;">
+            <h4 style="font-size: 12px; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase;">Zeskanowane w tej sesji:</h4>
+            <div id="blindScannedItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+    </div>
 
         <button id="btnAddPalletMain" onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #3b82f6; border-radius: 12px; background: #f0f9ff; color: #2563eb; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;">
             <span class="material-icons">add_circle</span> DODAJ PALETĘ (BRAK W SYSTEMIE)
@@ -163,10 +188,18 @@ Inwentaryzacja Magazynu
         url_szukaj_regalu: '{{ url_for("inwentaryzacja.szukaj_regalu") }}',
         url_szukaj_globalnie: '{{ url_for("inwentaryzacja.szukaj_globalnie") }}',
         url_zapisz_wpis: '{{ url_for("inwentaryzacja.zapisz_wpis") }}',
-        url_zatwierdz_wpis: '{{ url_for("inwentaryzacja.zatwierdz_wpis") }}',
-        url_zakoncz_sesje: '{{ url_for("inwentaryzacja.zakoncz_sesje") }}',
-        url_print_pallet_label: '{{ url_for("warehouse_v2.print_pallet_label") }}'
+        url_zakoncz_sesje: '{{ url_for("inwentaryzacja.zamknij_sesje") }}',
+        url_print_pallet_label: '{{ url_for("warehouse_v2.print_pallet_label") }}',
+        url_podpowiedzi_nazw: '{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}',
+        url_raport: '{{ url_for("inwentaryzacja.raport", sesja_id=sesja_id) }}'
     };
 </script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/skaner.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/globals.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}"></script>
 {% endblock %}
