@@ -1,0 +1,270 @@
+<!-- Unified Navigation: All elements as a clean vertical list -->
+<div class="warehouse-nav-container">
+    
+    <!-- UNIFIED HEADER -->
+    <div class="dropdown-wrapper">
+        <button class="main-dropdown-btn" onclick="toggleUnifiedMenu()">
+            <div class="flex-center gap-10">
+                <span class="material-icons" style="color: #60a5fa; font-size: 20px;">menu_open</span>
+                <span id="unified-label" style="text-transform: uppercase; font-weight: 800; font-size: 15px;">
+                    <span id="current-wh-display">{% for tab in zakladki if tab.id == aktywna_zakladka %}{{ tab.name }}{% endfor %}</span>
+                    <span style="color: #64748b; margin: 0 5px;">/</span>
+                    <span id="current-rack-label" style="color: #60a5fa;">{% if aktywna_podzakladka == 'all' %}Wszystkie{% else %}{{ aktywna_podzakladka }}{% endif %}</span>
+                </span>
+            </div>
+            <span class="material-icons" id="dropdown-icon">expand_more</span>
+        </button>
+
+        <!-- STATYSTYKI ZAJĘTOŚCI (Przeniesione tutaj) -->
+        <div id="stats-container" style="margin-top: 10px;">
+            {% for zid, s in stats.items() %}
+            <div class="capacity-bar" id="cap-{{ zid }}" 
+                 style="display: {% if zid == aktywna_zakladka %}block{% else %}none{% endif %}; 
+                        background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <div class="flex-between mb-5">
+                    <span style="font-weight: 800; color: #475569; font-size: 11px; letter-spacing: 0.5px;">ZAJĘTOŚĆ MAGAZYNU</span>
+                    <span style="font-weight: 900; color: {% if s.percent > 90 %}#ef4444{% elif s.percent > 75 %}#f59e0b{% else %}#10b981{% endif %}; font-size: 13px;">{{ s.percent }}%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+                    <div style="width: {{ [s.percent, 100]|min }}%; height: 100%; background: {% if s.percent > 90 %}#ef4444{% elif s.percent > 75 %}#f59e0b{% else %}#10b981{% endif %}; border-radius: 4px; transition: width 0.5s ease;"></div>
+                </div>
+                <div class="flex-between" style="font-size: 11px; color: #64748b; font-weight: 600;">
+                    <span>{{ s.occupied }} / {{ s.total }} PALET</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- DROPDOWN CONTENT -->
+        <div id="unified-menu-dropdown" class="dropdown-list-content">
+            
+            <!-- SECTION 1: RACKS -->
+            <div class="menu-section">
+                <div class="list-group-label">LOKALIZACJA (REGAŁ)</div>
+                <div class="vertical-list-menu">
+                    {% set racks = [
+                        ('all', 'Wszystkie Lokalizacje'), 
+                        ('MP01', 'Podłoga (MP01)'),
+                        ('MS01', 'Podłoga (MS01)'),
+                        ('R01', 'Regał R01'), 
+                        ('R02', 'Regał R02'), 
+                        ('R03', 'Regał R03'), 
+                        ('R04', 'Regał R04'), 
+                        ('R05', 'Regał R05'), 
+                        ('R06', 'Regał R06'),
+                        ('R07', 'Regał R07')
+                    ] %}
+                    {% for rid, rname in racks %}
+                    <div class="nav-item-row">
+                        <input type="radio" name="rack_select" id="rack-{{ rid }}" class="nav-radio-input" 
+                               {% if rid == 'all' %}checked{% endif %} 
+                               onchange="updateRackLabel('{{ rname }}'); switchSubWarehouse('{{ rid }}', null)">
+                        <label for="rack-{{ rid }}" class="list-item-btn rack-item">
+                            <span class="item-id">{{ rid }}</span>
+                            <span class="item-name">{{ rname }}</span>
+                            <span class="material-icons radio-indicator">radio_button_unchecked</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <!-- SECTION 2: WAREHOUSES -->
+            <div class="menu-section">
+                <div class="list-group-label">MAGAZYN GŁÓWNY</div>
+                <div class="vertical-list-menu">
+                    {% for tab in zakladki %}
+                    <div class="nav-item-row">
+                        <input type="radio" name="main_wh" id="radio-{{ tab.id }}" class="nav-radio-input" 
+                               {% if tab.id == aktywna_zakladka %}checked{% endif %} 
+                               onchange="updateWhLabel('{{ tab.name }}'); switchWarehouse('{{ tab.id }}')">
+                        <label for="radio-{{ tab.id }}" class="list-item-btn warehouse-item">
+                            <span class="item-id">{{ tab.id|upper }}</span>
+                            <span class="item-name">{{ tab.name }}</span>
+                            <span class="material-icons radio-indicator">radio_button_unchecked</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="list-footer" style="display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.summary', linia=linia) }}'" class="status-link-btn" style="background: #f0f9ff; border-color: #0ea5e9; color: #0369a1;">
+                    <span class="material-icons">pie_chart</span> PODSUMOWANIE MAGAZYNU
+                </button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button onclick="openReturnModal('{{ linia }}'); closeUnifiedMenu()" class="status-link-btn" style="padding: 12px; font-size: 11px; background: #fdf2f8; border-color: #db2777; color: #9d174d;">
+                        <span class="material-icons" style="font-size: 18px;">assignment_return</span> ZWROT
+                    </button>
+                    <button onclick="openReportsModal(); closeUnifiedMenu()" class="status-link-btn" style="padding: 12px; font-size: 11px; background: #f8fafc; border-color: #64748b; color: #475569;">
+                        <span class="material-icons" style="font-size: 18px;">summarize</span> RAPORTY
+                    </button>
+                </div>
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.production_status', linia=linia) }}'" class="status-link-btn">
+                    <span class="material-icons">analytics</span> STATUS PRODUKCJI
+                </button>
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.zamowienia', linia=linia) }}'" class="status-link-btn" style="background: #fffbeb; border-color: #f59e0b; color: #92400e;">
+                    <span class="material-icons">shopping_cart</span> ZAMÓWIENIA
+                </button>
+                <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
+                    <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
+                </button>
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.archiwum', linia=linia) }}'" class="status-link-btn" style="background: #f1f5f9; border-color: #94a3b8; color: #475569;">
+                    <span class="material-icons">inventory_2</span> ARCHIWUM PALET
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleUnifiedMenu() {
+        const list = document.getElementById('unified-menu-dropdown');
+        const icon = document.getElementById('dropdown-icon');
+        if (list.style.display === 'block') {
+            closeUnifiedMenu();
+        } else {
+            list.style.display = 'block';
+            icon.innerText = 'expand_less';
+        }
+    }
+
+    function closeUnifiedMenu() {
+        const list = document.getElementById('unified-menu-dropdown');
+        if (list) {
+            list.style.display = 'none';
+            document.getElementById('dropdown-icon').innerText = 'expand_more';
+        }
+    }
+
+    function updateRackLabel(id) {
+        document.getElementById('current-rack-label').innerText = id === 'all' ? 'WSZ.' : id;
+    }
+
+    function updateWhLabel(id) {
+        document.getElementById('current-wh-display').innerText = id;
+    }
+    
+    // SYNCHRONIZACJA STARTOWA
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Sprawdź co jest zaznaczone i pobierz PEŁNĄ NAZWĘ z etykiety
+        const checkedWhInput = document.querySelector('input[name="main_wh"]:checked');
+        const checkedRackInput = document.querySelector('input[name="rack_select"]:checked');
+        
+        if (checkedWhInput) {
+            const label = document.querySelector(`label[for="${checkedWhInput.id}"] .item-name`);
+            if (label) updateWhLabel(label.innerText);
+        }
+        
+        if (checkedRackInput) {
+            const label = document.querySelector(`label[for="${checkedRackInput.id}"] .item-name`);
+            if (label) updateRackLabel(label.innerText);
+        }
+        
+        // 2. Wymuś odświeżenie paska zajętości i filtrów
+        setTimeout(() => {
+            if (checkedWhInput) {
+                switchWarehouse(checkedWhInput.id.replace('radio-', ''));
+            }
+        }, 200);
+    });
+
+    window.onclick = function(event) {
+        if (!event.target.matches('.main-dropdown-btn') && !event.target.closest('.main-dropdown-btn')) {
+            closeUnifiedMenu();
+        }
+    }
+</script>
+
+<style>
+    .nav-radio-input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .warehouse-nav-container { margin-bottom: 15px; position: relative; }
+
+    /* Nagłówek */
+    .main-dropdown-btn {
+        width: 100%;
+        background: #0f172a;
+        color: white;
+        padding: 16px 20px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 16px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    /* Kontener listy */
+    .dropdown-list-content {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        z-index: 1000;
+        border-radius: 0 0 16px 16px;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        margin-top: -5px;
+        padding: 0;
+        max-height: 550px;
+        overflow-y: auto;
+        border: 2px solid #0f172a;
+        border-top: none;
+    }
+
+    .list-group-label { 
+        font-size: 11px; font-weight: 800; color: #64748b; 
+        padding: 15px 15px 10px; background: #f8fafc;
+        letter-spacing: 1px; border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* Styl elementu listy */
+    .list-item-btn {
+        display: flex;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        gap: 15px;
+        transition: background 0.2s;
+    }
+
+    .item-id { font-weight: 900; color: #2563eb; min-width: 50px; font-size: 14px; }
+    .item-name { color: #334155; font-size: 14px; font-weight: 600; flex-grow: 1; }
+    .radio-indicator { color: #cbd5e1; font-size: 20px; }
+
+    /* Stan aktywny */
+    .nav-radio-input:checked + .list-item-btn { background: #eff6ff; }
+    .nav-radio-input:checked + .list-item-btn .item-id { color: #1e40af; }
+    .nav-radio-input:checked + .list-item-btn .radio-indicator { color: #2563eb; content: 'radio_button_checked'; }
+    .nav-radio-input:checked + .list-item-btn .radio-indicator::after { content: 'radio_button_checked'; font-family: 'Material Icons'; position: absolute; left: 0; top: 0; visibility: visible; }
+    
+    /* Podmiana ikony po zaznaczeniu */
+    .nav-radio-input:checked + .list-item-btn .radio-indicator { display: none; }
+    .nav-radio-input:checked + .list-item-btn::after {
+        content: 'check_circle';
+        font-family: 'Material Icons';
+        color: #10b981;
+        font-size: 22px;
+        margin-left: auto;
+    }
+
+    .menu-divider { height: 8px; background: #f1f5f9; }
+
+    .list-footer { padding: 15px; background: white; }
+    .status-link-btn { 
+        width: 100%; padding: 16px; background: #ecfdf5; border: 1px solid #10b981; 
+        color: #059669; border-radius: 12px; font-weight: 800; 
+        display: flex; align-items: center; justify-content: center; gap: 10px; 
+    }
+
+    @media screen and (max-width: 480px) {
+        .main-dropdown-btn { padding: 16px 15px; }
+        .list-item-btn { padding: 18px 15px; }
+    }
+</style>

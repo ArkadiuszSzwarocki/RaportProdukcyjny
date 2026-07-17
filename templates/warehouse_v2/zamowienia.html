@@ -1,0 +1,413 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<style>
+    /* ========== ZAMÓWIENIA STYLES ========== */
+    .orders-page {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .orders-page-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .orders-page-title h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .orders-page-title .material-icons {
+        font-size: 28px;
+        color: #f59e0b;
+    }
+
+    .orders-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 18px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        color: #475569;
+        font-weight: 700;
+        font-size: 13px;
+        text-decoration: none;
+        transition: all 0.2s;
+        margin-bottom: 20px;
+    }
+
+    .orders-back-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    /* ---------- FORM SECTION ---------- */
+    .order-form-section {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 2px solid #f59e0b;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 28px;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+    }
+
+    .order-form-section h3 {
+        margin: 0 0 18px 0;
+        font-size: 16px;
+        font-weight: 800;
+        color: #92400e;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .order-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 150px;
+        gap: 14px;
+        align-items: end;
+    }
+
+    .order-form-grid .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .order-form-grid label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #78350f;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .order-form-grid select,
+    .order-form-grid input[type="number"],
+    .order-form-grid textarea {
+        padding: 12px 14px;
+        border: 2px solid #fbbf24;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        background: white;
+        color: #0f172a;
+        transition: border-color 0.2s;
+    }
+
+    .order-form-grid select:focus,
+    .order-form-grid input:focus,
+    .order-form-grid textarea:focus {
+        outline: none;
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    }
+
+    .order-comment-row {
+        grid-column: 1 / -1;
+    }
+
+    .order-comment-row textarea {
+        width: 100%;
+        min-height: 60px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+    .order-submit-row {
+        grid-column: 1 / -1;
+    }
+
+    .order-submit-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .order-submit-btn:hover {
+        background: linear-gradient(135deg, #d97706, #b45309);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(245, 158, 11, 0.4);
+    }
+
+    .order-submit-btn:active {
+        transform: translateY(0);
+    }
+
+    .order-submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* ---------- ORDERS LIST ---------- */
+    .orders-section {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .orders-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .orders-section-header h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #0f172a;
+    }
+
+    .orders-section-header .section-badge {
+        background: #ef4444;
+        color: white;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 800;
+        min-width: 24px;
+        text-align: center;
+    }
+
+    .orders-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .orders-table thead th {
+        background: #f8fafc;
+        padding: 12px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .orders-table tbody td {
+        padding: 14px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+
+    .orders-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .orders-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .order-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .order-status-badge.nowe {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fca5a5;
+    }
+
+    .order-status-badge.zamkniete {
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #86efac;
+    }
+
+    .order-confirm-btn {
+        padding: 8px 16px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+    }
+
+    .order-confirm-btn:hover {
+        background: linear-gradient(135deg, #059669, #047857);
+        transform: translateY(-1px);
+    }
+
+    .order-confirm-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .orders-empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: #94a3b8;
+    }
+
+    .orders-empty .material-icons {
+        font-size: 44px;
+        margin-bottom: 10px;
+        color: #cbd5e1;
+    }
+
+    .orders-empty p {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    /* ---------- TOAST ---------- */
+    .order-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        padding: 14px 28px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 700;
+        font-size: 14px;
+        z-index: 9999;
+        opacity: 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .order-toast.success { background: #10b981; }
+    .order-toast.error { background: #ef4444; }
+
+    .order-toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    /* ---------- RESPONSIVE ---------- */
+    @media screen and (max-width: 600px) {
+        .order-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .orders-table thead { display: none; }
+        .orders-table tbody td {
+            display: block;
+            padding: 8px 14px;
+            border-bottom: none;
+        }
+        .orders-table tbody td::before {
+            content: attr(data-label);
+            font-weight: 800;
+            color: #64748b;
+            font-size: 11px;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 3px;
+        }
+        .orders-table tbody tr {
+            border-bottom: 2px solid #e2e8f0;
+            padding: 8px 0;
+            display: block;
+        }
+    }
+</style>
+
+<div class="orders-page">
+    <!-- BACK BUTTON -->
+    <a href="{{ url_for('warehouse_v2.index', linia=linia) }}" class="orders-back-btn">
+        <span class="material-icons" style="font-size: 18px;">arrow_back</span>
+        Powrót do Magazynu
+    </a>
+
+    <!-- PAGE TITLE -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div class="orders-page-title" style="margin-bottom: 0;">
+            <span class="material-icons">shopping_cart</span>
+            <h2>Zamówienia z Magazynu</h2>
+        </div>
+        <a href="{{ url_for('warehouse_v2.zamowienie_nowe', linia=linia) }}" class="order-submit-btn" style="width: auto; padding: 10px 20px; text-decoration: none;">
+            <span class="material-icons">add_circle</span>
+            ZŁÓŻ NOWE ZAMÓWIENIE
+        </a>
+    </div>
+
+
+
+    <!-- ALL ORDERS (SINGLE LIST) -->
+    <div class="orders-section">
+        <div class="orders-section-header">
+            <h3>
+                <span class="material-icons" style="font-size: 20px;">list_alt</span>
+                Wszystkie zamówienia
+                <span class="section-badge" id="ordersCount">0</span>
+            </h3>
+        </div>
+        <div class="orders-section-body">
+            <div class="orders-empty" id="ordersEmpty">
+                <span class="material-icons">inbox</span>
+                <p>Brak zamówień</p>
+            </div>
+            <table class="orders-table" id="ordersTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Zamówione surowce</th>
+                        <th>Operator</th>
+                        <th>Data</th>
+                        <th>Status</th>
+                        <th>Akcja</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div class="order-toast" id="orderToast"></div>
+
+<script src="{{ url_for('static', filename='js/warehouse_v2/orders.js') }}?v={{ static_version }}"></script>
+
+{% endblock %}

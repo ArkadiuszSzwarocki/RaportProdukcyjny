@@ -40,10 +40,14 @@ def skaner(sesja_id):
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
     sesja = cursor.fetchone()
+    
+    cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+    printers = cursor.fetchall()
+    
     conn.close()
     
     target_lokalizacja = sesja.get('lokalizacja') if sesja else 'WSZYSTKO'
-    return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id, target_lokalizacja=target_lokalizacja)
+    return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id, target_lokalizacja=target_lokalizacja, printers=printers)
 
 @inwentaryzacja_bp.route('/api/szukaj-lokalizacji', methods=['POST'])
 def szukaj_lokalizacji():

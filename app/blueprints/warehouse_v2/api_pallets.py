@@ -126,6 +126,7 @@ def print_pallet_label():
     pallet_type = data.get('type')
     printer_selection = data.get('printer_id')
     linia = data.get('linia', 'PSD')
+    copies = int(data.get('copies', 1))
     
     if not all([pallet_id, pallet_type, printer_selection]):
         return jsonify({'success': False, 'error': 'Brak parametrów (id, typ, drukarka)'}), 400
@@ -323,12 +324,14 @@ def print_pallet_label():
                     label_data,
                     override_ip=candidate_ip,
                     override_name=candidate_name,
+                    copies=copies
                 )
             else:
                 print_ok, print_msg = printer_service.print_pallet_label(
                     label_data,
                     override_ip=candidate_ip,
                     override_name=candidate_name,
+                    copies=copies
                 )
 
             if print_ok:

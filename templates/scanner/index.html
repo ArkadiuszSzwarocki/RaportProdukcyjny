@@ -1,11 +1,59 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "includes/scanner_layout.html" %}
 
+{% block scanner_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}">
+<style>
+    :root {
+        --scanner-mode-color: #3b82f6;
+    }
+.station-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.station-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.station-item:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.station-item-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 1.05em;
+}
+.station-item-details {
+  font-size: 0.85em;
+  color: #475569;
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+</style>
+{% endblock %}
 
-<div class="scanner-wrap">
+{% block scanner_header_back %}
+<a href="{{ url_for('index') }}" class="scanner-header-back">
+    <span class="material-icons">arrow_back</span> Pulpit
+</a>
+{% endblock %}
 
-  
+{% block scanner_title %}Główny Skaner{% endblock %}
+{% block scanner_subtitle %}Magazyn i Produkcja ({{ linia }}){% endblock %}
+
+{% block scanner_content %}
+<div class="scanner-wrap" style="padding: 0; box-shadow: none; background: transparent; min-height: auto; max-width: 700px; margin: 0 auto;">
 
   <!-- SCAN BOX -->
   <div class="scan-card">
@@ -85,101 +133,9 @@
 
   
 </div><!-- /scanner-wrap -->
+{% endblock %}
 
-<!-- Premium Finished Goods Acceptance Overlay — MUST be outside scanner-wrap to work with display:none parent -->
-<div id="wgAcceptOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:20000; align-items:center; justify-content:center; padding:8px; box-sizing:border-box;">
-  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
-
-    <!-- Modal Header -->
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
-      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:6px;">
-        <span class="material-icons" style="font-size:1.3em;">inventory_2</span>
-        Przyjęcie Wyrobu (AGRO)
-      </h3>
-      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
-    </div>
-
-    <!-- Pallet Info Card -->
-    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:12px;">
-      <div style="font-size:0.7em; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:2px;">Zeskanowana Paleta</div>
-      <div id="wgPalletNo" style="font-size:1.05em; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
-      <div id="wgPalletName" style="font-size:0.85em; color:#94a3b8;">—</div>
-    </div>
-
-    <!-- STEP 1: WEIGHT -->
-    <div id="wgStepWeight" style="display:block;">
-      <div style="display:inline-flex; align-items:center; gap:4px; background:#1e3a8a; color:#93c5fd; padding:3px 8px; border-radius:8px; font-size:0.75em; font-weight:700; margin-bottom:8px;">
-        <span>Krok 1/2</span> Waga Palety
-      </div>
-      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Waga netto (kg):</label>
-      <input type="number" id="wgWeightInput" step="0.1" placeholder="Wpisz wagę..."
-             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();goToWgStep2();}">
-      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Naciśnij Enter lub Dalej, aby przejść do wyboru lokalizacji.</p>
-    </div>
-
-    <!-- STEP 2: LOCATION -->
-    <div id="wgStepLocation" style="display:none;">
-      <div style="display:inline-flex; align-items:center; gap:4px; background:#065f46; color:#a7f3d0; padding:3px 8px; border-radius:8px; font-size:0.75em; font-weight:700; margin-bottom:8px;">
-        <span>Krok 2/2</span> Lokalizacja Docelowa
-      </div>
-      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Zeskanuj regał (np. MGW01):</label>
-      <input type="text" id="wgLocInput" placeholder="Skanuj lokalizację..."
-             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; text-transform:uppercase; transition:border-color 0.2s; box-sizing:border-box;">
-      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
-    </div>
-
-    <!-- Action Buttons -->
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
-      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Wstecz</button>
-      <button onclick="closeWgAcceptModal()" style="padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Anuluj</button>
-      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:8px 16px; font-size:0.9em; border:none; background:#3b82f6; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
-      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:8px 16px; font-size:0.9em; border:none; background:#22c55e; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
-    </div>
-
-  </div>
-</div>
-
-<div id="toast"></div>
-
-<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}"></script>
-
-<style>
-.station-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
-.station-item {
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-.station-item:hover {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-.station-item-name {
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 1.05em;
-}
-.station-item-details {
-  font-size: 0.85em;
-  color: #475569;
-  margin-top: 4px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-</style>
+{% block scanner_modals %}
 
 <!-- PRINTER MODAL -->
 <div class="modal-overlay" id="printerOverlay" style="display:none; z-index:9000;">

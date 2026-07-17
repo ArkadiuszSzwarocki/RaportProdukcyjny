@@ -1,0 +1,133 @@
+{% extends "layout.html" %}
+
+{% block extra_css %}
+<!-- Wspólne style CSS dla Skanerów -->
+<style>
+/* Globalne tło dla skanerów */
+body {
+    background-color: #f8fafc !important;
+}
+
+.scanner-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: 'Inter', sans-serif;
+    padding: 10px;
+}
+
+/* Ujednolicony pasek nagłówkowy (Header) */
+.scanner-unified-header {
+    max-width: 700px;
+    margin: 0 auto 15px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    border-left: 6px solid var(--scanner-mode-color, #3b82f6);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.scanner-header-back {
+    color: #64748b;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+.scanner-header-back:hover {
+    color: #0f172a;
+}
+
+.scanner-header-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.scanner-header-subtitle {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.scanner-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Globalne animacje focus */
+input.scanner-input:focus {
+    border-color: var(--scanner-mode-color, #3b82f6) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+</style>
+{% block scanner_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="scanner-container">
+    <!-- WSPÓLNY NAGŁÓWEK SKANERA -->
+    <div class="scanner-unified-header">
+        <div class="header-left">
+            {% block scanner_header_back %}
+            <a href="javascript:history.back()" class="scanner-header-back">
+                <span class="material-icons">arrow_back</span> Powrót
+            </a>
+            {% endblock %}
+        </div>
+        
+        <div class="header-center" style="text-align: center;">
+            <div class="scanner-header-title">
+                {% block scanner_title %}Skaner{% endblock %}
+            </div>
+            <div class="scanner-header-subtitle">
+                {% block scanner_subtitle %}{% endblock %}
+            </div>
+        </div>
+        
+        <div class="header-right">
+            {% block scanner_header_actions %}
+            <div style="width: 70px;"></div> <!-- Placeholder to balance flex -->
+            {% endblock %}
+        </div>
+    </div>
+
+    <!-- ZAWARTOSC SKANERA (WSTRZYKIWANA) -->
+    {% block scanner_content %}{% endblock %}
+</div>
+
+<!-- WSPÓLNE MODALE -->
+{% block scanner_modals %}{% endblock %}
+{% endblock %}
+
+{% block footer_scripts %}
+<!-- Wspólne skrypty skanera -->
+<script>
+// Ujednolicony dźwięk dla skanerów
+const SCANNER_BEEP_SUCCESS = new Audio("{{ url_for('static', filename='sounds/beep-07a.mp3') }}");
+const SCANNER_BEEP_ERROR = new Audio("{{ url_for('static', filename='sounds/beep-04.mp3') }}");
+
+function playScannerBeep(type) {
+    try {
+        if(type === 'success') {
+            SCANNER_BEEP_SUCCESS.currentTime = 0;
+            SCANNER_BEEP_SUCCESS.play().catch(e => console.warn('Brak interakcji uzytkownika do odtworzenia dzwieku.'));
+        } else {
+            SCANNER_BEEP_ERROR.currentTime = 0;
+            SCANNER_BEEP_ERROR.play().catch(e => console.warn('Brak interakcji uzytkownika do odtworzenia dzwieku.'));
+        }
+    } catch(err) {
+        console.error(err);
+    }
+}
+</script>
+{% block scanner_scripts %}{% endblock %}
+{% endblock %}

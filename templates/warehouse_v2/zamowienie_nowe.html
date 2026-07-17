@@ -1,0 +1,260 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .new-order-page {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 24px;
+    }
+
+    .page-header h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .orders-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 18px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        color: #475569;
+        font-weight: 700;
+        font-size: 13px;
+        text-decoration: none;
+        transition: all 0.2s;
+        margin-bottom: 20px;
+    }
+
+    .orders-back-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .order-form-container {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 2px solid #f59e0b;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #fcd34d;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-group.flex-2 { flex: 2; }
+    .form-group.flex-1 { flex: 1; }
+
+    .form-group label {
+        font-size: 12px;
+        font-weight: 800;
+        color: #92400e;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-group select, .form-group input {
+        padding: 12px;
+        border: 2px solid #fbbf24;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .form-group select:focus, .form-group input:focus {
+        outline: none;
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    }
+
+    .remove-row-btn {
+        background: #fee2e2;
+        color: #ef4444;
+        border: none;
+        border-radius: 8px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 20px;
+    }
+
+    .remove-row-btn:hover {
+        background: #fecaca;
+        color: #dc2626;
+    }
+
+    .add-row-btn {
+        background: transparent;
+        color: #d97706;
+        border: 2px dashed #fbbf24;
+        border-radius: 10px;
+        padding: 12px;
+        width: 100%;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+        margin-bottom: 25px;
+    }
+
+    .add-row-btn:hover {
+        background: #fef3c7;
+        border-color: #f59e0b;
+    }
+
+    .komentarz-section textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 15px;
+        border: 2px solid #fbbf24;
+        border-radius: 10px;
+        resize: vertical;
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+
+    .komentarz-section label {
+        font-size: 12px;
+        font-weight: 800;
+        color: #92400e;
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    .submit-section {
+        margin-top: 30px;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .submit-btn {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 16px 32px;
+        font-size: 18px;
+        font-weight: 900;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        transition: all 0.2s;
+    }
+
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(245, 158, 11, 0.4);
+    }
+    
+    .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* ---------- TOAST ---------- */
+    .order-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        padding: 14px 28px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 700;
+        font-size: 14px;
+        z-index: 9999;
+        opacity: 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+    .order-toast.success { background: #10b981; }
+    .order-toast.error { background: #ef4444; }
+    .order-toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+</style>
+
+<div class="new-order-page">
+    <a href="{{ url_for('warehouse_v2.zamowienia', linia=linia) }}" class="orders-back-btn">
+        <span class="material-icons" style="font-size: 18px;">arrow_back</span>
+        Wróć do listy zamówień
+    </a>
+
+    <div class="page-header">
+        <span class="material-icons" style="font-size: 32px; color: #f59e0b;">add_shopping_cart</span>
+        <h2>Nowe Zamówienie</h2>
+    </div>
+
+    <div class="order-form-container">
+        <div id="itemsContainer">
+            <!-- Tutaj będą dynamicznie dodawane wiersze -->
+        </div>
+
+        <button type="button" class="add-row-btn" onclick="OrderNewModule.addRow()">
+            <span class="material-icons">add_circle_outline</span>
+            Dodaj kolejny surowiec do zamówienia
+        </button>
+
+        <div class="komentarz-section">
+            <label for="orderKomentarz">Komentarz (opcjonalnie)</label>
+            <textarea id="orderKomentarz" placeholder="Dodatkowe informacje dla magazyniera..."></textarea>
+        </div>
+
+        <div class="submit-section">
+            <button type="button" class="submit-btn" id="submitBtn" onclick="OrderNewModule.submitOrder()">
+                <span class="material-icons">send</span>
+                Wyślij zamówienie
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="order-toast" id="orderToast"></div>
+
+<script src="{{ url_for('static', filename='js/warehouse_v2/order_new.js') }}?v={{ static_version }}"></script>
+
+<script>
+    // Inicjalizacja URL-a powrotu w JS (potrzebne po udanym zapisie)
+    const ORDER_LIST_URL = "{{ url_for('warehouse_v2.zamowienia', linia=linia) }}";
+</script>
+
+{% endblock %}
