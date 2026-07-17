@@ -78,6 +78,10 @@
         </div>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj po nazwie, nr dostawy, referencji lub dacie..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px; max-width: 600px; margin: 0 auto; display: block;">
+    </div>
+
     <div class="premium-card">
         <div class="table-responsive">
             <table class="premium-table">
@@ -118,6 +122,11 @@
                         <td>
                             <div class="font-mono font-bold">{{ d.order_ref or 'DOST-' ~ d.id[:8] }}</div>
                             <div class="small">{{ d.supplier or 'Dostawca nieznany' }}</div>
+                            <div style="display: none;">
+                                {% for item in d.items_parsed %}
+                                    {{ item.productName }} {{ item.nr_palety }} {{ item.sourcePalletNo }}
+                                {% endfor %}
+                            </div>
                         </td>
                         <td>
                             {% if d.status == 'OCZEKUJE' %}
@@ -173,4 +182,23 @@
         </div>
     </div>
 </div>
+
+<script>
+function filterTableRows() {
+    const input = document.getElementById('tableSearchInput');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.premium-table tbody tr');
+    rows.forEach(row => {
+        // Pomiń wiersz "Brak danych", jeśli istnieje
+        if (row.querySelector('.text-muted') && row.cells.length === 1) return;
+        
+        if (row.textContent.toLowerCase().includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
 {% endblock %}

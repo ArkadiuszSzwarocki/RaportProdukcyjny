@@ -49,6 +49,10 @@
         </button>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj po nazwie, nr palety, referencji lub dacie..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px; max-width: 600px; margin: 0 auto; display: block;">
+    </div>
+
     <!-- GLOBAL SCANNER -->
     {% if dostawy.dostawy or dostawy.wg %}
     <div class="wg-scan-box" style="margin-bottom: 20px;">
@@ -111,7 +115,10 @@
                             <div class="font-bold">#{{ d.id[:8] }}</div>
                             <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
                         </td>
-                        <td data-label="Skąd" class="font-bold">{{ d.lokalizacja_z or '-' }}</td>
+                        <td data-label="Skąd" class="font-bold">
+                            {{ d.lokalizacja_z or '-' }}
+                            <div style="display: none;">{{ ns.pallets | join(' ') }}</div>
+                        </td>
                         <td data-label="Dokąd" class="font-bold">{{ d.lokalizacja_do or '-' }}</td>
                         <td data-label="Ile palet"><span class="premium-badge badge-info">{{ ns.pending }}</span></td>
                         <td data-label="Suma kg" class="font-bold">{{ '%.2f'|format(ns.kg) }} kg</td>
@@ -193,4 +200,21 @@
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/pallet_preview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/polling_refresh.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/init.js') }}"></script>
+<script>
+function filterTableRows() {
+    const input = document.getElementById('tableSearchInput');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.premium-table tbody tr');
+    rows.forEach(row => {
+        if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
+        
+        if (row.textContent.toLowerCase().includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
 {% endblock %}

@@ -27,6 +27,10 @@
         </div>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj (nazwa, data, nr dostawy)..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px;">
+    </div>
+
     <div class="premium-card">
         <table class="premium-table">
             <thead>
@@ -95,4 +99,22 @@
         </table>
     </div>
 </div>
+<script>
+function filterTableRows() {
+    const input = document.getElementById('tableSearchInput');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.premium-table tbody tr');
+    rows.forEach(row => {
+        // Skip empty state row if it exists
+        if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
+        
+        if(row.textContent.toLowerCase().includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
 {% endblock %}

@@ -65,56 +65,63 @@ function printFilteredPallets() {
         return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        alert("Zablokowano otwieranie nowego okna. Zezwól na wyskakujące okienka (pop-ups) w przeglądarce.");
-        return;
-    }
-
     const searchStr = document.getElementById("searchInput")?.value || "";
-    const locStr = document.getElementById("locationSearchInput")?.value || "";
+    let locStr = "";
+    if (typeof selectedLocations !== 'undefined' && selectedLocations.length > 0) {
+        if (selectedLocations.length < 5) {
+            locStr = selectedLocations.join(", ");
+        } else {
+            locStr = selectedLocations.length + " wybranych lokalizacji";
+        }
+    }
+    
     let filterInfo = "";
     if (searchStr) filterInfo += `Szukano: "${searchStr}" `;
-    if (locStr) filterInfo += `Lokalizacja: "${locStr}"`;
+    if (locStr) filterInfo += `Lokalizacje: "${locStr}"`;
     if (!filterInfo) filterInfo = "Wszystkie pozycje (brak filtrów)";
 
-    let html = `
-    <html>
-    <head>
-        <title>Wydruk Listy Magazynowej</title>
-        <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; font-size: 13px; }
-            h2 { text-align: center; margin-bottom: 5px; }
-            .info { text-align: center; margin-bottom: 20px; font-size: 12px; color: #555; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-            .checkbox-col { width: 40px; text-align: center; }
-            .checkbox-box { width: 20px; height: 20px; border: 2px solid #000; margin: 0 auto; display: inline-block; }
-            .right { text-align: right; }
-            .center { text-align: center; }
+    // Inject print area if not exists
+    let printArea = document.getElementById('customPrintArea');
+    if (!printArea) {
+        printArea = document.createElement('div');
+        printArea.id = 'customPrintArea';
+        document.body.appendChild(printArea);
+    }
+    
+    // Inject print styles if not exists
+    if (!document.getElementById('customPrintStyles')) {
+        const style = document.createElement('style');
+        style.id = 'customPrintStyles';
+        style.innerHTML = `
             @media print {
+                body > *:not(#customPrintArea) { display: none !important; }
+                #customPrintArea { display: block !important; }
                 @page { margin: 1cm; size: A4 portrait; }
-                button { display: none; }
+                body { background: white !important; margin: 0 !important; padding: 0 !important; }
+                .checkbox-box { width: 20px; height: 20px; border: 2px solid #000; margin: 0 auto; display: inline-block; }
             }
-        </style>
-    </head>
-    <body>
-        <h2>Lista Kontrolna Magazynu</h2>
-        <div class="info">Data wydruku: ${new Date().toLocaleString()} | ${filterInfo} | Liczba pozycji: ${currentFilteredItems.length}</div>
-        
-        <table>
-            <thead>
-                <tr>
-                    <th class="checkbox-col">OK</th>
-                    <th>Lokalizacja</th>
-                    <th>Nr Palety</th>
-                    <th>Nazwa Produktu</th>
-                    <th class="right">Ilość/Waga</th>
-                    <th>Data Ważności</th>
-                </tr>
-            </thead>
-            <tbody>
+            #customPrintArea { display: none; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    let html = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; font-size: 13px; color: black; background: white;">
+            <h2 style="text-align: center; margin-bottom: 5px;">Lista Kontrolna Magazynu</h2>
+            <div style="text-align: center; margin-bottom: 20px; font-size: 12px; color: #555;">Data wydruku: ${new Date().toLocaleString()} | ${filterInfo} | Liczba pozycji: ${currentFilteredItems.length}</div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: center; background-color: #f2f2f2; font-weight: bold; width: 40px;">OK</th>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f2f2f2; font-weight: bold;">Lokalizacja</th>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f2f2f2; font-weight: bold;">Nr Palety</th>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f2f2f2; font-weight: bold;">Nazwa Produktu</th>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: right; background-color: #f2f2f2; font-weight: bold;">Ilość/Waga</th>
+                        <th style="border: 1px solid #000; padding: 6px 8px; text-align: center; background-color: #f2f2f2; font-weight: bold;">Data Ważności</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
 
     // Sort by location first, then by name
@@ -128,32 +135,29 @@ function printFilteredPallets() {
     sortedItems.forEach(item => {
         html += `
             <tr>
-                <td class="checkbox-col"><div class="checkbox-box"></div></td>
-                <td class="center"><strong>${item.location || '-'}</strong></td>
-                <td>${item.displayId || '-'}</td>
-                <td>${item.productName || '-'}</td>
-                <td class="right">${item.amount} ${item.unit || ''}</td>
-                <td class="center">${item.date_exp !== '-' ? item.date_exp : (item.date_prod || '-')}</td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: center;"><div class="checkbox-box"></div></td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: center;"><strong>${item.location || '-'}</strong></td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: left;">${item.displayId || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: left;">${item.productName || '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: right;">${item.amount} ${item.unit || ''}</td>
+                <td style="border: 1px solid #000; padding: 6px 8px; text-align: center;">${item.date_exp !== '-' ? item.date_exp : (item.date_prod || '-')}</td>
             </tr>
         `;
     });
 
     html += `
-            </tbody>
-        </table>
-        <div style="margin-top: 30px; display: flex; justify-content: space-between;">
-            <div>Podpis magazyniera: .......................................</div>
-            <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">🖨️ Drukuj Teraz</button>
+                </tbody>
+            </table>
+            <div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 14px;">
+                <div>Podpis magazyniera: .......................................</div>
+            </div>
         </div>
-        <script>
-            // Automatycznie wywołaj drukowanie po załadowaniu
-            window.onload = function() { window.print(); }
-        </script>
-    </body>
-    </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    printArea.innerHTML = html;
+    
+    // Call print
+    setTimeout(() => {
+        window.print();
+    }, 100);
 }

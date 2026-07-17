@@ -177,6 +177,11 @@ function setViewMode(mode) {
 document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('warehouseItemsContainer');
     if (!container) return;
+    
+    // Initialize location filter dropdown
+    if (typeof populateLocationFilter === 'function') {
+        populateLocationFilter();
+    }
 
     container.addEventListener('click', function(e) {
         // Znajdź klikniętą paletę (wiersz tabeli lub kafelek)

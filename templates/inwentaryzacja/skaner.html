@@ -114,7 +114,17 @@
             </div>
             <button onclick="clearSkaner()" style="font-size:11px; font-weight:700; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;">← Skanuj inną</button>
         </div>
-        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
+            <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                <input type="text" id="ssccVerifierInputResults" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
+                       onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCC(this.value, 'results'); this.value='';}">
+            </div>
+            <button onclick="let inp=document.getElementById('ssccVerifierInputResults'); verifyPalletSSCC(inp.value, 'results'); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
+                <span class="material-icons" style="font-size: 24px;">search</span>
+            </button>
+        </div>
+
         <button id="btnAddPalletMain" onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #3b82f6; border-radius: 12px; background: #f0f9ff; color: #2563eb; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;">
             <span class="material-icons">add_circle</span> DODAJ PALETĘ (BRAK W SYSTEMIE)
         </button>
@@ -141,6 +151,17 @@
             Mapa Regału: <span id="activeRack" style="color: #1e293b; font-weight: 800;"></span>
         </div>
 
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;">
+            <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                <input type="text" id="ssccVerifierInputRack" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
+                       onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCCRack(this.value); this.value='';}">
+            </div>
+            <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); verifyPalletSSCCRack(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
+                <span class="material-icons" style="font-size: 24px;">search</span>
+            </button>
+        </div>
+
         <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px; background: #f8fafc; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0;">
             <div id="rackGrid" style="display: grid; grid-template-columns: repeat(10, minmax(60px, 1fr)); gap: 8px; min-width: 650px;">
                 <!-- Cells will be generated here -->
@@ -158,6 +179,16 @@
                     <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 20px; letter-spacing: -0.5px;">R01-01-01</div>
                     <button onclick="closeDetail()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s;">
                          <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
+                    <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                        <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                        <input type="text" id="ssccVerifierInputDetail" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
+                               onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCC(this.value, 'detail'); this.value='';}">
+                    </div>
+                    <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); verifyPalletSSCC(inp.value, 'detail'); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
+                        <span class="material-icons" style="font-size: 24px;">search</span>
                     </button>
                 </div>
                 <div id="detailContent" style="flex: 1; overflow-y: auto;">
@@ -399,8 +430,8 @@ function searchLocation() {
             if (banner) banner.style.display = 'flex';
             
             setTimeout(() => {
-                const inputs = document.querySelectorAll('.actual-weight-input');
-                if(inputs.length > 0) inputs[0].focus();
+                const ssccInput = document.getElementById('ssccVerifierInputResults');
+                if(ssccInput) ssccInput.focus();
             }, 100);
         }
     });
@@ -430,8 +461,10 @@ function loadRack(prefix) {
             const banner = document.getElementById('floatingFinishBanner');
             if (banner) banner.style.display = 'flex';
             
-            document.getElementById('lokalizacjaInput').value = '';
-            document.getElementById('lokalizacjaInput').focus();
+            setTimeout(() => {
+                const ssccInput = document.getElementById('ssccVerifierInputRack');
+                if(ssccInput) ssccInput.focus();
+            }, 100);
         }
     });
 }
@@ -855,14 +888,10 @@ function openSlotDetail(locId) {
     }
     detail.style.display = 'flex';
     
-    // Autofocus "stan faktyczny" input if available but prevent mobile keyboard popup
+    // Autofocus SSCC verifier first
     setTimeout(() => {
-        const firstWeightInput = detail.querySelector('.slot-weight-input');
-        if (firstWeightInput) {
-            // It has inputmode="none" from the HTML, which guarantees no popup.
-            firstWeightInput.focus();
-            firstWeightInput.select();
-        }
+        const ssccInput = document.getElementById('ssccVerifierInputDetail');
+        if(ssccInput) ssccInput.focus();
     }, 100);
 }
 
@@ -1646,6 +1675,99 @@ function submitMoveLocation() {
         errEl.textContent = "Błąd połączenia z serwerem.";
         errEl.style.display = 'block';
     });
+}
+
+function verifyPalletSSCC(sscc, context) {
+    if(!sscc) return;
+    sscc = sscc.trim().toUpperCase();
+    
+    let found = false;
+    
+    if (context === 'results') {
+        const cards = document.querySelectorAll('#resultsContainer .pallet-card');
+        for (let card of cards) {
+            if (card.textContent.toUpperCase().includes(sscc)) {
+                found = true;
+                highlightAndFocusCard(card);
+                safeToast('✅ Paleta zweryfikowana w tej lokalizacji!', 'success');
+                break;
+            }
+        }
+    } else if (context === 'detail') {
+        const cards = document.querySelectorAll('#slotDetail .pallet-card');
+        for (let card of cards) {
+            if (card.textContent.toUpperCase().includes(sscc)) {
+                found = true;
+                highlightAndFocusCard(card);
+                safeToast('✅ Paleta zweryfikowana w tym gnieździe!', 'success');
+                break;
+            }
+        }
+    }
+    
+    if (!found) {
+        safeToast('❌ Brak palety w wybranej lokalizacji!', 'error');
+        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ w bieżącym widoku.', 'Błąd weryfikacji');
+    }
+}
+
+function verifyPalletSSCCRack(sscc) {
+    if(!sscc) return;
+    sscc = sscc.trim().toUpperCase();
+    
+    let foundLocId = null;
+    
+    if (rackData) {
+        for (const [loc, items] of Object.entries(rackData)) {
+            for (const item of items) {
+                let did = item.displayId ? String(item.displayId).toUpperCase() : '';
+                let nrp = item.nr_palety ? String(item.nr_palety).toUpperCase() : '';
+                let nzw = item.nazwa ? String(item.nazwa).toUpperCase() : '';
+                
+                if ((did && (did.includes(sscc) || sscc.includes(did))) || 
+                    (nrp && (nrp.includes(sscc) || sscc.includes(nrp))) || 
+                    (nzw && (nzw.includes(sscc) || sscc.includes(nzw)))) {
+                    foundLocId = loc;
+                    break;
+                }
+            }
+            if (foundLocId) break;
+        }
+    }
+    
+    if (foundLocId) {
+        safeToast('✅ Paleta znajduje się w gnieździe ' + foundLocId, 'success');
+        highlightAndOpenSlot(foundLocId);
+        
+        setTimeout(() => {
+            const cards = document.querySelectorAll('#slotDetail .pallet-card');
+            for (let card of cards) {
+                if (card.textContent.toUpperCase().includes(sscc)) {
+                    highlightAndFocusCard(card);
+                    break;
+                }
+            }
+        }, 400);
+    } else {
+        safeToast('❌ Brak palety na tym regale!', 'error');
+        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ na tym regale.', 'Błąd weryfikacji');
+    }
+}
+
+function highlightAndFocusCard(card) {
+    card.style.outline = '4px solid #10b981';
+    card.style.transform = 'scale(1.02)';
+    card.scrollIntoView({behavior: 'smooth', block: 'center'});
+    
+    setTimeout(() => {
+        card.style.outline = 'none';
+        card.style.transform = 'none';
+    }, 2000);
+    
+    const weightInput = card.querySelector('.actual-weight-input') || card.querySelector('.slot-weight-input');
+    if (weightInput) {
+        setTimeout(() => weightInput.focus(), 300);
+    }
 }
 </script>
 

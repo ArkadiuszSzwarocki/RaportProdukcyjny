@@ -246,7 +246,7 @@ class InwentaryzacjaService:
 
             if sesja_id:
                 cursor.execute(
-                    f"SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND {in_clause}", 
+                    f"SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka, lokalizacja FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND {in_clause}", 
                     (sesja_id, *loc_variants)
                 )
                 for row in cursor.fetchall():

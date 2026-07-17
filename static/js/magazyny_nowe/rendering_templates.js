@@ -148,17 +148,18 @@ function clearAllFilters() {
     filterTable();
 }
 
-function isMatch(allText, locText, filter, locationFilter) {
+function isMatch(allText, locText, filter, locationFiltersArray) {
     const filterText = (filter || '').toUpperCase().trim();
     const textMatch = (filterText === "" || allText.indexOf(filterText) > -1);
     const slotMatch = (filterText !== "" && matchesLocationSlots(locText, filterText));
 
     if (!(textMatch || slotMatch)) return false;
     
-    if (locationFilter) {
-        if (!locText || !locText.toUpperCase().includes(locationFilter)) {
-            return false;
-        }
+    if (Array.isArray(locationFiltersArray) && locationFiltersArray.length > 0) {
+        if (!locText) return false;
+        const upLoc = locText.toUpperCase().trim();
+        const matched = locationFiltersArray.some(f => upLoc === f || upLoc.startsWith(f));
+        if (!matched) return false;
     }
 
     const locNormalized = normalizeLocationCode(locText);
