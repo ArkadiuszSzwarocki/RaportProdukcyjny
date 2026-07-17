@@ -12,14 +12,14 @@ config = context.config
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.config import Config
-from app.core.database import get_db_name
+from app.config import DB_CONFIG
+from app.core.database import get_active_database_name
 
-db_user = Config.DB_USER
-db_password = Config.DB_PASSWORD
-db_host = Config.DB_HOST
-db_port = Config.DB_PORT
-db_name = get_db_name()
+db_user = DB_CONFIG.get('user', 'biblioteka')
+db_password = DB_CONFIG.get('password', '')
+db_host = DB_CONFIG.get('host', 'localhost')
+db_port = DB_CONFIG.get('port', 3307)
+db_name = get_active_database_name()
 db_url = f"mysql+mysqlconnector://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 config.set_main_option("sqlalchemy.url", db_url)
 

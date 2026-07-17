@@ -134,7 +134,12 @@ class WarehouseV2Service:
             if dozwolone:
                 is_dict_valid = False
                 for dozw_lok in dozwolone:
-                    if new_location.startswith(dozw_lok):
+                    # Dokładne dopasowanie (np. MP01, K001)
+                    if new_location == dozw_lok:
+                        is_dict_valid = True
+                        break
+                    # Prefiksowe dopasowanie TYLKO dla regałów (np. R01 pozwala na R010101)
+                    elif dozw_lok.startswith('R') and len(dozw_lok) == 3 and new_location.startswith(dozw_lok):
                         is_dict_valid = True
                         break
                 

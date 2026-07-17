@@ -1,4 +1,4 @@
-const LINIA = '{{ linia }}';
+// LINIA is injected globally in HTML
 let currentPallet = null;
 let bagCount = 0;
 
@@ -667,16 +667,27 @@ function playBeep(type) {
 }
 
 /* ─── Toast ───────────────────────────────────────────────── */
-let toastTimer;
 function showToast(msg, type) {
   playBeep(type);
-  const el = document.getElementById('toast');
+  const container = document.getElementById('toast-container');
+  if (!container) return; // Zabezpieczenie, gdyby brakowało kontenera na innej stronie
+
+  const el = document.createElement('div');
+  el.className = 'toast-msg';
+  
   const colors = {success:'#166534', warn:'#92400e', danger:'#991b1b'};
   el.style.background = colors[type] || '#0f172a';
-  el.textContent = msg;
-  el.style.display = 'block';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.style.display = 'none', 4000);
+  el.innerHTML = msg;
+
+  container.appendChild(el);
+
+  // Usuń powiadomienie po 10 sekundach
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 500); // 500ms to czas transition: opacity w CSS
+  }, 10000);
 }
 
 /* ─── Scanner Return to Warehouse ─────────────────────────── */

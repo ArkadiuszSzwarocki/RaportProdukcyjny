@@ -35,7 +35,7 @@ def dodaj_obecnosc():
         if not do: missing.append('Czas (do)')
     if missing:
         flash('Brakuje wymaganych pól: ' + ', '.join(missing), 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     # Jeśli Wyjscie prywatne — wymagamy podania zakresu czasu
     od = None
     do = None

@@ -403,7 +403,7 @@ if (_raportFormGlobal) _raportFormGlobal.addEventListener('submit', function(e) 
             // Po wszystkich pobraniach, przejdź na dashboard
             Promise.all(downloadDelays).then(() => {
                 setTimeout(() => {
-                    window.location.href = '{{ url_for("index") }}';
+                    window.location.href = '{{ url_for("main.index") }}';
                 }, 1000);
             });
         } else {

@@ -825,7 +825,7 @@ def pobierz_raport():
         if not result:
             conn.close()
             flash("❌ Raport nie znaleziony!", 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         
         raw_data = json.loads(result[0])
         sekcja = result[1]
@@ -899,7 +899,7 @@ def pobierz_raport():
             except Exception as e:
                 current_app.logger.error(f"Błąd generowania Excel: {e}")
                 flash("❌ Excel nie zainstalowany. Spróbuj formatu txt.", 'warning')
-                return redirect(url_for('index'))
+                return redirect(url_for('main.index'))
         
         elif raport_format == 'pdf':
             try:
@@ -913,15 +913,15 @@ def pobierz_raport():
             except Exception as e:
                 current_app.logger.error(f"Błąd generowania PDF: {e}")
                 flash("❌ ReportLab nie zainstalowany. Spróbuj formatu txt.", 'warning')
-                return redirect(url_for('index'))
+                return redirect(url_for('main.index'))
         
         else:
             flash("❌ Nieznany format raportu!", 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         
     except Exception as e:
         current_app.logger.error(f"Błąd przy pobieraniu raportu: {e}")
         flash(f"❌ Błąd: {str(e)}", 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
 
 

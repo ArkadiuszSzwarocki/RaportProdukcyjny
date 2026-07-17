@@ -1,7 +1,7 @@
 {% extends "includes/scanner_layout.html" %}
 
 {% block scanner_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v={{ static_version|default(3) }}">
 <style>
     :root {
         --scanner-mode-color: #3b82f6;
@@ -44,8 +44,8 @@
 {% endblock %}
 
 {% block scanner_header_back %}
-<a href="{{ url_for('index') }}" class="scanner-header-back">
-    <span class="material-icons">arrow_back</span> Pulpit
+<a href="{{ url_for('agro_warehouse.index') }}" class="scanner-header-back">
+    <span class="material-icons">arrow_back</span> Magazyn
 </a>
 {% endblock %}
 
@@ -205,5 +205,12 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+    const LINIA = '{{ linia }}';
+</script>
+<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v={{ static_version|default(3) }}"></script>
 {% endblock %}
 
