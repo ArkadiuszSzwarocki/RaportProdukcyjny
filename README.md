@@ -118,6 +118,9 @@ System automatycznie tworzy następujące tabele:
 - **plan_produkcji** — plany i realizacja produkcji
 - **obecnosc** — raportowanie HR (nieobecności/nadgodziny)
 - **raporty_koncowe** — zamknięte zmiany z uwagami lidera
+- **palety** / **warehouse_v2_palety** — śledzenie stanów magazynowych, SSCC, wagi
+- **lokalizacje** — mapa magazynu, regały, gniazda
+- **inwentaryzacja** — zapisy inwentaryzacyjne (ślepe/jawne)
 
 ## 📊 Moduły Systemu
 
@@ -128,25 +131,31 @@ System automatycznie tworzy następujące tabele:
 - Zgłaszanie problemów produkcyjnych
 - Zarządzanie obsadą zmianową
 
-### 2. Panel Admina (`/admin`)
+### 2. Gospodarka Magazynowa (v2) & Agro
+- Śledzenie surowców, opakowań, i wyrobów gotowych
+- Zarządzanie lokalizacjami magazynowymi (regały wysokiego składowania)
+- Cyfrowe zlecenia i przepływ komponentów do/z produkcji
+
+### 3. Zintegrowane Skanery i Inwentaryzacja
+- Główne Skanery QR (obsługa terminali mobilnych z kamerą/fizycznym skanerem)
+- Inwentaryzacja Magazynu ("ślepa" i z systemem podpowiedzi)
+- Inwentaryzacja Produkcji (obsługa bufora)
+- Wbudowany system drukowania etykiet z kodami SSCC
+
+### 4. Panel Admina (`/admin`)
 
 - Zarządzanie pracownikami
 - Zarządzanie kontami użytkowników
 - Raportowanie HR
 
-### 3. Raporty Okresowe (`/raporty_okresowe`)
+### 5. Raporty Okresowe & Zarząd
 
 - Statystyki miesięczne i roczne
 - Wykresy trendów produkcji
 - Analiza awarii według kategorii
-
-### 4. Dashboard Zarządu (`/zarzad`)
-
 - KPI produkcyjne (zlecenia, tony, czas pracy)
-- Analiza awarii i przestojów
-- Statystyki pracowników
 
-### 5. Export Excel (`/export_excel`)
+### 6. Export Excel (`/export_excel`)
 
 - Raport dzienny zawierający:
     - Arkusz "Produkcja" — plan i wykonanie
@@ -387,21 +396,24 @@ i zainstaluj zależności tam.
 
 ### Architektura dla Developerów
 
-Projekt organizuje kod w logiczne warstwy:
+Projekt organizuje kod w wysoce modułowe struktury Blueprintów:
 
 ```
 app/
+├── core/                 # Fabryka aplikacji (create_app), połączenie DB
 ├── blueprints/           # Trasy Flask (REST API, web endpoints)
-│   ├── routes_main.py    # Główne trasy (dashboard, zamknięcie zmian)
-│   ├── routes_api.py     # API endpointy
-│   └── routes_admin.py   # Panel administracyjny
-├── services/             # Serwisy (business logic)
-│   ├── dashboard_service.py      # Agregacja danych dashboardu
-│   └── report_generation_service.py  # Orchestracja zamknięcia zmian
-├── config.py             # Konfiguracja aplikacji
-├── db.py                 # Operacje bazy danych
-├── decorators.py         # Dekoratory (login_required, roles_required)
-└── __init__.py           # Inicjalizacja aplikacji
+│   ├── admin/            # Zarządzanie pracownikami i użytkownikami
+│   ├── warehouse_v2/     # Gospodarka Magazynowa 2.0 (zlecenia, skanowanie, surowce)
+│   ├── agro_warehouse/   # Magazyn Półproduktów i Wyrobów Gotowych
+│   ├── inwentaryzacja/   # System Inwentaryzacji (ślepej/jawnej)
+│   ├── scanner/          # Zunifikowany Skaner Kodów Kreskowych/SSCC
+│   ├── auth/             # Logowanie, JWT, Autoryzacja
+│   └── ... (+20 innych dedykowanych modułów, np. quality, planner)
+├── services/             # Serwisy (Clean Architecture logic)
+│   ├── dashboard_service.py
+│   ├── report_generation_service.py
+│   └── ...
+└── static/               # Style, JavaScript, dźwięki dla frontend
 ```
 
 **Wzorzec: Request → Route → Service → Database**
@@ -417,7 +429,7 @@ app/
 **Przykład: Zamknięcie zmian**
 
 ```python
-# routes_main.py - trasa
+# blueprints/main/routes.py - trasa
 @main_bp.route('/zamknij_zmiane', methods=['POST'])
 @roles_required('lider', 'admin')
 def zamknij_zmiane():
@@ -483,8 +495,8 @@ Dla wsparcia technicznego skontaktuj się z administratorem systemu.
 
 ---
 
-**Wersja**: 2.2 — QR Scanner Integration
+**Wersja**: 2.3 — Modular Architecture & Scanner Unification
 
-**Data ostatniej aktualizacji**: 2026-06-02
+**Data ostatniej aktualizacji**: 2026-07-17
 
 **Status**: ✅ Testy jednostkowe i integracyjne przechodzące
