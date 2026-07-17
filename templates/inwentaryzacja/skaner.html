@@ -151,15 +151,21 @@
             Mapa Regału: <span id="activeRack" style="color: #1e293b; font-weight: 800;"></span>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;">
-            <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
-                <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                <input type="text" id="ssccVerifierInputRack" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
-                       onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCCRack(this.value); this.value='';}">
+        <div style="max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                <span class="material-icons" style="font-size: 14px; color: #10b981;">qr_code_scanner</span>
+                <span>① Skanuj <span style="color: #3b82f6;">lokalizację</span> → ② Skanuj <span style="color: #10b981;">paletę</span></span>
             </div>
-            <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); verifyPalletSSCCRack(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
-                <span class="material-icons" style="font-size: 24px;">search</span>
-            </button>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                    <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                    <input type="text" id="ssccVerifierInputRack" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
+                           onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleRackScan(this.value); this.value='';}">
+                </div>
+                <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); handleRackScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
+                    <span class="material-icons" style="font-size: 24px;">search</span>
+                </button>
+            </div>
         </div>
 
         <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px; background: #f8fafc; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0;">
@@ -184,10 +190,10 @@
                 <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
                     <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                         <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                        <input type="text" id="ssccVerifierInputDetail" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
-                               onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCC(this.value, 'detail'); this.value='';}">
+                        <input type="text" id="ssccVerifierInputDetail" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
+                               onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleDetailScan(this.value); this.value='';}">
                     </div>
-                    <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); verifyPalletSSCC(inp.value, 'detail'); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
+                    <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); handleDetailScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
                         <span class="material-icons" style="font-size: 24px;">search</span>
                     </button>
                 </div>
@@ -320,6 +326,129 @@
 </template>
 
 <script>
+/**
+ * safeToast - wrapper for showing toast notifications.
+ * Falls back to AppDialog.alert when showToast is unavailable.
+ */
+function safeToast(msg, kind) {
+    if (typeof showToast === 'function') {
+        showToast(msg, kind || 'info');
+    } else if (typeof AppDialog !== 'undefined') {
+        AppDialog.alert(msg);
+    }
+}
+
+/**
+ * isLocationCode - checks if scanned code looks like a rack location.
+ * Location codes: R followed by 4+ digits (e.g., R030101).
+ */
+function isLocationCode(code) {
+    const normalized = code.replace(/-/g, '');
+    return /^R\d{4,}$/.test(normalized);
+}
+
+/**
+ * normalizeLocationCode - removes hyphens for consistent matching.
+ */
+function normalizeLocationCode(code) {
+    return code.replace(/-/g, '');
+}
+
+/**
+ * handleRackScan - smart scanner router for rack view.
+ * Detects whether the scanned code is a location or pallet and routes accordingly.
+ * Flow: ① Scan location → opens slot detail, ② Scan pallet → verifies on rack.
+ */
+function handleRackScan(code) {
+    if (!code) return;
+    code = code.trim().toUpperCase();
+    const normalized = normalizeLocationCode(code);
+    
+    // 1. Location on current rack → open slot detail
+    if (currentRackPrefix && normalized.startsWith(currentRackPrefix) && normalized.length >= 6) {
+        safeToast('📍 Otwieram gniazdo ' + normalized, 'info');
+        highlightAndOpenSlot(normalized);
+        return;
+    }
+    
+    // 2. Different rack prefix (e.g., R05 while viewing R03) → load new rack
+    if (/^R\d{1,2}$/.test(normalized) && normalized !== currentRackPrefix) {
+        loadRack(normalized);
+        return;
+    }
+    
+    // 3. Location on a different rack (e.g., R050101) → load rack + open slot
+    if (isLocationCode(normalized) && currentRackPrefix && !normalized.startsWith(currentRackPrefix)) {
+        const newPrefix = normalized.substring(0, 3);
+        safeToast('📍 Przechodzę do regału ' + newPrefix, 'info');
+        loadRack(newPrefix);
+        setTimeout(() => highlightAndOpenSlot(normalized), 600);
+        return;
+    }
+    
+    // 4. Otherwise → treat as pallet code, verify on rack
+    verifyPalletSSCCRack(code);
+}
+
+/**
+ * handleDetailScan - smart scanner router for slot detail modal.
+ * If a location is scanned, closes current detail and opens new slot.
+ * If a pallet is scanned, verifies it in the current slot.
+ */
+function handleDetailScan(code) {
+    if (!code) return;
+    code = code.trim().toUpperCase();
+    const normalized = normalizeLocationCode(code);
+    
+    // 1. Location on current rack → close detail, open new slot
+    if (currentRackPrefix && normalized.startsWith(currentRackPrefix) && normalized.length >= 6) {
+        closeDetail();
+        safeToast('📍 Przechodzę do gniazda ' + normalized, 'info');
+        setTimeout(() => highlightAndOpenSlot(normalized), 200);
+        return;
+    }
+    
+    // 2. Different rack prefix → close detail, load new rack
+    if (/^R\d{1,2}$/.test(normalized)) {
+        closeDetail();
+        loadRack(normalized);
+        return;
+    }
+    
+    // 3. Location on a different rack → close detail, load rack + open slot
+    if (isLocationCode(normalized)) {
+        closeDetail();
+        const newPrefix = normalized.substring(0, 3);
+        safeToast('📍 Przechodzę do regału ' + newPrefix, 'info');
+        loadRack(newPrefix);
+        setTimeout(() => highlightAndOpenSlot(normalized), 600);
+        return;
+    }
+    
+    // 4. Pallet code → verify in current slot
+    verifyPalletSSCC(code, 'detail');
+}
+
+/**
+ * refocusRackScanner - re-focuses the rack scanner input for continuous scanning.
+ */
+function refocusRackScanner() {
+    setTimeout(() => {
+        const inp = document.getElementById('ssccVerifierInputRack');
+        if (inp) inp.focus();
+    }, 500);
+}
+
+/**
+ * refocusDetailScanner - re-focuses the detail scanner input.
+ */
+function refocusDetailScanner() {
+    setTimeout(() => {
+        const inp = document.getElementById('ssccVerifierInputDetail');
+        if (inp) inp.focus();
+    }, 500);
+}
+
 let currentPallets = [];
 let lastLocation = '';
 let rackData = {}; // Map location -> [items]
@@ -842,7 +971,7 @@ function openSlotDetail(locId) {
                         markCellDone(locId, false);
                         
                         refreshRackData(currentRackPrefix);
-                        setTimeout(() => { closeDetail(); }, 300);
+                        setTimeout(() => { closeDetail(); refocusRackScanner(); }, 300);
                     } else {
                         saveBtn.innerHTML = '<span class="material-icons">error</span>';
                         saveBtn.style.background = '#ef4444';
@@ -897,6 +1026,7 @@ function openSlotDetail(locId) {
 
 function closeDetail() {
     document.getElementById('slotDetail').style.display = 'none';
+    refocusRackScanner();
 }
 
 // Close modal when clicking on the backdrop
@@ -1707,7 +1837,9 @@ function verifyPalletSSCC(sscc, context) {
     
     if (!found) {
         safeToast('❌ Brak palety w wybranej lokalizacji!', 'error');
-        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ w bieżącym widoku.', 'Błąd weryfikacji');
+        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ w bieżącym widoku.', 'Błąd weryfikacji').then(() => {
+            if (context === 'detail') refocusDetailScanner();
+        });
     }
 }
 
@@ -1750,7 +1882,9 @@ function verifyPalletSSCCRack(sscc) {
         }, 400);
     } else {
         safeToast('❌ Brak palety na tym regale!', 'error');
-        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ na tym regale.', 'Błąd weryfikacji');
+        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ na tym regale.', 'Błąd weryfikacji').then(() => {
+            refocusRackScanner();
+        });
     }
 }
 
