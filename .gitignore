@@ -166,3 +166,8 @@ app/core/static/sounds/zwolnienie_*.mp3
 
 # Scratch workspace
 scratch/
+
+# Backupy i pliki robocze
+backup_before_stash_restore/
+certs_backup/
+db-init/

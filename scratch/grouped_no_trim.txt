@@ -1,9 +1,0 @@
-43: Biała
-41: Fiolet
-49: MaxFutter Niebieski 
-47: MaxFutter Pomarańczowy 
-39: Milk Granatowy 
-46: Milk Srebrny
-54: Milk Ziel-Żòłty
-51: Milk Złoty
-58: Testowa45/2/10.05.2026
