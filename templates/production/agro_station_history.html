@@ -86,7 +86,7 @@
         const surowiec = document.getElementById('historyFilterSurowiec').value;
         const stacja = document.getElementById('historyFilterStacja').value;
         
-        let url = `/magazyny-nowe/historia-stacji/data?linia=PSD`;
+        let url = `/warehouse-v2/historia-stacji/data?linia=PSD`;
         if(dataOd) url += `&dataOd=${dataOd}`;
         if(dataDo) url += `&dataDo=${dataDo}`;
         if(surowiec) url += `&surowiec=${encodeURIComponent(surowiec)}`;

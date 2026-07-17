@@ -512,14 +512,8 @@ class PrintServer:
         if ok:
             return True, message
 
-        if bridge_unreachable and self.bridge_autostart:
-            started, start_message = self._ensure_bridge_running()
-            if started:
-                retry_ok, retry_message, _ = self._send_to_bridge_once(payload, target_hint)
-                if retry_ok:
-                    return True, retry_message
-                return False, f"{retry_message} (po autostarcie mostka: {start_message})"
-            return False, f"{message} | Autostart mostka nieudany: {start_message}"
+        if bridge_unreachable:
+            return False, f"{message} | Mostek (printer microservice) nie odpowiada."
 
         return False, message
 

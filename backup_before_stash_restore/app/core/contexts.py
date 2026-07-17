@@ -1,0 +1,294 @@
+"""
+Context processors for Jinja templates.
+
+These inject helper functions and variables into all templates.
+"""
+
+import os
+import json
+import time
+from flask import session, request, current_app
+
+# Global translation cache
+_translations_cache = {}
+
+
+def inject_static_version():
+    """Inject cache-busting static file version based on CSS modification time."""
+    try:
+        # Use the latest modification time among key static assets (style + scripts)
+        candidates = [
+            os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
+            os.path.join(current_app.root_path, 'static', 'scripts.js'),
+        ]
+        mtimes = []
+        for p in candidates:
+            try:
+                mtimes.append(int(os.path.getmtime(p)))
+            except Exception:
+                continue
+        if mtimes:
+            v = max(mtimes)
+        else:
+            v = int(time.time())
+    except Exception:
+        v = int(time.time())
+    return dict(static_version=v)
+
+
+def inject_role_permissions():
+    """Inject role-based access control functions into templates."""
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+    page_aliases = {
+        'podsumowanie_zasypow': 'podsumowanie_szarz',
+    }
+
+    def _resolve_page_key(page, perms):
+        if page in perms:
+            return page
+        legacy = page_aliases.get(page)
+        if legacy and legacy in perms:
+            return legacy
+        for new_key, legacy_key in page_aliases.items():
+            if page == legacy_key and new_key in perms:
+                return new_key
+        return page
+
+    def role_has_access(page):
+        try:
+            # Read config every time (no caching)
+            perms = {}
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    perms = json.load(f)
+            except Exception as e:
+                from flask import current_app
+                current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
+                perms = {}
+            
+            r = str(session.get('rola') or '').lower()
+            # Normalize common role name variants/synonyms (support numeric roles from DB)
+            if r.isdigit():
+                try:
+                    idx = int(r)
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    if 0 <= idx < len(roles_order):
+                        r = roles_order[idx]
+                except Exception:
+                    pass
+            if r in ['operator', 'stepnpio']:
+                r = 'pracownik'
+            # Do not log debug info here to avoid noisy logs during template rendering
+            
+            # IMPORTANT: if config exists and contains pages, use ONLY config
+            # (no fallback to hardcoded rules)
+            if perms and len(perms) > 0:
+                # Config has data - check if page is in config
+                page_key = _resolve_page_key(page, perms)
+                page_perms = perms.get(page_key)
+                if page_perms is None:
+                    # Page not in config -> deny access (fail‑closed)
+                    return False
+                # Page in config -> check role access
+                result = bool(page_perms.get(r, {}).get('access', False))
+                return result
+            
+            # Config empty - use fallback
+            if page == 'dashboard':
+                return r in ['lider', 'admin']
+            if page in ('zasyp', 'workowanie', 'magazyn'):
+                return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
+            if page == 'jakosc':
+                return r in ['laborant', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
+            if page == 'wyniki':
+                return True
+            if page == 'awarie':
+                return r in ['dur', 'admin', 'zarzad']
+            if page == 'plan':
+                return r not in ['pracownik', 'magazynier']
+            if page == 'moje_godziny':
+                return True
+            if page == 'ustawienia':
+                return r == 'admin'
+            # unknown page key -> allow by default
+            return True
+        except Exception as e:
+            current_app.logger.exception(f'role_has_access({page}) error: {e}')
+            return False
+
+    def role_is_readonly(page):
+        try:
+            # Read config every time (no caching)
+            perms = {}
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    perms = json.load(f)
+            except Exception:
+                perms = {}
+            
+            r = str(session.get('rola') or '').lower()
+            # Normalize common role name variants/synonyms
+            if r.isdigit():
+                try:
+                    idx = int(r)
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    if 0 <= idx < len(roles_order):
+                        r = roles_order[idx]
+                except Exception:
+                    pass
+            if r in ['operator', 'stepnpio']:
+                r = 'pracownik'
+            if not perms:
+                # default: no readonly restrictions
+                return False
+            page_key = _resolve_page_key(page, perms)
+            page_perms = perms.get(page_key)
+            if page_perms is None:
+                return False
+            return bool(page_perms.get(r, {}).get('readonly', False))
+        except Exception:
+            return False
+
+    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly)
+
+
+def inject_translations():
+    """Inject translation function into templates.
+    
+    Supports language resolution in order:
+    1. session['app_language']
+    2. cookie 'app_language'
+    3. query param ?lang=
+    4. Accept-Language header
+    5. default: 'pl'
+    """
+    
+    def get_language():
+        """Get preferred language from various sources."""
+        # 1. Check session
+        if 'app_language' in session:
+            return session.get('app_language')
+        
+        # 2. Check cookie
+        if 'app_language' in request.cookies:
+            return request.cookies.get('app_language')
+        
+        # 3. Check query parameter ?lang=uk
+        if 'lang' in request.args:
+            return request.args.get('lang')
+        
+        # 4. Check Accept-Language header
+        if request.headers.get('Accept-Language'):
+            lang_header = request.headers.get('Accept-Language', '').lower()
+            if 'uk' in lang_header:
+                return 'uk'
+            elif 'en' in lang_header:
+                return 'en'
+        
+        # 5. Default to Polish
+        return 'pl'
+    
+    def get_translation(key, default_text=''):
+        """Get translation for a given key."""
+        try:
+            lang = get_language()
+            
+            # Load translations if not in global cache
+            if 'translations' not in _translations_cache:
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                trans_paths = [
+                    os.path.join(project_root, 'config', 'translations.json'),
+                    os.path.join(current_app.root_path, 'config', 'translations.json'),
+                ]
+                for trans_path in trans_paths:
+                    if os.path.exists(trans_path):
+                        with open(trans_path, 'r', encoding='utf-8') as f:
+                            _translations_cache['translations'] = json.load(f)
+                        break
+                else:
+                    _translations_cache['translations'] = {}
+            
+            translations = _translations_cache['translations']
+            
+            # Get text for selected language
+            if lang in translations and key in translations[lang]:
+                return translations[lang][key]
+            elif 'pl' in translations and key in translations['pl']:
+                return translations['pl'][key]
+            else:
+                return default_text or key
+        except Exception as e:
+            current_app.logger.warning(f'Translation error for key {key}: {e}')
+            return default_text or key
+    
+    return dict(_=get_translation, get_translation=get_translation)
+
+
+def inject_app_into_templates():
+    """Inject Flask app instance into templates for backward compatibility."""
+    try:
+        return dict(app=current_app)
+    except Exception:
+        return dict()
+
+
+def inject_app_version():
+    """Inject application version from VERSION file into templates."""
+    try:
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        version_path = os.path.join(project_root, 'VERSION')
+        with open(version_path, 'r', encoding='utf-8') as f:
+            version = f.read().strip()
+    except Exception:
+        version = 'N/A'
+    return dict(app_version=version)
+
+
+def inject_bug_report_counters():
+    """Inject unread bug reports count for templates (shown where applicable)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(unread_bug_reports_count=0)
+
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM zgloszenia_bledow WHERE status = 'nowy'")
+        row = cursor.fetchone()
+        conn.close()
+        count = int(row[0]) if row else 0
+        return dict(unread_bug_reports_count=count)
+    except Exception:
+        return dict(unread_bug_reports_count=0)
+
+
+def inject_delivery_counters():
+    """Wstrzykuje licznik oczekujących przesunięć."""
+    try:
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT linia, COUNT(*) FROM magazyn_dostawy WHERE status = 'PENDING' GROUP BY linia")
+        # Ensure we have defaults for both lines
+        counts = {'PSD': 0, 'AGRO': 0}
+        for row in cursor.fetchall():
+            l = row[0].upper()
+            if l in counts:
+                counts[l] = row[1]
+        conn.close()
+        return dict(pending_deliveries=counts)
+    except Exception:
+        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0})
+
+
+def register_contexts(app):
+    """Register all context processors with Flask app."""
+    app.context_processor(inject_static_version)
+    app.context_processor(inject_role_permissions)
+    app.context_processor(inject_translations)
+    app.context_processor(inject_app_into_templates)
+    app.context_processor(inject_app_version)
+    app.context_processor(inject_bug_report_counters)
+    app.context_processor(inject_delivery_counters)
+

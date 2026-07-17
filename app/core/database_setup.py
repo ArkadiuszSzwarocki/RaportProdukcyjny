@@ -1333,6 +1333,10 @@ def _seed_etykiety(cursor):
 
 def setup_database():
     """Main setup function - orchestrates all database initialization."""
+    print("==========================================================================================")
+    print("WARNING: Baza danych docelowo będzie wersjonowana przez Alembic (katalog 'alembic/').")
+    print("Obecnie database_setup.py wciąż tworzy tabele dla kompatybilności wstecznej.")
+    print("==========================================================================================")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()

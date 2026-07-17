@@ -91,7 +91,7 @@
             </div>
 
             <div class="list-footer" style="display: flex; flex-direction: column; gap: 8px;">
-                <button onclick="window.location.href='{{ url_for('magazyny_nowe.summary', linia=linia) }}'" class="status-link-btn" style="background: #f0f9ff; border-color: #0ea5e9; color: #0369a1;">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.summary', linia=linia) }}'" class="status-link-btn" style="background: #f0f9ff; border-color: #0ea5e9; color: #0369a1;">
                     <span class="material-icons">pie_chart</span> PODSUMOWANIE MAGAZYNU
                 </button>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -102,16 +102,16 @@
                         <span class="material-icons" style="font-size: 18px;">summarize</span> RAPORTY
                     </button>
                 </div>
-                <button onclick="window.location.href='{{ url_for('magazyny_nowe.production_status', linia=linia) }}'" class="status-link-btn">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.production_status', linia=linia) }}'" class="status-link-btn">
                     <span class="material-icons">analytics</span> STATUS PRODUKCJI
                 </button>
-                <button onclick="window.location.href='{{ url_for('magazyny_nowe.zamowienia', linia=linia) }}'" class="status-link-btn" style="background: #fffbeb; border-color: #f59e0b; color: #92400e;">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.zamowienia', linia=linia) }}'" class="status-link-btn" style="background: #fffbeb; border-color: #f59e0b; color: #92400e;">
                     <span class="material-icons">shopping_cart</span> ZAMÓWIENIA
                 </button>
                 <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
                     <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
                 </button>
-                <button onclick="window.location.href='{{ url_for('magazyny_nowe.archiwum', linia=linia) }}'" class="status-link-btn" style="background: #f1f5f9; border-color: #94a3b8; color: #475569;">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.archiwum', linia=linia) }}'" class="status-link-btn" style="background: #f1f5f9; border-color: #94a3b8; color: #475569;">
                     <span class="material-icons">inventory_2</span> ARCHIWUM PALET
                 </button>
             </div>

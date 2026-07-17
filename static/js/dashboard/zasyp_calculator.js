@@ -4,9 +4,9 @@
 const ZasypCalculatorModule = (function () {
     'use strict';
 
-    const CHECK_STOCK_API = '/magazyny-nowe/api/orders/check_stock';
-    const CREATE_ORDER_API = '/magazyny-nowe/api/orders/create';
-    const SUROWCE_API = '/magazyny-nowe/api/orders/surowce';
+    const CHECK_STOCK_API = '/warehouse-v2/api/orders/check_stock';
+    const CREATE_ORDER_API = '/warehouse-v2/api/orders/create';
+    const SUROWCE_API = '/warehouse-v2/api/orders/surowce';
 
     let _availableSurowce = [];
     let _missingItemsToOrder = []; // Cache to store missing items that need to be ordered

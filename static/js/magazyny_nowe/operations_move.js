@@ -56,7 +56,7 @@ function submitMoveLocation() {
 
     if(errEl) errEl.style.display = 'none';
 
-    fetch('/magazyny-nowe/api/pallet/move', {
+    fetch('/warehouse-v2/api/pallet/move', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -91,7 +91,7 @@ async function promptRename() {
     if(!currentPallet.id) return;
     let newName = await AppDialog.prompt(`Zmień nazwę produktu dla palety ${currentPallet.displayId}:`, currentPallet.productName);
     if(newName && newName !== currentPallet.productName) {
-        fetch('/magazyny-nowe/api/pallet/rename', {
+        fetch('/warehouse-v2/api/pallet/rename', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -114,7 +114,7 @@ async function promptUpdateWeight() {
     if(!currentPallet.id) return;
     let newWeight = await AppDialog.prompt(`Podaj nową wagę/ilość dla palety ${currentPallet.displayId}:`, currentPallet.amount);
     if(newWeight !== null && newWeight !== currentPallet.amount) {
-        fetch('/magazyny-nowe/api/pallet/update-weight', {
+        fetch('/warehouse-v2/api/pallet/update-weight', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -137,7 +137,7 @@ async function promptDispatch() {
     if(!currentPallet.id) return;
     const ok = await AppDialog.confirm(`Czy na pewno chcesz WYDAĆ paletę ${currentPallet.displayId}?\n\nPaleta trafi do tabeli EXPEDITION (magazyn_archiwum) i zniknie z aktywnej listy.`);
     if(ok) {
-        fetch('/magazyny-nowe/api/pallet/dispatch', {
+        fetch('/warehouse-v2/api/pallet/dispatch', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -159,7 +159,7 @@ async function promptArchive() {
     if(!currentPallet.id) return;
     const ok = await AppDialog.confirm(`Czy na pewno chcesz zarchiwizować paletę ${currentPallet.displayId}? Ilość zostanie wyzerowana.`);
     if(ok) {
-        fetch('/magazyny-nowe/api/pallet/archive', {
+        fetch('/warehouse-v2/api/pallet/archive', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -181,7 +181,7 @@ async function promptReturnToRaw() {
     if(!currentPallet.id) return;
     const ok = await AppDialog.confirm(`Czy na pewno chcesz zwrócić paletę ${currentPallet.displayId} (${currentPallet.productName}) jako SUROWIEC?\nPaleta zostanie wyzerowana w wyrobach gotowych i dodana do surowców na lokalizację OSIP.`);
     if(ok) {
-        fetch('/magazyny-nowe/api/pallet/return-to-raw', {
+        fetch('/warehouse-v2/api/pallet/return-to-raw', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

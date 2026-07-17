@@ -1,0 +1,200 @@
+﻿from datetime import date, datetime
+import os
+import threading
+
+import mysql.connector
+from flask import abort, current_app, flash, jsonify, redirect, render_template, request, session
+from werkzeug.exceptions import HTTPException
+
+from app.core.audit import audit_log
+from app.db import get_db_connection, get_table_name
+from app.decorators import login_required, roles_required, masteradmin_required
+from app.services.planning.status import PlanningStatusService
+from app.utils.validation import require_field
+from app.utils.pallet_id import generate_pallet_id
+
+from .printing_routes import _select_preferred_printer
+from .misc_routes import _parse_data_produkcji_input
+from .palety_helpers import _resolve_plan_id_for_paleta
+
+def _resolve_plan_id_for_paleta(cursor, paleta_id, linia, requested_plan_id=None):
+    """Resolve Workowanie plan_id for a pallet id from magazyn/buffer tables safely."""
+    table_pal = get_table_name('palety_workowanie', linia)
+    table_mag = get_table_name('magazyn_palety', linia)
+
+    requested_id = None
+    try:
+        if requested_plan_id not in (None, '', 'None'):
+            requested_id = int(requested_plan_id)
+    except Exception:
+        requested_id = None
+
+    if requested_id:
+        # Validate that requested plan_id really belongs to this pallet.
+        cursor.execute(
+            f"SELECT 1 FROM {table_mag} WHERE (id=%s OR paleta_workowanie_id=%s) AND plan_id=%s LIMIT 1",
+            (paleta_id, paleta_id, requested_id),
+        )
+        if cursor.fetchone():
+            return requested_id
+
+        cursor.execute(
+            f"SELECT 1 FROM {table_pal} WHERE id=%s AND plan_id=%s LIMIT 1",
+            (paleta_id, requested_id),
+        )
+        if cursor.fetchone():
+            return requested_id
+
+    # First check magazyn table by confirmed pallet id/pointer.
+    # This avoids id-collision with palety_workowanie IDs.
+    cursor.execute(
+        f'''
+        SELECT COALESCE(mp.plan_id, pw.plan_id)
+        FROM {table_mag} mp
+        LEFT JOIN {table_pal} pw ON pw.id = mp.paleta_workowanie_id
+        WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
+        ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+        LIMIT 1
+        ''',
+        (paleta_id, paleta_id, paleta_id),
+    )
+    row = cursor.fetchone()
+    if row and row[0]:
+        return int(row[0])
+
+    cursor.execute(f"SELECT plan_id FROM {table_pal} WHERE id=%s", (paleta_id,))
+    row = cursor.fetchone()
+    if row and row[0]:
+        return int(row[0])
+
+    return None
+
+def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_payload_linia, update_paleta_workowanie, update_paleta_magazyn, safe_return):
+    def dodaj_palete(plan_id):
+        """Add paleta (package) to Workowanie buffer."""
+        linia = resolve_request_linia()
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
+        table_zasypy = get_table_name('szarze', linia)
+    
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            current_app.logger.debug('dodaj_palete: plan_id=%s', plan_id)
+        except Exception:
+            pass
+    
+        try:
+            waga_input = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
+        except Exception:
+            waga_input = 0
+    
+        nr_plomby = str(request.form.get('nr_plomby') or '').strip()
+        if not nr_plomby:
+            nr_plomby = None
+        elif len(nr_plomby) > 100:
+            nr_plomby = nr_plomby[:100]
+    
+        cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji, zasyp_id FROM {table_plan} WHERE id=%s", (plan_id,))
+        plan_row = cursor.fetchone()
+    
+        if not plan_row:
+            conn.close()
+            return ('BĹ‚Ä…d: Plan nie znaleziony', 404)
+    
+        now_ts = datetime.now()
+        plan_sekcja, _plan_data, plan_produkt, plan_data_produkcji, plan_zasyp_id = plan_row
+    
+        input_data_produkcji = str(request.form.get('data_produkcji') or '').strip()
+        if input_data_produkcji:
+            try:
+                datetime.strptime(input_data_produkcji, '%Y-%m-%d')
+            except ValueError:
+                conn.close()
+                return ('BĹ‚Ä…d: NieprawidĹ‚owy format daty produkcji (oczekiwano RRRR-MM-DD)', 400)
+            selected_data_produkcji = input_data_produkcji
+        elif plan_data_produkcji:
+            if hasattr(plan_data_produkcji, 'strftime'):
+                selected_data_produkcji = plan_data_produkcji.strftime('%Y-%m-%d')
+            else:
+                selected_data_produkcji = str(plan_data_produkcji)
+        elif _plan_data:
+            if hasattr(_plan_data, 'strftime'):
+                selected_data_produkcji = _plan_data.strftime('%Y-%m-%d')
+            else:
+                selected_data_produkcji = str(_plan_data)
+        else:
+            selected_data_produkcji = now_ts.strftime('%Y-%m-%d')
+    
+        if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
+            conn.close()
+            try:
+                current_app.logger.warning('REJECTED: Cannot add paleta to sekcja=%s', plan_sekcja)
+            except Exception:
+                pass
+            return ('BĹ‚Ä…d: Paletki moĹĽna dodawaÄ‡ tylko do Workowania (bufora) lub Czyszczenia', 400)
+    
+        if waga_input <= 0:
+            conn.close()
+            return ('BĹ‚Ä…d: Waga musi byÄ‡ wiÄ™ksza od 0', 400)
+    
+        try:
+            user_login = session.get('login', 'System')
+            paleta_id = None
+            nr_palety = None
+    
+            # If there are reserved labels for this plan, consume the oldest one first.
+            cursor.execute(
+                f"SELECT id, nr_palety FROM {table_pal} WHERE plan_id = %s AND COALESCE(status, '') = 'rezerwacja' ORDER BY id ASC LIMIT 1",
+                (plan_id,),
+            )
+            reserved_row = cursor.fetchone()
+    
+            nr_palety_czyszczenie = None
+            if plan_produkt == 'Czyszczenie':
+                cursor.execute(f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL LIMIT 1", (plan_id, plan_zasyp_id or -1))
+                sscc_row = cursor.fetchone()
+                if sscc_row and sscc_row[0]:
+                    nr_palety_czyszczenie = sscc_row[0]
+    
+            if reserved_row:
+                paleta_id = reserved_row[0]
+                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                    nr_palety = nr_palety_czyszczenie
+                else:
+                    nr_palety = reserved_row[1] or generate_pallet_id(linia)
+                cursor.execute(
+                    f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, nr_plomby = COALESCE(%s, nr_plomby) WHERE id = %s",
+                    (waga_input, now_ts, user_login, nr_palety, nr_plomby, paleta_id),
+                )
+            else:
+                if plan_produkt == 'Czyszczenie' and nr_palety_czyszczenie:
+                    nr_palety = nr_palety_czyszczenie
+                else:
+                    nr_palety = generate_pallet_id(linia)
+                cursor.execute(
+                    f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, nr_plomby) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, %s)",
+                    (plan_id, waga_input, now_ts, user_login, nr_palety, nr_plomby),
+                )
+                paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+    
+            # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
+            try:
+                if paleta_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                    res_lp = cursor.fetchone()
+                    nr_palety_lp = int(res_lp[0]) if res_lp else 1
+                    # check if column exists
+                    try:
+                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                        col = cursor.fetchone()
+                        if col:
+                            cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
+                    except Exception:
+                        # ignore if SHOW COLUMNS or UPDATE fails on older schemas
+                        pass
+            except Exception:
+                pass
+    
+            cursor.execute(
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",

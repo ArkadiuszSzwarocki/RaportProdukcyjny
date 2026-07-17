@@ -4,7 +4,7 @@
 const OrderNewModule = (function () {
     'use strict';
 
-    const API_BASE = '/magazyny-nowe/api/orders';
+    const API_BASE = '/warehouse-v2/api/orders';
     let _availableSurowce = [];
     let _rowCount = 0;
 
@@ -134,7 +134,7 @@ const OrderNewModule = (function () {
                 _showToast(data.message, 'success');
                 setTimeout(() => {
                     // Przekierowanie na listę zamówień (ORDER_LIST_URL zdefiniowane w HTML)
-                    window.location.href = (typeof ORDER_LIST_URL !== 'undefined') ? ORDER_LIST_URL : '/magazyny-nowe/zamowienia';
+                    window.location.href = (typeof ORDER_LIST_URL !== 'undefined') ? ORDER_LIST_URL : '/warehouse-v2/zamowienia';
                 }, 1000);
             } else {
                 _showToast(data.message || data.error || 'Wystąpił błąd.', 'error');

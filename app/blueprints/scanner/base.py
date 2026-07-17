@@ -13,7 +13,7 @@ Endpointy:
 from flask import Blueprint, request, jsonify, session, render_template
 from datetime import datetime
 from app.services.scanner_service import ScannerService
-from app.services.magazyny_nowe_service import MagazynyNoweService
+from app.services.warehouse_v2_service import WarehouseV2Service
 from app.services.print_server import get_printer
 
 scanner_bp = Blueprint('scanner', __name__, url_prefix='/agro/scanner')
@@ -133,7 +133,7 @@ def move():
     if not pallet_type:
         pallet_type = 'Surowiec'
 
-    ok, msg = MagazynyNoweService.move_pallet(
+    ok, msg = WarehouseV2Service.move_pallet(
         pallet_id=int(surowiec_id),
         pallet_type=pallet_type,
         new_location=nowa_lokalizacja,

@@ -4,7 +4,7 @@ function deletePalletPermanently() {
     AppDialog.confirm(`⚠️ TRWAŁE USUNIĘCIE\n\nPaleta: ${currentPallet.displayId}\nProdukt: ${currentPallet.productName}\n\nOperacja nieodwracalna. Kontynuować?`).then(ok => {
         if (!ok) return;
     
-    fetch('/magazyny-nowe/api/pallet/delete', {
+    fetch('/warehouse-v2/api/pallet/delete', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ id: currentPallet.id, type: currentPallet.type, linia: currentPallet.linia })

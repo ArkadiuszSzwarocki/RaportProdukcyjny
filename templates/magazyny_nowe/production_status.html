@@ -204,7 +204,7 @@
     const updateInterval = 5000; // 5 seconds
 
     function fetchStations() {
-        fetch('/magazyny-nowe/api/production/stations')
+        fetch('/warehouse-v2/api/production/stations')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {

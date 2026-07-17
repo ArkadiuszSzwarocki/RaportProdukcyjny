@@ -326,6 +326,8 @@
 </template>
 
 <script>
+let currentLocationPallets = [];
+
 /**
  * safeToast - wrapper for showing toast notifications.
  * Falls back to AppDialog.alert when showToast is unavailable.
@@ -550,6 +552,7 @@ function searchLocation() {
         if(data.success) {
             document.getElementById('locationSearchCard').style.display = 'none';
             document.getElementById('rackContainer').style.display = 'none';
+            currentLocationPallets = data.pallets;
             renderPallets(data.pallets);
             document.getElementById('activeLocation').textContent = rawLoc;
             document.getElementById('resultsContainer').style.display = 'block';
@@ -693,7 +696,7 @@ function renderRackList(prefix) {
     let allItemsOnRack = [];
     for (const [loc, items] of Object.entries(rackData)) {
         for (const item of items) {
-            if (item.nazwa !== 'PUSTE GNIAZDO') {
+            if (item.nazwa !== 'PUSTE GNIAZDO' && item.counted) {
                 allItemsOnRack.push({ ...item, location: loc });
             }
         }
@@ -820,8 +823,23 @@ function openSlotDetail(locId) {
             document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
         }
     } else {
-        const realItems = items.filter(p => p.nazwa !== 'PUSTE GNIAZDO');
-        realItems.forEach(p => {
+        const realItems = items.filter(p => p.nazwa !== 'PUSTE GNIAZDO' && (p.counted || p._unhidden));
+        
+        if (realItems.length === 0) {
+            content.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">Zeskanuj paletę, aby ją sprawdzić.</p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
+                    <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+                        <span class="material-icons">add</span> DODAJ RĘCZNIE
+                    </button>
+                </div>
+            </div>
+            `;
+            document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
+        } else {
+            realItems.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
             card.style.transition = 'all 0.2s';
@@ -1014,6 +1032,7 @@ function openSlotDetail(locId) {
         footerDiv.innerHTML = footerHtml;
         content.appendChild(footerDiv);
         document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
+        } // zamyka blok: if (realItems.length === 0)
     }
     detail.style.display = 'flex';
     
@@ -1114,7 +1133,7 @@ function markCellDone(locId, isEmpty) {
 function renderPallets(pallets) {
     const list = document.getElementById('palletsList');
     list.innerHTML = '';
-    const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO').reverse(); // Odwrócenie listy (najnowsze na górze)
+    const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO' && (p.counted || p._unhidden)).reverse();
     currentPallets = realPallets;
     
     const isOccupied = realPallets.some(p => {
@@ -1143,9 +1162,8 @@ function renderPallets(pallets) {
         }
         list.innerHTML = `
             <div style="text-align:center; padding:30px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
-                <span class="material-icons" style="font-size:40px; color:#94a3b8;">inventory_2</span>
-                <div style="color:#64748b; font-weight:700; margin-top:8px;">Brak palet w tej lokalizacji systemowo.</div>
-                <div style="color:#94a3b8; font-size:12px; margin-top:4px;">Możesz dodać paletę poniżej.</div>
+                <span class="material-icons" style="font-size:40px; color:#94a3b8;">qr_code_scanner</span>
+                <div style="color:#64748b; font-weight:700; margin-top:8px;">Zeskanuj paletę, aby ją sprawdzić.</div>
             </div>`;
         return;
     }
@@ -1778,7 +1796,7 @@ function submitMoveLocation() {
     let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
     if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
     
-    smartFetch('/magazyny-nowe/api/pallet/move', {
+    smartFetch('/warehouse-v2/api/pallet/move', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -1811,35 +1829,50 @@ function verifyPalletSSCC(sscc, context) {
     if(!sscc) return;
     sscc = sscc.trim().toUpperCase();
     
-    let found = false;
+    let foundLocally = false;
+    let targetLoc = context === 'detail' ? document.getElementById('detailLocTitle').textContent : lastLocation;
     
     if (context === 'results') {
-        const cards = document.querySelectorAll('#resultsContainer .pallet-card');
-        for (let card of cards) {
-            if (card.textContent.toUpperCase().includes(sscc)) {
-                found = true;
-                highlightAndFocusCard(card);
-                safeToast('✅ Paleta zweryfikowana w tej lokalizacji!', 'success');
-                break;
-            }
+        const p = currentLocationPallets.find(p => (p.displayId && p.displayId.toUpperCase().includes(sscc)) || (p.nr_palety && p.nr_palety.toUpperCase().includes(sscc)));
+        if (p) {
+            foundLocally = true;
+            p._unhidden = true;
+            renderPallets(currentLocationPallets);
+            
+            setTimeout(() => {
+                const cards = document.querySelectorAll('#resultsContainer .pallet-card');
+                for (let card of cards) {
+                    if (card.textContent.toUpperCase().includes(sscc)) {
+                        highlightAndFocusCard(card);
+                        break;
+                    }
+                }
+            }, 100);
+            safeToast('✅ Paleta przypisana do tej lokalizacji!', 'success');
         }
     } else if (context === 'detail') {
-        const cards = document.querySelectorAll('#slotDetail .pallet-card');
-        for (let card of cards) {
-            if (card.textContent.toUpperCase().includes(sscc)) {
-                found = true;
-                highlightAndFocusCard(card);
-                safeToast('✅ Paleta zweryfikowana w tym gnieździe!', 'success');
-                break;
-            }
+        let items = rackData[targetLoc] || [];
+        const p = items.find(item => (item.displayId && item.displayId.toUpperCase().includes(sscc)) || (item.nr_palety && item.nr_palety.toUpperCase().includes(sscc)));
+        if (p) {
+            foundLocally = true;
+            p._unhidden = true;
+            openSlotDetail(targetLoc);
+            
+            setTimeout(() => {
+                const cards = document.querySelectorAll('#slotDetail .pallet-card');
+                for (let card of cards) {
+                    if (card.textContent.toUpperCase().includes(sscc)) {
+                        highlightAndFocusCard(card);
+                        break;
+                    }
+                }
+            }, 100);
+            safeToast('✅ Paleta przypisana do tego gniazda!', 'success');
         }
     }
     
-    if (!found) {
-        safeToast('❌ Brak palety w wybranej lokalizacji!', 'error');
-        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ w bieżącym widoku.', 'Błąd weryfikacji').then(() => {
-            if (context === 'detail') refocusDetailScanner();
-        });
+    if (!foundLocally) {
+        globalSearchAndPrompt(sscc, context, targetLoc);
     }
 }
 
@@ -1848,6 +1881,7 @@ function verifyPalletSSCCRack(sscc) {
     sscc = sscc.trim().toUpperCase();
     
     let foundLocId = null;
+    let foundItem = null;
     
     if (rackData) {
         for (const [loc, items] of Object.entries(rackData)) {
@@ -1860,6 +1894,7 @@ function verifyPalletSSCCRack(sscc) {
                     (nrp && (nrp.includes(sscc) || sscc.includes(nrp))) || 
                     (nzw && (nzw.includes(sscc) || sscc.includes(nzw)))) {
                     foundLocId = loc;
+                    foundItem = item;
                     break;
                 }
             }
@@ -1868,6 +1903,7 @@ function verifyPalletSSCCRack(sscc) {
     }
     
     if (foundLocId) {
+        foundItem._unhidden = true;
         safeToast('✅ Paleta znajduje się w gnieździe ' + foundLocId, 'success');
         highlightAndOpenSlot(foundLocId);
         
@@ -1881,10 +1917,7 @@ function verifyPalletSSCCRack(sscc) {
             }
         }, 400);
     } else {
-        safeToast('❌ Brak palety na tym regale!', 'error');
-        AppDialog.alert('Paleta z kodem <b>' + sscc + '</b> NIE ZNAJDUJE SIĘ na tym regale.', 'Błąd weryfikacji').then(() => {
-            refocusRackScanner();
-        });
+        globalSearchAndPrompt(sscc, 'rack', null);
     }
 }
 
@@ -1902,6 +1935,98 @@ function highlightAndFocusCard(card) {
     if (weightInput) {
         setTimeout(() => weightInput.focus(), 300);
     }
+}
+
+function globalSearchAndPrompt(sscc, context, targetLoc) {
+    safeToast('Szukanie palety w systemie...', 'info');
+    fetch('{{ url_for("inwentaryzacja.szukaj_globalnie") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sscc: sscc})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success && data.paleta) {
+            if (context === 'rack') {
+                AppDialog.alert(
+                    `Paleta <b>${sscc}</b> (${data.paleta.nazwa}) znajduje się w lokalizacji: <b>${data.paleta.lokalizacja}</b>.<br><br>Aby ją zweryfikować, najpierw zeskanuj lub wybierz odpowiednie gniazdo na tym regale.`,
+                    'Paleta w innej lokalizacji'
+                ).then(() => refocusRackScanner());
+            } else {
+                AppDialog.confirm(
+                    `Paleta <b>${sscc}</b> (${data.paleta.nazwa}) znajduje się w innej lokalizacji: <b>${data.paleta.lokalizacja}</b>.<br><br>Czy przenieść ją do <b>${targetLoc}</b> i zweryfikować?`,
+                    'Paleta znaleziona'
+                ).then(confirmed => {
+                    if(confirmed) {
+                        movePalletToLocation(data.paleta, targetLoc, context);
+                    } else {
+                        if (context === 'detail') refocusDetailScanner();
+                    }
+                });
+            }
+        } else {
+            AppDialog.alert(`Paleta z kodem <b>${sscc}</b> NIE ZNAJDUJE SIĘ w bieżącym widoku ani w bazie systemu.<br><br>Dodaj ją ręcznie klikając "DODAJ PALETĘ".`, 'Brak palety').then(() => {
+                if (context === 'detail') refocusDetailScanner();
+                if (context === 'rack') refocusRackScanner();
+            });
+        }
+    }).catch(e => {
+        AppDialog.alert('Błąd połączenia podczas globalnego szukania palety.', 'Błąd');
+    });
+}
+
+function movePalletToLocation(paleta, targetLoc, context) {
+    let mapTyp = 'PAL';
+    const t = (paleta.typ || '').toLowerCase();
+    if(t.includes('surowiec')) mapTyp = 'surowiec';
+    else if(t.includes('opakowanie')) mapTyp = 'opakowanie';
+    else if(t.includes('dodatek')) mapTyp = 'dodatek';
+
+    smartFetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sesja_id: {{ sesja_id }},
+            paleta_id: paleta.id,
+            nr_palety: paleta.nr_palety,
+            typ_palety: mapTyp,
+            nazwa: paleta.nazwa,
+            lokalizacja: targetLoc,
+            nr_partii: paleta.nr_partii || 'BRAK',
+            waga_systemowa: paleta.waga || 0,
+            waga_faktyczna: paleta.waga || 0,
+            data_produkcji: paleta.data_produkcji || '',
+            data_przydatnosci: paleta.data_przydatnosci || '',
+            linia: paleta.linia,
+            typ_opakowania: '',
+            jednostka: paleta.jednostka || 'kg'
+        })
+    }).then(r => r.json()).then(saveData => {
+        if (saveData.success) {
+            safeToast('Paleta przypisana pomyślnie!', 'success');
+            if(context === 'results') {
+                searchLocation(); 
+            } else if(context === 'detail') {
+                fetch('{{ url_for("inwentaryzacja.szukaj_regalu") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prefix: currentRackPrefix, sesja_id: {{ sesja_id }}})
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if(data.success) {
+                        rackData = data.rack_data;
+                        renderRackGrid(currentRackPrefix);
+                        highlightAndOpenSlot(targetLoc); 
+                    }
+                });
+            }
+        } else {
+            AppDialog.alert(saveData.message || 'Wystąpił błąd', 'Błąd zapisu');
+        }
+    }).catch(e => {
+        AppDialog.alert('Błąd połączenia podczas przypisywania.', 'Błąd');
+    });
 }
 </script>
 

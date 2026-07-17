@@ -4,7 +4,7 @@
 const OrdersModule = (function () {
     'use strict';
 
-    const API_BASE = '/magazyny-nowe/api/orders';
+    const API_BASE = '/warehouse-v2/api/orders';
     const REFRESH_INTERVAL_MS = 30000;
 
     let _refreshTimer = null;

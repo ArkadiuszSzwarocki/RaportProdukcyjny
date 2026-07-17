@@ -1,0 +1,75 @@
+﻿
+>     def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tup
+le[List, Dict, int, int]:
+          """Get production plans for section with formatting and palety mapping."""
+          conn = None
+          if cursor is None:
+              conn = get_db_connection()
+              cursor = conn.cursor()
+  
+          # Trigger buffer sync for AGRO to ensure weights are correct (especially in test DB)
+          if linia == 'AGRO':
+              try:
+                  refresh_bufor_queue(linia='AGRO')
+              except Exception as e:
+                  _logger.warning(f"Failed to refresh AGRO buffer: {e}")
+  
+          plan_dnia = QueryHelper.get_plan_produkcji(
+              dzisiaj, 
+              sekcja if sekcja != 'Dashboard' else 'Workowanie',
+              linia=linia,
+              cursor=cursor,
+              data_od=data_od,
+              data_do=data_do
+          )
+          
+          _logger.info(f"get_production_plans(linia={linia}, sekcja={sekcja}) -> Found {len(plan_dnia)} plans from DB")
+          
+          if sekcja in ('Workowanie', 'Czyszczenie') and not plan_dnia:
+              plan_dnia = ProductionService._get_workowanie_fallback(dzisiaj, linia=linia, cursor=cursor)
+          
+          # Format times
+          for p in plan_dnia:
+              try:
+                  p[4] = p[4].strftime('%H:%M') if p[4] else ''
+              except Exception:
+                  p[4] = str(p[4]) if p[4] else ''
+              try:
+                  p[5] = p[5].strftime('%H:%M') if p[5] else ''
+              except Exception:
+                  p[5] = str(p[5]) if p[5] else ''
+  
+          # Transfer map logic
+          przeniesione_map = ProductionService._get_transfer_map(plan_dnia, linia, cursor)
+          
+          zasyp_id_original_map = {}
+          for p in plan_dnia:
+              if len(p) > 14 and p[14]:
+                  zasyp_id_original_map[p[0]] = p[14]
+              
+              # Extract opakowanie_nazwa and etykieta_nazwa if present
+              opak_nazwa = p[15] if len(p) > 15 else None
+              etyk_nazwa = p[16] if len(p) > 16 else None
+              
+              # Shrink back to 15 items to not mess up fixed index assignments
+              while len(p) > 15:
+                  p.pop()
+  
+              # Ensure we have enough space for extra metadata (indices 15+)
+              while len(p) < 29:
+                  p.append(None)
+                  
+              p[27] = opak_nazwa
+              p[28] = etyk_nazwa
+              
+              src = przeniesione_map.get(p[0], '')
+              if not src:
+                  nazwa = (p[12] if len(p) > 12 and p[12] is not None else '')
+                  for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                      if nazwa.startswith(prefix):
+                          raw_date = nazwa[len(prefix):].strip()
+                          try:
+                              src = datetime.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                          except Exception: pass
+
+

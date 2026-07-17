@@ -1,0 +1,28 @@
+/* COLOR PALETTE */
+/* SHADOWS */
+/* TYPOGRAPHY */
+/* BORDER & RADIUS */
+/* TRANSITIONS */
+/* SECTION 1: OVERLAYS & MODALS */
+/* --- HAMBURGER MENU (Mobile) --- */
+/* --- LAYOUT --- */
+/* --- APP LAYOUT: SIDEBAR + MAIN --- */
+/* HALL SWITCHER */
+/* --- TOP BAR --- */
+/* ─────── BUTTONS & FORMS  ─────── */
+/* ================= Quick popup (global) ================= */
+/* --- LOGIN PAGE STYLES --- */
+/* SECTION 2: RESPONSIVE & MOBILE STYLES */
+/* ======= Additional popup styles ======= */
+/* OBSADA PAGE STYLES */
+/* DURATION/FAILURES (DUR_AWARIE) STYLES */
+/* ==================== DOSYPKA FORM POPUP ==================== */
+/* ============================================================
+   ZEBRA MC330x / MOBILE OPTIMIZATIONS (Aggressive Overrides)
+   ============================================================ */
+/* --- NEW PREMIUM TOP BAR LAYOUT --- */
+/* DESKTOP INDEPENDENT SIDEBAR SCROLL LAYOUT */
+/* COLLAPSED STATE OVERRIDES */
+/* ============================================================
+   RESPONSIVE LAYOUT UPGRADES FOR SMALL & MEDIUM SCREENS (<= 1200px)
+   ============================================================ */

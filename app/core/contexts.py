@@ -36,7 +36,7 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'css', 'dashboard.css'),
             os.path.join(current_app.root_path, 'static', 'scripts.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'magazyny_nowe.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'agro_warehouse.js'),
         ]
         mtimes = []

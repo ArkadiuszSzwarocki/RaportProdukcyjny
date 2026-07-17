@@ -33,7 +33,7 @@ from app.blueprints.main import main_bp
 from app.blueprints.struktura import struktura_bp
 from app.blueprints.agro_warehouse import agro_warehouse_bp
 from app.blueprints.mom import mom_bp
-from app.blueprints.magazyny_nowe import magazyny_nowe_bp
+from app.blueprints.warehouse_v2 import warehouse_v2_bp
 from app.blueprints.scanner import scanner_bp
 from app.blueprints.magazyn_dostawy import magazyn_dostawy_bp
 from app.blueprints.traceability import traceability_bp
@@ -122,7 +122,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(struktura_bp)
     app.register_blueprint(agro_warehouse_bp)
     app.register_blueprint(mom_bp)
-    app.register_blueprint(magazyny_nowe_bp)
+    app.register_blueprint(warehouse_v2_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(magazyn_dostawy_bp)
     app.register_blueprint(traceability_bp)

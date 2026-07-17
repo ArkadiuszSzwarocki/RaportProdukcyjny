@@ -1,6 +1,6 @@
 function togglePalletBlock() {
     if(!currentPallet.id) return;
-    fetch('/magazyny-nowe/api/pallet/toggle-block', {
+    fetch('/warehouse-v2/api/pallet/toggle-block', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -80,7 +80,7 @@ async function printCurrentPallet(triggerBtn) {
             triggerBtn.disabled = true;
         }
 
-        fetch('/magazyny-nowe/api/pallet/print', fetchOptions)
+        fetch('/warehouse-v2/api/pallet/print', fetchOptions)
         .then(r => r.json())
         .then(async data => {
             if(data.success) {

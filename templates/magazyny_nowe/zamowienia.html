@@ -355,7 +355,7 @@
 
 <div class="orders-page">
     <!-- BACK BUTTON -->
-    <a href="{{ url_for('magazyny_nowe.index', linia=linia) }}" class="orders-back-btn">
+    <a href="{{ url_for('warehouse_v2.index', linia=linia) }}" class="orders-back-btn">
         <span class="material-icons" style="font-size: 18px;">arrow_back</span>
         Powrót do Magazynu
     </a>
@@ -366,7 +366,7 @@
             <span class="material-icons">shopping_cart</span>
             <h2>Zamówienia z Magazynu</h2>
         </div>
-        <a href="{{ url_for('magazyny_nowe.zamowienie_nowe', linia=linia) }}" class="order-submit-btn" style="width: auto; padding: 10px 20px; text-decoration: none;">
+        <a href="{{ url_for('warehouse_v2.zamowienie_nowe', linia=linia) }}" class="order-submit-btn" style="width: auto; padding: 10px 20px; text-decoration: none;">
             <span class="material-icons">add_circle</span>
             ZŁÓŻ NOWE ZAMÓWIENIE
         </a>
@@ -408,6 +408,6 @@
 <!-- TOAST NOTIFICATION -->
 <div class="order-toast" id="orderToast"></div>
 
-<script src="{{ url_for('static', filename='js/magazyny_nowe/orders.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/orders.js') }}?v={{ static_version }}"></script>
 
 {% endblock %}

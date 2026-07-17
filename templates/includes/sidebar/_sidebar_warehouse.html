@@ -14,9 +14,9 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['magazyny_nowe', 'magazyn_dostawy', 'scanner', 'traceability'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
-        <a href="{{ url_for('magazyny_nowe.index', linia=effective_hall) }}" class="nav-sub-item {% if request.blueprint == 'magazyny_nowe' %}active{% endif %}">Wszystkie Magazyny</a>
+        <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.blueprint == 'warehouse_v2' %}active{% endif %}">Wszystkie Magazyny</a>
         {% endif %}
         {% if role_has_access('magazyn.reception') %}
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' %}active{% endif %}">Przyjęcie dostawy</a>
@@ -65,7 +65,7 @@
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
-        <a href="{{ url_for('magazyny_nowe.zamowienia', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyny_nowe.zamowienia' %}active{% endif %}">
+        <a href="{{ url_for('warehouse_v2.zamowienia', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zamowienia' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Zamówienia</span>
                 <span id="sidebarOrdersBadge" class="nav-pending-badge" aria-label="Nowe zamówienia" style="{% if not pending_orders_count or pending_orders_count == 0 %}display: none;{% endif %}">

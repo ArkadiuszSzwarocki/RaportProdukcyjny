@@ -1,0 +1,78 @@
+﻿
+>     def create_plan(data_planu, produkt, tonaz, sekcja, typ_produkcji='worki_zgrzewane_25', 
+                     status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None, 
+linia='PSD'):
+          """Create a new production plan.
+          
+          Args:
+              data_planu: Plan date (YYYY-MM-DD or date object)
+              produkt: Product name (required)
+              tonaz: Tonnage (kg or units)
+              sekcja: Section/department
+              typ_produkcji: Production type
+              status: Initial status (nieoplacone|zaplanowane)
+              wymaga_oplaty: Whether payment is required
+              
+          Returns:
+              Tuple (success: bool, message: str, plan_id: int or None)
+          """
+          try:
+              if not produkt or not produkt.strip():
+                  return (False, 'Produkt jest wymagany.', None)
+              
+              if isinstance(data_planu, date):
+                  data_planu = data_planu.isoformat()
+              
+              try:
+                  tonaz = int(float(tonaz)) if tonaz else 0
+              except Exception:
+                  tonaz = 0
+              
+              # Normalize sekcja properly: keep specific acronyms capitalized
+              if sekcja:
+                  s = sekcja.strip().upper()
+                  if s in ['PSD', 'AGRO']:
+                      sekcja = s
+                  else:
+                      sekcja = s[0].upper() + s[1:].lower() if len(s) > 0 else 'Zasyp'
+              else:
+                  sekcja = 'Zasyp'
+              
+              # Determine initial status
+              if wymaga_oplaty:
+                  initial_status = 'nieoplacone'
+              else:
+                  initial_status = status or 'zaplanowane'
+              
+              table_plan = get_table_name('plan_produkcji', linia)
+              
+              conn = get_db_connection()
+              cursor = conn.cursor()
+              
+              # Prevent creating duplicate plans for same date+product
+              try:
+                  cursor.execute(
+                      f"SELECT id, sekcja FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja=%s AND (is_de
+leted=0 OR is_deleted IS NULL) LIMIT 1",
+                      (data_planu, produkt, sekcja)
+                  )
+                  existing = cursor.fetchone()
+                  if existing:
+                      existing_id = existing[0] if isinstance(existing, (list, tuple)) and len(existing) > 0 else exist
+ing
+                      conn.close()
+                      return (False, f'Istnieje juĹĽ zlecenie dla produktu "{produkt}" na {data_planu}. Edytuj istniejÄ
+…cy plan zamiast dodawaÄ‡ nowe.', existing_id)
+              except Exception:
+                  # If anything goes wrong with the duplicate check, continue with insertion
+                  try:
+                      conn.rollback()
+                  except Exception:
+                      pass
+              
+              # Get next sequence number for the day
+              cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s", (data_planu,))
+              res = cursor.fetchone()
+              nk = (res[0] if res and res[0] else 0) + 1
+
+

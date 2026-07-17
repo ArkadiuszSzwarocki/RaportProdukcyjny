@@ -5,7 +5,7 @@ function fetchHistory() {
     document.getElementById('modalHistoryContainer').style.display = 'block';
     document.getElementById('modalHistoryList').innerHTML = '<li style="color: #64748b;">Ładowanie...</li>';
     
-    fetch(`/magazyny-nowe/api/pallet/history?id=${currentPallet.id}&type=${currentPallet.type}&linia=${currentPallet.linia}`)
+    fetch(`/warehouse-v2/api/pallet/history?id=${currentPallet.id}&type=${currentPallet.type}&linia=${currentPallet.linia}`)
     .then(r => r.json())
     .then(data => {
         const list = document.getElementById('modalHistoryList');

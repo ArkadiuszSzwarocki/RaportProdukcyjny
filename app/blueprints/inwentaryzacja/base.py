@@ -65,6 +65,19 @@ def szukaj_regalu():
     return jsonify({"success": True, "rack_data": rack_data})
 
 
+@inwentaryzacja_bp.route('/api/szukaj-globalnie', methods=['POST'])
+def szukaj_globalnie():
+    data = request.json
+    sscc = data.get('sscc', '').strip().upper()
+    
+    paleta = InwentaryzacjaService.szukaj_globalnie_palety(sscc)
+    if paleta:
+        return jsonify({"success": True, "paleta": paleta})
+    else:
+        return jsonify({"success": False, "message": "Nie znaleziono palety w systemie."})
+
+
+
 @inwentaryzacja_bp.route('/api/podpowiedzi-nazw', methods=['GET'])
 def podpowiedzi_nazw():
     typ = request.args.get('typ')

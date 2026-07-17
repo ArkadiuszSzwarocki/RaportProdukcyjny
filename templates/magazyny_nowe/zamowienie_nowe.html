@@ -214,7 +214,7 @@
 </style>
 
 <div class="new-order-page">
-    <a href="{{ url_for('magazyny_nowe.zamowienia', linia=linia) }}" class="orders-back-btn">
+    <a href="{{ url_for('warehouse_v2.zamowienia', linia=linia) }}" class="orders-back-btn">
         <span class="material-icons" style="font-size: 18px;">arrow_back</span>
         Wróć do listy zamówień
     </a>
@@ -250,11 +250,11 @@
 
 <div class="order-toast" id="orderToast"></div>
 
-<script src="{{ url_for('static', filename='js/magazyny_nowe/order_new.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/order_new.js') }}?v={{ static_version }}"></script>
 
 <script>
     // Inicjalizacja URL-a powrotu w JS (potrzebne po udanym zapisie)
-    const ORDER_LIST_URL = "{{ url_for('magazyny_nowe.zamowienia', linia=linia) }}";
+    const ORDER_LIST_URL = "{{ url_for('warehouse_v2.zamowienia', linia=linia) }}";
 </script>
 
 {% endblock %}

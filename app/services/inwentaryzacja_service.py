@@ -26,6 +26,44 @@ class InwentaryzacjaService:
         return f"{prefix}-{item_id}"
 
     @staticmethod
+    def szukaj_globalnie_palety(sscc_lub_id: str):
+        """
+        Przeszukuje całą bazę (magazyn_palety, magazyn_surowce, itp.)
+        w poszukiwaniu palety po nr_palety (SSCC) lub ID.
+        Zwraca dict z danymi palety lub None.
+        """
+        sscc = str(sscc_lub_id or '').strip().upper()
+        if not sscc:
+            return None
+            
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Wyrób gotowy (PSD i AGRO)
+            for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
+                cursor.execute(f"SELECT id, nr_palety, nazwa, nr_partii, waga_aktualna as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka FROM {tbl} WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
+                row = cursor.fetchone()
+                if row: return row
+                
+            # Surowce
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, jednostka FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
+            row = cursor.fetchone()
+            if row: return row
+            
+            # Opakowania
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
+            row = cursor.fetchone()
+            if row: return row
+
+            return None
+        except Exception as e:
+            print(f"Error szukaj_globalnie_palety: {e}")
+            return None
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_active_session(linia=None):
         conn = get_db_connection()
         try:

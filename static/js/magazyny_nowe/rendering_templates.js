@@ -198,5 +198,5 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
     return locText.includes(searchPart);
 }
 
-console.log("[magazyny_nowe] Logika filtrowania zainicjowana.");
+console.log("[warehouse_v2] Logika filtrowania zainicjowana.");
 

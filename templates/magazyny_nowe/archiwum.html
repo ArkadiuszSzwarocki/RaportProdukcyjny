@@ -9,7 +9,7 @@
             <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Historia palet zutylizowanych, zużytych lub przeniesionych do archiwum (limit: ostatnie 1000 sztuk).</p>
         </div>
         <div class="d-flex gap-10">
-            <button onclick="window.location.href='{{ url_for('magazyny_nowe.index', linia=linia) }}'" class="btn-action" style="background: white; border: 1px solid #e2e8f0; color: #475569; padding: 10px 20px; border-radius: 10px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <button onclick="window.location.href='{{ url_for('warehouse_v2.index', linia=linia) }}'" class="btn-action" style="background: white; border: 1px solid #e2e8f0; color: #475569; padding: 10px 20px; border-radius: 10px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <span class="material-icons">arrow_back</span> Magazyn Główny
             </button>
         </div>
@@ -113,7 +113,7 @@
         let locStr = prompt("Podaj lokalizację (np. R03), na którą ma trafić paleta:");
         if (locStr === null) return; // User cancelled
         
-        fetch(`/magazyny-nowe/api/archiwum/restore/${archiveId}`, {
+        fetch(`/warehouse-v2/api/archiwum/restore/${archiveId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
