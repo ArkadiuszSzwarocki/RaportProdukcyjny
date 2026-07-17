@@ -360,8 +360,8 @@ def print_pallet_label():
 @magazyny_nowe_bp.route('/api/pallet/delete', methods=['POST'])
 def delete_pallet():
     """Trwałe usunięcie palety z bazy danych (np. duplikaty testowe). Wymaga roli admin/masteradmin."""
-    from flask import session as flask_session
-    role = (flask_session.get('rola') or '').lower().replace(' ', '').replace('_', '').strip()
+    from flask import session as session
+    role = (session.get('rola') or '').lower().replace(' ', '').replace('_', '').strip()
     if role not in ('masteradmin', 'admin', 'administrator'):
         return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola admin.'}), 403
 
@@ -401,7 +401,7 @@ def delete_pallet():
                 INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (row['id'], row.get('nr_palety'), row.get(col_name), pallet_type, linia,
-                  row.get(col_amount, 0), row.get('lokalizacja'), flask_session.get('login', 'admin'),
+                  row.get(col_amount, 0), row.get('lokalizacja'), session.get('login', 'admin'),
                   'USUNIĘTO: duplikat/paleta testowa'))
         except Exception as ae:
             print(f"Archive warning (non-fatal): {ae}")
@@ -412,7 +412,7 @@ def delete_pallet():
         try:
             cursor.execute(
                 "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
-                (pallet_id, linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", flask_session.get('login', 'admin'))
+                (pallet_id, linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", session.get('login', 'admin'))
             )
         except Exception as hist_err:
             print(f"History log warning: {hist_err}")
@@ -426,3 +426,77 @@ def delete_pallet():
     finally:
         conn.close()
 
+@magazyny_nowe_bp.route('/api/archiwum/restore/<int:archive_id>', methods=['POST'])
+def restore_from_archive(archive_id):
+    try:
+        data = request.json or {}
+        new_weight = data.get('waga', 0)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # 1. Pobierz rekord z archiwum
+        cursor.execute("SELECT * FROM magazyn_archiwum WHERE id = %s", (archive_id,))
+        arc_row = cursor.fetchone()
+        if not arc_row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Nie znaleziono wpisu w archiwum.'}), 404
+            
+        new_location = data.get('lokalizacja') or arc_row['lokalizacja_ostatnia']
+        typ_palety = arc_row['typ_palety'].lower()
+        linia = arc_row.get('linia', 'PSD')
+        
+        if typ_palety == 'surowiec':
+            table = get_table_name('magazyn_surowce', linia)
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
+        elif typ_palety == 'opakowanie':
+            table = get_table_name('magazyn_opakowania', linia)
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
+        elif typ_palety == 'dodatek':
+            table = get_table_name('magazyn_dodatki', linia)
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
+        else:
+            table = get_table_name('magazyn_palety', linia)
+            col_amount = 'waga_netto'
+            col_name = 'produkt'
+            
+        # 2. Sprawdź duplikat nr_palety
+        nr_palety = arc_row['nr_palety']
+        if nr_palety:
+            cursor.execute(f"SELECT id FROM {table} WHERE nr_palety = %s", (nr_palety,))
+            if cursor.fetchone():
+                conn.close()
+                return jsonify({'success': False, 'error': f'Paleta o numerze {nr_palety} już istnieje w głównym magazynie!'}), 400
+                
+        # 3. Wstaw z powrotem
+        cursor.execute(f"""
+            INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (nr_palety, arc_row['nazwa'], new_weight, new_location, linia))
+        
+        new_id = cursor.lastrowid
+        
+        # 4. Dodaj log w historii
+        user_login = session.get('login', 'admin')
+        cursor.execute("""
+            INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login)
+            VALUES (%s, %s, %s, 'PRZYWROCENIE_Z_ARCHIWUM', %s, %s, %s)
+        """, (new_id, linia, typ_palety, arc_row['lokalizacja_ostatnia'], f'Przywrócono z archiwum z wagą: {new_weight}. Dawna lokalizacja: {arc_row["lokalizacja_ostatnia"]}', user_login))
+        
+        # 5. Usuń z archiwum
+        cursor.execute("DELETE FROM magazyn_archiwum WHERE id = %s", (archive_id,))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Paleta została pomyślnie przywrócona.'})
+        
+    except Exception as e:
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        print(f"Error restoring pallet: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()

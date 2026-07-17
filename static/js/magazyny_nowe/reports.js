@@ -59,4 +59,101 @@ function printInventorySheet(items, linia) {
     window.print();
 }
 
+function printFilteredPallets() {
+    if (typeof currentFilteredItems === 'undefined' || !currentFilteredItems || currentFilteredItems.length === 0) {
+        alert("Brak wyników do wydruku. Najpierw wyszukaj palety.");
+        return;
+    }
 
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert("Zablokowano otwieranie nowego okna. Zezwól na wyskakujące okienka (pop-ups) w przeglądarce.");
+        return;
+    }
+
+    const searchStr = document.getElementById("searchInput")?.value || "";
+    const locStr = document.getElementById("locationSearchInput")?.value || "";
+    let filterInfo = "";
+    if (searchStr) filterInfo += `Szukano: "${searchStr}" `;
+    if (locStr) filterInfo += `Lokalizacja: "${locStr}"`;
+    if (!filterInfo) filterInfo = "Wszystkie pozycje (brak filtrów)";
+
+    let html = `
+    <html>
+    <head>
+        <title>Wydruk Listy Magazynowej</title>
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; font-size: 13px; }
+            h2 { text-align: center; margin-bottom: 5px; }
+            .info { text-align: center; margin-bottom: 20px; font-size: 12px; color: #555; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .checkbox-col { width: 40px; text-align: center; }
+            .checkbox-box { width: 20px; height: 20px; border: 2px solid #000; margin: 0 auto; display: inline-block; }
+            .right { text-align: right; }
+            .center { text-align: center; }
+            @media print {
+                @page { margin: 1cm; size: A4 portrait; }
+                button { display: none; }
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Lista Kontrolna Magazynu</h2>
+        <div class="info">Data wydruku: ${new Date().toLocaleString()} | ${filterInfo} | Liczba pozycji: ${currentFilteredItems.length}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-col">OK</th>
+                    <th>Lokalizacja</th>
+                    <th>Nr Palety</th>
+                    <th>Nazwa Produktu</th>
+                    <th class="right">Ilość/Waga</th>
+                    <th>Data Ważności</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    // Sort by location first, then by name
+    const sortedItems = [...currentFilteredItems].sort((a, b) => {
+        const locA = a.location || '';
+        const locB = b.location || '';
+        if (locA !== locB) return locA.localeCompare(locB);
+        return (a.productName || '').localeCompare(b.productName || '');
+    });
+
+    sortedItems.forEach(item => {
+        html += `
+            <tr>
+                <td class="checkbox-col"><div class="checkbox-box"></div></td>
+                <td class="center"><strong>${item.location || '-'}</strong></td>
+                <td>${item.displayId || '-'}</td>
+                <td>${item.productName || '-'}</td>
+                <td class="right">${item.amount} ${item.unit || ''}</td>
+                <td class="center">${item.date_exp !== '-' ? item.date_exp : (item.date_prod || '-')}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+        <div style="margin-top: 30px; display: flex; justify-content: space-between;">
+            <div>Podpis magazyniera: .......................................</div>
+            <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">🖨️ Drukuj Teraz</button>
+        </div>
+        <script>
+            // Automatycznie wywołaj drukowanie po załadowaniu
+            window.onload = function() { window.print(); }
+        </script>
+    </body>
+    </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+}

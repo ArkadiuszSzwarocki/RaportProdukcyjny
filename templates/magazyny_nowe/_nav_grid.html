@@ -111,6 +111,9 @@
                 <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
                     <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
                 </button>
+                <button onclick="window.location.href='{{ url_for('magazyny_nowe.archiwum', linia=linia) }}'" class="status-link-btn" style="background: #f1f5f9; border-color: #94a3b8; color: #475569;">
+                    <span class="material-icons">inventory_2</span> ARCHIWUM PALET
+                </button>
             </div>
         </div>
     </div>

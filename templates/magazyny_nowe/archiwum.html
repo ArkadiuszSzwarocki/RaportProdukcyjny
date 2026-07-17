@@ -1,0 +1,168 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="archive-container" style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+    
+    <div class="d-flex justify-between align-center mb-30 flex-wrap gap-15">
+        <div>
+            <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #1e293b;">Archiwum Palet</h1>
+            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Historia palet zutylizowanych, zużytych lub przeniesionych do archiwum (limit: ostatnie 1000 sztuk).</p>
+        </div>
+        <div class="d-flex gap-10">
+            <button onclick="window.location.href='{{ url_for('magazyny_nowe.index', linia=linia) }}'" class="btn-action" style="background: white; border: 1px solid #e2e8f0; color: #475569; padding: 10px 20px; border-radius: 10px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <span class="material-icons">arrow_back</span> Magazyn Główny
+            </button>
+        </div>
+    </div>
+
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); padding: 20px; overflow-x: auto;">
+        <table id="archiveTable" class="display" style="width:100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="background: #f8fafc; color: #475569; font-size: 12px; font-weight: 800; letter-spacing: 0.5px;">
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">DATA ARCHIWIZACJI</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">NR PALETY</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">NAZWA</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">TYP</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">OSTATNIA WAGA</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">LOK.</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">UŻYTKOWNIK</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0;">KOMENTARZ</th>
+                    <th style="padding: 15px 10px; border-bottom: 2px solid #e2e8f0; text-align: center;">AKCJE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" id="row-{{ item.id }}">
+                    <td style="padding: 12px 10px; font-size: 13px; font-weight: 600; color: #334155;">{{ item.data_archiwizacji_str }}</td>
+                    <td style="padding: 12px 10px; font-size: 13px; font-weight: 700; color: #2563eb;">{{ item.nr_palety }}</td>
+                    <td style="padding: 12px 10px; font-size: 14px; font-weight: 600; color: #1e293b;">{{ item.nazwa }}</td>
+                    <td style="padding: 12px 10px; font-size: 12px;">
+                        {% if item.typ_palety == 'surowiec' %}
+                            <span style="background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 6px; font-weight: 700;">SUR</span>
+                        {% elif item.typ_palety == 'opakowanie' %}
+                            <span style="background: #f3e8ff; color: #6b21a8; padding: 4px 8px; border-radius: 6px; font-weight: 700;">OPK</span>
+                        {% elif item.typ_palety == 'dodatek' %}
+                            <span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 6px; font-weight: 700;">DOD</span>
+                        {% else %}
+                            <span style="background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; font-weight: 700;">{{ item.typ_palety|upper }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px 10px; font-size: 13px; font-weight: 700; color: #0f172a;">{{ item.waga_ostatnia }}</td>
+                    <td style="padding: 12px 10px; font-size: 13px; font-weight: 700; color: #0f172a;">{{ item.lokalizacja_ostatnia }}</td>
+                    <td style="padding: 12px 10px; font-size: 13px; color: #64748b;">{{ item.user_login }}</td>
+                    <td style="padding: 12px 10px; font-size: 12px; color: #64748b; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ item.komentarz }}">{{ item.komentarz }}</td>
+                    <td style="padding: 12px 10px; text-align: center;">
+                        <button onclick="restorePallet({{ item.id }}, '{{ item.nr_palety }}')" class="btn-action" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 6px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Przywróć na stan">
+                            <span class="material-icons" style="font-size: 18px;">restore</span>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Initialize DataTables -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+<script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#archiveTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.11.5/i18n/pl.json"
+            },
+            "order": [[ 0, "desc" ]],
+            "pageLength": 25,
+            "dom": '<"d-flex justify-between align-center mb-15"<"table-search"f><"table-length"l>>rt<"d-flex justify-between align-center mt-15"<"table-info"i><"table-pagination"p>>'
+        });
+
+        // Add some custom styling to datatables controls
+        $('.dataTables_filter input').css({
+            'padding': '10px 15px',
+            'border-radius': '8px',
+            'border': '1px solid #cbd5e1',
+            'outline': 'none',
+            'font-size': '14px',
+            'margin-left': '10px'
+        });
+        
+        $('.dataTables_length select').css({
+            'padding': '8px 12px',
+            'border-radius': '8px',
+            'border': '1px solid #cbd5e1',
+            'outline': 'none',
+            'font-size': '14px',
+            'margin-left': '10px',
+            'margin-right': '10px'
+        });
+    });
+
+    function restorePallet(archiveId, nrPalety) {
+        let weightStr = prompt("Podaj wagę początkową (kg) dla przywracanej palety " + nrPalety + ":\n\n(Zostaw 0 jeśli chcesz to ustalić później)", "0");
+        if (weightStr === null) return; // User cancelled
+        
+        let weight = parseFloat(weightStr.replace(',', '.'));
+        if (isNaN(weight) || weight < 0) {
+            alert("Nieprawidłowa wartość wagi.");
+            return;
+        }
+
+        let locStr = prompt("Podaj lokalizację (np. R03), na którą ma trafić paleta:");
+        if (locStr === null) return; // User cancelled
+        
+        fetch(`/magazyny-nowe/api/archiwum/restore/${archiveId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ waga: weight, lokalizacja: locStr })
+        })
+        .then(response => {
+            if (!response.ok && response.status !== 400 && response.status !== 404 && response.status !== 500) {
+                throw new Error("HTTP " + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert(data.message || 'Przywrócono pomyślnie!');
+                $('#row-' + archiveId).remove();
+            } else {
+                alert('Błąd: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Wystąpił błąd komunikacji z serwerem: ' + error.message);
+        });
+    }
+</script>
+
+<style>
+    /* Custom datatables pagination styles */
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        padding: 5px 12px !important;
+        margin-left: 5px !important;
+        border-radius: 6px !important;
+        border: 1px solid #e2e8f0 !important;
+        background: white !important;
+        color: #475569 !important;
+        font-weight: 600 !important;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current, 
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+        background: #3b82f6 !important;
+        color: white !important;
+        border: 1px solid #2563eb !important;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+</style>
+{% endblock %}

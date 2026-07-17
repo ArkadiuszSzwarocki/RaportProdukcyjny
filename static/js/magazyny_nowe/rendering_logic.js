@@ -1,6 +1,9 @@
 function filterTable() {
     const input = document.getElementById("searchInput");
+    const locInput = document.getElementById("locationSearchInput");
+    
     const filter = input ? input.value.toUpperCase().trim() : "";
+    const locFilter = locInput ? locInput.value.toUpperCase().trim() : "";
     
     // Zapisz aktualną wartość wyszukiwania do localStorage (persist po reload)
     if (input) {
@@ -14,7 +17,7 @@ function filterTable() {
     // 1. Filter JavaScript Array instead of DOM
     currentFilteredItems = allWarehouseItems.filter(item => {
         let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location}`.toUpperCase();
-        return isMatch(allText, item.location || '', filter);
+        return isMatch(allText, item.location || '', filter, locFilter);
     });
 
     // 2. Reset Pagination

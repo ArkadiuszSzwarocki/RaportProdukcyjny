@@ -6,29 +6,50 @@
         <span class="material-icons" id="viewToggleIcon">view_module</span>
     </button>
 
-    <!-- WYSZUKIWARKA (Na całą pozostałą szerokość) -->
-    <div style="position: relative; flex-grow: 1;">
+    <!-- WYSZUKIWARKA PRODUKTU -->
+    <div style="position: relative; flex: 2; min-width: 200px;">
         <span class="material-icons" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 20px;">search</span>
         <input type="text" id="searchInput" placeholder="Szukaj palety..." 
                style="width: 100%; padding: 12px 40px 12px 44px; border: 1px solid #dbe3ea; border-radius: 12px; font-size: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); box-sizing: border-box; background: white;">
         <span class="material-icons" id="clearSearchBtn" onclick="document.getElementById('searchInput').value=''; document.getElementById('searchInput').dispatchEvent(new Event('input')); this.style.display='none';" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 20px; cursor: pointer; display: none;">close</span>
     </div>
     
+    <!-- WYSZUKIWARKA LOKALIZACJI -->
+    <div style="position: relative; flex: 1; min-width: 150px;">
+        <span class="material-icons" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 20px;">place</span>
+        <input type="text" id="locationSearchInput" placeholder="Lokalizacja (np. R03)" 
+               style="width: 100%; padding: 12px 40px 12px 44px; border: 1px solid #dbe3ea; border-radius: 12px; font-size: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); box-sizing: border-box; background: white;">
+        <span class="material-icons" id="clearLocBtn" onclick="document.getElementById('locationSearchInput').value=''; document.getElementById('locationSearchInput').dispatchEvent(new Event('input')); this.style.display='none';" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 20px; cursor: pointer; display: none;">close</span>
+    </div>
+    
+    <!-- PRZYCISK DRUKUJ -->
+    <button onclick="printFilteredPallets()" class="btn-action" style="padding: 10px 20px; background: #f8fafc; border: 1px solid #cbd5e1; color: #475569; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0;">
+        <span class="material-icons">print</span> Wydrukuj Listę
+    </button>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('searchInput');
             const clearBtn = document.getElementById('clearSearchBtn');
+            const locInput = document.getElementById('locationSearchInput');
+            const clearLocBtn = document.getElementById('clearLocBtn');
             
             const toggleClearBtn = () => {
-                if (searchInput.value.length > 0) {
-                    clearBtn.style.display = 'block';
-                } else {
-                    clearBtn.style.display = 'none';
-                }
+                if (searchInput.value.length > 0) clearBtn.style.display = 'block';
+                else clearBtn.style.display = 'none';
+                
+                if (locInput.value.length > 0) clearLocBtn.style.display = 'block';
+                else clearLocBtn.style.display = 'none';
             };
 
             searchInput.addEventListener('input', toggleClearBtn);
+            locInput.addEventListener('input', toggleClearBtn);
             setTimeout(toggleClearBtn, 500);
+            
+            // Re-trigger filterTable when location changes
+            locInput.addEventListener('input', function() {
+                if (typeof filterTable === 'function') filterTable();
+            });
         });
     </script>
 </div>

@@ -292,3 +292,29 @@ def zamowienie_nowe():
     linia = request.args.get('linia', 'PSD').upper()
     return render_template('magazyny_nowe/zamowienie_nowe.html', linia=linia)
 
+@magazyny_nowe_bp.route('/archiwum')
+def archiwum():
+    """Strona z archiwum palet."""
+    linia = request.args.get('linia', 'PSD').upper()
+    conn = get_db_connection()
+    archive_items = []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Pobieramy najnowsze 1000 rekordów z archiwum
+        cursor.execute('''
+            SELECT id, original_id, nr_palety, nazwa, typ_palety, linia, nr_partii, 
+                   waga_ostatnia, lokalizacja_ostatnia, data_archiwizacji, user_login, komentarz
+            FROM magazyn_archiwum
+            ORDER BY data_archiwizacji DESC
+            LIMIT 1000
+        ''')
+        archive_items = cursor.fetchall()
+        for row in archive_items:
+            row['data_archiwizacji_str'] = row['data_archiwizacji'].strftime('%Y-%m-%d %H:%M:%S') if row['data_archiwizacji'] else '-'
+    except Exception as e:
+        print(f"Error fetching archive: {e}")
+    finally:
+        if conn:
+            conn.close()
+            
+    return render_template('magazyny_nowe/archiwum.html', linia=linia, items=archive_items)

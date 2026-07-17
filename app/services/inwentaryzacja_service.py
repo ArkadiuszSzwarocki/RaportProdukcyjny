@@ -302,7 +302,8 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                all_pallets.append(process_pallet(p))
+                res = process_pallet(p)
+                if res: all_pallets.append(res)
             
             # 2. Opakowania
             table_opk = 'magazyn_opakowania'
@@ -311,7 +312,8 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                all_pallets.append(process_pallet(p))
+                res = process_pallet(p)
+                if res: all_pallets.append(res)
 
             # 2.5 Dodatki
             cursor.execute(
@@ -319,7 +321,8 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                all_pallets.append(process_pallet(p))
+                res = process_pallet(p)
+                if res: all_pallets.append(res)
 
             # 3. Wyroby Gotowe
             for hall in hall_contexts:
@@ -330,7 +333,8 @@ class InwentaryzacjaService:
                 )
                 for p in cursor.fetchall():
                     if not p.get('linia'): p['linia'] = hall
-                    all_pallets.append(process_pallet(p))
+                    res = process_pallet(p)
+                    if res: all_pallets.append(res)
             
             # 4. Append new pallets
             for new_p in new_items_list:

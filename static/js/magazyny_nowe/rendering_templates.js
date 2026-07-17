@@ -148,12 +148,18 @@ function clearAllFilters() {
     filterTable();
 }
 
-function isMatch(allText, locText, filter) {
+function isMatch(allText, locText, filter, locationFilter) {
     const filterText = (filter || '').toUpperCase().trim();
     const textMatch = (filterText === "" || allText.indexOf(filterText) > -1);
     const slotMatch = (filterText !== "" && matchesLocationSlots(locText, filterText));
 
     if (!(textMatch || slotMatch)) return false;
+    
+    if (locationFilter) {
+        if (!locText || !locText.toUpperCase().includes(locationFilter)) {
+            return false;
+        }
+    }
 
     const locNormalized = normalizeLocationCode(locText);
     const locParts = parseLocationCode(locText);
