@@ -185,6 +185,7 @@ Inwentaryzacja Magazynu
         sesjaId: {{ sesja_id }},
         targetLokalizacja: '{{ target_lokalizacja | default("") }}',
         url_szukaj_lokalizacji: '{{ url_for("inwentaryzacja.szukaj_lokalizacji") }}',
+        url_verify_location: '{{ url_for("inwentaryzacja.verify_location") }}',
         url_szukaj_regalu: '{{ url_for("inwentaryzacja.szukaj_regalu") }}',
         url_szukaj_globalnie: '{{ url_for("inwentaryzacja.szukaj_globalnie") }}',
         url_zapisz_wpis: '{{ url_for("inwentaryzacja.zapisz_wpis") }}',
@@ -199,7 +200,7 @@ Inwentaryzacja Magazynu
 <script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=3"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}"></script>
 {% endblock %}

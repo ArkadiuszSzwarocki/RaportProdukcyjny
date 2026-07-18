@@ -49,6 +49,53 @@ def skaner(sesja_id):
     target_lokalizacja = sesja.get('lokalizacja') if sesja else 'WSZYSTKO'
     return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id, target_lokalizacja=target_lokalizacja, printers=printers)
 
+@inwentaryzacja_bp.route('/api/verify-location', methods=['POST'])
+def verify_location():
+    data = request.json
+    lokalizacja = data.get('lokalizacja', '').strip().upper()
+    sesja_id = data.get('sesja_id')
+    
+    if not lokalizacja:
+        return jsonify({"success": False, "message": "Brak lokalizacji"})
+        
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Sprawdzenie słownika z uwzględnieniem logiki regałów (z warehouse_v2)
+        cursor.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje")
+        dozwolone = [row['nazwa'].upper() for row in cursor.fetchall()]
+        
+        is_dict_valid = False
+        for dozw_lok in dozwolone:
+            if lokalizacja == dozw_lok:
+                is_dict_valid = True
+                break
+            elif dozw_lok.startswith('R') and len(dozw_lok) == 3 and lokalizacja.startswith(dozw_lok):
+                is_dict_valid = True
+                break
+                
+        if not is_dict_valid:
+            return jsonify({"success": False, "message": f"Nieznana lokalizacja: {lokalizacja} (brak w słowniku)."})
+            
+        # Sprawdzenie przynależności do sesji inwentaryzacyjnej
+        if sesja_id:
+            cursor.execute("SELECT lokalizacja FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
+            sesja = cursor.fetchone()
+            if sesja and sesja['lokalizacja'] and sesja['lokalizacja'] != 'Wszystko':
+                target = sesja['lokalizacja'].upper()
+                is_session_valid = False
+                if lokalizacja == target:
+                    is_session_valid = True
+                elif target.startswith('R') and len(target) == 3 and lokalizacja.startswith(target):
+                    is_session_valid = True
+                    
+                if not is_session_valid:
+                    return jsonify({"success": False, "message": f"BŁĄD: Lokalizacja {lokalizacja} nie należy do tej inwentaryzacji! (Oczekiwano: {target})"})
+                    
+        return jsonify({"success": True})
+    finally:
+        conn.close()
+
 @inwentaryzacja_bp.route('/api/szukaj-lokalizacji', methods=['POST'])
 def szukaj_lokalizacji():
     data = request.json

@@ -24,37 +24,73 @@ function searchLocation() {
 
     // If we are in Rack mode and scan a slot, handle it locally
     if(currentRackPrefix && rawLoc.startsWith(currentRackPrefix) && rawLoc.length >= 6) {
-        highlightAndOpenSlot(rawLoc);
-        document.getElementById('lokalizacjaInput').value = ''; // clear for next scan
-        return;
+        // Here we should also verify, but for now we just verify when opening the blind scan container
     }
-    
-    lastLocation = rawLoc;
-    currentRackPrefix = '';
-    localStorage.setItem('lastInventoryLoc', rawLoc);
-    localStorage.removeItem('lastInventoryRack');
-    
-    // BLIND INVENTORY MODE - do not show existing pallets
-    document.getElementById('locationSearchCard').style.display = 'none';
-    document.getElementById('rackContainer').style.display = 'none';
-    document.getElementById('resultsContainer').style.display = 'none';
-    
-    const blindContainer = document.getElementById('blindScanContainer');
-    if (blindContainer) {
-        blindContainer.style.display = 'block';
-        document.getElementById('blindActiveLocation').textContent = rawLoc;
+
+    const sesjaId = window.inventoryConfig ? window.inventoryConfig.sesjaId : null;
+
+    // Verify location against DB and session limits
+    const verifyUrl = window.INVENTORY_CONFIG && window.INVENTORY_CONFIG.url_verify_location 
+        ? window.INVENTORY_CONFIG.url_verify_location 
+        : '/api/verify-location';
         
-        // Clear previous session scanned items list from UI for new location
-        document.getElementById('blindScannedItems').innerHTML = '';
+    fetch(verifyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lokalizacja: rawLoc, sesja_id: sesjaId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            safeToast(data.message, 'error');
+            if (typeof AppDialog !== 'undefined') {
+                AppDialog.alert(data.message, 'Błąd lokalizacji');
+            }
+            document.getElementById('lokalizacjaInput').value = '';
+            return;
+        }
+
+        // If success, proceed to set location
+        if(currentRackPrefix && rawLoc.startsWith(currentRackPrefix) && rawLoc.length >= 6) {
+            highlightAndOpenSlot(rawLoc);
+            document.getElementById('lokalizacjaInput').value = ''; // clear for next scan
+            return;
+        }
+
+        lastLocation = rawLoc;
+        currentRackPrefix = '';
+        localStorage.setItem('lastInventoryLoc', rawLoc);
+        localStorage.removeItem('lastInventoryRack');
         
-        const banner = document.getElementById('floatingFinishBanner');
-        if (banner) banner.style.display = 'flex';
+        // BLIND INVENTORY MODE - do not show existing pallets
+        document.getElementById('locationSearchCard').style.display = 'none';
+        document.getElementById('rackContainer').style.display = 'none';
+        document.getElementById('resultsContainer').style.display = 'none';
         
-        setTimeout(() => {
-            const ssccInput = document.getElementById('blindSsccInput');
-            if(ssccInput) ssccInput.focus();
-        }, 100);
-    }
+        const blindContainer = document.getElementById('blindScanContainer');
+        if (blindContainer) {
+            blindContainer.style.display = 'block';
+            document.getElementById('blindActiveLocation').textContent = rawLoc;
+            
+            // Clear previous session scanned items list from UI for new location
+            document.getElementById('blindScannedItems').innerHTML = '';
+            
+            const banner = document.getElementById('floatingFinishBanner');
+            if(banner) banner.style.display = 'block';
+            
+            setTimeout(() => {
+                const inp = document.getElementById('blindSsccInput');
+                if (inp) {
+                    inp.value = '';
+                    inp.focus();
+                }
+            }, 300);
+        }
+    })
+    .catch(err => {
+        console.error('Verify error:', err);
+        safeToast('Błąd weryfikacji lokalizacji.', 'error');
+    });
 }
 
 // Globalna zmienna na dane aktualnie skanowanej palety w trybie ślepym
