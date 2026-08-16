@@ -1,0 +1,844 @@
+{% extends "base.html" %}
+
+{% block title %}Formularz Przyjęcia Transferu {{ transfer.transfer_code }} - OSIP{% endblock %}
+
+{% block content %}
+<style>
+.receipt-screen {
+    max-width: 1440px;
+    margin: 0 auto;
+}
+
+.receipt-hero {
+    border-radius: 18px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.receipt-hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.receipt-title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.receipt-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.stage-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e7f1ff;
+    color: #1e40af;
+    border: 1px solid #cfe0ff;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.kpi-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid #e6edf8;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+}
+
+.kpi-card .k-label {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+    margin-bottom: 6px;
+}
+
+.kpi-card .k-value {
+    font-size: 1.06rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.kpi-route {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.kpi-route .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #1d4ed8;
+}
+
+.receipt-progress {
+    margin-top: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    height: 9px;
+    overflow: hidden;
+}
+
+.receipt-progress > div {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #0ea5e9, #22c55e);
+}
+
+/* ── STYLIZACJA KART PRZYJĘCIA ── */
+.receipt-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.receipt-item {
+    background: #ffffff;
+    border: 1px solid #e6edf8;
+    border-radius: 14px;
+    box-shadow: 0 2px 6px rgba(2, 6, 23, 0.05);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.receipt-item.done {
+    opacity: 1;
+    border: 2px solid #22c55e;
+    background: #f0fdf4;
+}
+
+.receipt-head {
+    padding: 12px 14px;
+    border-bottom: 1px solid #eef2f7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.receipt-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.idx-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 800;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.item-title {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 1.05rem;
+}
+
+.item-meta {
+    font-size: 0.82rem;
+    color: #64748b;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.qty-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #166534;
+    border: 1px solid #c9f2da;
+    padding: 5px 12px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.done-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #15803d;
+    font-weight: 800;
+    font-size: 0.82rem;
+    border: 1px solid #bbf7d0;
+}
+
+.bottom-row-grid {
+    padding: 14px;
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 12px;
+    align-items: end;
+}
+
+.field-box label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 800;
+    color: #475569;
+}
+
+.field-box input {
+    width: 100%;
+    min-width: 0;
+    height: 42px;
+    border: 2px solid #93c5fd;
+    border-radius: 10px;
+    padding: 0 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: #eff6ff;
+    color: #1e3a8a;
+    box-sizing: border-box;
+}
+
+.field-box input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.btn-confirm {
+    width: 100%;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1f8c4f, #16713f);
+    color: #ffffff;
+    border: 1px solid #14683a;
+    padding: 0 16px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.btn-confirm:hover {
+    background: linear-gradient(180deg, #16713f, #115c32);
+}
+
+/* ── STYLIZACJA PROFESJONALNEGO SKANERA ── */
+.scanner-hero-card {
+    background: #ffffff;
+    border-radius: 18px;
+    border: 2px solid #2563eb;
+    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.12), 0 8px 10px -6px rgba(37, 99, 235, 0.04);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.scanner-hero-body {
+    padding: 22px 24px;
+}
+
+.scanner-icon-box {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    font-size: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    flex-shrink: 0;
+}
+
+.scanner-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.scanner-step-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 0.85rem;
+    color: #475569;
+    flex-wrap: wrap;
+}
+
+.step-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.78rem;
+}
+
+.step-badge.step-active {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.scanner-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    font-weight: 800;
+    font-size: 0.78rem;
+    letter-spacing: 0.5px;
+}
+
+.pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+    animation: pulse 1.6s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.scanner-input-container {
+    position: relative;
+    width: 100%;
+}
+
+.scanner-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.scanner-input-icon {
+    position: absolute;
+    left: 18px;
+    font-size: 1.5rem;
+    color: #2563eb;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.scanner-field {
+    width: 100%;
+    height: 56px;
+    padding: 0 54px 0 54px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    background: #ffffff;
+    border: 2px solid #3b82f6;
+    border-radius: 12px;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    letter-spacing: 0.5px;
+}
+
+.scanner-field:focus {
+    background: #ffffff;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+
+.btn-clear-scan {
+    position: absolute;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    background: #fee2e2;
+    color: #dc2626;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    z-index: 2;
+}
+
+.btn-clear-scan:hover {
+    background: #fca5a5;
+    color: #991b1b;
+}
+
+.scan-status-banner {
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-size: 1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+@media (max-width: 768px) {
+    .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .bottom-row-grid {
+        grid-template-columns: 1fr;
+    }
+    .scanner-field {
+        font-size: 1rem;
+        height: 48px;
+        padding-left: 44px;
+    }
+}
+</style>
+
+<div class="container-fluid py-3 receipt-screen">
+
+    {% set received_count = transfer.items | selectattr('status', 'equalto', 'RECEIVED') | list | length %}
+    {% set total_count = transfer.items | length %}
+    {% set pending_count = total_count - received_count %}
+    {% set progress = (received_count / total_count * 100) if total_count > 0 else 0 %}
+
+    <!-- HERO HEADER (Identyczny jak w przyjecie_ruchu.html) -->
+    <div class="receipt-hero">
+        <div class="receipt-hero-head">
+            <div>
+                <h1 class="receipt-title">
+                    <i class="fas fa-check-circle text-primary"></i>
+                    Formularz Przyjęcia Przesunięcia OSIP
+                </h1>
+                <p class="receipt-subtitle">
+                    Magazynier potwierdza przyjęcie poszczególnych palet i wpisuje lokalizację odstawienia w hali OSIP.
+                </p>
+                <div class="stage-pill mt-2">
+                    <i class="fas fa-dolly"></i>
+                    Dwuetapowy proces: Odbiór na OSIP
+                </div>
+            </div>
+            <div class="hero-actions">
+                <a href="{{ url_for('osip.transfers_view') }}" class="btn btn-outline-secondary font-weight-bold">
+                    <i class="fas fa-arrow-left mr-1"></i> Rejestr Transferów
+                </a>
+            </div>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="k-label">Zlecenie</div>
+                <div class="k-value mono">{{ transfer.transfer_code }}</div>
+                <div class="small text-muted mt-1"><i class="fas fa-user mr-1"></i>{{ transfer.created_by }}</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="k-label">Trasa ruchu</div>
+                <div class="kpi-route">
+                    <span class="mono">{{ transfer.source_warehouse }}</span>
+                    <i class="fas fa-arrow-right text-muted"></i>
+                    <span class="mono">{{ transfer.destination_warehouse }}</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="k-label">Postęp rozliczenia</div>
+                <div id="kpiProcessedCount" class="k-value">{{ received_count }} / {{ total_count }}</div>
+                <div class="receipt-progress"><div id="kpiProgressFill" style="width: {{ progress }}%;"></div></div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="k-label">Status Zlecenia</div>
+                {% if transfer.status == 'PLANNED' %}
+                    <span class="badge badge-warning px-3 py-1 font-weight-bold">PLANNED</span>
+                {% elif transfer.status == 'IN_TRANSIT' %}
+                    <span class="badge badge-primary px-3 py-1 font-weight-bold">IN_TRANSIT</span>
+                {% elif transfer.status == 'COMPLETED' %}
+                    <span class="badge badge-success px-3 py-1 font-weight-bold">COMPLETED</span>
+                {% else %}
+                    <span class="badge badge-secondary px-3 py-1 font-weight-bold">{{ transfer.status }}</span>
+                {% endif %}
+                <div id="kpiPendingCount" class="small text-muted mt-1">Do przyjęcia: {{ pending_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if pending_count > 0 and transfer.status in ['PLANNED', 'IN_TRANSIT'] %}
+    <!-- BEZOBSŁUGOWY PANEL SKANERA (PROMINENT HIGH-VISIBILITY SCANNER) -->
+    <div class="scanner-hero-card">
+        <div class="scanner-hero-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 pb-3 border-bottom">
+                <div class="d-flex align-items-center mb-2 mb-md-0">
+                    <div class="scanner-icon-box mr-3">
+                        <i class="fas fa-barcode"></i>
+                    </div>
+                    <div>
+                        <h3 class="scanner-title">
+                            Skaner Przyjęcia OSIP
+                        </h3>
+                        <div class="scanner-step-flow" id="scan-step-hint">
+                            <span class="step-badge step-active"><i class="fas fa-box mr-1"></i> 1. Skanuj Paletę (SUR...)</span>
+                            <i class="fas fa-chevron-right text-muted"></i>
+                            <span class="step-badge"><i class="fas fa-map-marker-alt mr-1"></i> 2. Skanuj Aleję (OS01–OS77)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="scanner-live-badge">
+                    <span class="pulse-dot"></span> SKANER AUTO-FOCUS
+                </div>
+            </div>
+
+            <!-- PEŁNE POLE SKANERA -->
+            <div class="scanner-input-container mb-3">
+                <div class="scanner-input-wrapper">
+                    <i class="fas fa-qrcode scanner-input-icon"></i>
+                    <input type="text" id="osip-scanner-input" class="scanner-field" 
+                           placeholder="Zeskanuj kod palety (SUR...) lub aleję odstawienia (OS01–OS77)..." 
+                           autocomplete="off" autofocus>
+                    <button type="button" class="btn-clear-scan" onclick="clearScannerInput()" title="Wyczyść wpis">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- STAN SKANERA STATUS BANNER -->
+            <div id="scan-status-alert" class="scan-status-banner">
+                <span id="scan-status-icon" class="mr-2"><i class="fas fa-box text-primary"></i></span>
+                <span id="scan-status-msg">Oczekiwanie na zeskanowanie kodu palety...</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- LISTA PALET DO PRZYJĘCIA (Karty w stylu przyjecie_ruchu.html) -->
+    <div class="receipt-list mb-4">
+        {% for item in transfer.items %}
+        {% set idx = loop.index %}
+        <div id="row_{{ item.id }}" class="receipt-item{% if item.status == 'RECEIVED' %} done{% endif %}" data-pallet-no="{{ item.nr_palety }}" data-item-id="{{ item.id }}">
+            <div class="receipt-head">
+                <div class="receipt-left">
+                    <span class="idx-badge">{{ idx }}</span>
+                    <div style="min-width: 0;">
+                        <div class="item-title">{{ item.product_name or 'Surowiec' }}</div>
+                        <div class="item-meta">SSCC / Nr Palety: <strong>{{ item.nr_palety or 'Brak' }}</strong></div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if item.status == 'RECEIVED' %}
+                    <span class="done-badge" id="badge-done-{{ item.id }}">
+                        <i class="fas fa-check-circle"></i>
+                        ROZLICZONE
+                    </span>
+                    {% else %}
+                    <span class="badge badge-warning font-weight-bold px-3 py-2" id="badge-done-{{ item.id }}">
+                        <i class="fas fa-clock mr-1"></i> OCZEKUJE
+                    </span>
+                    {% endif %}
+                    <span class="qty-pill">
+                        <i class="fas fa-weight-hanging mr-1"></i>
+                        {{ item.requested_qty }} {{ item.unit or 'kg' }}
+                    </span>
+                </div>
+            </div>
+
+            {% if item.status == 'RECEIVED' %}
+            <div style="padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4;">
+                <div style="font-size: 0.95rem; font-weight: 800; color: #15803d;">
+                    ID palety: <span style="font-family: monospace; font-size: 1.05rem; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">{{ item.nr_palety }}</span>
+                </div>
+                <div style="font-size: 0.9rem; color: #166534; font-weight: 800;">
+                    Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">OSIP</span>
+                </div>
+            </div>
+            {% else %}
+            <div class="bottom-row-grid">
+                <div class="field-box loc">
+                    <label for="loc_{{ item.id }}">Lokalizacja odstawienia</label>
+                    <input id="loc_{{ item.id }}" type="text" placeholder="Wpisz lub zeskanuj aleję (np. OS01–OS77)..." value="" class="text-uppercase font-weight-bold">
+                </div>
+                <div>
+                    <button id="btn_{{ item.id }}" class="btn-confirm" onclick="confirmSingleReceive({{ item.id }}, '{{ item.nr_palety }}')">
+                        <i class="fas fa-check-circle"></i>
+                        Potwierdź przyjęcie
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<script>
+const TRANSFER_ID = {{ transfer.id }};
+let scannedPalletCode = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const scanInput = document.getElementById('osip-scanner-input');
+    if (scanInput) {
+        scanInput.focus();
+        scanInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleScanInput(scanInput.value.trim());
+            }
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (!['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) {
+                scanInput.focus();
+            }
+        });
+    }
+});
+
+function handleScanInput(val) {
+    if (!val) return;
+    const inputEl = document.getElementById('osip-scanner-input');
+    if (inputEl) inputEl.value = '';
+
+    const cleanedVal = val.toUpperCase().trim();
+    const isLocationCode = cleanedVal === 'OSIP' || cleanedVal.startsWith('OS');
+
+    if (!scannedPalletCode && !isLocationCode) {
+        scannedPalletCode = cleanedVal;
+        highlightScannedPalletRow(scannedPalletCode);
+        updateScanStatus('truck-loading', `Zeskanowano paletę: ${scannedPalletCode}. Teraz zeskanuj aleję odstawienia (OS01–OS77).`, '#3b82f6');
+        playBeepSound();
+    } else if (scannedPalletCode && isLocationCode) {
+        const loc = cleanedVal;
+        const pallet = scannedPalletCode;
+        scannedPalletCode = null;
+        executeScanReceive(pallet, loc);
+    } else if (isLocationCode && !scannedPalletCode) {
+        updateScanStatus('exclamation-triangle', `Zeskanowano lokalizację ${cleanedVal}. Najpierw zeskanuj kod palety!`, '#f59e0b');
+    } else {
+        scannedPalletCode = cleanedVal;
+        highlightScannedPalletRow(scannedPalletCode);
+        updateScanStatus('truck-loading', `Przełączono na paletę: ${scannedPalletCode}. Zeskanuj aleję odstawienia (OS01–OS77).`, '#3b82f6');
+        playBeepSound();
+    }
+}
+
+function highlightScannedPalletRow(palletCode) {
+    document.querySelectorAll('.receipt-item').forEach(card => {
+        card.style.border = '';
+    });
+    
+    let matchedCard = null;
+    document.querySelectorAll('.receipt-item').forEach(card => {
+        const code = (card.getAttribute('data-pallet-no') || '').toUpperCase();
+        if (code && (code.includes(palletCode) || palletCode.includes(code))) {
+            matchedCard = card;
+        }
+    });
+
+    if (matchedCard) {
+        matchedCard.style.border = '2px solid #3b82f6';
+        matchedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function confirmSingleReceive(itemId, nrPalety) {
+    const locInput = document.getElementById(`loc_${itemId}`);
+    const targetLoc = locInput ? locInput.value.trim().toUpperCase() : '';
+    if (!targetLoc) {
+        alert('Wprowadź lub zeskanuj aleję odstawienia w OSIP (np. OS01-OS77).');
+        if (locInput) locInput.focus();
+        return;
+    }
+    executeScanReceive(nrPalety, targetLoc);
+}
+
+function executeScanReceive(palletCode, targetLocation) {
+    updateScanStatus('spinner fa-spin', `Zapisywanie palety ${palletCode} -> ${targetLocation}...`, '#64748b');
+
+    fetch(`/osip/api/transfers/${TRANSFER_ID}/scan_receive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pallet_code: palletCode, target_location: targetLocation })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            playSuccessSound();
+            updateScanStatus('check-circle', `SUKCES! ${data.message}`, '#10b981');
+            markRowAsReceived(data.item_id, data.location);
+            updateProgressCounters(data.received_count, data.total_count);
+
+            if (data.completed) {
+                setTimeout(() => { window.location.reload(); }, 1200);
+            }
+        } else {
+            updateScanStatus('times-circle', `BŁĄD: ${data.message}`, '#ef4444');
+        }
+    })
+    .catch(err => {
+        updateScanStatus('times-circle', `Błąd sieci: ${err}`, '#ef4444');
+    });
+}
+
+function markRowAsReceived(itemId, location) {
+    const itemCard = document.getElementById(`row_${itemId}`);
+    if (itemCard) {
+        itemCard.classList.add('done');
+        const badgeEl = document.getElementById(`badge-done-${itemId}`);
+        if (badgeEl) {
+            badgeEl.className = 'done-badge';
+            badgeEl.innerHTML = `<i class="fas fa-check-circle"></i> ROZLICZONE`;
+        }
+
+        const bottomGrid = itemCard.querySelector('.bottom-row-grid');
+        if (bottomGrid) {
+            bottomGrid.outerHTML = `
+                <div style="padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4;">
+                    <div style="font-size: 0.95rem; font-weight: 800; color: #15803d;">
+                        ID palety: <span style="font-family: monospace; font-size: 1.05rem; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">SUR...</span>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #166534; font-weight: 800;">
+                        Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">${location}</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
+
+function updateProgressCounters(received, total) {
+    const kpiCount = document.getElementById('kpiProcessedCount');
+    const kpiPending = document.getElementById('kpiPendingCount');
+    const barEl = document.getElementById('kpiProgressFill');
+    if (kpiCount) kpiCount.innerText = `${received} / ${total}`;
+    if (kpiPending) kpiPending.innerText = `Do przyjęcia: ${total - received}`;
+    if (barEl && total > 0) {
+        const pct = (received / total) * 100;
+        barEl.style.width = pct + '%';
+    }
+}
+
+function clearScannerInput() {
+    const scanInput = document.getElementById('osip-scanner-input');
+    if (scanInput) scanInput.value = '';
+    resetScanState();
+}
+
+function resetScanState() {
+    scannedPalletCode = null;
+    document.querySelectorAll('.receipt-item').forEach(card => {
+        card.style.border = '';
+    });
+    updateScanStatus('box text-warning', 'Oczekiwanie na zeskanowanie kodu palety...', '#cbd5e1');
+    const scanInput = document.getElementById('osip-scanner-input');
+    if (scanInput) scanInput.focus();
+}
+
+function updateScanStatus(iconName, message, color) {
+    const iconEl = document.getElementById('scan-status-icon');
+    const msgEl = document.getElementById('scan-status-msg');
+    const alertEl = document.getElementById('scan-status-alert');
+    if (iconEl) iconEl.innerHTML = `<i class="fas fa-${iconName}"></i>`;
+    if (msgEl) msgEl.innerText = message;
+    if (alertEl && color) {
+        alertEl.style.borderColor = color;
+        if (color === '#10b981') {
+            alertEl.style.background = '#dcfce7';
+            alertEl.style.color = '#15803d';
+        } else if (color === '#3b82f6') {
+            alertEl.style.background = '#eff6ff';
+            alertEl.style.color = '#1d4ed8';
+        } else if (color === '#ef4444') {
+            alertEl.style.background = '#fee2e2';
+            alertEl.style.color = '#b91c1c';
+        } else {
+            alertEl.style.background = '#f1f5f9';
+            alertEl.style.color = '#1e293b';
+        }
+    }
+}
+
+function playBeepSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
+    } catch(e) {}
+}
+
+function playSuccessSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
+        osc.stop(ctx.currentTime + 0.25);
+    } catch(e) {}
+}
+</script>
+{% endblock %}

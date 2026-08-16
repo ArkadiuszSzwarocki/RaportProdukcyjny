@@ -1,0 +1,14 @@
+<div class="p-10" data-popup-title="{{ _('usun_palete_emoji') }}">
+    <p>Czy na pewno chcesz usunąć paletę o id <strong>{{ paleta_id }}</strong>?</p>
+    <form action="{{ url_for('warehouse.usun_palete', paleta_id=paleta_id) }}" method="POST">
+      <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+      <input type="hidden" name="sekcja" value="{{ sekcja or 'Workowanie' }}">
+      {% if source %}
+      <input type="hidden" name="widok_powrotu" value="{{ source }}">
+      {% endif %}
+        <div class="popup-button-group">
+            <button type="submit" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
+            <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
+        </div>
+    </form>
+</div>

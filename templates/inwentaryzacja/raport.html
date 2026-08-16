@@ -1,0 +1,513 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-report p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    {% set loc = (sesja.lokalizacja or '')|upper %}
+    {% set loc_map = {
+        'MOP01': 'Magazyn opakowań podłoga',
+        'MP01': 'Magazyn Produkcji podłoga',
+        'MDM01': 'Magazyn Dodatków podłoga',
+        'BF_MP01': 'Bufor Magazynu produkcyjnego',
+        'R01': 'Regał magazynowy nr. 1'
+    } %}
+    {% set loc_desc = loc_map.get(loc, '') %}
+
+    <div class="report-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
+        <div>
+            <a href="{{ url_for('inwentaryzacja.index') }}" class="no-print" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
+                <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
+            </a>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                <div>
+                    <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #0f172a;">Raport z inwentaryzacji obszaru: {{ loc }}</h1>
+                    {% if loc_desc %}
+                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">{{ loc_desc }}</div>
+                    {% endif %}
+                </div>
+                <div style="margin-left: auto; text-align: right; font-size: 11px; color: #64748b;">
+                    Nr inwentaryzacji
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a;">#{{ sesja.id }}</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
+                Operator: <strong>{{ sesja.created_by or 'system' }}</strong>
+                • Rozpoczęto: {{ sesja.created_at.strftime('%Y-%m-%d %H:%M') if sesja.created_at and sesja.created_at.strftime else sesja.created_at }}
+                • Zakończono: {{ sesja.closed_at.strftime('%Y-%m-%d %H:%M') if sesja.closed_at and sesja.closed_at.strftime else (sesja.closed_at or '-') }}
+            </div>
+
+        </div>
+        
+        <div class="report-actions no-print" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">print</span> DRUKUJ
+            </button>
+            
+            {% if sesja.status == 'OPEN' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="closeSessionFromReport()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #dc2626; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">lock</span> ZAMKNIJ SESJĘ
+            </button>
+            {% endif %}
+            
+            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
+            </button>
+            {% endif %}
+            
+            {% if sesja.status == 'APPLIED' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="openRevertModal()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: #fffbeb; color: #b45309; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">undo</span> COFNIJ ZATWIERDZENIE
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    {% set total_system = entries | selectattr('paleta_id') | list | length %}
+    {% set total_actual = entries | selectattr('waga_faktyczna', 'gt', 0) | list | length %}
+    {% set missing = entries | selectattr('roznica', 'lt', -0.01) | list | length %}
+    {% set found = entries | selectattr('roznica', 'gt', 0.01) | list | length %}
+    {% set roznice = entries | selectattr('alert') | list | length %}
+
+
+    {% set grouped = entries | groupby('nazwa') %}
+
+    <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+        <div class="stat-card" style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #0f172a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Palety Systemowe</div>
+            <div style="font-size: 26px; font-weight: 800; color: #0f172a;">{{ total_system }}</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Powinno być</div>
+        </div>
+        
+        <div class="stat-card" style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #3b82f6; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Palety Zeskanowane</div>
+            <div style="font-size: 26px; font-weight: 800; color: #3b82f6;">{{ total_actual }}</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Fizycznie na regale</div>
+        </div>
+
+        <div class="stat-card" style="background: #fef2f2; padding: 20px; border-radius: 15px; border: 1px solid #fee2e2; border-top: 4px solid #ef4444; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #991b1b; text-transform: uppercase; margin-bottom: 5px;">Braki (Czerwone)</div>
+            <div style="font-size: 26px; font-weight: 800; color: #ef4444;">{{ missing }}</div>
+            <div style="font-size: 10px; color: #b91c1c; margin-top: 5px;">Niezgodności na minus</div>
+        </div>
+
+        <div class="stat-card" style="background: #f0fdf4; padding: 20px; border-radius: 15px; border: 1px solid #dcfce7; border-top: 4px solid #10b981; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #166534; text-transform: uppercase; margin-bottom: 5px;">Nadwyżki (Zielone)</div>
+            <div style="font-size: 26px; font-weight: 800; color: #10b981;">{{ found }}</div>
+            <div style="font-size: 10px; color: #15803d; margin-top: 5px;">Nowe / Na plusie</div>
+        </div>
+
+        
+        <div style="background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; border-bottom: 4px solid #10b981;">
+            <div style="color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Status sesji</div>
+            <div style="font-size: 18px; font-weight: 800; color: #059669; margin-top: 10px;">{{ sesja.status }}</div>
+        </div>
+    </div>
+
+    <!-- SEARCH & FILTER BAR -->
+    <div class="no-print" style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
+            <span class="material-icons" style="color: #64748b;">search</span>
+            <input type="text" id="reportSearchInput" placeholder="Szukaj po produkcie, lokalizacji, kodzie palety, partii..." style="width: 100%; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s;" onkeyup="filterReportTable()">
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; min-width: 250px;">
+            <span style="font-size: 13px; color: #64748b; font-weight: 600;">Status różnic:</span>
+            <select id="diffFilterSelect" onchange="filterReportTable()" style="padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 13px; outline: none; background: white; font-weight: 600; color: #334155; cursor: pointer; flex: 1;">
+                <option value="all">Wszystkie pozycje</option>
+                <option value="diffs">Tylko różnice (niezgodności)</option>
+                <option value="ok">Tylko zgodne (0 różnicy)</option>
+                <option value="missing">Tylko braki (minus)</option>
+                <option value="surplus">Tylko nadwyżki (plus)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <table class="modern-table no-mobile-cards report-table" style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <tr>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Lokalizacja</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Paleta</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Produkt</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">System</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Faktyczny</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Różnica</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Operator / Czas</th>
+                    <th style="padding: 15px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase;">Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                {% set diff = e.waga_faktyczna - e.waga_systemowa %}
+                <tr style="border-bottom: 1px solid #f1f5f9; {% if diff != 0 %}background: #fffbeb;{% endif %}">
+                    <td style="padding: 15px; font-family: monospace; font-weight: 700; color: #2563eb;">{{ e.lokalizacja }}</td>
+                    <td style="padding: 15px; font-size: 12px; color: #64748b;">#{{ e.nr_palety or e.paleta_id }}</td>
+                    <td style="padding: 15px;">
+                        <div style="font-weight: 800; color: #1e293b; font-size: 14px;">{{ e.nazwa }}</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                            Partia: {{ e.nr_partii or '-' }} | ID: {{ e.nr_palety or e.paleta_id or 'NOWA' }}
+                        </div>
+                        {% if e.waga_faktyczna <= 0 and e.paleta_id %}
+                        <div style="margin-top: 5px; display: inline-block; background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; border: 1px solid #fecaca;">
+                            ⚠️ DO USUNIĘCIA Z BAZY
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} {{ e.jednostka or 'kg' }}</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} {{ e.jednostka or 'kg' }}</td>
+                    <td style="padding: 15px; text-align: right;">
+                        {% if diff > 0 %}
+                            <span style="color: #059669; font-weight: 800;">+{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
+                        {% elif diff < 0 %}
+                            <span style="color: #dc2626; font-weight: 800;">{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">0</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px;">
+                        <div style="font-size: 12px; color: #475569;">{{ e.user_login }}</div>
+                        <div style="font-size: 10px; color: #94a3b8;">{{ e.data_wpisu.strftime('%H:%M:%S') if e.data_wpisu and e.data_wpisu.strftime else e.data_wpisu }}</div>
+                    </td>
+                    <td style="padding: 15px; text-align: center;">
+                        {% if sesja.status == 'APPLIED' and e.waga_faktyczna > 0 %}
+                            <button onclick="drukujZPLzRaportu(this, '{{ e.nr_palety or e.paleta_id }}', '{{ e.nazwa|replace("'", "\\'") }}', '{{ e.nr_partii|replace("'", "\\'") }}', '{{ e.data_produkcji.strftime('%Y-%m-%d') if e.data_produkcji and e.data_produkcji.strftime else e.data_produkcji }}', '{{ e.data_przydatnosci.strftime('%Y-%m-%d') if e.data_przydatnosci and e.data_przydatnosci.strftime else e.data_przydatnosci }}', '{{ 'packaging' if e.typ_palety == 'opakowanie' else ('finished' if e.typ_palety == 'wyrób gotowy' else 'surowiec') }}', '{{ e.waga_faktyczna }}', '{{ e.linia }}')" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #e0f2fe; color: #0284c7; text-decoration: none; border: none; cursor: pointer; transition: all 0.2s;" title="Drukuj ZPL">
+                                <span class="material-icons" style="font-size: 18px;">print</span>
+                            </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="print-only" style="display: none; margin-top: 20px;">
+        <h2 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 800; color: #0f172a;">Podsumowanie surowców (suma)</h2>
+        <table class="print-summary-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Surowiec</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Szt.</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">System</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Faktyczny</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Różnica</th>
+                    <th style="text-align: left; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Jedn.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for group in grouped %}
+                {% set name = group.grouper or 'Brak nazwy' %}
+                {% set ns = namespace(sys=0, act=0, count=0) %}
+                {% for item in group.list %}
+                    {% set ns.sys = ns.sys + (item.waga_systemowa or 0) %}
+                    {% set ns.act = ns.act + (item.waga_faktyczna or 0) %}
+                    {% set ns.count = ns.count + 1 %}
+                {% endfor %}
+                {% set diff_sum = ns.act - ns.sys %}
+                <tr style="border-top: 1px solid #ddd;">
+                    <td style="padding: 6px 8px; font-weight: 700;">{{ name }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ ns.count }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(ns.sys) }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(ns.act) }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(diff_sum) }}</td>
+                    <td style="padding: 6px 8px;">{{ group.list[0].jednostka or 'kg' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="report-footer" style="margin-top: 16px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div>Źródło: moduł Inwentaryzacja (RaportProdukcyjny)</div>
+        <div>Wydruk: <span class="printed-at"></span></div>
+    </div>
+</div>
+
+<!-- MODAL: APPLY INVENTORY -->
+<div id="applyModal" class="modal-overlay no-print" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 70px; height: 70px; background: #dcfce7; color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 36px;">update</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Zatwierdzić zmiany?</h3>
+        <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.5;">
+            Operacja ta <strong>zaktualizuje stany magazynowe</strong> w głównej bazie danych na podstawie wpisów z inwentaryzacji. Zmiany są nieodwracalne.
+        </p>
+        
+        <div style="display: flex; gap: 12px;">
+            <button onclick="confirmApply()" class="btn-primary" style="flex: 1.5; background: #10b981; color: white; padding: 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; font-size: 15px;">TAK, AKTUALIZUJ BAZĘ</button>
+            <button type="button" onclick="document.getElementById('applyModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; font-size: 15px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var printedAt = new Date().toLocaleString('pl-PL');
+    document.querySelectorAll('.printed-at').forEach(function(el) {
+        el.textContent = printedAt;
+    });
+})();
+</script>
+</div>
+
+<!-- MODAL: REVERT INVENTORY -->
+<div id="revertModal" class="modal-overlay no-print" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 70px; height: 70px; background: #fef3c7; color: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 36px;">undo</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Cofnąć zatwierdzenie?</h3>
+        <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.5;">
+            Operacja ta <strong>przywróci sesję do stanu otwartego</strong>, umożliwiając ponowne skanowanie i korektę wpisów. Zmiany wprowadzone wcześniej w stanach magazynowych nie zostaną automatycznie cofnięte, ale ponowne zatwierdzenie nadpisze je poprawnymi wartościami.
+        </p>
+        
+        <div style="display: flex; gap: 12px;">
+            <button onclick="confirmRevert()" class="btn-primary" style="flex: 1.5; background: #f59e0b; color: white; padding: 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; font-size: 15px;">TAK, COFNIJ ZATWIERDZENIE</button>
+            <button type="button" onclick="document.getElementById('revertModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; font-size: 15px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function closeSessionFromReport() {
+    if(confirm("Czy na pewno chcesz zamknąć tę sesję inwentaryzacji?\n\nPo zamknięciu sesji będziesz mógł zatwierdzić stany w bazie danych.")) {
+        fetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: {{ sesja.id }}})
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                window.location.reload();
+            } else {
+                alert("Błąd podczas zamykania sesji: " + data.message);
+            }
+        });
+    }
+}
+
+function openApplyModal() {
+    document.getElementById('applyModal').style.display = 'flex';
+}
+
+function confirmApply() {
+    fetch('{{ url_for("inwentaryzacja.zatwierdz_inwentaryzacje") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Baza danych została zaktualizowana pomyślnie.");
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function openRevertModal() {
+    document.getElementById('revertModal').style.display = 'flex';
+}
+
+function confirmRevert() {
+    fetch('{{ url_for("inwentaryzacja.cofnij_zatwierdzenie") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Zatwierdzenie zostało wycofane. Sesja jest ponownie OTWARTA.");
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function filterReportTable() {
+    const searchVal = document.getElementById('reportSearchInput').value.toLowerCase().trim();
+    const diffFilter = document.getElementById('diffFilterSelect').value;
+    const rows = document.querySelectorAll('.modern-table tbody tr');
+
+    rows.forEach(row => {
+        const locationCell = row.querySelector('td:nth-child(1)');
+        const palletCell = row.querySelector('td:nth-child(2)');
+        const productCell = row.querySelector('td:nth-child(3)');
+        const diffCell = row.querySelector('td:nth-child(6)');
+
+        if (!locationCell || !palletCell || !productCell || !diffCell) return;
+
+        const location = locationCell.innerText.toLowerCase();
+        const pallet = palletCell.innerText.toLowerCase();
+        const productInfo = productCell.innerText.toLowerCase();
+        
+        const diffText = diffCell.innerText.trim();
+        const isDiff = diffText !== '0' && diffText !== '';
+        const isMinus = diffText.includes('-');
+        const isPlus = diffText.includes('+');
+
+        const matchesSearch = location.includes(searchVal) || 
+                              pallet.includes(searchVal) || 
+                              productInfo.includes(searchVal);
+
+        let matchesDiff = true;
+        if (diffFilter === 'diffs') {
+            matchesDiff = isDiff;
+        } else if (diffFilter === 'ok') {
+            matchesDiff = !isDiff;
+        } else if (diffFilter === 'missing') {
+            matchesDiff = isMinus;
+        } else if (diffFilter === 'surplus') {
+            matchesDiff = isPlus;
+        }
+
+        if (matchesSearch && matchesDiff) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+
+<style>
+    @media print {
+        @page { margin: 8mm; }
+        body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: 0.92; }
+        .sidebar, .top-bar, .no-print, .report-actions, .modal-overlay, .quick-popup, .quick-backdrop { display: none !important; }
+        .inventory-report { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+        .report-header { box-shadow: none !important; border: none !important; padding: 0 !important; margin-bottom: 8px !important; }
+        .print-only { display: block !important; }
+        .summary-cards { display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 6px !important; margin-bottom: 8px !important; }
+        .stat-card { padding: 8px !important; border-radius: 10px !important; box-shadow: none !important; }
+        .stat-card div { margin: 0 !important; }
+        .inventory-report div[style*="background: white"] { box-shadow: none !important; }
+        table { border: 1px solid #000 !important; }
+        th, td { border: 1px solid #ccc !important; }
+        table.modern-table { display: table !important; width: 100% !important; }
+        table.modern-table thead { display: table-header-group !important; }
+        table.modern-table tbody { display: table-row-group !important; }
+        table.modern-table tr { display: table-row !important; margin: 0 !important; border-radius: 0 !important; background: transparent !important; padding: 0 !important; }
+        table.modern-table th,
+        table.modern-table td {
+            display: table-cell !important;
+            width: auto !important;
+            text-align: left !important;
+            border: 1px solid #ccc !important;
+        }
+        table.modern-table td::before { display: none !important; content: none !important; }
+        table.modern-table td > * { display: block !important; width: auto !important; font-size: 9.5px !important; font-weight: 500 !important; color: #1e293b !important; }
+        .modern-table th, .modern-table td { padding: 4px 6px !important; font-size: 9.5px !important; line-height: 1.2 !important; }
+        .report-table td div { font-size: 9px !important; margin-top: 2px !important; }
+        .report-table td span { font-size: 9px !important; }
+        .report-table th:nth-child(8),
+        .report-table td:nth-child(8) { display: none !important; }
+        .print-summary-table th,
+        .print-summary-table td { padding: 4px 6px !important; font-size: 10px !important; }
+        .print-only { margin-bottom: 8px !important; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { page-break-inside: avoid; }
+    }
+</script>
+
+<script>
+async function drukujZPLzRaportu(btn, nrPalety, productName, partia, dataProd, dataPrzyd, pType, qty, linia) {
+    if (btn.dataset.busy === '1') return;
+    
+    btn.dataset.busy = '1';
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="material-icons" style="font-size: 18px; animation: spin 1s linear infinite;">autorenew</span>';
+    
+    try {
+        const resp = await fetch('/magazyn-dostawy/api/active-printers');
+        const j = await resp.json();
+        
+        if (!j.success || !j.printers || j.printers.length === 0) {
+            safeAlert('Błąd', 'Brak aktywnych drukarek w systemie.');
+            btn.dataset.busy = '0';
+            btn.innerHTML = oldHtml;
+            return;
+        }
+        
+        let selectHtml = '<select id="reportPrinterSelect" style="width:100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 15px;">';
+        j.printers.forEach(p => {
+            if(p.id) { 
+                selectHtml += `<option value="${p.id}">${p.nazwa} (${p.ip}) - ${p.lokalizacja || 'Magazyn'}</option>`;
+            }
+        });
+        selectHtml += '</select>';
+        
+        const content = `
+            <div>Wybierz drukarkę docelową:</div>
+            <div style="margin-top: 15px;">${selectHtml}</div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="btn-action" style="background:#f1f5f9; color:#0f172a;" onclick="closeQuickPopup()">Anuluj</button>
+                <button class="btn-action" style="background:#10b981; color:#fff;" id="btnConfirmPrint">Drukuj ZPL</button>
+            </div>
+        `;
+        
+        const popup = createQuickPopup('Wydruk ZPL', content);
+        
+        setTimeout(() => {
+            const confirmBtn = document.getElementById('btnConfirmPrint');
+            confirmBtn.addEventListener('click', async () => {
+                confirmBtn.disabled = true;
+                confirmBtn.innerText = 'Wysyłanie...';
+                
+                const printerId = document.getElementById('reportPrinterSelect').value;
+                const payload = {
+                    nr_palety: nrPalety,
+                    printer_id: printerId,
+                    product_name: productName,
+                    nr_partii: partia,
+                    data_produkcji: dataProd,
+                    data_przydatnosci: dataPrzyd,
+                    qty: parseFloat(qty) || 0,
+                    p_type: pType,
+                    linia: linia
+                };
+                
+                try {
+                    const postResp = await fetch('/magazyn-dostawy/api/dodruk-etykiet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const postJ = await postResp.json();
+                    
+                    if (postJ.success) {
+                        showToast(postJ.message || 'Wysłano do drukarki', 'success');
+                        popup.close();
+                    } else {
+                        showToast(postJ.error || 'Błąd drukowania', 'danger');
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerText = 'Drukuj ZPL';
+                    }
+                } catch(e) {
+                    showToast('Błąd sieci podczas wysyłania', 'danger');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Drukuj ZPL';
+                }
+            });
+        }, 100);
+        
+    } catch(e) {
+        safeAlert('Błąd', 'Nie udało się pobrać listy drukarek.');
+    } finally {
+        btn.dataset.busy = '0';
+        btn.innerHTML = oldHtml;
+    }
+}
+function closeQuickPopup() {
+    const m = document.querySelector('.quick-popup');
+    const b = document.querySelector('.quick-backdrop');
+    if(m) { m.classList.remove('open'); setTimeout(() => { m.style.display='none'; if(b) b.style.display='none'; document.body.classList.remove('slide-over-open'); }, 250); }
+}
+</script>
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+{% endblock %}

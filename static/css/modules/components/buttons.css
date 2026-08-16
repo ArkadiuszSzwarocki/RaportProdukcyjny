@@ -1,0 +1,473 @@
+/* --- HAMBURGER MENU (Mobile) --- */
+.hamburger-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px 12px;
+    display: none;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.hamburger-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.hamburger-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.quick-popup .qp-body .btn-action {
+    margin-top: 12px;
+}
+
+/* overlays stacking defined above; duplicates removed */
+
+/* Global dosypka overrides removed to allow natural popup sizing */
+
+/* Slight tweak so forms inside quick-popup use primary button styling */
+.quick-popup .btn-action {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.btn-planning-info-open {
+    background: #0284c7;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
+    white-space: nowrap;
+}
+
+.btn-planning-info-open:hover {
+    background: #0369a1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3);
+}
+
+.btn-info-dismiss {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+}
+
+.btn-info-dismiss:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+}
+
+@media (max-width: 360px) {
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        margin-bottom: 8px;
+        padding: 5px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        gap: 4px;
+        padding: 4px 1px;
+        font-size: 0.86em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        min-width: 68px;
+        flex: 0 0 68px;
+        font-size: 0.82em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child {
+        align-items: center;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .d-flex,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .d-flex {
+        flex-wrap: nowrap;
+        gap: 3px;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 1px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .inline-form,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .inline-form {
+        flex-wrap: nowrap;
+        gap: 0;
+        flex: 0 0 auto;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .btn-icon,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .btn-icon {
+        min-width: 28px;
+        min-height: 28px;
+        width: 28px;
+        height: 28px;
+        padding: 2px;
+        border-radius: 5px;
+        font-size: 0.95em;
+        flex: 0 0 28px;
+    }
+}
+
+.btn-stop-icon {
+    font-size: 1.3em;
+    cursor: pointer;
+    color: #d32f2f;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.btn-stop-icon:hover {
+    opacity: 0.75;
+    background-color: rgba(211, 47, 47, 0.1);
+}
+
+.btn-stop-icon:active {
+    opacity: 0.6;
+    background-color: rgba(211, 47, 47, 0.2);
+}
+
+.btn-icon-action {
+    font-size: 1.2em;
+    cursor: pointer;
+    color: #27ae60;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.btn-icon-action:hover {
+    opacity: 0.75;
+    background-color: rgba(39, 174, 96, 0.1);
+}
+
+.btn-icon-action:active {
+    opacity: 0.6;
+    background-color: rgba(39, 174, 96, 0.2);
+}
+
+.btn-icon-disabled {
+    font-size: 1.2em;
+    color: #999;
+    cursor: not-allowed;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    opacity: 0.6;
+}
+
+.btn-resume-icon {
+    font-size: 1.2em;
+    cursor: pointer;
+    color: #f39c12;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.btn-resume-icon:hover {
+    opacity: 0.75;
+    background-color: rgba(243, 156, 18, 0.1);
+}
+
+.btn-resume-icon:active {
+    opacity: 0.6;
+    background-color: rgba(243, 156, 18, 0.2);
+}
+
+.card-form .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+}
+
+.card-actions .btn-start,
+.card-actions .btn-action {
+    padding: 10px 12px;
+    font-size: 0.9em;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.btn-with-badge {
+    position: relative;
+    padding-right: 24px;
+}
+
+/* Responsywność dla mobile */
+@media (max-width: 640px) {
+    .cards {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+
+    .card-header {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .card-title {
+        font-size: 1em;
+    }
+
+    .card-body {
+        padding: 12px;
+        gap: 6px;
+    }
+
+    .card-row {
+        font-size: 0.9em;
+        flex-wrap: wrap;
+    }
+
+    .card-row strong {
+        min-width: 70px;
+    }
+
+    .card-form {
+        flex-wrap: wrap;
+    }
+
+    .card-form .input-sm {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .card-form .btn-icon {
+        flex: 0 0 44px;
+    }
+
+    .card-actions {
+        padding: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+        gap: 6px;
+    }
+
+    .card-actions .btn-start,
+    .card-actions .btn-action {
+        padding: 6px 8px;
+        font-size: 0.8em;
+        min-height: 36px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .btn-with-badge {
+        padding-right: 18px;
+    }
+
+    .action-badge {
+        top: -7px;
+        right: -3px;
+        min-width: 14px;
+        height: 14px;
+        padding: 0 3px;
+        font-size: 0.58em;
+        line-height: 14px;
+        z-index: 2;
+    }
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 0.85em;
+    border-radius: 6px;
+}
+
+.btn-action {
+    background: var(--accent-color);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-action.btn-warning {
+    background: var(--warning-color);
+}
+
+.btn-action.btn-small {
+    padding: 6px 8px;
+    font-size: 0.85em;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+}
+
+.btn-toggle {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.form-flex .btn {
+    flex-shrink: 0;
+}
+
+.list-row .list-actions .btn {
+        padding: 6px 10px;
+        font-size: 0.8em;
+        white-space: nowrap;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+.list-row .list-actions .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+    }
+
+.list-row .list-actions .btn-danger {
+        background: linear-gradient(135deg, var(--danger-color), #e74c3c);
+        color: white;
+    }
+
+@media (max-width: 768px) {
+        .list-row {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .list-row .avatar {
+            width: 36px;
+            height: 36px;
+        }
+
+        .list-row .list-actions {
+            margin-left: 0;
+            margin-top: 8px;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .list-row .list-actions .btn,
+        .list-row .list-actions summary {
+            flex: 1;
+            min-width: 80px;
+        }
+
+        .list-row .user-top {
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .list-row .ml-5 {
+            margin-left: 0;
+        }
+    }
+
+.hub .tile .btn {
+        align-self: flex-start;
+        margin-top: auto;
+    }
+
+.settings-card-actions .btn {
+        min-width: 200px;
+    }
+
+.btn.btn-secondary {
+        background: #95a5a6;
+        color: white;
+    }
+
+.btn.btn-secondary:hover {
+        background: #7f8c8d;
+    }
+
+@media (max-width: 768px) {
+        .hub {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-hero {
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .settings-title {
+            font-size: 1.6rem;
+        }
+
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-card {
+            min-height: unset;
+        }
+
+        .settings-card-actions .btn {
+            min-width: unset;
+            width: 100%;
+        }
+
+        .test-report-content {
+            width: min(560px, calc(100% - 24px));
+        }
+
+        .settings-online-table .modern-table {
+            min-width: 980px;
+        }
+    }

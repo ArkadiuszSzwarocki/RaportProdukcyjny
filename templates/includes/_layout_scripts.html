@@ -1,0 +1,1040 @@
+<script>
+    /** JS ERROR TRAP: Capture and log frontend errors to the server */
+    window.onerror = function(message, source, lineno, colno, error) {
+        try {
+            const payload = {
+                message: message, url: source, line: lineno, column: colno,
+                stack: error ? error.stack : '', href: window.location.href
+            };
+            fetch('/api/log_frontend_error', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => {});
+        } catch(e) {}
+        return false;
+    };
+
+    /** Polyfill for Element.prototype.closest for older browsers (Zebra handhelds) */
+    if (!Element.prototype.matches) {
+        Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+    }
+    if (!Element.prototype.closest) {
+        Element.prototype.closest = function(s) {
+            var el = this;
+            do {
+                if (el.matches(s)) return el;
+                el = el.parentElement || el.parentNode;
+            } while (el !== null && el.nodeType === 1);
+            return null;
+        };
+    }
+
+    /** Lightweight shims for early helper calls */
+    if (typeof window.formatError !== 'function') {
+        window.formatError = function (err) {
+            try {
+                if (!err && err !== 0) return '';
+                if (typeof err === 'object') {
+                    if (err.message) return String(err.message);
+                    try { return JSON.stringify(err); } catch (e) { return String(err); }
+                }
+                var s = String(err);
+                if (/^\s*[{\[]/.test(s)) {
+                    try { var parsed = JSON.parse(s); if (parsed && parsed.message) return String(parsed.message); return JSON.stringify(parsed); } catch (e) { }
+                }
+                return s;
+            } catch (e) { return 'Błąd'; }
+        };
+    }
+
+    if (typeof window.safeAlert !== 'function') {
+        window.safeAlert = function (title, message) {
+            try {
+                if (typeof window.openQuickPopup === 'function') {
+                    window.openQuickPopup('<h3>' + (title || '') + '</h3><div class="p-10">' + (message || '') + '</div>');
+                    return;
+                }
+            } catch (e) { console.error('Popup error:', e); }
+        };
+    }
+
+    document.addEventListener('submit', function(event) {
+        var form = event.target;
+        if (!form || !form.getAttribute) {
+            return;
+        }
+
+        if (form.getAttribute('data-confirm-handled') === 'true') {
+            return;
+        }
+
+        var message = form.getAttribute('data-confirm');
+        if (!message) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (typeof window.openQuickPopup === 'function') {
+            var html = '<h3>Potwierdzenie</h3>' +
+                       '<div class="p-10" style="margin-bottom: 20px;">' + message + '</div>' +
+                       '<div style="display:flex; gap:10px; justify-content:flex-end;">' +
+                       '<button type="button" class="btn-action btn-outline-warning" onclick="window.closeQuickPopup()">Anuluj</button>' +
+                       '<button type="button" class="btn-action btn-success" id="btn-custom-confirm-ok">OK</button>' +
+                       '</div>';
+            window.openQuickPopup(html);
+            
+            // Wait for next tick so modal is rendered
+            setTimeout(function() {
+                var okBtn = document.getElementById('btn-custom-confirm-ok');
+                if (okBtn) {
+                    okBtn.addEventListener('click', function() {
+                        form.setAttribute('data-confirm-handled', 'true');
+                        window.closeQuickPopup();
+                        form.submit();
+                    });
+                }
+            }, 10);
+        } else {
+            if (window.confirm(message)) {
+                form.setAttribute('data-confirm-handled', 'true');
+                form.submit();
+            }
+        }
+    }, false);
+
+    /** Function for operators to notify the planner */
+    window.notifyPlanner = function(sekcja, linia) {
+        if (!confirm('Czy na pewno powiadomić planistę o braku zleceń w ' + sekcja + ' (' + linia + ')?')) return;
+        
+        fetch('/api/notify-planner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sekcja: sekcja, linia: linia })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.success) {
+                window.safeAlert('Sukces', j.message);
+                // Disable button to prevent spam
+                const btn = document.querySelector('.btn-notify-planner');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.innerHTML = '<span class="material-icons">check</span> POWIADOMIONO';
+                }
+            } else {
+                window.safeAlert('Błąd', j.message || 'Nie udało się wysłać powiadomienia.');
+            }
+        })
+        .catch(e => {
+            console.error('Notification error:', e);
+            window.safeAlert('Błąd', 'Błąd sieci podczas wysyłania powiadomienia.');
+        });
+    };
+
+    /** Desktop Push Notifications Logic for Planners/Admins */
+    window.initPlannerNotifications = function() {
+        // Always start polling for badge updates if role matches
+        startNotificationPolling();
+
+        if (!("Notification" in window)) return;
+        
+        const box = document.getElementById('notif-permission-box');
+        const navBtn = document.getElementById('navNotifPermissionBtn');
+        
+        if (Notification.permission === "granted") {
+            if (box) box.style.display = 'none';
+            if (navBtn) navBtn.style.display = 'none';
+            // Upewnij się że subskrypcja Web Push jest aktywna
+            if (typeof registerPushSubscription === 'function') {
+                registerPushSubscription();
+            }
+        } else if (Notification.permission !== "denied") {
+            if (box) box.style.display = 'inline-block';
+            if (navBtn) navBtn.style.display = 'inline-flex';
+            
+            if (event && (event.type === 'click')) {
+                // Deleguj do nowej funkcji push
+                if (typeof window.requestPushPermission === 'function') {
+                    window.requestPushPermission();
+                } else {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            if (box) box.style.display = 'none';
+                            if (navBtn) navBtn.style.display = 'none';
+                            new Notification("System Powiadomień", { body: "Powiadomienia zostały pomyślnie włączone!" });
+                        }
+                    });
+                }
+            }
+        }
+    };
+
+    let lastKnownNotifId = 0;
+    let isPollingStarted = false;
+    function startNotificationPolling() {
+        if (isPollingStarted) return;
+        isPollingStarted = true;
+        
+        // Initial check to set the baseline ID so we don't spam old notifications
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state) {
+                    lastKnownNotifId = j.state.last_notif;
+                    console.log('Notifications baseline set to:', lastKnownNotifId);
+                    setInterval(pollNotifications, 10000); // Check every 10 seconds
+                }
+            })
+            .catch(e => {
+                isPollingStarted = false; // Allow retry on failure
+                console.error('Failed to set notification baseline:', e);
+            });
+    }
+
+    const originalTitle = document.title;
+    let unreadCount = 0;
+
+    function updateTitleBadge() {
+        if (unreadCount > 0) {
+            document.title = '(' + unreadCount + ') ' + originalTitle;
+        } else {
+            document.title = originalTitle;
+        }
+    }
+
+    function playNotificationSound() {
+        try {
+            // Simple beep using Web Audio API if no audio file is preferred
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error('Sound play failed:', e);
+        }
+    }
+
+    function pollNotifications() {
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state && j.state.last_notif > lastKnownNotifId) {
+                    // There are new notifications! Fetch details.
+                    fetch('/api/notifications?limit=10')
+                        .then(rn => rn.json())
+                        .then(jn => {
+                            if (jn.success && jn.notifications) {
+                                let newlyFound = 0;
+                                jn.notifications.forEach(n => {
+                                    if (n.id > lastKnownNotifId) {
+                                        newlyFound++;
+                                        // Desktop notification (outside the app window)
+                                        if (Notification.permission === "granted") {
+                                            const notif = new Notification(n.title, {
+                                                body: n.message,
+                                                icon: '/static/img/logo_circle.png',
+                                                tag: 'notif-' + n.id,
+                                                requireInteraction: false
+                                            });
+                                            notif.onclick = function() {
+                                                if (n.link_url) window.location.href = n.link_url;
+                                                window.focus();
+                                            };
+                                        }
+                                        lastKnownNotifId = Math.max(lastKnownNotifId, n.id);
+                                    }
+                                });
+
+                                if (newlyFound > 0) {
+                                    unreadCount = jn.unread_count || newlyFound;
+                                    updateTitleBadge();
+                                    playNotificationSound();
+                                    
+                                    // Update navbar badge if exists
+                                    const navBadge = document.getElementById('notificationsBadge');
+                                    if (navBadge) {
+                                        navBadge.innerText = unreadCount;
+                                        navBadge.style.display = unreadCount > 0 ? 'block' : 'none';
+                                    }
+                                }
+                            }
+                        });
+                }
+            });
+    }
+
+    // Reset badge when window gets focus
+    window.addEventListener('focus', function() {
+        unreadCount = 0;
+        updateTitleBadge();
+    });
+
+    // Auto-init for planner roles
+    {% if rola in ['planista', 'admin', 'masteradmin'] %}
+    document.addEventListener('DOMContentLoaded', function() {
+        window.initPlannerNotifications();
+    });
+    {% endif %}
+
+    function setHiddenFormValue(form, fieldName, value) {
+        var hiddenInput = form.querySelector('input[name="' + fieldName + '"]');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = fieldName;
+            form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = value;
+    }
+
+    function askForProductionDate(form, productName) {
+        var input = prompt("Rozpoczynasz zlecenie: " + productName + "\n\nWpisz datę produkcji (RRRR-MM-DD), jeśli chcesz ją zmienić/ustawić.\nPozostaw puste, aby użyć dotychczasowej daty (bez zmian):");
+        if (input === null) {
+            return false;
+        }
+
+        var trimmed = input.trim();
+        if (trimmed !== "") {
+            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(trimmed)) {
+                alert("❌ Nieprawidłowy format daty! Użyj formatu RRRR-MM-DD (np. 2026-05-19).");
+                return false;
+            }
+            setHiddenFormValue(form, 'data_produkcji', trimmed);
+        }
+        return true;
+    }
+
+    function openAgroWorkowanieChecklist(form, productName) {
+        var requiredFolia = (form.getAttribute('data-required-opakowanie') || '').trim();
+        var requiredEtykieta = (form.getAttribute('data-required-etykieta') || '').trim();
+
+        if (!requiredFolia || !requiredEtykieta) {
+            window.safeAlert('Błąd', '❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
+            return;
+        }
+
+        var existingOverlay = document.getElementById('start-order-checklist-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-checklist-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:560px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;box-sizing:border-box;overflow-y:auto;max-height:calc(100vh - 40px);';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Checklista START Workowania AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;box-sizing:border-box;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;box-sizing:border-box;word-break:break-word;';
+
+        var checklistBox = document.createElement('div');
+        checklistBox.style.cssText = 'background:#f7fafc;border:1px solid #d9e2ec;border-radius:10px;padding:10px 12px;margin-bottom:12px;box-sizing:border-box;';
+
+        function buildChecklistRow(labelText) {
+            var label = document.createElement('label');
+            label.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin:7px 0;color:#243b53;cursor:pointer;box-sizing:border-box;width:100%;';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.style.marginTop = '2px';
+            cb.style.flexShrink = '0';
+            var txt = document.createElement('span');
+            txt.textContent = labelText;
+            txt.style.cssText = 'flex:1;min-width:0;word-break:break-word;white-space:normal;font-size:0.92rem;';
+            label.appendChild(cb);
+            label.appendChild(txt);
+            return { row: label, checkbox: cb };
+        }
+
+        var foliaCheck = buildChecklistRow('Potwierdzam przygotowanie folii: ' + requiredFolia);
+        var etykietaCheck = buildChecklistRow('Potwierdzam przygotowanie etykiety: ' + requiredEtykieta);
+        checklistBox.appendChild(foliaCheck.row);
+        checklistBox.appendChild(etykietaCheck.row);
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;box-sizing:border-box;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;';
+        
+        // Auto-fill today's date
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var isCzyszczenie = (productName || '').toLowerCase().indexOf('czyszczenie') !== -1;
+
+        var nrPartiiLabel = document.createElement('label');
+        nrPartiiLabel.innerHTML = 'Nr Partii: ' + (isCzyszczenie ? '<span style="color:#627d98;font-size:0.85em;">(opcjonalnie)</span>' : '<span style="color:#c81e1e;">*</span>');
+        nrPartiiLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;box-sizing:border-box;';
+
+        var nrPartiiInput = document.createElement('input');
+        nrPartiiInput.type = 'text';
+        nrPartiiInput.placeholder = 'Wpisz numer partii produkcji...';
+        nrPartiiInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;';
+        if (isCzyszczenie) {
+            nrPartiiInput.value = 'CZYSZCZENIE';
+        }
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;box-sizing:border-box;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;box-sizing:border-box;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Potwierdź i uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            if (!isCzyszczenie && (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked)) {
+                errorBox.textContent = 'Potwierdź oba punkty checklisty operatora.';
+                return;
+            }
+            if (isCzyszczenie && (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked)) {
+                // Dla czyszczenia przymykamy na to oko, chociaż checklist może w ogóle nie dotyczyć
+            }
+
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            var nrPartiiValue = (nrPartiiInput.value || '').trim();
+            if (!isCzyszczenie && !nrPartiiValue) {
+                errorBox.textContent = 'Nr Partii jest wymagany.';
+                return;
+            }
+
+            setHiddenFormValue(form, 'start_checklist_confirmed', '1');
+            setHiddenFormValue(form, 'data_produkcji', dateValue);
+            setHiddenFormValue(form, 'nr_partii', nrPartiiValue);
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(checklistBox);
+        panel.appendChild(dateLabel);
+        panel.appendChild(dateInput);
+        panel.appendChild(nrPartiiLabel);
+        panel.appendChild(nrPartiiInput);
+
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+
+    }
+
+    function openCzyszczeniePackagingModal(form, planId, sekcja) {
+        var existingOverlay = document.getElementById('czyszczenie-packaging-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'czyszczenie-packaging-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie Czyszczenia';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = (sekcja === 'Zasyp') ? 'Podaj kod SSCC (jeśli dotyczy):' : 'Wybierz w co pakujesz produkt:';
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        // SSCC Input (Zasyp)
+        var ssccContainer = document.createElement('div');
+        var ssccInput = document.createElement('input');
+        if (sekcja === 'Zasyp') {
+            var ssccLabel = document.createElement('label');
+            ssccLabel.textContent = 'Zeskanuj kod SSCC:';
+            ssccLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;font-weight:bold;';
+            ssccInput.type = 'text';
+            ssccInput.name = 'skan_sscc';
+            ssccInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+            ssccContainer.appendChild(ssccLabel);
+            ssccContainer.appendChild(ssccInput);
+        }
+
+        // Typ pakowania (Workowanie)
+        var typSelect = document.createElement('select');
+        typSelect.name = 'typ_pakowania';
+        typSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var optBigBag = document.createElement('option');
+        optBigBag.value = 'BigBag';
+        optBigBag.textContent = 'BigBag';
+        
+        var optWorki = document.createElement('option');
+        optWorki.value = 'Worki';
+        optWorki.textContent = 'Worki';
+        
+        typSelect.appendChild(optBigBag);
+        typSelect.appendChild(optWorki);
+
+        // Folia container
+        var foliaContainer = document.createElement('div');
+        foliaContainer.style.display = 'none';
+
+        var foliaLabel = document.createElement('label');
+        foliaLabel.textContent = 'Wybierz folię:';
+        foliaLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+        
+        var foliaSelect = document.createElement('select');
+        foliaSelect.name = 'opakowanie_id';
+        foliaSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        foliaContainer.appendChild(foliaLabel);
+        foliaContainer.appendChild(foliaSelect);
+
+        typSelect.addEventListener('change', function() {
+            if (this.value === 'Worki') {
+                foliaContainer.style.display = 'block';
+                if (foliaSelect.options.length === 0) {
+                    fetch('/api/opakowania/folie')
+                        .then(r => r.json())
+                        .then(data => {
+                            data.forEach(item => {
+                                var opt = document.createElement('option');
+                                opt.value = item.id;
+                                opt.textContent = item.nazwa;
+                                foliaSelect.appendChild(opt);
+                            });
+                        })
+                        .catch(err => console.error("Error loading folie:", err));
+                }
+            } else {
+                foliaContainer.style.display = 'none';
+            }
+        });
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;margin-top:12px;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'display:none;color:#b91c1c;background:#fee2e2;padding:8px;border-radius:6px;font-size:0.85rem;margin-bottom:12px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'padding:8px 16px;border:none;background:#f0f4f8;color:#334e68;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Zatwierdź';
+        confirmBtn.style.cssText = 'padding:8px 16px;border:none;background:#102a43;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        confirmBtn.addEventListener('click', function() {
+            if (sekcja === 'Zasyp' && (!ssccInput.value || ssccInput.value.trim() === '')) {
+                errorBox.textContent = 'Proszę zeskanować kod SSCC!';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            if (sekcja !== 'Zasyp') {
+                if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
+                    errorBox.textContent = 'Wybierz folię przed startem w workach!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+                if (!dateInput.value) {
+                    errorBox.textContent = 'Wybierz datę produkcji!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+            }
+
+            if (sekcja === 'Zasyp') {
+                var hiddenSscc = document.createElement('input');
+                hiddenSscc.type = 'hidden';
+                hiddenSscc.name = 'skan_sscc';
+                hiddenSscc.value = ssccInput.value.trim();
+                form.appendChild(hiddenSscc);
+            } else {
+                var hiddenTyp = document.createElement('input');
+                hiddenTyp.type = 'hidden';
+                hiddenTyp.name = 'typ_pakowania';
+                hiddenTyp.value = typSelect.value;
+                form.appendChild(hiddenTyp);
+
+                if (typSelect.value === 'Worki') {
+                    var hiddenFolia = document.createElement('input');
+                    hiddenFolia.type = 'hidden';
+                    hiddenFolia.name = 'opakowanie_id';
+                    hiddenFolia.value = foliaSelect.value;
+                    form.appendChild(hiddenFolia);
+                }
+
+                var hiddenDate = document.createElement('input');
+                hiddenDate.type = 'hidden';
+                hiddenDate.name = 'data_produkcji';
+                hiddenDate.value = dateInput.value;
+                form.appendChild(hiddenDate);
+            }
+
+            overlay.remove();
+            if (window.ajaxSubmitForm) {
+                window.ajaxSubmitForm(form);
+            } else {
+                form.submit();
+            }
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) overlay.remove();
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        if (sekcja === 'Zasyp') {
+            panel.appendChild(ssccContainer);
+        } else {
+            panel.appendChild(typSelect);
+            panel.appendChild(foliaContainer);
+            panel.appendChild(dateLabel);
+            panel.appendChild(dateInput);
+        }
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        if (sekcja === 'Zasyp') {
+            setTimeout(function() { ssccInput.focus(); }, 100);
+        }
+    }
+
+    function openAgroProductionDateModal(form, productName) {
+        var existingOverlay = document.getElementById('start-order-date-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-date-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie zlecenia AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        var msg = document.createElement('p');
+        msg.textContent = 'Wpisz datę produkcji, jeśli chcesz ją zmienić/ustawić. Pozostaw domślną, aby użyć dzisiejszej:';
+        msg.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.9rem;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            if (dateValue) {
+                setHiddenFormValue(form, 'data_produkcji', dateValue);
+            }
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(msg);
+        panel.appendChild(dateInput);
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        setTimeout(function() {
+            try {
+                dateInput.showPicker();
+            } catch(e) {
+                dateInput.focus();
+            }
+        }, 50);
+    }
+
+    window.confirmStartOrder = function(form, productName, planId) {
+        var liniaInput = form.querySelector('input[name="linia"]');
+        var linia = liniaInput ? liniaInput.value.trim().toUpperCase() : '';
+        
+        var sekcjaInput = form.querySelector('input[name="sekcja"]');
+        var sekcja = sekcjaInput ? sekcjaInput.value.trim() : '';
+
+        // --- EXPORT PALLET CHECK ---
+        // If the order requires export pallets, force operator confirmation before start
+        var isEksportPallet = form && form.getAttribute('data-eksport-pallet') === '1';
+        if (isEksportPallet) {
+            var confirmed = window.confirm(
+                '🚢 ZLECENIE EKSPORTOWE\n\n' +
+                'To zlecenie wymaga PALET EKSPORTOWYCH.\n\n' +
+                '✅ Upewnij się, że:\n' +
+                '  • załadowałeś palety EKSPORTOWE (nie krajowe)\n' +
+                '  • palety są właściwe dla tego zlecenia\n\n' +
+                'Czy palety eksportowe są załadowane i gotowe?'
+            );
+            if (!confirmed) return false;
+        }
+
+        if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
+            openCzyszczeniePackagingModal(form, planId, sekcja);
+            return false;
+        }
+
+        var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
+        if (requiresChecklist) {
+            openAgroWorkowanieChecklist(form, productName);
+            return false;
+        }
+        
+        if (sekcja === 'Workowanie' && linia === 'AGRO') {
+            openAgroProductionDateModal(form, productName);
+            return false;
+        } else {
+            return true;
+        }
+    };
+
+
+    /** Initialize a custom, premium, keyboard-navigable and accent-insensitive searchable select dropdown */
+    window.initSearchableSelect = function(hiddenInputId, searchInputId, dropdownId, indicatorId, dataList, isEtykieta) {
+        const hiddenInp = document.getElementById(hiddenInputId);
+        const searchInp = document.getElementById(searchInputId);
+        const dropdownPanel = document.getElementById(dropdownId);
+        const indicator = document.getElementById(indicatorId);
+        
+        if (!hiddenInp || !searchInp || !dropdownPanel) return;
+        
+        let highlightedIndex = -1;
+        let filteredItems = [];
+
+        // Accent normalization helper for Polish characters with advanced stemming rules
+        function normalizeText(text) {
+            if (!text) return '';
+            let norm = text.toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/ł/g, "l")
+                .replace(/ż/g, "z")
+                .replace(/ź/g, "z")
+                .replace(/ć/g, "c")
+                .replace(/ń/g, "n")
+                .replace(/ó/g, "o")
+                .replace(/ę/g, "e")
+                .replace(/ą/g, "a")
+                .replace(/ś/g, "s");
+            
+            // Stemming rules for Polish AGRO labels (e.g. matching "pasek", "paskach" with "paskiem")
+            norm = norm.replace(/pasek/g, "pask");
+            // Strip common adjective endings to match word roots
+            norm = norm.replace(/(owym|owym|ego|em|ej|im|ych|y|a|e|o|u|i)$/g, "");
+            return norm;
+        }
+
+        function getStripeBadgeHtml(name) {
+            let color = '';
+            let border = '1px solid #ccc';
+            const norm = name.toLowerCase();
+            if (norm.includes('czerwon')) {
+                color = '#dc2626';
+                border = '1px solid #b91c1c';
+            } else if (norm.includes('fioletow')) {
+                color = '#800080';
+                border = '1px solid #6a006a';
+            } else if (norm.includes('brązow') || norm.includes('brazow')) {
+                color = '#8B4513';
+                border = '1px solid #5c2d0c';
+            } else if (norm.includes('żółt') || norm.includes('zolt')) {
+                color = '#FFD700';
+                border = '1px solid #ccab00';
+            } else {
+                color = '#ffffff';
+            }
+            return '<span class="stripe-badge" style="background-color: ' + color + '; border: ' + border + '; display: inline-block; width: 30px; height: 12px; border-radius: 2px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);"></span>';
+        }
+
+        function renderList() {
+            const query = normalizeText(searchInp.value);
+            filteredItems = dataList.filter(function(item) {
+                return normalizeText(item.nazwa).includes(query);
+            });
+
+            dropdownPanel.innerHTML = '';
+            if (filteredItems.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'searchable-select-item-empty';
+                emptyDiv.style.padding = '8px 12px';
+                emptyDiv.style.color = '#888';
+                emptyDiv.style.fontSize = '0.9em';
+                emptyDiv.innerText = 'Brak wyników';
+                dropdownPanel.appendChild(emptyDiv);
+                return;
+            }
+
+            filteredItems.forEach(function(item, idx) {
+                const div = document.createElement('div');
+                div.className = 'searchable-select-item';
+                if (idx === highlightedIndex) {
+                    div.classList.add('highlighted');
+                }
+                
+                let badgeHtml = '';
+                if (isEtykieta) {
+                    badgeHtml = getStripeBadgeHtml(item.nazwa);
+                }
+                
+                div.innerHTML = '<div style="display: flex; align-items: center; gap: 8px;">' + badgeHtml + '<span>' + item.nazwa + '</span></div>';
+                
+                div.addEventListener('click', function() {
+                    selectItem(item);
+                });
+                dropdownPanel.appendChild(div);
+            });
+        }
+
+        function selectItem(item) {
+            hiddenInp.value = item.id;
+            searchInp.value = item.nazwa;
+            
+            if (isEtykieta && indicator) {
+                indicator.innerHTML = getStripeBadgeHtml(item.nazwa);
+                searchInp.style.paddingLeft = '50px';
+            } else if (indicator) {
+                indicator.innerHTML = '';
+                searchInp.style.paddingLeft = '10px';
+            }
+            
+            closeDropdown();
+            hiddenInp.dispatchEvent(new Event('change'));
+        }
+
+        function clearSelection() {
+            hiddenInp.value = '';
+            searchInp.value = '';
+            if (indicator) {
+                indicator.innerHTML = '';
+            }
+            searchInp.style.paddingLeft = '10px';
+            hiddenInp.dispatchEvent(new Event('change'));
+        }
+
+        function closeDropdown() {
+            dropdownPanel.style.display = 'none';
+            highlightedIndex = -1;
+        }
+
+        function openDropdown() {
+            dropdownPanel.style.display = 'block';
+            renderList();
+        }
+
+        searchInp.addEventListener('focus', function() {
+            openDropdown();
+        });
+
+        searchInp.addEventListener('input', function() {
+            highlightedIndex = -1;
+            openDropdown();
+        });
+
+        searchInp.addEventListener('keydown', function(e) {
+            if (dropdownPanel.style.display === 'none') {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    openDropdown();
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                highlightedIndex = (highlightedIndex + 1) % filteredItems.length;
+                renderList();
+                scrollIntoView();
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                highlightedIndex = (highlightedIndex - 1 + filteredItems.length) % filteredItems.length;
+                renderList();
+                scrollIntoView();
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                if (highlightedIndex >= 0 && highlightedIndex < filteredItems.length) {
+                    selectItem(filteredItems[highlightedIndex]);
+                    e.preventDefault();
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+                e.preventDefault();
+            }
+        });
+
+        function scrollIntoView() {
+            const el = dropdownPanel.children[highlightedIndex];
+            if (el) {
+                el.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // Close dropdown when clicking outside
+        const outsideClickListener = function(e) {
+            if (!searchInp.contains(e.target) && !dropdownPanel.contains(e.target)) {
+                closeDropdown();
+                const currentVal = searchInp.value.trim();
+                if (currentVal === '') {
+                    clearSelection();
+                } else {
+                    const exactMatch = dataList.find(function(item) {
+                        return item.nazwa.toLowerCase() === currentVal.toLowerCase();
+                    });
+                    if (exactMatch) {
+                        selectItem(exactMatch);
+                    } else {
+                        // Preserve custom entered text for new packaging/labels
+                        hiddenInp.value = currentVal;
+                        searchInp.value = currentVal;
+                        if (indicator) indicator.innerHTML = '';
+                    }
+                }
+            }
+        };
+        
+        document.addEventListener('click', outsideClickListener);
+
+        // Store event listener and cleanup function on the elements
+        searchInp._outsideClickListener = outsideClickListener;
+
+        if (!window.clearSearchableSelects) {
+            window.clearSearchableSelects = {};
+        }
+        window.clearSearchableSelects[hiddenInputId] = clearSelection;
+
+        if (!window.setSearchableSelectValue) {
+            window.setSearchableSelectValue = {};
+        }
+        window.setSearchableSelectValue[hiddenInputId] = function(id) {
+            const item = dataList.find(function(i) {
+                return i.id.toString() === id.toString();
+            });
+            if (item) {
+                selectItem(item);
+            } else {
+                clearSelection();
+            }
+        };
+    };
+</script>

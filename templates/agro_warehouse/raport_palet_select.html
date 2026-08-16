@@ -1,0 +1,73 @@
+{% extends "layout.html" if not is_ajax else "base_ajax.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 800px; margin: 40px auto;">
+    <div class="card" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <h2 style="margin-top: 0; color: #2c3e50; display: flex; align-items: center; gap: 10px;">
+            <span class="material-icons" style="color: #3498db; font-size: 32px;">print</span>
+            Wybierz zlecenie do raportu
+        </h2>
+        <p style="color: #666; margin-bottom: 8px;">Zakres dat: <strong id="selected-plan-date">{{ data_od }} &mdash; {{ data_do }}</strong></p>
+        <div style="margin-bottom:16px; display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap: wrap;">
+            <label style="color:#666;">Od:</label>
+            <input type="date" id="reportDateOd" value="{{ data_od }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
+            <label style="color:#666;margin-left:10px;">Do:</label>
+            <input type="date" id="reportDateDo" value="{{ data_do }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
+            <button type="button" class="btn-action" onclick="changeReportDate()" style="padding:8px 16px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;margin-left:10px;font-weight:bold;">Pokaż</button>
+        </div>
+
+        <div class="plans-list">
+            {% for p in plans %}
+            <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p.work_id, data=p.data_planu) }}"
+               onclick="event.preventDefault(); openInApp(this.href, 'Raport Palet — {{ p.produkt_nazwa }}')"
+               style="display: block; background: #fff; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; margin-bottom: 15px; text-decoration: none; color: inherit; transition: all 0.2s; border-left: 5px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: bold; font-size: 1.1em; color: #2c3e50;">{{ p.produkt }}</div>
+                        <div style="font-size: 0.9em; color: #7f8c8d; margin-top: 4px;">
+                            {{ p.nazwa_zlecenia if p.nazwa_zlecenia else 'Zlecenie #' ~ p.work_id }}
+                            <span style="margin-left: 10px; padding: 2px 6px; background: #ecf0f1; border-radius: 4px; font-size: 0.9em;">
+                                <span class="material-icons" style="font-size: 12px; vertical-align: middle;">event</span> {{ p.data_planu }}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="badge-info">PRODUKCJA</span>
+                        <div style="margin-top: 5px; font-weight: 600; color: #3498db;">{{ p.w_kg }} kg</div>
+                    </div>
+                </div>
+            </a>
+            {% else %}
+            <div style="text-align: center; padding: 40px; color: #95a5a6; font-style: italic;">
+                Brak zakończonych zleceń Workowanie / Czyszczenie w wybranym zakresie dat.
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
+            <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
+                Powrót
+            </a>
+            {% else %}
+            <a href="javascript:history.back()" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
+                Powrót
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<script>
+    function changeReportDate(){
+        try{
+            var d_od = document.getElementById('reportDateOd').value || '';
+            var d_do = document.getElementById('reportDateDo').value || '';
+            if(!d_od && !d_do) return;
+            if(!d_od) d_od = d_do;
+            if(!d_do) d_do = d_od;
+            var url = '/agro/raport_palet?data_od=' + encodeURIComponent(d_od) + '&data_do=' + encodeURIComponent(d_do) + '&select=1';
+            window.location.href = url;
+        }catch(e){ console.error('changeReportDate error', e); }
+    }
+</script>
+{% endblock %}

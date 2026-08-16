@@ -1,0 +1,46 @@
+{% if szarze and szarze|length > 0 %}
+<style>
+    .jp-card{background:#fff;border:1px solid #e6e9ee;border-radius:8px;padding:14px;box-shadow:0 1px 4px rgba(16,24,40,0.04);margin-bottom:14px}
+    .jp-card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .jp-card-meta{color:#6b7280;font-size:0.9em;margin-top:6px}
+    .jp-card-body{display:flex;gap:18px;margin-top:12px}
+    .jp-dosypki{flex:1;background:#fbfbfd;padding:10px;border-radius:6px;border:1px solid #f0f2f7}
+    .jp-param{width:340px;background:#fbfbfd;padding:10px;border-radius:6px;border:1px solid #f0f2f7}
+    .jp-param table{width:100%;border-collapse:collapse}
+    .jp-param th{font-weight:600;text-align:left;padding:6px;border-bottom:1px solid #eef2f7}
+    .jp-param td{padding:6px;border-bottom:1px solid #f6f7fb}
+    .jp-actions{display:flex;gap:8px;align-items:center}
+    .jp-small-muted{color:#6b7280;font-size:0.9em}
+    .jp-dosypki ul{margin:6px 0 0 18px;padding:0}
+    .jp-dosypki li{margin-bottom:6px}
+</style>
+<div class="list">
+    {% for s in szarze %}
+    <div class="jp-card">
+        <div class="jp-card-header">
+            <div>
+                <div><strong>Zasyp #{{ s.szarza_id }}</strong> — <strong>Zlecenie:</strong> {{ s.plan_nazwa }} <span class="jp-small-muted">(id: {{ s.plan_id }})</span></div>
+                <div class="jp-card-meta">Dodana: {{ s.data_dodania }} {{ s.godzina or '' }} • Waga: {{ s.waga or 0 }} kg • Autor: {{ s.pracownik_name or '-' }}</div>
+                {% if s.uwagi %}<div class="jp-card-meta" style="margin-top:6px"><strong>Uwagi:</strong> {{ s.uwagi }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="jp-card-body">
+            <div class="jp-dosypki">
+                <div class="jp-small-muted">Dosypki</div>
+                {% if s.dosypki and s.dosypki|length>0 %}
+                <ul>
+                    {% for d in s.dosypki %}
+                    <li><strong>{{ d.nazwa }}</strong> — {{ d.kg }} kg {% if d.data_zlecenia %}<span class="jp-small-muted">({{ d.data_zlecenia }})</span>{% endif %} <span class="jp-small-muted">#{{ d.id }}</span></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="jp-small-muted">Brak dosypek</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-muted">Brak zarejestrowanych zasypów.</div>
+{% endif %}

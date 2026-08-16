@@ -1,0 +1,346 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-container p-20" style="max-width: 1000px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    {% set role = (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim %}
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 style="margin: 0; font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">Inwentaryzacja Produkcji</h1>
+            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Inwentaryzacja zbiorników produkcyjnych BB, MZ i KO.</p>
+        </div>
+        
+        <button onclick="document.getElementById('startModal').style.display='flex'" class="btn-primary" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+            <span class="material-icons">add_circle</span> NOWA SESJA
+        </button>
+    </div>
+
+    {% if active_sessions %}
+    <!-- SESJE W TOKU -->
+    <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 800; color: #1e293b; letter-spacing: -0.3px;">Aktywne Sesje Inwentaryzacyjne</h3>
+    <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 40px;">
+        {% for active in active_sessions %}
+        <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 20px; padding: 25px; color: white; box-shadow: 0 10px 25px rgba(124, 58, 237, 0.15); position: relative; overflow: hidden;">
+            <div style="position: absolute; right: -20px; top: -20px; opacity: 0.1;">
+                <span class="material-icons" style="font-size: 150px;">science</span>
+            </div>
+            
+            <div style="position: relative; z-index: 1;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <span class="status-badge" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 4px 12px;">SESJA AKTYWNA</span>
+                    <span style="font-weight: 600; opacity: 0.9;">Rozpoczęto: {{ active.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h2 style="margin: 0; font-size: 24px; font-weight: 800;">
+                        {% if active.typ == 'BB_MZ' %}Zbiorniki BB i MZ{% else %}Zbiorniki KO{% endif %} (#{{ active.id }})
+                    </h2>
+                    {% if role not in ['magazynier'] %}
+                    <button onclick="openEditModal({{ active.id }}, '{{ active.comment or '' }}')" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 5px;" title="Edytuj dane sesji">
+                        <span class="material-icons" style="font-size: 18px;">edit</span>
+                    </button>
+                    {% endif %}
+                </div>
+                <p style="margin: 5px 0 25px 0; opacity: 0.9;">Operator: <strong>{{ active.created_by }}</strong> {% if active.comment %} | Komentarz: {{ active.comment }}{% endif %}</p>
+                
+                <div style="display: flex; gap: 12px;">
+                    <a href="{{ url_for('inwentaryzacja_produkcji.skaner', sesja_id=active.id) }}" class="btn-white" style="background: white; color: #7c3aed; padding: 12px 24px; border-radius: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        <span class="material-icons">science</span> KONTYNUUJ INWENTARYZACJĘ
+                    </a>
+                    <button onclick="openCloseModal({{ active.id }})" class="btn-outline-white" style="background: transparent; border: 2px solid white; color: white; padding: 10px 24px; border-radius: 12px; font-weight: 700; cursor: pointer;">
+                        ZAKOŃCZ SESJĘ
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- HISTORIA SESJI -->
+    <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div style="padding: 20px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #64748b;">history</span>
+                <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #1e293b;">Ostatnie Sesje</h3>
+            </div>
+            <div style="position: relative; width: 280px;">
+                <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 18px;">search</span>
+                <input type="text" id="sessionSearchInput" placeholder="Szukaj sesji, typu, operatora..." style="width: 100%; padding: 8px 12px 8px 38px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; font-weight: 500; color: #1e293b; outline: none; transition: all 0.2s;" onkeyup="filterSessionsTable()">
+            </div>
+        </div>
+        
+        {% if not sessions %}
+        <div style="padding: 40px; text-align: center; color: #94a3b8;">
+            <span class="material-icons" style="font-size: 48px; margin-bottom: 10px;">history_toggle_off</span>
+            <p>Brak historii sesji.</p>
+        </div>
+        {% else %}
+        <table class="modern-table" style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f8fafc;">
+                <tr>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Sesja / Typ</th>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Data</th>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Status</th>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Operator</th>
+                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 15px;">
+                        <div style="font-weight: 700; color: #0f172a;">#{{ s.id }}</div>
+                        <div style="font-size: 11px; color: #64748b;">{% if s.typ == 'BB_MZ' %}BB + MZ{% else %}KO{% endif %}</div>
+                    </td>
+                    <td style="padding: 15px; color: #475569;">
+                        <div style="font-weight: 500;">Rozpoczęto: {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                        {% if s.closed_at %}
+                        <div style="font-size: 11px; color: #166534; font-weight: 700; margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-icons" style="font-size: 12px; color: #166534;">task_alt</span>
+                            Zakończono: {{ s.closed_at.strftime('%Y-%m-%d %H:%M') }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px;">
+                        {% if s.status == 'OPEN' %}
+                            <span class="status-badge" style="background: #dbeafe; color: #1e40af;">W TOKU</span>
+                        {% elif s.status == 'CLOSED' %}
+                            <span class="status-badge" style="background: #f1f5f9; color: #475569;">ZAKOŃCZONA</span>
+                        {% elif s.status == 'APPLIED' %}
+                            <span class="status-badge" style="background: #dcfce7; color: #166534;">ZATWIERDZONA</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px; color: #475569;">{{ s.created_by }}</td>
+                    <td style="padding: 15px; text-align: right;">
+                        <div style="display: flex; gap: 5px; justify-content: flex-end;">
+                            <a href="{{ url_for('inwentaryzacja_produkcji.raport', sesja_id=s.id) }}" class="btn-icon" title="Pokaż Raport">
+                                <span class="material-icons" style="font-size: 20px;">summarize</span>
+                            </a>
+                            {% if role not in ['magazynier'] %}
+                            {% if s.status != 'APPLIED' %}
+                            <button onclick="openEditModal({{ s.id }}, '{{ s.comment or '' }}')" class="btn-icon" title="Edytuj Sesję" style="border:none; cursor:pointer;">
+                                <span class="material-icons" style="font-size: 20px; color: #64748b;">edit</span>
+                            </button>
+                            {% endif %}
+                            {% if s.status == 'CLOSED' %}
+                            <button onclick="resumeSession({{ s.id }})" class="btn-icon" title="Wznów Sesję" style="border:none; cursor:pointer;">
+                                <span class="material-icons" style="font-size: 20px; color: #0ea5e9;">settings_backup_restore</span>
+                            </button>
+                            {% endif %}
+                            {% if s.status == 'APPLIED' %}
+                            <button onclick="revertSession({{ s.id }})" class="btn-icon" title="Cofnij zatwierdzenie" style="border:none; cursor:pointer;">
+                                <span class="material-icons" style="font-size: 20px; color: #f59e0b;">undo</span>
+                            </button>
+                            {% endif %}
+                            {% if s.status != 'APPLIED' %}
+                            <button onclick="deleteSession({{ s.id }})" class="btn-icon" title="Usuń Sesję" style="border:none; cursor:pointer;">
+                                <span class="material-icons" style="font-size: 20px; color: #ef4444;">delete</span>
+                            </button>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MODAL: WYBÓR TYPU INWENTARYZACJI -->
+<div id="startModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.85); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 480px; border-radius: 20px; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <div>
+                <h3 style="margin:0 0 4px 0; font-size: 20px; font-weight: 800;">Nowa Inwentaryzacja Produkcji</h3>
+                <p style="margin:0; color:#64748b; font-size:13px;">Wybierz grupę zbiorników do inwentaryzacji.</p>
+            </div>
+            <button onclick="document.getElementById('startModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:26px;line-height:1;">×</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <!-- BB + MZ -->
+            <form action="{{ url_for('inwentaryzacja_produkcji.start') }}" method="POST" style="margin:0;">
+                <input type="hidden" name="typ" value="BB_MZ">
+                <input type="hidden" name="comment" value="">
+                <button type="submit" style="width:100%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 24px 16px; cursor: pointer; color: white; text-align: center; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 4px 15px rgba(124,58,237,0.2);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(124,58,237,0.3)'" onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 15px rgba(124,58,237,0.2)'">
+                    <span class="material-icons" style="font-size: 40px; display: block; margin-bottom: 10px;">science</span>
+                    <div style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">BB i MZ</div>
+                    <div style="font-size: 11px; opacity: 0.85; line-height: 1.4;">BB01–BB06, BB11–BB22<br>MZ07–MZ10, MZ23, MZ24</div>
+                </button>
+            </form>
+            
+            <!-- KO -->
+            <form action="{{ url_for('inwentaryzacja_produkcji.start') }}" method="POST" style="margin:0;">
+                <input type="hidden" name="typ" value="KO">
+                <input type="hidden" name="comment" value="">
+                <button type="submit" style="width:100%; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 24px 16px; cursor: pointer; color: white; text-align: center; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 4px 15px rgba(217,119,6,0.2);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(217,119,6,0.3)'" onmouseout="this.style.transform=''; this.style.boxShadow='0 4px 15px rgba(217,119,6,0.2)'">
+                    <span class="material-icons" style="font-size: 40px; display: block; margin-bottom: 10px;">propane_tank</span>
+                    <div style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">KO</div>
+                    <div style="font-size: 11px; opacity: 0.85; line-height: 1.4;">KO01–KO22</div>
+                </button>
+            </form>
+        </div>
+        
+        <div style="text-align: center;">
+            <button type="button" onclick="document.getElementById('startModal').style.display='none'" style="background:#f1f5f9; border:none; border-radius:12px; color:#475569; font-weight:700; cursor:pointer; padding: 10px 30px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: EDYCJA SESJI -->
+<div id="editModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 400px; border-radius: 20px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Edytuj dane sesji</h3>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">Zmień komentarz dla sesji #<span id="edit_display_id"></span></p>
+        
+        <input type="hidden" id="edit_sesja_id">
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Komentarz</label>
+            <textarea id="edit_comment" style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 14px; min-height: 80px;"></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="saveEdit()" class="btn-primary" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;">ZAPISZ ZMIANY</button>
+            <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: ZAMKNIJ SESJĘ -->
+<div id="closeModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 400px; border-radius: 20px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 60px; height: 60px; background: #fee2e2; color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 32px;">warning</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Zakończyć sesję?</h3>
+        <p style="margin: 0 0 30px 0; color: #64748b; font-size: 14px;">Po zakończeniu sesji nie będzie można dodawać nowych wpisów. Raport zostanie wygenerowany automatycznie.</p>
+        
+        <input type="hidden" id="close_sesja_id">
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="confirmClose()" class="btn-danger" style="flex: 1; background: #ef4444; color: white; padding: 12px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;">TAK, ZAKOŃCZ</button>
+            <button type="button" onclick="document.getElementById('closeModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openCloseModal(id) {
+    document.getElementById('close_sesja_id').value = id;
+    document.getElementById('closeModal').style.display = 'flex';
+}
+
+function confirmClose() {
+    const id = document.getElementById('close_sesja_id').value;
+    fetch('/produkcja/inwentaryzacja/api/zamknij-sesje', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: id})
+    }).then(r => r.json()).then(data => {
+        if(data.success) window.location.reload();
+        else alert("Błąd: " + data.message);
+    });
+}
+
+function deleteSession(id) {
+    if(confirm('Czy na pewno chcesz TRWALE usunąć tę sesję i wszystkie jej wpisy?')) {
+        fetch('/produkcja/inwentaryzacja/api/usun-sesje', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: id})
+        }).then(r => r.json()).then(data => {
+            if(data.success) window.location.reload();
+            else alert("Błąd: " + data.message);
+        });
+    }
+}
+
+function resumeSession(id) {
+    if(confirm('Czy chcesz wznowić tę sesję inwentaryzacji?')) {
+        fetch('/produkcja/inwentaryzacja/api/wznow-sesje', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: id})
+        }).then(r => r.json()).then(data => {
+            if(data.success) window.location.reload();
+            else alert("Błąd: " + data.message);
+        });
+    }
+}
+
+function revertSession(id) {
+    if(confirm('Czy na pewno chcesz cofnąć zatwierdzenie tej sesji? Jej status zmieni się z powrotem na OTWARTĄ.')) {
+        fetch('/produkcja/inwentaryzacja/api/cofnij-zatwierdzenie', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: id})
+        }).then(r => r.json()).then(data => {
+            if(data.success) window.location.reload();
+            else alert("Błąd: " + data.message);
+        });
+    }
+}
+
+function filterSessionsTable() {
+    const input = document.getElementById('sessionSearchInput');
+    const filter = input.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('.modern-table tbody tr');
+
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+    });
+}
+
+function openEditModal(id, comment) {
+    document.getElementById('edit_sesja_id').value = id;
+    document.getElementById('edit_display_id').innerText = id;
+    document.getElementById('edit_comment').value = comment;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function saveEdit() {
+    const id = document.getElementById('edit_sesja_id').value;
+    const comment = document.getElementById('edit_comment').value.trim();
+    
+    fetch('/produkcja/inwentaryzacja/api/edytuj-sesje', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sesja_id: id,
+            comment: comment
+        })
+    }).then(r => r.json()).then(data => {
+        if(data.success) window.location.reload();
+        else alert("Błąd: " + data.message);
+    });
+}
+</script>
+
+<style>
+    .btn-icon {
+        display: inline-flex;
+        padding: 8px;
+        background: #f1f5f9;
+        color: #64748b;
+        border-radius: 8px;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+    .btn-icon:hover {
+        background: #e2e8f0;
+        color: #7c3aed;
+    }
+    .status-badge {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 6px;
+        letter-spacing: 0.5px;
+        display: inline-block;
+    }
+</style>
+{% endblock %}

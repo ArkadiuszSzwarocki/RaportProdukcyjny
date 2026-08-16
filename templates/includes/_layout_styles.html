@@ -1,0 +1,217 @@
+<style>
+    /* Modern Inventory Mobile Optimizations */
+    .modal-overlay { -webkit-overflow-scrolling: touch; }
+    @media (max-height: 600px) {
+        #newPalletModal .modal-content { padding-bottom: 80px; }
+    }
+
+    /* Notifications Wrapper & Badge */
+    .notifications-wrapper { position: relative; }
+    .notifications-badge {
+        position: absolute; inset-block-start: -4px; inset-inline-end: -4px;
+        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+        background: #d9342b; color: #fff; font-size: 11px; line-height: 18px;
+        text-align: center; font-weight: 700; display: none;
+    }
+    .notifications-badge.dot-mode {
+        min-width: 10px; width: 10px; height: 10px; padding: 0;
+        line-height: 10px; font-size: 0; color: transparent;
+        inset-block-start: 0; inset-inline-end: 0;
+    }
+
+    /* Notifications Menu */
+    .notifications-menu {
+        position: absolute; top: calc(100% + 10px); right: 0; left: auto;
+        width: min(420px, 88vw); max-height: 70vh; overflow: hidden;
+        background: #fff; border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 14px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        z-index: 1200; display: none;
+    }
+    .notifications-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 16px; border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .notifications-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+    .notifications-list { max-height: 52vh; overflow-y: auto; }
+    .notification-item {
+        width: 100%; border: 0; background: #fff; text-align: left;
+        padding: 14px 16px; display: block; cursor: pointer;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+    .notification-item:hover { background: #f8fafc; }
+    .notification-item-system { background: #f8fbff; border-left: 3px solid #2563eb; }
+    .notification-item-title {
+        display: block; font-size: 13px; font-weight: 700; color: #0f172a;
+        margin-bottom: 4px;
+    }
+    .notification-item-message {
+        display: block; font-size: 12px; color: #334155; line-height: 1.35;
+    }
+    .notification-item-meta {
+        display: block; font-size: 11px; color: #64748b; margin-top: 8px;
+    }
+    .notifications-empty {
+        padding: 16px; color: #64748b; font-size: 13px;
+    }
+
+    .checklist-ok-badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #27ae60;
+        background: #e9f9ef;
+        color: #166534;
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        line-height: 1.2;
+        margin-left: 6px;
+        text-transform: uppercase;
+    }
+
+    /* Bug Icon Onboarding */
+    .bug-icon-onboarding-highlight {
+        position: relative; isolation: isolate;
+        animation: bugIconNudge 2.4s ease-in-out infinite;
+    }
+    @keyframes bugIconPulse {
+        0% { transform: scale(0.98); opacity: 0.95; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+        70% { transform: scale(1.04); opacity: 0.15; box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+        100% { transform: scale(1.04); opacity: 0; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    @keyframes bugIconNudge {
+        0%, 85%, 100% { transform: translateY(0); }
+        90% { transform: translateY(-1px); }
+        95% { transform: translateY(1px); }
+    }
+
+    /* Global Spinner */
+    #globalSpinner {
+        display: none; position: fixed; inset: 0;
+        background: rgba(255,255,255,0.65); z-index: 3000;
+        align-items: center; justify-content: center;
+    }
+    #globalSpinner .spinner {
+        width: 56px; height: 56px; border: 6px solid rgba(15,23,42,0.12);
+        border-top-color: #0f172a; border-radius: 50%;
+        animation: rp-spin 1s linear infinite;
+    }
+    @keyframes rp-spin { to { transform: rotate(360deg); } }
+    /* No Orders Alert (Operator View) */
+    .no-orders-alert {
+        display: flex; align-items: flex-start; gap: 20px;
+        background: #fff; border: 2px dashed #f59e0b; border-radius: 16px;
+        padding: 24px; margin: 20px 0; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.1);
+    }
+    .no-orders-alert .info-icon { font-size: 48px; color: #f59e0b; }
+    .no-orders-alert .alert-content { flex: 1; }
+    .no-orders-alert .alert-content strong { display: block; font-size: 18px; margin-bottom: 8px; color: #92400e; }
+    .no-orders-alert .alert-content p { color: #b45309; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+    .btn-notify-planner {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: #f59e0b; color: #fff; border: 0; border-radius: 10px;
+        padding: 10px 20px; font-weight: 700; cursor: pointer;
+        transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    .btn-notify-planner:hover { background: #d97706; transform: translateY(-1px); box-shadow: 0 6px 15px rgba(245, 158, 11, 0.4); }
+    .btn-notify-planner:active { transform: translateY(0); }
+    .btn-notify-planner .material-icons { font-size: 18px; }
+
+    /* ─── Export Pallet Alert — operator workowania ─── */
+    .eksport-pallet-alert {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: linear-gradient(135deg, #ff4500 0%, #ff6b00 50%, #ff8c00 100%);
+        border: 3px solid #cc3300;
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 14px;
+        box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.6);
+        animation: eksportPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes eksportPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.6); }
+        50%  { box-shadow: 0 0 0 12px rgba(255, 69, 0, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); }
+    }
+    .eksport-pallet-alert__icon {
+        font-size: 2.4rem;
+        line-height: 1;
+        flex-shrink: 0;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .eksport-pallet-alert__content {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .eksport-pallet-alert__title {
+        font-size: 1.1rem;
+        font-weight: 900;
+        color: #fff;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .eksport-pallet-alert__msg {
+        font-size: 0.9rem;
+        color: #fff3e0;
+        line-height: 1.4;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* Badge przy liście oczekujących zleceń */
+    .badge-eksport {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: linear-gradient(135deg, #ff4500, #ff6b00);
+        color: #fff;
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-left: 4px;
+        margin-bottom: 3px;
+        box-shadow: 0 2px 6px rgba(255,69,0,0.35);
+        vertical-align: middle;
+    }
+
+    /* Mniejszy inline badge w nagłówku aktywnego zlecenia */
+    .badge-eksport-inline {
+        display: inline-flex;
+        align-items: center;
+        background: #ff4500;
+        color: #fff;
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-left: 8px;
+        vertical-align: middle;
+    }
+
+    /* Badge w panelu planisty */
+    .badge-plan-eksport {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: linear-gradient(135deg, #0369a1, #0ea5e9);
+        color: #fff;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-left: 4px;
+        box-shadow: 0 2px 5px rgba(3,105,161,0.3);
+        vertical-align: middle;
+    }
+</style>

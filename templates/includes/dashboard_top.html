@@ -1,0 +1,111 @@
+<div class="section-header" id="dashboard-config"
+    data-current-role="{{ rola }}"
+    data-linia="{{ linia or 'PSD' }}"
+    data-sekcja="{{ sekcja }}">
+    
+    {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
+    <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
+        <div class="top-submenu-inner" style="margin-left: 0;">
+            <nav class="top-menu">
+                <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
+                    href="{{ url_for('production.obsada_page', sekcja='Workowanie', linia=linia) }}" title="{{ _('obsada') }}"
+                    data-slide>
+                    <span class="material-icons">people</span> {{ _('obsada') }}
+                </a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_wnioski_page', linia=linia) }}" data-slide> <span
+                        class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_planowane_page', linia=linia) }}" data-slide> <span
+                        class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_obecnosci_page', linia=linia) }}" data-slide> <span
+                        class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
+        <div class="header-title-row d-flex align-center gap-10">
+            <h2 class="header-title m-0 d-flex align-center gap-8">
+                <strong>{{ _(sekcja.lower()) if sekcja != 'Zasyp' else 'Zasyp ' ~ linia }}</strong>
+                {% if linia == 'AGRO' and sekcja == 'Zasyp' and rola in ['laborant', 'laboratorium', 'admin', 'masteradmin'] %}
+                    <button class="btn-action" data-action="send-zwolnienie-mieszalnika" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
+                        <span class="material-icons" style="font-size:16px;">lock_open</span> Zwalniam mieszalnik
+                    </button>
+                {% endif %}
+            </h2>
+            
+            {% if linia == 'AGRO' and sekcja == 'Zasyp' %}
+            <div class="day-tile m-0" data-sekcja="{{ sekcja }}" style="display: flex; gap: 10px; align-items: center; padding: 5px 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-od" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Od:</label>
+                    <input type="date" id="date-od" value="{{ data_od if data_od else dzisiaj.strftime('%Y-%m-%d') }}" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-do" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Do:</label>
+                    <input type="date" id="date-do" value="{{ data_do if data_do else dzisiaj.strftime('%Y-%m-%d') }}" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <button type="button" class="btn-action" onclick="applyDateRange()" style="background: #3498db; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Pokaż <span class="material-icons" style="font-size: 16px; margin-left: 5px;">settings</span></button>
+            </div>
+            <script>
+                function applyDateRange() {
+                    var od = document.getElementById('date-od').value;
+                    var do_val = document.getElementById('date-do').value;
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('data_od', od);
+                    url.searchParams.set('data_do', do_val);
+                    // Also set 'data' to 'od' so that internal scripts expecting a single date don't break drastically
+                    url.searchParams.set('data', od);
+                    window.location.href = url.toString();
+                }
+            </script>
+            {% else %}
+            <div class="day-tile m-0" data-sekcja="{{ sekcja }}">
+                {% set offset = 7 if linia == 'AGRO' else 1 %}
+                <button type="button" class="day-nav left" data-day-offset="-{{ offset }}">◀</button>
+                <div class="day-center">
+                    <div class="day-label">{{ _('widok_dla') if offset == 1 else 'Tydzień' }}</div>
+                    <div id="current-date-display" class="day-date">{{ dzisiaj.strftime('%d.%m.%y') if dzisiaj else '' }}</div>
+                </div>
+                <button type="button" class="day-nav right" data-day-offset="{{ offset }}">▶</button>
+                <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
+                <button type="button" onclick="if(typeof openPrinterSettingsModal === 'function') { openPrinterSettingsModal(); } else { alert('Opcja wyboru drukarki jest niedostępna na tym widoku.'); }" style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; outline: none;" title="Ustawienia Drukarki ZPL">
+                    <span class="material-icons" style="font-size: 20px; color: #7f8c8d; margin-left: 10px; transition: color 0.2s;" onmouseover="this.style.color='#3498db'" onmouseout="this.style.color='#7f8c8d'">print</span>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="d-flex align-center gap-12 header-stats">
+            {% if sekcja == 'Magazyn' %}
+                <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
+                <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
+                {% if linia in ['PSD', 'AGRO'] %}
+                    {% if rola in ['magazynier','lider','admin','masteradmin','zarzad'] %}
+                        <div style="margin-left:12px;">
+                            <button type="button" id="preprint_pallets_btn" class="btn-action" style="background:#0f172a;color:#fff;border-radius:8px;padding:8px 12px;font-weight:800;">Pre-druk etykiet</button>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            {% else %}
+                {% set active_plan = namespace(tonaz=0, wykonanie=0, found=false) %}
+                {% if plan %}
+                    {% for p in plan %}
+                        {% if p[3] == 'w toku' and not active_plan.found %}
+                            {% set active_plan.tonaz = p[2] %}
+                            {% set active_plan.wykonanie = p[7] %}
+                            {% set active_plan.found = true %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% set display_plan = active_plan.tonaz if active_plan.found else suma_plan %}
+                {% set display_wykonanie = active_plan.wykonanie if active_plan.found else suma_wykonanie %}
+                <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{ display_plan|int }} kg</strong></div>
+                <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong class="value text-success">{{ display_wykonanie|int }} kg</strong></div>
+                <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{ (display_wykonanie/display_plan*100)|int if display_plan>0 else 0 }}%</strong></div>
+            {% endif %}
+        </div>
+    </div>
+</div>

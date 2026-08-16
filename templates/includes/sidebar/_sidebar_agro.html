@@ -1,0 +1,85 @@
+{% if effective_hall in ['AGRO', 'ALL'] %}
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>PRODUKCJA AGRO</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="agro-sub" class="nav-sub {% if request.args.get('linia')|upper == 'AGRO' or (not request.args.get('linia') and effective_hall == 'AGRO') or 'agro' in request.path|lower or (request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia')|upper == 'AGRO') %}open{% endif %}">
+        {% if role_has_access('agro.dashboard') %}
+        <a href="{{ url_for('main.index', linia='AGRO') }}"
+            class="nav-sub-item {% if (request.path == '/' or request.path == '') and (not request.args.get('sekcja') or request.args.get('sekcja') == 'Dashboard') and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">
+            Dashboard Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('agro.zasyp') %}
+        <a href="{{ url_for('main.index', sekcja='Zasyp', linia='AGRO') }}"
+            class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Zasyp Agro
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('production.agro_station_history') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
+            Historia Stacji (BB/MZ/WZ)
+        </a>
+
+        {% if role_has_access('agro.bufor') %}
+        <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
+            class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
+            Bufor Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('agro.workowanie') %}
+        <a href="{{ url_for('main.index', sekcja='Workowanie', linia='AGRO') }}"
+            class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Workowanie Agro
+        </a>
+        <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
+            class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
+            ⚠️ Przestoje AGRO
+        </a>
+        {% endif %}
+
+        {% if role_has_access('agro.magazyn') %}
+        <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}" 
+           class="nav-sub-item {% if request.args.get('sekcja') == 'Magazyn' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Magazyn Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('agro.zasyp_summary') %}
+        <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
+           class="nav-sub-item {% if 'zasyp_etapy_podsumowanie' in request.path %}active{% endif %}">
+            Raport Czasu Pracy
+        </a>
+        {% endif %}
+        
+        {% if role_has_access('agro.magazyn') %}
+          {% set surowce_endpoint = 'agro_warehouse.surowce_w_produkcji' if app.view_functions.get('agro_warehouse.surowce_w_produkcji') else 'agro_warehouse.report_production' %}
+          <a href="{{ url_for(surowce_endpoint, linia='AGRO') }}"
+              class="nav-sub-item {% if request.endpoint == 'agro_warehouse.surowce_w_produkcji' %}active{% elif request.endpoint == 'agro_warehouse.report_production' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Surowce w produkcji
+        </a>
+        {% endif %}
+        {% if role_has_access('agro.zasyp_summary') %}
+        <a href="{{ url_for('warehouse.podsumowanie_zasypow', linia='AGRO') }}" 
+           class="nav-sub-item {% if request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Podsumowanie zasypów
+        </a>
+        {% endif %}
+
+          {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
+          <a href="{{ url_for(zasypy_dosypki_endpoint, linia='AGRO') }}" 
+              class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'AGRO' %}active{% elif request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Raport Zasypów i Dosypek
+        </a>
+
+        <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" 
+           class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
+            Raport Palet AGRO
+        </a>
+    </div>
+</div>
+{% endif %}

@@ -1,0 +1,16 @@
+<div class="p-10" data-popup-title="✏️ Edytuj notatkę zasypu">
+    <h3 class="popup-title">✏️ Edytuj notatkę zasypu</h3>
+    <form action="{{ url_for('warehouse.edytuj_zasyp', szarza_id=(zasyp_id or szarza_id)) }}" method="POST">
+      <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+      <input type="hidden" name="data_powrotu" value="{{ data or '' }}">
+      <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
+      <div class="form-group mb-15">
+        <label class="form-label" for="uwagi">Notatka:</label>
+        <textarea id="uwagi" name="uwagi" rows="6" class="form-control" style="width:100%;">{{ uwagi or '' }}</textarea>
+      </div>
+      <div class="popup-button-group">
+        <button type="submit" class="btn-action btn-save">Zapisz</button>
+        <button type="button" class="btn-action btn-outline" data-action="close-popup">Anuluj</button>
+      </div>
+    </form>
+</div>

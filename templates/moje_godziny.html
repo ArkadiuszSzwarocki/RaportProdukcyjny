@@ -1,0 +1,2314 @@
+{% extends 'layout.html' %}
+{% block content %}
+<style>
+  /* Modern Dashboard Layout */
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .dashboard-title {
+    margin: 0;
+    font-size: 2.2rem;
+    color: #2b2b2b;
+    font-weight: 700;
+  }
+
+  .dashboard-period {
+    font-size: 1.1rem;
+    color: #495057;
+    font-weight: 600;
+    background: #f8f9fa;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .summary-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    display: flex;
+    align-items: center;
+    border: 1px solid #f0f0f0;
+    border-left: 5px solid #007bff;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  }
+
+  .stat-card.bg-success-left {
+    border-left-color: #28a745;
+  }
+
+  .stat-card.bg-warning-left {
+    border-left-color: #ffc107;
+  }
+
+  .stat-card.bg-info-left {
+    border-left-color: #17a2b8;
+  }
+
+  .stat-card.bg-purple-left {
+    border-left-color: #6f42c1;
+  }
+
+  .stat-card.bg-red-left {
+    border-left-color: #dc3545;
+  }
+
+  .stat-card.bg-teal-left {
+    border-left-color: #20c997;
+  }
+
+  .stat-card.bg-orange-left {
+    border-left-color: #fd7e14;
+  }
+
+  .summary-section-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #adb5bd;
+    font-weight: 700;
+    margin: 20px 0 8px 4px;
+  }
+
+  .type-breakdown-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .type-chip {
+    background: #f1f3f5;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #495057;
+  }
+
+  .type-chip .chip-hours {
+    color: #2b2b2b;
+    font-weight: 800;
+  }
+
+  .pdf-export-btn {
+    float: right;
+    background: #dc3545;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+
+  .pdf-export-btn:hover { background: #b02a37; }
+
+  .stat-icon {
+    font-size: 2.8rem;
+    margin-right: 20px;
+    opacity: 0.9;
+  }
+
+  .stat-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-title {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #2b2b2b;
+    line-height: 1;
+  }
+
+  .stat-unit {
+    font-size: 1rem;
+    color: #6c757d;
+    font-weight: 500;
+    margin-left: 4px;
+  }
+
+  .content-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    padding: 24px;
+    margin-bottom: 32px;
+    border: 1px solid #f4f5f7;
+  }
+
+  .content-card-header {
+    margin-top: 0;
+    margin-bottom: 24px;
+    color: #2b2b2b;
+    font-size: 1.4rem;
+    font-weight: 700;
+    border-bottom: 2px solid #f8f9fa;
+    padding-bottom: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  .content-card-header i {
+    margin-right: 12px;
+    color: #007bff;
+  }
+
+  .requests-calendar-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr);
+    gap: 28px;
+    align-items: start;
+    margin-bottom: 32px;
+  }
+
+  .request-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 92px;
+  }
+
+  .request-card {
+    margin-bottom: 0;
+  }
+
+  .request-card .content-card-header {
+    margin-bottom: 18px;
+    font-size: 1.2rem;
+  }
+
+  .request-lead {
+    margin: 0 0 18px;
+    color: #5c6773;
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+
+  .request-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+  }
+
+  .request-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: #eef5ff;
+    color: #24599d;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .request-note {
+    background: linear-gradient(135deg, #fffdf5 0%, #fff8dc 100%);
+    border: 1px solid #f5e4a8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #735c12;
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .request-time-field {
+    display: none;
+  }
+
+  .request-time-field.is-visible {
+    display: block;
+  }
+
+  .calendar-card {
+    margin-bottom: 0;
+  }
+
+  .calendar-shell {
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    border: 1px solid #edf2f7;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .calendar-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .calendar-meta-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #344054;
+  }
+
+  .calendar-meta-caption {
+    color: #667085;
+    font-size: 0.9rem;
+  }
+
+  .calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .calendar-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #52606d;
+    font-size: 0.83rem;
+    font-weight: 600;
+  }
+
+  .calendar-legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .calendar-legend-dot.pending {
+    background: #ffe8a1;
+  }
+
+  .calendar-legend-dot.approved {
+    background: #bbf7d0;
+  }
+
+  .calendar-legend-dot.assigned {
+    background: #cce5ff;
+  }
+
+  .calendar-legend-dot.overtime {
+    background: #ffc9c9;
+  }
+
+  /* Form and Select styling */
+  .modern-form-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .modern-form-row>div {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .modern-form-row.action-row {
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+
+  .modern-form-control {
+    padding: 10px 14px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+    background-color: #f8f9fa;
+  }
+
+  .modern-form-control:focus {
+    border-color: #80bdff;
+    outline: 0;
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, .25);
+  }
+
+  label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  /* Button redesign */
+  .btn-modern {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-modern i {
+    margin-right: 10px;
+  }
+
+  .btn-primary-modern {
+    background: #007bff;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
+  }
+
+  .btn-primary-modern:hover {
+    background: #0069d9;
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+    transform: translateY(-2px);
+  }
+
+  .alert-box {
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .alert-box.alert-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+  }
+
+  @media (max-width: 1200px) {
+    .requests-calendar-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .request-sidebar {
+      position: static;
+    }
+  }
+
+  @media (max-width: 768px) {
+    html,
+    body {
+      overflow-x: hidden;
+    }
+
+    .dashboard-title {
+      font-size: 1.45rem;
+    }
+
+    .dashboard-header {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      gap: 10px;
+    }
+
+    .dashboard-period {
+      width: 100%;
+      justify-content: center;
+      font-size: 0.88rem;
+      padding: 8px 12px;
+    }
+
+    .summary-cards-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      margin-right: 14px;
+    }
+
+    .stat-title {
+      font-size: 0.72rem;
+    }
+
+    .stat-value {
+      font-size: 1.45rem;
+    }
+
+    .content-card {
+      padding: 14px;
+      margin-bottom: 18px;
+      min-width: 0;
+    }
+
+    .calendar-shell {
+      padding: 8px;
+    }
+
+    .content-card-header {
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+    }
+
+    .request-chip {
+      font-size: 0.74rem;
+      padding: 6px 10px;
+    }
+
+    .request-note,
+    .request-lead,
+    .calendar-meta-caption {
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .modern-form-row {
+      gap: 10px;
+    }
+
+    .modern-form-row > div {
+      min-width: 0;
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    .modern-form-control,
+    .btn-modern {
+      font-size: 0.92rem;
+    }
+
+    .calendar-meta {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .calendar-meta-title {
+      font-size: 0.92rem;
+    }
+
+    .calendar-legend {
+      gap: 6px;
+    }
+
+    .calendar-legend-item {
+      gap: 6px;
+      font-size: 0.68rem;
+    }
+
+    .calendar-legend-dot {
+      width: 9px;
+      height: 9px;
+    }
+
+    .mp-cal-row,
+    .mp-cal-col-main {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .mp-cal-col-main {
+      overflow-x: visible !important;
+      padding-bottom: 0 !important;
+    }
+
+    .cal-grid {
+      width: 100%;
+      max-width: 100%;
+      table-layout: fixed;
+      border-spacing: 2px;
+      margin-top: 6px;
+    }
+
+    .cal-grid th {
+      padding: 5px 2px;
+      font-size: 0.56rem;
+      letter-spacing: 0;
+      border-radius: 6px;
+    }
+
+    .cal-grid td {
+      width: auto;
+      height: 74px;
+      padding: 4px 3px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cal-day {
+      margin-bottom: 4px;
+      font-size: 0.82rem;
+      line-height: 1;
+    }
+
+    .cal-hours {
+      font-size: 0.58rem;
+      line-height: 1.15;
+      margin-bottom: 4px;
+    }
+
+    .cal-type,
+    .badge-cal {
+      max-width: 100%;
+      font-size: 0.5rem;
+      line-height: 1.1;
+      padding: 2px 4px;
+      gap: 3px;
+      margin-top: 3px;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .cal-day .fa-mug-hot,
+    .cal-type .fas,
+    .badge-cal .fas,
+    .cal-hours .fas,
+    .cal-hours .far {
+      font-size: 0.52rem !important;
+    }
+
+    .mobile-day-sheet-btn {
+      white-space: normal;
+      line-height: 1.15;
+    }
+
+    .quick-popup {
+      top: 1vh;
+      width: calc(100% - 10px);
+      max-width: calc(100% - 10px);
+      max-height: 98vh;
+    }
+
+    .quick-popup .dashboard-period {
+      width: 100%;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 0.86rem;
+    }
+
+    .quick-popup .summary-cards-grid,
+    .quick-popup .requests-calendar-layout {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .quick-popup .stat-card,
+    .quick-popup .content-card {
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+
+    .quick-popup .content-card-header {
+      font-size: 1rem;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+    }
+
+    .quick-popup .request-lead,
+    .quick-popup .request-note,
+    .quick-popup .calendar-meta-caption {
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .quick-popup .request-chip-row,
+    .quick-popup .calendar-legend {
+      gap: 6px;
+    }
+
+    .quick-popup .request-chip,
+    .quick-popup .calendar-legend-item {
+      font-size: 0.72rem;
+    }
+
+    .quick-popup .modern-form-row {
+      gap: 10px;
+    }
+
+    .quick-popup .modern-form-row > div {
+      min-width: 100%;
+    }
+
+    .quick-popup .modern-form-control,
+    .quick-popup .btn-modern,
+    .quick-popup .btn-primary-modern,
+    .quick-popup .btn-secondary-modern,
+    .quick-popup .btn,
+    .quick-popup button,
+    .quick-popup select,
+    .quick-popup input,
+    .quick-popup textarea {
+      font-size: 0.92rem;
+    }
+
+    .quick-popup .calendar-shell {
+      padding: 8px;
+    }
+
+    .quick-popup .calendar-meta {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .quick-popup .mp-cal-col-main {
+      overflow-x: auto;
+      padding-bottom: 6px !important;
+    }
+
+    .quick-popup .cal-grid {
+      min-width: 560px;
+    }
+
+    .quick-popup .cal-grid th {
+      font-size: 0.7rem;
+      padding: 6px 4px;
+    }
+
+    .quick-popup .cal-grid td {
+      height: 88px;
+      min-width: 72px;
+      padding: 5px 4px;
+    }
+
+    .quick-popup .cal-day {
+      font-size: 0.88rem;
+    }
+
+    .quick-popup .cal-hours {
+      font-size: 0.72rem;
+      line-height: 1.2;
+    }
+
+    .quick-popup .cal-type,
+    .quick-popup .badge-cal {
+      font-size: 0.62rem;
+      padding: 2px 5px;
+      gap: 4px;
+    }
+
+    .quick-popup .panel--wnioski {
+      font-size: 0.9rem;
+    }
+
+    .quick-popup .wniosek-item {
+      display: grid;
+      gap: 10px;
+    }
+
+    .quick-popup .wniosek-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .quick-popup .wniosek-actions .btn {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .dashboard-title {
+      font-size: 1.28rem;
+    }
+
+    .content-card {
+      padding: 12px;
+    }
+
+    .stat-card {
+      padding: 12px;
+    }
+
+    .stat-icon {
+      font-size: 1.75rem;
+      margin-right: 12px;
+    }
+
+    .stat-value {
+      font-size: 1.28rem;
+    }
+
+    .quick-popup .qp-body {
+      padding: 7px;
+    }
+
+    .calendar-shell {
+      padding: 6px;
+    }
+
+    .cal-grid {
+      border-spacing: 1px;
+    }
+
+    .cal-grid th {
+      padding: 4px 1px;
+      font-size: 0.5rem;
+    }
+
+    .cal-grid td {
+      height: 68px;
+      padding: 3px 2px;
+    }
+
+    .cal-day {
+      font-size: 0.74rem;
+    }
+
+    .cal-hours {
+      font-size: 0.52rem;
+    }
+
+    .quick-popup .request-chip,
+    .quick-popup .calendar-legend-item,
+    .quick-popup .badge-cal,
+    .quick-popup .cal-type {
+      font-size: 0.58rem;
+    }
+
+    .cal-type,
+    .badge-cal,
+    .calendar-legend-item,
+    .request-chip {
+      font-size: 0.46rem;
+    }
+  }
+
+  /* Utilities */
+  .mb-4 {
+    margin-bottom: 24px;
+  }
+
+  .mt-4 {
+    margin-top: 24px;
+  }
+
+  /* Basic structure replacements for backwards compat */
+  .block-section {
+    margin-bottom: 30px;
+  }
+
+  .d-none {
+    display: none !important;
+  }
+
+  .mobile-day-sheet {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .mobile-day-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 21000;
+      background: rgba(15, 23, 42, 0.48);
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .mobile-day-sheet.is-open {
+      display: flex;
+    }
+
+    .mobile-day-sheet-card {
+      width: 100%;
+      max-height: 84vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 18px 18px 0 0;
+      padding: 14px 14px 18px;
+      box-shadow: 0 -14px 34px rgba(15, 23, 42, 0.24);
+    }
+
+    .mobile-day-sheet-handle {
+      width: 44px;
+      height: 5px;
+      border-radius: 999px;
+      background: #d5dbe3;
+      margin: 0 auto 12px;
+    }
+
+    .mobile-day-sheet-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-day-sheet-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #1f2937;
+    }
+
+    .mobile-day-sheet-date {
+      margin-top: 4px;
+      font-size: 0.82rem;
+      color: #667085;
+    }
+
+    .mobile-day-sheet-close {
+      border: none;
+      background: #f3f4f6;
+      color: #374151;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      font-size: 1rem;
+      flex: 0 0 auto;
+    }
+
+    .mobile-day-sheet-section {
+      border: 1px solid #e8edf3;
+      background: #fbfcfe;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .mobile-day-sheet-label {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #667085;
+      margin-bottom: 6px;
+    }
+
+    .mobile-day-sheet-value {
+      font-size: 0.92rem;
+      color: #1f2937;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .mobile-day-sheet-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .mobile-day-sheet-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #eef5ff;
+      color: #24599d;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .mobile-day-sheet-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mobile-day-sheet-btn {
+      min-height: 42px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 10px 12px;
+    }
+
+    .mobile-day-sheet-btn.primary {
+      background: #0d6efd;
+      color: #fff;
+    }
+
+    .mobile-day-sheet-btn.secondary {
+      background: #eef2f7;
+      color: #344054;
+    }
+  }
+</style>
+
+<div class="dashboard-header mt-4">
+  <h2 class="dashboard-title"><i class="fas fa-user-clock text-primary"></i> {{ _('moje_godziny') }}</h2>
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div class="dashboard-period">
+      <i class="far fa-calendar-alt text-primary"></i>
+      <span>{{ d_od }} &mdash; {{ d_do }}</span>
+    </div>
+    <a href="{{ url_for('panels.panel_wnioski_page') }}" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:8px; font-weight:700; text-decoration:none; background:#007bff; color:white; border:none;">
+      <i class="fas fa-file-alt"></i> Wnioski
+    </a>
+  </div>
+</div>
+
+{% if not mapped %}
+<div class="alert-box alert-warning"><i class="fas fa-exclamation-triangle"></i> {{ _('konto_nie_powiazane') }}</div>
+{% endif %}
+
+{% if pracownicy_list %}
+<form method="get" class="mb-4">
+  <label for="pracownik_select"><i class="fas fa-users text-primary"></i> {{ _('przeglądaj_pracownika') }}</label>
+  <div style="max-width: 400px;">
+    <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu"
+      onchange="this.form.submit()" class="modern-form-control pracownik-select">
+      <option value="">-- wybierz --</option>
+      {% for p in pracownicy_list %}
+      <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+{% endif %}
+
+{% macro summary_grid(s, prefix) %}
+<div class="summary-cards-grid" style="margin-bottom:16px;">
+  <div class="stat-card bg-info-left">
+    <div class="stat-icon text-info"><i class="fas fa-calendar-check"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Obecności (zmiany)</span>
+      <div><span class="stat-value" id="obecnosciCount_{{ prefix }}">{{ s.obecnosci }}</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-teal-left">
+    <div class="stat-icon" style="color:#20c997"><i class="fas fa-business-time"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Łączne godziny</span>
+      <div><span class="stat-value" id="totalHours_{{ prefix }}">{{ '%.1f'|format(s.total_work_hours if s.total_work_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-orange-left">
+    <div class="stat-icon" style="color:#fd7e14"><i class="fas fa-clock"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Nadgodziny (zatw.)</span>
+      <div><span class="stat-value" id="nadgodzinyHours_{{ prefix }}">{{ '%.1f'|format(s.nadgodziny_hours if s.nadgodziny_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-warning-left">
+    <div class="stat-icon text-warning"><i class="fas fa-door-open"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Wyjścia prywatne</span>
+      <div><span class="stat-value" id="wyjsciaHours_{{ prefix }}">{{ '%.2f'|format(s.wyjscia_hours) }}</span><span class="stat-unit">h</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-red-left">
+    <div class="stat-icon" style="color:#dc3545"><i class="fas fa-user-slash"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Nieobecności / L4</span>
+      <div><span class="stat-value" id="nieobecDays_{{ prefix }}">{{ s.nieobecnosc_days if s.nieobecnosc_days is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-success-left">
+    <div class="stat-icon text-success"><i class="fas fa-umbrella-beach"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Urlop użyty (okres)</span>
+      <div><span class="stat-value" id="urlopUsed_{{ prefix }}">{{ s.urlop_days_used if s.urlop_days_used is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+    </div>
+  </div>
+  <div class="stat-card bg-purple-left">
+    <div class="stat-icon" style="color:#6f42c1"><i class="fas fa-umbrella-beach"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Urlop bieżący (pula)</span>
+      <div><span class="stat-value" id="urlopBiez_{{ prefix }}">{{ s.urlop_biezacy if s.urlop_biezacy is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="color:#adb5bd"><i class="fas fa-history"></i></div>
+    <div class="stat-details">
+      <span class="stat-title">Urlop zaległy (pula)</span>
+      <div><span class="stat-value" id="urlopZal_{{ prefix }}">{{ s.urlop_zalegly if s.urlop_zalegly is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+    </div>
+  </div>
+</div>
+{% if s.typy %}
+<div class="summary-section-title"><i class="fas fa-layer-group" style="margin-right:5px"></i>Rozkład wg typów obecności</div>
+<div class="type-breakdown-row">
+  {% for typ_name, hours in s.typy.items() %}
+  {% if hours > 0 %}
+  <span class="type-chip"><i class="fas fa-tag"></i>{{ typ_name }}: <span class="chip-hours">{{ '%.1f'|format(hours) }}h</span></span>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+<div class="content-card">
+  <h3 class="content-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <span><i class="fas fa-chart-pie"></i> {{ _('twoje_podsumowanie') }}</span>
+    <button class="pdf-export-btn" onclick="exportPDF()" title="Eksportuj raport do PDF">
+      <i class="fas fa-file-pdf"></i> Eksport PDF
+    </button>
+  </h3>
+  {{ summary_grid(owner_summary, 'owner') }}
+</div>
+
+{% if viewed_summary %}
+<div class="content-card">
+  <h3 class="content-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <span><i class="fas fa-user-tag"></i> {{ _('przegladany_pracownik') }}</span>
+    <button class="pdf-export-btn" onclick="exportPDF(true)" title="Eksportuj raport przeglądanego pracownika do PDF">
+      <i class="fas fa-file-pdf"></i> Eksport PDF
+    </button>
+  </h3>
+  {{ summary_grid(viewed_summary, 'viewed') }}
+</div>
+{% endif %}
+
+<div class="requests-calendar-layout">
+  <div class="request-sidebar">
+    <div class="content-card request-card" id="request-center-card">
+      <h3 class="content-card-header"><i class="fas fa-paper-plane"></i> Centrum zgłoszeń</h3>
+      <p class="request-lead">Z tego panelu zgłosisz urlop, dzień wolny, wyjście prywatne albo nadgodziny. Kalendarz obok pokazuje od razu, jak wnioski wpływają na miesiąc.</p>
+      <div class="request-chip-row">
+        <span class="request-chip"><i class="fas fa-umbrella-beach"></i> Urlop</span>
+        <span class="request-chip"><i class="fas fa-calendar-day"></i> Dzień wolny</span>
+        <span class="request-chip"><i class="fas fa-person-walking-arrow-right"></i> Wyjście prywatne</span>
+        <span class="request-chip"><i class="fas fa-business-time"></i> Nadgodziny</span>
+      </div>
+      <div class="request-note">
+        <i class="fas fa-circle-info"></i>
+        Wyjście prywatne pokaże pola godzin. Dla urlopu, dnia wolnego i nieobecności możesz wskazać zakres dat oraz krótki powód.
+      </div>
+    </div>
+
+    <div class="content-card request-card" id="leave-request-card">
+      <h3 class="content-card-header"><i class="fas fa-file-signature"></i> Złóż wniosek</h3>
+      {% if session.get('rola')|lower in ['lider','admin','masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+      <div class="alert-box alert-info mb-3" style="margin-bottom:12px;">
+        <i class="fas fa-user-check"></i>
+        Składasz wniosek <strong>w imieniu pracownika #{{ viewed_pid }}</strong>{% if viewed_summary and viewed_summary.imie_nazwisko %} &mdash; <strong>{{ viewed_summary.imie_nazwisko }}</strong>{% endif %}.
+      </div>
+      {% endif %}
+      <form id="unified-request-form" method="POST" action="{{ url_for('leaves.submit_wniosek') }}" class="mb-0">
+        {% if session.get('rola')|lower in ['lider','admin','masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+        <input type="hidden" name="target_pracownik_id" value="{{ viewed_pid }}">
+        {% endif %}
+        <div class="modern-form-row">
+          <div>
+            <label for="typ_select">Typ wniosku</label>
+            <select id="typ_select" name="typ" class="modern-form-control" title="Wybierz typ wniosku">
+              <option value="Urlop">{{ _('urlop') }}</option>
+              <option value="Dzień wolny">Dzień wolny</option>
+              <option value="Nieobecność">{{ _('nieobecnosc') }}</option>
+              <option value="Opieka">Opieka</option>
+              <option value="Wyjście prywatne">{{ _('wyjscie_prywatne') }}</option>
+              <option value="Nadgodziny">Nadgodziny</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Pola dla wolne/urlop/nieobecność -->
+        <div id="uf-dates-row" class="modern-form-row mt-3">
+          <div>
+            <label for="data_od">{{ _('od') }}</label>
+            <input id="data_od" type="date" name="data_od" class="modern-form-control" required placeholder="RRRR-MM-DD">
+          </div>
+          <div id="uf-data-do-col">
+            <label for="data_do">{{ _('do') }}</label>
+            <input id="data_do" type="date" name="data_do" class="modern-form-control" placeholder="RRRR-MM-DD">
+          </div>
+        </div>
+
+        <div class="modern-form-row mt-3">
+          <div id="timeColOd" class="request-time-field">
+            <label for="czas_od">{{ _('czas_od') }}</label>
+            <input id="czas_od" type="time" name="czas_od" class="modern-form-control" placeholder="{{ _('hh_mm') }}">
+          </div>
+          <div id="timeColDo" class="request-time-field">
+            <label for="czas_do">{{ _('czas_do') }}</label>
+            <input id="czas_do" type="time" name="czas_do" class="modern-form-control" placeholder="{{ _('hh_mm') }}">
+          </div>
+        </div>
+
+        <!-- Pole ilość godzin — tylko dla nadgodzin -->
+        <div id="uf-hours-row" class="modern-form-row mt-3" style="display:none;">
+          <div>
+            <label for="uf-ilosc">Liczba godzin</label>
+            <input type="number" id="uf-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" class="modern-form-control">
+          </div>
+        </div>
+
+        <div class="modern-form-row mt-3">
+          <div>
+            <label for="powod">Powód</label>
+            <input id="powod" type="text" name="powod" class="modern-form-control"
+              placeholder="Opcjonalnie: np. urząd, lekarz, sprawy prywatne">
+          </div>
+        </div>
+
+        <div class="modern-form-row action-row">
+          <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Wyślij wniosek</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="content-card calendar-card">
+    <h3 class="content-card-header"><i class="far fa-calendar-alt"></i> {{ _('kalendarz_godzin') }}</h3>
+    <style>
+      .cal-grid {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 6px;
+        margin-top: 10px;
+      }
+
+      .cal-grid th {
+        text-align: center;
+        padding: 12px 8px;
+        background: #f8f9fa;
+        font-weight: 700;
+        color: #495057;
+        border-radius: 8px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+      }
+
+      .cal-grid td {
+        width: 14.28%;
+        vertical-align: top;
+        padding: 12px;
+        height: 130px;
+        background-color: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        position: relative;
+        transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+      }
+
+      .cal-grid td.day-cell:hover {
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
+        border-color: #007bff;
+        transform: translateY(-2px);
+        z-index: 2;
+      }
+
+      .cal-day {
+        font-weight: 800;
+        margin-bottom: 8px;
+        font-size: 1.25rem;
+        color: #2b2b2b;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .cal-hours {
+        font-size: 0.95rem;
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .cal-type {
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 4px;
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #f1f3f5;
+        color: #495057;
+      }
+
+      .cal-hr {
+        background: #fff5f5 !important;
+        border-color: #ffc9c9 !important;
+      }
+
+      .cal-approved {
+        box-shadow: inset 0 0 0 3px #28a745;
+      }
+
+      .cal-leave-pending {
+        background-color: #fff8e6 !important;
+        border-color: #ffe8a1 !important;
+      }
+
+      .cal-leave-approved {
+        background-color: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
+      }
+
+      .cal-assigned {
+        background-color: #f0f7ff !important;
+        border-color: #cce5ff !important;
+      }
+
+      .badge-cal {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        margin-top: 6px;
+        font-weight: 600;
+        gap: 6px;
+        width: fit-content;
+      }
+
+      .badge-cal.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .badge-cal.danger {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      @media (max-width: 768px) {
+        .cal-grid td {
+          height: 110px;
+          padding: 8px 6px;
+        }
+
+        .cal-day {
+          font-size: 1rem;
+        }
+
+        .cal-hours {
+          font-size: 0.85rem;
+        }
+
+        .cal-type,
+        .badge-cal {
+          font-size: 0.7rem;
+          padding: 3px 6px;
+        }
+      }
+    </style>
+
+    <div class="calendar-shell">
+      <div class="calendar-meta">
+        <div>
+          <div class="calendar-meta-title">Widok miesiąca i statusów</div>
+          <div class="calendar-meta-caption">Kliknij dzień, aby podejrzeć wnioski i wpisy przypisane do tej daty.</div>
+        </div>
+        <div class="calendar-legend">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot pending"></span> Oczekuje</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot approved"></span> Zatwierdzone wolne</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot assigned"></span> Zaplanowana praca</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot overtime"></span> HR</span>
+        </div>
+      </div>
+
+      <div class="mp-cal-row">
+        {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
+        {% if show_viewed %}
+        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else calendar_days_owner %}
+        {% set display_pid = viewed_pid or selected_pid or owner_pid %}
+        {% else %}
+        {% set display_days = calendar_days_owner %}
+        {% set display_pid = owner_pid %}
+        {% endif %}
+
+        <div class="mp-cal-col-main" style="overflow-x: auto; padding-bottom: 10px;">
+          <table class="cal-grid">
+            <tr>
+              <th>{{ _('pon') }}</th>
+              <th>{{ _('wt') }}</th>
+              <th>{{ _('sr') }}</th>
+              <th>{{ _('czw') }}</th>
+              <th>{{ _('pt') }}</th>
+              <th>{{ _('sob') }}</th>
+              <th>{{ _('nd') }}</th>
+            </tr>
+            <tr>
+              {% for d in display_days %}
+              {% set wd = d.date.weekday() %}
+              {% if loop.first and wd > 0 %}
+              {% for i in range(wd) %}
+              <td style="background: transparent; border: none; box-shadow: none;"></td>
+              {% endfor %}
+              {% endif %}
+
+              {% set classes = ['day-cell'] %}
+              {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
+              {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
+              {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
+              {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
+              {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
+
+              <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}" style="cursor: pointer;">
+                <div class="cal-day">
+                  <span>{{ d.date.day }}</span>
+                  {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{% endif %}
+                </div>
+                <div class="cal-hours">
+                  {% if d.nadgodziny > 0 %}
+                  {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{ '%.2f'|format(d.nadgodziny) }}h OT</span>
+                  {% else %}
+                  <i class="far fa-clock"></i> {{ '%.2f'|format(d.hours) }} h
+                  {% endif %}
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
+                  {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}</div>{% endif %}
+                  {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony</div>{% endif %}
+                  {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}</div>{% endif %}
+                </div>
+              </td>
+
+              {% if wd == 6 and not loop.last %}
+            </tr>
+            <tr>
+              {% endif %}
+              {% endfor %}
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="mobileDaySheet" class="mobile-day-sheet" onclick="if(event.target===this)closeMobileDaySheet()">
+  <div class="mobile-day-sheet-card">
+    <div class="mobile-day-sheet-handle"></div>
+    <div class="mobile-day-sheet-header">
+      <div>
+        <h4 class="mobile-day-sheet-title">Szczegóły dnia</h4>
+        <div id="mobileDaySheetDate" class="mobile-day-sheet-date"></div>
+      </div>
+      <button type="button" class="mobile-day-sheet-close" onclick="closeMobileDaySheet()" aria-label="Zamknij">✕</button>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Godziny</div>
+      <div id="mobileDaySheetHours" class="mobile-day-sheet-value">Brak danych</div>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Typ / status</div>
+      <div id="mobileDaySheetBadges" class="mobile-day-sheet-badges"></div>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Szybka akcja</div>
+      <div class="mobile-day-sheet-value">Ustaw ten dzień w formularzu i przejdź od razu do zgłoszenia wolnego lub wyjścia prywatnego.</div>
+      <div class="mobile-day-sheet-actions">
+        <button type="button" class="mobile-day-sheet-btn primary" onclick="applyMobileDayToForm()">Ustaw tę datę w formularzu</button>
+        <button type="button" class="mobile-day-sheet-btn secondary" onclick="closeMobileDaySheet()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-list-alt"></i> {{ _('twoje_wnioski') }}</h3>
+  <div style="overflow-x: auto;">
+    <table class="modern-table" style="width: 100%;">
+      <thead>
+        <tr>
+          <th>{{ _('data') }}</th>
+          <th>{{ _('typ') }}</th>
+          <th>{{ _('okres') }}</th>
+          <th>{{ _('stan') }}</th>
+
+          {% set can_approve = false %}
+          {% if session.get('rola')|lower in ['lider','admin','masteradmin'] %}
+          {% for w in wnioski %}
+          {% if w.pracownik_id != session.get('pracownik_id') %}
+          {% set can_approve = true %}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+
+          {% if can_approve %}<th>{{ _('akcje') }}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in wnioski %}
+        <tr data-wnid="{{ w.id }}">
+          <td><strong>{{ w.zlozono }}</strong></td>
+          <td>{{ w.typ }}</td>
+          <td>{{ w.data_od }} &rarr; {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
+          <td>
+            {% if w.status == 'approved' %}
+            <span class="badge badge-success"><i class="fas fa-check"></i> {{ _('zatwierdzony') }}</span>
+            {% elif w.status == 'rejected' %}
+            <span class="badge" style="background:#dc3545; color:white;"><i class="fas fa-times"></i> Odrzucony</span>
+            {% else %}
+            <span class="badge" style="background:#ffc107; color:#212529;"><i class="fas fa-clock"></i> Oczekuje</span>
+            {% endif %}
+          </td>
+          {% if can_approve %}
+          <td>
+            {% if session.get('rola')|lower in ['lider','admin','masteradmin'] and w.pracownik_id != session.get('pracownik_id') %}
+            {% if w.status != 'approved' %}
+            <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve"><i
+                class="fas fa-check"></i> Zatwierdź</button>
+            <button type="button" class="btn btn-sm btn-danger wn-action ml-2" data-id="{{ w.id }}"
+              data-action="reject"><i class="fas fa-times"></i> Odrzuć</button>
+            {% else %}
+            <span class="text-success" style="font-weight:600;"><i class="fas fa-check-circle"></i> Gotowe</span>
+            <button type="button" class="btn btn-sm btn-outline-danger wn-action ml-2" data-id="{{ w.id }}"
+              data-action="revoke" title="Anuluj zatwierdzony wniosek"><i class="fas fa-ban"></i> Anuluj</button>
+            {% endif %}
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted p-4">Brak wniosków w tym okresie.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-hourglass-half"></i> {{ _('suma_godzin_wg_typu') }}</h3>
+  <div class="dashboard-grid"
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+    <div>
+      <h4 style="margin-top:0; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
+          class="fas fa-user"></i> Twoje godziny</h4>
+      <table class="modern-table" id="typyTable_owner" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>{{ _('typ') }}</th>
+            <th class="text-right">{{ _('godziny') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t, h in owner_summary.typy.items() %}
+          <tr data-typ="{{ t }}">
+            <td><strong>{{ t or '(brak)' }}</strong></td>
+            <td class="typ-hours text-primary text-right" style="font-weight:700; font-size:1.1rem;">{{ '%.2f'|format(h)
+              }} h</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="text-muted text-center p-3">Brak danych w tym okresie</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if viewed_summary %}
+    <div>
+      <h4 style="margin-top:0; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
+          class="fas fa-user-tag"></i> {{ _('typy_przeglądany') }}</h4>
+      <table class="modern-table" id="typyTable_viewed" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>{{ _('typ') }}</th>
+            <th class="text-right">{{ _('godziny') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t, h in viewed_summary.typy.items() %}
+          <tr data-typ="{{ t }}">
+            <td><strong>{{ t or '(brak)' }}</strong></td>
+            <td class="typ-hours text-primary text-right" style="font-weight:700; font-size:1.1rem;">{{ '%.2f'|format(h)
+              }} h</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="text-muted text-center p-3">Brak danych w tym okresie</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- Sekcje wnioski/nadgodziny przeniesione do /panel_wnioski_page -->
+
+<script>
+  const my_pid = '{{ session.get("pracownik_id") or "" }}';
+  const my_role = '{{ (session.get("rola") or "")|lower }}';
+  // showToast() provided by static/js/toasts.js
+
+  /* Modal UI removed — podgląd wniosków przeniesiony lub wyłączony. */
+
+  function isMobileDaySheetMode() {
+    return window.innerWidth <= 768;
+  }
+
+  function formatDaySheetDate(dateStr) {
+    try {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('pl-PL', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  function closeMobileDaySheet() {
+    const sheet = document.getElementById('mobileDaySheet');
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    document.body.classList.remove('slide-over-open');
+  }
+
+  function openMobileDaySheet(cell) {
+    const sheet = document.getElementById('mobileDaySheet');
+    if (!sheet || !cell) return;
+
+    const dateStr = cell.getAttribute('data-date') || '';
+    const hoursText = (cell.querySelector('.cal-hours')?.innerText || '').trim() || 'Brak danych dla tego dnia';
+    const typeText = (cell.querySelector('.cal-type')?.innerText || '').trim();
+    const badgeTexts = Array.from(cell.querySelectorAll('.badge-cal')).map((el) => (el.innerText || '').trim()).filter(Boolean);
+
+    const dateEl = document.getElementById('mobileDaySheetDate');
+    const hoursEl = document.getElementById('mobileDaySheetHours');
+    const badgesEl = document.getElementById('mobileDaySheetBadges');
+
+    if (dateEl) dateEl.textContent = formatDaySheetDate(dateStr);
+    if (hoursEl) hoursEl.textContent = hoursText.replace(/\s+/g, ' ').trim();
+    if (badgesEl) {
+      const allBadges = [];
+      if (typeText) allBadges.push(typeText);
+      badgeTexts.forEach((text) => allBadges.push(text));
+      if (!allBadges.length) allBadges.push('Brak dodatkowych oznaczeń');
+      badgesEl.innerHTML = allBadges.map((text) => '<span class="mobile-day-sheet-badge">' + text + '</span>').join('');
+    }
+
+    sheet.dataset.date = dateStr;
+    sheet.classList.add('is-open');
+    document.body.classList.add('slide-over-open');
+  }
+
+  function applyMobileDayToForm() {
+    const sheet = document.getElementById('mobileDaySheet');
+    const dateStr = sheet ? sheet.dataset.date : '';
+    const dataOd = document.getElementById('data_od');
+    const dataDo = document.getElementById('data_do');
+    const typSelect = document.getElementById('typ_select');
+    const formCard = document.getElementById('leave-request-card') || document.getElementById('request-center-card');
+
+    if (dateStr && dataOd) dataOd.value = dateStr;
+    if (dateStr && dataDo && typSelect && typSelect.value !== 'Wyjście prywatne') dataDo.value = dateStr;
+    if (dateStr && dataDo && typSelect && typSelect.value === 'Wyjście prywatne') dataDo.value = dateStr;
+
+    closeMobileDaySheet();
+
+    if (typeof updateWniosekFields === 'function') updateWniosekFields();
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      if (dataOd) dataOd.focus();
+    }, 250);
+  }
+
+  // Edit hours helpers
+  function submitEditHours() {
+    const btn = document.getElementById('editHoursBtn');
+    const pid = btn.getAttribute('data-pid');
+    const date = btn.getAttribute('data-date');
+    const val = document.getElementById('editHoursInput').value;
+    if (!pid || !date) return showToast('Brak danych do zapisu', 'warning');
+    fetch('/edytuj_godziny', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ pracownik_id: pid, date: date, godziny: val })
+    }).then(r => r.json()).then(j => {
+      if (j && j.success) {
+        showToast(j.message || 'Zapisano godziny', 'success');
+        // update clicked cell if present
+        // find any td[data-date][data-pid] matching
+        const cell = document.querySelector('td[data-date="' + date + '"][data-pid="' + pid + '"]');
+        if (cell) { const ch = cell.querySelector('.cal-hours'); if (ch) ch.textContent = parseFloat(val || 0).toFixed(2) + ' h'; }
+        // refresh summary
+        try { refreshSummary(pid, 'viewed'); } catch (e) { }
+      } else {
+        showToast((j && j.message) ? j.message : 'Błąd zapisu', 'danger');
+      }
+    }).catch(e => { console.error(e); showToast('Błąd sieci przy zapisie', 'danger'); });
+  }
+
+  const LEAVE_URL   = '{{ url_for("leaves.submit_wniosek") }}';
+  const OT_URL      = '{{ url_for("overtime.submit_nadgodziny") }}';
+
+  // Toggle visibility of date/time/hours inputs depending on selected typ
+  function updateWniosekFields() {
+    try {
+      const form       = document.getElementById('unified-request-form');
+      const typ        = document.getElementById('typ_select').value;
+      const timeColOd  = document.getElementById('timeColOd');
+      const timeColDo  = document.getElementById('timeColDo');
+      const czasOd     = document.getElementById('czas_od');
+      const czasDo     = document.getElementById('czas_do');
+      const dataDoCol  = document.getElementById('uf-data-do-col');
+      const dataDo     = document.getElementById('data_do');
+      const dataOd     = document.getElementById('data_od');
+      const hoursRow   = document.getElementById('uf-hours-row');
+      const ufIlosc    = document.getElementById('uf-ilosc');
+      if (!timeColOd || !timeColDo || !dataOd) return;
+
+      if (typ === 'Nadgodziny') {
+        // Nadgodziny: jedna data, ilość godzin, powód — bez data_do i godzin wyjścia
+        form.action = OT_URL;
+        hoursRow.style.display = '';
+        ufIlosc.required = true;
+        timeColOd.classList.remove('is-visible');
+        timeColDo.classList.remove('is-visible');
+        if (czasOd) { czasOd.required = false; czasOd.value = ''; }
+        if (czasDo) { czasDo.required = false; czasDo.value = ''; }
+        if (dataDoCol) dataDoCol.style.display = 'none';
+        if (dataDo) dataDo.value = dataOd.value || '';
+        // rename data field to match overtime endpoint
+        dataOd.name = 'data';
+      } else if (typ === 'Wyjście prywatne') {
+        form.action = LEAVE_URL;
+        hoursRow.style.display = 'none';
+        ufIlosc.required = false;
+        timeColOd.classList.add('is-visible');
+        timeColDo.classList.add('is-visible');
+        if (czasOd) czasOd.required = true;
+        if (czasDo) czasDo.required = true;
+        if (dataDoCol) dataDoCol.style.display = 'none';
+        if (dataDo) dataDo.value = dataOd.value || '';
+        dataOd.name = 'data_od';
+      } else {
+        form.action = LEAVE_URL;
+        hoursRow.style.display = 'none';
+        ufIlosc.required = false;
+        timeColOd.classList.remove('is-visible');
+        timeColDo.classList.remove('is-visible');
+        if (czasOd) { czasOd.required = false; czasOd.value = ''; }
+        if (czasDo) { czasDo.required = false; czasDo.value = ''; }
+        if (dataDoCol) dataDoCol.style.display = '';
+        dataOd.name = 'data_od';
+      }
+    } catch (e) { console.error('updateWniosekFields error', e); }
+  }
+
+  // Attach click handlers to calendar cells (data-date attribute) — use data-pid on each cell
+  document.addEventListener('DOMContentLoaded', function () {
+    const cells = document.querySelectorAll('td[data-date]');
+    cells.forEach(function (c) {
+      c.addEventListener('click', function () {
+        // Open panel with leave requests for the selected date
+        const dateStr = c.getAttribute('data-date');
+        if (dateStr) {
+          if (isMobileDaySheetMode()) {
+            openMobileDaySheet(c);
+            return;
+          }
+          fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+            .then(r => r.text())
+            .then(html => {
+              createQuickPopup('Wnioski na dzień: ' + dateStr, html, {});
+            })
+            .catch(err => {
+              console.error('Error loading wnioski panel:', err);
+              if (typeof showToast === 'function') showToast('Błąd przy ładowaniu wniosków', 'danger');
+            });
+        }
+      });
+    });
+    // wire up type selector to toggle fields
+    const typSel = document.getElementById('typ_select');
+    if (typSel) { typSel.addEventListener('change', updateWniosekFields); updateWniosekFields(); }
+    const dataOdInput = document.getElementById('data_od');
+    const dataDoInput = document.getElementById('data_do');
+    if (dataOdInput && dataDoInput) {
+      dataOdInput.addEventListener('change', function () {
+        if ((document.getElementById('typ_select') || {}).value === 'Wyjście prywatne') {
+          dataDoInput.value = dataOdInput.value;
+        }
+      });
+    }
+    // initial refresh of summaries
+    try { refreshSummary('{{ owner_pid }}', 'owner'); } catch (e) { }
+    /*{% if viewed_summary %}*/
+    try { refreshSummary('{{ viewed_pid }}', 'viewed'); } catch (e) { }
+    /*{% endif %}*/
+
+    // Handle approve/reject/revoke actions
+    const wnBtns = document.querySelectorAll('.wn-action');
+    wnBtns.forEach(btn => btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const id = this.getAttribute('data-id');
+      const action = this.getAttribute('data-action');
+      if (action === 'revoke' && !confirm('Na pewno anulować ten zatwierdzony wniosek? Powiązane wpisy nieobecności zostaną usunięte.')) return;
+      fetch('/wnioski/' + id + '/' + action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      }).then(r => r.json()).then(j => {
+        if (j.success) {
+          showToast(j.message, 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          showToast(j.message || 'Błąd', 'danger');
+        }
+      }).catch(err => { console.error(err); showToast('Błąd sieci', 'danger'); });
+    }));
+
+    // Handle overtime (nadgodziny) approve/reject actions
+    const ngBtns = document.querySelectorAll('.ng-approve-btn, .ng-reject-btn');
+    ngBtns.forEach(btn => btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const ngid = this.getAttribute('data-ngid');
+      const isApprove = this.classList.contains('ng-approve-btn');
+      const action = isApprove ? 'approve' : 'reject';
+
+      if (!ngid) return;
+
+      const originalText = this.innerHTML;
+      this.disabled = true;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      fetch('/api/nadgodziny/' + ngid + '/' + action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }
+      }).then(r => r.json()).then(j => {
+        if (j && j.success) {
+          showToast(j.message || (isApprove ? 'Zatwierdzono nadgodziny' : 'Odrzucono nadgodziny'), 'success');
+          const item = this.closest('.pending-item');
+          if (item) {
+            item.style.opacity = '0.5';
+            setTimeout(() => {
+              item.remove();
+              const list = document.querySelector('.nadgodziny-list');
+              if (list && list.children.length === 0) {
+                list.innerHTML = '<div class="alert-box" style="background:#f8f9fa; border:1px solid #e9ecef;"><i class="fas fa-check-circle text-success"></i> Brak wniosków o nadgodziny do zatwierdzenia.</div>';
+              }
+            }, 300);
+          }
+        } else {
+          this.disabled = false;
+          this.innerHTML = originalText;
+          showToast(j.message || 'Błąd operacji', 'danger');
+        }
+      }).catch(err => {
+        console.error(err);
+        this.disabled = false;
+        this.innerHTML = originalText;
+        showToast('Błąd sieci: ' + err, 'danger');
+      });
+    }));
+  });
+
+  // openModalFor removed — modal UI disabled
+
+  // Refresh summary counters (obecnosci, wyjscia_hours, typy) for given pid and target suffix ('owner'|'viewed')
+  function refreshSummary(pid, suffix) {
+    if (!pid) return;
+    const suf = suffix ? ('_' + suffix) : '';
+    fetch('/api/wnioski/summary?pracownik_id=' + encodeURIComponent(pid), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.json()).then(j => {
+        if (j && !j.error) {
+          const ob = document.getElementById('obecnosciCount' + suf); if (ob) ob.textContent = j.obecnosci;
+          const wh = document.getElementById('wyjsciaHours' + suf); if (wh) wh.textContent = (parseFloat(j.wyjscia_hours) || 0).toFixed(2) + ' h';
+          const ub = document.getElementById('urlopBiez' + suf); if (ub) ub.textContent = j.urlop_biezacy || 0;
+          const uz = document.getElementById('urlopZal' + suf); if (uz) uz.textContent = j.urlop_zalegly || 0;
+          if (j.typy) {
+            const table = document.getElementById('typyTable' + (suffix ? ('_' + suffix) : ''));
+            Object.keys(j.typy).forEach(t => {
+              if (table) {
+                const row = table.querySelector('tr[data-typ="' + t + '"]');
+                if (row) { const cell = row.querySelector('.typ-hours'); if (cell) cell.textContent = (parseFloat(j.typy[t]) || 0).toFixed(2) + ' h'; }
+              }
+            });
+          }
+        }
+      }).catch(err => { console.error('Summary fetch error', err); });
+  }
+
+  // ============ DELETE OBECNOSC HANDLER (ADMIN ONLY) ============
+  document.addEventListener('DOMContentLoaded', function () {
+    const role = '{{ session.get("rola", "").lower() }}';
+    const isAdmin = role === 'admin' || role === 'masteradmin';
+
+    console.log('[DEBUG] Role:', role);
+    console.log('[DEBUG] isAdmin:', isAdmin);
+    console.log('[DEBUG] Calendar cells found:', document.querySelectorAll('.cal-grid td[data-date][data-pid]').length);
+
+    // Add delete button to calendar cells (admin only)
+    if (isAdmin) {
+      const calendarCells = document.querySelectorAll('.cal-grid td[data-date][data-pid]');
+      console.log('[DEBUG] Adding delete buttons to', calendarCells.length, 'cells');
+
+      calendarCells.forEach(cell => {
+        // Create context menu trigger
+        cell.addEventListener('contextmenu', function (e) {
+          e.preventDefault();
+          const date = this.getAttribute('data-date');
+          const pid = this.getAttribute('data-pid');
+
+          showDeleteMenu(this, date, pid);
+        });
+
+        // Also add small delete button to cell corner
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-xs btn-danger cal-delete-btn';
+        deleteBtn.innerHTML = '❌';
+        deleteBtn.title = 'Usuń wpis (prawy klik dla więcej opcji)';
+        deleteBtn.style.cssText = 'position: absolute; top: 2px; right: 2px; padding: 2px 4px; font-size: 10px; opacity: 0; transition: opacity 0.3s;';
+
+        deleteBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          showDeleteMenu(cell, cell.getAttribute('data-date'), cell.getAttribute('data-pid'));
+        });
+
+        cell.style.position = 'relative';
+        cell.appendChild(deleteBtn);
+
+        // Show button on hover
+        cell.addEventListener('mouseenter', function () {
+          deleteBtn.style.opacity = '1';
+        });
+        cell.addEventListener('mouseleave', function () {
+          deleteBtn.style.opacity = '0';
+        });
+      });
+    }
+
+    // Show delete context menu
+    function showDeleteMenu(cell, date, pid) {
+      // Remove old menu if exists
+      const oldMenu = document.querySelector('.delete-menu');
+      if (oldMenu) oldMenu.remove();
+
+      const menu = document.createElement('div');
+      menu.className = 'delete-menu';
+      menu.style.cssText = `
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 200px;
+      `;
+
+      // Get all entries for this date
+      const dateStr = date;
+      const typeCell = cell.querySelector('.cal-type');
+      const typeLabel = typeCell ? typeCell.textContent : 'nieznany typ';
+
+      menu.innerHTML = `
+        <div style="padding: 10px;">
+          <strong>Data: ${dateStr}</strong>
+          <div style="color: #666; font-size: 0.9em; margin-top: 4px;">Typ: ${typeLabel}</div>
+          <hr style="margin: 8px 0;">
+          <button type="button" class="btn btn-sm btn-danger btn-block" onclick="deleteObecnoscEntry('${dateStr}', '${pid}')">
+            🗑️ Usuń wpis na dzień ${dateStr}
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary btn-block" onclick="undoDeleteObecnosc()" style="margin-top: 6px;">
+            ↩️ Cofnij ostatnie usunięcie
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary btn-block" onclick="this.parentElement.parentElement.remove()" style="margin-top: 6px;">
+            ✕ Zamknij
+          </button>
+        </div>
+      `;
+
+      document.body.appendChild(menu);
+
+      // Position menu near cursor
+      const rect = cell.getBoundingClientRect();
+      menu.style.top = (rect.top + 20) + 'px';
+      menu.style.left = (rect.left + 20) + 'px';
+
+      // Close on click outside
+      setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+          if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+          }
+        });
+      }, 0);
+    }
+  });
+
+  // Delete obecnosc entry by date and pid
+  function deleteObecnoscEntry(dateStr, pid) {
+    if (!confirm('Jesteś pewna że chcesz usunąć wpis? Ta akcja nie może być cofnięta (chyba że użyjesz "Cofnij").')) {
+      return;
+    }
+
+    fetch('/api/obecnosc/delete-by-date', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ date: dateStr, pid: pid })
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          // Znajdź i wyczyść TD element na kalendarzu
+          const cells = document.querySelectorAll(`td[data-date="${dateStr}"][data-pid="${pid}"]`);
+          cells.forEach(cell => {
+            // Wyczyść klasy kolorów
+            cell.className = '';
+            // Wyczyść zawartość
+            cell.innerHTML = `
+            <div class="cal-day">${new Date(dateStr).getDate()}</div>
+            <div class="cal-hours">0.00 h</div>
+          `;
+          });
+
+          // Pokaż alert
+          alert('✓ ' + j.message);
+
+          // Odśwież podsumowanie (jeśli istnieje)
+          setTimeout(() => {
+            const summaryBtn = document.querySelector('[data-action="refresh-summary"]');
+            if (summaryBtn) summaryBtn.click();
+
+            // Lub bezpośrednio fetch podsumowania
+            fetch('/moje_godziny')
+              .then(r => r.text())
+              .then(html => {
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+
+                // Zastąp podsumowanie
+                const oldSummary = document.querySelector('.mp-summary-owner');
+                const newSummary = newDoc.querySelector('.mp-summary-owner');
+                if (oldSummary && newSummary) {
+                  oldSummary.innerHTML = newSummary.innerHTML;
+                }
+              })
+              .catch(err => console.warn('Could not refresh summary:', err));
+          }, 500);
+        } else {
+          alert('⚠️ ' + (j.message || 'Błąd'));
+        }
+      })
+      .catch(err => alert('Błąd: ' + err.message));
+  }
+
+  // Undo last delete
+  function undoDeleteObecnosc() {
+    if (!confirm('Przywrócić ostatnio usunięty wpis?')) return;
+
+    fetch('/api/obecnosc/restore', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          alert('✓ ' + j.message);
+          // Pełny reload aby obsada się odświeżyła
+          setTimeout(() => {
+            location.reload();
+          }, 800);
+        } else {
+          alert('⚠️ ' + (j.message || 'Błąd'));
+        }
+      })
+      .catch(err => alert('Błąd: ' + err.message));
+  }
+
+</script>
+
+<!-- Sekcja edycji godzin wewnątrz modalu została usunięta wraz z modalami -->
+
+<!-- Legend for calendar types (moved under calendar) -->
+<div class="mp-legend">
+  <strong>Legenda:</strong>
+  <span class="mp-legend-item"><span class="cal-type cal-type-obecny">{{ _('obecny') }}</span> — pracuje</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('u') }}</span> — Urlop</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('wp') }}</span> — Wyjście prywatne</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('n') }}</span> — Nieobecny</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('og') }}</span> — Odbiór godzin</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('op') }}</span> — Opieka</span>
+</div>
+
+<!-- ========================= SEKCJA PDF PRINT ========================= -->
+<div id="pdf-print-section">
+  <div class="pdf-header">
+    <div class="pdf-logo-row">
+      <span class="pdf-logo-text">Raport Produkcyjny</span>
+      <span class="pdf-generated">Wygenerowano: <span id="pdf-date-generated"></span></span>
+    </div>
+    <h1 class="pdf-title">Raport godzin pracy</h1>
+    <div class="pdf-meta-grid">
+      <div><strong>Pracownik:</strong> <span id="pdf-pracownik-name"></span></div>
+      <div><strong>Okres:</strong> <span id="pdf-okres"></span></div>
+      <div><strong>Łączne godziny robocze:</strong> <span id="pdf-total-h"></span> h</div>
+      <div><strong>Nadgodziny (zatw.):</strong> <span id="pdf-ot-h"></span> h</div>
+      <div><strong>Obecności (zmiany):</strong> <span id="pdf-obecnosci"></span></div>
+      <div><strong>Nieobecności / L4:</strong> <span id="pdf-nieob"></span> dni</div>
+      <div><strong>Urlop użyty (okres):</strong> <span id="pdf-urlop-used"></span> dni</div>
+      <div><strong>Urlop bieżący (pula):</strong> <span id="pdf-urlop-biez"></span> dni</div>
+      <div><strong>Urlop zaległy (pula):</strong> <span id="pdf-urlop-zal"></span> dni</div>
+      <div><strong>Wyjścia prywatne:</strong> <span id="pdf-wyjscia"></span> h</div>
+    </div>
+  </div>
+
+  <h2 class="pdf-section-title">Szczegółowy rozkład dobowy</h2>
+  {% set dni_pl = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'] %}
+  <table class="pdf-table">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Dzień tyg.</th>
+        <th>Godz. robocze</th>
+        <th>Nadgodziny</th>
+        <th>Łącznie</th>
+        <th>Typ / Status</th>
+        <th>Wniosek</th>
+      </tr>
+    </thead>
+    <tbody id="pdf-days-tbody">
+      {% set cal = calendar_days_owner %}
+      {% for d in cal %}
+      <tr class="pdf-row-{{ d.typ_label|lower or 'normal' }}{% if d.hours == 0 and not d.leave_status %} pdf-row-empty{% endif %}">
+        <td><strong>{{ d.date }}</strong></td>
+        <td>{{ dni_pl[d.date.weekday()] if d.date else '' }}</td>
+        <td class="pdf-num">{{ '%.1f'|format(d.hours) }} h</td>
+        <td class="pdf-num">{{ '%.1f'|format(d.nadgodziny) if d.nadgodziny else '—' }}</td>
+        <td class="pdf-num"><strong>{{ '%.1f'|format(d.total_hours) }} h</strong></td>
+        <td>{{ d.typ_label or '—' }}</td>
+        <td>
+          {% if d.leave_status == 'approved' %}<span class="pdf-badge pdf-badge-ok">zatwierdz.</span>
+          {% elif d.leave_status == 'pending' %}<span class="pdf-badge pdf-badge-warn">oczekuje</span>
+          {% elif d.leave_status == 'rejected' %}<span class="pdf-badge pdf-badge-err">odrzucony</span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if owner_summary.typy %}
+  <h2 class="pdf-section-title" style="margin-top:24px;">Rozkład wg typów obecności</h2>
+  <table class="pdf-table">
+    <thead>
+      <tr><th>Typ</th><th>Godziny</th></tr>
+    </thead>
+    <tbody>
+      {% for typ_name, hours in owner_summary.typy.items() %}
+      {% if hours > 0 %}
+      <tr><td>{{ typ_name }}</td><td class="pdf-num">{{ '%.1f'|format(hours) }} h</td></tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div class="pdf-footer">
+    Raport wygenerowany automatycznie przez system Raport Produkcyjny &bull; {{ d_od }} – {{ d_do }}
+  </div>
+</div>
+
+<style>
+  /* ---- Widoczne tylko w normalnym widoku --- */
+  #pdf-print-section { display: none; }
+
+  @media print {
+    /* Ukryj WSZYSTKO poza sekcją print */
+    body > *, .sidebar, .topbar, nav, header, footer,
+    .content-card, .requests-calendar-layout, .mp-legend,
+    .dashboard-header, .dashboard-stats, script { display: none !important; }
+
+    #pdf-print-section {
+      display: block !important;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 10pt;
+      color: #222;
+      padding: 10mm;
+    }
+
+    .pdf-header { margin-bottom: 16px; }
+
+    .pdf-logo-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #888;
+      border-bottom: 2px solid #2c3e50;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+
+    .pdf-logo-text { font-weight: 800; font-size: 10pt; color: #2c3e50; }
+
+    .pdf-title {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #2c3e50;
+      margin: 4px 0 12px 0;
+    }
+
+    .pdf-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px 24px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 9pt;
+    }
+
+    .pdf-section-title {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #2c3e50;
+      border-bottom: 1px solid #dee2e6;
+      padding-bottom: 4px;
+      margin: 16px 0 8px 0;
+    }
+
+    .pdf-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+
+    .pdf-table th {
+      background: #2c3e50;
+      color: #fff;
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .pdf-table td {
+      padding: 4px 8px;
+      border-bottom: 1px solid #e9ecef;
+      vertical-align: middle;
+    }
+
+    .pdf-table tr:nth-child(even) td { background: #f8f9fa; }
+
+    .pdf-row-empty td { color: #bbb; }
+
+    .pdf-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .pdf-badge {
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 7.5pt;
+      font-weight: 700;
+    }
+
+    .pdf-badge-ok  { background: #d4edda; color: #155724; }
+    .pdf-badge-warn { background: #fff3cd; color: #856404; }
+    .pdf-badge-err  { background: #f8d7da; color: #721c24; }
+
+    .pdf-footer {
+      margin-top: 24px;
+      font-size: 7.5pt;
+      color: #aaa;
+      border-top: 1px solid #dee2e6;
+      padding-top: 6px;
+      text-align: center;
+    }
+
+    /* Wymuszamy drukowanie kolorów tła */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+</style>
+
+<script>
+  function exportPDF(isViewed) {
+    // Wypełnij pola z właściwego podsumowania
+    var prefix = isViewed ? 'viewed' : 'owner';
+    var getVal = function(id) {
+      var el = document.getElementById(id + '_' + prefix);
+      return el ? el.textContent.trim() : '';
+    };
+    document.getElementById('pdf-pracownik-name').textContent =
+      (isViewed
+        ? '{{ viewed_summary.imie_nazwisko if viewed_summary else "" }}'
+        : '{{ owner_summary.imie_nazwisko if owner_summary else "" }}');
+    document.getElementById('pdf-date-generated').textContent = new Date().toLocaleString('pl-PL');
+    document.getElementById('pdf-okres').textContent = '{{ d_od }} – {{ d_do }}';
+    document.getElementById('pdf-total-h').textContent = getVal('totalHours');
+    document.getElementById('pdf-ot-h').textContent    = getVal('nadgodzinyHours');
+    document.getElementById('pdf-obecnosci').textContent = getVal('obecnosciCount');
+    document.getElementById('pdf-nieob').textContent   = getVal('nieobecDays');
+    document.getElementById('pdf-urlop-used').textContent = getVal('urlopUsed');
+    document.getElementById('pdf-urlop-biez').textContent = getVal('urlopBiez');
+    document.getElementById('pdf-urlop-zal').textContent  = getVal('urlopZal');
+    document.getElementById('pdf-wyjscia').textContent = getVal('wyjsciaHours');
+
+    // Przesuń sekcję PDF bezpośrednio do <body>, żeby CSS @media print mógł ją pokazać
+    // (rodzic sekcji jest ukrywany przez "body > * { display:none }", więc dziecko
+    //  musi być bezpośrednim child <body> aby własna reguła ID wygrała ze specyficznością)
+    var section = document.getElementById('pdf-print-section');
+    var anchor = document.createElement('span');
+    anchor.id = '__pdf_anchor__';
+    section.parentNode.insertBefore(anchor, section);
+    document.body.appendChild(section);
+    section.style.display = 'block';
+
+    function restoreAfterPrint() {
+      anchor.parentNode.insertBefore(section, anchor);
+      anchor.remove();
+      section.style.display = '';
+      window.removeEventListener('afterprint', restoreAfterPrint);
+    }
+    window.addEventListener('afterprint', restoreAfterPrint);
+
+    window.print();
+  }
+</script>
+
+{% endblock %}

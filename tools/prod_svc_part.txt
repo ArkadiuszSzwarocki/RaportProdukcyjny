@@ -1,0 +1,40 @@
+﻿                zasyp_id_original_map[p[0]] = p[14]
+            
+            # Extract opakowanie_nazwa and etykieta_nazwa if present
+            opak_nazwa = p[15] if len(p) > 15 else None
+            etyk_nazwa = p[16] if len(p) > 16 else None
+            
+            # Shrink back to 15 items to not mess up fixed index assignments
+            while len(p) > 15:
+                p.pop()
+
+            # Ensure we have enough space for extra metadata (indices 15+)
+            while len(p) < 29:
+                p.append(None)
+                
+            p[27] = opak_nazwa
+            p[28] = etyk_nazwa
+            
+            src = przeniesione_map.get(p[0], '')
+            if not src:
+                nazwa = (p[12] if len(p) > 12 and p[12] is not None else '')
+                for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                    if nazwa.startswith(prefix):
+                        raw_date = nazwa[len(prefix):].strip()
+                        try:
+                            src = datetime.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                        except Exception: pass
+                        break
+            p[15] = src
+            p[16] = 0
+
+        # Carry-over tonaz lookup
+        ProductionService._populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map)
+
+        # Batch lookups for Workowanie/Zasyp sync
+        ProductionService._sync_sections_weights(dzisiaj, sekcja, linia, plan_dnia, cursor)
+        ProductionService._populate_agro_start_requirements(plan_dnia, linia, cursor)
+        
+        # Final aggregation
+        try:
+            res = ProductionService._aggregate_final_results(dzisiaj, sekcja, linia, plan_dnia, cursor)

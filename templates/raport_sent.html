@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ _('raport_gotowy') }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- moved styles to static/style.css -->
+</head>
+<body>
+    <div class="success-box">
+        <h2>✅ {{ _('zmiana_zamknieta') }}</h2>
+        
+        <div class="instruction">
+            <strong>KROK 1:</strong> {{ _('pliki_powinny_pobrac') }}<br>
+            <strong>KROK 2:</strong> {{ _("kliknij_otworz_outlooka") }}<br>
+            <strong>KROK 3:</strong> Przeciągnij pobrane pliki do okna wiadomości.
+        </div>
+
+        <div class="download-area">
+            <a href="{{ excel_url }}" class="btn-download btn-excel">📥 Pobierz Excel</a>
+            <a href="{{ pdf_url }}" class="btn-download btn-pdf">📄 Pobierz PDF</a>
+        </div>
+
+        <a href="{{ mailto_link | safe }}" class="btn-open-mail">📧 OTWÓRZ OUTLOOKA (Napisz maila)</a>
+
+        <a href="/login" class="btn-back">{{ _('wroc_logowanie') }}</a>
+    </div>
+
+    <script>
+        (function(){
+            const excelUrl = "{{ excel_url }}";
+            const pdfUrl = "{{ pdf_url }}";
+            const mailto = "{{ mailto_link | safe }}";
+            const useMultiple = {{ 'true' if use_multiple_downloads else 'false' }};
+
+            function triggerDownloadByAnchor(url, filename) {
+                const a = document.createElement('a');
+                a.href = url;
+                if (filename) a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+            function fetchAndDownload(url, filename) {
+                // try to fetch and create a Blob to preserve filename
+                fetch(url, { credentials: 'same-origin' }).then(resp => {
+                    if (!resp.ok) throw new Error('Network error');
+                    return resp.blob();
+                }).then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    triggerDownloadByAnchor(blobUrl, filename);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                }).catch(err => {
+                    // fallback to simple anchor download
+                    console.warn('Fetch download failed, falling back to anchor:', err);
+                    triggerDownloadByAnchor(url, filename);
+                });
+            }
+
+            // sequence: excel then pdf, then open mailto
+            if (useMultiple) {
+                setTimeout(() => fetchAndDownload(excelUrl, 'Raport.xlsx'), 500);
+                setTimeout(() => fetchAndDownload(pdfUrl, 'Raport.pdf'), 1500);
+            } else {
+                setTimeout(() => { window.location.href = excelUrl; }, 500);
+                setTimeout(() => { window.location.href = pdfUrl; }, 1500);
+            }
+
+            // open mailto after downloads
+            setTimeout(() => { window.location.href = mailto; }, 2600);
+        })();
+    </script>
+</body>
+</html>

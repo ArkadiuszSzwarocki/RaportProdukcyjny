@@ -1,0 +1,165 @@
+{# Renders the production plan cards and handles AGRO focus mode layout #}
+{% if sekcja != 'Magazyn' %}
+    {% include 'dashboard/_dashboard_production_styles.html' %}
+    
+    {% if rola != 'laborant' %}
+    {% include 'dashboard/_dashboard_magnet_cleanings.html' %}
+    {% endif %}
+    
+    <div id="dashboard-production-section" class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
+        <div style="grid-column: 1 / -1; margin-bottom: 8px; display: flex; justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
+            {% if agro_focus_mode and not (sekcja == 'Workowanie' and linia == 'AGRO') %}
+            <button id="toggle-focus-plan-btn" class="btn-action btn-outline-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onclick="window.toggleFocusPlan(this)">
+                <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż ukryte zlecenia</span>
+            </button>
+            {% endif %}
+            
+            {% if sekcja == 'Zasyp' %}
+            <button type="button" class="btn-action btn-outline-primary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); background: #f8fafc; border: 1px solid #cbd5e1; color: #3b82f6;" onclick="window.openZasypCalculatorModal()">
+                <span class="material-icons" style="font-size: 18px;">calculate</span> Kalkulator Zapotrzebowania
+            </button>
+            {% endif %}
+        </div>
+        
+        {% if agro_focus_mode %}
+        <script>
+            window.toggleFocusPlan = function(btn) {
+                var modal = document.getElementById('plan-preview-modal');
+                if (modal) { modal.style.display = 'flex'; }
+            };
+            window.closePlanPreviewModal = function() {
+                var modal = document.getElementById('plan-preview-modal');
+                if (modal) { modal.style.display = 'none'; }
+            };
+            window.addEventListener('click', function(event) {
+                var modal = document.getElementById('plan-preview-modal');
+                if (event.target === modal) { modal.style.display = 'none'; }
+            });
+        </script>
+        {% endif %}
+        
+        {% if not plan %}
+        <div class="no-orders-alert animate__animated animate__pulse animate__infinite" style="width: 100%; grid-column: 1 / -1;">
+            <span class="material-icons info-icon" style="font-size: 48px; color: #f59e0b;">error_outline</span>
+            <div class="alert-content" style="flex: 1;">
+                <strong style="display: block; font-size: 18px; margin-bottom: 8px; color: #92400e;">Brak zaplanowanych zleceń!</strong>
+                <p style="color: #b45309; margin-bottom: 16px; font-size: 14px; line-height: 1.5;">Nie znaleziono zleceń na dzisiaj w sekcji {{ sekcja }}. Skontaktuj się z planistą, aby zaplanował produkcję.</p>
+                <button type="button" class="btn-notify-planner" onclick="notifyPlanner('{{ sekcja }}', '{{ linia }}')" style="display: inline-flex; align-items: center; gap: 8px; background: #f59e0b; color: #fff; border: 0; border-radius: 10px; padding: 10px 20px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                    <span class="material-icons">send</span> POWIADOM PLANISTĘ
+                </button>
+            </div>
+        </div>
+        {% else %}
+            {% set active_szarze_panel = namespace(rendered=false) %}
+            {% set g_loop_idx = namespace(val=0) %}
+            
+            {# 1. Active orders (w toku, zawieszone) #}
+            {% for p in plan if p[3]|lower == 'w toku' or (not agro_focus_mode and p[3]|lower == 'zawieszone') %}
+                {% set g_loop_idx.val = g_loop_idx.val + 1 %}
+                {% set order_index = g_loop_idx.val %}
+                {% if not (sekcja in ['Zasyp', 'Workowanie'] and ns.is_active and p[0] == ns.active_plan_id) %}
+                    {% include 'dashboard/_dashboard_order_card.html' %}
+                    {% set role_lc = rola|string|trim|lower %}
+                    {% set has_palety = (palety_mapa.get(p[0], [])|length > 0 if palety_mapa is defined and palety_mapa else false) %}
+                    {% set has_zasypy = (palety_mapa.get(p[0], [])|length > 0 if (sekcja == 'Zasyp' and palety_mapa is defined and palety_mapa) else false) %}
+                    {% if has_palety or has_zasypy %}
+                        <div id="details-{{ p[0] }}" class="details-row" style="display: {% if sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] %}block{% else %}none{% endif %}; width: 100%; margin-top: 10px; margin-bottom: 20px;">
+                            {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                        </div>
+                    {% endif %}
+                {% endif %}
+                
+                {% set has_palety = (palety_mapa.get(p[0], [])|length > 0 if palety_mapa is defined and palety_mapa else false) %}
+                {% set has_zasypy = (palety_mapa.get(p[0], [])|length > 0 if (sekcja == 'Zasyp' and palety_mapa is defined and palety_mapa) else false) %}
+                
+                {% if sekcja in ['Zasyp', 'Workowanie'] and ns.is_active and p[0] == ns.active_plan_id and not active_szarze_panel.rendered %}
+                    {% set active_szarze_panel.rendered = true %}
+                    <style>.cards .active-agro-details-direct-wrapper { grid-column: 1 / -1 !important; width: 100% !important; max-width: 100% !important; }
+                    @media (max-width: 900px) { .active-agro-split-layout { grid-template-columns: 1fr !important; } }</style>
+                    <div id="details-{{ p[0] }}" class="active-agro-details-direct-wrapper" style="width: 100%;">
+                        {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+                            {% include 'dashboard/_dashboard_agro_top_bar.html' %}
+                            {% set wrctx = workowanie_rozliczenie_ctx %}
+                            <div class="active-agro-split-layout" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; width: 100%;">
+                                <div class="agro-split-left" style="flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 15px;">
+                                    <!-- Podepnij material dropdown -->
+                                    {% if wrctx and wrctx.active_plan and wrctx.all_warehouse_packaging and rola != 'laborant' %}
+                                    <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px 15px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; box-sizing: border-box;">
+                                        <span style="font-size: 0.85em; font-weight: 700; color: #27ae60; white-space: nowrap;">Podepnij materiał / folię:</span>
+                                        <select id="select_warehouse_packaging" class="form-control" style="flex: 1; border-radius: 8px; height: 36px; border: 1px solid #c2ebd0; font-size: 0.9em; min-width: 200px;">
+                                            <option value="">-- Wybierz materiał z magazynu --</option>
+                                            {% for item in wrctx.all_warehouse_packaging %}
+                                                <option value="{{ item.id }}" data-nazwa="{{ item.nazwa|e }}" data-stan="{{ item.stan_magazynowy|int }}" data-lokalizacja="{{ item.lokalizacja|e if item.lokalizacja else '' }}">
+                                                    {{ item.nazwa }} (Stan: {{ item.stan_magazynowy|int }} szt/kg){% if item.lokalizacja %} - {{ item.lokalizacja }}{% endif %}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button class="btn btn-primary" style="height: 36px; padding: 0 16px; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.85em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; white-space: nowrap; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { AppDialog.alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
+                                            <span class="material-icons" style="font-size: 18px;">add_circle</span> PODEPNIJ MATERIAŁ
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% include 'dashboard/_dashboard_order_card.html' %}
+                                    {% include 'dashboard/_dashboard_agro_machine_stats.html' %}
+                                    {% include 'dashboard/_dashboard_agro_bilans.html' %}
+                                    {% include 'dashboard/_dashboard_agro_settlement.html' %}
+                                </div>
+                                <div class="agro-split-right" style="flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 15px;">
+                                    {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                                </div>
+                            </div>
+                        {% else %}
+                            {% if sekcja == 'Zasyp' %}
+                                <div class="active-zasyp-split-layout" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: start; width: 100%;">
+                                    <div class="zasyp-split-left" style="flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 15px;">
+                                        {% include 'dashboard/_dashboard_order_card.html' %}
+                                        {% include 'dashboard/_dashboard_agro_stages.html' %}
+                                    </div>
+                                    <div class="zasyp-split-right" style="flex: 1 1 500px; min-width: 0;">
+                                        {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                {% include 'dashboard/_dashboard_order_card.html' %}
+                                <div class="active-agro-details-direct" style="margin-top: 15px;">
+                                    {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+            
+{% if not agro_focus_mode %}
+            <div class="planned-orders-table-wrapper" style="overflow-x: auto; grid-column: 1 / -1; width: 100%;">
+<table class="table" style="width: 100%; table-layout: fixed; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-collapse: collapse;">
+    <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+          <tr>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 12%;">Data</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 23%;">Lp. / Zlecenie</th>
+              <th style="padding: 12px 16px; text-align: center; color: #475569; font-weight: 600; width: 15%;">Status</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 20%;">Plan / Wykonanie</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 20%;">Parametry</th>
+              <th style="padding: 12px 16px; text-align: right; color: #475569; font-weight: 600; width: 10%;">Akcje</th>
+          </tr>
+    </thead>
+    <tbody>
+        {% for p in plan|sort(attribute=13) %}
+            {% if p[3]|lower not in ['w toku', 'zawieszone'] %}
+                {% set g_loop_idx.val = g_loop_idx.val + 1 %}
+                {% set order_index = g_loop_idx.val %}
+                {% set has_palety = (palety_mapa.get(p[0], [])|length > 0 if palety_mapa is defined and palety_mapa else false) %}
+                {% set has_zasypy = (palety_mapa.get(p[0], [])|length > 0 if (sekcja == 'Zasyp' and palety_mapa is defined and palety_mapa) else false) %}
+                {% include 'dashboard/_dashboard_order_table_row.html' %}
+            {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+{% endif %}
+    </div>
+
+    {% include 'dashboard/_dashboard_plan_preview_modal.html' %}
+{% endif %}

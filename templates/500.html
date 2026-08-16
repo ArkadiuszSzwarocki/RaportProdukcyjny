@@ -1,0 +1,101 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<style>
+    .error-box {
+        padding: 20px;
+        background-color: #fff3cd;
+        border-left: 4px solid #ff6b6b;
+        border-radius: 4px;
+        color: #333;
+    }
+
+    .error-box h3 {
+        margin-top: 0;
+        color: #d63031;
+    }
+
+    .error-messages {
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #ffe0e0;
+        border-radius: 4px;
+        color: #d63031;
+        font-weight: bold;
+    }
+
+    .error-messages p {
+        margin: 5px 0;
+    }
+
+    .error-actions {
+        margin: 15px 0 0 0;
+        border-top: 1px solid #ffc107;
+        padding-top: 15px;
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .error-actions ul {
+        margin: 10px 0 0 0;
+        padding-left: 20px;
+    }
+
+    .button-group {
+        margin-top: 30px;
+        display: flex;
+        gap: 10px;
+    }
+
+    .button-group button,
+    .button-group a {
+        padding: 10px 20px;
+    }
+
+    .button-group button {
+        cursor: pointer;
+    }
+</style>
+
+<div class="page-header">
+    <h1>❌ {{ _('wewnetrzny_blad') }}</h1>
+</div>
+
+<div class="section-box p-30">
+    <div class="error-box">
+        <h3>{{ _('cos_poszlo_nie_tak') }}</h3>
+        <p>
+            {{ _('napotkalismy_blad') }} 
+            Szczegóły błędu zostały zalogowane i przekazane zespołowi technicznego.
+        </p>
+        {% if get_flashed_messages() %}
+            <div class="error-messages">
+                {% for message in get_flashed_messages() %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <p class="error-actions">
+            <strong>{{ _('co_mozesz_zrobic') }}</strong>
+            <ul>
+                <li>{{ _('sprobuj_ponownie') }}</li>
+                <li>{{ _('skontaktuj_sie_z_admin') }}</li>
+                <li>{{ _('szczegoly_blędu') }}</li>
+            </ul>
+        </p>
+    </div>
+
+    <div class="button-group">
+        <button onclick="history.back()" class="btn-action btn-info">← {{ _('wroc') }}</button>
+        <a href="/" class="btn-action btn-primary">🏠 Dashboard</a>
+    </div>
+</div>
+
+<script>
+    // Wyświetl notyfikację o błędzie
+    if (typeof showToast !== 'undefined') {
+        showToast('❌ Błąd serwera - szczegóły zostały zalogowane', 'error', 8000);
+    }
+</script>
+
+{% endblock %}

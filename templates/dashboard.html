@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as macros %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v={{ static_version }}&v2=2">
+{% endblock %}
+
+{% block content %}
+{% include 'dashboard/_dashboard_banners.html' %}
+{% include 'includes/dashboard_top.html' %}
+
+{% if fefo_pallets %}
+<div class="fefo-alert" style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <span class="material-icons" style="color: #ef4444;">warning</span>
+        <h3 style="margin: 0; color: #991b1b; font-size: 16px;">Kończący się termin przydatności (FEFO) - Magazyn</h3>
+    </div>
+    <div style="max-height: 200px; overflow-y: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 1px solid #fca5a5; color: #991b1b; text-align: left;">
+                    <th style="padding: 5px;">Nr Palety</th>
+                    <th style="padding: 5px;">Nazwa</th>
+                    <th style="padding: 5px;">Lokalizacja</th>
+                    <th style="padding: 5px;">Data Ważności</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in fefo_pallets %}
+                <tr style="border-bottom: 1px solid #fee2e2;">
+                    <td style="padding: 5px;"><strong>{{ p.nr_palety }}</strong></td>
+                    <td style="padding: 5px;">{{ p.nazwa }}</td>
+                    <td style="padding: 5px;">{{ p.lokalizacja }}</td>
+                    <td style="padding: 5px; color: #ef4444; font-weight: bold;">{{ p.data_przydatnosci.strftime('%Y-%m-%d') if p.data_przydatnosci else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% include 'dashboard/_dashboard_warehouse.html' %}
+{% include 'includes/dashboard_wpisy.html' %}
+
+<div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        {% include 'dashboard/_dashboard_planner_alerts.html' %}
+        <!-- agro-session-running-hint -->
+        {% include 'dashboard/_dashboard_agro_active.html' %}
+        
+        {# Przycisk do otwarcia modala z widokiem surowców #}
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+        <div class="section-box p-0" style="background: #f9f5f0; border-left: 5px solid #d35400; margin-bottom: 20px;">
+            <div class="p-15 p-15-bg d-flex justify-between align-center" style="background: #ffe6cc;">
+                <div>
+                    <h3 style="margin: 0; color: #d35400; font-size: 1.1em;">
+                        📦 Surowce w produkcji
+                    </h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.85em; color: #666;">
+                        Podgląd bieżącego stanu surowców i historii zmian
+                    </p>
+                </div>
+                <button type="button" 
+                        onclick="openSurowceWProdukcjiModal()" 
+                        class="btn-action btn-info" 
+                        style="padding: 10px 20px; font-size: 0.95em; white-space: nowrap; position: relative;">
+                    📋 Pokaż surowce
+                </button>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% include 'dashboard/_dashboard_production_list.html' %}
+        {% if sekcja != 'Zasyp' %}
+            {% include 'dashboard/_dashboard_agro_stages.html' %}
+        {% endif %}
+    </div>
+
+    {% include 'dashboard/_dashboard_packaging.html' %}
+
+    {# Include modala laboranta (funkcje będą dostępne globalnie) #}
+    {% include 'dashboard/_dashboard_laborant_surowce_w_produkcji.html' %}
+
+<!-- CORE DASHBOARD ASSETS & FOOTER -->
+{% endblock %}
+
+{% block footer_scripts %}
+    {% if sekcja == 'Zasyp' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tippy.css') }}">
+    <script src="{{ url_for('static', filename='vendor/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/tippy.min.js') }}"></script>
+    {% endif %}
+
+    <!-- Core Dashboard Logic Scripts -->
+    <script src="{{ url_for('static', filename='js/dashboard/scheduler.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/toasts.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/config.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/card-actions.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/agro-banners.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/polling.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/ui.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/kgph.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/etapy.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/packaging.js') }}?v={{ static_version }}&v=105"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/page-helpers.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/bootstrap.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+
+    {% include 'includes/dashboard_modals.html' %}
+{% endblock %}

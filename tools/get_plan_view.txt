@@ -1,0 +1,77 @@
+﻿
+>     def get_plan_produkcji(data_planu, sekcja, linia='PSD', cursor=None, data_od=None, data_do=None):
+          """Get production plans for a given day/section/line."""
+          conn = None
+          if cursor is None:
+              conn = get_db_connection()
+              cursor = conn.cursor()
+          
+          table_plan = get_table_name('plan_produkcji', linia)
+          opakowanie_table = get_table_name('magazyn_opakowania', linia)
+          
+          if sekcja.lower() in ('zasyp', 'workowanie'):
+              sekcja_cond = "LOWER(sekcja) IN (LOWER(%s), 'czyszczenie')"
+          else:
+              sekcja_cond = "LOWER(sekcja) = LOWER(%s)"
+  
+          if linia == 'AGRO':
+              extra_cols = f"""
+                  , (SELECT nazwa FROM {opakowanie_table} WHERE id={table_plan}.opakowanie_id LIMIT 1) as opakowanie_na
+zwa
+                  , (SELECT nazwa FROM {opakowanie_table} WHERE id={table_plan}.etykieta_id LIMIT 1) as etykieta_nazwa
+              """
+          else:
+              extra_cols = ", NULL as opakowanie_nazwa, NULL as etykieta_nazwa"
+  
+          # Apply specific date range if provided (used by AGRO Workowanie dashboard)
+          if data_od and data_do:
+              date_cond = """(
+                  (DATE(data_planu) >= %s AND DATE(data_planu) <= %s)
+                  OR (status IN ('w toku', 'zawieszone') AND data_planu >= DATE_SUB(%s, INTERVAL 30 DAY))
+              )"""
+              params = (data_od, data_do, data_planu, sekcja)
+              order_cond = "ORDER BY CASE status WHEN 'zakonczone' THEN 2 ELSE 1 END, id ASC"
+          else:
+              if linia == 'AGRO':
+                  date_cond = """(
+                      DATE(data_planu) = %s 
+                      OR (status IN ('zaplanowane', 'zakonczone', 'wstrzymane') AND data_planu >= DATE_SUB(%s, INTERVAL
+ 7 DAY) AND data_planu <= DATE_ADD(%s, INTERVAL 7 DAY))
+                      OR (status IN ('w toku', 'zawieszone') AND data_planu >= DATE_SUB(%s, INTERVAL 30 DAY))
+                  )"""
+                  params = (data_planu, data_planu, data_planu, data_planu, sekcja)
+                  order_cond = "ORDER BY CASE status WHEN 'zakonczone' THEN 2 ELSE 1 END, id ASC"
+              else:
+                  date_cond = "DATE(data_planu) = %s"
+                  params = (data_planu, sekcja)
+                  order_cond = "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejno
+sc ASC, id ASC"
+  
+          cursor.execute(
+              f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
+              "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
+              "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
+              f"data_planu, zasyp_id, COALESCE(odrzuty_przesiewacz, 0) as odrzuty_przesiewacz {extra_cols} "
+              f"FROM {table_plan} "
+              f"WHERE {date_cond} AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
+              f"{order_cond}",
+              params
+          )
+          
+          rows = cursor.fetchall()
+          result = [list(r) for r in rows]
+          
+          if conn:
+              conn.close()
+          return result
+  
+      @staticmethod
+      def get_zasyp_started_produkty(data_planu, linia='PSD', cursor=None):
+          """Get list of products started (w toku/zakonczone) in Zasyp section."""
+          conn = None
+          if cursor is None:
+              conn = get_db_connection()
+              cursor = conn.cursor()
+              
+
+

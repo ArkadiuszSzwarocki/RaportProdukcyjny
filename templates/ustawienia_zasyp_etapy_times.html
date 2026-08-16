@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Widełki Czasowe Punktów Kontrolnych - Admin{% endblock %}
+
+{% block content %}
+<div class="kpi-container mb-4">
+    <div class="kpi-header">
+        <h2 class="kpi-title">
+            <i class="fa-solid fa-clock me-2 text-warning"></i>
+            Konfiguracja Widełek Czasowych (Punkty Kontrolne)
+        </h2>
+    </div>
+
+    <div class="kpi-body">
+        <p class="text-muted mb-4">
+            Określ maksymalny dozwolony czas trwania każdego z etapów w minutach. Jeśli operator przekroczy ten czas, pole etapu zmieni kolor na czerwony, a system wymusi podanie powodu opóźnienia przy próbie jego zakończenia.
+        </p>
+        
+        <form action="{{ url_for('admin.admin_zasyp_etapy_times_update') }}" method="POST">
+            <div class="row">
+                <!-- Naważanie -->
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <label for="nawazanie_min" class="form-label fw-bold"><i class="fa-solid fa-weight-scale me-1 text-primary"></i> 1: Naważanie (minuty)</label>
+                            <input type="number" name="nawazanie_min" id="nawazanie_min" class="form-control form-control-lg" value="{{ times_config.nawazanie_min }}" required min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mieszanie -->
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <label for="mieszanie_min" class="form-label fw-bold"><i class="fa-solid fa-blender me-1 text-success"></i> 2/4: Mieszanie (minuty)</label>
+                            <input type="number" name="mieszanie_min" id="mieszanie_min" class="form-control form-control-lg" value="{{ times_config.mieszanie_min }}" required min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dosypka -->
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <label for="dosypka_min" class="form-label fw-bold"><i class="fa-solid fa-plus me-1 text-info"></i> 3: Dosypka (minuty)</label>
+                            <input type="number" name="dosypka_min" id="dosypka_min" class="form-control form-control-lg" value="{{ times_config.dosypka_min }}" required min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Opróżnianie -->
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <label for="oproznianie_min" class="form-label fw-bold"><i class="fa-solid fa-box-open me-1 text-warning"></i> 5/6: Opróżnianie (minuty)</label>
+                            <input type="number" name="oproznianie_min" id="oproznianie_min" class="form-control form-control-lg" value="{{ times_config.oproznianie_min }}" required min="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 text-end">
+                <a href="{{ url_for('admin.admin_ustawienia_zespol') }}" class="btn btn-secondary btn-lg me-2">Anuluj</a>
+                <button type="submit" class="btn btn-primary btn-lg">Zapisz ustawienia</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

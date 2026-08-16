@@ -1,0 +1,28 @@
+
+/* Hide scrollbar visual but keep functionality */
+::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+}
+
+* {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+}
+
+/* 
+ * Z-INDEX HIERARCHY
+ * ─────────────────
+ * 1000 - top-bar (sticky header)
+ * 900 - top-submenu
+ * 9998 - overlay backdrops (drawer, sidebar)
+ * 9999 - drawer, sidebar panels
+ * 12000 - quick-backdrop
+ * 12001 - quick-popup (center modal)
+ * 12020 - bottom-sheet
+ * 12030 - mini-popover
+ * 12040 - fullscreen-modal
+ * 12050 - wizard-modal
+ */
+
+/* ──────────────────────────────────────────── */

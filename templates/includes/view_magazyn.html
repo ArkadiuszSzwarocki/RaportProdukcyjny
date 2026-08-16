@@ -1,0 +1,157 @@
+<div class="plan-box">
+    <h4 class="plan-title">📦 MAGAZYN</h4>
+
+    {% if magazyn_palety %}
+    <div class="p-10 panel-white-border max-h-60vh mb-15">
+        <small class="text-muted">📦 Potwierdzone palety ({{ magazyn_palety|length }} szt):</small>
+        <table class="modern-table small table-compact">
+            <thead>
+                <tr>
+                    <th>Nr</th>
+                    <th>Nr plomby</th>
+                    <th>Produkt</th>
+                    <th>🕒 Czas</th>
+                    <th>⚖️ Waga (kg)</th>
+                    <th>👤 Użytkownik</th>
+                    <th>Status</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s, user_login, nr_palety, nr_plomby in
+                magazyn_palety %}
+                <tr>
+                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted">{{ nr_plomby or '-' }}</td>
+                    <td>{{ produkt }}</td>
+                    <td class="time-display">{{ czas_potwierdzenia_s }}</td>
+                    <td><strong class="text-success">{{ waga | int }} kg</strong></td>
+                    <td><span class="badge-info">{{ user_login or '-' }}</span></td>
+                    <td><span class="status-badge status-accepted">{{ status }}</span></td>
+                    <td>
+                        {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
+                        <button type="button" class="btn-icon text-primary" title="Edytuj wagę"
+                            onclick="editPalet({{ id }}, {{ waga }})">
+                            <span class="material-icons" style="font-size:18px;">edit</span>
+                        </button>
+                        <button type="button" class="btn-icon text-danger" title="Usuń paletę"
+                            onclick="if(confirm('Usunąć paletę?')) deletePalet({{ id }}, '{{ dzisiaj }}')">
+                            <span class="material-icons" style="font-size:18px;">delete</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center p-20 text-muted">
+        <span class="fs-20">📭</span><br>
+        <p>Brak potwierdzonych palet.</p>
+    </div>
+    {% endif %}
+
+    {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
+    <hr class="custom-hr">
+    <h4>+ Dodaj Zadanie dla Magazynu</h4>
+    <form action="{{ url_for('planning.dodaj_plan') }}" method="POST" class="form-flex">
+        <input type="date" name="data_planu" title="Data planu" value="{{ dzisiaj }}" required class="input-sm"
+            aria-label="Data planu">
+        <input type="text" name="produkt" title="Treść zadania / Produkt" placeholder="Treść zadania / Produkt" required
+            class="select-flex" aria-label="Produkt">
+        <input type="number" step="0.1" name="tonaz" title="Ilość" placeholder="Ilość" required class="input-sm w-80"
+            aria-label="Ilość">
+        <button type="submit" class="btn-add-plan">DODAJ ZADANIE</button>
+    </form>
+    {% endif %}
+</div>
+
+<script>
+    function parseJsonResponse(response) {
+        return response.text().then(function (text) {
+            try {
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    data: text ? JSON.parse(text) : {}
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    status: response.status,
+                    data: {
+                        success: false,
+                        message: 'Blad parsowania JSON: ' + error.message
+                    }
+                };
+            }
+        });
+    }
+
+    function roleAssignmentMessage(actionLabel) {
+        var action = actionLabel || 'tej operacji';
+        return 'Brak uprawnien do ' + action + '. To wynika z przydzialu rol. Skontaktuj sie z liderem lub administratorem.';
+    }
+
+    function resolveRequestMessage(result, actionLabel, fallbackMessage) {
+        var status = result ? result.status : 0;
+        var payload = (result && result.data) ? result.data : {};
+        var apiMessage = payload.message || payload.error || '';
+
+        if (status === 401 || payload.error === 'unauthenticated') {
+            return 'Sesja wygasla. Zaloguj sie ponownie.';
+        }
+
+        if (status === 403 || payload.error === 'forbidden') {
+            return roleAssignmentMessage(actionLabel);
+        }
+
+        if (apiMessage) {
+            return apiMessage;
+        }
+
+        return fallbackMessage;
+    }
+
+    function editPalet(id, waga) {
+        var newWaga = prompt('Nowa waga (kg):', waga);
+        if (newWaga && newWaga !== waga) {
+            var linia = (typeof window._linia !== 'undefined' && window._linia) ? window._linia : 'PSD';
+            fetch('/api/edytuj_palete_ajax', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}', linia: linia })
+            })
+                .then(parseJsonResponse)
+                .then(result => {
+                    var j = result.data;
+                    if (result.ok && j && j.success) {
+                        location.reload();
+                    } else {
+                        alert(resolveRequestMessage(result, 'edycji palety', 'Nie udalo sie edytowac palety.'));
+                    }
+                })
+                .catch(e => alert('Blad polaczenia: ' + e.message));
+        }
+    }
+
+    function deletePalet(id, data) {
+        var linia = (typeof window._linia !== 'undefined' && window._linia) ? window._linia : 'PSD';
+        fetch('/api/usun_palete_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, data_planu: data, linia: linia })
+        })
+            .then(parseJsonResponse)
+            .then(result => {
+                var j = result.data;
+                if (result.ok && j && j.success) {
+                    location.reload();
+                } else {
+                    alert(resolveRequestMessage(result, 'usuniecia palety', 'Nie udalo sie usunac palety.'));
+                }
+            })
+            .catch(e => alert('Blad polaczenia: ' + e.message));
+    }
+</script>

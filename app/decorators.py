@@ -1,0 +1,333 @@
+from functools import wraps
+from flask import session, redirect, request, jsonify, current_app, render_template
+
+# 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.remote_addr == '127.0.0.1' and request.args.get('internal_print') == '1':
+            return f(*args, **kwargs)
+            
+        if 'zalogowany' not in session:
+            # If request looks like AJAX/JSON (X-Requested-With or Accepts JSON), return 401 JSON
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            # Log unauthenticated requests for diagnostics (avoid logging cookies/credentials)
+            try:
+                if is_xhr or accepts_json:
+                    current_app.logger.info(
+                        "[login_required] Unauthenticated AJAX to %s from %s Accept=%s X-Requested-With=%s User-Agent=%s",
+                        request.path, request.remote_addr, request.headers.get('Accept'), request.headers.get('X-Requested-With'), request.headers.get('User-Agent')
+                    )
+                else:
+                    current_app.logger.info("[login_required] Unauthenticated page request to %s from %s", request.path, request.remote_addr)
+            except Exception:
+                pass
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 2. DOSTĘP DO WYNIKÓW (Zarząd, Admin, Planista, Lider)
+def zarzad_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'zalogowany' not in session:
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        
+        # Uprawnienia do widoku /zarzad
+        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laborant', 'masteradmin']:
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['zarzad', 'admin', 'planista', 'lider', 'laborant', 'masteradmin']
+            ), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 3. DOSTĘP DO PANELU ADMINA (Tylko Admin i MasterAdmin)
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'zalogowany' not in session:
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        
+        if session.get('rola') not in ['admin', 'masteradmin']:
+            try:
+                current_app.logger.warning("[ADMIN_CHECK] Access denied for admin_required - session: %s", {k: session.get(k) for k in ('login','rola','imie_nazwisko')})
+            except Exception:
+                pass
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['admin', 'masteradmin']
+            ), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 4. TYLKO DLA MASTER ADMINA (Statystyki, Logi, Błędy)
+def masteradmin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'zalogowany' not in session:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        
+        if session.get('rola') != 'masteradmin':
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['masteradmin']
+            ), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def roles_required(*roles, groups=None):
+    """Decorator factory: pozwala określić listę dopuszczalnych ról i opcjonalnie grup.
+
+    Użycie:
+      @roles_required('planista', 'lider')
+      def view(): ...
+
+      @roles_required(['planista', 'lider'])   # forma listowa też obsługiwana
+      def view(): ...
+
+      @roles_required('produkcja', groups=['linia1','linia2'])
+      def view(): ...
+    """
+    # Normalize: allow passing a single list/tuple as first arg
+    if len(roles) == 1 and isinstance(roles[0], (list, tuple)):
+        roles = tuple(roles[0])
+
+    def wrapper(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False
+                accepts_json = False
+
+            # Authentication check
+            if 'zalogowany' not in session:
+                current_app.logger.info(f"[roles_required] No session 'zalogowany' for {request.path}")
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+                return redirect('/login')
+
+            # Normalize role name - lowercase, strip and aliases
+            raw_role = session.get('rola')
+            r = str(raw_role or '').lower().strip()
+            role_aliases = {
+                'master admin': 'masteradmin',
+                'master_admin': 'masteradmin',
+                'master-admin': 'masteradmin',
+                'laboratorium': 'laborant',
+            }
+            r = role_aliases.get(r, r)
+
+            # numeric role ids -> map to canonical names
+            if r.isdigit():
+                try:
+                    idx = int(r)
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    if 0 <= idx < len(roles_order):
+                        r = roles_order[idx]
+                except Exception:
+                    pass
+
+            # Super-users always allowed
+            if r in ['admin', 'masteradmin']:
+                return f(*args, **kwargs)
+
+            user_rola = r
+            user_grupa = session.get('grupa')
+
+            # compare in lowercase
+            roles_lower = [x.lower() for x in roles] if roles else []
+            current_app.logger.info(f"[roles_required] Path: {request.path}, User role: {user_rola}, Required roles: {roles_lower}")
+            if roles and user_rola not in roles_lower:
+                current_app.logger.warning(f"[roles_required] Access DENIED - User role '{user_rola}' not in {roles_lower}")
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'forbidden'}), 403
+                
+                return render_template(
+                    'errors/403.html',
+                    page_url=request.path,
+                    user_role=user_rola,
+                    allowed_roles=list(roles)
+                ), 403
+
+            if groups and user_grupa not in groups:
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'forbidden'}), 403
+                return redirect('/')
+
+            return f(*args, **kwargs)
+
+        return decorated
+
+    return wrapper
+
+def hall_restricted(f):
+    """
+    Restrict access to a specific hall (linia) if user has a 'grupa' set.
+    Admin, zarzad and planista are exempt.
+    """
+    from functools import wraps
+    from flask import session, request, jsonify, redirect, current_app
+    
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        role = (session.get('rola') or '').lower().strip()
+        role_aliases = {
+            'master admin': 'masteradmin',
+            'master_admin': 'masteradmin',
+            'master-admin': 'masteradmin',
+            'laboratorium': 'laborant',
+        }
+        role = role_aliases.get(role, role)
+        user_grupa = (session.get('grupa') or 'ALL').upper()
+        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant', 'masteradmin']:
+            return f(*args, **kwargs)
+        
+        # Determine target hall from request
+        req_linia = request.args.get('linia') or request.form.get('linia')
+        
+        # If no linia specified in request, it usually defaults to 'PSD' in the route.
+        # Check if the user is allowed to access whatever the default or requested hall is.
+        target_linia = req_linia or 'PSD'
+        if target_linia != user_grupa:
+            current_app.logger.warning(
+                "[HALL_RESTRICTED] Access denied for user '%s' (hall: %s) to hall: %s", 
+                session.get('login'), user_grupa, target_linia
+            )
+            # Try to determine if request is AJAX/JSON
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+                
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'Brak dostępu do tej hali'}), 403
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated
+
+def dynamic_role_required(page_name):
+    """
+    Sprawdza, czy rola użytkownika ma w 'role_permissions.json' ustawioną 
+    flagę `access=True` dla podanej podstrony (page_name).
+    """
+    def wrapper(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False
+                accepts_json = False
+
+            if 'zalogowany' not in session:
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+                return redirect('/login')
+
+            from app.core.contexts import inject_role_permissions
+            # Pobierz metodę wyliczającą dostęp uwzględniającą cache/fallback
+            role_checker = inject_role_permissions().get('role_has_access')
+            
+            if role_checker and role_checker(page_name):
+                return f(*args, **kwargs)
+            
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
+            
+            # Show a beautiful Forbidden page
+            import os, json
+            user_rola = str(session.get('rola') or '').lower().strip()
+            
+            # Find allowed roles from role_permissions.json
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+            allowed_roles = []
+            try:
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, 'r', encoding='utf-8') as file:
+                        perms = json.load(file)
+                    
+                    # Resolve key
+                    page_key = page_name
+                    page_aliases = {'podsumowanie_zasypow': 'podsumowanie_szarz'}
+                    if page_key not in perms and page_key in page_aliases:
+                        page_key = page_aliases[page_key]
+                    
+                    if page_key in perms:
+                        page_perms = perms[page_key]
+                        for role_name, role_cfg in page_perms.items():
+                            if role_cfg.get('access'):
+                                allowed_roles.append(role_name)
+            except Exception as e:
+                current_app.logger.error(f"Error reading role_permissions in dynamic_role_required: {e}")
+                
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=allowed_roles
+            ), 403
+
+        return decorated
+    return wrapper

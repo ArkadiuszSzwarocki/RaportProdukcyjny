@@ -1,0 +1,195 @@
+            <!-- Palety będą tutaj renderowane -->
+        </div>
+    </div>
+
+    <!-- FLOATING FINISH BUTTON -->
+    <div id="floatingFinishBanner" style="display: none; position:fixed; bottom:0; left:0; right:0; padding:12px 16px; background:white; border-top:2px solid #f1f5f9; box-shadow:0 -4px 20px rgba(0,0,0,0.08); z-index:500; gap:10px; max-width:500px; margin:0 auto;">
+        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="flex:1; padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; color:#475569; font-weight:700; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px;">
+            <span class="material-icons" style="font-size:18px;">summarize</span> RAPORT
+        </a>
+        <button onclick="finishInventory()" style="flex:2; padding:14px; border:none; border-radius:12px; background:#dc2626; color:white; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span class="material-icons">check_circle</span> ZAKOŃCZ INWENTARYZACJĘ
+        </button>
+    </div>
+
+    <!-- RACK GRID SECTION -->
+    <div id="rackContainer" style="display: none; max-width: 1000px; margin: 0 auto;">
+        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px;">
+            <span class="material-icons" style="font-size: 18px;">grid_view</span>
+            Mapa Regału: <span id="activeRack" style="color: #1e293b; font-weight: 800;"></span>
+        </div>
+
+        <div style="max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                <span class="material-icons" style="font-size: 14px; color: #10b981;">qr_code_scanner</span>
+                <span>① Skanuj <span style="color: #3b82f6;">lokalizację</span> → ② Skanuj <span style="color: #10b981;">paletę</span></span>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                    <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                    <input type="text" id="ssccVerifierInputRack" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
+                           onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleRackScan(this.value); this.value='';}">
+                </div>
+                <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); handleRackScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
+                    <span class="material-icons" style="font-size: 24px;">search</span>
+                </button>
+            </div>
+        </div>
+
+        <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px; background: #f8fafc; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0;">
+            <div id="rackGrid" style="display: grid; grid-template-columns: repeat(10, minmax(60px, 1fr)); gap: 8px; min-width: 650px;">
+                <!-- Cells will be generated here -->
+            </div>
+        </div>
+
+        <!-- Lista palet na regale pod kafelkami -->
+        <div id="rackListContainer" style="margin-top: 20px;">
+            <!-- Renderowane przez renderRackList() -->
+        </div>
+
+        <div id="slotDetail" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
+            <div style="background: white; border-radius: 20px; border: 2px solid #3b82f6; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 20px; letter-spacing: -0.5px;">R01-01-01</div>
+                    <button onclick="closeDetail()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s;">
+                         <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
+                    <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
+                        <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
+                        <input type="text" id="ssccVerifierInputDetail" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
+                               onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleDetailScan(this.value); this.value='';}">
+                    </div>
+                    <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); handleDetailScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
+                        <span class="material-icons" style="font-size: 24px;">search</span>
+                    </button>
+                </div>
+                <div id="detailContent" style="flex: 1; overflow-y: auto;">
+                    <!-- Content of slot -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM SPACING -->
+    <div style="height: 100px;"></div>
+</div>
+
+<!-- MODAL Z INSTRUKCJĄ OBSŁUGI -->
+<div id="instructionsModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: white; border-radius: 20px; border: 2px solid #3b82f6; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #3b82f6; font-size: 24px;">menu_book</span>
+                <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0f172a;">Instrukcja Obsługi Inwentaryzacji</h3>
+            </div>
+            <button onclick="closeInstructionsModal()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s;">
+                 <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
+            </button>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px; text-align: left;">
+            <!-- KROK 1 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #3b82f6;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #dbeafe; color: #2563eb; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">1</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Wyszukiwanie gniazda</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Zeskanuj kod kreskowy gniazda (SSCC/Lokalizację) czytnikiem lub wybierz je bezpośrednio na <strong>Mapie Regału</strong>, klikając w odpowiedni kafelek.
+                </p>
+            </div>
+
+            <!-- KROK 2 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #10b981;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #dcfce7; color: #059669; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">2</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Liczenie i Zapis (Auto-Save)</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Wpisz stan faktyczny palety. Zmiana zapisuje się <strong>automatycznie</strong> po kliknięciu poza pole, zmianie jednostki lub wciśnięciu klawisza Enter.
+                </p>
+            </div>
+
+            <!-- KROK 3 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #f59e0b;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #fef3c7; color: #d97706; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">3</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Zatwierdzanie sesji</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Po doliczeniu wszystkich gniazd kliknij czerwony przycisk <strong>ZAKOŃCZ INWENTARYZACJĘ</strong> na dole ekranu, aby wygenerować raport różnic.
+                </p>
+            </div>
+
+            <!-- PRZYCISKI -->
+            <div style="background: #f0fdf4; border-radius: 12px; padding: 15px; border: 1px solid #bbf7d0;">
+                <strong style="color: #166534; font-size: 13px; display: block; margin-bottom: 8px;">Opis Przycisków i Oznaczeń w Oknie Szczegółów:</strong>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span class="material-icons" style="font-size: 18px; color: #10b981;">save</span>
+                        <span><strong>Zielona Dyskietka</strong> — Ręczny zapis wprowadzonej wagi / ilości palety.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span class="material-icons" style="font-size: 18px; color: #059669;">done_all</span>
+                        <span><strong>Podwójny ptaszek</strong> — Potwierdzenie zapisu pozycji na serwerze.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #10b981; color: white; padding: 3px 6px; border-radius: 6px; font-weight: bold; font-size: 9px;">POTWIERDŹ PUSTE</span>
+                        <span>Szybkie zerowanie i oznaczenie gniazda jako puste (bez dodatkowych pytań).</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="border: 1px solid #3b82f6; color: #3b82f6; padding: 3px 6px; border-radius: 6px; font-weight: bold; font-size: 9px;">+ DODAJ PALETĘ / KOLEJNĄ</span>
+                        <span>Rejestracja nowej palety (widoczna tylko, gdy gniazdo jest wyzerowane / puste).</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEGENDA KAFELKÓW -->
+            <div style="background: #eff6ff; border-radius: 12px; padding: 15px; border: 1px solid #bfdbfe;">
+                <strong style="color: #1e40af; font-size: 13px; display: block; margin-bottom: 8px;">Legenda Kafelków Mapy Regału:</strong>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #dbeafe; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Niebieski kafelek (1)</strong> — Gniazdo zawiera palety w systemie, jeszcze niepoliczone.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #dcfce7; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Zielony kafelek (1 / 0)</strong> — Gniazdo policzone (1 = z paletami, 0 = puste).</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #ffffff; border: 1px solid #e2e8f0; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Biały kafelek (0)</strong> — Gniazdo systemowo puste, jeszcze niepoliczone.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <button onclick="closeInstructionsModal()" class="btn-primary" style="background:#3b82f6; border:none; padding:12px 30px; border-radius:12px; color:white; font-weight:700; cursor:pointer;">ROZUMIEM</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- TEMPLATE DLA PALETY -->
+<template id="palletTemplate">
+    <div class="pallet-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div style="overflow: hidden; flex: 1;">
+                <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase;" class="pallet-type">Surowiec</div>
+                <div style="font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="product-name">Nazwa Produktu</div>
+                <div style="font-size: 11px; color: #64748b; font-family: monospace;" class="pallet-id">#ID</div>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="number" step="0.1" class="weight-input actual-weight-input" placeholder="STAN FAKTYCZNY">
+            <button class="save-btn" title="Zapisz">
+                <span class="material-icons">save</span>
+            </button>
+        </div>
+    </div>
+</template>
+

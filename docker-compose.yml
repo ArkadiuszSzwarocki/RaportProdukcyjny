@@ -1,19 +1,72 @@
 version: '3.8'
+
 services:
-  mariadb:
-    image: mariadb:10.11
-    container_name: mleczna-mariadb
-    restart: unless-stopped
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: raportprodukcyjny_db
     environment:
-      MYSQL_ROOT_PASSWORD: Filipinka2010
-      MYSQL_DATABASE: MleczDroga
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-raportprodukcyjny}
+      MYSQL_USER: ${DB_USER:-raportprodukcyjny}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      TZ: ${TZ:-Europe/Warsaw}
     ports:
-      - "5173:5173" # Frontend
-      - "8089:8089" # Backend (TEGO BRAKOWAŁO)
+      - "${DB_PORT:-3306}:3306"
     volumes:
-      - ./database-server/mysql-data:/var/lib/mysql
+      - db_data:/var/lib/mysql
+      - ./db-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - raportprodukcyjny_net
+
+  # Flask Application
+  app:
+    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    container_name: raportprodukcyjny_app
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-raportprodukcyjny}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-raportprodukcyjny}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-admin}
+      TZ: ${TZ:-Europe/Warsaw}
+      PORT: 8082
+      HOST: 0.0.0.0
+      PRINTER_BRIDGE_URL: "${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}"
+      PRINTER_CLIENT_BRIDGE_URL: "${PRINTER_CLIENT_BRIDGE_URL:-}"
+      USE_SSL: "${USE_SSL:-true}"
+    ports:
+      - "5005:8082"  # [Port QNAP-a]:[Port aplikacji webowej w kontenerze]
+    volumes:
+      - ./logs:/app/logs
+      - ./raporty:/app/raporty
+      - ./config:/app/config
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - raportprodukcyjny_net
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    driver: local
+  # raporty_data removed in favor of host bind-mount ./raporty
+
+networks:
+  raportprodukcyjny_net:
+    driver: bridge

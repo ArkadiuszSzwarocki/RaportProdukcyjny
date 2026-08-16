@@ -1,0 +1,168 @@
+.bufor-kolejka-badge {
+    font-size: 18px;
+    padding: 8px 12px;
+}
+
+.zlecenie-id-badge {
+    display: inline-block;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.02em;
+    font-family: monospace;
+    vertical-align: middle;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+.action-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #d32f2f;
+    color: #fff;
+    font-size: 0.64em;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+
+.detail-badge {
+    background: var(--accent-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.badge-sekcja {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+}
+
+.status-zakonczone {
+    background: #e9f7ef;
+    color: var(--success-color);
+}
+
+.status-wtoku {
+    background: #fff4e6;
+    color: var(--warning-color);
+}
+
+.status-zaplanowane {
+    background: #f3f6f8;
+    color: var(--text-main);
+}
+
+.badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #eee;
+    }
+
+.role-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+.role-badge.role-admin {
+        background: linear-gradient(135deg, rgba(192, 57, 43, 0.12), rgba(231, 76, 60, 0.08));
+        color: #c0392b;
+        border: 1px solid rgba(192, 57, 43, 0.2);
+    }
+
+.role-badge.role-zarzad {
+        background: linear-gradient(135deg, rgba(52, 152, 219, 0.12), rgba(41, 128, 185, 0.08));
+        color: #2980b9;
+        border: 1px solid rgba(52, 152, 219, 0.2);
+    }
+
+.role-badge.role-lider {
+        background: linear-gradient(135deg, rgba(39, 174, 96, 0.12), rgba(46, 204, 113, 0.08));
+        color: #27ae60;
+        border: 1px solid rgba(39, 174, 96, 0.2);
+    }
+
+.role-badge.role-planista {
+        background: linear-gradient(135deg, rgba(155, 89, 182, 0.12), rgba(188, 110, 214, 0.08));
+        color: #8e44ad;
+        border: 1px solid rgba(155, 89, 182, 0.2);
+    }
+
+.role-badge.role-pracownik {
+        background: linear-gradient(135deg, rgba(149, 165, 166, 0.12), rgba(189, 195, 199, 0.08));
+        color: #7f8c8d;
+        border: 1px solid rgba(149, 165, 166, 0.2);
+    }
+
+.role-badge.role-dur,
+    .role-badge.role-produkcja,
+    .role-badge.role-laboratorium {
+        background: linear-gradient(135deg, rgba(243, 156, 18, 0.12), rgba(230, 126, 34, 0.08));
+        color: #d68910;
+        border: 1px solid rgba(243, 156, 18, 0.2);
+    }
+
+@media (max-width: 600px) {
+        .list-row {
+            padding: 10px 12px;
+            gap: 10px;
+        }
+
+        .list-row .avatar {
+            width: 32px;
+            height: 32px;
+            font-size: 0.85em;
+        }
+
+        .role-badge {
+            font-size: 0.7em;
+            padding: 3px 6px;
+        }
+    }
+
+.online-state-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+.online-state-badge.is-active {
+        background: rgba(39, 174, 96, 0.14);
+        color: #1e8449;
+    }
+
+.online-state-badge.is-recent {
+        background: rgba(243, 156, 18, 0.14);
+        color: #b9770e;
+    }

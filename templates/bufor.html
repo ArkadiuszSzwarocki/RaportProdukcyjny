@@ -1,0 +1,972 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+{% set stats = namespace(total_spakowane=0, total_w_buforze=0) %}
+{% for b in bufor_list %}
+    {% set stats.total_spakowane = stats.total_spakowane + (b.spakowane or 0) %}
+    {% set stats.total_w_buforze = stats.total_w_buforze + (b.pozostalo_do_spakowania or 0) %}
+{% endfor %}
+
+<style>
+    .bufor-shell {
+        display: grid;
+        gap: 16px;
+    }
+
+    .bufor-actions,
+    .bufor-actions-right,
+    .bufor-jump-form {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .bufor-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .bufor-actions-right {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .bufor-jump-form {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(32, 52, 73, 0.08);
+    }
+
+    .bufor-jump-form label {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .bufor-jump-form .input-sm {
+        min-width: 164px;
+    }
+
+    .bufor-action-btn {
+        min-height: 40px;
+        border-radius: 12px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .bufor-board {
+        overflow: hidden;
+    }
+
+    .bufor-table-wrap .modern-table tbody tr.bufor-row-finished {
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.95) 0%, rgba(243, 247, 252, 0.95) 100%);
+    }
+
+    .bufor-kolejka-badge {
+        min-width: 42px;
+        text-align: center;
+        font-weight: 800;
+    }
+
+    .bufor-product-cell {
+        display: grid;
+        gap: 2px;
+    }
+
+    .bufor-product-name {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+
+    .bufor-date-cell {
+        display: grid;
+        gap: 2px;
+    }
+
+    .bufor-start-time {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .pozostalo-cell.negative span {
+        color: #c0392b;
+        font-weight: 700;
+    }
+
+    .badge-reconciliation {
+        display: inline-flex;
+        margin-top: 6px;
+    }
+
+    .btn-move-order {
+        background: #6c757d;
+        color: white;
+    }
+
+    .bufor-info-overlay,
+    .move-modal-buffer-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        z-index: 999;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+    }
+
+    .bufor-info-dialog,
+    .move-modal-buffer {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+        width: min(100%, 680px);
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
+    .bufor-info-dialog {
+        padding: 24px;
+    }
+
+    .bufor-info-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .bufor-info-title,
+    .move-title-buffer {
+        margin: 0;
+        color: var(--primary-color);
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .bufor-info-close {
+        background: transparent;
+        border: none;
+        color: #6b7280;
+        font-size: 1.3rem;
+        cursor: pointer;
+    }
+
+    .bufor-info-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+    }
+
+    .bufor-info-table th,
+    .bufor-info-table td {
+        padding: 12px 10px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid rgba(32, 52, 73, 0.08);
+    }
+
+    .bufor-info-table thead th {
+        background: rgba(78, 115, 223, 0.08);
+        color: #23407a;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .move-modal-buffer {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 24px;
+        border: 1px solid rgba(32, 52, 73, 0.12);
+        z-index: 1000;
+        width: min(100%, 460px);
+        font-size: 14px;
+    }
+
+    .move-modal-field {
+        margin-bottom: 16px;
+    }
+
+    .move-modal-field label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .move-modal-field input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid rgba(32, 52, 73, 0.15);
+        border-radius: 10px;
+        font-size: 14px;
+    }
+
+    .quick-dates {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .quick-date-btn {
+        padding: 7px 12px;
+        border: 1px solid rgba(32, 52, 73, 0.12);
+        background: #f8fafc;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .move-modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .btn-move-order-action {
+        opacity: 0.5;
+    }
+
+    .btn-start-order-active,
+    .btn-create-zlecenie-active {
+        opacity: 1;
+    }
+
+    @media (max-width: 1100px) {
+        .bufor-actions-right {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .bufor-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        td:last-child {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        td:last-child button {
+            flex: 1;
+            min-width: 70px;
+            padding: 6px 8px !important;
+            font-size: 0.75em !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .bufor-actions-right,
+        .bufor-actions {
+            gap: 10px;
+        }
+
+        .bufor-jump-form {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            justify-items: stretch;
+        }
+
+        .bufor-jump-form .input-sm,
+        .bufor-actions .btn,
+        .bufor-actions .bufor-action-btn,
+        .bufor-actions-right .btn,
+        .bufor-actions-right .bufor-action-btn {
+            width: 100%;
+        }
+
+        .bufor-info-table {
+            font-size: 0.86rem;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .bufor-shell {
+            gap: 12px;
+        }
+
+        .bufor-page-header .dashboard-top-row {
+            gap: 12px;
+        }
+
+        .bufor-page-header .header-title-row,
+        .bufor-page-header .header-stats {
+            width: 100%;
+        }
+
+        .bufor-page-header .header-stats {
+            justify-content: flex-start;
+        }
+
+        .bufor-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .bufor-board {
+            border-radius: 16px;
+        }
+
+        .table thead {
+            display: none;
+        }
+
+        .table tbody tr {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 12px;
+            padding: 14px;
+            border: 1px solid rgba(32, 52, 73, 0.08);
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+            box-shadow: 0 8px 20px rgba(28, 44, 60, 0.05);
+            margin: 10px;
+        }
+
+        .table tbody td {
+            padding: 4px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+        }
+
+        .table tbody td:before {
+            font-weight: 600;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+            color: #555;
+        }
+
+        .table tbody td:nth-child(1):before {
+            content: "Kolejka";
+        }
+
+        .table tbody td:nth-child(2):before {
+            content: "Data";
+        }
+
+        .table tbody td:nth-child(3):before {
+            content: "Produkt";
+        }
+
+        .table tbody td:nth-child(4):before {
+            content: "Nr zlecenia";
+        }
+
+        .table tbody td:nth-child(5):before {
+            content: "Do spakowania";
+        }
+
+        .table tbody td:nth-child(6):before {
+            content: "Spakowane";
+        }
+
+        .table tbody td:nth-child(7):before {
+            content: "Pozostało";
+        }
+
+        .table tbody td:nth-child(8):before {
+            content: "Akcje";
+        }
+
+        td:last-child {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(32, 52, 73, 0.08);
+        }
+
+        td:last-child button {
+            width: 100%;
+            min-width: 0;
+            padding: 9px 8px !important;
+            font-size: 0.74em !important;
+            min-height: 36px;
+            white-space: normal;
+            line-height: 1.2;
+            border-radius: 10px;
+        }
+
+        td:last-child button:only-child,
+        td:last-child button:nth-last-child(3):first-child,
+        td:last-child button:nth-last-child(5):first-child {
+            grid-column: 1 / -1;
+        }
+
+        .table tbody td strong {
+            line-height: 1.35;
+        }
+
+        .bufor-info-dialog,
+        .move-modal-buffer {
+            width: min(100%, 100%);
+            padding: 18px;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .bufor-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .bufor-info-table thead {
+            display: none;
+        }
+
+        .bufor-info-table,
+        .bufor-info-table tbody,
+        .bufor-info-table tr,
+        .bufor-info-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .bufor-info-table tr {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(32, 52, 73, 0.08);
+        }
+
+        .bufor-info-table td {
+            border-bottom: none;
+            padding: 4px 0;
+        }
+
+        td:last-child {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="bufor-shell">
+    <div class="section-header bufor-page-header">
+        <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-0">
+            <div class="header-title-row d-flex align-center gap-10">
+                <h2 class="header-title m-0"><strong>Bufor</strong></h2>
+                <div class="day-tile">
+                    <button type="button" class="day-nav left" onclick="changeDate(-1)" aria-label="Poprzedni dzień">◀</button>
+                    <div class="day-center">
+                        <div class="day-label">Widok dla</div>
+                        <div id="current-date-display" class="day-date">{{ wybrana_data }}</div>
+                    </div>
+                    <button type="button" class="day-nav right" onclick="changeDate(1)" aria-label="Następny dzień">▶</button>
+                    <input type="hidden" id="current-date-iso" value="{{ wybrana_data }}">
+                </div>
+            </div>
+            <div class="d-flex align-center gap-12 header-stats">
+                <div class="stat-inline stat-plan"><span class="label">Pozycje</span><strong class="value">{{ bufor_list|length }}</strong></div>
+                <div class="stat-inline stat-wykonanie"><span class="label">Spakowane</span><strong class="value text-success">{{ stats.total_spakowane|round(1) }} kg</strong></div>
+                <div class="stat-inline stat-realizacja"><span class="label">W buforze</span><strong class="value">{{ stats.total_w_buforze|round(1) }} kg</strong></div>
+            </div>
+        </div>
+        <div class="bufor-actions-right mt-10">
+            <form action="/bufor" method="GET" class="bufor-jump-form">
+                <input type="hidden" name="linia" value="{{ wybrana_linia }}">
+                <label for="bufor-date-input">Skok do daty</label>
+                <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
+            </form>
+            <div class="bufor-actions">
+                <button type="button" class="btn btn-sm bufor-action-btn" onclick="openBuforInfoModal()">Opis akcji</button>
+            </div>
+        </div>
+    </div>
+
+
+<!-- Info Modal -->
+<div id="buforInfoModal" class="bufor-info-overlay" onclick="if(event.target===this)closeBuforInfoModal()">
+    <div class="bufor-info-dialog">
+        <div class="bufor-info-header">
+            <h3 class="bufor-info-title">Opis akcji w Buforze</h3>
+            <button type="button" class="bufor-info-close" onclick="closeBuforInfoModal()" aria-label="Zamknij">✕</button>
+        </div>
+        <table class="bufor-info-table">
+            <thead>
+                <tr>
+                    <th>Przycisk</th>
+                    <th>Działanie</th>
+                    <th>Kiedy aktywny</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>➕ <strong>Utwórz</strong></td>
+                    <td>Tworzy nowe zlecenie Workowanie z towaru pozostałego w buforze.</td>
+                    <td>Status: <code>zakonczone</code></td>
+                </tr>
+                <tr>
+                    <td>🚀 <strong>Na dzisiaj</strong></td>
+                    <td>Tworzy zlecenie Workowanie na bieżący dzień z materiału z innej daty.</td>
+                    <td>Status: <code>zakonczone</code> i wpis z innego dnia</td>
+                </tr>
+                <tr>
+                    <td>📦 <strong>Przenieś</strong></td>
+                    <td>Przenosi zasyp na inną datę z użyciem kalendarza.</td>
+                    <td>Zawsze dostępny</td>
+                </tr>
+                <tr>
+                    <td>▲▼ <strong>Kolejność</strong></td>
+                    <td>Przesuwa pozycję w buforze w górę lub w dół (zamiana kolejki).</td>
+                    <td>Zawsze dostępny, gdy jest sąsiednia pozycja</td>
+                </tr>
+
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<script>
+    function formatDateDisplay(isoDate) {
+        const date = new Date(isoDate + 'T00:00:00');
+        return date.toLocaleDateString('pl-PL');
+    }
+
+    function openBuforInfoModal() {
+        const modal = document.getElementById('buforInfoModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeBuforInfoModal() {
+        const modal = document.getElementById('buforInfoModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function navigateToDate(newDate) {
+        window.location.href = '/bufor?data=' + newDate + '&linia={{ wybrana_linia }}';
+    }
+
+    function changeDate(days) {
+        const isoInput = document.getElementById('current-date-iso');
+        const currentDate = new Date((isoInput ? isoInput.value : document.getElementById('bufor-date-input').value) + 'T00:00:00');
+        currentDate.setDate(currentDate.getDate() + days);
+        const newDate = currentDate.toISOString().split('T')[0];
+        navigateToDate(newDate);
+    }
+
+</script>
+
+<div class="section-box bufor-board">
+    <div class="card-body p-0 bufor-table-wrap">
+        {% if bufor_list and bufor_list|length > 0 %}
+        <table class="table modern-table mb-0">
+            <thead>
+                <tr>
+                    <th class="th-kolejka">{{ _('kolejka') }}</th>
+                    <th>{{ _('data_zasypu') }}</th>
+                    <th>Produkt</th>
+                    <th>Nr zlecenia</th>
+                    <th>Do spakowania</th>
+                    <th>Spakowane</th>
+                    <th>Pozostało</th>
+                    <th>{{ _('akcja') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bufor_list %}
+                <tr{% if b.status=='zakonczone' %} class="bufor-row-finished" {% endif %}>
+                    <td>
+                        <div class="d-flex align-center gap-4">
+                            <div class="d-flex flex-column" style="gap:2px;">
+                                {% if b.kolejka > 1 %}
+                                <button class="btn btn-sm btn-reorder-up" data-buf-id="{{ b.buf_id }}" data-kolejka="{{ b.kolejka }}" title="Przesuń w górę" style="padding:1px 5px;font-size:0.7em;line-height:1;">▲</button>
+                                {% endif %}
+                                {% if not loop.last %}
+                                <button class="btn btn-sm btn-reorder-down" data-buf-id="{{ b.buf_id }}" data-kolejka="{{ b.kolejka }}" title="Przesuń w dół" style="padding:1px 5px;font-size:0.7em;line-height:1;">▼</button>
+                                {% endif %}
+                            </div>
+                            <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
+                        </div>
+                    </td>
+                    <td class="bufor-date-cell">
+                        {{ b.data }}
+                        <small class="bufor-start-time">Start: {{ b.start_time }}</small>
+                    </td>
+                    <td><strong class="text-primary">{{ b.produkt }}</strong>
+                        {% if b.przeniesiony_z %}
+                        <br><span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ b.przeniesiony_z }}</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="text-muted">{{ b.nazwa }}</span></td>
+                    <td>{{ '%.1f'|format(b.do_spakowania) }} kg</td>
+                    <td>{{ '%.1f'|format(b.spakowane) }} kg</td>
+                    <td
+                        class="pozostalo-cell {% if b.pozostalo_do_spakowania < 0 %}negative{% else %}positive{% endif %}">
+                        {{ '%.1f'|format(b.pozostalo_do_spakowania) }} kg
+                            {% if b.needs_reconciliation %}
+                            <small class="badge badge-warning badge-reconciliation">Do rozliczenia</small>
+                            {% endif %}
+                    </td>
+                    <td>
+                        <button
+                            class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
+                            data-zasyp-id="{{ b.zasyp_id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕
+                            Utwórz</button>
+                        {% if b.data != wybrana_data %}
+                        <button
+                            class="btn btn-warning btn-sm js-create-zlecenie-dzisiaj{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
+                            data-zasyp-id="{{ b.zasyp_id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀
+                            NA DZISIAJ</button>
+                        {% endif %}
+                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
+                            data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
+                            _('przenies_zlecenie') }}</button>
+                        {% if session.rola in ['admin', 'masteradmin', 'planista', 'zarzad'] %}
+                        <button class="btn btn-danger btn-sm js-trash-order" data-plan-id="{{ b.id }}" data-produkt="{{ b.produkt }}" title="Usuń z bufora">🗑️</button>
+                        {% endif %}
+
+                    </td>
+                    </tr>
+                    {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-15 text-muted">{{ _('brak_towaru_bufor') }}</div>
+        {% endif %}
+    </div>
+</div>
+</div>
+
+<script>
+    // Funkcja do szybkiego wyboru daty
+    function setQuickDate(offsetDays) {
+        var dateInput = document.getElementById('move_to_date_buffer');
+        if (!dateInput) return;
+
+        var date = new Date();
+        date.setDate(date.getDate() + offsetDays);
+        var isoDate = date.toISOString().split('T')[0];
+        dateInput.value = isoDate;
+    }
+
+    // Otwórz modal przeniesienia
+    function openMoveModalBuffer(planId, produkt) {
+        var modal = document.getElementById('moveModalBuffer');
+        var overlay = document.getElementById('moveModalBufferOverlay');
+
+        if (!modal) {
+            try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak okna dialogowego przeniesienia</div>'); } catch(e){ alert('❌ Brak okna dialogowego przeniesienia'); }
+            return;
+        }
+
+        modal.style.display = 'block';
+        if (overlay) overlay.style.display = 'block';
+        modal.dataset.planId = planId;
+
+        // Ustaw dzisiejszą datę jako domyślną
+        var today = new Date().toISOString().split('T')[0];
+        var dateInput = document.getElementById('move_to_date_buffer');
+        if (dateInput) {
+            dateInput.value = today;
+        }
+
+        var title = modal.querySelector('.move-title-buffer');
+        if (title) {
+            title.innerText = '📦 Przenieś zasyp: ' + produkt;
+        }
+    }
+
+    // Zamknij modal przeniesienia
+    function closeMoveModalBuffer() {
+        var modal = document.getElementById('moveModalBuffer');
+        var overlay = document.getElementById('moveModalBufferOverlay');
+
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    // Potwierdź przeniesienie
+    function confirmMoveBuffer() {
+        var modal = document.getElementById('moveModalBuffer');
+        if (!modal) return;
+
+        var planId = modal.dataset.planId;
+        var toDate = document.getElementById('move_to_date_buffer').value;
+
+        if (!planId || !toDate) {
+            try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak wymaganych danych (ID lub data)</div>'); } catch(e){ alert('❌ Brak wymaganych danych (ID lub data)'); }
+            return;
+        }
+
+        fetch('/api/przenies_zlecenie_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: planId, to_date: toDate, from_bufor: true })
+        })
+            .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+            .then(j => {
+                if (j && j.success) {
+                    closeMoveModalBuffer();
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'Zasyp przeniesiony na nową datę') }</div>`); } catch(e){ alert('✅ ' + (j.message || 'Zasyp przeniesiony na nową datę')); }
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Błąd przeniesienia' }</div>`); } catch(e){ alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
+            });
+    }
+
+    // Utwórz Workowanie z bufora NA DZISIAJ (jednym kliknięciem)
+    function utworzZlecenieDzisiaj(zasypId, produkt) {
+        var today = new Date().toISOString().split('T')[0];
+
+        fetch('/bufor/create_zlecenie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                zasyp_id: zasypId,
+                use_buffer_data: true,
+                workowanie_date: today
+            })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ Zlecenie Workowanie utworzone NA DZISIAJ!<br>${(j.message||'')}</div>`); } catch(e){ alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`); }
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się utworzyć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
+            });
+    }
+
+    // Utwórz Workowanie ze zwykłego zasypu
+    function utworzZlecenie(zasypId, produkt) {
+        if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym.`)) {
+            return;
+        }
+
+        fetch('/bufor/create_zlecenie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zasyp_id: zasypId })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'') }</div>`); } catch(e){ alert(`✅ ${j.message}`); }
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się utworzyć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
+            });
+    }
+
+    // Zmiana kolejności w buforze (przesuń w górę/dół)
+    function reorderBufor(bufId, direction) {
+        fetch('/bufor/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ buf_id: bufId, direction: direction, linia: '{{ wybrana_linia }}' })
+        })
+            .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+            .then(j => {
+                if (j && j.success) {
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ ' + ((j && j.message) || 'Nie udało się zmienić kolejności') + '</div>'); } catch(e){ alert('❌ ' + ((j && j.message) || 'Nie udało się zmienić kolejności')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Błąd sieci</div>'); } catch(err){ alert('❌ Błąd sieci'); }
+            });
+    }
+
+    // Zarchiwizuj zlecenie
+    function archiwizujZlecenie(planId, produkt) {
+        if (!confirm(`Czy na pewno chcesz usunąć zlecenie "${produkt}" z bufora?\n\nZlecenie zostanie oznaczone jako zarchiwizowane.`)) {
+            return;
+        }
+
+        fetch('/bufor/archiwizuj', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                plan_id: planId,
+                linia: '{{ wybrana_linia }}'
+            })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.ok) {
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ Zlecenie "${produkt}" usunięte z bufora.</div>`); } catch(e){ alert(`✅ Zlecenie "${produkt}" usunięte z bufora.`); }
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się usunąć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się usunąć zlecenia')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
+            });
+    }
+
+
+    // Event listeners - załadowane gdy DOM jest gotowy
+    document.addEventListener('DOMContentLoaded', () => {
+        // ... (existing listeners)
+        
+        // Przyciski zmiany kolejności (▲ / ▼)
+        document.querySelectorAll('.btn-reorder-up').forEach((button) => {
+            button.addEventListener('click', () => {
+                const bufId = button.dataset.bufId;
+                if (bufId) reorderBufor(bufId, 'up');
+            });
+        });
+        document.querySelectorAll('.btn-reorder-down').forEach((button) => {
+            button.addEventListener('click', () => {
+                const bufId = button.dataset.bufId;
+                if (bufId) reorderBufor(bufId, 'down');
+            });
+        });
+
+        // Przyciski do śmietnika (archiwizacja)
+        document.querySelectorAll('.js-trash-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const planId = button.dataset.planId;
+                const produkt = button.dataset.produkt || '';
+                if (planId) {
+                    archiwizujZlecenie(planId, produkt);
+                }
+            });
+        });
+        const currentDateDisplay = document.getElementById('current-date-display');
+        const currentDateIso = document.getElementById('current-date-iso');
+        if (currentDateDisplay && currentDateIso) {
+            currentDateDisplay.textContent = formatDateDisplay(currentDateIso.value);
+        }
+
+        // Przyciski Utwórz Workowanie (zwykły)
+        document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
+            button.addEventListener('click', () => {
+                const zasypId = button.dataset.zasypId;
+                const produkt = button.dataset.produkt || '';
+                const status = button.dataset.status || '';
+
+                if (!zasypId) {
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak ID zasypu</div>'); } catch(e){ alert('❌ Brak ID zasypu'); }
+                    return;
+                }
+
+                if (status !== 'zakonczone') {
+                    try { showQuickPopup('Uwaga', `<div class="p-10">⚠️ Zlecenie musi być zamknięte (status: zakonczone)<br><br>Aktualny status: ${status}</div>`); } catch(e){ alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status); }
+                    return;
+                }
+
+                if (produkt) {
+                    utworzZlecenie(zasypId, produkt);
+                }
+            });
+        });
+
+        // Przyciski Utwórz Workowanie NA DZISIAJ (z bufora)
+        document.querySelectorAll('.js-create-zlecenie-dzisiaj').forEach((button) => {
+            button.addEventListener('click', () => {
+                const zasypId = button.dataset.zasypId;
+                const produkt = button.dataset.produkt || '';
+                const status = button.dataset.status || '';
+
+                if (!zasypId) {
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak ID zasypu</div>'); } catch(e){ alert('❌ Brak ID zasypu'); }
+                    return;
+                }
+
+                if (status !== 'zakonczone') {
+                    try { showQuickPopup('Uwaga', `<div class="p-10">⚠️ Zlecenie musi być zamknięte (status: zakonczone)<br><br>Aktualny status: ${status}</div>`); } catch(e){ alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status); }
+                    return;
+                }
+
+                if (produkt) {
+                    utworzZlecenieDzisiaj(zasypId, produkt);
+                }
+            });
+        });
+
+
+
+        // Przyciski Przenieś (Modal)
+        document.querySelectorAll('.js-move-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const planId = button.dataset.planId;
+                const produkt = button.dataset.produkt || '';
+
+                if (planId) {
+                    openMoveModalBuffer(planId, produkt);
+                }
+            });
+        });
+
+        // Zamknij modal po kliknięciu na overlay
+        var overlay = document.getElementById('moveModalBufferOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', closeMoveModalBuffer);
+        }
+    });
+</script>
+
+<!-- Overlay dla Modal Bufora -->
+<div id="moveModalBufferOverlay" class="move-modal-buffer-overlay"></div>
+
+<!-- Modal do przeniesienia zasypów na inną datę -->
+<div id="moveModalBuffer" class="move-modal-buffer">
+    <h3 class="move-title-buffer">📦 Przenieś zasyp</h3>
+
+    <div class="move-modal-field">
+        <label>⏱️ Szybki wybór:</label>
+        <div class="quick-dates">
+            <button type="button" class="quick-date-btn" onclick="setQuickDate(0)">Dzisiaj</button>
+            <button type="button" class="quick-date-btn" onclick="setQuickDate(1)">Jutro</button>
+            <button type="button" class="quick-date-btn" onclick="setQuickDate(2)">Pojutrze</button>
+            <button type="button" class="quick-date-btn" onclick="setQuickDate(7)">Za tydzień</button>
+        </div>
+    </div>
+
+    <div class="move-modal-field">
+        <label for="move_to_date_buffer">📅 Lub wybierz datę:</label>
+        <input type="date" id="move_to_date_buffer" required>
+    </div>
+
+    <div class="move-modal-actions">
+        <button type="button" class="btn btn-success btn-sm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeMoveModalBuffer()">❌ Zamknij</button>
+    </div>
+</div>
+
+{% endblock %}

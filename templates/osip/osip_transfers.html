@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+
+{% block title %}Transfery Wewnętrzne OSIP{% endblock %}
+
+{% block content %}
+<style>
+/* ── Styl dopasowany do reszty aplikacji ── */
+.truck-badge-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.truck-avatar {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.truck-letter-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #1e293b;
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+.truck-to-osip .truck-avatar   { background: #dbeafe; color: #1d4ed8; }
+.truck-to-centrala .truck-avatar { background: #d1fae5; color: #065f46; }
+.status-pill {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+</style>
+
+<div class="container-fluid py-3">
+
+    <!-- Nagłówek strony – taki sam jak osip_warehouse.html -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 font-weight-bold text-primary mb-1">
+                <i class="fas fa-truck-moving mr-2"></i>Transfery Międzymagazynowe Palet
+            </h2>
+            <p class="text-muted small mb-0">
+                Ewidencja ruchów paletowych OSIP &harr; Centrala.
+                <strong><i class="fas fa-truck text-primary ml-1"></i> [O]</strong> = dostawa na OSIP,
+                <strong><i class="fas fa-truck text-success ml-1"></i> [C]</strong> = dostawa do Centrali.
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+            <button class="btn btn-success btn-sm font-weight-bold shadow-sm" type="button"
+                    id="btn-new-transfer" data-toggle="modal" data-target="#modal-new-transfer">
+                <i class="fas fa-plus-circle mr-1"></i> Nowy Transfer
+            </button>
+            <a href="{{ url_for('osip.warehouse_view') }}" class="btn btn-outline-secondary btn-sm font-weight-bold">
+                <i class="fas fa-warehouse mr-1"></i> Stan OSIP
+            </a>
+        </div>
+    </div>
+
+    <!-- Baner szkicu niezapisanego -->
+    <div id="draft-restore-alert" class="alert alert-warning alert-dismissible d-flex justify-content-between align-items-center mb-3" style="display:none; border-radius: 10px;">
+        <div>
+            <i class="fas fa-history mr-2"></i>
+            <strong>Niezapisany szkic zlecenia!</strong>
+            <span class="ml-2 small" id="draft-restore-info">Odnaleziono niezapisane palety z poprzedniej sesji.</span>
+        </div>
+        <div>
+            <button type="button" class="btn btn-sm btn-warning font-weight-bold mr-2" onclick="restoreDraftModal()">
+                <i class="fas fa-folder-open mr-1"></i> Otwórz i dokończ
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="discardDraft()">Odrzuć</button>
+        </div>
+    </div>
+
+    <!-- Baner transportów IN_TRANSIT -->
+    <div id="transfers-inbound-banner" class="alert alert-primary d-flex justify-content-between align-items-center mb-3" style="display:none; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;">
+        <div>
+            <span style="font-size:1.3rem;">🚛</span>
+            <strong class="ml-2">Transfery aktualnie w drodze!</strong>
+            <span class="ml-2 small" id="transfers-inbound-text"></span>
+        </div>
+    </div>
+
+    <!-- Karty KPI -->
+    <div class="row mb-3">
+        <div class="col-6 col-md-3 mb-2">
+            <div class="card shadow-sm border-left border-warning h-100" style="border-left-width: 4px !important;">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs text-uppercase text-muted font-weight-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Zaplanowane</div>
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="cnt-planned">0</div>
+                    </div>
+                    <i class="fas fa-clock fa-2x text-warning opacity-50"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="card shadow-sm border-left border-primary h-100" style="border-left-width: 4px !important;">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs text-uppercase text-muted font-weight-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">W Tranzycie</div>
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="cnt-transit">0</div>
+                    </div>
+                    <i class="fas fa-truck-moving fa-2x text-primary opacity-50"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="card shadow-sm border-left border-success h-100" style="border-left-width: 4px !important;">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs text-uppercase text-muted font-weight-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Zakończone</div>
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="cnt-completed">0</div>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="card shadow-sm border-left border-danger h-100" style="border-left-width: 4px !important;">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-xs text-uppercase text-muted font-weight-bold" style="font-size: 0.72rem; letter-spacing: 0.5px;">Anulowane</div>
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="cnt-cancelled">0</div>
+                    </div>
+                    <i class="fas fa-times-circle fa-2x text-danger opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pasek filtrów i wyszukiwarki -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-5 mb-2 mb-md-0">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                        <input type="text" id="transfers-search-input" class="form-control"
+                               placeholder="Szukaj po kodzie zlecenia, magazynie lub osobie...">
+                    </div>
+                </div>
+                <div class="col-md-7 text-md-right">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary active filter-status-btn" data-status="ALL">Wszystkie</button>
+                        <button type="button" class="btn btn-outline-warning filter-status-btn" data-status="PLANNED">Zaplanowane</button>
+                        <button type="button" class="btn btn-outline-primary filter-status-btn" data-status="IN_TRANSIT">W Tranzycie</button>
+                        <button type="button" class="btn btn-outline-success filter-status-btn" data-status="COMPLETED">Zakończone</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela zleceń -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+            <span class="font-weight-bold text-dark">
+                <i class="fas fa-list-check text-primary mr-2"></i>Rejestr Przesunięć Międzymagazynowych
+            </span>
+            <span class="badge badge-secondary px-2 py-1" id="total-transfers-count">Wyświetlono: 0</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0" id="transfers-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Status Transportu</th>
+                            <th>Kierunek (Źródło ➔ Cel)</th>
+                            <th>Utworzono / Przez</th>
+                            <th>Pozycje / Palety</th>
+                            <th>Status Zlecenia</th>
+                            <th class="text-right">Akcje Operacyjne</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transfers-tbody">
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>Ładowanie rejestru...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /container-fluid -->
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- MODAL: NOWY TRANSFER -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modal-new-transfer" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title font-weight-bold" id="modal-new-transfer-title">
+                    <i class="fas fa-arrow-right-arrow-left text-primary mr-2"></i>Krok 1/2: Wybór magazynu (Skąd ➔ Dokąd)
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body bg-light">
+                <form id="form-new-transfer">
+
+                    <!-- KROK 1 -->
+                    <div id="transfer-step-1">
+                        <p class="text-muted mb-3">Wybierz magazyn wysyłkowy (źródłowy) oraz docelowy.</p>
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3 mb-md-0">
+                                        <label class="font-weight-bold">
+                                            <i class="fas fa-upload text-primary mr-1"></i>1. Transfer SKĄD? (Magazyn Źródłowy)
+                                        </label>
+                                        <select class="form-control form-control-lg" id="select-step1-source">
+                                            <option value="" disabled selected>-- Wybierz magazyn źródłowy --</option>
+                                            <option value="MS01">Centrala (MS01)</option>
+                                            <option value="OSIP">Magazyn Zewnętrzny (OSIP)</option>
+                                            <option value="PROD">Hala Produkcyjna (PROD)</option>
+                                            <option value="INNY">Inny Magazyn</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="font-weight-bold">
+                                            <i class="fas fa-download text-success mr-1"></i>2. Transfer DOKĄD? (Magazyn Docelowy)
+                                        </label>
+                                        <select class="form-control form-control-lg" id="select-step1-dest">
+                                            <option value="" disabled selected>-- Wybierz magazyn docelowy --</option>
+                                            <option value="OSIP">Magazyn Zewnętrzny (OSIP)</option>
+                                            <option value="MS01">Centrala (MS01)</option>
+                                            <option value="PROD">Hala Produkcyjna (PROD)</option>
+                                            <option value="INNY">Inny Magazyn</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-primary btn-lg px-5 font-weight-bold" id="btn-confirm-direction" disabled>
+                                PRZEJDŹ DO SKANOWANIA PALET <i class="fas fa-arrow-right ml-2"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KROK 2 -->
+                    <div id="transfer-step-2" style="display:none;">
+
+                        <!-- Pasek kierunku -->
+                        <div class="alert alert-info d-flex justify-content-between align-items-center mb-3 py-2">
+                            <span>
+                                <i class="fas fa-route mr-2"></i>
+                                <strong>Kierunek:</strong>
+                                <span id="selected-direction-badge" class="ml-2">Centrala (MS01) &rarr; OSIP</span>
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" id="change-direction-btn">
+                                <i class="fas fa-pen mr-1"></i>Zmień
+                            </button>
+                        </div>
+
+                        <input type="hidden" id="new-source-wh" value="">
+                        <input type="hidden" id="new-dest-wh" value="">
+
+                        <!-- Pole skanera -->
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-body">
+                                <label class="font-weight-bold mb-2">
+                                    <i class="fas fa-qrcode text-primary mr-1"></i>Skanuj kod barcode / SSCC palety
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="scan-pallet-input" class="form-control form-control-lg font-weight-bold"
+                                           placeholder="Zeskanuj kod palety fizycznym skanerem..."
+                                           autocomplete="off">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-primary font-weight-bold px-4" type="button" id="scan-pallet-btn">
+                                            <i class="fas fa-plus-circle mr-1"></i>Dodaj
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted mt-1 d-block">
+                                    <i class="fas fa-keyboard mr-1"></i>Skaner Zebra/Android lub wpisanie ręczne + Enter natychmiast dodaje paletę.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Licznik -->
+                        <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                            <span class="font-weight-bold small text-muted">
+                                <i class="fas fa-boxes mr-1"></i>Zeskanowane: <strong id="scanned-pallets-count" class="text-dark">0</strong> palet
+                                &nbsp;|&nbsp; Masa: <strong id="scanned-pallets-weight" class="text-primary">0.00 kg</strong>
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" id="add-item-row-btn">
+                                <i class="fas fa-plus mr-1"></i>Dodaj ręcznie
+                            </button>
+                        </div>
+
+                        <!-- Lista palet -->
+                        <div id="transfer-items-list" class="mb-3">
+                            <div class="text-center text-muted py-4 border rounded bg-white" id="empty-items-msg">
+                                <i class="fas fa-barcode fa-2x mb-2 text-muted opacity-50"></i>
+                                <div>Brak zeskanowanych palet. Zeskanuj pierwszą paletę powyżej.</div>
+                            </div>
+                        </div>
+
+                        <!-- Uwagi -->
+                        <div class="form-group mb-0">
+                            <label class="font-weight-bold small">Uwagi / Komentarz do zlecenia</label>
+                            <textarea class="form-control" id="new-transfer-notes" rows="2"
+                                      placeholder="Opcjonalne uwagi (np. kierowca, auto, nr dokumentu WZ)..."></textarea>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-success font-weight-bold px-4" id="submit-new-transfer" style="display:none;">
+                    <i class="fas fa-paper-plane mr-2"></i>Utwórz zlecenie transferu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- MODAL: PRZYJĘCIE TRANSFERU -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modal-receive-transfer" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-boxes mr-2 text-success"></i>Przyjęcie Dostawy / Transferu
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Zamknij" onclick="closeReceiveModal()">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body bg-light">
+
+                <!-- Nagłówek zlecenia -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body py-2 d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+                        <div>
+                            <span class="badge badge-primary px-3 py-1 font-weight-bold" id="receive-code-badge" style="font-size: 0.9rem;">TRF-XXXXX</span>
+                            <span class="ml-2 font-weight-bold text-dark" id="receive-direction-label">Centrala (MS01) &rarr; Magazyn OSIP</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 mt-2 mt-md-0">
+                            <small class="text-muted font-weight-bold">Postęp: <strong class="text-primary" id="receive-scan-progress">0 / 0 palet</strong></small>
+                            <div class="progress" style="width: 140px; height: 8px; border-radius: 6px;">
+                                <div class="progress-bar bg-success" id="receive-progress-bar" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista palet do przyjęcia (Podgląd postępu skanowania na wózku) -->
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                        <span class="font-weight-bold"><i class="fas fa-list-ul text-primary mr-1"></i>Palety w Zleceniu Transferu</span>
+                        <span class="badge badge-info px-2 py-1 font-weight-bold" id="receive-items-count-badge">0 pozycji</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th style="width:100px; text-align:center;">Status</th>
+                                    <th>Kod / Nr Palety</th>
+                                    <th>Nazwa Produktu</th>
+                                    <th>Ilość / Waga</th>
+                                    <th>Lokalizacja Docelowa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receive-modal-tbody">
+                                <!-- renderowane przez JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal" onclick="closeReceiveModal()">Zamknij</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- MODAL: PODGLĄD TRANSFERU -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modal-view-transfer" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-search mr-2"></i>Szczegóły Zlecenia Transferu <span id="view-modal-code" class="ml-2 badge badge-light text-primary"></span>
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Zamknij" onclick="closeViewModal()">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body bg-light">
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body py-2">
+                                <small class="text-muted font-weight-bold">Status</small>
+                                <div class="font-weight-bold" id="view-modal-status">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body py-2">
+                                <small class="text-muted font-weight-bold">Trasa</small>
+                                <div class="font-weight-bold text-dark" id="view-modal-route">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body py-2">
+                                <small class="text-muted font-weight-bold">Utworzono / Przez</small>
+                                <div class="font-weight-bold text-dark" id="view-modal-creator">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white font-weight-bold">
+                        <i class="fas fa-boxes text-primary mr-1"></i> Lista palet (<span id="view-modal-count">0</span>)
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Kod / Nr Palety</th>
+                                    <th>Produkt</th>
+                                    <th>Waga (kg)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-modal-tbody">
+                                <!-- Wypełniane przez JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary font-weight-bold" data-dismiss="modal" onclick="closeViewModal()">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/osip/osip_transfers.js') }}?v=1.2.0"></script>
+{% endblock %}

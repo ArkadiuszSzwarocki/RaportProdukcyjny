@@ -1,0 +1,130 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div style="padding: 20px; max-width: 1400px; margin: 0 auto;">
+
+    <div class="row items-center justify-between mb-20 gap-20">
+        <div>
+            <h1 class="header-title" style="margin:0; display:flex; align-items:center; gap:12px;">
+                <span class="material-icons" style="font-size:36px; color:var(--primary-color);">assignment</span>
+                MOM — Rozliczenia Materiałowe
+            </h1>
+            <p class="text-muted">Rozliczenie: przesunięcia z magazynu vs zużycie na produkcji per zlecenie AGRO.</p>
+        </div>
+    </div>
+
+    {# ── Nowe rozliczenie ─────────────────────────── #}
+    {% if open_plans %}
+    <div class="card mb-20" style="padding: 16px;">
+        <h3 style="margin:0 0 12px 0;">Utwórz nowe rozliczenie</h3>
+        <form id="formOpenMom" class="row gap-10 items-end wrap">
+            <div>
+                <label style="font-size:13px; font-weight:600;">Zlecenie AGRO</label>
+                <select name="plan_id" class="input-sm" style="min-width:320px;" required>
+                    <option value="">— wybierz zlecenie —</option>
+                    {% for p in open_plans %}
+                    <option value="{{ p.id }}">
+                        #{{ p.id }} | {{ p.data_planu }} | {{ p.produkt }}
+                        {% if p.nazwa_zlecenia %} ({{ p.nazwa_zlecenia }}){% endif %}
+                        — {{ p.status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary row items-center gap-6" style="padding:8px 20px;">
+                <span class="material-icons">add_circle</span> Utwórz MOM
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {# ── Filtry ───────────────────────────────────── #}
+    <div class="card mb-20" style="padding: 12px;">
+        <form method="GET" class="row gap-10 items-end wrap">
+            <div>
+                <label style="font-size:12px;">Status</label>
+                <select name="status" class="input-sm">
+                    <option value="">Wszystkie</option>
+                    <option value="otwarty" {{ 'selected' if filter_status == 'otwarty' }}>Otwarte</option>
+                    <option value="zamkniety" {{ 'selected' if filter_status == 'zamkniety' }}>Zamknięte</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px;">Od daty</label>
+                <input type="date" name="data_od" class="input-sm" value="{{ filter_od or '' }}">
+            </div>
+            <div>
+                <label style="font-size:12px;">Do daty</label>
+                <input type="date" name="data_do" class="input-sm" value="{{ filter_do or '' }}">
+            </div>
+            <button type="submit" class="btn btn-outline" style="padding:6px 16px;">Filtruj</button>
+        </form>
+    </div>
+
+    {# ── Tabela rozliczeń ─────────────────────────── #}
+    <div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Data planu</th>
+                <th>Produkt</th>
+                <th>Zlecenie</th>
+                <th>Tonaż plan.</th>
+                <th>Tonaż rzecz.</th>
+                <th>Status</th>
+                <th>Zamknął</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in moms %}
+            <tr>
+                <td>{{ m.id }}</td>
+                <td>{{ m.data_planu }}</td>
+                <td><strong>{{ m.produkt }}</strong></td>
+                <td>{{ m.nazwa_zlecenia or '—' }}</td>
+                <td>{{ m.tonaz_planowany | round(1) }} kg</td>
+                <td>{{ m.tonaz_rzeczywisty | round(1) }} kg</td>
+                <td>
+                    {% if m.status == 'otwarty' %}
+                    <span style="color:#e67e22; font-weight:600;">● Otwarty</span>
+                    {% else %}
+                    <span style="color:#27ae60; font-weight:600;">✓ Zamknięty</span>
+                    {% endif %}
+                </td>
+                <td>{{ m.zamknal_login or '—' }}</td>
+                <td>
+                    <a href="/agro/mom/{{ m.id }}" class="btn btn-outline btn-sm">Szczegóły</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" style="text-align:center; color:#999;">Brak rozliczeń MOM</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('formOpenMom')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const planId = this.plan_id.value;
+    if (!planId) return;
+    fetch('/agro/api/mom/open', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({plan_id: parseInt(planId)})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            window.location.href = '/agro/mom/' + data.mom_id;
+        } else {
+            alert(data.error || 'Błąd');
+        }
+    })
+    .catch(err => alert('Błąd: ' + err));
+});
+</script>
+{% endblock %}

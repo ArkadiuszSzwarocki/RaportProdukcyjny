@@ -1,0 +1,209 @@
+{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode and workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.is_active_plan %}
+    {% if workowanie_rozliczenie_ctx %}
+        {% set wrctx = workowanie_rozliczenie_ctx %}
+        <div class="work-settlement-inline" style="margin-top: 24px;">
+            <style>
+                .work-settlement-inline .work-form {
+                    background: #fdfefe; padding: 10px; border-radius: 12px;
+                    border: 2px solid #27ae60; margin-bottom: 20px;
+                    box-shadow: 0 4px 16px rgba(39,174,96,0.08);
+                }
+                .work-settlement-inline .ctx-box {
+                    background: #f0fdf4; border-radius: 8px; padding: 12px;
+                    margin-bottom: 14px; border-left: 4px solid #27ae60; font-size: 0.88em;
+                }
+                .work-settlement-inline .ctx-row {
+                    display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px;
+                }
+                .work-settlement-inline .btn-wrs {
+                    margin-top: 14px; width: 100%; border: none; border-radius: 8px;
+                    padding: 12px; background: #27ae60; color: #fff;
+                    font-weight: 700; cursor: pointer; font-size: 0.97em;
+                }
+                .work-settlement-inline .whist {
+                    border-top: 2px solid #f0f2f5; padding-top: 14px;
+                    max-height: 240px; overflow-y: auto; margin-top: 8px;
+                }
+                .work-settlement-inline .whist-row {
+                    border: 1px solid #ebedf0; border-radius: 8px;
+                    background: #fff; padding: 8px 12px; margin-bottom: 8px; font-size: 0.88em;
+                }
+            </style>
+
+            <!-- Sekcja: Analiza strat na żywo (Pakowaczka vs Paletyzator) -->
+            <div class="work-form" style="margin-top: 15px; border-color: #f39c12; box-shadow: 0 4px 16px rgba(243,156,18,0.08);">
+                <h3 style="color: #e67e22; margin-top: 0;"><span class="material-icons" style="color: #f39c12; vertical-align: middle;">analytics</span> Bilans i straty na żywo:</h3>
+                <div style="background: #fff8e1; border-radius: 8px; padding: 12px; border: 1px solid #ffe082; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <label style="font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <input type="checkbox" id="calc-loss-toggle" checked style="width: 18px; height: 18px;">
+                            Włącz kalkulator strat
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <label for="bags-per-layer" style="font-size: 0.9em; font-weight: 600;">Worków na warstwie:</label>
+                            <input type="number" id="bags-per-layer" value="4" min="1" max="20" style="width: 60px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; text-align: center; font-weight: bold;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px; color: #5d4037;">
+                            <label for="bags-per-pallet" style="font-size: 0.9em; font-weight: 600;">Sztuk na palecie:</label>
+                            {% set domyslne_szt = (1000 / (wrctx.bag_kg or 25))|int %}
+                            <input type="number" id="bags-per-pallet" value="{{ domyslne_szt }}" min="1" max="100" style="width: 60px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; text-align: center; font-weight: bold;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; margin-top: 5px; flex-wrap: wrap;" id="loss-calc-results">
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e0e0e0; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #757575; font-weight: bold; text-transform: uppercase;">Wyprodukowano (Pakowaczka)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #2196f3;" id="loss-produced">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e0e0e0; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #757575; font-weight: bold; text-transform: uppercase;">Ułożono (Paletyzator)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #4caf50;" id="loss-stacked">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                        <div style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 2px solid #f44336; flex: 1; min-width: 150px; text-align: center;">
+                            <div style="font-size: 0.8em; color: #d32f2f; font-weight: bold; text-transform: uppercase;">Brakujące (Strata)</div>
+                            <div style="font-size: 1.5em; font-weight: 800; color: #f44336;" id="loss-difference">0 <span style="font-size: 0.5em; font-weight: normal;">szt.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sekcja: Materiały pod bieżącą produkcję -->
+            <div class="work-form" style="margin-top: 15px; border-color: #2ecc71; box-shadow: 0 4px 16px rgba(46,204,113,0.08);">
+                <h3 style="color: #27ae60;"><span class="material-icons" style="color: #2ecc71; vertical-align: middle;">settings_suggest</span> Materiały pod bieżącą produkcję:</h3>
+                
+                {% if not wrctx.maszyna_opakowania %}
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak podpiętych materiałów na maszynie. Wybierz materiał z listy poniżej i kliknij "PODEPNIJ".
+                    </p>
+                {% else %}
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    {% for opakowanie in wrctx.maszyna_opakowania %}
+                        <div style="background: #fff; border: 1px solid #e2e8f0; border-left: 5px solid #2ecc71; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 1.1em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
+                                    <div style="font-size: 0.9em; color: #64748b; margin-top: 3px;">
+                                        ID: <span style="color: #2c3e50; font-weight: bold;">{{ opakowanie.opakowanie_id }}</span> | 
+                                        Pobrano: <span style="color: #27ae60; font-weight: bold;">{{ opakowanie.stan_poczatkowy|int }} szt.</span> | 
+                                        Zużyto na żywo: <span style="color: #c53030; font-weight: bold;">{{ (opakowanie.stan_poczatkowy - opakowanie.stan_magazynowy)|int }} szt.</span>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    {% if opakowanie.stan_magazynowy <= 0 %}
+                                        <span class="badge" style="background: #fde8e8; color: #e02424; font-size: 0.9em; padding: 6px 10px; border-radius: 6px; border: 1px solid #f8b4b4; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 0 10px rgba(224,86,86,0.15);">
+                                            <span class="material-icons" style="font-size: 16px; color: #e02424; vertical-align: middle;">error</span> BRAK MATERIAŁU: <strong style="font-size: 1.1em;">{{ opakowanie.stan_magazynowy|int }}</strong> szt.
+                                        </span>
+                                    {% else %}
+                                        <span class="badge" style="background: #e8f5e9; color: #2e7d32; font-size: 0.9em; padding: 6px 10px; border-radius: 6px; border: 1px solid #c8e6c9;">
+                                            Na maszynie: <strong style="font-size: 1.1em;">{{ opakowanie.stan_magazynowy|int }}</strong> szt.
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <!-- Formularz zamknięcia rolki (inline) - tylko dla nie-laborantów -->
+                            {% if rola != 'laborant' %}
+                            <div style="margin-top: 5px; background: #f0fdf4; padding: 10px 15px; border-radius: 8px; border: 1px solid #c8e6c9;">
+                                <form method="POST" action="{{ url_for('production.agro_folio_close_roll') }}" onsubmit="return confirmCloseRollInline(event, this, '{{ opakowanie.nazwa|e }}')" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+                                    <input type="hidden" name="link_id" value="{{ opakowanie.link_id }}">
+                                    <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                                    <input type="hidden" name="source" value="dashboard">
+                                    <div style="display: flex; flex-direction: column;">
+                                        <label for="pozostalo_{{ opakowanie.link_id }}" style="font-size: 0.85em; font-weight: 600; color: #2e7d32; margin-bottom: 4px;">Pozostało na rolce (szt.)</label>
+                                        <input type="number" id="pozostalo_{{ opakowanie.link_id }}" name="pozostalo_szt"
+                                               min="0" step="1" placeholder="np. 100" required
+                                               style="padding: 8px 12px; border: 1px solid #a5d6a7; border-radius: 6px; width: 140px; font-size: 1em; outline: none;">
+                                    </div>
+                                    <button type="submit" class="btn-action btn-success" style="padding: 8px 16px; border-radius: 6px; font-weight: bold; background: #27ae60; color: #fff; border: none; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                        <span class="material-icons" style="font-size: 18px;">check_circle</span>
+                                        ZAMKNIJ ROLKĘ
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Sekcja: Zdjęte / zwrócone materiały -->
+            <div class="work-form" style="margin-top: 15px; border-color: #95a5a6; box-shadow: 0 4px 16px rgba(149,165,166,0.08);">
+                <h3 style="color: #7f8c8d;"><span class="material-icons" style="color: #7f8c8d; vertical-align: middle;">assignment_returned</span> Zdjęte / zwrócone materiały:</h3>
+                
+                {% if wrctx.inactive_opakowania %}
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    {% for opakowanie in wrctx.inactive_opakowania %}
+                        {% set zuzycie = (opakowanie.stan_poczatkowy - (opakowanie.stan_koncowy or 0))|int %}
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #7f8c8d; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="font-size: 1.05em; color: #2c3e50; text-decoration: line-through; opacity: 0.75;">{{ opakowanie.nazwa }}</strong>
+                                <div style="font-size: 0.88em; color: #64748b; margin-top: 3px; line-height: 1.45;">
+                                    Pobrano: <strong>{{ opakowanie.stan_poczatkowy|int }} szt.</strong> | Zwrócono: <strong>{{ (opakowanie.stan_koncowy or 0)|int }} szt.</strong><br>
+                                    <span style="color: #27ae60; font-weight: 700;">Zużycie: {{ zuzycie }} szt.</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="badge" style="background: #e2e8f0; color: #475569; font-weight: 800; font-size: 0.8em; display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: 6px;">
+                                    <span class="material-icons" style="font-size: 14px; color: #10b981;">check_circle</span> Zdjęty
+                                </span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak zdjętych lub zwróconych materiałów dla tego zlecenia.
+                    </p>
+                {% endif %}
+            </div>
+
+            <div class="whist">
+                <h4 style="margin:12px 0;color:#6c757d;font-size:0.85em;text-transform:uppercase;">Historia rozliczeń:</h4>
+                {% if wrctx.history %}
+                    {% for item in wrctx.history %}
+                    <div class="whist-row">
+                        {% if item.zuzyte_worki == 0 and item.wyprodukowano_szt == 0 and item.stan_przed == item.stan_po %}
+                            <span class="material-icons" style="font-size: 14px; color: #27ae60; vertical-align: middle; margin-right: 4px;">add_circle</span>
+                            Wsadzono <strong>{{ item.opakowanie_nazwa }}</strong>: {{ '%.0f'|format(item.stan_przed or 0) }} szt.
+                            {% set active_roll = namespace(val=None) %}
+                            {% for m_op in wrctx.maszyna_opakowania %}
+                                {% if m_op.opakowanie_id == item.opakowanie_id %}
+                                    {% set active_roll.val = m_op %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if active_roll.val %}
+                                <span style="color: #4b5563; font-size: 0.9em; margin-left: 8px;">
+                                    (Zużyto z tego: <strong style="color: #c53030;">{{ (active_roll.val.stan_poczatkowy - active_roll.val.stan_magazynowy)|int }}</strong> szt.)
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <strong>{{ item.opakowanie_nazwa }}</strong>: {{ '%.0f'|format(item.zuzyte_worki or 0) }} szt.
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #7f8c8d; font-size: 0.88em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak wpisów w historii dla tego zlecenia.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div style="background: #fff3cd; color: #856404; padding: 20px; border-left: 5px solid #ffc107; margin-top: 20px; font-weight: bold; border-radius: 5px;">
+            ⚠️ Brak danych do rozliczenia workowania.
+        </div>
+    {% endif %}
+{% endif %}
+
+<script>
+    function confirmCloseRollInline(event, form, nazwaOpakowania) {
+        event.preventDefault();
+        var pozostalo = form.querySelector('input[name="pozostalo_szt"]').value;
+        AppDialog.confirm("Czy na pewno chcesz zamknąć rolkę " + nazwaOpakowania + "?\n\nZostanie zwrócone " + pozostalo + " sztuk na magazyn.").then(ok => {
+            if (ok) {
+                form.submit();
+            }
+        });
+        return false;
+    }
+</script>

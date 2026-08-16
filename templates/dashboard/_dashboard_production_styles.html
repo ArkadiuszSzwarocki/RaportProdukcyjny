@@ -1,0 +1,115 @@
+<style>
+    /* Active Agro Details Side-by-Side Layout */
+    .active-agro-details-direct {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        align-items: start;
+        width: 100%;
+        flex: 2 1 250px;
+    }
+
+    .active-agro-details-direct .active-order-szarze-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    @media (min-width: 1400px) {
+        .cards.agro-focus-mode .active-agro-details-direct {
+            grid-column: 2 / -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            align-items: start;
+            width: 100%;
+        }
+    }
+    
+    /* FULLSCREEN LIST VIEW OVERRIDES */
+    .card {
+        box-sizing: border-box !important;
+    }
+    .cards {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+    }
+    .card:not([data-is-active="true"]) {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 10px 20px !important;
+        height: auto !important;
+        margin-bottom: 10px;
+    }
+    .card:not([data-is-active="true"]) .card-header {
+        width: 100%;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+    }
+    .card:not([data-is-active="true"]) .card-progress-circle-wrap {
+        display: none !important;
+    }
+    
+    /* AGGRESSIVE MOBILE OVERRIDES TO ENSURE NO OVERFLOW */
+    @media screen and (max-width: 600px) {
+        .cards {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+            padding: 4px 0 !important;
+            margin: 0 !important;
+        }
+        .cards .card {
+            width: 100% !important;
+            max-width: 100vw !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            flex: none !important;
+        }
+        .active-agro-details-direct, .details-row {
+            width: 100% !important;
+            max-width: 100vw !important;
+            box-sizing: border-box !important;
+            padding: 4px !important;
+            margin: 0 !important;
+            display: block !important;
+        }
+        .active-order-szarze-panel {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 8px !important;
+            box-sizing: border-box !important;
+        }
+        .active-order-szarze-line {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 6px !important;
+            padding: 4px 0 !important;
+        }
+        .active-order-szarze-left {
+            width: 100% !important;
+            flex-wrap: wrap !important;
+        }
+        .active-order-szarze-actions {
+            width: 100% !important;
+            justify-content: flex-start !important;
+            margin-top: 4px !important;
+        }
+        .active-order-szarze-actions > div {
+            flex-wrap: wrap !important;
+            width: 100% !important;
+        }
+        .active-order-szarze-actions .btn-action {
+            flex: 1 1 auto;
+            text-align: center;
+            padding: 4px 8px !important;
+            font-size: 0.65rem !important;
+        }
+    }
+</style>

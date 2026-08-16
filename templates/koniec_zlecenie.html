@@ -1,0 +1,116 @@
+<style>
+    .koniec-zlecenie-form-title {
+        margin: 0 0 10px 0;
+    }
+
+    .koniec-zlecenie-warning-box {
+        margin-bottom: 12px;
+        padding: 10px;
+        background: #fff3cd;
+        border-radius: 4px;
+        border-left: 3px solid #ffc107;
+    }
+
+    .koniec-zlecenie-warning-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .koniec-zlecenie-warning-input {
+        width: 100%;
+        margin-bottom: 8px;
+        padding: 8px;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+    }
+
+    .koniec-zlecenie-warning-text {
+        color: #666;
+        display: block;
+    }
+
+    .koniec-zlecenie-textarea {
+        margin-bottom: 8px;
+    }
+
+    .koniec-zlecenie-button-group {
+        display: flex;
+        gap: 8px;
+    }
+</style>
+
+<div class="p-10" data-popup-title="{{ _('zatrzymaj_produkcje') }}">
+    {% if block_error %}
+    <div class="koniec-zlecenie-warning-box" style="border-left-color: #dc3545; background: #f8d7da;">
+        <label class="koniec-zlecenie-warning-label" style="color: #dc3545;">❌ Operacja zablokowana</label>
+        <p style="margin: 0; color: #495057;">{{ block_error }}</p>
+    </div>
+    <div class="koniec-zlecenie-button-group mt-15" style="margin-top: 15px;">
+        <button type="button" data-action="close-popup" class="btn-action btn-outline" style="width: 100%;">Rozumiem, wracam</button>
+    </div>
+    {% else %}
+    <form action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST" data-ajax="false">
+        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+        <input type="hidden" name="linia" value="{{ request.args.get('linia', 'PSD') }}">
+        <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
+
+        <p class="koniec-zlecenie-form-title">
+            Czy zatwierdzasz wykonanie zlecenia
+            <strong>{{ produkt if produkt else ('#' ~ id) }}</strong>
+            z ilością
+            <strong>{{ tonaz if tonaz is not none else '0' }} kg</strong>?
+        </p>
+
+        {% if sekcja in ('Workowanie', 'Czyszczenie') and linia|upper != 'AGRO' %}
+        <div class="koniec-zlecenie-warning-box">
+            <label class="koniec-zlecenie-warning-label">
+                ⚠️ Rozliczenie zużycia opakowań
+            </label>
+            
+            <div class="form-group mb-10" style="background: rgba(255,255,255,0.5); padding: 8px; border-radius: 4px; border: 1px dashed #ffc107;">
+                <label class="small font-bold" style="display: block; margin-bottom: 4px;">Sztuk na palecie (standard):</label>
+                <input type="number" name="szt_na_palecie" value="40" class="input-sm" style="width: 80px;" required>
+                <small class="text-muted">np. 40 lub 50 szt/pal</small>
+            </div>
+            
+            {% if linked_packaging %}
+                <div style="margin-bottom: 15px;">
+                    <p class="small text-muted mb-5">Obecnie podpięte opakowania/folie:</p>
+                    {% for item in linked_packaging %}
+                    <div style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid var(--primary-color);">
+                        <div class="flex justify-between items-center">
+                            <strong style="font-size: 13px;">{{ item.nazwa }}</strong>
+                            <span class="badge" style="background: #e9ecef; color: #495057;">Start: {{ item.stan_poczatkowy|int }} szt</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div style="background: #e3f2fd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px; color: #0d47a1;">
+                        ℹ️ <strong>Pełna Automatyzacja:</strong> Zużycie podpiętych rolek oraz ilość odpadu zostaną wyliczone automatycznie na podstawie różnicy głównego licznika maszyny pakującej (MQTT). Nie musisz nic wpisywać!
+                    </div>
+                </div>
+            {% else %}
+                <input 
+                    type="number" 
+                    name="uszkodzone_worki" 
+                    min="0" 
+                    value="0"
+                    placeholder="{{ _('liczba_uszkodzonych') }}"
+                    class="input-sm koniec-zlecenie-warning-input"
+                    title="Podaj liczbę uszkodzonych worków"
+                >
+                <small class="koniec-zlecenie-warning-text">{{ _('brak_uszkodzonych') }} <strong>0</strong></small>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <textarea name="wyjasnienie" class="input-sm koniec-zlecenie-textarea" rows="3" title="{{ _('komentarz') }}" placeholder="{{ _('opcjonalny_komentarz') }}"></textarea>
+
+        <div class="koniec-zlecenie-button-group">
+            <button type="submit" class="btn-action btn-stop">{{ _('zatwierdz') }}</button>
+            <button type="button" data-action="close-popup" class="btn-action btn-outline">{{ _('anuluj') }}</button>
+        </div>
+    </form>
+    {% endif %}
+</div>

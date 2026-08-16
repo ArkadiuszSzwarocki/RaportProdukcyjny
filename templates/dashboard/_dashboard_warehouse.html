@@ -1,0 +1,149 @@
+{% if sekcja not in ['Zasyp', 'Workowanie', 'Magazyn'] %}
+<!-- Date overview widget -->
+<div class="section-box mb-10 date-overview">
+    <div class="p-10 d-flex align-center justify-between">
+        <div>
+            <div class="small text-muted">{{ _('przeglad_daty') }}</div>
+            <div><strong id="overview-current">{{ dzisiaj.strftime('%d %b %Y') }}</strong></div>
+            <div id="overview-range" class="small text-muted">-</div>
+        </div>
+        <div class="d-flex gap-8">
+            <button type="button" id="view-day" class="btn btn-sm">{{ _('dzien') }}</button>
+            <button type="button" id="view-week" class="btn btn-sm">{{ _('tydzien') }}</button>
+            <button type="button" id="view-month" class="btn btn-sm">{{ _('mies_ac') }}</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if sekcja == 'Magazyn' %}
+
+
+<!-- UNCONFIRMED PALLETS -->
+<div class="section-box mb-10">
+    <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
+    <div class="mt-10">
+        {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
+        <table class="modern-table small">
+            <thead>
+                <tr>
+                    <th>Nr palety</th>
+                    <th>📋 Produkt</th>
+                    <th>🕒 Dodana</th>
+                    <th>⏱️ Czas</th>
+                    <th>✅ Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in unconfirmed_palety %}
+                <tr id="unconfirmed-row-{{ p[0] }}">
+                    <td class="text-muted font-bold font-mono">
+                        {{ p[6] if p|length > 6 and p[6] else p[0] }}
+                        <button type="button" class="btn-icon" style="color: #94a3b8; padding: 0; margin-left: 6px; border: none; background: transparent; cursor: pointer;" title="Kopiuj SSCC"
+                            onclick="navigator.clipboard.writeText('{{ p[6] if p|length > 6 and p[6] else p[0] }}'); if(typeof showToast === 'function') showToast('Skopiowano SSCC: {{ p[6] if p|length > 6 and p[6] else p[0] }}', 'success');">
+                            <span class="material-icons" style="font-size:16px;">content_copy</span>
+                        </button>
+                    </td>
+                    <td>
+                        <strong class="text-primary">{{ p[2] }}</strong>
+                        <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                            Paleta: <strong>{{ p[6] if p|length > 6 and p[6] else p[0] }}</strong>
+                        </div>
+                    </td>
+                    <td class="time-display">{{ p[3] }}</td>
+                    <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
+                            else %}-{% endif %}</span></td>
+                    <td>
+                        <a
+                            href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=p[0], linia=linia) }}"
+                            onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety')"
+                            class="btn-icon"
+                            style="color:#0ea5e9; margin-right:8px;"
+                            title="Podgląd etykiety"
+                        >
+                            <span class="material-icons" style="font-size:18px;">local_offer</span>
+                        </a>
+                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
+                            class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-muted text-center p-10">{{ _('brak_palet_czekajacych') }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- CONFIRMED PALLETS -->
+<div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        <h4 class="m-0 mb-15">📦 Ostatnio potwierdzone palety</h4>
+        <table class="modern-table">
+            <thead>
+                <tr>
+                    <th>Nr palety</th>
+                    <th>Nr plomby</th>
+                    <th>📦 Produkt</th>
+                    <th> Czas Potwierdzenia</th>
+                    <th>⚖️ Waga (kg)</th>
+                    <th>👤 Użytkownik</th>
+                    <th>📊 Status</th>
+                    <th class="text-right">⚙️ Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia,
+                user_login, nr_palety, nr_plomby
+                in
+                magazyn_palety %}
+                <tr>
+                    <td class="text-muted font-bold font-mono">
+                        {{ nr_palety or id }}
+                        <button type="button" class="btn-icon" style="color: #94a3b8; padding: 0; margin-left: 6px; border: none; background: transparent; cursor: pointer;" title="Kopiuj SSCC"
+                            onclick="navigator.clipboard.writeText('{{ nr_palety or id }}'); if(typeof showToast === 'function') showToast('Skopiowano SSCC: {{ nr_palety or id }}', 'success');">
+                            <span class="material-icons" style="font-size:16px;">content_copy</span>
+                        </button>
+                    </td>
+                    <td class="text-muted">{{ nr_plomby or '-' }}</td>
+                    <td>
+                        <strong class="text-primary">{{ produkt }}</strong>
+                        <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                            SSCC: <strong>{{ nr_palety or id }}</strong>
+                        </div>
+                    </td>
+                    <td class="time-display"><strong>{{ czas_rzeczywistego_potwierdzenia }}</strong></td>
+                    <td><strong class="text-success">{{ waga|int }} kg</strong></td>
+                    <td><span class="badge-info">{{ user_login or '-' }}</span></td>
+                    <td><span class="status-badge status-accepted">{{ status }}</span></td>
+                    <td class="text-right">
+                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety — {{ produkt }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę (Podgląd)">
+                            <span class="material-icons" style="font-size:18px;">print</span>
+                        </a>
+                        <button type="button" class="btn-icon" style="color: #16a34a;" title="Drukuj ZPL (Drukarka 237)"
+                            onclick="drukujZPLDirect('{{ id }}', '{{ linia }}', '{{ plan_id }}', this, 'magazyn')">
+                            <span class="material-icons" style="font-size:18px;">precision_manufacturing</span>
+                        </button>
+                        {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
+                        <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}"
+                            data-action="edit-palet" data-palet-id="{{ id }}" data-palet-waga="{{ waga }}">
+                            <span class="material-icons" style="font-size:18px;">edit</span>
+                        </button>
+                        <button type="button" class="btn-icon text-danger" title="{{ _('usun') }}"
+                            data-action="delete-palet" data-palet-id="{{ id }}" data-plan-date="{{ dzisiaj }}" data-confirm="Usunąć paletę?">
+                            <span class="material-icons" style="font-size:18px;">delete</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center p-30">Brak potwierdzone palet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

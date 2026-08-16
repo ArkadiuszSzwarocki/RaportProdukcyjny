@@ -1,0 +1,889 @@
+.active-order-floating-bar-wrap {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0px 14px 4px;
+    padding-bottom: 0px;
+    position: relative;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.active-order-floating-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    pointer-events: none;
+}
+
+.active-order-status-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.agro-panel-header-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.agro-session-running-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid #f6c453;
+    background: linear-gradient(135deg, #fff4cc 0%, #ffe4a3 100%);
+    color: #6d4c00;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: normal;
+}
+
+.active-order-szarze-wrap {
+    margin: 0;
+    align-self: start;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.active-order-szarze-panel {
+    width: 100%;
+    height: 100%;
+    min-height: auto;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(31, 58, 86, 0.06);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.active-order-szarze-title {
+    font-size: 0.95em;
+    color: #1e293b;
+    font-weight: 800;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 8px;
+}
+
+.active-order-szarze-item {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 10px 4px !important;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.active-order-szarze-item:last-child {
+    border-bottom: 0;
+}
+
+.active-order-szarze-line {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: wrap !important; /* Allow wrapping on small screens */
+    gap: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 2px 4px !important; /* Slight padding from left and right */
+}
+
+.active-order-szarze-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    font-size: 0.92em !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    color: #334155 !important;
+    font-weight: 500 !important;
+}
+
+.active-order-szarze-left span {
+    color: #64748b !important;
+}
+
+.active-order-szarze-left strong.text-primary {
+    color: #2563eb !important;
+    font-weight: 700 !important;
+}
+
+.active-order-szarze-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+}
+
+#mainContent .active-order-szarze-actions .btn-action {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 32px !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    transition: all 0.2s ease-in-out !important;
+    line-height: 1 !important;
+}
+
+/* Make note button a premium square and override its secondary style */
+#mainContent .active-order-szarze-actions .btn-action.szarza-note {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    color: #475569 !important;
+}
+
+#mainContent .active-order-szarze-actions .btn-action.szarza-note:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+
+.active-order-szarze-dosypki {
+    margin-top: 8px !important;
+    max-width: 100%;
+    padding: 8px 12px !important;
+    background: #fffbeb !important;
+    border: 1px solid #fef3c7 !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+.active-order-szarze-dosypki-item {
+    font-size: 0.85em !important;
+    color: #b45309 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 2px 0 !important;
+    line-height: 1.4 !important;
+}
+
+.szarza-row-main {
+    min-width: 0;
+}
+
+.szarza-row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.szarza-dosypki-side {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.szarza-dosypki-item {
+    line-height: 1.4;
+}
+
+.agro-header-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: 0;
+}
+
+.agro-kgph-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 0;
+    flex-wrap: wrap;
+}
+
+.agro-kgph-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.74em;
+    font-weight: 700;
+    border: 1px solid #d7e3ee;
+    background: #f6fbff;
+    color: #1f4f7a;
+    white-space: nowrap;
+}
+
+.agro-kgph-pill.js-kgph-explain {
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.active-order-floating-bar .btn-action,
+.active-order-floating-bar .agro-session-running-hint,
+.active-order-floating-bar .agro-kgph-pill {
+    pointer-events: auto;
+}
+
+.active-order-floating-bar .agro-kgph-inline {
+    margin-left: auto;
+}
+
+.active-order-floating-bar .agro-header-controls .btn-action {
+    font-size: 0.74em !important;
+    line-height: 1.1;
+    padding: 4px 8px !important;
+    white-space: nowrap;
+}
+
+.active-order-floating-bar .agro-kgph-pill {
+    font-size: 0.71em;
+    padding: 3px 7px;
+}
+
+@media (max-width: 1280px) {
+    .active-order-floating-bar-wrap {
+        margin: 0px 10px 4px;
+        padding-bottom: 0px;
+    }
+
+    .active-order-szarze-panel {
+        width: 100%;
+    }
+
+    .active-order-floating-bar {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .active-order-floating-bar .agro-kgph-inline {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .active-order-floating-bar .agro-kgph-pill {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .active-order-szarze-line {
+        /* Flex takes care of wrapping nicely */
+    }
+
+    .active-order-szarze-actions {
+        justify-content: flex-end !important;
+    }
+}
+
+@media (min-width: 1380px) {
+    .szarza-row-layout {
+        display: block;
+    }
+}
+
+/* AGRO Focus Mode Layout */
+.cards.agro-focus-mode {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px;
+}
+.cards.agro-focus-mode .card {
+    flex: 1 1 350px;
+    max-width: 600px;
+}
+.cards.agro-focus-mode .active-order-szarze-wrap {
+    flex: 1 1 300px;
+    max-width: 500px;
+}
+
+/* AGRO Focus Mode Layout - 3 Columns on wide screens */
+@media (min-width: 1400px) {
+    .cards.agro-focus-mode {
+        display: grid !important;
+        grid-template-columns: minmax(350px, 1.2fr) minmax(300px, 1fr) minmax(280px, 0.8fr);
+        gap: 20px;
+        align-items: start;
+    }
+    .cards.agro-focus-mode .card,
+    .cards.agro-focus-mode .active-order-szarze-wrap,
+    .cards.agro-focus-mode .machine-stats-panel-wrap {
+        max-width: none !important;
+        width: 100%;
+        margin: 0;
+    }
+}
+
+/* Machine Stats */
+.agro-machine-stats-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.machine-stat-speed {
+    background: #eefdf3 !important;
+    border-color: #b7ebc6 !important;
+    color: #1e7e34 !important;
+}
+
+.machine-stat-status {
+    background: #f8f9fa !important;
+    border-color: #dfe7ef !important;
+    color: #495057 !important;
+}
+
+.status-dot {
+    transition: background-color 0.3s ease;
+}
+.machine-status-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+.status-connecting { background: #3b82f6; color: white; }
+.status-connected { background: #10b981; color: white; }
+.status-running { background: #16a34a; color: white; }
+.status-idle { background: #f59e0b; color: white; }
+.status-error { background: #ef4444; color: white; }
+.machine-bpm-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 800; background: #16a34a; color: white; }
+
+.machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
+
+/* Modal Enhancements */
+.quick-popup.open:not(.qp-wide):not(.qp-dosypka-full) {
+    max-width: min(700px, 95vw);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.quick-popup.open.qp-wide {
+    max-width: min(920px, 96vw);
+}
+
+.quick-popup.open.qp-dosypka-full {
+    max-width: min(1720px, 98vw);
+    width: min(1720px, 98vw);
+    height: min(95vh, 1000px);
+    max-height: min(95vh, 1000px);
+    overflow: hidden;
+}
+
+.agro-modal-header h2 {
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.agro-modal-body .active-order-szarze-panel {
+    width: 100%;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.agro-modal-body .active-order-szarze-title {
+    background: #edf2f7;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+/* Pulse animation for wrapped status */
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Active Agro Details Side-by-Side Layout */
+.active-agro-details-direct {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+}
+
+.active-agro-details-direct .active-order-szarze-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+@media (min-width: 1400px) {
+    .cards.agro-focus-mode .active-agro-details-direct {
+        grid-column: 2 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(250px, 1fr));
+        gap: 20px;
+        align-items: start;
+        width: 100%;
+    }
+}
+
+/* ============================================================
+   FORCE HEADER STATS (Plan / Wykonanie / % Realizacja) 
+   to stay in ONE ROW on all screen sizes.
+   These rules override the aggressive mobile stacking from style.css.
+   ============================================================ */
+
+/* Dashboard stat pills always horizontal */
+#mainContent .header-stats {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    width: auto !important;
+    overflow-x: auto !important;
+}
+
+/* Each pill compact & auto-sized */
+#mainContent .header-stats .stat-inline {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 140px !important;
+    padding: 6px 10px !important;
+    font-size: inherit !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+}
+
+#mainContent .header-stats .stat-inline .label {
+    font-size: 0.72em !important;
+    white-space: nowrap !important;
+    margin-bottom: 2px !important;
+}
+
+#mainContent .header-stats .stat-inline .value {
+    font-size: 1em !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+}
+
+/* On very small screens keep them smaller but still in one row */
+@media (max-width: 640px) {
+    #mainContent .header-stats {
+        gap: 4px !important;
+    }
+    #mainContent .header-stats .stat-inline {
+        max-width: 110px !important;
+        padding: 5px 7px !important;
+    }
+    #mainContent .header-stats .stat-inline .value {
+        font-size: 0.9em !important;
+    }
+    #mainContent .header-stats .stat-inline .label {
+        font-size: 0.65em !important;
+    }
+}
+
+/* Removed layout override for medium screens to preserve style.css single-line horizontal stats row */
+
+/* ============================================================
+   RESPONSIVE LAYOUT OVERRIDES FOR DETAILS & GRID STRETCHING
+   ============================================================ */
+
+/* Force details-row on the dashboard to span full width of the cards grid */
+#mainContent .cards .details-row {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 8px 0 0 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Force active-agro-details-direct to span full width in the grid on small/medium screens */
+@media (max-width: 1399px) {
+    #mainContent .cards .active-agro-details-direct {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* For PSD or other non-focus grids, active details direct also spans full width on wide screens */
+#mainContent .cards:not(.agro-focus-mode) .active-agro-details-direct {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Style purple buttons beautifully */
+#mainContent .btn-purple {
+    background-color: #8e44ad !important;
+    color: #ffffff !important;
+    border: none !important;
+    cursor: pointer !important;
+}
+
+#mainContent .btn-purple:hover {
+    background-color: #732d91 !important;
+    color: #ffffff !important;
+}
+
+/* ============================================================
+   LABORATORY RESPONSIVE VIEW OPTIMIZATIONS (ZASYP / WORKOWANIE)
+   ============================================================ */
+@media screen and (max-width: 1200px) {
+    /* Hide the active order session/floating stats bar for laborants on Zasyp to maximize space */
+    .d-none-mobile-lab {
+        display: none !important;
+    }
+
+    /* Pull the "Pokaż pełny plan" toggle button maximum up under the title/date selector */
+    .toggle-focus-wrapper {
+        display: flex !important;
+        justify-content: center !important;
+        margin-top: -6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        grid-column: 1 / -1 !important;
+    }
+
+    #toggle-focus-plan-btn {
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-content: center !important;
+        font-size: 0.8em !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Force cards and active details direct (completed batches/mixes) to stack vertically */
+    .cards.agro-focus-mode {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 15px !important;
+    }
+
+    /* Remove caps on card and mixes panel widths so they stretch fully to 100% and stay responsive */
+    .cards.agro-focus-mode .card,
+    .cards.agro-focus-mode .active-order-szarze-wrap,
+    .cards.agro-focus-mode .active-agro-details-direct {
+        width: 100% !important;
+.agro-modal-body .active-order-szarze-panel {
+    width: 100%;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.agro-modal-body .active-order-szarze-title {
+    background: #edf2f7;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+/* Pulse animation for wrapped status */
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Active Agro Details Side-by-Side Layout */
+.active-agro-details-direct {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+}
+
+.active-agro-details-direct .active-order-szarze-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+@media (min-width: 1400px) {
+    .cards.agro-focus-mode .active-agro-details-direct {
+        grid-column: 2 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(250px, 1fr));
+        gap: 20px;
+        align-items: start;
+        width: 100%;
+    }
+}
+
+/* ============================================================
+   FORCE HEADER STATS (Plan / Wykonanie / % Realizacja) 
+   to stay in ONE ROW on all screen sizes.
+   These rules override the aggressive mobile stacking from style.css.
+   ============================================================ */
+
+/* Dashboard stat pills always horizontal */
+#mainContent .header-stats {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    width: auto !important;
+    overflow-x: auto !important;
+}
+
+/* Each pill compact & auto-sized */
+#mainContent .header-stats .stat-inline {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 140px !important;
+    padding: 6px 10px !important;
+    font-size: inherit !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+}
+
+#mainContent .header-stats .stat-inline .label {
+    font-size: 0.72em !important;
+    white-space: nowrap !important;
+    margin-bottom: 2px !important;
+}
+
+#mainContent .header-stats .stat-inline .value {
+    font-size: 1em !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+}
+
+/* On very small screens keep them smaller but still in one row */
+@media (max-width: 640px) {
+    #mainContent .header-stats {
+        gap: 4px !important;
+    }
+    #mainContent .header-stats .stat-inline {
+        max-width: 110px !important;
+        padding: 5px 7px !important;
+    }
+    #mainContent .header-stats .stat-inline .value {
+        font-size: 0.9em !important;
+    }
+    #mainContent .header-stats .stat-inline .label {
+        font-size: 0.65em !important;
+    }
+}
+
+/* Removed layout override for medium screens to preserve style.css single-line horizontal stats row */
+
+/* ============================================================
+   RESPONSIVE LAYOUT OVERRIDES FOR DETAILS & GRID STRETCHING
+   ============================================================ */
+
+/* Force details-row on the dashboard to span full width of the cards grid */
+#mainContent .cards .details-row {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 8px 0 0 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Force active-agro-details-direct to span full width in the grid on small/medium screens */
+@media (max-width: 1399px) {
+    #mainContent .cards .active-agro-details-direct {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* For PSD or other non-focus grids, active details direct also spans full width on wide screens */
+#mainContent .cards:not(.agro-focus-mode) .active-agro-details-direct {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Style purple buttons beautifully */
+#mainContent .btn-purple {
+    background-color: #8e44ad !important;
+    color: #ffffff !important;
+    border: none !important;
+    cursor: pointer !important;
+}
+
+#mainContent .btn-purple:hover {
+    background-color: #732d91 !important;
+    color: #ffffff !important;
+}
+
+/* ============================================================
+   LABORATORY RESPONSIVE VIEW OPTIMIZATIONS (ZASYP / WORKOWANIE)
+   ============================================================ */
+@media screen and (max-width: 1200px) {
+    /* Hide the active order session/floating stats bar for laborants on Zasyp to maximize space */
+    .d-none-mobile-lab {
+        display: none !important;
+    }
+
+    /* Pull the "Pokaż pełny plan" toggle button maximum up under the title/date selector */
+    .toggle-focus-wrapper {
+        display: flex !important;
+        justify-content: center !important;
+        margin-top: -6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        grid-column: 1 / -1 !important;
+    }
+
+    #toggle-focus-plan-btn {
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-content: center !important;
+        font-size: 0.8em !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Force cards and active details direct (completed batches/mixes) to stack vertically */
+    .cards {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 12px !important;
+        padding: 4px 0 !important; /* Zero padding on left/right to fill screen fully */
+        margin: 0 !important;
+    }
+
+    /* Remove caps on card and mixes panel widths so they stretch fully to 100% and stay responsive */
+    .cards .card,
+    .cards .active-order-szarze-wrap,
+    .cards .active-agro-details-direct {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 1 1 auto !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    /* Ensure details direct grid does not wrap elements into multiple columns on narrow viewports */
+    .active-agro-details-direct {
+        grid-template-columns: 1fr !important;
+        width: 100% !important;
+    }
+
+    /* Blokada przewijania poziomego i pływania strony */
+    body, html, .app-layout, body #mainContent {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    
+    /* Wygodne przyciski na karcie zlecenia na tabletach/komórkach */
+    body .card-actions .btn-action {
+        padding: 6px 6px !important;
+        font-size: 0.8em !important;
+        min-height: 32px !important;
+        letter-spacing: 0px !important;
+    }
+
+    /* Wyzerowanie marginesów zewnętrznych dla kontenerów głównego widoku */
+    body .section-box.p-0 .p-15-bg {
+        padding: 4px 0 !important;
+    }
+}
+
+@media screen and (max-width: 900px) {
+    /* Zmniejszenie marginesów wewnętrznych panelu palet, by dać więcej miejsca */
+    body .active-order-szarze-panel {
+        padding: 10px 8px !important;
+    }
+
+    body .active-order-szarze-line {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+    }
+    
+    body .active-order-szarze-left {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        font-size: 0.85em !important;
+        gap: 6px !important;
+    }
+
+    body .active-order-szarze-actions {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    
+    body .active-order-szarze-actions > div {
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    /* Ekstremalne zmniejszenie przycisków akcji palet na mniejszych ekranach */
+    body .active-order-szarze-actions .btn-action,
+    body .active-order-szarze-actions .btn-sm {
+        min-width: 60px !important;
+        width: auto !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        padding: 2px 6px !important;
+        font-size: 9px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0px !important;
+        box-shadow: none !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+    }
+}
+
+/* Fix for new agro layout */
+.agro-split-left .card { max-width: 100% !important; width: 100% !important; margin: 0 !important; box-sizing: border-box !important; }
+
+@media (max-width: 900px) { .active-agro-split-layout { grid-template-columns: 1fr !important; } }
+
+/* Fix for wrapper span */
+.cards .active-agro-details-direct-wrapper { grid-column: 1 / -1 !important; }
+/* telemetry cache buster v47 */

@@ -1,0 +1,93 @@
+<!-- Aktywne rolki -->
+    {% if active_rolls %}
+    <p class="section-title">
+        <span class="material-icons" style="font-size: 18px; color: #16a34a;">fiber_manual_record</span>
+        Aktywne rolki na maszynie ({{ active_rolls|length }})
+    </p>
+
+    {% for roll in active_rolls %}
+    <div class="roll-card" id="roll-card-{{ roll.link_id }}">
+        <div class="roll-card-header">
+            <div class="roll-card-title">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle; color: #16a34a;">wrap_text</span>
+                {{ roll.nazwa }}
+            </div>
+            <span class="roll-badge-active">● Aktywna</span>
+        </div>
+
+        <div class="roll-stats-grid">
+            <div class="roll-stat">
+                <div class="stat-label">Pobrano</div>
+                <div class="stat-value">{{ roll.stan_poczatkowy|int }}</div>
+            </div>
+            <div class="roll-stat">
+                <div class="stat-label">Licznik START</div>
+                <div class="stat-value">{{ roll.licznik_start }}</div>
+            </div>
+            <div class="roll-stat">
+                <div class="stat-label">Licznik STOP (live)</div>
+                <div class="stat-value" id="live-stop-{{ roll.link_id }}">{{ roll.current_counter }}</div>
+            </div>
+            <div class="roll-stat stat-used">
+                <div class="stat-label">Zużyte (Δ)</div>
+                <div class="stat-value" id="live-used-{{ roll.link_id }}">{{ roll.live_zuzyte }}</div>
+            </div>
+            <div class="roll-stat stat-left">
+                <div class="stat-label">Zostało (est.)</div>
+                <div class="stat-value" id="live-left-{{ roll.link_id }}">{{ roll.szacowane_pozostalo|int }}</div>
+            </div>
+        </div>
+
+        <!-- Kalkulator strat -->
+        <div class="roll-calc-box" id="calc-box-{{ roll.link_id }}">
+            <div class="calc-row">
+                <span>Pobrano na produkcję:</span>
+                <strong>{{ roll.stan_poczatkowy|int }} szt.</strong>
+            </div>
+            <div class="calc-row">
+                <span>Zużyto (licznik MQTT):</span>
+                <strong id="calc-used-{{ roll.link_id }}">{{ roll.live_zuzyte }} szt.</strong>
+            </div>
+            <div class="calc-row">
+                <span>Wpisano — zostało na rolce:</span>
+                <strong id="calc-remains-{{ roll.link_id }}">— szt.</strong>
+            </div>
+            <div class="calc-row calc-total">
+                <span>Szacowane straty:</span>
+                <span class="losses-cell" id="calc-losses-{{ roll.link_id }}">— szt.</span>
+            </div>
+        </div>
+
+        <!-- Formularz zamknięcia rolki -->
+        <div class="close-roll-form">
+            <form method="POST" action="{{ url_for('production.agro_folio_close_roll') }}"
+                  onsubmit="return confirmCloseRoll(event, this)">
+                <input type="hidden" name="link_id" value="{{ roll.link_id }}">
+                <input type="hidden" name="data_planu" value="{{ data_planu }}">
+                <div class="form-row">
+                    <div>
+                        <label for="pozostalo_{{ roll.link_id }}">Pozostało na rolce (szt.)</label>
+                        <input type="number" id="pozostalo_{{ roll.link_id }}" name="pozostalo_szt"
+                               min="0" step="1" placeholder="np. 100"
+                               oninput="updateCalc({{ roll.link_id }}, {{ roll.stan_poczatkowy|int }}, {{ roll.live_zuzyte }}, this.value)">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-close-roll">
+                            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check_circle</span>
+                            Zamknij rolkę
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 28px; text-align: center; margin-bottom: 24px;">
+        <span class="material-icons" style="color: #94a3b8; font-size: 36px;">wrap_text</span>
+        <p style="color: #64748b; margin: 8px 0 0; font-size: 0.95em;">Brak aktywnych rolek na maszynie.<br>Dobij rolkę z widoku magazynu AGRO.</p>
+    </div>
+    {% endif %}
+
+    

@@ -1,0 +1,419 @@
+{% extends "layout.html" %}
+
+{% block title %}Podsumowanie Zmiany - Wszystkie Sekcje{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="section-box">
+        <h1>📋 Podsumowanie Zmiany - Wszystkie Sekcje</h1>
+        
+        <!-- Informacje o zmianie -->
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>📅 Data:</strong> {{ zmiana_data.data }}
+            </div>
+            <div class="info-item">
+                <strong>🏭 {{ _('sekcje') }}:</strong> {{ _('zasyp') }}, {{ _('workowanie') }}, {{ _('magazyn') }}, {{ _('hala_agro') }}
+            </div>
+            <div class="info-item">
+                <strong>👤 Lider:</strong> {{ zmiana_data.lider_name }}
+            </div>
+        </div>
+        
+        <!-- Pracownicy -->
+        <div class="mt-30">
+            <h3>👥 Pracownicy na zmianie</h3>
+            {% for sekcja, obsada in zmiana_data.wszystkie_obsady.items() %}
+            <div class="mt-20">
+                    <h4>{{ sekcja }}</h4>
+                    {% if obsada %}
+                    <div class="obsada-table-wrap">
+                        <table class="modern-table small obsada-table">
+                            <thead>
+                                <tr><th>{{ _('rola') }}</th><th>{{ _('pracownik') }}</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for p in obsada %}
+                                <tr>
+                                    <td class="text-muted">{{ p.rola }}</td>
+                                    <td><strong>{{ p.imie_nazwisko }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">{{ _('brak_przypisanych') }}</p>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Awarie i Usterki -->
+        {% if zmiana_data.awarie %}
+        <div class="mt-30">
+            <h3>⚠️ {{ _('awarie_usterki_nieobecnosci') }}</h3>
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>{{ _('sekcja') }}</th>
+                        <th>{{ _('typ') }}</th>
+                        <th>{{ _('opis') }}</th>
+                        <th>{{ _('czas') }}</th>
+                        <th>{{ _('pracownik') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in zmiana_data.awarie %}
+                    <tr>
+                        <td><strong>{{ a.sekcja }}</strong></td>
+                        <td>
+                            {% if a.typ == 'awaria' %}
+                                <span class="badge badge-danger">⚡ Awaria</span>
+                            {% elif a.typ == 'usterka' %}
+                                <span class="badge badge-warning">🔧 Usterka</span>
+                            {% elif a.typ == 'nieobecność' %}
+                                <span class="badge badge-secondary">❌ Nieobecność</span>
+                            {% elif a.typ == 'przerwa' %}
+                                <span class="badge badge-info">⏸️ Przerwa</span>
+                            {% else %}
+                                <span class="badge">{{ a.typ }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ a.opis }}</td>
+                        <td class="text-muted">{{ a.data_wpisu }}</td>
+                        <td>{{ a.pracownik }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        <!-- Plany produkcji dla każdej sekcji -->
+        {% for sekcja, plany in zmiana_data.wszystkie_sekcje.items() %}
+        <div class="mt-30">
+            <h3>📊 {{ sekcja }} - Plany Produkcji</h3>
+            {% if plany %}
+            <table class="modern-table">
+                <thead>
+                        <tr>
+                        <th>📦 Produkt</th>
+                        <th>📋 Plan (kg)</th>
+                        <th>✅ Wykonanie (kg)</th>
+                        <th>📊 Status</th>
+                        <th>⏰ Czas</th>
+                        <th>📦 Palety</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plan in plany %}
+                    <tr>
+                        <td><strong class="text-primary">{{ plan.produkt }}</strong></td>
+                        <td>{{ plan.tonaz|default(0) }}</td>
+                        <td><strong class="text-success">{{ plan.tonaz_wykonania|default(0) }}</strong></td>
+                        <td>
+                            {% if plan.status == 'w toku' %}
+                                <span class="badge badge-warning">🔄 W toku</span>
+                            {% elif plan.status == 'zaplanowane' %}
+                                <span class="badge badge-info">📅 Zaplanowana</span>
+                            {% elif plan.status == 'zamknieta' %}
+                                <span class="badge badge-success">✅ Zamknięta</span>
+                            {% else %}
+                                <span class="badge">{{ plan.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">{{ plan.real_start }} - {{ plan.real_stop }}</td>
+                        <td class="text-center">
+                            <strong>{{ plan.palety|length }}</strong>
+                            {% if plan.palety %}
+                            <button type="button" class="btn-icon" onclick="togglePalety('{{ sekcja }}-plan-{{ plan.id }}')" aria-label="Pokaż palety">📦</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    <!-- Szczegóły palet -->
+                    {% if plan.palety %}
+                    <tr id="{{ sekcja }}-plan-{{ plan.id }}-details" class="details-row">
+                        <td colspan="6" class="p-0">
+                            <div class="p-10">
+                                <table class="modern-table small">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ _('nr') }}</th>
+                                            <th>⚖️ Waga (kg)</th>
+                                            <th>🕒 Dodana</th>
+                                            <th>✅ Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for pal in plan.palety %}
+                                        <tr>
+                                            <td class="text-muted">{{ loop.index }}</td>
+                                            <td><strong class="text-success">{{ pal.waga|int }}</strong></td>
+                                            <td class="time-display">{{ pal.data_dodania }}</td>
+                                            <td>
+                                                {% if pal.status == 'do_przyjecia' %}
+                                                    <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                                {% elif pal.status in ['przyjeta', 'w_magazynie'] %}
+                                                    <span class="badge badge-success">✅ Przyjęta</span>
+                                                {% else %}
+                                                    <span class="badge">{{ pal.status }}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">{{ _('brak_planow_produkcji') }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        <!-- Notatki Lidera -->
+        <div class="mt-30">
+            <h3>📝 Notatki Lidera</h3>
+            <form id="raport-form" method="POST" action="{{ url_for('leaves.zapisz_raport_koncowy_global') }}" class="d-flex flex-column gap-15">
+                
+                <textarea name="notatki" id="notatki" class="input-lg textarea-notatki" placeholder="{{ _('wpisz_notatki_zmiany') }}" rows="6"></textarea>
+                
+                <!-- Opcje exportu -->
+                <div class="export-options">
+                    <h4>📥 Eksportuj raport jako:</h4>
+                    <div class="d-flex gap-10 flex-wrap">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_email" checked> 📧 Email (txt)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_excel"> 📊 Excel
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_pdf"> 📄 PDF
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Przyciski akcji -->
+                <div class="d-flex gap-10">
+                    <button type="submit" class="btn-action btn-save flex-1 raport-btn">
+                        ✅ Zakończ zmianę i Zapisz Raport
+                    </button>
+                    <a href="{{ url_for('main.index') }}" class="btn-action btn-cancel flex-1 raport-link">
+                        ❌ Anuluj
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 8px;
+}
+
+.info-item {
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.pracownicy-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.badge-info {
+    background: linear-gradient(135deg, #bbdefb 0%, #64b5f6 100%);
+    color: #1565c0;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #42a5f5;
+}
+
+.badge-success {
+    background: linear-gradient(135deg, #c8e6c9 0%, #81c784 100%);
+    color: #2e7d32;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #66bb6a;
+}
+
+.badge-warning {
+    background: linear-gradient(135deg, #ffe0b2 0%, #ffb74d 100%);
+    color: #e65100;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #ffa726;
+}
+
+.badge-danger {
+    background: linear-gradient(135deg, #ffcdd2 0%, #ef5350 100%);
+    color: #c62828;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #ef5350;
+}
+
+.badge-secondary {
+    background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%);
+    color: #424242;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #9e9e9e;
+}
+
+.export-options {
+    background: #f9fafb;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    margin: 15px 0;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: #2196F3;
+}
+
+.mt-30 {
+    margin-top: 30px;
+}
+
+.obsada-table-wrap { margin-top: 10px; }
+.obsada-table { width: 100%; border-collapse: collapse; }
+.obsada-table th { text-align: left; background: #f4f6f8; padding: 8px; font-weight: 600; }
+.obsada-table td { padding: 8px; border-top: 1px solid #eef1f4; }
+.obsada-table tr:nth-child(odd) td { background: #fbfcfd; }
+</style>
+
+<script>
+function togglePalety(planId) {
+    const detailsRow = document.getElementById(planId + '-details');
+    if (detailsRow) {
+        detailsRow.style.display = detailsRow.style.display === 'none' ? 'table-row' : 'none';
+    }
+}
+
+const _raportFormGlobal = document.getElementById('raport-form');
+if (_raportFormGlobal) _raportFormGlobal.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const notatki = document.getElementById('notatki').value;
+    const exportEmail = document.querySelector('input[name="export_email"]').checked;
+    const exportExcel = document.querySelector('input[name="export_excel"]').checked;
+    const exportPdf = document.querySelector('input[name="export_pdf"]').checked;
+    
+    // Najpierw zapisz raport w bazie
+    const saveFormData = new FormData();
+    saveFormData.append('notatki', notatki);
+    
+    fetch('{{ url_for("leaves.zapisz_raport_koncowy_global") }}', {
+        method: 'POST',
+        body: saveFormData
+    })
+    .then(response => {
+        if (response.ok) {
+            // Po zapisaniu, pobierz raporty jeśli są wybrane
+            const downloadDelays = [];
+            
+            if (exportEmail) {
+                downloadDelays.push(
+                    new Promise(resolve => {
+                        setTimeout(() => {
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = '{{ url_for("leaves.pobierz_raport") }}';
+                            form.innerHTML = '<input type="hidden" name="format" value="email"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
+                            document.body.appendChild(form);
+                            form.submit();
+                            document.body.removeChild(form);
+                            resolve();
+                        }, 200);
+                    })
+                );
+            }
+            
+            if (exportExcel) {
+                downloadDelays.push(
+                    new Promise(resolve => {
+                        setTimeout(() => {
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = '{{ url_for("leaves.pobierz_raport") }}';
+                            form.innerHTML = '<input type="hidden" name="format" value="excel"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
+                            document.body.appendChild(form);
+                            form.submit();
+                            document.body.removeChild(form);
+                            resolve();
+                        }, 400);
+                    })
+                );
+            }
+            
+            if (exportPdf) {
+                downloadDelays.push(
+                    new Promise(resolve => {
+                        setTimeout(() => {
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = '{{ url_for("leaves.pobierz_raport") }}';
+                            form.innerHTML = '<input type="hidden" name="format" value="pdf"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
+                            document.body.appendChild(form);
+                            form.submit();
+                            document.body.removeChild(form);
+                            resolve();
+                        }, 600);
+                    })
+                );
+            }
+            
+            // Po wszystkich pobraniach, przejdź na dashboard
+            Promise.all(downloadDelays).then(() => {
+                setTimeout(() => {
+                    window.location.href = '{{ url_for("main.index") }}';
+                }, 1000);
+            });
+        } else {
+            alert('❌ Błąd przy zapisywaniu raportu');
+        }
+    })
+    .catch(error => {
+        console.error('Błąd:', error);
+        alert('❌ Błąd przy zapisywaniu raportu: ' + error);
+    });
+});
+</script>
+{% endblock %}

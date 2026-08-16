@@ -1,0 +1,222 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/magazyn_dostawy/oczekujace.css') }}">
+
+<div class="logistyka-container p-20 waiting-screen">
+    <div class="waiting-hero">
+        <div class="waiting-hero-head">
+            <div>
+                <h1 class="waiting-title">
+                    <span class="material-icons" style="color:#2563eb;">pending_actions</span>
+                    Oczekujące na Przyjęcie
+                </h1>
+                <p class="waiting-subtitle">Towary gotowe do wprowadzenia na stan (Hala <strong>{{ linia }}</strong>).</p>
+                
+                <!-- Przełącznik Hal dla Skanera -->
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+                    <a href="?linia=PSD" class="hall-pill {% if linia == 'PSD' %}active{% endif %}">Hala PSD</a>
+                    <a href="?linia=AGRO" class="hall-pill {% if linia == 'AGRO' %}active{% endif %}">Hala AGRO</a>
+                    <span style="font-size: 10px; color: #94a3b8; margin-left: 10px; font-weight: 700;">
+                        FILTR: {{ linia }} | ZNALEZIONO: {{ dostawy.dostawy|length }}
+                    </span>
+                </div>
+
+            </div>
+        <div class="waiting-hero-actions">
+            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-premium-outline waiting-cta-btn" style="display: none;">
+                <span class="material-icons">history</span> Kontynuuj wpis
+            </a>
+            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}" class="btn-premium-outline waiting-cta-btn">
+                <span class="material-icons">swap_horiz</span> Nowe wydanie
+            </a>
+            <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" class="btn-premium waiting-cta-btn">
+                <span class="material-icons">add</span> Nowa dostawa
+            </a>
+        </div>
+        </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="waiting-tabs">
+        <button class="waiting-tab active" onclick="showTab('tab-dostawy', this)">
+            Dostawy ({{ dostawy.dostawy|length }})
+        </button>
+        <button class="waiting-tab" onclick="showTab('tab-wg', this)">
+            Z Produkcji ({{ dostawy.wg|length }})
+        </button>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj po nazwie, nr palety, referencji lub dacie..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px; max-width: 600px; margin: 0 auto; display: block;">
+    </div>
+
+    <!-- GLOBAL SCANNER -->
+    {% if dostawy.dostawy or dostawy.wg %}
+    <div class="wg-scan-box" style="margin-bottom: 20px;">
+        <p class="wg-scan-title">Szybkie przyjmowanie (Dostawy i Produkcja)</p>
+        <div style="max-width: 600px; margin: 0 auto;">
+            <input
+                type="text"
+                id="globalScannerInput"
+                class="premium-input w-full"
+                placeholder="1. Zeskanuj paletę (SSCC) i naciśnij Enter"
+                autocomplete="off"
+                spellcheck="false"
+                style="font-size: 1.2rem; padding: 15px; text-align: center; font-weight: 600;"
+            >
+        </div>
+        <p id="globalScanHint" class="transfer-scan-hint" style="margin-top: 10px; font-weight: 600; color: #1e40af;">Zeskanuj dowolną oczekującą paletę.</p>
+    </div>
+    {% endif %}
+
+    <!-- TAB: DOSTAWY -->
+    <div id="tab-dostawy" class="tab-content">
+        {% if dostawy.dostawy %}
+        <div class="waiting-table-wrap">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">Lp.</th>
+                        <th>Typ</th>
+                        <th>Referencja</th>
+                        <th>Skąd</th>
+                        <th>Dokąd</th>
+                        <th>Ile palet</th>
+                        <th>Suma kg do przesunięcia</th>
+                        <th>Data</th>
+                        <th class="text-right">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in dostawy.dostawy %}
+                    {% set ns = namespace(pending=0, kg=0.0, pallets=[]) %}
+                    {% for item in d.items_parsed %}
+                        {% if not item.accepted and not item.rejected %}
+                            {% set item_w = (item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float %}
+                            {% set item_pname = item.productName or item.name or '' %}
+                            {% set ns.pending = ns.pending + 1 %}
+                            {% set ns.kg = ns.kg + item_w %}
+                            {% set _ = ns.pallets.append("• " ~ (item.nr_palety or item.sourcePalletNo or "?") ~ ((" - " ~ item_pname) if item_pname else "") ~ " (" ~ item_w ~ " kg)") %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if ns.pending > 0 %}
+                    <tr class="hover-highlight-row" 
+                        onclick="window.location.href='{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}'"
+                        onmouseenter="startPalletPreviewTimer('{{ ns.pallets | join('<br>') | replace("'", "\\'") }}', event)"
+                        onmouseleave="cancelPalletPreviewTimer()">
+                        <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                        <td data-label="Typ">
+                            <span class="premium-badge {% if d.lokalizacja_z %}badge-info{% else %}badge-warning{% endif %}">
+                                {{ 'PRZESUNIĘCIE' if d.lokalizacja_z else 'DOSTAWA' }}
+                            </span>
+                        </td>
+                        <td data-label="Referencja">
+                            <div class="font-bold">#{{ d.id[:8] }}</div>
+                            <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
+                        </td>
+                        <td data-label="Skąd" class="font-bold">
+                            {{ d.lokalizacja_z or '-' }}
+                            <div style="display: none;">{{ ns.pallets | join(' ') }}</div>
+                        </td>
+                        <td data-label="Dokąd" class="font-bold">{{ d.lokalizacja_do or '-' }}</td>
+                        <td data-label="Ile palet"><span class="premium-badge badge-info">{{ ns.pending }}</span></td>
+                        <td data-label="Suma kg" class="font-bold">{{ '%.2f'|format(ns.kg) }} kg</td>
+                        <td data-label="Data">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at and d.created_at.strftime else d.created_at }}</td>
+                        <td data-label="Akcja" class="text-right">
+                            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                                <button class="btn-premium-outline waiting-open-btn" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')">ANULUJ</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="premium-card p-40 text-center text-muted">Brak oczekujących dostaw.</div>
+        {% endif %}
+    </div>
+
+    <!-- TAB: WG -->
+    <div id="tab-wg" class="tab-content" style="display:none;">
+        {% if dostawy.wg %}
+        <div class="premium-card">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">Lp.</th>
+                        <th>Data</th>
+                        <th>Zlecenie</th>
+                        <th>Produkt</th>
+                        <th>Nr Palety</th>
+                        <th>Ilość</th>
+                        <th class="text-right">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in dostawy.wg %}
+                    <tr>
+                        <td style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                        <td>{{ p.data_dodania.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td><span class="premium-badge badge-info">#{{ p.numer_zlecenia }}</span></td>
+                        <td class="font-bold">{{ p.nazwa_produktu }}</td>
+                        <td class="font-mono">{{ p.nr_palety }}</td>
+                        <td class="font-bold">{{ p.waga }} kg</td>
+                        <td class="text-right">
+                            <button
+                                class="btn-premium btn-xs"
+                                data-wg-id="{{ p.id }}"
+                                data-wg-nr="{{ p.nr_palety }}"
+                                data-wg-waga="{{ p.waga or '' }}"
+                                onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }})"
+                            >PRZYJMIJ</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="premium-card p-40 text-center text-muted">Brak palet z produkcji.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'magazyn_dostawy/_modal_przyjecie_wg.html' %}
+
+<div id="magazyn-config-data" 
+     data-linia="{{ linia }}" 
+     data-pending-items="{{ pending_scan_items|tojson|forceescape }}" 
+     style="display:none;">
+</div>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/location_suggestions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/scanner_logic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_search.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/wg_acceptance.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_logic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/pallet_preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/polling_refresh.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/init.js') }}"></script>
+<script>
+function filterTableRows() {
+    const input = document.getElementById('tableSearchInput');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.premium-table tbody tr');
+    rows.forEach(row => {
+        if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
+        
+        if (row.textContent.toLowerCase().includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

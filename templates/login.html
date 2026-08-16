@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logowanie - AgroNetzwerk</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        .language-selector-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+        }
+        
+        #language-selector {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        .btn-login {
+            display: inline-block;
+            margin: 0 !important;
+            padding: 8px 24px !important;
+            font-size: 14px !important;
+            width: auto !important;
+        }
+
+        .login-actions {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .keyboard-controls {
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .btn-keyboard-toggle {
+            background: #0f766e !important;
+            color: #fff !important;
+            border: 1px solid #0f766e !important;
+        }
+
+        .btn-keyboard-toggle.enabled {
+            background: #0369a1 !important;
+            border-color: #0369a1 !important;
+        }
+
+        .keyboard-hint {
+            margin: 8px 0 0;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .anti-autofill-trap {
+            position: absolute;
+            left: -10000px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .password-field-wrap {
+            position: relative;
+        }
+
+        .password-field-wrap .form-input {
+            padding-right: 46px;
+        }
+
+        .password-visibility-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #334155;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .password-visibility-toggle:hover {
+            color: #0f172a;
+        }
+
+        .password-visibility-toggle:focus-visible {
+            outline: 2px solid #0ea5e9;
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+
+        .password-eye-closed {
+            display: none;
+        }
+
+        .password-visibility-toggle.visible .password-eye-open {
+            display: none;
+        }
+
+        .password-visibility-toggle.visible .password-eye-closed {
+            display: inline-flex;
+        }
+
+
+        /* Premium Loading Overlay inside login-card */
+        .login-card {
+            position: relative;
+            overflow: hidden; /* Bounded within the card */
+        }
+
+        .login-loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.94);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .login-loader-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Pulsing circle / glowing ring animation */
+        .premium-spinner {
+            width: 70px;
+            height: 70px;
+            border: 4px solid rgba(22, 163, 74, 0.1);
+            border-top: 4px solid #16a34a;
+            border-radius: 50%;
+            animation: spin-premium 1s cubic-bezier(0.55, 0.085, 0.68, 0.53) infinite;
+            box-shadow: 0 0 15px rgba(22, 163, 74, 0.15);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .premium-loader-logo {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            margin-top: -95px; /* Center inside spinner space */
+            animation: pulse-premium 1.5s ease-in-out infinite;
+        }
+
+        .loader-text {
+            font-size: 17px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: 0.3px;
+            animation: pulse-text 1.5s ease-in-out infinite;
+            text-align: center;
+            font-family: 'Roboto', sans-serif;
+            margin-top: 10px;
+        }
+
+        .loader-subtext {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 6px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        @keyframes spin-premium {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-premium {
+            0%, 100% { transform: scale(0.95); opacity: 0.85; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        /* ===== Test DB Banner ===== */
+        .test-db-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1.5px solid #f59e0b;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin: 10px 0 14px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18);
+            animation: pulse-banner 2.5s ease-in-out infinite;
+        }
+
+        .test-db-icon {
+            font-size: 22px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .test-db-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .test-db-text strong {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400e;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .test-db-text span {
+            font-size: 12px;
+            color: #78350f;
+        }
+
+        .test-db-text code {
+            background: rgba(0,0,0,0.08);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #7c2d12;
+        }
+
+        @keyframes pulse-banner {
+            0%, 100% { box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18); }
+            50% { box-shadow: 0 4px 16px rgba(245, 158, 11, 0.38); }
+        }
+    </style>
+</head>
+<body class="login-page">
+
+<!-- Language selector -->
+<div class="language-selector-container">
+    <label for="language-selector" class="sr-only">{{ _('language') }}</label>
+    <select id="language-selector" onchange="changeLanguage(this.value)" title="Select language">
+        <option value="pl">Polski</option>
+        <option value="uk">Українська</option>
+        <option value="en">English</option>
+    </select>
+</div>
+
+<div class="login-page-body">
+<div class="login-card">
+    <!-- Premium Loader Overlay -->
+    <div id="login-loader" class="login-loader-overlay">
+        <div class="premium-spinner"></div>
+        <img src="{{ url_for('static', filename='favicon.ico') }}" alt="Loader Logo" class="premium-loader-logo">
+        <div id="loader-message" class="loader-text">Trwa logowanie...</div>
+        <div class="loader-subtext">AgroNetzwerk System</div>
+    </div>
+
+    <!-- Use local static logo to avoid external requests and improve availability -->
+    <img src="{{ url_for('static', filename='agro_logo.png') }}" alt="AgroNetzwerk" class="login-logo">
+
+    <h2 class="header-title m-0">{{ _('zaloguj_sie') }}</h2>
+
+    {% if is_test_db %}
+    <div class="test-db-banner" role="alert" aria-live="polite">
+        <span class="test-db-icon">⚠️</span>
+        <div class="test-db-text">
+            <strong>BAZA TESTOWA</strong>
+            <span>Połączono z bazą: <code>{{ db_name }}</code></span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if request.args.get('timeout') %}
+        <div class="alert alert-warning">
+            Zostałeś wylogowany z powodu bezczynności.
+        </div>
+    {% endif %}
+
+    <form method="POST" autocomplete="off" data-lpignore="true">
+        <div class="anti-autofill-trap" aria-hidden="true">
+            <input type="text" name="username" autocomplete="username" tabindex="-1">
+            <input type="password" name="password" autocomplete="current-password" tabindex="-1">
+        </div>
+        <div class="form-group">
+            <label for="login" class="form-label">{{ _('login') }}</label>
+            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="none" spellcheck="false" data-lpignore="true">
+        </div>
+        <div class="form-group">
+            <label for="haslo" class="form-label">{{ _('haslo') }}</label>
+            <div class="password-field-wrap">
+                <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password" autocorrect="off" inputmode="none" data-lpignore="true">
+                <button type="button" id="toggle-password-visibility" class="password-visibility-toggle" aria-label="Pokaż hasło" aria-pressed="false">
+                    <span class="password-eye-open" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 12C3.9 8.2 7.7 6 12 6C16.3 6 20.1 8.2 22 12C20.1 15.8 16.3 18 12 18C7.7 18 3.9 15.8 2 12Z" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </span>
+                    <span class="password-eye-closed" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 12C3.9 8.2 7.7 6 12 6C14.1 6 16.1 6.5 17.9 7.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M22 12C20.1 15.8 16.3 18 12 18C9.9 18 7.9 17.5 6.1 16.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div class="keyboard-controls">
+            <button type="button" id="toggle-soft-keyboard" class="btn-login btn-keyboard-toggle" aria-pressed="false">Włącz klawiaturę ekranową</button>
+            <p id="keyboard-hint" class="keyboard-hint">Tryb skanera: klawiatura ekranowa jest wyłączona. Włącz tylko przy ręcznym wpisywaniu.</p>
+        </div>
+        <div class="login-actions">
+            <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
+            <button type="button" class="btn-login" onclick="openLoginQrScanner()" style="background:#059669; border-color:#059669;">
+                📱 Skanuj QR
+            </button>
+        </div>
+    </form>
+
+    </div>
+    </div>
+
+<script>
+function changeLanguage(lang) {
+    // Ustaw cookie na 365 dni
+    const d = new Date();
+    d.setTime(d.getTime() + (365*24*60*60*1000));
+    const expires = "expires="+ d.toUTCString();
+    document.cookie = "app_language=" + lang + ";" + expires + ";path=/";
+    
+    // Refresh strony z ?lang= parametrem
+    window.location.href = window.location.pathname + "?lang=" + lang;
+}
+
+// Usunięto logikę serwera druku na ekranie logowania
+
+// Ustawiamy selektor na domyślny się wybrany język z cookie oraz dodajemy animację logowania
+window.addEventListener('DOMContentLoaded', function() {
+    const langSelector = document.getElementById('language-selector');
+    const loginInput = document.getElementById('login');
+    const passwordInput = document.getElementById('haslo');
+    const passwordVisibilityToggleBtn = document.getElementById('toggle-password-visibility');
+    const softKeyboardToggleBtn = document.getElementById('toggle-soft-keyboard');
+    const keyboardHintEl = document.getElementById('keyboard-hint');
+    const keyboardManagedInputs = [loginInput, passwordInput].filter(Boolean);
+
+    function setPasswordVisible(isVisible) {
+        if (!passwordInput || !passwordVisibilityToggleBtn) return;
+        passwordInput.type = isVisible ? 'text' : 'password';
+        passwordVisibilityToggleBtn.classList.toggle('visible', isVisible);
+        passwordVisibilityToggleBtn.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+        passwordVisibilityToggleBtn.setAttribute('aria-label', isVisible ? 'Ukryj hasło' : 'Pokaż hasło');
+    }
+
+    function getKeyboardCopy(language, enabled) {
+        const i18n = {
+            pl: {
+                buttonOn: 'Wylacz klawiature ekranowa',
+                buttonOff: 'Wlacz klawiature ekranowa',
+                hintOn: 'Tryb reczny: klawiatura ekranowa jest wlaczona.',
+                hintOff: 'Tryb skanera: klawiatura ekranowa jest wylaczona. Wlacz tylko przy recznym wpisywaniu.'
+            },
+            uk: {
+                buttonOn: 'Вимкнути екранну клавіатуру',
+                buttonOff: 'Увімкнути екранну клавіатуру',
+                hintOn: 'Ручний режим: екранна клавіатура увімкнена.',
+                hintOff: 'Режим сканера: екранна клавіатура вимкнена. Увімкніть її лише для ручного введення.'
+            },
+            en: {
+                buttonOn: 'Disable on-screen keyboard',
+                buttonOff: 'Enable on-screen keyboard',
+                hintOn: 'Manual mode: on-screen keyboard is enabled.',
+                hintOff: 'Scanner mode: on-screen keyboard is disabled. Enable it only for manual typing.'
+            }
+        };
+
+        const copy = i18n[language] || i18n.pl;
+        return {
+            button: enabled ? copy.buttonOn : copy.buttonOff,
+            hint: enabled ? copy.hintOn : copy.hintOff
+        };
+    }
+
+    function setSoftKeyboardState(enabled, shouldFocusLogin) {
+        keyboardManagedInputs.forEach(function(input) {
+            if (!input) return;
+            if (enabled) {
+                input.setAttribute('inputmode', 'text');
+            } else {
+                input.setAttribute('inputmode', 'none');
+            }
+        });
+
+        if (softKeyboardToggleBtn) {
+            const selectedLang = langSelector ? langSelector.value : 'pl';
+            const copy = getKeyboardCopy(selectedLang, enabled);
+            softKeyboardToggleBtn.textContent = copy.button;
+            softKeyboardToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            softKeyboardToggleBtn.classList.toggle('enabled', enabled);
+            if (keyboardHintEl) keyboardHintEl.textContent = copy.hint;
+        }
+
+        if (shouldFocusLogin && loginInput) {
+            setTimeout(function() {
+                try {
+                    loginInput.focus({ preventScroll: true });
+                } catch (e) {
+                    loginInput.focus();
+                }
+            }, 0);
+        }
+    }
+
+    function clearLoginFormFields() {
+        if (loginInput) loginInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+    }
+
+    clearLoginFormFields();
+    setTimeout(clearLoginFormFields, 120);
+    window.addEventListener('pageshow', function() {
+        clearLoginFormFields();
+        setPasswordVisible(false);
+    });
+
+    setPasswordVisible(false);
+
+    setSoftKeyboardState(false, false);
+
+    if (langSelector) {
+        // Czytaj język z URL lub cookie
+        const urlParams = new URLSearchParams(window.location.search);
+        const langParam = urlParams.get('lang');
+        const langCookie = document.cookie.split('; ').find(row => row.startsWith('app_language='));
+        const currentLang = langParam || (langCookie ? langCookie.split('=')[1] : 'pl');
+        
+        langSelector.value = currentLang;
+        setSoftKeyboardState(false, false);
+    }
+
+    if (softKeyboardToggleBtn) {
+        softKeyboardToggleBtn.addEventListener('click', function() {
+            const isEnabled = softKeyboardToggleBtn.getAttribute('aria-pressed') === 'true';
+            setSoftKeyboardState(!isEnabled, true);
+        });
+    }
+
+    if (passwordVisibilityToggleBtn) {
+        passwordVisibilityToggleBtn.addEventListener('click', function() {
+            const isVisible = passwordVisibilityToggleBtn.getAttribute('aria-pressed') === 'true';
+            setPasswordVisible(!isVisible);
+            if (passwordInput) {
+                passwordInput.focus();
+                try {
+                    const len = String(passwordInput.value || '').length;
+                    passwordInput.setSelectionRange(len, len);
+                } catch (e) {}
+            }
+        });
+    }
+
+    if (loginInput) {
+        setTimeout(function() {
+            try {
+                loginInput.focus({ preventScroll: true });
+            } catch (e) {
+                loginInput.focus();
+            }
+        }, 30);
+    }
+
+    // Obsługa efektownej animacji logowania po kliknięciu "Wejdź"
+    const loginForm = document.querySelector('form');
+    if (loginForm) {
+        try { loginForm.reset(); } catch (e) {}
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loader = document.getElementById('login-loader');
+            const messageEl = document.getElementById('loader-message');
+            const currentLang = langSelector ? langSelector.value : 'pl';
+            
+            let messageText = 'Trwa logowanie...';
+            if (currentLang === 'uk') messageText = 'Вхід в систему...';
+            if (currentLang === 'en') messageText = 'Logging in...';
+            
+            if (messageEl) messageEl.textContent = messageText;
+            if (loader) loader.classList.add('active');
+            
+            // Zablokuj przyciski przed podwójnym kliknięciem
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            setPasswordVisible(false);
+            
+            // Prześlij formularz po krótkim opóźnieniu (dla pełnego efektu animacji)
+            setTimeout(function() {
+                loginForm.submit();
+            }, 750);
+        });
+    }
+});
+
+// QR Login Scanner
+function openLoginQrScanner() {
+    if (typeof openQrScannerModal === 'function') {
+        openQrScannerModal('login', 'login');
+    } else {
+        alert('Funkcja skanowania QR nie jest dostępna. Sprawdź czy skrypt został załadowany.');
+    }
+}
+</script>
+
+<!-- QR Scanner Modal -->
+{% include 'includes/qr_scanner_modal.html' %}
+
+<!-- QR Scanner Library & Script -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr_scanner.js') }}"></script>
+
+</body>
+</html>

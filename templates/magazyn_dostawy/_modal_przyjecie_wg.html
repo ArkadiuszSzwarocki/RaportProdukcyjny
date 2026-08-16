@@ -1,0 +1,32 @@
+<!-- MODAL: PRZYJĘCIE WG -->
+<dialog id="modalWG" class="premium-card p-0" style="border:none; width: 400px; max-width: 95vw;">
+    <div class="bg-slate-50 p-20 border-b flex justify-between items-center">
+        <h4 class="m-0 font-bold text-slate-800">Przyjęcie Wyrobu Gotowego</h4>
+        <button class="text-slate-400 hover:text-slate-800" onclick="closeModal('modalWG')" style="background:none; border:none; font-size: 24px; cursor:pointer;">&times;</button>
+    </div>
+    <div class="p-30">
+        <div class="mb-15 bg-amber-50 p-12 rounded-xl border border-amber-100 text-center text-amber-700 text-sm font-semibold">
+            Czy zatwierdzasz przyjęcie tej palety do magazynu?
+        </div>
+        <div class="mb-25 bg-blue-50 p-15 rounded-xl border border-blue-100 text-center">
+            <div class="text-xxs font-bold text-blue-400 uppercase tracking-widest mb-5">Numer Palety</div>
+            <div class="text-2xl font-bold text-blue-700 font-mono" id="wgNrPalety">—</div>
+        </div>
+        <div class="mb-20">
+            <label class="form-label-premium">Waga netto (kg)</label>
+            <input type="number" id="wgWaga" class="premium-input w-full" min="0.01" step="0.01" placeholder="np. 845.50" inputmode="decimal" autocomplete="off">
+            <p class="text-xxs text-slate-400 mt-8 italic">Najpierw wpisz lub popraw wagę netto palety.</p>
+        </div>
+        <div class="mb-25">
+            <label class="form-label-premium">Docelowa Lokalizacja (skan = potwierdzenie)</label>
+            <input type="text" id="wgLokalizacja" class="premium-input w-full" placeholder="np. R040101" style="text-transform:uppercase;" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
+            <p class="text-xxs text-slate-400 mt-8 italic">Po wpisaniu wagi zeskanuj lokalizację docelową i naciśnij Enter.</p>
+        </div>
+        <input type="hidden" id="wgId">
+        
+        <div class="flex gap-10 mt-10">
+            <button class="btn-premium-outline flex-1 justify-center" onclick="closeModal('modalWG')">Anuluj</button>
+            <button class="btn-premium flex-1 justify-center" onclick="submitAcceptWG()">Potwierdź</button>
+        </div>
+    </div>
+</dialog>

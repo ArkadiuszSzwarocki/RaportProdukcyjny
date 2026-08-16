@@ -1,0 +1,20 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_global.css') }}">
+
+<div id="dashboard-config" data-current-role="{{ session.get('rola') }}" data-linia="{{ linia or 'PSD' }}" data-sekcja="Dashboard"></div>
+
+{% include 'dashboard/_global_header_menu.html' %}
+
+{% include 'dashboard/_global_production_overview.html' %}
+
+{% include 'dashboard/_global_shift_notes.html' %}
+
+{% include 'dashboard/_global_scripts.html' %}
+
+{% endblock %}
+
+{% block footer_scripts %}
+    {% include 'includes/dashboard_footer.html' %}
+{% endblock %}

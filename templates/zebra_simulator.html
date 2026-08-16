@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="simulator-container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <div class="row items-center justify-between mb-20">
+        <div class="row items-center gap-12">
+            <span class="material-icons" style="font-size: 40px; color: #3b82f6;">edgesensor_high</span>
+            <div>
+                <h1 class="header-title m-0">Symulator Terminala Zebra</h1>
+                <p class="text-muted small">Podgląd interfejsu MC330x (480x800 px)</p>
+            </div>
+        </div>
+        <div class="button-group">
+            <button onclick="rotateSimulator()" class="btn btn-outline btn-sm">
+                <span class="material-icons">screen_rotation</span> Obróć
+            </button>
+            <a href="/agro/scanner/ui" target="_blank" class="btn btn-primary btn-sm">
+                <span class="material-icons">open_in_new</span> Otwórz Pełny Ekran
+            </a>
+        </div>
+    </div>
+
+    <div class="simulator-layout" style="display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap;">
+        <!-- ZEBRA DEVICE FRAME -->
+        <div class="zebra-device" id="zebraDevice" style="
+            width: 520px; 
+            height: 940px; 
+            background: #1e293b; 
+            border-radius: 50px; 
+            padding: 70px 20px; 
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            position: relative;
+            border: 8px solid #334155;
+            transition: all 0.3s ease;
+        ">
+            <!-- Top Speaker -->
+            <div style="width: 80px; height: 6px; background: #334155; border-radius: 10px; margin: -40px auto 30px;"></div>
+            
+            <!-- Screen Area -->
+            <div class="screen-frame" style="
+                width: 480px; 
+                height: 800px; 
+                background: #fff; 
+                overflow: hidden;
+                border-radius: 4px;
+                position: relative;
+            ">
+                <iframe src="/agro/scanner/ui?linia={{ linia }}" id="scannerFrame" style="
+                    width: 100%; 
+                    height: 100%; 
+                    border: none;
+                "></iframe>
+            </div>
+
+            <!-- Bottom Buttons (Hardware) -->
+            <div style="margin-top: 20px; display: flex; justify-content: center; gap: 20px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #ef4444; border: 2px solid #991b1b;"></div>
+                <div style="width: 60px; height: 30px; border-radius: 5px; background: #334155;"></div>
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; border: 2px solid #1e40af;"></div>
+            </div>
+
+            <!-- Side Scan Buttons -->
+            <div style="position: absolute; left: -12px; top: 200px; width: 12px; height: 100px; background: #ef4444; border-radius: 4px 0 0 4px;"></div>
+            <div style="position: absolute; right: -12px; top: 200px; width: 12px; height: 100px; background: #ef4444; border-radius: 0 4px 4px 0;"></div>
+        </div>
+
+        <!-- INFO & CONTROLS -->
+        <div class="controls-panel" style="flex: 1; min-width: 300px;">
+            <div class="section-box p-20 mb-20">
+                <h3 class="m-0 mb-15">Symulacja Skanera</h3>
+                <p class="small text-muted">Użyj tego narzędzia, aby przetestować interfejs mobilny bez fizycznego terminala Zebra.</p>
+                
+                <div class="divider mb-15" style="opacity: 0.1;"></div>
+                
+                <h4 class="small bold mb-10">Wybierz Linię:</h4>
+                <div class="button-group mb-20">
+                    <a href="?linia=AGRO" class="btn btn-sm {% if linia == 'AGRO' %}btn-primary{% else %}btn-outline{% endif %}">AGRO</a>
+                    <a href="?linia=PSD" class="btn btn-sm {% if linia == 'PSD' %}btn-primary{% else %}btn-outline{% endif %}">PSD</a>
+                </div>
+
+                <div class="alert alert-info py-10 px-15 small">
+                    <span class="material-icons" style="font-size: 16px;">info</span>
+                    Symulator odzwierciedla rozdzielczość <strong>480x800px</strong>, która jest standardem dla serii MC33.
+                </div>
+            </div>
+
+            <div class="section-box p-20">
+                <h3 class="m-0 mb-15">Testy i Logi</h3>
+                <button onclick="document.getElementById('scannerFrame').contentWindow.location.reload()" class="btn btn-outline w-100 mb-10">
+                    <span class="material-icons">refresh</span> Przeładuj Skaner
+                </button>
+                <p class="xxs text-muted italic">Zmiany w kodzie interfejsu (templates/scanner/index.html) będą widoczne po przeładowaniu ramki.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let rotated = false;
+    function rotateSimulator() {
+        const device = document.getElementById('zebraDevice');
+        const frame = document.getElementById('scannerFrame');
+        const screen = document.querySelector('.screen-frame');
+        
+        if (!rotated) {
+            device.style.width = '940px';
+            device.style.height = '520px';
+            device.style.padding = '20px 70px';
+            screen.style.width = '800px';
+            screen.style.height = '480px';
+            rotated = true;
+        } else {
+            device.style.width = '520px';
+            device.style.height = '940px';
+            device.style.padding = '70px 20px';
+            screen.style.width = '480px';
+            screen.style.height = '800px';
+            rotated = false;
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+/* static/style.css - PROFESSIONAL THEME + MOBILE READY */
+
+:root {
+    /* COLOR PALETTE */
+    --primary-color: #2c3e50;
+    /* Ciemny granat */
+    --accent-color: #3498db;
+    /* Niebieski */
+    --accent-dark: #2980b9;
+    /* Ciemny niebieski (hover) */
+    --success-color: #27ae60;
+    /* Zielony */
+    --success-dark: #229954;
+    /* Ciemny zielony */
+    --success-light: #58d68d;
+    /* Jasny zielony */
+    --warning-color: #f39c12;
+    /* Pomarańczowy */
+    --warning-dark: #e67e22;
+    /* Dark orange */
+    --danger-color: #c0392b;
+    /* Czerwony */
+    --danger-light: #e74c3c;
+    /* Jasny czerwony */
+    --danger-dark: #a93226;
+    /* Ciemny czerwony */
+    --danger-hover: #ff4545;
+    /* Hover red */
+    --info-color: #17a2b8;
+    /* Info cyan */
+    --info-dark: #138496;
+    /* Dark cyan */
+    --bg-body: #f4f6f9;
+    /* Tło strony */
+    --bg-card: #ffffff;
+    /* Tło kart */
+    --bg-hover: rgba(0, 0, 0, 0.05);
+    /* Hover background */
+    --text-main: #333333;
+    --text-muted: #7f8c8d;
+    --border-color: #e0e0e0;
+
+    /* SHADOWS */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 20px rgba(52, 152, 219, 0.15);
+
+    /* SPACING - consistent rhythm */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 32px;
+
+    /* TYPOGRAPHY */
+    --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 600;
+    --font-weight-extra-bold: 700;
+    --font-weight-ultra-bold: 800;
+
+    /* BORDER & RADIUS */
+    --border-radius-sm: 4px;
+    --border-radius-md: 6px;
+    --border-radius-lg: 8px;
+    --border-radius-full: 20px;
+
+    /* TRANSITIONS */
+    --transition-fast: 0.12s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.28s cubic-bezier(.2, .8, .2, 1);
+}

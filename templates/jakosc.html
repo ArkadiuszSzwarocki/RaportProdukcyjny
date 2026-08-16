@@ -1,0 +1,58 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>{{ _('jakosc_zlecenia') }}</h2>
+<p class="text-muted">{{ _('lista_zlecen_jakosc') }}</p>
+
+<div style="margin-bottom:10px;">
+  <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="btn btn-sm btn-outline-primary">Podsumowanie zasypów (dla lab)</a>
+</div>
+
+{% if rola in ['laboratorium', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
+    <div>
+  <form action="{{ url_for('quality.jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
+    <input type="text" name="produkt" title="{{ _('produkt') }}" placeholder="{{ _('produkt') }}" required class="input-sm" aria-label="Produkt">
+    <input type="number" name="tonaz" title="{{ _('waga_kg_symbol') }}" placeholder="{{ _('waga_kg_symbol') }}" min="0" class="input-sm w-80" aria-label="Waga (kg)">
+    <input type="date" name="data_planu" title="{{ _('data_planu') }}" value="{{ request.args.get('data') or '' }}" class="input-sm" aria-label="Data planu">
+    <select name="typ_produkcji" title="{{ _('typ_produkcji') }}" aria-label="Typ produkcji" class="input-sm">
+      <option value="worki_zgrzewane_25">{{ _('worki_zgrzewane_25kg') }}</option>
+      <option value="worki_zgrzewane_20">{{ _('worki_zgrzewane_20kg') }}</option>
+      <option value="worki_zszywane_25">{{ _('worki_zszywane_25kg') }}</option>
+      <option value="worki_zszywane_20">{{ _('worki_zszywane_20kg') }}</option>
+      <option value="bigbag">BigBag</option>
+    </select>
+    <button type="submit" class="btn-action btn-primary">{{ _('utworz_zlecenie_jakosci') }}</button>
+  </form>
+</div>
+{% endif %}
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>{{ _('id') }}</th>
+      <th>{{ _('data') }}</th>
+      <th>{{ _('produkt') }}</th>
+      <th>{{ _('sekcja') }}</th>
+      <th>{{ _('waga_kg_symbol') }}</th>
+      <th>{{ _('status') }}</th>
+      <th>{{ _('real') }}</th>
+      <th>{{ _('dokumenty') }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for z in zlecenia %}
+    <tr>
+      <td>{{ z[0] }}</td>
+      <td>{{ z[2] }}</td>
+      <td><a href="{{ url_for('jakosc_detail', plan_id=z[0]) }}">{{ z[1] }}</a></td>
+      <td>{{ z[3] }}</td>
+      <td>{{ z[4] or '-' }}</td>
+      <td>{{ z[5] }}</td>
+      <td>{{ z[6] }} - {{ z[7] }}</td>
+      <td><a href="{{ url_for('jakosc_detail', plan_id=z[0]) }}">{{ _('szczegoly') }}</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="text-center text-muted">{{ _('brak_zlecen_jakosciowych') }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _('system_produkcyjny') }}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}&v2=2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}?v={{ static_version }}&v2=2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/inline-styles.css') }}?v={{ static_version }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#0f172a">
+    <!-- GLOBAL LAYOUT ASSETS -->
+    {% include 'includes/_layout_styles.html' %}
+    {% include 'includes/_layout_scripts.html' %}
+    <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
+    <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
+    <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
+    {% block extra_css %}{% endblock %}
+</head>
+
+{% set role = session.get('rola', '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}
+{# {% if role in ['lider', 'admin', 'masteradmin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %} #}
+{% set user_hall = 'ALL' if role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
+{% set hall_view = session.get('selected_hall_view') %}
+{% set can_switch_halls = user_hall == 'ALL' %}
+{% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
+{% set current_theme = linia|default(effective_hall)|upper %}
+{% set ns = namespace(is_active=false, active_plan_id=None) %}
+
+<body class="{% if current_theme == 'AGRO' or current_theme == '2' %}theme-agro{% endif %}">
+    {% include 'dashboard/_dashboard_init.html' %}
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Global spinner overlay (appears if navigation / data load exceeds 1s) -->
+    <style>
+        /* prevent hidden spinner from blocking interactions */
+        #globalSpinner { pointer-events: none; }
+        #globalSpinner.overlay-active { pointer-events: auto; }
+    </style>
+    <div id="globalSpinner" aria-hidden="true">
+        <div class="spinner" role="status" aria-label="Ładowanie"></div>
+    </div>
+    <!-- GLOBAL NAVIGATION BAR -->
+    {% include 'includes/_layout_navbar.html' %}
+
+    <div class="app-layout">
+        {% include 'includes/sidebar.html' %}
+        <main class="main-content" id="mainContent">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% if denied %}
+            <div class="access-denied-container">
+                <h2>🚫 Brak dostępu</h2>
+                <a href="/logout">Wyloguj się</a>
+            </div>
+            {% else %}
+                {% block content %}{% endblock %}
+            {% endif %}
+        </main>
+    </div>
+
+    {% include 'includes/_layout_modals.html' %}
+
+    <!-- GLOBAL SCRIPTS -->
+    {% include 'includes/_layout_footer_scripts.html' %}
+    {% block footer_scripts %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .bug-container {
+        display: grid;
+        gap: 20px;
+    }
+    .bug-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e0e6ed;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+    }
+    .bug-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px 20px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e0e6ed;
+    }
+    .bug-user { font-weight: 700; color: #2c3e50; }
+    .bug-time { font-size: 0.85rem; color: #7f8c8d; }
+    .bug-status { 
+        margin-left: auto;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: #ebf5ff;
+        color: #2f7dd1;
+    }
+    .bug-body {
+        padding: 20px;
+        flex-grow: 1;
+    }
+    .bug-description {
+        line-height: 1.6;
+        color: #34495e;
+        white-space: pre-wrap;
+        margin-bottom: 15px;
+    }
+    .bug-path {
+        font-family: monospace;
+        font-size: 0.85rem;
+        background: #f1f3f5;
+        padding: 5px 10px;
+        border-radius: 4px;
+        color: #c0392b;
+        display: inline-block;
+        margin-bottom: 15px;
+    }
+    .bug-screenshots {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 15px;
+    }
+    .bug-screenshots img {
+        width: 150px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .bug-screenshots img:hover {
+        transform: scale(1.05);
+    }
+    .bug-footer {
+        padding: 12px 20px;
+        background: #fff;
+        border-top: 1px solid #f1f3f5;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .bug-reply-box {
+        width: 100%;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 12px;
+    }
+    .bug-reply-meta {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 6px;
+    }
+    .bug-reply-text {
+        font-size: 14px;
+        color: #0f172a;
+        white-space: pre-wrap;
+        line-height: 1.45;
+    }
+    .bug-reply-form {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .bug-reply-form textarea {
+        flex: 1;
+        min-width: 260px;
+    }
+    
+    /* Fullscreen Image Overlay */
+    #imageOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        cursor: zoom-out;
+    }
+    #imageOverlay img {
+        max-width: 95%;
+        max-height: 95%;
+        box-shadow: 0 0 30px rgba(255,255,255,0.1);
+    }
+</style>
+
+<div class="section-box">
+    <div class="section-header" style="flex-wrap: wrap; gap: 15px;">
+        <div style="display:flex; align-items:center; gap:15px;">
+            <h2 style="margin:0;">🐞 Zgłoszone błędy i usprawnienia</h2>
+            <div class="sort-control" style="display:flex; align-items:center; gap:8px; background: #f1f5f9; padding: 4px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <label for="bugSort" style="font-size: 13px; font-weight: 600; color: #64748b;">Sortuj:</label>
+                <select id="bugSort" class="input-sm" style="border:none; background:transparent; font-weight:700; color: #0f172a; cursor:pointer;" onchange="window.location.href='?sort=' + this.value">
+                    <option value="id_desc" {% if current_sort == 'id_desc' %}selected{% endif %}>Najnowsze ID</option>
+                    <option value="id_asc" {% if current_sort == 'id_asc' %}selected{% endif %}>Najstarsze ID</option>
+                    <option value="date_desc" {% if current_sort == 'date_desc' %}selected{% endif %}>Data (nowe)</option>
+                    <option value="date_asc" {% if current_sort == 'date_asc' %}selected{% endif %}>Data (stare)</option>
+                    <option value="status" {% if current_sort == 'status' %}selected{% endif %}>Status</option>
+                    <option value="user" {% if current_sort == 'user' %}selected{% endif %}>Użytkownik</option>
+                    <option value="reply_date" {% if current_sort == 'reply_date' %}selected{% endif %}>Data odpowiedzi</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <a href="/admin/ustawienia/errors" class="btn btn-secondary">Error Log</a>
+            <a href="/admin/centrum" class="btn">Powrót do Centrum</a>
+        </div>
+    </div>
+
+    {% if bugs %}
+        <div class="bug-container">
+            {% for bug in bugs %}
+            <div class="bug-card">
+                <div class="bug-header">
+                    <span class="user-avatar" style="background:#3498db; color:white; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:14px; font-weight:bold;">{{ bug.login[0]|upper }}</span>
+                    <div>
+                        <div class="bug-user">{{ bug.login }}</div>
+                        <div class="bug-time">🕒 {{ bug.timestamp|replace('T', ' ')|truncate(19, True, '') }}</div>
+                    </div>
+                    <span class="bug-status">{{ bug.status }}</span>
+                </div>
+                <div class="bug-body">
+                    <div class="bug-path">📍 {{ bug.sciezka }}</div>
+                    <div class="bug-description">{{ bug.opis }}</div>
+                    
+                    {% if bug.zalaczniki %}
+                    <div class="bug-screenshots">
+                        {% for img in bug.zalaczniki %}
+                        <img src="{{ url_for('static', filename='uploads/bugs/' + img) }}" onclick="openOverlay(this.src)" alt="screenshot">
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="bug-footer">
+                    {% if bug.odpowiedz_admina %}
+                    <div class="bug-reply-box">
+                        <div class="bug-reply-meta">Odpowiedź: {{ bug.odpowiedz_by_login or 'admin' }} • {{ (bug.odpowiedz_timestamp|string)|replace('T', ' ')|truncate(19, True, '') }}</div>
+                        <div class="bug-reply-text">{{ bug.odpowiedz_admina }}</div>
+                    </div>
+                    {% else %}
+                    <form action="{{ url_for('admin.admin_respond_bug', bug_id=bug.id) }}" method="POST" class="bug-reply-form">
+                        <textarea name="odpowiedz_admina" rows="3" class="input-sm" required placeholder="Wpisz odpowiedź dla użytkownika (konkretnie: co sprawdzone, co poprawione, co zrobić dalej)..."></textarea>
+                        <button type="submit" class="btn btn-sm btn-primary">Wyślij odpowiedź</button>
+                    </form>
+                    {% endif %}
+
+                    <form action="{{ url_for('admin.admin_delete_bug', bug_id=bug.id) }}" method="POST" onsubmit="return confirm('Czy na pewno chcesz usunąć to zgłoszenie?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Usuń zgłoszenie</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card" style="text-align: center; padding: 60px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">🧘‍♂️</div>
+            <h3>Brak zgłoszonych błędów</h3>
+            <p class="muted">Wygląda na to, że system działa idealnie (albo nikt nic nie zgłosił).</p>
+        </div>
+    {% endif %}
+</div>
+
+<div id="imageOverlay" onclick="this.style.display='none'">
+    <img id="overlayImg" src="" alt="fullscreen">
+</div>
+
+<script>
+    function openOverlay(src) {
+        document.getElementById('overlayImg').src = src;
+        document.getElementById('imageOverlay').style.display = 'flex';
+    }
+</script>
+{% endblock %}

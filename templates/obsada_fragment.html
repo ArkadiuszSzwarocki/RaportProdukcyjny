@@ -1,0 +1,408 @@
+<style>
+/* ─── Obsada visual improvements ─── */
+.obsada-top-bar {
+  background: linear-gradient(135deg, #f4f8ff, #eef2f9);
+  border: 1px solid #cfe0f7;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(52,152,219,.07);
+}
+.obsada-field-group { display: flex; flex-direction: column; gap: 3px; }
+.obsada-field-label {
+  font-size: .7em; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-muted); font-weight: 700; white-space: nowrap;
+}
+.obsada-section:nth-child(1) { border-top: 4px solid #3498db !important; }
+.obsada-section:nth-child(2) { border-top: 4px solid #2ecc71 !important; }
+.obsada-section:nth-child(3) { border-top: 4px solid #e67e22 !important; }
+.obsada-section:nth-child(4) { border-top: 4px solid #9b59b6 !important; }
+.obsada-section:nth-child(5) { border-top: 4px solid #e74c3c !important; }
+.obsada-section:nth-child(6) { border-top: 4px solid #f39c12 !important; }
+.obsada-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.obsada-section-head h4 { margin: 0; flex: 1; }
+.obsada-section-icon { font-size: 1.2em; line-height: 1; }
+.obsada-count-badge {
+  background: rgba(52,152,219,.1); color: var(--accent-color);
+  border-radius: 20px; padding: 2px 9px; font-size: .75em; font-weight: 700;
+}
+.obsada-worker-selector {
+  background: rgba(52,152,219,.04) !important;
+  border: 1px dashed rgba(52,152,219,.35) !important;
+  border-radius: 8px !important; padding: 8px 10px !important;
+  margin-bottom: 10px !important; gap: 8px !important;
+}
+.obsada-worker-selector select,
+.obsada-worker-selector .obsada-select { flex: 1; min-width: 0; }
+.obsada-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 16px 10px; color: var(--text-muted); font-size: .86em; text-align: center;
+}
+.obsada-empty-icon { font-size: 1.4em; opacity: .4; }
+/* table-as-list */
+.obsada-table { border-collapse: separate !important; border-spacing: 0 3px !important; }
+.obsada-table thead { display: none !important; }
+.obsada-table tbody tr { background: #f8fbff; border-radius: 6px; transition: background .15s; }
+.obsada-table tbody tr:hover { background: #e8f3fe; }
+.obsada-table td { border: none !important; padding: 7px 10px; vertical-align: middle; }
+.obsada-table td:first-child { border-radius: 6px 0 0 6px; border-left: 3px solid rgba(52,152,219,.18) !important; }
+.obsada-table td:last-child { border-radius: 0 6px 6px 0; width: 46px; }
+.obsada-worker-row { display: flex; align-items: center; gap: 9px; }
+.obsada-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #3498db, #64b5f6);
+  color: white; font-weight: 700; font-size: .82em; flex-shrink: 0;
+}
+.obsada-table .delete-button { width: 28px !important; height: 28px !important; font-size: .8em !important; }
+</style>
+<div class="section-box">
+    <div class="section-header">
+        <h2>{{ _('obsada') }}</h2>
+    </div>
+
+    <div class="mt-10">
+        <div class="obsada-toolbar obsada-top-bar">
+            <div class="obsada-field-group">
+                <label for="obsada-date" class="obsada-field-label">Data</label>
+                <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
+                    class="input-sm">
+            </div>
+            {% if rola in ['lider','admin', 'masteradmin'] %}
+            {% if linia == 'PSD' or not linia %}
+            <div class="obsada-field-group">
+                <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
+                <select id="lider_psd" class="input-sm">
+                    <option value="">- brak -</option>
+                    {% for p in all_pracownicy %}
+                    <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if linia == 'Agro' %}
+            <div class="obsada-field-group">
+                <label for="lider_agro" class="obsada-field-label">{{ _('lider_agro_label') }}</label>
+                <select id="lider_agro" class="input-sm">
+                    <option value="">- brak -</option>
+                    {% for p in all_pracownicy %}
+                    <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <button type="button" id="btnSaveLiderzy" class="btn btn-primary">{{ _('zapisz_liderow') }}</button>
+            {% endif %}
+        </div>
+        <div class="obsada-sections">
+            {% if linia == 'Agro' %}
+                {% set sections = ['Zasyp','Workowanie','Hala Agro','Laboratorium','Handel'] %}
+            {% else %}
+                {% set sections = ['Zasyp','Workowanie','Magazyn','Laboratorium','Handel'] %}
+            {% endif %}
+            {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒'} %}
+            {% for s in sections %}
+            <div class="obsada-section" data-sekcja="{{ s }}">
+                {% set cnt = (obsady_map.get(s, []) if obsady_map is defined else []) | length %}
+                <div class="obsada-section-head">
+                    <span class="obsada-section-icon">{{ section_icons.get(s, '👤') }}</span>
+                    <h4>{{ s }}</h4>
+                    {% if cnt > 0 %}<span class="obsada-count-badge">{{ cnt }}</span>{% endif %}
+                </div>
+                {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                <div class="d-flex gap-5 align-center mb-8 obsada-worker-selector">
+                    <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
+                    <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}"
+                        aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
+                    </select>
+                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start">Dodaj</button>
+                </div>
+                {% endif %}
+
+                <div id="current-obsada-{{ loop.index0 }}" class="mb-8">
+                    {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
+                    {% if current %}
+                    <table class="modern-table small obsada-table">
+                        <thead>
+                            <tr>
+                                <th>{{ _('pracownik') }}</th>
+                                <th class="obsada-akcje-col">{{ _('akcje') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="current-obsada-tbody-{{ loop.index0 }}">
+                            {% for o in current %}
+                            <tr data-id="{{ o[0] }}" data-pracownik-id="{{ o[2] }}" data-pracownik-name="{{ o[1] }}">
+                                <td>
+                                    <div class="obsada-worker-row">
+                                        <span class="obsada-avatar">{{ o[1][0] | upper if o[1] else '?' }}</span>
+                                        <strong>{{ o[1] }}</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                                    <form action="{{ url_for('leaves.usun_z_obsady', id=o[0]) }}" method="POST"
+                                        class="m-0 d-inline-block">
+                                        <button type="submit" class="delete-button"
+                                            data-pracownik-id="{{ o[2] }}"
+                                            data-pracownik-name="{{ o[1] }}"
+                                            aria-label="Usuń z obsady">🗑️</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>{{ _('brak_przypisanych') }}</span></div>
+                    {% endif %}
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            {% endfor %}
+        </div>
+
+        <script>
+            (function () {
+                // Dynamicznie czytaj sekcje z HTML-u zamiast hardcoding
+                // Znajdź tylko te, które nie były jeszce inicjalizowane (zapobiega konfliktom z tłem)
+                const sectionEls = document.querySelectorAll('.obsada-section:not([data-obsada-init="true"])');
+
+                // Zapobiegaj zamknięciu sidebara gdy klikniemy na selecty
+                const allSelects = document.querySelectorAll('.obsada-toolbar select:not([data-obsada-init="true"]), .obsada-section select:not([data-obsada-init="true"])');
+                allSelects.forEach(sel => {
+                    sel.setAttribute('data-obsada-init', 'true');
+                    sel.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                    });
+                    sel.addEventListener('change', function (e) {
+                        e.stopPropagation();
+                    });
+                });
+
+                sectionEls.forEach(function (sectionEl) {
+                    sectionEl.setAttribute('data-obsada-init', 'true');
+                    const name = sectionEl.getAttribute('data-sekcja');
+
+                    const select = sectionEl.querySelector('.obsada-select');
+                    const addBtn = sectionEl.querySelector('.btn-start');
+                    const pending = sectionEl.querySelector('[id^="pending-list-"]');
+                    const sekcjaEl = sectionEl.querySelector('input[type="hidden"]');
+                    const sekcja = sekcjaEl ? sekcjaEl.value : name;
+                    const confirmBtn = sectionEl.querySelector('[id^="btnConfirmObsada-"]');
+                    const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+
+                    // Immediate add: when clicking 'Dodaj', send AJAX to add worker and update list
+                    if (addBtn) {
+                        addBtn.addEventListener('click', async function () {
+                            if (!select) return;
+                            const val = select.value; const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+                            if (!val) return;
+                            addBtn.disabled = true;
+                            try {
+                                const fd = new URLSearchParams(); fd.append('sekcja', sekcja); fd.append('pracownik_id', val);
+                                // Search obsada date contextually via closest popup or fallback
+                                let dateEl = null;
+                                const popup = sectionEl.closest('.quick-popup');
+                                if (popup) dateEl = popup.querySelector('#obsada-date');
+                                if (!dateEl) dateEl = document.getElementById('obsada-date');
+                                const dateVal = dateEl ? dateEl.value : '';
+                                if (dateVal) fd.append('date', dateVal);
+
+                                const resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                                if (!resp.ok) { showToast && showToast('Błąd: ' + resp.status, 'error'); addBtn.disabled = false; return; }
+                                let j = null;
+                                try { j = await resp.json(); } catch (e) { j = null; }
+                                const newId = j && j.id ? j.id : null;
+                                const newName = j && j.name ? j.name : txt;
+                                if (current) {
+                                    // if a table body exists, append a row; otherwise fallback to previous chip behavior
+                                    const tbody = current.querySelector('tbody[id^="current-obsada-tbody-"]');
+                                    if (tbody) {
+                                        const tr = document.createElement('tr');
+                                        if (newId) tr.setAttribute('data-id', newId);
+                                        const tdName = document.createElement('td'); tdName.innerHTML = '<strong>' + (newName || '') + '</strong>';
+                                        const tdAct = document.createElement('td');
+                                        const remBtn = document.createElement('button');
+                                        remBtn.className = 'delete-button';
+                                        remBtn.type = 'button';
+                                        remBtn.innerHTML = '🗑️';
+                                        remBtn.setAttribute('data-pracownik-id', val);
+                                        remBtn.setAttribute('data-pracownik-name', txt);
+                                        if (newId) {
+                                            remBtn.addEventListener('click', async function (ev) {
+                                                ev.preventDefault();
+                                                ev.stopPropagation();
+                                                const url = '/api/usun_z_obsady/' + newId;
+                                                try {
+                                                    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                                                    if (r.status === 401) { window.location.href = '/login'; return; }
+                                                    if (!r.ok) { showToast && showToast('Błąd usuwania: ' + r.status, 'error'); return; }
+                                                    tr.remove();
+                                                    if (val && select) {
+                                                        const opt = document.createElement('option');
+                                                        opt.value = val;
+                                                        opt.textContent = txt;
+                                                        select.appendChild(opt);
+                                                    }
+                                                    showToast && showToast('Usunięto pracownika', 'success');
+                                                } catch (err) {
+                                                    console.error(err);
+                                                    showToast && showToast('Błąd sieci', 'error');
+                                                }
+                                            });
+                                        } else {
+                                            remBtn.addEventListener('click', function () { tr.remove(); });
+                                        }
+                                        tdAct.appendChild(remBtn);
+                                        tr.appendChild(tdName); tr.appendChild(tdAct); tbody.appendChild(tr);
+                                    } else {
+                                        // No table exists yet, need to create one
+                                        current.innerHTML = ''; // clear "Brak przypisanych"
+                                        const table = document.createElement('table'); table.className = 'modern-table small obsada-table';
+                                        const thead = document.createElement('thead');
+                                        thead.innerHTML = '<tr><th>Pracownik</th><th class="obsada-akcje-col">Akcje</th></tr>';
+                                        const newTbody = document.createElement('tbody');
+                                        // fallback id just in case
+                                        newTbody.id = 'current-obsada-tbody-' + Math.floor(Math.random() * 10000);
+
+                                        const tr = document.createElement('tr');
+                                        if (newId) tr.setAttribute('data-id', newId);
+                                        const tdName = document.createElement('td'); tdName.innerHTML = '<div class="obsada-worker-row"><span class="obsada-avatar">' + (newName ? newName[0].toUpperCase() : '?') + '</span><strong>' + (newName || '') + '</strong></div>';
+                                        const tdAct = document.createElement('td');
+                                        const remBtn = document.createElement('button');
+                                        remBtn.className = 'delete-button';
+                                        remBtn.type = 'button';
+                                        remBtn.innerHTML = '🗑️';
+                                        remBtn.setAttribute('data-pracownik-id', val);
+                                        remBtn.setAttribute('data-pracownik-name', txt);
+                                        if (newId) {
+                                            remBtn.addEventListener('click', async function (ev) {
+                                                ev.preventDefault();
+                                                ev.stopPropagation();
+                                                const url = '/api/usun_z_obsady/' + newId;
+                                                try {
+                                                    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                                                    if (r.status === 401) { window.location.href = '/login'; return; }
+                                                    if (!r.ok) { showToast && showToast('Błąd usuwania: ' + r.status, 'error'); return; }
+                                                    tr.remove();
+                                                    if (val && select) {
+                                                        const opt = document.createElement('option');
+                                                        opt.value = val;
+                                                        opt.textContent = txt;
+                                                        select.appendChild(opt);
+                                                    }
+                                                    showToast && showToast('Usunięto pracownika', 'success');
+                                                } catch (err) {
+                                                    console.error(err);
+                                                    showToast && showToast('Błąd sieci', 'error');
+                                                }
+                                            });
+                                        } else {
+                                            remBtn.addEventListener('click', function () { tr.remove(); });
+                                        }
+                                        tdAct.appendChild(remBtn);
+
+                                        tr.appendChild(tdName); tr.appendChild(tdAct);
+                                        newTbody.appendChild(tr);
+                                        table.appendChild(thead); table.appendChild(newTbody);
+                                        current.appendChild(table);
+                                    }
+                                }
+                                // remove option from select
+                                try { const opt = select.querySelector('option[value="' + val + '"]'); if (opt) opt.remove(); } catch (e) { }
+                                select.selectedIndex = 0;
+                                showToast && showToast('Dodano pracownika', 'success');
+                            } catch (e) { console.error(e); showToast && showToast('Błąd sieci', 'error'); }
+                            addBtn.disabled = false;
+                        });
+                    }
+
+                    if (current) {
+                        // delegate delete button clicks inside the table body
+                        current.addEventListener('click', function (ev) {
+                            const t = ev.target;
+                            if (!t.classList.contains('btn-delete') && !t.closest('.delete-button')) return;
+                            const frm = t.closest('form');
+                            if (frm) {
+                                ev.preventDefault();
+                                const url = frm.getAttribute('action') || window.location.href;
+                                const tr = t.closest('tr');
+                                const chip = t.closest('.chip');
+                                const pracownikId = t.getAttribute('data-pracownik-id') || (tr ? tr.getAttribute('data-pracownik-id') : null) || (chip ? chip.getAttribute('data-pracownik-id') : null);
+                                const pracownikName = t.getAttribute('data-pracownik-name') || (tr ? tr.getAttribute('data-pracownik-name') : null) || (chip ? chip.getAttribute('data-pracownik-name') : null);
+                                fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                                    .then(async function (resp) {
+                                        if (resp.status === 401) { window.location.href = '/login'; return; }
+                                        if (!resp.ok) { showToast && showToast('Błąd usuwania: ' + resp.status, 'error'); return; }
+                                        if (tr) tr.remove();
+                                        if (chip) chip.remove();
+                                        // zwroć pracownika na listę wyboru
+                                        if (pracownikId && select) {
+                                            const opt = document.createElement('option');
+                                            opt.value = pracownikId;
+                                            opt.textContent = pracownikName || pracownikId;
+                                            select.appendChild(opt);
+                                        }
+                                        showToast && showToast('Usunięto pracownika', 'success');
+                                    }).catch(function (err) { console.error('delete obsada failed', err); showToast && showToast('Błąd sieci', 'error'); });
+                            }
+                        });
+                    }
+
+                    // no pending list in immediate-add mode
+                });
+
+                // Date selector: nawiguj do tej samej strony z nową datą
+                const obsadaDateEl = document.querySelector('#obsada-date:not([data-obsada-init="true"])');
+                if (obsadaDateEl) {
+                    obsadaDateEl.dataset.obsadaInit = 'true';
+                    obsadaDateEl.addEventListener('change', function () {
+                        if (!this.value) return;
+                        const newDate = this.value;
+                        const isInPopup = !!this.closest('.quick-popup');
+                        if (isInPopup) {
+                            // Fragment jest w popupie – załaduj nową datę jako AJAX bez zamykania popupa
+                            const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&sekcja={{ sekcja|urlencode }}&linia={{ linia|urlencode }}';
+                            if (typeof showSlideOver === 'function') {
+                                showSlideOver(fetchUrl);
+                            }
+                        } else {
+                            // Pełna strona – normalna nawigacja
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('date', newDate);
+                            window.location.href = url.toString();
+                        }
+                    });
+                }
+
+                // save leaders handler (bind once, avoid conflicts)
+                const uninitSaveBtns = document.querySelectorAll('#btnSaveLiderzy:not([data-obsada-init="true"])');
+                uninitSaveBtns.forEach(function (saveBtn) {
+                    saveBtn.setAttribute('data-obsada-init', 'true');
+                    saveBtn.addEventListener('click', async function () {
+                        // contextual search for values
+                        const container = saveBtn.closest('.quick-popup') || document;
+                        const dateEl = container.querySelector('#obsada-date'); const dateVal = dateEl ? dateEl.value : '';
+                        const lpsdWrap = container.querySelector('#lider_psd'); const lpsd = lpsdWrap ? lpsdWrap.value : '';
+                        const lagroWrap = container.querySelector('#lider_agro'); const lagro = lagroWrap ? lagroWrap.value : '';
+                        saveBtn.disabled = true;
+                        try {
+                            const fd = new URLSearchParams(); if (dateVal) fd.append('date', dateVal); fd.append('lider_psd', lpsd); fd.append('lider_agro', lagro);
+                            const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            if (!resp.ok) { showToast && showToast('Błąd zapisu liderów: ' + resp.status, 'error'); saveBtn.disabled = false; return; }
+                            showToast && showToast('Zapisano liderów', 'success');
+                        } catch (e) { console.error(e); showToast && showToast('Błąd sieci', 'error'); }
+                        saveBtn.disabled = false;
+                    });
+                });
+            })();
+        </script>
+    </div>

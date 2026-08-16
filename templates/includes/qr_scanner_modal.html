@@ -1,0 +1,123 @@
+<!-- Universal QR Code Scanner Modal with Camera Support -->
+<dialog id="modalQrCamera" class="modal-premium" style="width:90%; max-width:500px;">
+    <div class="modal-header">
+        <h4 class="modal-title">Skanowanie kodu QR</h4>
+        <button class="modal-close" onclick="closeQrScannerModal()">×</button>
+    </div>
+    <div class="modal-body text-center">
+        <!-- Camera Scanner Area -->
+        <div id="qr-reader" style="width:100%; max-width:400px; margin:0 auto 20px;"></div>
+        
+        <!-- Error Messages -->
+        <div id="qr-scanner-error" class="alert alert-danger" style="display:none; margin-bottom:15px;"></div>
+        
+        <!-- Scanned Result -->
+        <div id="qr-scan-result-container" style="margin-bottom:15px;">
+            <div class="text-muted small mb-5">Zeskanowany kod:</div>
+            <div id="qr-scan-result" class="text-lg font-bold" style="min-height:30px; padding:10px; background:#f1f5f9; border-radius:4px; word-break:break-all;"></div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="text-muted small">
+            <p>📱 Skieruj aparat na kod QR</p>
+            <p>Kod zostanie automatycznie zeskanowany</p>
+        </div>
+
+        <!-- Manual Input Option -->
+        <details style="margin-top:20px;">
+            <summary style="cursor:pointer; color:var(--primary-color); font-size:14px;">Wpisz kod ręcznie</summary>
+            <div style="margin-top:10px;">
+                <input 
+                    type="text" 
+                    id="qr-manual-input" 
+                    class="form-control text-center" 
+                    placeholder="Wpisz kod..."
+                    style="margin-top:10px;"
+                    oninput="enableManualQrConfirm()"
+                >
+                <button 
+                    class="btn btn-outline" 
+                    id="qr-manual-confirm-btn"
+                    onclick="confirmManualQrInput()"
+                    disabled
+                    style="margin-top:10px; width:100%;"
+                >
+                    Potwierdź ręczny wpis
+                </button>
+            </div>
+        </details>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeQrScannerModal()">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" id="qr-confirm-btn" onclick="confirmQrScan()" disabled>Potwierdź</button>
+    </div>
+</dialog>
+
+<script>
+// Manual input handlers
+function enableManualQrConfirm() {
+    const input = document.getElementById('qr-manual-input');
+    const btn = document.getElementById('qr-manual-confirm-btn');
+    if (btn) {
+        btn.disabled = !input.value.trim();
+    }
+}
+
+function confirmManualQrInput() {
+    const input = document.getElementById('qr-manual-input');
+    const value = input.value.trim();
+    if (value) {
+        document.getElementById('qr-scan-result').textContent = value;
+        confirmQrScan(value);
+    }
+}
+
+// Enter key support for manual input
+document.addEventListener('DOMContentLoaded', () => {
+    const manualInput = document.getElementById('qr-manual-input');
+    if (manualInput) {
+        manualInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmManualQrInput();
+            }
+        });
+    }
+});
+</script>
+
+<style>
+/* QR Scanner Styles */
+#qr-reader {
+    border: 2px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+}
+
+#qr-reader video {
+    width: 100% !important;
+    height: auto !important;
+    display: block;
+}
+
+#qr-reader__dashboard {
+    display: none !important;
+}
+
+.alert-danger {
+    background-color: #fee;
+    border: 1px solid #fcc;
+    color: #c33;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+#modalQrCamera details summary {
+    user-select: none;
+}
+
+#modalQrCamera details[open] summary {
+    margin-bottom: 10px;
+}
+</style>

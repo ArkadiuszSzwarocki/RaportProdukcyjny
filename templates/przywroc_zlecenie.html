@@ -1,0 +1,17 @@
+<div class="p-10" data-popup-title="{{ _('wznow_zlecenie') }}">
+    <form action="{{ url_for('planning.reanimate_zlecenie', id=id) }}" method="POST">
+        <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+        <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
+        <input type="hidden" name="data_planu" value="{{ data_planu or '' }}">
+
+        <p class="popup-message">
+            Czy wznowić zlecenie
+            <strong>{{ produkt if produkt else ('#' ~ id) }}</strong>?
+        </p>
+
+        <div class="popup-actions">
+            <button type="submit" class="btn-action btn-primary">{{ _('wznow') }}</button>
+            <button type="button" data-action="close-popup" class="btn-action btn-outline">{{ _('anuluj') }}</button>
+        </div>
+    </form>
+</div>

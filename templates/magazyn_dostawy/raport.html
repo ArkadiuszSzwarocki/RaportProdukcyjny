@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<div class="logistyka-container p-20">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1>Raport Logistyczny</h1>
+            <p class="text-muted small">Historia operacji dla linii {{ linia }}.</p>
+        </div>
+        <div class="flex gap-10">
+            <form class="flex gap-10 items-end bg-white p-10 border rounded shadow-sm" method="GET">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <div>
+                    <label class="form-label-premium">Od</label>
+                    <input type="date" name="date_from" class="premium-input py-4" value="{{ date_from }}">
+                </div>
+                <div>
+                    <label class="form-label-premium">Do</label>
+                    <input type="date" name="date_to" class="premium-input py-4" value="{{ date_to }}">
+                </div>
+                <button type="submit" class="btn-premium py-6">
+                    Filtruj
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj (nazwa, data, nr dostawy)..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px;">
+    </div>
+
+    <div class="premium-card">
+        <table class="premium-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Typ</th>
+                    <th>Referencja</th>
+                    <th>Trasa</th>
+                    <th>Zawartość</th>
+                    <th>Przez</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in dostawy %}
+                <tr>
+                    <td>
+                        {% set dt = d.potwierdzone_at if d.potwierdzone_at else d.created_at %}
+                        {% if dt %}
+                            {% if dt is string %}
+                                <div class="font-bold">{{ dt[:10] }}</div>
+                                <div class="text-xxs text-muted">{{ dt[11:16] }}</div>
+                            {% else %}
+                                <div class="font-bold">{{ dt.strftime('%Y-%m-%d') }}</div>
+                                <div class="text-xxs text-muted">{{ dt.strftime('%H:%M') }}</div>
+                            {% endif %}
+                        {% else %}
+                            <div class="font-bold">-</div>
+                            <div class="text-xxs text-muted">-</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="premium-badge {% if d.lokalizacja_z %}badge-info{% else %}badge-warning{% endif %}">
+                            {{ 'PRZESUNIĘCIE' if d.lokalizacja_z else 'DOSTAWA' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="font-bold font-mono small text-primary">{{ d.order_ref or d.id[:8] }}</div>
+                        <div class="text-xxs">{{ d.supplier or 'Dostawca' if not d.lokalizacja_z else 'Ruch wewn.' }}</div>
+                    </td>
+                    <td>
+                        <div class="flex items-center gap-6 small font-bold">
+                            <span>{{ d.lokalizacja_z or 'DOST.' }}</span>
+                            <span class="material-icons text-muted" style="font-size:12px;">arrow_forward</span>
+                            <span class="text-primary">{{ d.lokalizacja_do }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="small">
+                            {% for item in d.items_parsed %}
+                            <div class="mb-2">
+                                <strong>{{ item.productName }}</strong>: {{ item.netWeight or item.unitsPerPallet }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td class="small font-bold">
+                        {{ user_mapping.get(d.potwierdzone_przez, d.potwierdzone_przez) if d.potwierdzone_przez else '—' }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-40 text-muted italic">Brak danych.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+function filterTableRows() {
+    const input = document.getElementById('tableSearchInput');
+    if (!input) return;
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.premium-table tbody tr');
+    rows.forEach(row => {
+        // Skip empty state row if it exists
+        if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
+        
+        if(row.textContent.toLowerCase().includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

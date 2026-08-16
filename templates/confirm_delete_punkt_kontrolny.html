@@ -1,0 +1,13 @@
+<div class="p-10" data-popup-title="Usun punkt kontrolny zasypu">
+    <p>Czy na pewno chcesz usunac punkt kontrolny zasypu <strong>#{{ szarza_nr }}</strong> dla zlecenia <strong>#{{ plan_id }}</strong>?</p>
+    <form action="{{ url_for('production.zasyp_usun_punkt_kontrolny', plan_id=plan_id) }}" method="POST">
+        <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+        <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
+        <input type="hidden" name="szarza_nr" value="{{ szarza_nr or '' }}">
+        <input type="hidden" name="data_planu" value="{{ data_planu or '' }}">
+        <div class="button-group">
+            <button type="submit" class="btn-action btn-danger">USUN</button>
+            <button type="button" class="btn-action btn-action-cancel" data-action="close-popup">ANULUJ</button>
+        </div>
+    </form>
+</div>

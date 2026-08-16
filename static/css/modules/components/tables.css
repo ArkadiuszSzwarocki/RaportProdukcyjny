@@ -1,0 +1,145 @@
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+
+.modern-table th,
+.modern-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    vertical-align: middle;
+}
+
+.modern-table thead th {
+    background: transparent;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.95em;
+}
+
+.modern-table .small {
+    font-size: 0.85em;
+}
+
+@media (max-width: 1200px) {
+    .planista-viewport .section-header {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .planista-viewport .section-box {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .planista-viewport .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .planista-viewport .header-lg {
+        font-size: 1.35em;
+    }
+
+    .planista-viewport .modern-table {
+        font-size: 0.9em;
+    }
+
+    .planista-viewport .modern-table th,
+    .planista-viewport .modern-table td {
+        padding: 6px 8px;
+    }
+}
+
+@media (max-width: 420px) {
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        padding: 6px;
+        border-radius: 8px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        gap: 6px;
+        padding: 5px 2px;
+        font-size: 0.9em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        min-width: 74px;
+        flex: 0 0 74px;
+        font-size: 0.86em;
+    }
+
+    .planista-viewport .planista-main-table .status-badge {
+        font-size: 0.72em;
+        padding: 4px 6px;
+    }
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    margin-top: 12px;
+}
+
+.table-responsive table {
+    width: 100%;
+}
+
+.table-responsive .modern-table {
+    margin: 0;
+}
+
+/* Table and alert utilities */
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+.table th,
+    .table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    }
+
+.table-sm th,
+    .table-sm td {
+        padding: 6px 8px;
+    }
+
+/* merged from static/css/moje_godziny.css */
+    .cal-grid td {
+        background: #fff;
+    }
+
+.settings-online-table {
+        overflow-x: auto;
+    }
+
+/* Checkboxes in permission table */
+    .modern-table input[type="checkbox"] {
+        accent-color: var(--accent-color);
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+    }
+
+.modern-table label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+
+.modern-table label:last-child {
+        margin-bottom: 0;
+    }

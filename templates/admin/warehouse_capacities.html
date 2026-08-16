@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Pojemności Magazynów{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Pojemności Magazynów</h2>
+        <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-secondary">Powrót do Administracji</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category if category != 'error' else 'danger' }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Zarządzaj Limitami Magazynów</h5>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('admin.pojemnosci_magazynu') }}" method="POST">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Sekcja / Lokalizacja</th>
+                                <th>Pojemność Max (szt.)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pojemnosci %}
+                            <tr>
+                                <td class="fw-bold">{{ p.sekcja }}</td>
+                                <td>
+                                    <input type="number" class="form-control" name="pojemnosc_{{ p.sekcja }}" value="{{ p.pojemnosc_max }}" min="0" required>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="2" class="text-center text-muted">Brak zdefiniowanych pojemności w bazie.</td>
+                            </tr>
+                            {% endfor %}
+                            
+                            <!-- Dodawanie nowej sekcji -->
+                            <tr class="table-info">
+                                <td>
+                                    <input type="text" class="form-control" name="new_sekcja" placeholder="Nowa sekcja (opcjonalnie)">
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control" name="new_pojemnosc" placeholder="Pojemność" min="0">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-success px-4">Zapisz Zmiany</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

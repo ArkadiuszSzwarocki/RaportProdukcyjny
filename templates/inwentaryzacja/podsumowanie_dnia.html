@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-summary p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <!-- HEADER & DATE PICKER -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
+        <div>
+            <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
+                <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
+            </a>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                Podsumowanie Dzienne Inwentaryzacji
+                <span style="display: block; font-size: 14px; color: #64748b; font-weight: 400; margin-top: 4px;">Data: <strong>{{ date_str }}</strong></span>
+            </h1>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <form method="GET" action="{{ url_for('inwentaryzacja.podsumowanie_dnia') }}" style="display: flex; gap: 10px; align-items: center;">
+                <input type="date" name="date" value="{{ date_str }}" style="padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Inter', sans-serif;">
+                <button type="submit" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #3b82f6; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons">search</span> Pokaż
+                </button>
+            </form>
+            <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: 10px;">
+                <span class="material-icons">print</span> DRUKUJ
+            </button>
+        </div>
+    </div>
+
+    <!-- SUMMARY TABLES -->
+    {% for typ, tytul in kategorie.items() %}
+        {% set produkty = summary.get(typ, []) %}
+        
+        <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 30px; overflow: hidden;">
+            <div style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons" style="color: #3b82f6;">inventory_2</span>
+                    {{ tytul }}
+                </h2>
+                <span style="background: #e0e7ff; color: #4338ca; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;">
+                    Pozycji: {{ produkty|length }}
+                </span>
+            </div>
+            
+            {% if produkty|length > 0 %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #64748b; font-size: 12px; text-transform: uppercase;">
+                                <th style="padding: 12px 20px; font-weight: 700; border-bottom: 2px solid #e2e8f0;">Produkt</th>
+                                <th style="padding: 12px 20px; font-weight: 700; border-bottom: 2px solid #e2e8f0; text-align: center;">Zeskanowanych Palet</th>
+                                <th style="padding: 12px 20px; font-weight: 700; border-bottom: 2px solid #e2e8f0; text-align: right;">Suma Systemowa</th>
+                                <th style="padding: 12px 20px; font-weight: 700; border-bottom: 2px solid #e2e8f0; text-align: right;">Suma Faktyczna</th>
+                                <th style="padding: 12px 20px; font-weight: 700; border-bottom: 2px solid #e2e8f0; text-align: right;">Różnica</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in produkty %}
+                            <!-- GŁÓWNY WIERSZ (PODSUMOWANIE PRODUKTU) -->
+                            <tr style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'" onclick="toggleDetails('{{ typ }}_{{ loop.index }}')">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #0f172a;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="material-icons" id="icon_{{ typ }}_{{ loop.index }}" style="font-size: 18px; color: #94a3b8; transition: transform 0.2s;">expand_more</span>
+                                        {{ p.nazwa }}
+                                    </div>
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #3b82f6;">
+                                    {{ p.ilosc_palet }} szt
+                                </td>
+                                <td style="padding: 15px 20px; text-align: right; color: #64748b;">
+                                    {{ "%.2f"|format(p.suma_systemowa) }} {{ p.jednostka }}
+                                </td>
+                                <td style="padding: 15px 20px; text-align: right; font-weight: 700; color: #0f172a;">
+                                    {{ "%.2f"|format(p.suma_faktyczna) }} {{ p.jednostka }}
+                                </td>
+                                <td style="padding: 15px 20px; text-align: right; font-weight: 700;">
+                                    {% if p.roznica > 0.01 %}
+                                        <span style="color: #10b981;">+{{ "%.2f"|format(p.roznica) }} {{ p.jednostka }}</span>
+                                    {% elif p.roznica < -0.01 %}
+                                        <span style="color: #ef4444;">{{ "%.2f"|format(p.roznica) }} {{ p.jednostka }}</span>
+                                    {% else %}
+                                        <span style="color: #94a3b8;">0.00 {{ p.jednostka }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            
+                            <!-- DETALE (LISTA PALET) -->
+                            <tr id="details_{{ typ }}_{{ loop.index }}" style="display: none; background: #fafafa; border-bottom: 2px solid #e2e8f0;">
+                                <td colspan="5" style="padding: 0;">
+                                    <div style="padding: 15px 40px;">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                            <thead>
+                                                <tr style="color: #64748b; border-bottom: 1px solid #cbd5e1;">
+                                                    <th style="padding: 8px; font-weight: 600; text-align: left;">Nr Palety</th>
+                                                    <th style="padding: 8px; font-weight: 600; text-align: left;">Lokalizacja</th>
+                                                    <th style="padding: 8px; font-weight: 600; text-align: right;">System</th>
+                                                    <th style="padding: 8px; font-weight: 600; text-align: right;">Faktycznie</th>
+                                                    <th style="padding: 8px; font-weight: 600; text-align: right;">Różnica</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for pal in p.palety %}
+                                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                    <td style="padding: 8px; font-family: monospace; color: #475569;">{{ pal.nr_palety or 'Brak SSCC' }}</td>
+                                                    <td style="padding: 8px; color: #3b82f6; font-weight: 600;">{{ pal.lokalizacja }}</td>
+                                                    <td style="padding: 8px; text-align: right; color: #64748b;">{{ "%.2f"|format(pal.waga_systemowa) }}</td>
+                                                    <td style="padding: 8px; text-align: right; font-weight: 600; color: #0f172a;">{{ "%.2f"|format(pal.waga_faktyczna) }}</td>
+                                                    <td style="padding: 8px; text-align: right;">
+                                                        {% if pal.roznica > 0.01 %}
+                                                            <span style="color: #10b981;">+{{ "%.2f"|format(pal.roznica) }}</span>
+                                                        {% elif pal.roznica < -0.01 %}
+                                                            <span style="color: #ef4444;">{{ "%.2f"|format(pal.roznica) }}</span>
+                                                        {% else %}
+                                                            <span style="color: #cbd5e1;">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="padding: 30px; text-align: center; color: #94a3b8;">
+                    <span class="material-icons" style="font-size: 48px; color: #e2e8f0; margin-bottom: 10px; display: block;">inventory</span>
+                    Brak danych z inwentaryzacji w tym dniu dla tej kategorii.
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+    
+</div>
+
+<script>
+function toggleDetails(id) {
+    const row = document.getElementById('details_' + id);
+    const icon = document.getElementById('icon_' + id);
+    
+    if (row.style.display === 'none') {
+        row.style.display = 'table-row';
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        row.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+</script>
+
+<style>
+@media print {
+    body * { visibility: hidden; }
+    .inventory-summary, .inventory-summary * { visibility: visible; }
+    .inventory-summary { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; }
+    .btn-primary, .btn-outline, a { display: none !important; }
+    tr[id^="details_"] { display: table-row !important; } /* Zawsze drukujemy rozwinięte! */
+    span[id^="icon_"] { display: none !important; }
+    .inventory-summary { max-width: none !important; margin: 0 !important; }
+}
+</style>
+{% endblock %}

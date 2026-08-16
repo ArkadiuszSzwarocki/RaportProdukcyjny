@@ -1,0 +1,42 @@
+<div class="dashboard-header">
+  <div class="top-submenu" style="padding: 0; box-shadow: none; margin-top: 15px;">
+    <div class="top-submenu-inner"
+      style="margin-left: 0; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <nav class="top-menu" style="margin: 0;">
+        <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
+          href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}" data-slide>
+          <span class="material-icons">people</span> {{ _('obsada') }}
+        </a>
+        <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
+          href="{{ url_for('panels.panel_wnioski_page') }}" data-slide> <span
+            class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+        <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
+          href="{{ url_for('panels.panel_planowane_page') }}" data-slide> <span
+            class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+        <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
+          href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide> <span
+            class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+      </nav>
+
+      {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] %}
+      <div class="end-shift-wrapper-top" style="margin-left: auto;">
+        <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
+          id="endShiftForm" style="display: flex; gap: 10px; align-items: center;">
+          <input type="hidden" name="linia" value="{{ linia }}">
+          <label for="raport_date_picker" style="font-size: 0.85rem; color: #64748b; white-space: nowrap;">📅 Data:</label>
+          <input type="date" id="raport_date_picker" name="data"
+            style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: #f8fafc; color: #1e293b; cursor: pointer;">
+          <script>document.getElementById('raport_date_picker').value = new Date().toISOString().slice(0, 10);</script>
+          <button type="submit" class="btn-action btn-success btn-end-shift-large" style="white-space: nowrap;">
+            🏁 {{ _('zakonczy_zmiane_i_pobierz_raporty') }}
+          </button>
+          <button type="button" class="btn-action btn-info btn-send-email btn-end-shift-large" id="btnSendEmailReport"
+            style="white-space: nowrap;">
+            📧 {{ _('wyslij_raport_mailem') }}
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

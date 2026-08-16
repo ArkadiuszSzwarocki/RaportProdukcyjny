@@ -1,8 +1,0 @@
-# Query: { key: 'view-delivery-planning', view: View.DeliveryList, label: 'Planowanie Dostaw', permission: Permission.CREATE_DELIVERY },
-# ContextLines: 1
-
-1 wynik - 1 plik
-
-src\navigation.tsx:
-  115          subItems: [
-  117              { key: 'view-internal-transfers', view: View.InternalTransfers, label: 'Transfery OSiP', icon: React.createElement(ArrowLeftRightIcon, { className: "h-4 w-4 opacity-70" }), permission: Permission.MANAGE_INTERNAL_TRANSFERS },

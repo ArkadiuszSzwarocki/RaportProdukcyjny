@@ -1,0 +1,646 @@
+import glob
+import logging
+import os
+from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from app.core.audit import audit_log
+from app.db import get_db_connection, get_table_name
+from app.decorators import login_required
+from app.repositories.production_repository import log_plan_history
+from app.services.zasyp_etapy_service import ZasypEtapyService
+from werkzeug.security import check_password_hash
+
+def register_production_order_routes(production_bp, bezpieczny_powrot):
+    from app.services.mqtt_service import get_latest_data
+
+    def _is_truthy(value):
+        return str(value or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+    @production_bp.route('/api/opakowania/folie', methods=['GET'])
+    @login_required
+    def api_get_folie():
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT MIN(id) as id, nazwa, SUM(stan_magazynowy) as stan_magazynowy FROM magazyn_opakowania WHERE stan_magazynowy > 0 GROUP BY nazwa ORDER BY nazwa")
+            return jsonify(cursor.fetchall())
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
+    @login_required
+    def start_zlecenie(id):
+        """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toku')
+
+        Workowanie może startować niezależnie - Zasyp to przygotowanie wsadu,
+        Workowanie workuje z bufora. Jeśli na Zasyp jest inne zlecenie - pokaż info.
+        """
+        conn = get_db_connection()
+        try:
+            role_lc = str(session.get('rola') or '').strip().lower()
+            if role_lc in ['laborant', 'laboratorium']:
+                flash('❌ Brak uprawnień: laborant nie może uruchamiać zleceń.', 'warning')
+                return redirect(bezpieczny_powrot())
+
+            linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+            linia = str(linia_input).upper()
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            opakowanie_id = None
+            etykieta_id = None
+            db_nr_partii = None
+            if linia == 'AGRO':
+                cursor.execute(
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id, nr_partii FROM {table_plan} WHERE id=%s",
+                    (id,),
+                )
+            else:
+                cursor.execute(
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE id=%s",
+                    (id,),
+                )
+            z = cursor.fetchone()
+
+            warning_info = None
+
+            if z:
+                if linia == 'AGRO':
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id, db_nr_partii = z
+                else:
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
+
+                is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+
+                if is_czyszczenie and linia == 'AGRO':
+                    typ_pakowania = request.form.get('typ_pakowania')
+                    if typ_pakowania == 'Worki':
+                        nowe_opakowanie_id = request.form.get('opakowanie_id')
+                        if nowe_opakowanie_id:
+                            cursor.execute(f"UPDATE {table_plan} SET opakowanie_id=%s WHERE id=%s", (nowe_opakowanie_id, id))
+                            opakowanie_id = nowe_opakowanie_id
+                        elif not opakowanie_id:
+                            flash('❌ Start zablokowany: dla Czyszczenia w workach musisz wybrać rolkę folii.', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                    if sekcja == 'Zasyp':
+                        skan_sscc = request.form.get('skan_sscc')
+                        if skan_sscc and skan_sscc.strip():
+                            cursor.execute(f"UPDATE {table_plan} SET skan_sscc=%s WHERE id=%s", (skan_sscc.strip(), id))
+                            current_app.logger.info('Ustawiono skan_sscc %s dla zlecenia %s', skan_sscc.strip(), id)
+
+                if sekcja in ('Workowanie', 'Czyszczenie'):
+                    cursor.execute(
+                        f"SELECT id, produkt FROM {table_plan} "
+                        "WHERE sekcja='Zasyp' AND status='w toku' AND DATE(data_planu)=%s LIMIT 1",
+                        (data_planu,),
+                    )
+                    active_on_zasyp = cursor.fetchone()
+
+                    if active_on_zasyp and active_on_zasyp[0] != id:
+                        warning_info = {
+                            'message': f"Na Zasyp trwa zlecenie: {active_on_zasyp[1]}",
+                            'zasyp_order_id': active_on_zasyp[0],
+                            'zasyp_order_name': active_on_zasyp[1],
+                        }
+
+                if sekcja in ('Workowanie', 'Czyszczenie'):
+                    from app.services.workowanie_validation_service import WorkowanieValidationService
+                    
+                    is_valid, error_msg = WorkowanieValidationService.validate_start(
+                        plan_id=id, linia=linia, sekcja=sekcja, produkt=produkt, data_planu=data_planu, role_lc=role_lc
+                    )
+                    if not is_valid:
+                        flash(error_msg, 'error')
+                        return redirect(bezpieczny_powrot())
+
+                if status_obecny != 'w toku':
+                    quality_login_used = None
+                    quality_role_used = None
+
+                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie:
+                        if not opakowanie_id or not etykieta_id:
+                            flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                        if status_obecny == 'zaplanowane':
+                            if not _is_truthy(request.form.get('start_checklist_confirmed')):
+                                flash('❌ Start zablokowany: operator musi potwierdzić checklistę folii i etykiety.', 'error')
+                                return redirect(bezpieczny_powrot())
+
+                        current_app.logger.info(
+                            '[START-CHECKLIST] plan_id=%s operator=%s opakowanie_id=%s etykieta_id=%s',
+                            id,
+                            session.get('login'),
+                            opakowanie_id,
+                            etykieta_id,
+                        )
+
+                    # Capture machine counter for AGRO Workowanie
+                    start_counter = 0
+                    start_pallet_counter = 0
+                    nr_partii_cleaned = None
+                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                        # Validate batch number (required for AGRO Workowanie)
+                        nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
+                        if not is_czyszczenie and not (nr_partii_post and nr_partii_post.strip()):
+                            if status_obecny == 'zawieszone' and db_nr_partii:
+                                nr_partii_post = db_nr_partii
+                            else:
+                                flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
+                                return redirect(bezpieczny_powrot())
+                        nr_partii_cleaned = nr_partii_post.strip() if nr_partii_post else 'CZYSZCZENIE'
+                        
+                        try:
+                            latest_d = get_latest_data()
+                            start_counter = latest_d.get('counter', 0)
+                            start_pallet_counter = latest_d.get('pallet_counter', 0)
+                        except Exception:
+                            pass
+
+                    # Ensure only one active plan per section in this hall
+                    cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
+                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                        operator_login = str(session.get('login') or '').strip()
+                        cursor.execute(
+                            f"""
+                            UPDATE {table_plan}
+                            SET status='w toku',
+                                real_start=COALESCE(real_start, NOW()),
+                                real_stop=NULL,
+                                ostatnie_wznowienie=NOW(),
+                                start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s),
+                                start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s),
+                                start_checklist_operator_login=%s,
+                                start_checklist_operator_at=COALESCE(start_checklist_operator_at, NOW())
+                            WHERE id=%s
+                            """,
+                            (start_counter, start_pallet_counter, operator_login, id),
+                        )
+                    else:
+                        if linia == 'AGRO':
+                            cursor.execute(
+                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, ostatnie_wznowienie=NOW(), start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s), start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s) WHERE id=%s",
+                                (start_counter, start_pallet_counter, id),
+                            )
+                        else:
+                            cursor.execute(
+                                f"UPDATE {table_plan} SET status='w toku', real_start=COALESCE(real_start, NOW()), real_stop=NULL, start_machine_counter=COALESCE(NULLIF(start_machine_counter, 0), %s), start_pallet_counter=COALESCE(NULLIF(start_pallet_counter, 0), %s) WHERE id=%s",
+                                (start_counter, start_pallet_counter, id),
+                            )
+                    
+                    # Update custom production date if provided
+                    data_prod_post = request.form.get('data_produkcji') or request.args.get('data_produkcji')
+                    if data_prod_post and data_prod_post.strip():
+                        cursor.execute(f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s", (data_prod_post.strip(), id))
+                        current_app.logger.info('Ustawiono własną datę produkcji %s dla zlecenia ID=%s', data_prod_post.strip(), id)
+
+                    # Update batch number if provided
+                    if nr_partii_cleaned:
+                        cursor.execute(f"UPDATE {table_plan} SET nr_partii = %s WHERE id = %s", (nr_partii_cleaned, id))
+                        current_app.logger.info('Ustawiono nr partii %s dla zlecenia ID=%s', nr_partii_cleaned, id)
+                        log_plan_history(id, 'batch_number_set', f'nr_partii={nr_partii_cleaned}', user_login=session.get('login'))
+
+                    current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
+
+                    audit_details = f'ID={id}, produkt={produkt}, sekcja={sekcja}'
+                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                        audit_details += (
+                            f', operator={session.get("login")}, checklist=OK, nr_partii={nr_partii_cleaned}'
+                        )
+                    audit_log('Uruchomił zlecenie', audit_details)
+                    flash(f"✅ Uruchomiono: {produkt}", 'success')
+                    try:
+                        status_logger = logging.getLogger('status_changes')
+                        status_logger.info(f"action=start_zlecenie plan_id={id} old={status_obecny} new=w_toku user={session.get('login')} endpoint={request.path} caller=production.start_zlecenie sekcja={sekcja}")
+                    except Exception:
+                        pass
+
+                    try:
+                        from app.db import create_notifications
+                        create_notifications(
+                            typ='start_zlecenie',
+                            tytul=f"▶ Rozpoczęto: {produkt}",
+                            tresc=f"Linia {linia}, Sekcja {sekcja}: Rozpoczęto zlecenie {produkt} ({int(tonaz)} kg).",
+                            recipient_roles=['planista', 'admin', 'masteradmin'],
+                            link_url=url_for('planista.panel_planisty', linia=linia)
+                        )
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to create start notification: {e}")
+
+                    if warning_info:
+                        flash(f"ℹ️ {warning_info['message']}", 'info')
+
+                    if sekcja == 'Zasyp':
+                        try:
+                            from app.db import refresh_bufor_queue
+
+                            conn.commit()
+                            refresh_bufor_queue(linia=linia)
+                            current_app.logger.info('[BUFOR] refresh po starcie Zasypu id=%s produkt=%s', id, produkt)
+                        except Exception as _rb_err:
+                            current_app.logger.warning('[BUFOR] refresh_bufor_queue po starcie Zasypu failed: %s', _rb_err)
+
+            conn.commit()
+            try:
+                pass
+            except Exception:
+                pass
+        except Exception as e:
+            current_app.logger.error(f'Error starting order {id}: {e}', exc_info=True)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            flash('❌ Błąd uruchamiania zlecenia', 'danger')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/zawies_zlecenie/<int:id>', methods=['POST'])
+    @login_required
+    def zawies_zlecenie(id):
+        """Pauzuj/Zawieś zlecenie (dla AGRO)"""
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'AGRO'
+        linia = str(linia_input).upper()
+        
+        from app.services.planning.status import PlanningStatusService
+        success, message = PlanningStatusService.suspend_plan(id, linia=linia)
+        
+        if success:
+            flash(f"⏸️ {message}", 'success')
+            try:
+                from app.core.audit import audit_log
+                audit_log('Zawiesił zlecenie', f'ID={id}, linia={linia}')
+            except Exception:
+                pass
+        else:
+            flash(f"❌ {message}", 'danger')
+            
+        return redirect(bezpieczny_powrot())
+
+
+    @production_bp.route('/koniec_zlecenie/<int:id>', methods=['POST'])
+    @login_required
+    def koniec_zlecenie(id):
+        """Zakończ wykonywanie zlecenia"""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            final_tonaz = request.form.get('final_tonaz')
+            wyjasnienie = request.form.get('wyjasnienie')
+            uszkodzone_worki = request.form.get('uszkodzone_worki')
+            sekcja = request.form.get('sekcja')
+            linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+            table_plan = get_table_name('plan_produkcji', linia)
+
+            cursor.execute(f"SELECT produkt, data_planu FROM {table_plan} WHERE id=%s", (id,))
+            plan_meta = cursor.fetchone() or (None, None)
+            produkt, data_planu = plan_meta[0], plan_meta[1]
+
+            rzeczywista_waga = 0
+            if final_tonaz:
+                try:
+                    rzeczywista_waga = int(float(final_tonaz.replace(',', '.')))
+                except Exception:
+                    pass
+
+            sql = f"UPDATE {table_plan} SET status='zakonczone', real_stop=NOW()"
+            params = []
+            if rzeczywista_waga > 0:
+                sql += ', tonaz_rzeczywisty=%s'
+                params.append(rzeczywista_waga)
+            if wyjasnienie:
+                sql += ', wyjasnienie_rozbieznosci=%s'
+                params.append(wyjasnienie)
+            if uszkodzone_worki and sekcja in ('Workowanie', 'Czyszczenie'):
+                try:
+                    uszkodzone_count = int(uszkodzone_worki)
+                    sql += ', uszkodzone_worki=%s'
+                    params.append(uszkodzone_count)
+                except (ValueError, TypeError):
+                    pass
+            sql += ' WHERE id=%s'
+            params.append(id)
+            cursor.execute(sql, tuple(params))
+
+            if sekcja == 'Zasyp' and rzeczywista_waga > 0:
+                try:
+                    if str(linia).upper() == 'AGRO':
+                        cursor.execute(
+                            f"UPDATE {table_plan} SET tonaz = %s WHERE produkt = %s AND data_planu = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND status != 'zakonczone'",
+                            (rzeczywista_waga, produkt, data_planu),
+                        )
+                    else:
+                        cursor.execute(
+                            f"UPDATE {table_plan} SET tonaz = %s WHERE zasyp_id = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND status != 'zakonczone'",
+                            (rzeczywista_waga, id),
+                        )
+                    current_app.logger.info('[SYNC] Zaktualizowano tonaz Workowania na %s kg po zakończeniu Zasypu id=%s', rzeczywista_waga, id)
+                except Exception as _sync_err:
+                    current_app.logger.warning('[SYNC] Błąd synchronizacji tonaz Workowania: %s', _sync_err)
+
+            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+                cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
+                if cursor.fetchone()[0] > 0:
+                    flash('❌ Nie można zakończyć zlecenia: najpierw zamknij aktywną folię.', 'error')
+                    return redirect(bezpieczny_powrot())
+
+                from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
+                from app.services.mqtt_service import get_latest_data
+                
+                # Fetch stop counter
+                stop_counter = 0
+                stop_local = 0
+                try:
+                    latest_d = get_latest_data()
+                    stop_counter = latest_d.get('counter', 0)
+                    stop_local = latest_d.get('local_counter', 0)
+                except:
+                    pass
+                
+                # Save stop_machine_counter and stop_local_counter
+                cursor.execute(f"UPDATE {table_plan} SET stop_machine_counter=%s, stop_local_counter=%s WHERE id=%s", (stop_counter, stop_local, id))
+                
+                # Get start_machine_counter
+                cursor.execute(f"SELECT start_machine_counter FROM {table_plan} WHERE id=%s", (id,))
+                plan_row_agro = cursor.fetchone()
+                start_counter = plan_row_agro[0] if plan_row_agro and plan_row_agro[0] else 0
+                
+                # Calculate total pulled bags
+                total_pulled = max(stop_counter - start_counter, 0)
+                if stop_counter == 0 or start_counter == 0:
+                    total_pulled = 0
+                    
+                # Find total usage already logged by previously closed rolls
+                cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) FROM agro_workowanie_rozliczenie WHERE plan_id=%s", (id,))
+                already_logged_row = cursor.fetchone()
+                already_logged = float(already_logged_row[0]) if already_logged_row else 0.0
+                
+                # Get all currently active rolls
+                cursor.execute("SELECT id, opakowanie_id, stan_poczatkowy FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
+                active_rolls = cursor.fetchall()
+                
+                packaging_results = []
+                remaining_usage = max(total_pulled - already_logged, 0)
+                
+                for roll in active_rolls:
+                    link_id = roll[0]
+                    stan_przed = float(roll[2])
+                    
+                    usage_for_this_roll = min(remaining_usage, stan_przed)
+                    stan_po = stan_przed - usage_for_this_roll
+                    
+                    packaging_results.append({
+                        'link_id': link_id,
+                        'stan_po': stan_po
+                    })
+                    
+                    remaining_usage -= usage_for_this_roll
+                
+                if packaging_results:
+                    szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
+                    AgroOpakowaniaPlanService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
+
+            conn.commit()
+            
+            if str(linia).upper() == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+                try:
+                    from app.services.mqtt_service import publish_command
+                    from datetime import datetime
+                    topic = "iot-2/type/cMT2108X2/id/agroPakowaczka/send"
+                    payload = {
+                        "d": { "zerowanieLicznikow": [1] },
+                        "ts": datetime.now().isoformat()
+                    }
+                    publish_command(topic, payload)
+                    current_app.logger.info(f"[MQTT] Polecenie zerowania licznikow wyslane pomyslnie dla zlecenia: {id}")
+                except Exception as ex:
+                    current_app.logger.error(f"[MQTT] Blad podczas wysylania zerowania dla zlecenia {id}: {str(ex)}")
+            
+            current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
+            audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
+            try:
+                status_logger = logging.getLogger('status_changes')
+                status_logger.info(f"action=koniec_zlecenie plan_id={id} new=zakonczone user={session.get('login')} endpoint={request.path} caller=production.koniec_zlecenie sekcja={sekcja}")
+                
+                try:
+                    from app.db import create_notifications
+                    create_notifications(
+                        typ='koniec_zlecenie',
+                        tytul=f"■ Zakończono: {produkt}",
+                        tresc=f"Linia {linia}, Sekcja {sekcja}: Zakończono zlecenie {produkt}. Wykonano {rzeczywista_waga} kg.",
+                        recipient_roles=['planista', 'admin', 'masteradmin'],
+                        link_url=url_for('planista.panel_planisty', linia=linia)
+                    )
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to create end notification: {e}")
+            except Exception:
+                pass
+
+            if sekcja == 'Zasyp':
+                try:
+                    ZasypEtapyService.stop_any_running_etap(
+                        plan_id=id,
+                        linia=linia,
+                        user_login=session.get('login') or 'system',
+                    )
+                except Exception as e:
+                    current_app.logger.warning('stop_any_running_etap failed for id=%s: %s', id, e)
+
+            # --- Automatyczny wydruk raportu na drukarce biurowej ---
+            try:
+                table_pal = get_table_name('palety_workowanie', linia)
+                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s", (id,))
+                total_pallets = cursor.fetchone()[0] or 0
+                
+                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s AND status IN ('przyjeta', 'w_magazynie')", (id,))
+                accepted_pallets = cursor.fetchone()[0] or 0
+                
+                if total_pallets > 0 and total_pallets == accepted_pallets:
+                    current_app.logger.info("Zlecenie %s zamkniete i wszystkie palety przyjete. Wyzwalanie wydruku biurowego.", id)
+                    from app.services.office_print_service import trigger_office_print
+                    typ = 'raport_palet_agro' if linia == 'AGRO' else 'raport_palet_psd'
+                    trigger_office_print(id, typ_raportu=typ)
+                    flash('Automatycznie wysłano raport na drukarkę.', 'success')
+                elif total_pallets > 0 and accepted_pallets < total_pallets:
+                    flash(f'Zlecenie zamknięte, ale magazyn nie przyjął jeszcze {total_pallets - accepted_pallets} palet. Raport wydrukuje się automatycznie, gdy magazynier przyjmie ostatnią.', 'info')
+            except Exception as auto_print_err:
+                current_app.logger.error("Auto print err na zamknieciu: %s", auto_print_err)
+            # --------------------------------------------------------
+
+            try:
+                from app.db import refresh_bufor_queue
+
+                refresh_bufor_queue(conn, linia=linia)
+            except Exception as e:
+                current_app.logger.warning(f'Failed to refresh bufor after koniec_zlecenie: {e}')
+        except Exception as e:
+            current_app.logger.error(f'Error completing order {id}: {e}', exc_info=True)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            flash('❌ Błąd zakończenia zlecenia', 'danger')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+            return redirect(url_for('agro_warehouse.raport_palet', plan_id=id))
+
+        return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/zapisz_wyjasnienie/<int:id>', methods=['POST'])
+    @login_required
+    def zapisz_wyjasnienie(id):
+        """Zapisz wyjaśnienie rozbieżności"""
+        conn = get_db_connection()
+        try:
+            linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE {table_plan} SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))
+            conn.commit()
+        except Exception as e:
+            current_app.logger.error(f'Error saving explanation for {id}: {e}', exc_info=True)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            flash('❌ Błąd zapisania wyjaśnienia', 'danger')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/koniec_zlecenie_page/<int:id>', methods=['GET'])
+    @login_required
+    def koniec_zlecenie_page(id):
+        """Widok potwierdzenia zakończenia zlecenia (analogicznie do dawnego modalu)."""
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        linia = str(linia_input).upper()
+        sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
+        produkt = None
+        tonaz_rzeczywisty = None
+        conn = get_db_connection()
+        try:
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT produkt, tonaz_rzeczywisty FROM {table_plan} WHERE id=%s", (id,))
+            row = cursor.fetchone()
+            if row:
+                produkt, tonaz_rzeczywisty = row[0], row[1]
+                
+            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+                cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
+                if cursor.fetchone()[0] > 0:
+                    # Zamiast przekierowania (które psuje data-slide), renderujemy ten sam szablon z przekazanym błędem
+                    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, linia=linia, block_error='Nie można zakończyć zlecenia: najpierw zamknij aktywną folię. Przejdź do zakładki "Materiały pod bieżącą produkcję" i zdejmij rolkę z maszyny.')
+
+        except Exception as e:
+            current_app.logger.error(f'Failed to fetch plan {id} for koniec_zlecenie_page: {e}', exc_info=True)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        linked_packaging = []
+        if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+            from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
+            linked_packaging = AgroOpakowaniaPlanService.get_linked_packaging(id)
+
+        return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty, linked_packaging=linked_packaging, linia=linia)
+
+    @production_bp.route('/test-pobierz-raport', methods=['GET'])
+    @login_required
+    def api_test_pobierz_raport():
+        """Test endpoint: return most recent file from raporty/ directory as attachment"""
+        try:
+            rap_dir = os.path.join(current_app.root_path, 'raporty')
+            if not os.path.isdir(rap_dir):
+                current_app.logger.warning(f'Reports directory not found: {rap_dir}')
+                return jsonify({'error': 'raporty directory not found'}), 404
+            files = glob.glob(os.path.join(rap_dir, '*'))
+            if not files:
+                current_app.logger.warning('No reports available in raporty directory')
+                return jsonify({'error': 'no reports available'}), 404
+            latest = max(files, key=os.path.getmtime)
+            return send_file(latest, as_attachment=True, download_name=os.path.basename(latest))
+        except Exception as e:
+            current_app.logger.error(f'Failed to send report: {e}', exc_info=True)
+            return jsonify({'error': 'failed to send file'}), 500
+
+    @production_bp.route('/szarza_page/<int:plan_id>', methods=['GET'], endpoint='szarza_page')
+    @production_bp.route('/zasyp_page/<int:plan_id>', methods=['GET'], endpoint='zasyp_page')
+    @login_required
+    def szarza_page(plan_id):
+        """Strona dodawania nowego zasypu dla konkretnego planu."""
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        linia = str(linia_input).upper()
+        role = (session.get('rola') or '').lower().strip()
+        is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin', 'master admin', 'master_admin']
+        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        if not is_admin_role and not is_ops_role:
+            flash('Brak uprawnień do dodawania zasypów.', 'warning')
+            return redirect('/')
+        current_app.logger.debug(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
+
+        conn = get_db_connection()
+        try:
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT produkt, typ_produkcji FROM {table_plan} WHERE id=%s AND sekcja IN ('Zasyp', 'Czyszczenie')",
+                (plan_id,),
+            )
+            plan = cursor.fetchone()
+            if not plan:
+                current_app.logger.warning(f'[SZARZA_PAGE] Plan {plan_id} not found')
+                flash('Plan nie znaleziony', 'error')
+                return redirect('/')
+
+            produkt, typ_produkcji = plan[0], plan[1]
+
+            table_szarze = get_table_name('szarze', linia)
+            cursor.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
+            max_nr = cursor.fetchone()[0]
+            next_nr = (max_nr or 0) + 1
+
+            current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}, linia={linia}, next_nr={next_nr}')
+            return render_template(
+                'warehouse/popups/add_pallet.html',
+                plan_id=plan_id,
+                sekcja='Zasyp',
+                produkt=produkt,
+                typ=typ_produkcji,
+                linia=linia,
+                next_nr_szarzy=next_nr,
+            )
+        except Exception as e:
+            current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}', exc_info=True)
+            flash('Błąd pobierania danych planu', 'error')
+            return redirect('/')
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @production_bp.route('/wyjasnij_page/<int:id>', methods=['GET'])
+    @login_required
+    def wyjasnij_page(id):
+        """Render form to submit explanation via zapisz_wyjasnienie"""
+        if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+            return redirect(bezpieczny_powrot())
+        return render_template('wyjasnij.html', id=id)

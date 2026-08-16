@@ -1,0 +1,569 @@
+.section-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 18px;
+    overflow: hidden;
+    padding: 16px;
+}
+
+.stat-card {
+    flex: 1;
+    background: var(--bg-card);
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+}
+
+.stat-card .label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin-bottom: 8px;
+}
+
+/* Planning Info Banner & Modal styling */
+.planning-info-banner {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    border-left: 5px solid #0284c7;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    animation: slideDown 0.4s ease-out;
+}
+
+.planning-info-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.planning-info-banner-icon {
+    font-size: 24px;
+    animation: float 2s ease-in-out infinite;
+}
+
+.planning-info-banner-text {
+    color: #0369a1;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.info-detail-card {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    gap: 14px;
+    transition: all 0.2s ease;
+}
+
+.info-detail-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+    .planista-viewport .section-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .planista-viewport .section-header form {
+        width: 100%;
+        display: flex;
+    }
+    .planista-viewport .section-header form .planista-date-input {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .planista-viewport .stat-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .planista-viewport .stat-card {
+        min-width: 230px;
+        flex: 0 0 230px;
+    }
+
+    .planista-viewport .p-15 {
+        padding: 10px;
+    }
+
+    .planista-viewport .d-flex.justify-between.align-center.p-15.p-15-bg {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .planista-viewport .d-flex.gap-10.align-center {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .planista-viewport .planista-main-table {
+        border: 0;
+    }
+
+    .planista-viewport .planista-main-table thead {
+        display: none;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        display: block;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin: 0 0 10px;
+        padding: 8px;
+        background: #fff;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        border: 0;
+        padding: 6px 4px;
+        text-align: left;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        font-weight: 700;
+        color: var(--text-muted);
+        min-width: 92px;
+        flex: 0 0 92px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(1)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(1)::before { content: 'Lp.'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(2)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(2)::before { content: 'Produkt'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(3)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(3)::before { content: 'Typ'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(4)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(4)::before { content: 'Plan'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(5)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(5)::before { content: 'Estymacja'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(6)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(6)::before { content: 'Wykonanie'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(7)::before { content: 'Palety'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(7)::before { content: 'Uszkodzone'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(8)::before { content: 'Uszkodzone'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(8)::before { content: 'Status'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(9)::before { content: 'Status'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(9)::before { content: 'Akcje'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(10)::before { content: 'Akcje'; }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .d-flex,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .d-flex {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+
+    .planista-viewport .planista-main-table tr.details-row > td {
+        display: block;
+        padding: 0;
+    }
+}
+
+.planista-viewport .planista-date-input {
+    min-height: 42px;
+    padding: 8px 40px 8px 16px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    color: var(--text-color);
+    box-shadow: var(--shadow-sm);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 -960 960 960' width='24' fill='%236366f1'%3E%3Cpath d='M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0-33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80ZM380-260q17 0 28.5-11.5T420-300q0-17-11.5-28.5T380-340q-17 0-28.5 11.5T340-300q0 17 11.5 28.5T380-260Zm200 0q17 0 28.5-11.5T620-300q0-17-11.5-28.5T580-340q-17 0-28.5 11.5T540-300q0 17 11.5 28.5T580-260Zm-200-160q17 0 28.5-11.5T420-460q0-17-11.5-28.5T380-500q-17 0-28.5 11.5T340-460q0 17 11.5 28.5T380-420Zm200 0q17 0 28.5-11.5T620-460q0-17-11.5-28.5T580-500q-17 0-28.5 11.5T540-460q0 17 11.5 28.5T580-420Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 20px;
+    width: 100%;
+    max-width: 220px;
+    transition: all 0.2s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* CARD GRID LAYOUT - Responsywne karty zamiast tabeli */
+/* ═══════════════════════════════════════════════════════════ */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+
+/* Ensure card layout keeps action buttons at the top regardless of
+   body/details height. We change cards to use column flex layout and
+   define visual ordering so `.card-actions` renders above the body. */
+.cards .card {
+    display: flex;
+    flex-direction: column;
+    min-height: 180px;
+}
+.cards .card-header { order: 0; }
+.cards .card-actions { order: 1; margin-top: 8px; }
+.cards .card-body { order: 2; flex: 1 1 auto; }
+.cards .card .details-row { order: 3; }
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.card-title {
+    font-size: 1.05em;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.card-body {
+    padding: 12px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.card-row {
+    font-size: 0.9em;
+    line-height: 1.4;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.card-row strong {
+    min-width: 80px;
+    font-weight: 600;
+}
+
+.card-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.card-form .input-sm {
+    flex: 1;
+    min-width: 0;
+}
+
+.card-actions {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+}
+
+.card-actions form {
+    display: block;
+    min-width: 0;
+}
+
+.card-actions>* {
+    min-width: 0;
+}
+
+.card-completed {
+    opacity: 0.85;
+}
+
+.card-completed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--success-color);
+}
+
+/* Responsywność dla tabletów */
+@media (max-width: 1024px) {
+    .cards {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+
+    .card-header {
+        padding: 10px 12px;
+        font-size: 0.95em;
+    }
+
+    .card-body {
+        padding: 10px 12px;
+    }
+
+    .card-row {
+        font-size: 0.85em;
+    }
+
+    .card-row strong {
+        min-width: 70px;
+    }
+
+    .card-actions {
+        padding: 10px 12px;
+        grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    }
+}
+
+.details-row {
+    display: none;
+    background: var(--bg-card);
+    padding: 16px;
+    margin-top: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.card-detail {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.card-detail:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+}
+
+.language-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    min-width: 150px;
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.card-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 700;
+}
+
+.card-body {
+    padding: 10px;
+}
+
+.card h4 {
+    margin: 0 0 6px 0;
+    font-size: 1.05em;
+}
+
+.card .meta {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.card .actions {
+        display: flex;
+        gap: 8px;
+    }
+
+.list-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+
+.hub .tile {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+    }
+
+.settings-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        min-height: 230px;
+        padding: 22px;
+        border-radius: 18px;
+        border: 1px solid rgba(15, 35, 55, 0.08);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98));
+        box-shadow: 0 14px 34px rgba(15, 35, 55, 0.08);
+        overflow: hidden;
+    }
+
+.settings-card::after {
+        content: '';
+        position: absolute;
+        inset: auto -40px -40px auto;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: rgba(52, 152, 219, 0.07);
+        pointer-events: none;
+    }
+
+.settings-card-admin::before,
+    .settings-card-shared::before,
+    .settings-card-accent::before,
+    .settings-card-muted::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 5px;
+    }
+
+.settings-card-admin::before {
+        background: linear-gradient(90deg, #3498db, #6dd5fa);
+    }
+
+.settings-card-shared::before {
+        background: linear-gradient(90deg, #2ecc71, #7dffb2);
+    }
+
+.settings-card-accent::before {
+        background: linear-gradient(90deg, #9b59b6, #d7aefb);
+    }
+
+.settings-card-muted::before {
+        background: linear-gradient(90deg, #95a5a6, #d7dbdd);
+    }
+
+.settings-card-icon {
+        width: 56px;
+        height: 56px;
+        display: grid;
+        place-items: center;
+        border-radius: 16px;
+        font-size: 1.6rem;
+        background: rgba(52, 152, 219, 0.12);
+        box-shadow: inset 0 0 0 1px rgba(52, 152, 219, 0.08);
+    }
+
+.settings-card-body {
+        display: grid;
+        gap: 10px;
+        position: relative;
+        z-index: 1;
+    }
+
+.settings-card-body h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: var(--primary-color);
+    }
+
+.settings-card-body p {
+        margin: 0;
+        color: var(--text-main);
+        line-height: 1.55;
+    }
+
+.settings-card-meta {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+.settings-card-actions {
+        margin-top: auto;
+        position: relative;
+        z-index: 1;
+    }
+
+.test-report-content {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-card);
+        border-radius: 8px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
+        width: min(500px, 95%);
+        max-height: 80vh;
+        overflow: auto;
+        animation: slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }

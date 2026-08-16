@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Kodów QR - Login i Hasło</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            margin-top: 20px;
+        }
+
+        .btn-print:hover {
+            box-shadow: 0 8px 20px rgba(17, 153, 142, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .qr-container {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .qr-container.active {
+            display: block;
+        }
+
+        #qrcode {
+            display: inline-block;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .qr-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .qr-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .qr-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .qr-data {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            word-break: break-all;
+            color: #333;
+        }
+
+        .format-selector {
+            margin-bottom: 20px;
+        }
+
+        .format-selector label {
+            display: inline-block;
+            margin-right: 20px;
+            cursor: pointer;
+        }
+
+        .format-selector input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .form-group,
+            .btn,
+            .subtitle,
+            h1,
+            .qr-info,
+            .format-selector {
+                display: none !important;
+            }
+
+            .qr-container {
+                display: block !important;
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+
+            #qrcode {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            #qrcode canvas {
+                width: 1cm !important;
+                height: 1cm !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Generator Kodów QR</h1>
+        <p class="subtitle">Login i hasło • Rozmiar: 1cm × 1cm • Drukarka Zebra</p>
+
+        <div class="format-selector">
+            <label>
+                <strong>Format danych:</strong>
+            </label>
+            <br>
+            <label>
+                <input type="radio" name="format" value="simple" checked>
+                Prosty (LOGIN:xxx|PASS:yyy)
+            </label>
+            <label>
+                <input type="radio" name="format" value="json">
+                JSON
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="login">Login:</label>
+            <input type="text" id="login" placeholder="Wpisz login użytkownika" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Hasło:</label>
+            <input type="password" id="password" placeholder="Wpisz hasło" autocomplete="off">
+        </div>
+
+        <button class="btn" onclick="generateQR()">🎯 Wygeneruj Kod QR</button>
+
+        <div class="qr-container" id="qrContainer">
+            <div id="qrcode"></div>
+            
+            <div class="qr-info">
+                <h3>📋 Informacje o kodzie QR</h3>
+                <p><strong>Rozmiar:</strong> 1cm × 1cm (118px @ 300 DPI)</p>
+                <p><strong>Format:</strong> <span id="formatInfo"></span></p>
+                <p><strong>Dane zakodowane:</strong></p>
+                <div class="qr-data" id="qrData"></div>
+            </div>
+
+            <button class="btn btn-print" onclick="window.print()">🖨️ Drukuj na Zebra</button>
+        </div>
+    </div>
+
+    <script>
+        let qrCodeInstance = null;
+
+        function generateQR() {
+            const login = document.getElementById('login').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const format = document.querySelector('input[name="format"]:checked').value;
+
+            if (!login || !password) {
+                alert('⚠️ Wypełnij oba pola: login i hasło!');
+                return;
+            }
+
+            // Przygotuj dane w wybranym formacie
+            let qrData;
+            let formatName;
+
+            if (format === 'json') {
+                qrData = JSON.stringify({
+                    login: login,
+                    pass: password
+                });
+                formatName = 'JSON';
+            } else {
+                qrData = `LOGIN:${login}|PASS:${password}`;
+                formatName = 'Prosty (delimiter |)';
+            }
+
+            // Wyczyść poprzedni kod QR
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+
+            // Wygeneruj nowy kod QR
+            // Rozmiar: 118px dla 1cm przy 300 DPI (typowy dla Zebra)
+            // Error correction: M (medium) - kompromis między rozmiarem a odpornością na uszkodzenia
+            QRCode.toCanvas(qrData, {
+                errorCorrectionLevel: 'M',
+                width: 118,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error, canvas) {
+                if (error) {
+                    alert('❌ Błąd generowania kodu QR: ' + error);
+                    return;
+                }
+                
+                qrContainer.appendChild(canvas);
+                
+                // Pokaż kontener z kodem QR
+                document.getElementById('qrContainer').classList.add('active');
+                
+                // Aktualizuj informacje
+                document.getElementById('formatInfo').textContent = formatName;
+                document.getElementById('qrData').textContent = qrData;
+
+                // Scroll do kodu QR
+                qrContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+
+        // Generuj QR po naciśnięciu Enter
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                generateQR();
+            }
+        });
+
+        document.getElementById('login').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('password').focus();
+            }
+        });
+    </script>
+</body>
+</html>

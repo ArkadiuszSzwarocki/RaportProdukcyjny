@@ -1,0 +1,995 @@
+{% extends "layout.html" %}
+
+{% block extra_css %}
+<style>
+    /* Override main-content to be full height without padding */
+    .main-content {
+        padding: 0 !important;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 56px); /* minus navbar height */
+        overflow: hidden;
+    }
+
+    /* ── PAGE LAYOUT ── */
+    .ds-page {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #ffffff;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: #000000;
+    }
+
+    /* ── TOP BAR ── */
+    .ds-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #7c3aed 100%);
+        flex-shrink: 0;
+        gap: 16px;
+    }
+
+    .ds-topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .ds-topbar-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 1.6rem;
+        flex-shrink: 0;
+    }
+
+    .ds-topbar-title {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -0.03em;
+        margin: 0;
+        line-height: 1;
+    }
+
+    .ds-topbar-subtitle {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.7);
+        margin-top: 4px;
+    }
+
+    .ds-meta-chips {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .ds-chip {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .ds-chip-label {
+        color: rgba(255,255,255,0.55);
+        font-weight: 500;
+        font-size: 0.78rem;
+    }
+
+    .ds-btn-back {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.25);
+        color: #fff;
+        padding: 8px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+    .ds-btn-back:hover { background: rgba(255,255,255,0.2); color: #fff; text-decoration: none; }
+
+    /* ── MAIN CONTENT AREA ── */
+    .ds-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        flex: 1;
+        overflow: hidden;
+        gap: 0;
+    }
+
+    /* ── LEFT PANEL: form ── */
+    .ds-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-right: 1px solid #e2e8f0;
+        background: #ffffff;
+    }
+
+    .ds-panel-header {
+        padding: 20px 28px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #ffffff;
+        flex-shrink: 0;
+    }
+
+    .ds-panel-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #000000;
+        margin: 0 0 2px;
+    }
+
+    .ds-panel-subtitle {
+        font-size: 0.82rem;
+        color: #334155;
+    }
+
+    .ds-panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px 28px;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+
+    .ds-panel-body::-webkit-scrollbar { width: 6px; }
+    .ds-panel-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+
+    /* ── INFO BAR ── */
+    .ds-infobar {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin-bottom: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 24px;
+        font-size: 0.9rem;
+    }
+
+    .ds-infobar-item { display: flex; flex-direction: column; gap: 3px; }
+    .ds-infobar-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #475569; }
+    .ds-infobar-value { font-size: 1rem; font-weight: 700; color: #000000; display: flex; align-items: center; gap: 8px; }
+    .ds-product-badge {
+        font-size: 0.82rem; font-weight: 600; color: #1d4ed8;
+        background: rgba(59,130,246,0.1); padding: 2px 8px; border-radius: 6px;
+    }
+    .ds-infobar-note {
+        grid-column: 1 / -1;
+        font-size: 0.82rem;
+        color: #334155;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 10px;
+        margin-top: 4px;
+        line-height: 1.5;
+    }
+
+    /* ── FIELDS ── */
+    .ds-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .ds-field-group {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .ds-field-group:focus-within {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .ds-field-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #334155;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .ds-field-num {
+        width: 20px; height: 20px;
+        background: #3b82f6;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 6px;
+    }
+
+    .ds-field-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .ds-input {
+        height: 44px;
+        background: #ffffff;
+        border: 1px solid #94a3b8;
+        border-radius: 8px;
+        padding: 0 14px;
+        font-size: 0.95rem;
+        color: #000000;
+        font-family: inherit;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        outline: none;
+    }
+
+    .ds-input.is-invalid {
+        border-color: #ef4444;
+        background: #fef2f2;
+    }
+    .ds-input.is-invalid:focus {
+        box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+    }
+    .ds-field-error {
+        color: #ef4444;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-top: 6px;
+        display: none;
+    }
+
+    .ds-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+
+    .ds-input::placeholder { color: #64748b; }
+    .ds-input-nazwa { flex: 1; min-width: 0; }
+    .ds-input-kg { width: 110px; flex-shrink: 0; }
+
+    .ds-btn-remove {
+        background: none;
+        border: none;
+        color: #ef4444;
+        font-size: 1rem;
+        cursor: pointer;
+        padding: 2px 5px;
+        border-radius: 6px;
+        opacity: 0.6;
+        transition: 0.2s;
+        line-height: 1;
+    }
+    .ds-btn-remove:hover { opacity: 1; background: rgba(239,68,68,0.1); }
+
+    /* ── ADD MORE BUTTON ── */
+    .ds-btn-add {
+        width: 100%;
+        height: 42px;
+        background: transparent;
+        border: 2px dashed #cbd5e1;
+        border-radius: 10px;
+        color: #475569;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+    .ds-btn-add:hover:not(:disabled) { border-color: #3b82f6; color: #2563eb; background: rgba(59,130,246,0.05); }
+    .ds-btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── BOTTOM ACTIONS ── */
+    .ds-actions {
+        padding: 16px 28px;
+        border-top: 1px solid #e2e8f0;
+        background: #ffffff;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .ds-actions-right { display: flex; gap: 12px; }
+
+    .ds-btn {
+        height: 46px;
+        padding: 0 22px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        font-family: inherit;
+    }
+
+    .ds-btn-ghost {
+        background: transparent;
+        border: 1px solid #94a3b8;
+        color: #334155;
+    }
+    .ds-btn-ghost:hover { background: #f1f5f9; color: #000000; }
+
+    .ds-btn-none {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+    }
+    .ds-btn-none:hover { background: #f1f5f9; color: #000000; }
+
+    .ds-btn-confirm {
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+        color: #fff;
+        box-shadow: 0 4px 16px rgba(37,99,235,0.25);
+        padding: 0 32px;
+    }
+    .ds-btn-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.35); }
+    .ds-btn-confirm:disabled { opacity: 0.6; transform: none; cursor: not-allowed; }
+
+    /* ── RIGHT PANEL: history ── */
+    .ds-history-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        gap: 12px;
+        color: #475569;
+        font-size: 0.95rem;
+    }
+
+    .ds-history-empty-icon { font-size: 3rem; }
+
+    .ds-history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .ds-hist-item {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        transition: border-color 0.2s;
+    }
+
+    .ds-hist-item.is-cancelled {
+        opacity: 0.5;
+        border-style: dashed;
+        border-color: #94a3b8;
+    }
+
+    .ds-hist-item:not(.is-cancelled):hover { border-color: #64748b; }
+
+    .ds-hist-main { font-weight: 700; font-size: 0.95rem; color: #000000; }
+    .ds-hist-meta { font-size: 0.78rem; color: #475569; margin-top: 3px; }
+    .ds-hist-cancel-meta { font-size: 0.78rem; color: #ef4444; margin-top: 3px; }
+
+    .ds-hist-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+
+    .ds-badge {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+    .ds-badge-confirmed { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .ds-badge-cancelled { background: rgba(239,68,68,0.12); color: #f87171; }
+    .ds-badge-pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+    .ds-btn-cancel-item {
+        background: #ffffff;
+        border: 1px solid #ef4444;
+        color: #ef4444;
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .ds-btn-cancel-item:hover { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
+
+    /* ── SUCCESS OVERLAY ── */
+    .ds-success {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 16px;
+        padding: 40px;
+    }
+
+    .ds-success.visible { display: flex; }
+    .ds-success-icon { font-size: 4rem; }
+    .ds-success-title { font-size: 1.5rem; font-weight: 800; color: #22c55e; }
+    .ds-success-msg { color: #64748b; }
+
+    /* ── CUSTOM MODAL ── */
+    .ds-modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center; justify-content: center;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .ds-modal-overlay.visible {
+        display: flex;
+        opacity: 1;
+    }
+    .ds-modal {
+        background: #ffffff;
+        border-radius: 16px;
+        width: 100%; max-width: 400px;
+        padding: 24px;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+        transform: translateY(20px);
+        transition: transform 0.2s;
+    }
+    .ds-modal-overlay.visible .ds-modal {
+        transform: translateY(0);
+    }
+    .ds-modal-title { font-size: 1.25rem; font-weight: 800; color: #000000; margin-bottom: 12px; }
+    .ds-modal-body-txt { font-size: 0.95rem; color: #334155; margin-bottom: 24px; line-height: 1.5; }
+    .ds-modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
+    .ds-modal-btn { height: 40px; padding: 0 18px; font-size: 0.9rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: inherit; }
+    
+    .ds-modal-btn-cancel { background: transparent; border: 1px solid #cbd5e1; color: #475569; }
+    .ds-modal-btn-cancel:hover { background: #f1f5f9; color: #000000; }
+    
+    .ds-modal-btn-confirm { background: #ef4444; border: 1px solid #ef4444; color: #ffffff; }
+    .ds-modal-btn-confirm:hover { background: #dc2626; border-color: #dc2626; }
+    
+    .ds-modal-btn-primary { background: #2563eb; border: 1px solid #2563eb; color: #ffffff; }
+    .ds-modal-btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+        .ds-body { grid-template-columns: 1fr; }
+        .ds-panel { border-right: none; border-bottom: 1px solid #1e293b; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ds-page">
+    <!-- TOP BAR -->
+    <div class="ds-topbar">
+        <div class="ds-topbar-left">
+            <div class="ds-topbar-icon">🧪</div>
+            <div>
+                <h1 class="ds-topbar-title">Dodaj Dosypkę</h1>
+                <div class="ds-topbar-subtitle">Skoryguj skład aktywnego zasypu</div>
+            </div>
+        </div>
+
+        <div class="ds-meta-chips">
+            <div class="ds-chip">
+                <span class="ds-chip-label">Zlecenie</span>
+                #{{ plan_id }}
+                {% if produkt %}<span style="background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:6px;font-size:0.82rem;">{{ produkt }}</span>{% endif %}
+            </div>
+            {% if szarza_id %}
+            <div class="ds-chip">
+                <span class="ds-chip-label">Zasyp</span>
+                {{ szarza_id }}
+            </div>
+            {% endif %}
+        </div>
+
+        <a href="{{ url_for('main.index', sekcja='Zasyp', linia=linia) }}" class="ds-btn-back">
+            ← Wróć do Zasypu
+        </a>
+    </div>
+
+    <!-- BODY -->
+    <div class="ds-body">
+
+        <!-- LEFT: ADD FORM -->
+        <div class="ds-panel" style="background:#ffffff;">
+            <div class="ds-panel-header">
+                <div class="ds-panel-title">Nowa dosypka</div>
+                <div class="ds-panel-subtitle">Dodaj pozycje: surowiec + ilość w kg</div>
+            </div>
+            <div class="ds-panel-body">
+
+                {% if dostepne_surowce %}
+                <datalist id="surowce-list">
+                    {% for s in dostepne_surowce %}
+                    <option value="{{ s }}"></option>
+                    {% endfor %}
+                </datalist>
+                {% endif %}
+
+                <div class="ds-infobar">
+                    <div class="ds-infobar-item">
+                        <span class="ds-infobar-label">Zlecenie</span>
+                        <span class="ds-infobar-value">
+                            #{{ plan_id }}
+                            {% if produkt %}<span class="ds-product-badge">{{ produkt }}</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="ds-infobar-item">
+                        <span class="ds-infobar-label">Zasyp (szarża)</span>
+                        <span class="ds-infobar-value">{{ szarza_id or '—' }}</span>
+                    </div>
+                    <div class="ds-infobar-note">
+                        Wybieraj tylko surowce dostępne na liście magazynu. Maksymalnie 10 pozycji.
+                    </div>
+                </div>
+
+                <form id="ds-form" action="{{ url_for('production.dodaj_dosypke') }}" method="POST">
+                    <input type="hidden" name="plan_id" value="{{ plan_id }}">
+                    <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
+                    <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+                    <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
+
+                    <div class="ds-fields" id="ds-fields">
+                        <div class="ds-field-group" data-index="1">
+                            <div class="ds-field-label">
+                                <span>Pozycja <span class="ds-field-num">1</span></span>
+                            </div>
+                            <div class="ds-field-row">
+                                <input type="text" name="nazwa_1" class="ds-input ds-input-nazwa"
+                                    placeholder="Wybierz surowiec z listy..."
+                                    {% if dostepne_surowce %}list="surowce-list"{% endif %}
+                                    autocomplete="off" spellcheck="false">
+                                <input type="number" name="kg_1" class="ds-input ds-input-kg"
+                                    step="0.01" min="0" placeholder="kg">
+                            </div>
+                            <div class="ds-field-error"></div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="ds-btn-add" id="ds-btn-add" onclick="dsAddField()">
+                        + Dodaj kolejną pozycję
+                    </button>
+                </form>
+
+                <!-- SUCCESS feedback (shown after submit) -->
+                <div class="ds-success" id="ds-success">
+                    <div class="ds-success-icon">✅</div>
+                    <div class="ds-success-title">Zapisano!</div>
+                    <div class="ds-success-msg" id="ds-success-msg"></div>
+                    <a href="{{ url_for('production.dosypka_strona', plan_id=plan_id, linia=linia, szarza_id=szarza_id or '') }}" class="ds-btn ds-btn-ghost" style="margin-top:8px;">
+                        Odśwież stronę
+                    </a>
+                </div>
+
+            </div>
+
+            <!-- ACTIONS BAR -->
+            <div class="ds-actions">
+                {% set active_dosypki = existing_dosypki | rejectattr('anulowana') | list %}
+                
+                {% if not active_dosypki %}
+                <button type="button" class="ds-btn ds-btn-none" onclick="dsSubmitNone()">
+                    📋 Brak dosypki
+                </button>
+                {% else %}
+                <div></div>
+                {% endif %}
+                <div class="ds-actions-right">
+                    <button type="button" class="ds-btn ds-btn-confirm" id="ds-btn-confirm" onclick="dsSubmit()">
+                        ✓ Potwierdź dosypkę
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: HISTORY -->
+        <div class="ds-panel" style="background:#ffffff;">
+            <div class="ds-panel-header" style="background:#ffffff;">
+                <div class="ds-panel-title">Historia dosypek</div>
+                <div class="ds-panel-subtitle">
+                    {% if existing_dosypki %}
+                        {{ existing_dosypki|length }} pozycji
+                        {% if szarza_id %} dla zasypu {{ szarza_id }}{% else %} dla tego zlecenia{% endif %}
+                    {% else %}
+                        Brak zapisanych dosypek
+                    {% endif %}
+                </div>
+            </div>
+            <div class="ds-panel-body" id="ds-history-body">
+
+                {% if existing_dosypki %}
+                <div class="ds-history-list" id="ds-history-list">
+                    {% for item in existing_dosypki %}
+                    <div class="ds-hist-item{% if item.anulowana %} is-cancelled{% endif %}" data-id="{{ item.id }}">
+                        <div>
+                            <div class="ds-hist-main">{{ item.nazwa }} &bull; {{ item.kg }} kg</div>
+                            <div class="ds-hist-meta">Dodano: {{ item.data_zlecenia }}</div>
+                            {% if item.anulowana %}
+                            <div class="ds-hist-cancel-meta">
+                                Anulował: {{ item.anulowal_login or '—' }}
+                                {% if item.data_anulowania %} &bull; {{ item.data_anulowania }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="ds-hist-actions">
+                            {% if item.anulowana %}
+                                <span class="ds-badge ds-badge-cancelled">Anulowana</span>
+                            {% elif item.potwierdzone %}
+                                <span class="ds-badge ds-badge-confirmed">Potwierdzona</span>
+                            {% else %}
+                                <span class="ds-badge ds-badge-pending">Oczekuje</span>
+                                <button type="button" class="ds-btn-cancel-item js-cancel-dosypka"
+                                    data-id="{{ item.id }}" title="Anuluj tę dosypkę">
+                                    ✕ Anuluj
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="ds-history-empty">
+                    <div class="ds-history-empty-icon">📭</div>
+                    <div>Brak dosypek dla tego zlecenia</div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+    </div><!-- .ds-body -->
+
+    <!-- CUSTOM CONFIRM MODAL -->
+    <div class="ds-modal-overlay" id="ds-confirm-modal">
+        <div class="ds-modal">
+            <div class="ds-modal-title" id="ds-confirm-title">Potwierdzenie</div>
+            <div class="ds-modal-body-txt" id="ds-confirm-msg">Czy na pewno?</div>
+            <div class="ds-modal-actions">
+                <button type="button" class="ds-modal-btn-cancel ds-modal-btn" id="ds-confirm-no">Anuluj</button>
+                <button type="button" class="ds-modal-btn-confirm ds-modal-btn" id="ds-confirm-yes">Tak</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- .ds-page -->
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+(function() {
+    /* ── Custom Modal ── */
+    function dsCustomConfirm(title, msg, confirmText, btnClass, callback) {
+        var overlay = document.getElementById('ds-confirm-modal');
+        var titleEl = document.getElementById('ds-confirm-title');
+        var msgEl = document.getElementById('ds-confirm-msg');
+        var btnYes = document.getElementById('ds-confirm-yes');
+        var btnNo = document.getElementById('ds-confirm-no');
+        
+        titleEl.textContent = title;
+        msgEl.textContent = msg;
+        btnYes.textContent = confirmText || 'Tak';
+        
+        // Reset class and apply requested class
+        btnYes.className = 'ds-modal-btn ds-modal-btn-' + (btnClass || 'primary');
+        
+        function closeModal() {
+            overlay.classList.remove('visible');
+            setTimeout(function() { overlay.style.display = 'none'; }, 200);
+            btnYes.onclick = null;
+            btnNo.onclick = null;
+        }
+        
+        btnNo.onclick = function() {
+            closeModal();
+        };
+        
+        btnYes.onclick = function() {
+            closeModal();
+            callback();
+        };
+        
+        overlay.style.display = 'flex';
+        // force reflow
+        void overlay.offsetWidth;
+        overlay.classList.add('visible');
+    }
+
+    /* ── Field management ── */
+    function dsGetFieldCount() {
+        return document.getElementById('ds-fields').querySelectorAll('.ds-field-group').length;
+    }
+
+    function dsUpdateAddBtn() {
+        var btn = document.getElementById('ds-btn-add');
+        if (!btn) return;
+        var count = dsGetFieldCount();
+        btn.disabled = count >= 10;
+    }
+
+    window.dsAddField = function() {
+        var container = document.getElementById('ds-fields');
+        var count = dsGetFieldCount();
+        if (count >= 10) { alert('Maksymalnie 10 pozycji'); return; }
+        var idx = count + 1;
+        var div = document.createElement('div');
+        div.className = 'ds-field-group';
+        div.setAttribute('data-index', idx);
+        var listAttr = '{% if dostepne_surowce %}list="surowce-list"{% endif %}';
+        div.innerHTML =
+            '<div class="ds-field-label">' +
+                '<span>Pozycja <span class="ds-field-num">' + idx + '</span></span>' +
+                '<button type="button" class="ds-btn-remove" onclick="dsRemoveField(this)" title="Usuń">✕</button>' +
+            '</div>' +
+            '<div class="ds-field-row">' +
+                '<input type="text" name="nazwa_' + idx + '" class="ds-input ds-input-nazwa" placeholder="Wybierz surowiec z listy..." ' + listAttr + ' autocomplete="off" spellcheck="false">' +
+                '<input type="number" name="kg_' + idx + '" class="ds-input ds-input-kg" step="0.01" min="0" placeholder="kg">' +
+            '</div>' +
+            '<div class="ds-field-error"></div>';
+        container.appendChild(div);
+        div.querySelector('.ds-input-nazwa').focus();
+        dsUpdateAddBtn();
+    };
+
+    window.dsRemoveField = function(btn) {
+        var group = btn.closest('.ds-field-group');
+        if (group) group.remove();
+        dsRenumber();
+        dsUpdateAddBtn();
+    };
+
+    function dsRenumber() {
+        var groups = document.querySelectorAll('#ds-fields .ds-field-group');
+        groups.forEach(function(g, i) {
+            var idx = i + 1;
+            g.setAttribute('data-index', idx);
+            var numEl = g.querySelector('.ds-field-num');
+            if (numEl) numEl.textContent = idx;
+            var nn = g.querySelector('.ds-input-nazwa');
+            var kg = g.querySelector('.ds-input-kg');
+            if (nn) nn.name = 'nazwa_' + idx;
+            if (kg) kg.name = 'kg_' + idx;
+        });
+    }
+
+    /* ── Validation ── */
+    function dsValidate() {
+        var allowed = new Set();
+        var dl = document.getElementById('surowce-list');
+        if (dl) Array.from(dl.options).forEach(function(o) { allowed.add(o.value.trim().toLowerCase()); });
+
+        var groups = document.querySelectorAll('#ds-fields .ds-field-group');
+        
+        // Reset previous errors
+        groups.forEach(function(g) {
+            var err = g.querySelector('.ds-field-error');
+            if (err) { err.style.display = 'none'; err.textContent = ''; }
+            g.querySelectorAll('.ds-input').forEach(function(inp) { inp.classList.remove('is-invalid'); });
+        });
+
+        var hasAny = false;
+        var valid = 0;
+
+        for (var i = 0; i < groups.length; i++) {
+            var g = groups[i];
+            var nn = g.querySelector('.ds-input-nazwa');
+            var kg = g.querySelector('.ds-input-kg');
+            var errEl = g.querySelector('.ds-field-error');
+            var n = (nn && nn.value || '').trim();
+            var k = (kg && kg.value || '').trim();
+            
+            function setError(inp, msg) {
+                if (inp) inp.classList.add('is-invalid');
+                if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+                if (inp) inp.focus();
+            }
+
+            if (!n && !k) continue;
+            hasAny = true;
+            if (n && !k) { setError(kg, 'Podaj wagę (kg)'); return false; }
+            if (!n && k) { setError(nn, 'Podaj nazwę surowca'); return false; }
+            var kv = parseFloat(k.replace(',', '.'));
+            if (!isFinite(kv) || kv <= 0) { setError(kg, 'Waga musi być większa od 0'); return false; }
+            if (allowed.size && !allowed.has(n.toLowerCase())) {
+                setError(nn, 'Surowiec nie jest na liście magazynu'); return false;
+            }
+            valid++;
+        }
+
+        if (!hasAny || !valid) {
+            if (groups[0]) {
+                var firstInp = groups[0].querySelector('.ds-input-nazwa');
+                if (firstInp) firstInp.classList.add('is-invalid');
+                var errEl = groups[0].querySelector('.ds-field-error');
+                if (errEl) { errEl.textContent = 'Wypełnij co najmniej jedną pozycję dosypki'; errEl.style.display = 'block'; }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /* ── AJAX submit ── */
+    function dsAjaxSubmit(skipValidation) {
+        if (!skipValidation && !dsValidate()) return;
+        var confirmBtn = document.getElementById('ds-btn-confirm');
+        if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Zapisuję...'; }
+
+        var form = document.getElementById('ds-form');
+        var url = form.action;
+        var data = new FormData(form);
+
+        fetch(url, {
+            method: 'POST',
+            body: data,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(r) { return r.json().catch(function() { return {}; }); })
+        .then(function(d) {
+            if (d && d.success !== false) {
+                /* Show success state */
+                document.getElementById('ds-fields').style.display = 'none';
+                document.getElementById('ds-btn-add').style.display = 'none';
+                var suc = document.getElementById('ds-success');
+                var msg = document.getElementById('ds-success-msg');
+                suc.classList.add('visible');
+                if (msg) msg.textContent = d.message || 'Dosypka została zapisana.';
+                if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '✓ Zapisano'; }
+                /* Reload history panel */
+                dsReloadHistory();
+            } else {
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '✓ Potwierdź dosypkę'; }
+                alert((d && d.message) || 'Błąd podczas zapisywania');
+            }
+        })
+        .catch(function(err) {
+            console.error(err);
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '✓ Potwierdź dosypkę'; }
+            alert('Błąd sieci');
+        });
+    }
+
+    window.dsSubmit = function() { dsAjaxSubmit(false); };
+
+    window.dsSubmitNone = function() {
+        dsCustomConfirm(
+            'Brak dosypki',
+            'Czy na pewno chcesz oznaczyć brak dosypki dla tego zlecenia?',
+            'Oznacz brak',
+            'primary',
+            function() {
+                document.getElementById('brak_dosypki').value = '1';
+                dsAjaxSubmit(true);
+            }
+        );
+    };
+
+    /* ── Reload history panel ── */
+    function dsReloadHistory() {
+        var planId = {{ plan_id | tojson }};
+        var linia = {{ (linia or 'PSD') | tojson }};
+        var szarzaId = {{ (szarza_id or '') | tojson }};
+        var url = '/dosypka_strona/' + planId + '?linia=' + encodeURIComponent(linia) + '&ajax_reload=1';
+        if (szarzaId) url += '&szarza_id=' + encodeURIComponent(szarzaId);
+
+        fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            cache: 'no-store'
+        })
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            /* Extract history list from the returned popup fragment */
+            var freshList = tmp.querySelector('.dosypka-existing-list, .ds-history-list, #ds-history-list');
+            var target = document.getElementById('ds-history-body');
+            if (freshList && target) {
+                target.innerHTML = freshList.outerHTML.replace('dosypka-existing-list', 'ds-history-list');
+            } else if (target) {
+                /* If can't extract, reload the page */
+                window.location.reload();
+            }
+            bindCancelButtons();
+        })
+        .catch(function() { /* silent fail */ });
+    }
+
+    /* ── Cancel existing dosypka ── */
+    /* ── Cancel existing dosypka ── */
+    function bindCancelButtons() {
+        document.querySelectorAll('.js-cancel-dosypka').forEach(function(btn) {
+            if (btn.dataset.bound) return;
+            btn.dataset.bound = '1';
+            btn.addEventListener('click', function() {
+                var id = btn.getAttribute('data-id');
+                if (!id) return;
+                
+                dsCustomConfirm(
+                    'Anulowanie dosypki',
+                    'Czy na pewno chcesz anulować tę dosypkę? Tej operacji nie można cofnąć.',
+                    'Tak, anuluj',
+                    'confirm',
+                    function() {
+                        var linia = {{ (linia or 'PSD') | tojson }};
+                        btn.disabled = true;
+                        btn.textContent = '⏳...';
+                        fetch('/anuluj_dosypke/' + id + '?linia=' + encodeURIComponent(linia), {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                        })
+                        .then(function(r) { return r.json().catch(function() { return {}; }); })
+                        .then(function(d) {
+                            if (d && d.success) {
+                                var item = btn.closest('.ds-hist-item');
+                                if (item) {
+                                    item.classList.add('is-cancelled');
+                                    item.querySelector('.ds-hist-actions').innerHTML =
+                                        '<span class="ds-badge ds-badge-cancelled">Anulowana</span>';
+                                }
+                            } else {
+                                btn.disabled = false;
+                                btn.textContent = '✕ Anuluj';
+                                alert((d && d.message) || 'Błąd anulowania');
+                            }
+                        })
+                        .catch(function() {
+                            btn.disabled = false;
+                            btn.textContent = '✕ Anuluj';
+                            alert('Błąd sieci');
+                        });
+                    }
+                );
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        dsUpdateAddBtn();
+        bindCancelButtons();
+        /* Focus first input */
+        var first = document.querySelector('#ds-fields .ds-input-nazwa');
+        if (first) setTimeout(function() { first.focus(); }, 100);
+    });
+})();
+</script>
+{% endblock %}

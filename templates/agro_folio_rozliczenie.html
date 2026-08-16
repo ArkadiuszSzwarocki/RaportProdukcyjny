@@ -1,0 +1,154 @@
+{% extends 'layout.html' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agro_folio.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="folio-page">
+
+    <!-- Header -->
+    <div class="folio-header">
+        <span class="material-icons" style="font-size: 32px; color: #e67e22;">wrap_text</span>
+        <h1>Rozliczenie Folii AGRO</h1>
+        {% if active_plan %}
+        <span class="badge-plan">
+            #{{ active_plan.id }} — {{ active_plan.produkt }}
+            &nbsp;|&nbsp; {{ active_plan.data_planu }}
+            &nbsp;|&nbsp; <strong>{{ active_plan.status }}</strong>
+        </span>
+        {% endif %}
+        <a href="{{ url_for('main.index', sekcja='Workowanie', linia='AGRO', data=data_planu) }}"
+           style="margin-left: auto; text-decoration: none; color: #64748b; font-size: 0.88em; display: flex; align-items: center; gap: 4px;">
+            <span class="material-icons" style="font-size: 18px;">arrow_back</span> Wróć
+        </a>
+    </div>
+
+    {% if not active_plan %}
+    <!-- Brak zlecenia -->
+    <div class="folio-no-plan">
+        <span class="material-icons">inventory_2</span>
+        <p style="font-size: 1.1em; font-weight: 600; color: #64748b;">Brak zlecenia Workowanie dla daty {{ data_planu }}</p>
+        <p style="font-size: 0.9em;">Uruchom zlecenie z dashboardu AGRO, a następnie wróć na tę stronę.</p>
+    </div>
+    {% else %}
+
+    
+    {% include 'agro/components/_folio_simulator.html' %}
+    {% include 'agro/components/_folio_summary.html' %}
+    {% include 'agro/components/_folio_add_form.html' %}
+    {% include 'agro/components/_folio_active_rolls.html' %}
+    {% include 'agro/components/_folio_history_table.html' %}
+    {% endif %}{# end if active_plan #}
+    <!-- Custom Modal for Roll Close -->
+    <div id="folio-confirm-modal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+        <div class="custom-modal-content animate__animated animate__zoomIn" style="background: #ffffff; width: 100%; max-width: 450px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 10px; background: #f8fafc;">
+                <span class="material-icons" style="color: #f59e0b; font-size: 28px;">warning_amber</span>
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b;">Potwierdź zamknięcie</h3>
+            </div>
+            <div style="padding: 24px; font-size: 1rem; color: #334155; line-height: 1.5;" id="folio-confirm-text">
+                Czy na pewno chcesz zamknąć rolkę?
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 12px; background: #f8fafc;">
+                <button type="button" onclick="window.closeFolioConfirmModal()" class="btn-action btn-outline-secondary" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; border: 1px solid #cbd5e1; background: #fff; color: #475569;">Anuluj</button>
+                <button type="button" id="folio-confirm-ok-btn" class="btn-action btn-success" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; background: #27ae60; color: #fff; border: none;">ZAMKNIJ ROLKĘ</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+(function () {
+    'use strict';
+
+    // ---- Kalkulator strat (live update przy wpisywaniu) ----
+    function updateCalc(linkId, pobranych, zuzytoLive, wpisanoVal) {
+        var pozostalo = parseFloat(wpisanoVal);
+        var el = {
+            remains: document.getElementById('calc-remains-' + linkId),
+            losses:  document.getElementById('calc-losses-' + linkId),
+        };
+
+        if (isNaN(pozostalo) || wpisanoVal === '') {
+            if (el.remains) el.remains.textContent = '— szt.';
+            if (el.losses)  el.losses.textContent = '— szt.';
+            return;
+        }
+
+        var straty = Math.max(pobranych - zuzytoLive - pozostalo, 0);
+        if (el.remains) el.remains.textContent = Math.round(pozostalo) + ' szt.';
+        if (el.losses)  el.losses.textContent = Math.round(straty) + ' szt.';
+    }
+
+    // Expose globally for inline oninput handlers
+    window.updateCalc = updateCalc;
+
+    var formToSubmit = null;
+
+    window.closeFolioConfirmModal = function() {
+        document.getElementById('folio-confirm-modal').style.display = 'none';
+        formToSubmit = null;
+    };
+
+    document.getElementById('folio-confirm-ok-btn').addEventListener('click', function() {
+        if (formToSubmit) {
+            formToSubmit.submit();
+        }
+    });
+
+    // ---- Potwierdzenie zamknięcia rolki ----
+    function confirmCloseRoll(event, form) {
+        if (event) event.preventDefault();
+        var pozostaloInput = form.querySelector('input[name="pozostalo_szt"]');
+        var pozostalo = parseFloat(pozostaloInput ? pozostaloInput.value : 0) || 0;
+        var msg = 'Zamknąć rolkę? Pozostałe <strong style="color:#d97706;">' + Math.round(pozostalo) + ' szt.</strong> zostaną zwrócone do magazynu.';
+        
+        document.getElementById('folio-confirm-text').innerHTML = msg;
+        document.getElementById('folio-confirm-modal').style.display = 'flex';
+        formToSubmit = form;
+        return false;
+    }
+    window.confirmCloseRoll = confirmCloseRoll;
+
+    // ---- Live polling MQTT (co 15 s) ----
+    var planId = {{ active_plan.id if active_plan else 'null' }};
+
+    function pollLiveStatus() {
+        if (!planId) return;
+        fetch('/agro/folio/api/live_status?plan_id=' + planId)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !data.active_rolls) return;
+                data.active_rolls.forEach(function (roll) {
+                    var lid = roll.link_id;
+                    var elUsed = document.getElementById('live-used-' + lid);
+                    var elLeft = document.getElementById('live-left-' + lid);
+                    var elStop = document.getElementById('live-stop-' + lid);
+                    var elCalcUsed = document.getElementById('calc-used-' + lid);
+
+                    if (elUsed)    elUsed.textContent = roll.live_zuzyte;
+                    if (elStop)    elStop.textContent = roll.current_counter;
+                    if (elLeft)    elLeft.textContent = Math.max(Math.round(roll.szacowane_pozostalo), 0);
+                    if (elCalcUsed) elCalcUsed.textContent = roll.live_zuzyte + ' szt.';
+
+                    // Re-run calc if operator already typed a value
+                    var pozostaloInput = document.querySelector('input[name="pozostalo_szt"][form*="' + lid + '"], .roll-card#roll-card-' + lid + ' input[name="pozostalo_szt"]');
+                    if (pozostaloInput && pozostaloInput.value !== '') {
+                        updateCalc(lid, roll.stan_poczatkowy, roll.live_zuzyte, pozostaloInput.value);
+                    }
+                });
+            })
+            .catch(function () { /* ignore network errors */ });
+    }
+
+    if (planId) {
+        pollLiveStatus();
+        setInterval(pollLiveStatus, 15000);
+    }
+})();
+</script>
+{% endblock %}

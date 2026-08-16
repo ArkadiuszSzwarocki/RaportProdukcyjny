@@ -1,0 +1,175 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-report p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
+        <div>
+            <a href="{{ url_for('inwentaryzacja_produkcji.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
+                <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
+            </a>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                Raport z Inwentaryzacji Produkcji #{{ sesja.id }}
+                <span style="display: block; font-size: 14px; color: #64748b; font-weight: 400; margin-top: 4px;">
+                    Typ: <strong>{% if sesja.typ == 'BB_MZ' %}BB + MZ{% else %}KO{% endif %}</strong>
+                    {% if sesja.comment %} | {{ sesja.comment }}{% endif %}
+                </span>
+            </h1>
+        </div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">print</span> DRUKUJ
+            </button>
+            
+            {% if sesja.status == 'OPEN' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="closeSessionFromReport()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #dc2626; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">lock</span> ZAMKNIJ SESJĘ
+            </button>
+            {% endif %}
+            
+            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="applyInventory()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">task_alt</span> ZATWIERDŹ INWENTARYZACJĘ
+            </button>
+            {% endif %}
+            
+            {% if sesja.status == 'APPLIED' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="revertApply()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: #fffbeb; color: #b45309; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">undo</span> COFNIJ ZATWIERDZENIE
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    {% set total_counted = entries | length %}
+    {% set filled = entries | selectattr('waga', 'gt', 0) | list | length %}
+    {% set empty = total_counted - filled %}
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+        <div style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #8b5cf6; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Zbiorników policzonych</div>
+            <div style="font-size: 26px; font-weight: 800; color: #8b5cf6;">{{ total_counted }}</div>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #10b981; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Z produktem</div>
+            <div style="font-size: 26px; font-weight: 800; color: #10b981;">{{ filled }}</div>
+        </div>
+
+        <div style="background: #fefce8; padding: 20px; border-radius: 15px; border: 1px solid #fde68a; border-top: 4px solid #f59e0b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Puste zbiorniki</div>
+            <div style="font-size: 26px; font-weight: 800; color: #f59e0b;">{{ empty }}</div>
+        </div>
+
+        <div style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #0f172a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Suma wag</div>
+            <div style="font-size: 26px; font-weight: 800; color: #0f172a;">{{ "%.1f"|format(entries | sum(attribute='waga') | default(0, true)) }} kg</div>
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div style="padding: 15px 20px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #8b5cf6;">science</span>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">Szczegółowy Raport</h3>
+            </div>
+            <div style="position: relative; width: 250px;">
+                <span class="material-icons" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 16px;">search</span>
+                <input type="text" id="reportSearchInput" placeholder="Szukaj..." style="width: 100%; padding: 6px 10px 6px 34px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px;" onkeyup="filterReport()">
+            </div>
+        </div>
+
+        {% if not entries %}
+        <div style="padding: 40px; text-align: center; color: #94a3b8;">
+            <span class="material-icons" style="font-size: 48px; margin-bottom: 10px;">inventory_2</span>
+            <p>Brak wpisów w tej sesji.</p>
+        </div>
+        {% else %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 700px;">
+                <thead>
+                    <tr style="background: #f8fafc;">
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Zbiornik</th>
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Produkt</th>
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Nr partii</th>
+                        <th style="padding: 12px 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Waga (kg)</th>
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Komentarz</th>
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Operator</th>
+                        <th style="padding: 12px 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 800;">Data wpisu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;" class="report-row">
+                        <td style="padding: 12px 15px; font-weight: 800; color: #0f172a; font-size: 14px;">{{ e.zbiornik }}</td>
+                        <td style="padding: 12px 15px; font-weight: 600; color: {% if e.nazwa == 'PUSTY' %}#f59e0b{% else %}#1e293b{% endif %};">{{ e.nazwa or '-' }}</td>
+                        <td style="padding: 12px 15px; color: #475569; font-family: monospace;">{{ e.nr_partii or '-' }}</td>
+                        <td style="padding: 12px 15px; text-align: right; font-weight: 700; color: {% if e.waga and e.waga > 0 %}#10b981{% else %}#94a3b8{% endif %};">{{ "%.1f"|format(e.waga) if e.waga is not none else '0.0' }}</td>
+                        <td style="padding: 12px 15px; color: #64748b; font-size: 12px;">{{ e.komentarz or '-' }}</td>
+                        <td style="padding: 12px 15px; color: #475569; font-size: 12px;">{{ e.user_login or '-' }}</td>
+                        <td style="padding: 12px 15px; color: #475569; font-size: 12px;">{{ e.data_wpisu.strftime('%Y-%m-%d %H:%M') if e.data_wpisu else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function closeSessionFromReport() {
+    if(!confirm('Czy na pewno chcesz zamknąć tę sesję?')) return;
+    fetch('/produkcja/inwentaryzacja/api/zamknij-sesje', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) window.location.reload();
+        else alert("Błąd: " + data.message);
+    });
+}
+
+function applyInventory() {
+    if(!confirm('Czy na pewno chcesz zatwierdzić tę inwentaryzację?')) return;
+    fetch('/produkcja/inwentaryzacja/api/zatwierdz-inwentaryzacje', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) window.location.reload();
+        else alert("Błąd: " + data.message);
+    });
+}
+
+function revertApply() {
+    if(!confirm('Czy na pewno chcesz cofnąć zatwierdzenie?')) return;
+    fetch('/produkcja/inwentaryzacja/api/cofnij-zatwierdzenie', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) window.location.reload();
+        else alert("Błąd: " + data.message);
+    });
+}
+
+function filterReport() {
+    const filter = document.getElementById('reportSearchInput').value.toLowerCase().trim();
+    document.querySelectorAll('.report-row').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
+    });
+}
+</script>
+
+<style>
+@media print {
+    .btn-outline, .btn-primary, a[href*="index"], input[type="text"] {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,196 @@
+/* static/css/logistyka.css - Clean & Flat Systemic Styles */
+
+:root {
+    --logistyka-primary: #2c3e50;
+    --logistyka-border: #d1d5db;
+    --logistyka-bg-light: #f9fafb;
+    --logistyka-text: #111827;
+}
+
+.logistyka-container {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* FLAT CARDS */
+.premium-card {
+    background: #ffffff;
+    border: 1px solid var(--logistyka-border);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.card-header {
+    background: var(--logistyka-bg-light);
+    border-bottom: 1px solid var(--logistyka-border);
+    padding: 12px 16px;
+}
+
+.card-header h5 {
+    margin: 0;
+    font-weight: 700;
+    color: var(--logistyka-primary);
+}
+
+/* FLAT TABLES */
+.premium-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.premium-table thead th {
+    background: var(--logistyka-bg-light);
+    color: #4b5563;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--logistyka-border);
+}
+
+.premium-table tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: middle;
+}
+
+.premium-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+/* FLAT BUTTONS */
+.btn-premium {
+    background: var(--logistyka-primary);
+    color: #ffffff !important;
+    border: 1px solid var(--logistyka-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-premium:hover {
+    background: #1a252f;
+}
+
+.btn-premium-outline {
+    background: #ffffff;
+    color: var(--logistyka-primary) !important;
+    border: 1px solid var(--logistyka-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-premium-outline:hover {
+    background: #f3f4f6;
+}
+
+/* FLAT INPUTS */
+.premium-input {
+    border: 1px solid var(--logistyka-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+}
+
+.premium-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-label-premium {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+/* PAGE HEADER (SIMPLE) */
+.page-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--logistyka-primary);
+}
+
+/* BADGES (FLAT) */
+.premium-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-block;
+}
+
+.badge-success { background: #10b981; color: #fff; }
+.badge-warning { background: #f59e0b; color: #fff; }
+.badge-danger { background: #ef4444; color: #fff; }
+.badge-info { background: #3b82f6; color: #fff; }
+
+/* PROGRESS (FLAT) */
+.premium-progress {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.premium-progress-bar {
+    height: 100%;
+    background: #10b981;
+}
+
+/* PALLET CARD (CLEAN) */
+.pallet-card {
+    border: 1px solid var(--logistyka-border);
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.pallet-card:hover {
+    border-color: #3b82f6;
+    background: #f0f9ff;
+}
+
+.pallet-card.selected {
+    border-color: #10b981;
+    background: #ecfdf5;
+}
+
+/* TABS (SIMPLE) */
+.tab-btn {
+    border: none;
+    background: none;
+    padding: 10px 20px;
+    font-weight: 700;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+    color: var(--logistyka-primary);
+    border-bottom-color: var(--logistyka-primary);
+}

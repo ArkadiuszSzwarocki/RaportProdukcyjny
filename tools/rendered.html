@@ -1,0 +1,3662 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Produkcyjny</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=1781437565&v2=2">
+    <link rel="stylesheet" href="/static/css/sidebar.css?v=1781437565&v2=2">
+    <link rel="stylesheet" href="/static/css/inline-styles.css?v=1781437565">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <!-- GLOBAL LAYOUT ASSETS -->
+    <style>
+    /* Modern Inventory Mobile Optimizations */
+    .modal-overlay { -webkit-overflow-scrolling: touch; }
+    @media (max-height: 600px) {
+        #newPalletModal .modal-content { padding-bottom: 80px; }
+    }
+
+    /* Notifications Wrapper & Badge */
+    .notifications-wrapper { position: relative; }
+    .notifications-badge {
+        position: absolute; inset-block-start: -4px; inset-inline-end: -4px;
+        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+        background: #d9342b; color: #fff; font-size: 11px; line-height: 18px;
+        text-align: center; font-weight: 700; display: none;
+    }
+    .notifications-badge.dot-mode {
+        min-width: 10px; width: 10px; height: 10px; padding: 0;
+        line-height: 10px; font-size: 0; color: transparent;
+        inset-block-start: 0; inset-inline-end: 0;
+    }
+
+    /* Notifications Menu */
+    .notifications-menu {
+        position: absolute; top: calc(100% + 10px); right: 0; left: auto;
+        width: min(420px, 88vw); max-height: 70vh; overflow: hidden;
+        background: #fff; border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 14px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        z-index: 1200; display: none;
+    }
+    .notifications-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 16px; border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .notifications-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+    .notifications-list { max-height: 52vh; overflow-y: auto; }
+    .notification-item {
+        width: 100%; border: 0; background: #fff; text-align: left;
+        padding: 14px 16px; display: block; cursor: pointer;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+    .notification-item:hover { background: #f8fafc; }
+    .notification-item-system { background: #f8fbff; border-left: 3px solid #2563eb; }
+    .notification-item-title {
+        display: block; font-size: 13px; font-weight: 700; color: #0f172a;
+        margin-bottom: 4px;
+    }
+    .notification-item-message {
+        display: block; font-size: 12px; color: #334155; line-height: 1.35;
+    }
+    .notification-item-meta {
+        display: block; font-size: 11px; color: #64748b; margin-top: 8px;
+    }
+    .notifications-empty {
+        padding: 16px; color: #64748b; font-size: 13px;
+    }
+
+    .checklist-ok-badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #27ae60;
+        background: #e9f9ef;
+        color: #166534;
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        line-height: 1.2;
+        margin-left: 6px;
+        text-transform: uppercase;
+    }
+
+    /* Bug Icon Onboarding */
+    .bug-icon-onboarding-highlight {
+        position: relative; isolation: isolate;
+        animation: bugIconNudge 2.4s ease-in-out infinite;
+    }
+    @keyframes bugIconPulse {
+        0% { transform: scale(0.98); opacity: 0.95; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+        70% { transform: scale(1.04); opacity: 0.15; box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+        100% { transform: scale(1.04); opacity: 0; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    @keyframes bugIconNudge {
+        0%, 85%, 100% { transform: translateY(0); }
+        90% { transform: translateY(-1px); }
+        95% { transform: translateY(1px); }
+    }
+
+    /* Global Spinner */
+    #globalSpinner {
+        display: none; position: fixed; inset: 0;
+        background: rgba(255,255,255,0.65); z-index: 3000;
+        align-items: center; justify-content: center;
+    }
+    #globalSpinner .spinner {
+        width: 56px; height: 56px; border: 6px solid rgba(15,23,42,0.12);
+        border-top-color: #0f172a; border-radius: 50%;
+        animation: rp-spin 1s linear infinite;
+    }
+    @keyframes rp-spin { to { transform: rotate(360deg); } }
+    /* No Orders Alert (Operator View) */
+    .no-orders-alert {
+        display: flex; align-items: flex-start; gap: 20px;
+        background: #fff; border: 2px dashed #f59e0b; border-radius: 16px;
+        padding: 24px; margin: 20px 0; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.1);
+    }
+    .no-orders-alert .info-icon { font-size: 48px; color: #f59e0b; }
+    .no-orders-alert .alert-content { flex: 1; }
+    .no-orders-alert .alert-content strong { display: block; font-size: 18px; margin-bottom: 8px; color: #92400e; }
+    .no-orders-alert .alert-content p { color: #b45309; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+    .btn-notify-planner {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: #f59e0b; color: #fff; border: 0; border-radius: 10px;
+        padding: 10px 20px; font-weight: 700; cursor: pointer;
+        transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    .btn-notify-planner:hover { background: #d97706; transform: translateY(-1px); box-shadow: 0 6px 15px rgba(245, 158, 11, 0.4); }
+    .btn-notify-planner:active { transform: translateY(0); }
+    .btn-notify-planner .material-icons { font-size: 18px; }
+</style>
+    <script>
+    /** JS ERROR TRAP: Capture and log frontend errors to the server */
+    window.onerror = function(message, source, lineno, colno, error) {
+        try {
+            const payload = {
+                message: message, url: source, line: lineno, column: colno,
+                stack: error ? error.stack : '', href: window.location.href
+            };
+            fetch('/api/log_frontend_error', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => {});
+        } catch(e) {}
+        return false;
+    };
+
+    /** Polyfill for Element.prototype.closest for older browsers (Zebra handhelds) */
+    if (!Element.prototype.matches) {
+        Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+    }
+    if (!Element.prototype.closest) {
+        Element.prototype.closest = function(s) {
+            var el = this;
+            do {
+                if (el.matches(s)) return el;
+                el = el.parentElement || el.parentNode;
+            } while (el !== null && el.nodeType === 1);
+            return null;
+        };
+    }
+
+    /** Lightweight shims for early helper calls */
+    if (typeof window.formatError !== 'function') {
+        window.formatError = function (err) {
+            try {
+                if (!err && err !== 0) return '';
+                if (typeof err === 'object') {
+                    if (err.message) return String(err.message);
+                    try { return JSON.stringify(err); } catch (e) { return String(err); }
+                }
+                var s = String(err);
+                if (/^\s*[{\[]/.test(s)) {
+                    try { var parsed = JSON.parse(s); if (parsed && parsed.message) return String(parsed.message); return JSON.stringify(parsed); } catch (e) { }
+                }
+                return s;
+            } catch (e) { return 'Błąd'; }
+        };
+    }
+
+    if (typeof window.safeAlert !== 'function') {
+        window.safeAlert = function (title, message) {
+            try {
+                if (typeof window.openQuickPopup === 'function') {
+                    window.openQuickPopup('<h3>' + (title || '') + '</h3><div class="p-10">' + (message || '') + '</div>');
+                    return;
+                }
+            } catch (e) { console.error('Popup error:', e); }
+        };
+    }
+
+    document.addEventListener('submit', function(event) {
+        var form = event.target;
+        if (!form || !form.getAttribute) {
+            return;
+        }
+
+        if (form.getAttribute('data-confirm-handled') === 'true') {
+            return;
+        }
+
+        var message = form.getAttribute('data-confirm');
+        if (!message) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (typeof window.openQuickPopup === 'function') {
+            var html = '<h3>Potwierdzenie</h3>' +
+                       '<div class="p-10" style="margin-bottom: 20px;">' + message + '</div>' +
+                       '<div style="display:flex; gap:10px; justify-content:flex-end;">' +
+                       '<button type="button" class="btn-action btn-outline-warning" onclick="window.closeQuickPopup()">Anuluj</button>' +
+                       '<button type="button" class="btn-action btn-success" id="btn-custom-confirm-ok">OK</button>' +
+                       '</div>';
+            window.openQuickPopup(html);
+            
+            // Wait for next tick so modal is rendered
+            setTimeout(function() {
+                var okBtn = document.getElementById('btn-custom-confirm-ok');
+                if (okBtn) {
+                    okBtn.addEventListener('click', function() {
+                        form.setAttribute('data-confirm-handled', 'true');
+                        window.closeQuickPopup();
+                        form.submit();
+                    });
+                }
+            }, 10);
+        } else {
+            if (window.confirm(message)) {
+                form.setAttribute('data-confirm-handled', 'true');
+                form.submit();
+            }
+        }
+    }, false);
+
+    /** Function for operators to notify the planner */
+    window.notifyPlanner = function(sekcja, linia) {
+        if (!confirm('Czy na pewno powiadomić planistę o braku zleceń w ' + sekcja + ' (' + linia + ')?')) return;
+        
+        fetch('/api/notify-planner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sekcja: sekcja, linia: linia })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.success) {
+                window.safeAlert('Sukces', j.message);
+                // Disable button to prevent spam
+                const btn = document.querySelector('.btn-notify-planner');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.innerHTML = '<span class="material-icons">check</span> POWIADOMIONO';
+                }
+            } else {
+                window.safeAlert('Błąd', j.message || 'Nie udało się wysłać powiadomienia.');
+            }
+        })
+        .catch(e => {
+            console.error('Notification error:', e);
+            window.safeAlert('Błąd', 'Błąd sieci podczas wysyłania powiadomienia.');
+        });
+    };
+
+    /** Desktop Push Notifications Logic for Planners/Admins */
+    window.initPlannerNotifications = function() {
+        // Always start polling for badge updates if role matches
+        startNotificationPolling();
+
+        if (!("Notification" in window)) return;
+        
+        const box = document.getElementById('notif-permission-box');
+        const navBtn = document.getElementById('navNotifPermissionBtn');
+        
+        if (Notification.permission === "granted") {
+            if (box) box.style.display = 'none';
+            if (navBtn) navBtn.style.display = 'none';
+            // Upewnij się że subskrypcja Web Push jest aktywna
+            if (typeof registerPushSubscription === 'function') {
+                registerPushSubscription();
+            }
+        } else if (Notification.permission !== "denied") {
+            if (box) box.style.display = 'inline-block';
+            if (navBtn) navBtn.style.display = 'inline-flex';
+            
+            if (event && (event.type === 'click')) {
+                // Deleguj do nowej funkcji push
+                if (typeof window.requestPushPermission === 'function') {
+                    window.requestPushPermission();
+                } else {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            if (box) box.style.display = 'none';
+                            if (navBtn) navBtn.style.display = 'none';
+                            new Notification("System Powiadomień", { body: "Powiadomienia zostały pomyślnie włączone!" });
+                        }
+                    });
+                }
+            }
+        }
+    };
+
+    let lastKnownNotifId = 0;
+    let isPollingStarted = false;
+    function startNotificationPolling() {
+        if (isPollingStarted) return;
+        isPollingStarted = true;
+        
+        // Initial check to set the baseline ID so we don't spam old notifications
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state) {
+                    lastKnownNotifId = j.state.last_notif;
+                    console.log('Notifications baseline set to:', lastKnownNotifId);
+                    setInterval(pollNotifications, 10000); // Check every 10 seconds
+                }
+            })
+            .catch(e => {
+                isPollingStarted = false; // Allow retry on failure
+                console.error('Failed to set notification baseline:', e);
+            });
+    }
+
+    const originalTitle = document.title;
+    let unreadCount = 0;
+
+    function updateTitleBadge() {
+        if (unreadCount > 0) {
+            document.title = '(' + unreadCount + ') ' + originalTitle;
+        } else {
+            document.title = originalTitle;
+        }
+    }
+
+    function playNotificationSound() {
+        try {
+            // Simple beep using Web Audio API if no audio file is preferred
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error('Sound play failed:', e);
+        }
+    }
+
+    function pollNotifications() {
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state && j.state.last_notif > lastKnownNotifId) {
+                    // There are new notifications! Fetch details.
+                    fetch('/api/notifications?limit=10')
+                        .then(rn => rn.json())
+                        .then(jn => {
+                            if (jn.success && jn.notifications) {
+                                let newlyFound = 0;
+                                jn.notifications.forEach(n => {
+                                    if (n.id > lastKnownNotifId) {
+                                        newlyFound++;
+                                        // Desktop notification (outside the app window)
+                                        if (Notification.permission === "granted") {
+                                            const notif = new Notification(n.title, {
+                                                body: n.message,
+                                                icon: '/static/img/logo_circle.png',
+                                                tag: 'notif-' + n.id,
+                                                requireInteraction: false
+                                            });
+                                            notif.onclick = function() {
+                                                if (n.link_url) window.location.href = n.link_url;
+                                                window.focus();
+                                            };
+                                        }
+                                        lastKnownNotifId = Math.max(lastKnownNotifId, n.id);
+                                    }
+                                });
+
+                                if (newlyFound > 0) {
+                                    unreadCount = jn.unread_count || newlyFound;
+                                    updateTitleBadge();
+                                    playNotificationSound();
+                                    
+                                    // Update navbar badge if exists
+                                    const navBadge = document.getElementById('notificationsBadge');
+                                    if (navBadge) {
+                                        navBadge.innerText = unreadCount;
+                                        navBadge.style.display = unreadCount > 0 ? 'block' : 'none';
+                                    }
+                                }
+                            }
+                        });
+                }
+            });
+    }
+
+    // Reset badge when window gets focus
+    window.addEventListener('focus', function() {
+        unreadCount = 0;
+        updateTitleBadge();
+    });
+
+    // Auto-init for planner roles
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        window.initPlannerNotifications();
+    });
+    
+
+    function setHiddenFormValue(form, fieldName, value) {
+        var hiddenInput = form.querySelector('input[name="' + fieldName + '"]');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = fieldName;
+            form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = value;
+    }
+
+    function askForProductionDate(form, productName) {
+        var input = prompt("Rozpoczynasz zlecenie: " + productName + "\n\nWpisz datę produkcji (RRRR-MM-DD), jeśli chcesz ją zmienić/ustawić.\nPozostaw puste, aby użyć dotychczasowej daty (bez zmian):");
+        if (input === null) {
+            return false;
+        }
+
+        var trimmed = input.trim();
+        if (trimmed !== "") {
+            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(trimmed)) {
+                alert("❌ Nieprawidłowy format daty! Użyj formatu RRRR-MM-DD (np. 2026-05-19).");
+                return false;
+            }
+            setHiddenFormValue(form, 'data_produkcji', trimmed);
+        }
+        return true;
+    }
+
+    function openAgroWorkowanieChecklist(form, productName) {
+        var requiredFolia = (form.getAttribute('data-required-opakowanie') || '').trim();
+        var requiredEtykieta = (form.getAttribute('data-required-etykieta') || '').trim();
+
+        if (!requiredFolia || !requiredEtykieta) {
+            window.safeAlert('Błąd', '❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
+            return;
+        }
+
+        var existingOverlay = document.getElementById('start-order-checklist-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-checklist-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:560px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;box-sizing:border-box;overflow-y:auto;max-height:calc(100vh - 40px);';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Checklista START Workowania AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;box-sizing:border-box;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;box-sizing:border-box;word-break:break-word;';
+
+        var checklistBox = document.createElement('div');
+        checklistBox.style.cssText = 'background:#f7fafc;border:1px solid #d9e2ec;border-radius:10px;padding:10px 12px;margin-bottom:12px;box-sizing:border-box;';
+
+        function buildChecklistRow(labelText) {
+            var label = document.createElement('label');
+            label.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin:7px 0;color:#243b53;cursor:pointer;box-sizing:border-box;width:100%;';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.style.marginTop = '2px';
+            cb.style.flexShrink = '0';
+            var txt = document.createElement('span');
+            txt.textContent = labelText;
+            txt.style.cssText = 'flex:1;min-width:0;word-break:break-word;white-space:normal;font-size:0.92rem;';
+            label.appendChild(cb);
+            label.appendChild(txt);
+            return { row: label, checkbox: cb };
+        }
+
+        var foliaCheck = buildChecklistRow('Potwierdzam przygotowanie folii: ' + requiredFolia);
+        var etykietaCheck = buildChecklistRow('Potwierdzam przygotowanie etykiety: ' + requiredEtykieta);
+        checklistBox.appendChild(foliaCheck.row);
+        checklistBox.appendChild(etykietaCheck.row);
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;box-sizing:border-box;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;box-sizing:border-box;';
+        
+        // Auto-fill today's date
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;box-sizing:border-box;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;box-sizing:border-box;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Potwierdź i uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            if (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked) {
+                errorBox.textContent = 'Potwierdź oba punkty checklisty operatora.';
+                return;
+            }
+
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            setHiddenFormValue(form, 'start_checklist_confirmed', '1');
+            setHiddenFormValue(form, 'data_produkcji', dateValue);
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(checklistBox);
+        panel.appendChild(dateLabel);
+        panel.appendChild(dateInput);
+
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+
+    }
+
+    function openCzyszczeniePackagingModal(form, planId, sekcja) {
+        var existingOverlay = document.getElementById('czyszczenie-packaging-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'czyszczenie-packaging-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie Czyszczenia';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = (sekcja === 'Zasyp') ? 'Podaj kod SSCC (jeśli dotyczy):' : 'Wybierz w co pakujesz produkt:';
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        // SSCC Input (Zasyp)
+        var ssccContainer = document.createElement('div');
+        var ssccInput = document.createElement('input');
+        if (sekcja === 'Zasyp') {
+            var ssccLabel = document.createElement('label');
+            ssccLabel.textContent = 'Zeskanuj kod SSCC:';
+            ssccLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;font-weight:bold;';
+            ssccInput.type = 'text';
+            ssccInput.name = 'skan_sscc';
+            ssccInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+            ssccContainer.appendChild(ssccLabel);
+            ssccContainer.appendChild(ssccInput);
+        }
+
+        // Typ pakowania (Workowanie)
+        var typSelect = document.createElement('select');
+        typSelect.name = 'typ_pakowania';
+        typSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var optBigBag = document.createElement('option');
+        optBigBag.value = 'BigBag';
+        optBigBag.textContent = 'BigBag';
+        
+        var optWorki = document.createElement('option');
+        optWorki.value = 'Worki';
+        optWorki.textContent = 'Worki';
+        
+        typSelect.appendChild(optBigBag);
+        typSelect.appendChild(optWorki);
+
+        // Folia container
+        var foliaContainer = document.createElement('div');
+        foliaContainer.style.display = 'none';
+
+        var foliaLabel = document.createElement('label');
+        foliaLabel.textContent = 'Wybierz folię:';
+        foliaLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+        
+        var foliaSelect = document.createElement('select');
+        foliaSelect.name = 'opakowanie_id';
+        foliaSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        foliaContainer.appendChild(foliaLabel);
+        foliaContainer.appendChild(foliaSelect);
+
+        typSelect.addEventListener('change', function() {
+            if (this.value === 'Worki') {
+                foliaContainer.style.display = 'block';
+                if (foliaSelect.options.length === 0) {
+                    fetch('/api/opakowania/folie')
+                        .then(r => r.json())
+                        .then(data => {
+                            data.forEach(item => {
+                                var opt = document.createElement('option');
+                                opt.value = item.id;
+                                opt.textContent = item.nazwa;
+                                foliaSelect.appendChild(opt);
+                            });
+                        })
+                        .catch(err => console.error("Error loading folie:", err));
+                }
+            } else {
+                foliaContainer.style.display = 'none';
+            }
+        });
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;margin-top:12px;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'display:none;color:#b91c1c;background:#fee2e2;padding:8px;border-radius:6px;font-size:0.85rem;margin-bottom:12px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'padding:8px 16px;border:none;background:#f0f4f8;color:#334e68;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Zatwierdź';
+        confirmBtn.style.cssText = 'padding:8px 16px;border:none;background:#102a43;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        confirmBtn.addEventListener('click', function() {
+            if (sekcja === 'Zasyp' && (!ssccInput.value || ssccInput.value.trim() === '')) {
+                errorBox.textContent = 'Proszę zeskanować kod SSCC!';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            if (sekcja !== 'Zasyp') {
+                if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
+                    errorBox.textContent = 'Wybierz folię przed startem w workach!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+                if (!dateInput.value) {
+                    errorBox.textContent = 'Wybierz datę produkcji!';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+            }
+
+            if (sekcja === 'Zasyp') {
+                var hiddenSscc = document.createElement('input');
+                hiddenSscc.type = 'hidden';
+                hiddenSscc.name = 'skan_sscc';
+                hiddenSscc.value = ssccInput.value.trim();
+                form.appendChild(hiddenSscc);
+            } else {
+                var hiddenTyp = document.createElement('input');
+                hiddenTyp.type = 'hidden';
+                hiddenTyp.name = 'typ_pakowania';
+                hiddenTyp.value = typSelect.value;
+                form.appendChild(hiddenTyp);
+
+                if (typSelect.value === 'Worki') {
+                    var hiddenFolia = document.createElement('input');
+                    hiddenFolia.type = 'hidden';
+                    hiddenFolia.name = 'opakowanie_id';
+                    hiddenFolia.value = foliaSelect.value;
+                    form.appendChild(hiddenFolia);
+                }
+
+                var hiddenDate = document.createElement('input');
+                hiddenDate.type = 'hidden';
+                hiddenDate.name = 'data_produkcji';
+                hiddenDate.value = dateInput.value;
+                form.appendChild(hiddenDate);
+            }
+
+            overlay.remove();
+            if (window.ajaxSubmitForm) {
+                window.ajaxSubmitForm(form);
+            } else {
+                form.submit();
+            }
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) overlay.remove();
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        if (sekcja === 'Zasyp') {
+            panel.appendChild(ssccContainer);
+        } else {
+            panel.appendChild(typSelect);
+            panel.appendChild(foliaContainer);
+            panel.appendChild(dateLabel);
+            panel.appendChild(dateInput);
+        }
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        if (sekcja === 'Zasyp') {
+            setTimeout(function() { ssccInput.focus(); }, 100);
+        }
+    }
+
+    function openAgroProductionDateModal(form, productName) {
+        var existingOverlay = document.getElementById('start-order-date-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-date-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie zlecenia AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        var msg = document.createElement('p');
+        msg.textContent = 'Wpisz datę produkcji, jeśli chcesz ją zmienić/ustawić. Pozostaw domślną, aby użyć dzisiejszej:';
+        msg.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.9rem;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            if (dateValue) {
+                setHiddenFormValue(form, 'data_produkcji', dateValue);
+            }
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(msg);
+        panel.appendChild(dateInput);
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        setTimeout(function() {
+            try {
+                dateInput.showPicker();
+            } catch(e) {
+                dateInput.focus();
+            }
+        }, 50);
+    }
+
+    window.confirmStartOrder = function(form, productName, planId) {
+        var liniaInput = form.querySelector('input[name="linia"]');
+        var linia = liniaInput ? liniaInput.value.trim().toUpperCase() : '';
+        
+        var sekcjaInput = form.querySelector('input[name="sekcja"]');
+        var sekcja = sekcjaInput ? sekcjaInput.value.trim() : '';
+
+        if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
+            openCzyszczeniePackagingModal(form, planId, sekcja);
+            return false;
+        }
+
+        var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
+        if (requiresChecklist) {
+            openAgroWorkowanieChecklist(form, productName);
+            return false;
+        }
+        
+        if (sekcja === 'Workowanie' && linia === 'AGRO') {
+            openAgroProductionDateModal(form, productName);
+            return false;
+        } else {
+            return true;
+        }
+    };
+
+    /** Initialize a custom, premium, keyboard-navigable and accent-insensitive searchable select dropdown */
+    window.initSearchableSelect = function(hiddenInputId, searchInputId, dropdownId, indicatorId, dataList, isEtykieta) {
+        const hiddenInp = document.getElementById(hiddenInputId);
+        const searchInp = document.getElementById(searchInputId);
+        const dropdownPanel = document.getElementById(dropdownId);
+        const indicator = document.getElementById(indicatorId);
+        
+        if (!hiddenInp || !searchInp || !dropdownPanel) return;
+        
+        let highlightedIndex = -1;
+        let filteredItems = [];
+
+        // Accent normalization helper for Polish characters with advanced stemming rules
+        function normalizeText(text) {
+            if (!text) return '';
+            let norm = text.toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/ł/g, "l")
+                .replace(/ż/g, "z")
+                .replace(/ź/g, "z")
+                .replace(/ć/g, "c")
+                .replace(/ń/g, "n")
+                .replace(/ó/g, "o")
+                .replace(/ę/g, "e")
+                .replace(/ą/g, "a")
+                .replace(/ś/g, "s");
+            
+            // Stemming rules for Polish AGRO labels (e.g. matching "pasek", "paskach" with "paskiem")
+            norm = norm.replace(/pasek/g, "pask");
+            // Strip common adjective endings to match word roots
+            norm = norm.replace(/(owym|owym|ego|em|ej|im|ych|y|a|e|o|u|i)$/g, "");
+            return norm;
+        }
+
+        function getStripeBadgeHtml(name) {
+            let color = '';
+            let border = '1px solid #ccc';
+            const norm = name.toLowerCase();
+            if (norm.includes('czerwon')) {
+                color = '#dc2626';
+                border = '1px solid #b91c1c';
+            } else if (norm.includes('fioletow')) {
+                color = '#800080';
+                border = '1px solid #6a006a';
+            } else if (norm.includes('brązow') || norm.includes('brazow')) {
+                color = '#8B4513';
+                border = '1px solid #5c2d0c';
+            } else if (norm.includes('żółt') || norm.includes('zolt')) {
+                color = '#FFD700';
+                border = '1px solid #ccab00';
+            } else {
+                color = '#ffffff';
+            }
+            return '<span class="stripe-badge" style="background-color: ' + color + '; border: ' + border + '; display: inline-block; width: 30px; height: 12px; border-radius: 2px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);"></span>';
+        }
+
+        function renderList() {
+            const query = normalizeText(searchInp.value);
+            filteredItems = dataList.filter(function(item) {
+                return normalizeText(item.nazwa).includes(query);
+            });
+
+            dropdownPanel.innerHTML = '';
+            if (filteredItems.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'searchable-select-item-empty';
+                emptyDiv.style.padding = '8px 12px';
+                emptyDiv.style.color = '#888';
+                emptyDiv.style.fontSize = '0.9em';
+                emptyDiv.innerText = 'Brak wyników';
+                dropdownPanel.appendChild(emptyDiv);
+                return;
+            }
+
+            filteredItems.forEach(function(item, idx) {
+                const div = document.createElement('div');
+                div.className = 'searchable-select-item';
+                if (idx === highlightedIndex) {
+                    div.classList.add('highlighted');
+                }
+                
+                let badgeHtml = '';
+                if (isEtykieta) {
+                    badgeHtml = getStripeBadgeHtml(item.nazwa);
+                }
+                
+                div.innerHTML = '<div style="display: flex; align-items: center; gap: 8px;">' + badgeHtml + '<span>' + item.nazwa + '</span></div>';
+                
+                div.addEventListener('click', function() {
+                    selectItem(item);
+                });
+                dropdownPanel.appendChild(div);
+            });
+        }
+
+        function selectItem(item) {
+            hiddenInp.value = item.id;
+            searchInp.value = item.nazwa;
+            
+            if (isEtykieta && indicator) {
+                indicator.innerHTML = getStripeBadgeHtml(item.nazwa);
+                searchInp.style.paddingLeft = '50px';
+            } else if (indicator) {
+                indicator.innerHTML = '';
+                searchInp.style.paddingLeft = '10px';
+            }
+            
+            closeDropdown();
+            hiddenInp.dispatchEvent(new Event('change'));
+        }
+
+        function clearSelection() {
+            hiddenInp.value = '';
+            searchInp.value = '';
+            if (indicator) {
+                indicator.innerHTML = '';
+            }
+            searchInp.style.paddingLeft = '10px';
+            hiddenInp.dispatchEvent(new Event('change'));
+        }
+
+        function closeDropdown() {
+            dropdownPanel.style.display = 'none';
+            highlightedIndex = -1;
+        }
+
+        function openDropdown() {
+            dropdownPanel.style.display = 'block';
+            renderList();
+        }
+
+        searchInp.addEventListener('focus', function() {
+            openDropdown();
+        });
+
+        searchInp.addEventListener('input', function() {
+            highlightedIndex = -1;
+            openDropdown();
+        });
+
+        searchInp.addEventListener('keydown', function(e) {
+            if (dropdownPanel.style.display === 'none') {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    openDropdown();
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                highlightedIndex = (highlightedIndex + 1) % filteredItems.length;
+                renderList();
+                scrollIntoView();
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                highlightedIndex = (highlightedIndex - 1 + filteredItems.length) % filteredItems.length;
+                renderList();
+                scrollIntoView();
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                if (highlightedIndex >= 0 && highlightedIndex < filteredItems.length) {
+                    selectItem(filteredItems[highlightedIndex]);
+                    e.preventDefault();
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+                e.preventDefault();
+            }
+        });
+
+        function scrollIntoView() {
+            const el = dropdownPanel.children[highlightedIndex];
+            if (el) {
+                el.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // Close dropdown when clicking outside
+        const outsideClickListener = function(e) {
+            if (!searchInp.contains(e.target) && !dropdownPanel.contains(e.target)) {
+                closeDropdown();
+                const currentVal = searchInp.value.trim();
+                if (currentVal === '') {
+                    clearSelection();
+                } else {
+                    const exactMatch = dataList.find(function(item) {
+                        return item.nazwa.toLowerCase() === currentVal.toLowerCase();
+                    });
+                    if (exactMatch) {
+                        selectItem(exactMatch);
+                    } else {
+                        if (hiddenInp.value) {
+                            const prevItem = dataList.find(function(item) {
+                                return item.id.toString() === hiddenInp.value.toString();
+                            });
+                            if (prevItem) {
+                                selectItem(prevItem);
+                            } else {
+                                clearSelection();
+                            }
+                        } else {
+                            clearSelection();
+                        }
+                    }
+                }
+            }
+        };
+        
+        document.addEventListener('click', outsideClickListener);
+
+        // Store event listener and cleanup function on the elements
+        searchInp._outsideClickListener = outsideClickListener;
+
+        if (!window.clearSearchableSelects) {
+            window.clearSearchableSelects = {};
+        }
+        window.clearSearchableSelects[hiddenInputId] = clearSelection;
+
+        if (!window.setSearchableSelectValue) {
+            window.setSearchableSelectValue = {};
+        }
+        window.setSearchableSelectValue[hiddenInputId] = function(id) {
+            const item = dataList.find(function(i) {
+                return i.id.toString() === id.toString();
+            });
+            if (item) {
+                selectItem(item);
+            } else {
+                clearSelection();
+            }
+        };
+    };
+</script>
+    <script src="/static/js/perf_monitor.js?v=1781437565"></script>
+    <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
+    <script src="/static/js/session_guard.js?v=1781437565"></script>
+    
+<link rel="stylesheet" href="/static/css/dashboard.css?v=1781437565&v2=2">
+
+</head>
+
+
+
+
+
+
+
+
+
+
+<body class="theme-agro">
+    
+
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+
+
+
+
+
+
+
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Global spinner overlay (appears if navigation / data load exceeds 1s) -->
+    <style>
+        /* prevent hidden spinner from blocking interactions */
+        #globalSpinner { pointer-events: none; }
+        #globalSpinner.overlay-active { pointer-events: auto; }
+    </style>
+    <div id="globalSpinner" aria-hidden="true">
+        <div class="spinner" role="status" aria-label="Ładowanie"></div>
+    </div>
+    <!-- GLOBAL NAVIGATION BAR -->
+    <div class="top-bar">
+    <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+        <span class="material-icons">menu</span>
+    </button>
+
+    <span id="topBarPageTitle" style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+
+    <div class="top-bar-right">
+        
+        <div class="top-user-meta" style="margin-right: 12px;">
+            <span class="user-role" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);">
+                <span class="material-icons text-danger" style="font-size: 16px; margin-right: 4px;">warning</span>
+                <span class="user-role-label text-danger" style="font-weight: 700;">BAZA TESTOWA:</span>
+                <strong class="user-role-name text-danger">biblioteka_testowa</strong>
+            </span>
+        </div>
+        
+
+        
+        <div class="top-user-meta">
+            <span class="user-role">
+                <span class="user-role-label">Zalogowany:</span>
+                <strong class="user-role-name">MasterAdmin</strong>
+            </span>
+        </div>
+        <div class="top-user-meta" id="sessionTimeoutWrapper" style="margin-left: 8px; display: none;">
+            <span class="user-role" id="sessionTimeoutBadge" style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #10b981; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px; transition: all 0.3s ease;">
+                <span class="material-icons" id="sessionTimeoutIcon" style="font-size: 16px; transition: all 0.3s ease;">timer</span>
+                <span id="sessionTimeoutLabel" class="d-mobile-none" style="font-size: 11px; font-weight: 700; white-space: nowrap;">Sesja:</span>
+                <strong id="sessionTimeoutTimer" style="font-size: 12px; font-weight: 800; white-space: nowrap;">40:00</strong>
+            </span>
+        </div>
+        <div id="session-timeout-config" data-timeout-minutes="40" style="display: none;"></div>
+        
+
+        <div class="top-icons-group">
+            
+            <a href="/zglos" class="btn-icon" title="Zgłoś problem">
+                <span class="material-icons">report_problem</span>
+            </a>
+            <button type="button" id="bugReportTopButton" class="btn-icon text-warning bug-icon-onboarding-highlight" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
+                <span class="material-icons">bug_report</span>
+            </button>
+            
+
+            
+            <div class="notifications-wrapper">
+                <button type="button" id="navNotifPermissionBtn" class="btn-icon text-warning" style="display:none; margin-right: 8px;" title="Włącz powiadomienia push (na zablokowanym ekranie)" onclick="window.requestPushPermission()">
+                    <span class="material-icons" id="pushNotifIcon">notifications_paused</span>
+                </button>
+                
+                <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia" aria-label="Powiadomienia" aria-expanded="false" 
+                    data-pending-deliveries="0" 
+                    data-pending-link="/magazyn-dostawy/oczekujace?linia=PSD">
+                    <span class="material-icons">notifications</span>
+                    <span id="notificationsBadge" class="notifications-badge" >0</span>
+                </button>
+                <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
+                    <div class="notifications-header">
+                        <span class="notifications-title">Powiadomienia</span>
+                        <div class="notifications-actions">
+                            <button type="button" id="notificationsMarkAll">Oznacz wszystkie</button>
+                        </div>
+                    </div>
+                    <div id="notificationsList" class="notifications-list">
+                        <div class="notifications-empty">Brak nowych powiadomień.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Printer Server Toggle -->
+            <button type="button" id="navbarPrinterServerToggle" class="btn-icon" title="Sprawdzanie stanu serwera druku..." onclick="togglePrinterServerGlobal()" style="color: #64748b; transition: color 0.3s; margin-right: 8px;">
+                <span class="material-icons">print</span>
+            </button>
+            
+
+            <div class="language-selector">
+                <button type="button" class="btn-icon language-toggle" title="Zmień język / Change language / Змінити мову" onclick="toggleLanguageMenu(); return false;">
+                    <span class="material-icons">language</span>
+                </button>
+                <div id="languageMenu" class="language-menu hidden">
+                    <a href="/api/set_language?language=pl" class="language-option"><span>🇵🇱</span> Polski</a>
+                    <a href="/api/set_language?language=uk" class="language-option"><span>🇺🇦</span> Українська</a>
+                    <a href="/api/set_language?language=en" class="language-option"><span>🇬🇧</span> English</a>
+                </div>
+            </div>
+
+            
+            <a href="/logout" class="btn-icon logout-btn-top" title="Wyloguj" aria-label="Wyloguj">
+                <span class="material-icons">logout</span>
+            </a>
+            
+        </div>
+    </div>
+</div>
+
+    <div class="app-layout">
+        
+
+
+
+
+
+<div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+    
+    <style>
+.sidebar-header-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 15px;
+}
+.sidebar-logo-container {
+    flex-grow: 1;
+}
+.bug-alert-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ef4444;
+    text-decoration: none;
+    animation: pulse-red 2s infinite;
+    transition: transform 0.2s;
+}
+.bug-alert-icon:hover {
+    transform: scale(1.1);
+    color: #dc2626;
+}
+.bug-alert-icon .material-icons {
+    font-size: 24px;
+}
+.bug-badge {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 10px;
+    border: 2px solid #1e293b; /* Match dark sidebar bg */
+}
+@keyframes pulse-red {
+    0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.7)); }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+}
+@keyframes pulse-amber {
+    0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0.7)); }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.9)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0)); }
+}
+</style>
+<div class="sidebar-header-wrapper">
+    <div class="sidebar-logo sidebar-logo-container">AGRO<span class="logo-accent">MES</span></div>
+    
+    
+    <a href="/admin/ustawienia/errors" class="bug-alert-icon" style="color: #f59e0b; margin-left: 10px; animation: pulse-amber 2s infinite;" title="Wykryto 1 błędów systemowych (Error Trap)">
+        <span class="material-icons">warning</span>
+        <span class="bug-badge" style="background: #f59e0b;">1</span>
+    </a>
+    
+</div>
+
+
+<div class="hall-switcher">
+    <div class="switcher-label">Pracujesz dziś na:</div>
+    <div class="switcher-controls">
+        <a href="/set_hall_view/PSD?sekcja=Workowanie" 
+           class="switcher-btn " title="Hala PSD">PSD</a>
+        <a href="/set_hall_view/AGRO?sekcja=Workowanie" 
+           class="switcher-btn " title="Hala AGRO">AGRO</a>
+        <a href="/set_hall_view/ALL?sekcja=Workowanie" 
+           class="switcher-btn active" title="Wszystkie hale">A</a>
+    </div>
+</div>
+
+
+    <nav class="sidebar-nav">
+        
+        <a href="/agro/scanner/ui?linia=AGRO" class="nav-item " style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 4px solid #3b82f6; font-weight: bold; margin-bottom: 8px;">
+            <span class="material-icons" style="margin-right: 12px; color: #2563eb;">qr_code_scanner</span>
+            <span>Skaner & Drukarka</span>
+        </a>
+        
+
+        
+            
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>PRODUKCJA PSD</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="psd-sub" class="nav-sub ">
+        
+        <a href="/?linia=PSD"
+            class="nav-sub-item ">
+            Dashboard PSD
+        </a>
+        
+
+        
+        <a href="/?sekcja=Zasyp&amp;linia=PSD"
+            class="nav-sub-item ">
+            Zasyp PSD
+        </a>
+        
+
+        
+        <a href="/bufor?linia=PSD"
+            class="nav-sub-item ">
+            Bufor PSD
+        </a>
+        
+
+        
+        <a href="/?sekcja=Workowanie&amp;linia=PSD"
+            class="nav-sub-item ">
+            Workowanie PSD
+        </a>
+        
+
+        
+        <a href="/?sekcja=Magazyn&amp;linia=PSD" 
+           class="nav-sub-item ">
+            Magazyn PSD
+        </a>
+        
+
+        
+        <a href="/podsumowanie_zasypow" 
+           class="nav-sub-item ">
+            Podsumowanie zasypów
+        </a>
+        
+
+          
+          <a href="/raporty/zasypy-dosypki?linia=PSD" 
+              class="nav-sub-item ">
+            Raport Zasypów i Dosypek
+        </a>
+    </div>
+</div>
+
+            
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>PRODUKCJA AGRO</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="agro-sub" class="nav-sub open">
+        
+        <a href="/?linia=AGRO"
+            class="nav-sub-item ">
+            Dashboard Agro
+        </a>
+        
+
+        
+        <a href="/?sekcja=Zasyp&amp;linia=AGRO"
+            class="nav-sub-item ">
+            Zasyp Agro
+        </a>
+        
+
+        
+        <a href="/bufor?linia=AGRO"
+            class="nav-sub-item ">
+            Bufor Agro
+        </a>
+        
+
+        
+        <a href="/?sekcja=Workowanie&amp;linia=AGRO"
+            class="nav-sub-item active">
+            Workowanie Agro
+        </a>
+        
+
+        
+        <a href="/?sekcja=Magazyn&amp;linia=AGRO" 
+           class="nav-sub-item ">
+            Magazyn Agro
+        </a>
+        
+
+        
+        <a href="/zasyp_etapy_podsumowanie?linia=AGRO"
+           class="nav-sub-item ">
+            Raport Czasu Pracy
+        </a>
+        
+        
+        
+          
+          <a href="/agro/magazyn/surowce-w-produkcji?linia=AGRO"
+              class="nav-sub-item ">
+            Surowce w produkcji
+        </a>
+        
+        
+        <a href="/podsumowanie_zasypow?linia=AGRO" 
+           class="nav-sub-item ">
+            Podsumowanie zasypów
+        </a>
+        
+
+          
+          <a href="/raporty/zasypy-dosypki?linia=AGRO" 
+              class="nav-sub-item ">
+            Raport Zasypów i Dosypek
+        </a>
+
+        
+        <a href="/agro/raport_palet?data=2026-06-20" 
+           class="nav-sub-item ">
+            Raport Palet AGRO
+        </a>
+        
+    </div>
+</div>
+
+        
+        
+<div class="nav-item-group">
+    
+    
+    
+    
+    
+    <button type="button" class="nav-item main-cat-btn">
+        <span class="text-capitalize nav-main-label">
+            MAGAZYNY
+            
+        </span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="mag-sub" class="nav-sub ">
+        
+        <a href="/magazyny-nowe/?linia=ALL" class="nav-sub-item ">Wszystkie Magazyny</a>
+        
+        
+        <a href="/magazyn-dostawy/przyjecie?linia=ALL" class="nav-sub-item ">Przyjęcie dostawy</a>
+        
+        
+        <a href="/magazyn-dostawy/?linia=ALL" class="nav-sub-item ">Przesunięcia Palet</a>
+        
+        
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+        
+        
+        <a href="/magazyn-dostawy/oczekujace?linia=ALL" class="nav-sub-item ">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">Oczekujące Przyjęcia</span>
+                
+            </span>
+        </a>
+        
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+ 
+        
+        <a href="/agro/magazyn" class="nav-sub-item ">Suma surowców</a>
+        
+        
+        <a href="/agro/magazyn/opakowania" class="nav-sub-item ">Opakowania Agro</a>
+        
+        
+        
+        <a href="/agro/mom" class="nav-sub-item ">Rozliczenie MOM</a>
+        
+        
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+        
+        
+        <a href="/magazyn-dostawy/podzial-palety?linia=ALL" class="nav-sub-item ">Podział Palety</a>
+        
+    </div>
+</div>
+
+
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span class="text-capitalize nav-main-label">INWENTARYZACJA</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="inventory-sub" class="nav-sub ">
+        
+        <a href="/magazyn/inwentaryzacja/" class="nav-sub-item ">Inwentaryzacja zwykła</a>
+        
+
+        
+        <a href="/agro/magazyn/inwentaryzacja-produkcji?linia=AGRO" class="nav-sub-item ">Inwentaryzacja produkcji</a>
+        
+    </div>
+</div>
+
+
+        
+<!-- RAPORTY -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>RAPORTY</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="reports-sub" class="nav-sub ">
+        
+        <a href="/magazyn-dostawy/raport?linia=ALL" class="nav-sub-item ">Raport Dostaw</a>
+        
+        
+        
+        <a href="/raporty_okresowe?linia=ALL" class="nav-sub-item ">Raporty Okresowe</a>
+        
+        
+        
+        <a href="/agro/report/warehouse?linia=AGRO" class="nav-sub-item">Raport Magazynu Agro</a>
+        
+        
+        <a href="/agro/report/production?linia=AGRO" class="nav-sub-item">Raport Produkcji Agro</a>
+        
+        
+        <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item">Raport Połączony Agro</a>
+        
+    </div>
+</div>
+
+
+<!-- ADMINISTRACJA & ANALIZA -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>ADMINISTRACJA & ANALIZA</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="admin-ana-sub" class="nav-sub ">
+        
+        <a href="/planista?linia=AGRO" class="nav-sub-item ">Plan Produkcji</a>
+        
+
+        
+        <a href="/moje_godziny" class="nav-sub-item ">Moje Godziny</a>
+        
+
+        
+        <a href="/zarzad" class="nav-sub-item ">Wyniki i Statystyki</a>
+        
+
+        
+        <a href="/struktura/" class="nav-sub-item ">Struktura Organizacyjna</a>
+        
+    </div>
+</div>
+
+
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>JAKOŚĆ</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="jakosc-sub" class="nav-sub ">
+        <a href="/jakosc" class="nav-sub-item ">Strona Jakość</a>
+        <a href="/jakosc/podsumowanie_zasypow" class="nav-sub-item ">Analiza zasypów</a>
+    </div>
+</div>
+
+
+<!-- AWARIE I USTERKI -->
+
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span class="material-icons" style="font-size: 18px; margin-right: 8px; color: #f87171;">report_problem</span>
+        <span>AWARIE I USTERKI</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="awarie-sub" class="nav-sub ">
+        <a href="/dur/awarie" class="nav-sub-item ">Lista Zgłoszeń</a>
+    </div>
+</div>
+
+
+<!-- ADMINISTRACJA SYSTEMOWA (Dla Adminów z uprawnieniami) -->
+
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>ADMINISTRACJA</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="admin-system-sub" class="nav-sub ">
+        
+        <a href="/admin/ustawienia" class="nav-sub-item ">Ustawienia Systemu</a>
+        
+        
+        <a href="/admin/ustawienia/zespol" class="nav-sub-item ">Zespół i Konta</a>
+        
+    </div>
+</div>
+
+
+<!-- MASTER ADMIN & DIAGNOSTYKA -->
+
+
+
+
+<div class="nav-item-group" style="border-top: 1px solid #334155; margin-top: 10px; padding-top: 10px;">
+    <button type="button" class="nav-item main-cat-btn" style="color: #fbbf24;">
+        <span class="material-icons" style="font-size: 18px;">security</span>
+        <span>MASTER ADMIN</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="master-sub" class="nav-sub ">
+        
+        <a href="/admin/master/permissions" class="nav-sub-item ">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
+        </a>
+        <a href="/admin/slownik-surowcow" class="nav-sub-item ">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców AGRO
+        </a>
+        <a href="/admin/master/mqtt" class="nav-sub-item ">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
+        </a>
+        <a href="javascript:void(0)" onclick="runIntegrityCheck()" class="nav-sub-item">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności
+        </a>
+        
+        <!-- Moved Simulators here -->
+        <a href="/zebra-sim" class="nav-sub-item ">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">stay_current_portrait</span> Symulator Zebra
+        </a>
+        <a href="/agro/scanner/simulator" class="nav-sub-item ">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">qr_code_scanner</span> Symulator Skanera
+        </a>
+        
+        
+        
+        <a href="/admin/ustawienia/logs" class="nav-sub-item ">Logi Systemowe</a>
+        
+        
+        
+        <a href="/admin/ustawienia/errors" class="nav-sub-item ">Logi Błędów</a>
+        
+        
+        
+        <a href="/admin/centrum" class="nav-sub-item ">Centrum Sterowania</a>
+        
+        
+        
+        <a href="/panel_performance_page" class="nav-sub-item ">Wydajność (KPI)</a>
+        
+        
+        
+        <a href="/admin/sekretna-baza" class="nav-sub-item" style="color: #ef4444;">
+            <span class="material-icons" style="font-size: 14px; vertical-align: middle;">storage</span> Baza Danych
+        </a>
+        
+    </div>
+</div>
+
+    </nav>
+
+    <div id="sidebarPwaBtn" style="display: none; padding: 10px 12px; margin-bottom: 10px;">
+    <button onclick="showPwaManualGuide()" style="width: 100%; background: #3b82f6; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);">
+        <span class="material-icons" style="font-size: 20px;">download</span> Zainstaluj App
+    </button>
+    <button onclick="toggleFullScreen()" style="width: 100%; background: #0f172a; color: white; border: 1px solid #334155; padding: 10px; border-radius: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; margin-top: 8px; font-size: 12px;">
+        <span class="material-icons" style="font-size: 18px;">fullscreen</span> Pełny Ekran
+    </button>
+</div>
+
+<div class="sidebar-footer">
+</div>
+
+</aside>
+
+<script>
+    (function() {
+        try {
+            // Restore desktop collapsed state immediately to avoid jump
+            if (window.innerWidth > 1200 && localStorage.getItem('sidebar_collapsed_desktop') === '1') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+            var saved = localStorage.getItem('sidebar_submenus_state');
+            if (saved) {
+                var states = JSON.parse(saved);
+                Object.keys(states).forEach(function(id) {
+                    var sub = document.getElementById(id);
+                    if (sub) {
+                        var shouldOpen = !!states[id];
+                        if (shouldOpen) {
+                            sub.classList.add('open');
+                        } else {
+                            sub.classList.remove('open');
+                        }
+                        var btn = sub.previousElementSibling;
+                        if (btn && btn.classList.contains('nav-item')) {
+                            btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                        }
+                    }
+                });
+            }
+
+            // Restore sidebar scroll position
+            var sidebar = document.getElementById('appSidebar');
+            if (sidebar) {
+                var savedScroll = sessionStorage.getItem('sidebar_scroll_pos');
+                if (savedScroll !== null) {
+                    sidebar.scrollTop = parseInt(savedScroll, 10);
+                }
+
+                // Save scroll position before leaving page or scrolling
+                var saveScroll = function() {
+                    sessionStorage.setItem('sidebar_scroll_pos', sidebar.scrollTop);
+                };
+                sidebar.addEventListener('scroll', saveScroll, { passive: true });
+                
+                // Extra precaution: save on link click
+                sidebar.addEventListener('click', function(e) {
+                    var target = e.target.closest('a');
+                    if (target && target.href && !target.href.startsWith('javascript:')) {
+                        saveScroll();
+                    }
+                });
+            }
+        } catch(e) {
+            console.error('[sidebar inline] restore failed', e);
+        }
+    })();
+</script>
+        <main class="main-content" id="mainContent">
+            
+            
+            
+
+            
+                
+
+
+
+
+<div id="zwolnienie-banner" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(39, 174, 96, 0.95); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; backdrop-filter: blur(10px);">
+    <div class="agro-banner-pulse-sign" aria-hidden="true" style="width: 150px; height: 150px; min-width: 150px; font-size: 100px; background: #ffffff; color: #27ae60; border-color: #ffffff; animation: agroPulseSign 1.1s ease-in-out infinite;">!</div>
+    <h1 style="font-size: 6vw; font-weight: 900; line-height: 1.2; text-shadow: 2px 2px 15px rgba(0,0,0,0.4); padding: 0 40px; margin-top: 20px;">
+        LABORATORIUM ZWOLNIŁO MIESZALNIK<br>DO WYSYPU
+    </h1>
+    <button id="zwolnienie-banner-close" style="margin-top: 60px; padding: 20px 50px; font-size: 30px; font-weight: 900; background: white; color: #27ae60; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,0.3); transition: transform 0.2s;">
+        ZROZUMIAŁEM !
+    </button>
+</div>
+<div class="section-header" id="dashboard-config"
+    data-current-role="masteradmin"
+    data-linia="AGRO"
+    data-sekcja="Workowanie">
+    
+    
+
+    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
+        <div class="header-title-row d-flex align-center gap-10">
+            <h2 class="header-title m-0 d-flex align-center gap-8">
+                <strong>Workowanie</strong>
+                
+            </h2>
+            
+            
+            <div class="day-tile m-0" data-sekcja="Workowanie" style="display: flex; gap: 10px; align-items: center; padding: 5px 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-od" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Od:</label>
+                    <input type="date" id="date-od" value="2026-06-15" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label for="date-do" style="font-size: 12px; color: #7f8c8d; font-weight: bold;">Do:</label>
+                    <input type="date" id="date-do" value="2026-06-21" style="border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 14px; font-family: inherit;">
+                </div>
+                <button type="button" class="btn-action" onclick="applyDateRange()" style="background: #3498db; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Pokaż</button>
+            </div>
+            <script>
+                function applyDateRange() {
+                    var od = document.getElementById('date-od').value;
+                    var do_val = document.getElementById('date-do').value;
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('data_od', od);
+                    url.searchParams.set('data_do', do_val);
+                    // Also set 'data' to 'od' so that internal scripts expecting a single date don't break drastically
+                    url.searchParams.set('data', od);
+                    window.location.href = url.toString();
+                }
+            </script>
+            
+        </div>
+
+        <div class="d-flex align-center gap-12 header-stats">
+            
+                
+                
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                        
+                    
+                
+                
+                
+                <div class="stat-inline stat-plan"><span class="label">Plan</span><strong class="value">5000 kg</strong></div>
+                <div class="stat-inline stat-wykonanie"><span class="label">Wykonanie</span><strong class="value text-success">0 kg</strong></div>
+                <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">0%</strong></div>
+            
+        </div>
+    </div>
+</div>
+
+
+
+<div id="wpisy-container" class="mb-20"
+    data-msg-error-loading="Błąd ładowania notatek"
+    data-msg-no-notes="Brak notatek dla tego dnia."
+    data-msg-edit-wpis="Edytuj wpis"></div>
+
+
+<div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        
+
+        <!-- agro-session-running-hint -->
+        
+        
+
+    <style>
+        /* Active Agro Details Side-by-Side Layout */
+        .active-agro-details-direct {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            align-items: start;
+            width: 100%;
+            flex: 2 1 250px;
+        }
+
+        .active-agro-details-direct .active-order-szarze-panel {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        @media (min-width: 1400px) {
+            .cards.agro-focus-mode .active-agro-details-direct {
+                grid-column: 2 / -1;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 15px;
+                align-items: start;
+                width: 100%;
+            }
+        }
+        
+        /* FULLSCREEN LIST VIEW OVERRIDES */
+        .cards {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+        }
+        .card:not([data-is-active="true"]) {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 10px 20px !important;
+            height: auto !important;
+            margin-bottom: 10px;
+        }
+        .card:not([data-is-active="true"]) .card-header {
+            width: 100%;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .card:not([data-is-active="true"]) .card-progress-circle-wrap {
+            display: none !important;
+        }
+        
+        /* AGGRESSIVE MOBILE OVERRIDES TO ENSURE NO OVERFLOW */
+        @media screen and (max-width: 600px) {
+            .cards {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                padding: 4px 0 !important;
+                margin: 0 !important;
+            }
+            .cards .card {
+                width: 100% !important;
+                max-width: 100vw !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                flex: none !important;
+            }
+            .active-agro-details-direct, .details-row {
+                width: 100% !important;
+                max-width: 100vw !important;
+                box-sizing: border-box !important;
+                padding: 4px !important;
+                margin: 0 !important;
+                display: block !important;
+            }
+            .active-order-szarze-panel {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 8px !important;
+                box-sizing: border-box !important;
+            }
+            .active-order-szarze-line {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 6px !important;
+                padding: 4px 0 !important;
+            }
+            .active-order-szarze-left {
+                width: 100% !important;
+                flex-wrap: wrap !important;
+            }
+            .active-order-szarze-actions {
+                width: 100% !important;
+                justify-content: flex-start !important;
+                margin-top: 4px !important;
+            }
+            .active-order-szarze-actions > div {
+                flex-wrap: wrap !important;
+                width: 100% !important;
+            }
+            .active-order-szarze-actions .btn-action {
+                flex: 1 1 auto;
+                text-align: center;
+                padding: 4px 8px !important;
+                font-size: 0.65rem !important;
+            }
+        }
+    </style>
+    
+    <div id="dashboard-production-section" class="cards ">
+        
+        
+        
+        
+        
+            
+            
+            
+            
+            
+            
+
+            <div class="planned-orders-table-wrapper" style="overflow-x: auto; grid-column: 1 / -1; width: 100%;">
+<table class="table" style="width: 100%; table-layout: fixed; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-collapse: collapse;">
+    <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+          <tr>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 12%;">Data</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 23%;">Lp. / Zlecenie</th>
+              <th style="padding: 12px 16px; text-align: center; color: #475569; font-weight: 600; width: 15%;">Status</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 20%;">Plan / Wykonanie</th>
+              <th style="padding: 12px 16px; text-align: left; color: #475569; font-weight: 600; width: 20%;">Parametry</th>
+              <th style="padding: 12px 16px; text-align: right; color: #475569; font-weight: 600; width: 10%;">Akcje</th>
+          </tr>
+    </thead>
+    <tbody>
+        
+            
+                
+                
+                
+                
+                <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: #ffffff;">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        
+            <div style="font-weight: 500; color: #475569;">📅 2026-06-20</div>
+        
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">1. #104</div>
+        <div>Czyszczenie</div>
+        
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-zaplanowane">ZAPLANOWANE</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">1000 kg</span></div>
+        
+        
+        
+            
+            
+                
+            
+        
+        <div style="color: #64748b; font-size: 0.85em;">Typ: 25 KG</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        
+            
+            
+            <div><strong style="color:#64748b;">F:</strong> -</div>
+            <div><strong style="color:#64748b;">E:</strong> -</div>
+        
+        
+        
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            
+            
+                
+                
+                
+                    
+                    
+                    
+                    <form action="/start_zlecenie/104" method="POST" 
+                        
+                            data-start-checklist="1" 
+                            data-required-opakowanie="-" 
+                            data-required-etykieta="-"
+                        
+                        style="display:inline;" onsubmit="return confirmStartOrder(this, &#34;Czyszczenie&#34;, '104')">
+                        <input type="hidden" name="sekcja" value="Workowanie">
+                        <input type="hidden" name="linia" value="AGRO">
+                        <button type="submit" class="btn-icon-action" title="Rozpocznij zadanie" disabled>▶</button>
+                    </form>
+                    
+                
+            
+
+            
+            
+                
+            
+        </div>
+    </td>
+</tr>
+
+
+            
+        
+            
+                
+                
+                
+                
+                <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: #f8fafc;">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        
+            <div style="font-weight: 500; color: #475569;">📅 2026-06-20</div>
+        
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">2. #95</div>
+        <div>Czyszczenie</div>
+        
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-zakonczone">ZAKONCZONE</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">1000 kg</span></div>
+        
+        
+        
+            
+            
+                
+            
+        
+        <div style="color: #64748b; font-size: 0.85em;">Typ: 25 KG</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        
+            
+            
+            <div><strong style="color:#64748b;">F:</strong> -</div>
+            <div><strong style="color:#64748b;">E:</strong> -</div>
+        
+        
+        
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            
+            
+                
+                <form action="/api/reanimate_zlecenie/95" method="POST" data-confirm="Wznowić Czyszczenie?" style="display:inline;">
+                    <input type="hidden" name="linia" value="AGRO"><input type="hidden" name="sekcja" value="Workowanie"><input type="hidden" name="data_planu" value="2026-06-20">
+                    <button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button>
+                </form>
+                
+            
+
+            
+            
+                
+            
+        </div>
+    </td>
+</tr>
+
+
+            
+        
+            
+                
+                
+                
+                
+                <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: #f8fafc;">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        
+            <div style="font-weight: 500; color: #475569;">📅 2026-06-20</div>
+        
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">3. #96</div>
+        <div>Czyszczenie</div>
+        
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-zakonczone">ZAKONCZONE</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">1000 kg</span></div>
+        
+        
+        
+            
+            
+                
+            
+        
+        <div style="color: #64748b; font-size: 0.85em;">Typ: 25 KG</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        
+            
+            
+            <div><strong style="color:#64748b;">F:</strong> -</div>
+            <div><strong style="color:#64748b;">E:</strong> -</div>
+        
+        
+        
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            
+            
+                
+                <form action="/api/reanimate_zlecenie/96" method="POST" data-confirm="Wznowić Czyszczenie?" style="display:inline;">
+                    <input type="hidden" name="linia" value="AGRO"><input type="hidden" name="sekcja" value="Workowanie"><input type="hidden" name="data_planu" value="2026-06-20">
+                    <button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button>
+                </form>
+                
+            
+
+            
+            
+                
+            
+        </div>
+    </td>
+</tr>
+
+
+            
+        
+            
+                
+                
+                
+                
+                <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: #f8fafc;">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        
+            <div style="font-weight: 500; color: #475569;">📅 2026-06-20</div>
+        
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">4. #97</div>
+        <div>Czyszczenie</div>
+        
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-zakonczone">ZAKONCZONE</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">1000 kg</span></div>
+        
+        
+        
+            
+            
+                
+            
+        
+        <div style="color: #64748b; font-size: 0.85em;">Typ: 25 KG</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        
+            
+            
+            <div><strong style="color:#64748b;">F:</strong> -</div>
+            <div><strong style="color:#64748b;">E:</strong> -</div>
+        
+        
+        
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            
+            
+                
+                <form action="/api/reanimate_zlecenie/97" method="POST" data-confirm="Wznowić Czyszczenie?" style="display:inline;">
+                    <input type="hidden" name="linia" value="AGRO"><input type="hidden" name="sekcja" value="Workowanie"><input type="hidden" name="data_planu" value="2026-06-20">
+                    <button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button>
+                </form>
+                
+            
+
+            
+            
+                
+            
+        </div>
+    </td>
+</tr>
+
+
+            
+        
+            
+                
+                
+                
+                
+                <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: #f8fafc;">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        
+            <div style="font-weight: 500; color: #475569;">📅 2026-06-20</div>
+        
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">5. #98</div>
+        <div>Czyszczenie</div>
+        
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-zakonczone">ZAKONCZONE</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">1000 kg</span></div>
+        
+        
+        
+            
+            
+                
+            
+        
+        <div style="color: #64748b; font-size: 0.85em;">Typ: 25 KG</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        
+            
+            
+            <div><strong style="color:#64748b;">F:</strong> -</div>
+            <div><strong style="color:#64748b;">E:</strong> -</div>
+        
+        
+        
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            
+            
+                
+                <form action="/api/reanimate_zlecenie/98" method="POST" data-confirm="Wznowić Czyszczenie?" style="display:inline;">
+                    <input type="hidden" name="linia" value="AGRO"><input type="hidden" name="sekcja" value="Workowanie"><input type="hidden" name="data_planu" value="2026-06-20">
+                    <button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button>
+                </form>
+                
+            
+
+            
+            
+                
+            
+        </div>
+    </td>
+</tr>
+
+
+            
+        
+    </tbody>
+</table>
+</div>
+
+
+    </div>
+
+<!-- Modular Modal for Read-Only Plan Preview -->
+    <div id="plan-preview-modal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+        <div class="custom-modal-content animate__animated animate__zoomIn" style="background: #ffffff; width: 100%; max-width: 850px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; overflow: hidden; max-height: 90vh; border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons" style="color: #4f46e5; font-size: 28px;">event_note</span>
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b;">📋 Plan produkcji — Workowanie AGRO</h3>
+                </div>
+                <button type="button" onclick="window.closePlanPreviewModal()" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 28px; display: flex; align-items: center; justify-content: center; transition: color 0.2s; line-height: 1;">&times;</button>
+            </div>
+            <!-- Body -->
+            <div style="padding: 24px; overflow-y: auto; flex: 1; background: #ffffff;">
+                <table class="plan-modal-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95em;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 600;">
+                            <th style="padding: 12px 16px;">Lp.</th>
+                            <th style="padding: 12px 16px;">ID</th>
+                            <th style="padding: 12px 16px;">Produkt</th>
+                            <th style="padding: 12px 16px; text-align: right;">Plan</th>
+                            <th style="padding: 12px 16px; text-align: right;">Wykonano</th>
+                            <th style="padding: 12px 16px; text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">1</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#104</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                Czyszczenie
+                                
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">1000 kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">0 kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge status-zaplanowane" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    zaplanowane
+                                </span>
+                            </td>
+                        </tr>
+                        
+                        
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">2</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#95</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                Czyszczenie
+                                
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">1000 kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">0 kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge status-zakonczone" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    zakonczone
+                                </span>
+                            </td>
+                        </tr>
+                        
+                        
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">3</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#96</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                Czyszczenie
+                                
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">1000 kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">0 kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge status-zakonczone" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    zakonczone
+                                </span>
+                            </td>
+                        </tr>
+                        
+                        
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">4</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#97</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                Czyszczenie
+                                
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">1000 kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">0 kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge status-zakonczone" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    zakonczone
+                                </span>
+                            </td>
+                        </tr>
+                        
+                        
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">5</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#98</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                Czyszczenie
+                                
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">1000 kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">0 kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge status-zakonczone" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    zakonczone
+                                </span>
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            <!-- Footer -->
+            <div style="padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; background: #f8fafc;">
+                <button type="button" onclick="window.closePlanPreviewModal()" class="btn-action btn-outline-secondary" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; border: 1px solid #d1d5db; background: #fff; color: #374151;">Zamknij podgląd</button>
+            </div>
+        </div>
+    </div>
+
+        
+            
+
+        
+    </div>
+
+    <!-- MODAL: ZDEJMIJ OPAKOWANIE Z MASZYNY -->
+<dialog id="returnPackagingModal" class="modal-premium" style="max-width: 400px; padding: 0; border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <div class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+        <h4 class="modal-title" style="margin: 0; font-size: 1.1em; color: #2c3e50;">Zdejmij / Zwróć na magazyn</h4>
+        <button class="modal-close" onclick="closeReturnModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #95a5a6;">×</button>
+    </div>
+    <div class="modal-body" style="padding: 20px;">
+        <p id="returnOpakName" style="font-weight: bold; margin-bottom: 15px; color: #2c3e50; font-size: 1.05em;"></p>
+        
+        <div class="form-group mb-15" style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dfe7ef;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9em; color: #2c3e50;">Rodzaj zwrotu:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9em; color: #34495e;">
+                    <input type="radio" name="returnType" value="partial" onchange="updateReturnModalUI()" checked>
+                    <span><strong>Częściowy:</strong> Odkładam część do magazynu, reszta zostaje na maszynie.</span>
+                </label>
+                <label style="display: flex; align-items: flex-start; margin-bottom: 10px; cursor: pointer; font-size: 0.9em; color: #34495e;">
+                    <input type="radio" name="returnType" value="full" onchange="updateReturnModalUI()" style="margin-top: 4px; margin-right: 10px;">
+                    <span><strong>Całkowity (zdejmuję całą resztę do magazynu):</strong> Zdejmuję wszystko.</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group mb-15">
+            <label id="returnOpakQtyLabel" class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Ile sztuk odkładasz na magazyn?</label>
+            <input type="number" id="returnOpakQty" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="np. 100">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Gdzie odkładasz? (Lokalizacja)</label>
+            <input type="text" id="returnOpakLoc" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="np. R-01-02-03">
+        </div>
+        <div class="form-group mt-15" style="margin-top: 12px; background: #f8fafc; border: 1px solid #dbe4ef; border-radius: 8px; padding: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; font-size: 0.9em; color: #2c3e50; font-weight: 600;">
+                <input type="checkbox" id="returnOpakPrintLabel" checked>
+                Drukuj etykietę informacyjną zwrotu
+            </label>
+            <div style="font-size: 0.8em; color: #647684; margin-top: 6px; line-height: 1.35;">
+                Etykieta zawiera: nazwę opakowania, ilość przy zwrocie, ilość pozostałą na rolce, lokalizację, datę odłożenia i operatora.
+            </div>
+        </div>
+        <input type="hidden" id="returnOpakId">
+    </div>
+    <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+        <button class="btn-action btn-outline-primary" onclick="reprintLastReturnPackagingLabel(this)" style="padding: 8px 16px;">PONÓW WYDRUK OSTATNIEGO ZWROTU</button>
+        <button class="btn-action btn-outline-secondary" onclick="closeReturnModal()" style="padding: 8px 16px;">Anuluj</button>
+        <button class="btn-action btn-primary" onclick="submitReturnPackaging()" style="padding: 8px 16px;">POTWIERDŹ ZWROT</button>
+    </div>
+</dialog>
+
+<!-- CORE DASHBOARD ASSETS & FOOTER -->
+
+            
+        </main>
+    </div>
+
+    
+<!-- PWA Installation Prompt Modal -->
+<style>
+    /* Ensure hidden overlays don't block pointer events */
+    .app-overlay { pointer-events: none; }
+    .app-overlay.overlay-active { pointer-events: auto; }
+</style>
+<div id="pwaInstallModal" class="app-overlay" style="display: none; position: fixed; inset: 0; z-index: 100000; background: rgba(15,23,42,0.8); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: white; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="background: #eff6ff; width: 80px; height: 80px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 40px; color: #3b82f6;">install_mobile</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Zainstaluj AgroMES</h3>
+        <p style="margin: 0 0 25px 0; color: #64748b; font-size: 15px; line-height: 1.6;">Dodaj aplikację do ekranu głównego, aby pracować szybciej.</p>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button id="pwaInstallBtn" style="background: #3b82f6; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span class="material-icons">download</span> ZAINSTALUJ TERAZ
+            </button>
+            <button onclick="closePwaModal(true)" style="background: transparent; color: #94a3b8; border: none; padding: 10px; font-weight: 600; cursor: pointer;">Może później</button>
+        </div>
+    </div>
+</div>
+
+    <!-- GLOBAL SCRIPTS -->
+    <script>
+    // Konfiguracja Telemetrii (HiveMQ Cloud) - musi być przed machine-stats.js
+    window.MQTT_CONFIG = {
+        host: '4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud',
+        port: 8884, // Port WebSockets w HiveMQ Cloud
+        clientId: 'web_' + Math.random().toString(16).substr(2, 8),
+        protocol: 'wss',
+        path: '/mqtt',
+        username: 'Lstech',
+        password: 'Lstech123'
+    };
+</script>
+
+<!-- External Scripts -->
+<script src="/static/js/toasts.js?v=1781437565"></script>
+<script src="/static/js/sidebar.js?v=1781437565"></script>
+<script src="/static/scripts.js?v=1781437565"></script>
+<script src="/static/js/dosypki.js?v=1781437565"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+<script src="/static/js/dashboard/machine-stats.js?v=1781437565"></script>
+
+<script>
+    // PWA & Fullscreen + Web Push Notification Subscription
+    // -------------------------------------------------------
+    // Konwertuje base64url string do Uint8Array (wymagane przez PushManager)
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Wysyła subskrypcję na serwer
+    function sendSubscriptionToServer(subscription) {
+        return fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription.toJSON())
+        }).then(r => r.json()).catch(() => ({ success: false }));
+    }
+
+    // Główna funkcja — rejestruje SW i subskrybuje push
+    async function registerPushSubscription() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            console.warn('[PUSH] Service Worker lub PushManager niedostępny w tej przeglądarce.');
+            return false;
+        }
+
+        try {
+            // Pobierz publiczny klucz VAPID z serwera
+            const keyResp = await fetch('/api/push/vapid-public-key');
+            const keyData = await keyResp.json();
+            if (!keyData.success || !keyData.publicKey) {
+                console.warn('[PUSH] Brak klucza VAPID na serwerze.');
+                return false;
+            }
+            const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+
+            // Poczekaj na rejestrację SW
+            const registration = await navigator.serviceWorker.ready;
+
+            // Sprawdź czy mamy już subskrypcję
+            let subscription = await registration.pushManager.getSubscription();
+
+            if (!subscription) {
+                // Poproś o uprawnienia i utwórz subskrypcję
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                });
+                console.log('[PUSH] Nowa subskrypcja push zarejestrowana.');
+            } else {
+                console.log('[PUSH] Używam istniejącej subskrypcji push.');
+            }
+
+            // Wyślij subskrypcję na serwer Flask
+            const result = await sendSubscriptionToServer(subscription);
+            if (result.success) {
+                console.log('[PUSH] Subskrypcja zapisana na serwerze.');
+                // Zaktualizuj UI — ukryj przycisk prośby o uprawnienia
+                const navBtn = document.getElementById('navNotifPermissionBtn');
+                if (navBtn) navBtn.style.display = 'none';
+                // Zaktualizuj ikonę dzwonka na aktywną
+                const pushIcon = document.getElementById('pushNotifIcon');
+                if (pushIcon) pushIcon.textContent = 'notifications_active';
+                localStorage.setItem('pushSubscribed', '1');
+            }
+            return result.success;
+        } catch (err) {
+            // Użytkownik zablokował uprawnienia lub inny błąd
+            console.warn('[PUSH] Błąd rejestracji push:', err.message || err);
+            return false;
+        }
+    }
+
+    // Eksponuj funkcję globalnie — przycisk w navbar ją wywołuje
+    window.requestPushPermission = async function() {
+        if (!('Notification' in window)) {
+            alert('Ta przeglądarka nie obsługuje powiadomień.');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            alert('Powiadomienia zostały zablokowane w ustawieniach przeglądarki. Odblokuj je ręcznie i odśwież stronę.');
+            return;
+        }
+        // Poproś o uprawnienie (wymagany gest użytkownika)
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await registerPushSubscription();
+        }
+    };
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+            try {
+                const reg = await navigator.serviceWorker.register('/static/sw.js');
+                console.log('[SW] Registered:', reg.scope);
+
+                // Automatycznie subskrybuj push jeśli uprawnienia już przyznane
+                
+                if (Notification.permission === 'granted') {
+                    // Opóźnienie żeby SW miał czas na aktywację
+                    setTimeout(() => registerPushSubscription(), 2000);
+                } else {
+                    // Pokaż przycisk zachęcający do włączenia push (jeśli nie odrzucono)
+                    if (Notification.permission !== 'denied') {
+                        const navBtn = document.getElementById('navNotifPermissionBtn');
+                        if (navBtn && !localStorage.getItem('pushSubscribed')) {
+                            navBtn.style.display = 'inline-flex';
+                        }
+                    }
+                }
+                
+            } catch (err) {
+                console.warn('[SW] Registration failed:', err);
+            }
+        });
+    }
+
+
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        const lastDismissed = localStorage.getItem('pwaPromptDismissed');
+        if (!isStandalone && (!lastDismissed || (Date.now() - lastDismissed > 24 * 60 * 60 * 1000))) {
+            setTimeout(() => { 
+                const m = document.getElementById('pwaInstallModal');
+                if (m) { m.style.display = 'flex'; m.classList.add('overlay-active'); }
+            }, 3000);
+        }
+    });
+
+    function closePwaModal(isDismiss) {
+        const m = document.getElementById('pwaInstallModal');
+        if (m) { m.style.display = 'none'; m.classList.remove('overlay-active'); }
+        if (isDismiss) localStorage.setItem('pwaPromptDismissed', Date.now());
+    }
+
+    function showPwaManualGuide() {
+        if (deferredPrompt) deferredPrompt.prompt();
+        else alert("Użyj menu przeglądarki: 'Zainstaluj aplikację'");
+    }
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        else if (document.exitFullscreen) document.exitFullscreen();
+    }
+
+    // Notifications logic
+    (function() {
+        const savedShown = sessionStorage.getItem('notif_shown_ids');
+        const initialShown = savedShown ? JSON.parse(savedShown) : [];
+        const savedMaxId = sessionStorage.getItem('notif_max_id');
+        let maxNotifId = savedMaxId ? parseInt(savedMaxId, 10) : 0;
+        const state = { 
+            initialized: savedShown !== null && savedMaxId !== null, 
+            shownIds: new Set(initialShown), 
+            notifications: [] 
+        };
+        function saveShown() {
+            sessionStorage.setItem('notif_shown_ids', JSON.stringify(Array.from(state.shownIds)));
+        }
+        function getElements() {
+            return {
+                toggle: document.getElementById('notificationsToggle'),
+                menu: document.getElementById('notificationsMenu'),
+                badge: document.getElementById('notificationsBadge'),
+                list: document.getElementById('notificationsList'),
+                markAll: document.getElementById('notificationsMarkAll')
+            };
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function closeMenu() {
+            const e = getElements();
+            if (e.menu) {
+                e.menu.style.display = 'none';
+                e.menu.setAttribute('aria-hidden', 'true');
+            }
+            if (e.toggle) {
+                e.toggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function toggleMenu() {
+            const e = getElements();
+            if (!e.menu || !e.toggle) return;
+            const shouldOpen = e.menu.style.display !== 'block';
+            e.menu.style.display = shouldOpen ? 'block' : 'none';
+            e.menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+            e.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        function render() {
+            const e = getElements();
+            if (!e.list || !e.badge) return;
+
+            const userRole = "masteradmin";
+            if (userRole === 'laborant' || userRole === 'laboratorium') {
+                e.badge.style.display = 'none';
+                return;
+            }
+
+            const items = Array.isArray(state.notifications) ? state.notifications : [];
+            const badgeCount = items.length;
+            e.badge.style.display = badgeCount > 0 ? 'inline-block' : 'none';
+            e.badge.textContent = badgeCount > 99 ? '99+' : String(badgeCount);
+
+            if (badgeCount === 0) {
+                e.list.innerHTML = '<div class="notifications-empty">Brak nowych powiadomień.</div>';
+                return;
+            }
+
+            e.list.innerHTML = items.map(function(item) {
+                const title = escapeHtml(item.title || 'Powiadomienie');
+                const message = escapeHtml(item.message || '');
+                const createdAt = escapeHtml(item.created_at || '');
+                const safeLink = escapeHtml(item.link_url || '');
+                const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                return [
+                    '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">',
+                    '<span class="notification-item-title" style="margin:0; font-weight:700; font-size:13px; color:#0f172a;">', title, '</span>',
+                    displayTime ? '<span style="font-size:11px; font-weight:600; color:#3b82f6; background:#eff6ff; padding:2px 6px; border-radius:4px; margin-left:8px; white-space:nowrap;">' + displayTime + '</span>' : '',
+                    '</div>',
+                    '<span class="notification-item-message">', message, '</span>',
+                    '<span class="notification-item-meta">', createdAt, '</span>',
+                    '</button>'
+                ].join('');
+            }).join('');
+        }
+
+        async function markRead(notificationId) {
+            const r = await fetch('/api/notifications/' + encodeURIComponent(notificationId) + '/read', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
+        async function markAllRead() {
+            const r = await fetch('/api/notifications/read-all', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
+        let notifsInterval = null;
+        async function fetchNotifs() {
+            try {
+                const r = await fetch('/api/notifications?limit=20', {
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    silent: true
+                });
+                if (r.status === 401) {
+                    // Session expired — stop polling and redirect to login immediately
+                    if (notifsInterval) clearInterval(notifsInterval);
+                    window.location.replace('/login');
+                    return;
+                }
+                if (r.ok) {
+                    const d = await r.json();
+                    const notifications = Array.isArray(d.notifications) ? d.notifications : [];
+                    if (state.initialized) {
+                        notifications.forEach(function(item) {
+                            if (item.id > maxNotifId && !state.shownIds.has(item.id)) {
+                                state.shownIds.add(item.id);
+                                saveShown();
+                                
+                                if (item.id > maxNotifId) {
+                                    maxNotifId = item.id;
+                                    sessionStorage.setItem('notif_max_id', maxNotifId);
+                                }
+                                
+                                if (typeof showToast === 'function') {
+                                    const userRole = "masteradmin";
+                                    const isSticky = (userRole === 'laborant' || userRole === 'laboratorium');
+                                    const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                                    const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');
+                                    showToast(toastMsg, 'info', isSticky, function() {
+                                        markRead(item.id).then(() => {
+                                            state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
+                                            render();
+                                        });
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        let maxIdInBatch = 0;
+                        notifications.forEach(function(item) {
+                            state.shownIds.add(item.id);
+                            if (item.id > maxIdInBatch) {
+                                maxIdInBatch = item.id;
+                            }
+                        });
+                        if (maxIdInBatch > maxNotifId) {
+                            maxNotifId = maxIdInBatch;
+                            sessionStorage.setItem('notif_max_id', maxNotifId);
+                        }
+                        saveShown();
+                        state.initialized = true;
+                    }
+                    state.notifications = notifications;
+                    render();
+                }
+            } catch(e) {}
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchNotifs();
+            notifsInterval = setInterval(fetchNotifs, 10000);
+
+            // Instant notifications fetch upon unlocking the phone or switching to tab (device sleep support)
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    fetchNotifs();
+                }
+            });
+
+            const e = getElements();
+
+            if (e.toggle) {
+                e.toggle.addEventListener('click', function(ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleMenu();
+                });
+            }
+
+            if (e.markAll) {
+                e.markAll.addEventListener('click', async function() {
+                    const ok = await markAllRead();
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się oznaczyć powiadomień.', 'warning');
+                        }
+                        return;
+                    }
+                    state.notifications = [];
+                    render();
+                    closeMenu();
+                });
+            }
+
+            if (e.list) {
+                e.list.addEventListener('click', async function(ev) {
+                    const button = ev.target.closest('.notification-item');
+                    if (!button) return;
+                    const notificationId = button.getAttribute('data-id');
+                    const linkUrl = button.getAttribute('data-link');
+
+                    const ok = await markRead(notificationId);
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się zapisać odczytu powiadomienia.', 'warning');
+                        }
+                        return;
+                    }
+
+                    state.notifications = state.notifications.filter(function(item) {
+                        return String(item.id) !== String(notificationId);
+                    });
+                    render();
+                    closeMenu();
+
+                    if (linkUrl) {
+                        window.location.href = linkUrl;
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(ev) {
+                const wrapper = document.querySelector('.notifications-wrapper');
+                if (wrapper && !wrapper.contains(ev.target)) {
+                    closeMenu();
+                }
+            });
+        });
+
+        window.closeNotificationsMenu = closeMenu;
+    })();
+
+    // Bug Report logic
+    function closeBugReportModal() {
+        try {
+            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                try { window.createQuickPopup._lastInst.close(); } catch (e) { }
+            }
+            if (window.closeQuickPopup) {
+                try { window.closeQuickPopup(); } catch (e) { }
+            }
+
+            // Hard fallback: force hide overlay/popup even if helper couldn't close current instance.
+            var qp = document.getElementById('quickPopup');
+            var qb = document.getElementById('quickBackdrop');
+            if (qp) {
+                qp.classList.remove('open');
+                qp.setAttribute('aria-hidden', 'true');
+                qp.style.display = 'none';
+                qp.style.pointerEvents = 'none';
+            }
+            if (qb) {
+                qb.classList.remove('show');
+                qb.setAttribute('aria-hidden', 'true');
+                qb.style.display = 'none';
+                qb.style.pointerEvents = 'none';
+            }
+        } catch (e) { }
+    }
+
+    function openBugReportModal() {
+        var html = '<form id="bugReportForm" enctype="multipart/form-data">';
+        html += '<div class="form-group">';
+        html += '<div class="text-muted small" style="margin-bottom:8px; line-height:1.45;">';
+        html += '<strong>Jak zgłosić skutecznie:</strong><br>';
+        html += '1) Co dokładnie klikasz (krok po kroku), 2) jaki jest efekt, 3) jaki efekt powinien być.<br>';
+        html += 'Dodaj też gdzie problem występuje (sekcja, linia, ekran).';
+        html += '</div></div>';
+        html += '<div class="form-group"><label style="display:block;margin-bottom:4px;font-weight:600;">Gdzie występuje problem? (sekcja/linia/ekran):</label>';
+        html += '<input type="text" name="gdzie" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;" placeholder="Np. Zasyp AGRO - popup dosypki" required></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Opis problemu i kroki odtworzenia:</label>';
+        html += '<textarea name="opis" rows="5" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;" placeholder="Np. 1. Wchodzę w ... 2. Klikam ... 3. Wyskakuje ..." required></textarea></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
+        html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
+        html += '<div class="text-muted small" style="margin-top:4px;font-size:11px;color:#64748b;">Najlepiej dodaj screen z wnętrza aplikacji z widocznym komunikatem lub błędnym stanem.</div>';
+        html += '<p class="text-muted small" id="bugFileCountMsg" style="margin-top:4px;font-size:11px;color:#1e293b;font-weight:700;"></p>';
+        html += '<div class="d-flex gap-10 mt-15" style="display:flex;gap:10px;margin-top:20px;">';
+        html += '<button type="button" class="btn-action btn-success" style="background:#16a34a;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
+        html += '<button type="button" class="btn-action btn-cancel" style="background:#64748b;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="closeBugReportModal()">Anuluj</button>';
+        html += '<a href="/moje_zgloszenia_bledow" class="btn-action btn-outline" style="text-decoration:none;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;color:#334155;font-weight:700;display:inline-flex;align-items:center;justify-content:center;">Moje zgłoszenia</a>';
+        html += '</div></form>';
+        
+        if (window.showQuickPopup) {
+            showQuickPopup('🐞 Zgłoś błąd / usprawnienie w systemie', html);
+        }
+        
+        // Limit 3 files
+        var fileInput = document.getElementById('bugScreenshots');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (this.files.length > 3) {
+                    alert('Możesz dodać maksymalnie 3 zrzuty ekranu!');
+                    this.value = '';
+                    document.getElementById('bugFileCountMsg').innerText = '';
+                } else {
+                    document.getElementById('bugFileCountMsg').innerText = 'Wybrano zrzutów: ' + this.files.length;
+                }
+            });
+        }
+    }
+
+    function submitBugReport() {
+        var form = document.getElementById('bugReportForm');
+        if(!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        
+        var btn = form.querySelector('.btn-success');
+        var originalText = btn.innerText;
+        btn.innerText = 'Wysyłanie...';
+        btn.disabled = true;
+        
+        var formData = new FormData(form);
+        formData.append('sciezka', window.location.pathname + window.location.search);
+        
+        fetch('/api/zglos_blad_systemu', {
+            method: 'POST',
+            body: formData
+        }).then(r => r.json()).then(j => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if(j && j.success) {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Sukces', 'Dziękujemy! Błąd został zapisany.');
+                } else {
+                    alert('Sukces: Dziękujemy! Błąd został zapisany.');
+                }
+                closeBugReportModal();
+            } else {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Błąd', (j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                } else {
+                    alert((j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                }
+            }
+        }).catch(e => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if (typeof safeAlert === 'function') {
+                safeAlert('Błąd sieci', 'Nie udało się połączyć z serwerem.');
+            } else {
+                alert('Nie udało się połączyć z serwerem.');
+            }
+        });
+    }
+
+
+    function ackBugIconIntro() {
+        const modal = document.getElementById('bugIconIntroModal');
+        if (modal) modal.style.display = 'none';
+        
+        fetch('/api/ack_bug_icon_intro', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).catch(err => console.error('Failed to ack bug icon intro:', err));
+    }
+
+    function toggleLanguageMenu() {
+        const menu = document.getElementById('languageMenu');
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        const toggle = document.querySelector('.language-toggle');
+        const menu = document.getElementById('languageMenu');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (toggle && !toggle.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
+
+    // Unified system-state real-time polling to refresh views automatically
+    (function() {
+        // Only run for logged in users
+        const isUserLoggedIn = "True";
+        if (!isUserLoggedIn) return;
+
+        let sessionStateSum = 0;
+        const linia = "None";
+
+        function checkSystemState() {
+            fetch('/api/system_state?linia=' + linia, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                silent: true
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    window.location.replace('/login');
+                    return null;
+                }
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (!data || !data.state) return;
+                
+                const s = data.state;
+                const currentSum = Number(s.last_pallet_psd || 0) +
+                                   Number(s.last_pallet_agro || 0) +
+                                   Number(s.last_plan || 0) +
+                                   Number(s.last_zasyp_psd || 0) +
+                                   Number(s.last_zasyp_agro || 0) +
+                                   Number(s.last_awaria || 0) +
+                                   Number(s.last_dosypka_psd || 0) +
+                                   Number(s.last_dosypka_agro || 0) +
+                                   Number(s.state_dosypka || 0);
+
+                if (sessionStateSum === 0) {
+                    sessionStateSum = currentSum;
+                    return;
+                }
+
+                if (currentSum !== sessionStateSum) {
+                    sessionStateSum = currentSum;
+                    
+                    // Ciche odświeżenie (tylko na stronach które to obsługują, np. dashboard)
+                    if (typeof window.performPartialReload === 'function') {
+                        window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });
+                    }
+                }
+            })
+            .catch(() => {});
+        }
+
+        // Poll every 4 seconds
+        setInterval(checkSystemState, 4000);
+        // Initial check after a brief delay
+        setTimeout(checkSystemState, 1000);
+    })();
+
+    // -------------------------------------------------------
+    // PRINTER SERVER TOGGLE LOGIC (with PIN modal)
+    // -------------------------------------------------------
+    let isPrinterServerRunning = false;
+    let isPrinterServerToggling = false;
+
+    function updatePrinterServerIcon(running) {
+        isPrinterServerRunning = running;
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+        if (!iconBtn) return;
+        
+        if (running) {
+            iconBtn.style.color = '#16a34a'; // Green
+            iconBtn.title = 'Serwer druku działa (Kliknij, aby wyłączyć)';
+        } else {
+            iconBtn.style.color = '#dc2626'; // Red
+            iconBtn.title = 'Serwer druku wyłączony (Kliknij, aby włączyć)';
+        }
+    }
+
+    function checkPrinterServerStatus() {
+        if (isPrinterServerToggling) return;
+        fetch('/api/printer-server/status', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            silent: true
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.success !== false) {
+                updatePrinterServerIcon(!!data.running);
+            }
+        })
+        .catch(() => {});
+    }
+
+    // Build & inject the PIN modal once
+    function ensurePrinterPinModal() {
+        if (document.getElementById('printerPinModal')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'printerPinModal';
+        overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99999;align-items:center;justify-content:center;';
+
+        overlay.innerHTML = `
+            <div id="printerPinCard" style="background:#fff;border-radius:16px;padding:32px 28px 24px;width:340px;max-width:92vw;box-shadow:0 25px 50px rgba(0,0,0,0.25);position:relative;animation:printerModalIn 0.25s ease-out;">
+                <button type="button" onclick="closePrinterPinModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;" title="Zamknij">&times;</button>
+                <div style="text-align:center;margin-bottom:20px;">
+                    <span class="material-icons" id="printerModalIcon" style="font-size:48px;color:#64748b;">print</span>
+                    <h3 id="printerModalTitle" style="margin:10px 0 4px;font-size:18px;font-weight:700;color:#0f172a;">Serwer Druku</h3>
+                    <p id="printerModalDesc" style="font-size:13px;color:#64748b;margin:0;">Podaj PIN, aby przełączyć serwer druku</p>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label for="printerPinInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">PIN</label>
+                    <input type="text" id="printerPinInput" maxlength="10" placeholder="••••" autocomplete="new-password" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:18px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;transition:border-color 0.2s;-webkit-text-security:disc;text-security:disc;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+                <div id="printerPinError" style="display:none;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:12px;font-weight:600;margin-bottom:12px;text-align:center;"></div>
+                <button type="button" id="printerPinSubmitBtn" onclick="submitPrinterPin()" style="width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;background:#3b82f6;color:#fff;">
+                    Potwierdź
+                </button>
+                <div id="printerPinStatus" style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Close on backdrop click
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closePrinterPinModal();
+        });
+
+        // Add animation keyframes
+        if (!document.getElementById('printerModalStyles')) {
+            const style = document.createElement('style');
+            style.id = 'printerModalStyles';
+            style.textContent = `
+                @keyframes printerModalIn {
+                    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    window.togglePrinterServerGlobal = function() {
+        ensurePrinterPinModal();
+
+        const modal = document.getElementById('printerPinModal');
+        const icon = document.getElementById('printerModalIcon');
+        const title = document.getElementById('printerModalTitle');
+        const desc = document.getElementById('printerModalDesc');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+
+        // Configure modal based on current state
+        if (isPrinterServerRunning) {
+            icon.style.color = '#16a34a';
+            title.textContent = 'Wyłącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest aktywny. Podaj PIN, aby go wyłączyć.';
+            submitBtn.style.background = '#dc2626';
+            submitBtn.textContent = '🔴 Wyłącz serwer druku';
+        } else {
+            icon.style.color = '#dc2626';
+            title.textContent = 'Włącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest wyłączony. Podaj PIN, aby go uruchomić.';
+            submitBtn.style.background = '#16a34a';
+            submitBtn.textContent = '🟢 Włącz serwer druku';
+        }
+
+        // Reset state
+        pinInput.value = '';
+        errorEl.style.display = 'none';
+        statusEl.textContent = '';
+        submitBtn.disabled = false;
+
+        modal.style.display = 'flex';
+        setTimeout(() => pinInput.focus(), 150);
+    };
+
+    window.closePrinterPinModal = function() {
+        const modal = document.getElementById('printerPinModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitPrinterPin = function() {
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+
+        const pin = (pinInput.value || '').trim();
+        if (!pin) {
+            errorEl.textContent = 'Podaj PIN.';
+            errorEl.style.display = 'block';
+            pinInput.focus();
+            return;
+        }
+
+        errorEl.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Trwa przełączanie...';
+        statusEl.textContent = '';
+
+        if (iconBtn) {
+            iconBtn.style.color = '#eab308'; // Yellow
+            iconBtn.title = 'Trwa przełączanie...';
+        }
+
+        isPrinterServerToggling = true;
+        const endpoint = isPrinterServerRunning ? '/api/printer-server/stop' : '/api/printer-server/start';
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ pin: pin })
+        })
+        .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+        .then(result => {
+            if (result.ok && result.data && result.data.success) {
+                statusEl.style.color = '#16a34a';
+                statusEl.textContent = result.data.message || 'Gotowe!';
+                if (typeof showToast === 'function') {
+                    showToast(result.data.message, 'success');
+                }
+                setTimeout(() => {
+                    closePrinterPinModal();
+                    checkPrinterServerStatus();
+                }, 1200);
+            } else {
+                const msg = (result.data && result.data.message) || 'Nieprawidłowy PIN lub błąd serwera.';
+                errorEl.textContent = msg;
+                errorEl.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+                // Restore icon color
+                if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+                pinInput.value = '';
+                pinInput.focus();
+            }
+        })
+        .catch(err => {
+            errorEl.textContent = 'Błąd komunikacji z serwerem.';
+            errorEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+            if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+        })
+        .finally(() => {
+            isPrinterServerToggling = false;
+        });
+    };
+
+    // Allow Enter key to submit PIN
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const modal = document.getElementById('printerPinModal');
+            if (modal && modal.style.display === 'flex') {
+                e.preventDefault();
+                submitPrinterPin();
+            }
+        }
+        if (e.key === 'Escape') {
+            closePrinterPinModal();
+        }
+    });
+
+    // Only start polling if the user is logged in (i.e. if the icon exists)
+    if (document.getElementById('navbarPrinterServerToggle')) {
+        checkPrinterServerStatus();
+        setInterval(checkPrinterServerStatus, 5000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // IN-APP VIEWER — otwiera etykiety i raporty w iframie wewnątrz
+    // aplikacji zamiast w nowej zakładce przeglądarki.
+    // Użycie: window.openInApp(url, 'Tytuł okna')
+    // ═══════════════════════════════════════════════════════════════
+    (function() {
+        function buildInAppViewer() {
+            if (document.getElementById('inAppViewerOverlay')) return;
+
+            const style = document.createElement('style');
+            style.textContent = `
+                #inAppViewerOverlay {
+                    display: none;
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.82);
+                    backdrop-filter: blur(6px);
+                    -webkit-backdrop-filter: blur(6px);
+                    z-index: 99990;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 12px;
+                    box-sizing: border-box;
+                    animation: inAppFadeIn 0.2s ease;
+                }
+                @keyframes inAppFadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                #inAppViewerCard {
+                    width: 100%;
+                    max-width: 900px;
+                    height: 92vh;
+                    background: #fff;
+                    border-radius: 16px;
+                    box-shadow: 0 30px 60px -10px rgba(0,0,0,0.5);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    animation: inAppSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                @keyframes inAppSlideIn {
+                    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0)   scale(1); }
+                }
+                #inAppViewerBar {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 12px 16px;
+                    background: #0f172a;
+                    color: #f8fafc;
+                    flex-shrink: 0;
+                }
+                #inAppViewerTitle {
+                    flex: 1;
+                    font-size: 15px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                #inAppViewerBar button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 7px 14px;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: opacity 0.15s;
+                }
+                #inAppViewerBar button:hover { opacity: 0.85; }
+                #inAppPrintBtn  { background: #3b82f6; color: #fff; }
+                #inAppCloseBtn  { background: #334155; color: #e2e8f0; }
+                #inAppViewerFrame {
+                    flex: 1;
+                    width: 100%;
+                    border: none;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const overlay = document.createElement('div');
+            overlay.id = 'inAppViewerOverlay';
+            overlay.innerHTML = `
+                <div id="inAppViewerCard">
+                    <div id="inAppViewerBar">
+                        <span class="material-icons" style="font-size:20px;color:#60a5fa;">description</span>
+                        <span id="inAppViewerTitle">Podgląd</span>
+                        <button id="inAppPrintBtn" onclick="window.inAppPrint()">
+                            <span class="material-icons" style="font-size:16px;">print</span> Drukuj
+                        </button>
+                        <button id="inAppCloseBtn" onclick="window.closeInApp()">
+                            <span class="material-icons" style="font-size:16px;">close</span> Zamknij
+                        </button>
+                    </div>
+                    <iframe id="inAppViewerFrame" src="about:blank" allow="same-origin"></iframe>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Zamknij klikając poza kartą
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) window.closeInApp();
+            });
+        }
+
+        window.openInApp = function(url, title) {
+            buildInAppViewer();
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            const titleEl = document.getElementById('inAppViewerTitle');
+            if (!overlay || !frame) return;
+            titleEl.textContent = title || 'Podgląd';
+            frame.src = url;
+            overlay.style.display = 'flex';
+        };
+
+        window.closeInApp = function() {
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            if (overlay) overlay.style.display = 'none';
+            if (frame)   frame.src = 'about:blank';
+        };
+
+        window.inAppPrint = function() {
+            const frame = document.getElementById('inAppViewerFrame');
+            if (frame && frame.contentWindow) {
+                try { frame.contentWindow.print(); } catch(e) {
+                    // fallback — otwórz w nowej karcie żeby wydrukować
+                    window.open(frame.src, '_blank');
+                }
+            }
+        };
+
+        // Escape zamyka viewer
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('inAppViewerOverlay');
+                if (overlay && overlay.style.display === 'flex') {
+                    window.closeInApp();
+                }
+            }
+        });
+    })();
+
+</script>
+    
+    
+
+    <!-- Core Dashboard Logic Scripts -->
+    <script src="/static/js/dashboard/scheduler.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/toasts.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/config.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/card-actions.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/agro-banners.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/polling.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/ui.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/kgph.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/etapy.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/packaging.js?v=1781437565&v=105"></script>
+    <script src="/static/js/dashboard/page-helpers.js?v=1781437565&dashboard_refactor=4"></script>
+    <script src="/static/js/dashboard/bootstrap.js?v=1781437565&dashboard_refactor=4"></script>
+
+    <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title">Panel</div>
+        <div><button type="button" class="btn-action btn-small qp-close" data-action="close-popup">✖</button></div>
+    </div>
+    <div id="quickPopupBody" class="qp-body p-10">Ładowanie</div>
+</div>
+
+<div id="kgphExplainBackdrop" class="quick-backdrop"></div>
+<div id="kgphExplainModal" class="quick-popup" aria-hidden="true" style="display:none; max-width: 560px;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title" id="kgphExplainTitle">Wydajność</div>
+        <div><button type="button" class="btn-action btn-small" id="kgphExplainCloseBtn">✖</button></div>
+    </div>
+    <div class="qp-body p-10">
+        <div class="card-row"><strong>Plan:</strong> <span id="kgphExplainPlan">-</span></div>
+        <div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphExplainValue">-</span></div>
+        <div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphExplainMass">-</span></div>
+        <div class="card-row"><strong>Mianownik (co dzieli):</strong> <span id="kgphExplainTime">-</span></div>
+        <div class="card-row"><strong>Wzór:</strong> <span id="kgphExplainFormula">-</span></div>
+        <div class="small text-muted" id="kgphExplainModeInfo" style="margin-top:8px;"></div>
+    </div>
+</div>
+
+</body>
+
+</html>

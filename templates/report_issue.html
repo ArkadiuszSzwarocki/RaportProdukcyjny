@@ -1,0 +1,115 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚠️ {{ _('zgloszenie_problem') }}</h1>
+</div>
+
+<div class="section-box p-20">
+    <form id="reportForm" class="d-flex flex-column gap-15 max-width-700" enctype="multipart/form-data">
+        <label for="sekcja">{{ _('sekcja_label') }}</label>
+        <select id="sekcja" name="sekcja" required class="input-sm">
+            <option value="Zasyp">{{ _('zasyp') }}</option>
+            <option value="Workowanie">{{ _('workowanie') }}</option>
+            <option value="Magazyn">{{ _('magazyn') }}</option>
+            <option value="Inne">Inne</option>
+        </select>
+
+        <label for="kategoria">{{ _('typ_zdarzenia') }}</label>
+        <select id="kategoria" name="kategoria" required class="input-sm">
+            <option value="">-- Wybierz --</option>
+            <option value="Przezbrojenie">{{ _('przezbrojenie') }}</option>
+            <option value="Awaria">{{ _('awaria_maszyny') }}</option>
+            <option value="Brak Surowca">{{ _('brak_surowca') }}</option>
+            <option value="Przerwa">{{ _('przerwa') }}</option>
+            <option value="Inne">Inne</option>
+        </select>
+
+        <label for="opis">Opis problemu (wymagany):</label>
+        <textarea id="opis" name="opis" rows="6" class="input-sm" required placeholder="{{ _('opisz_problem') }}"></textarea>
+
+        <label for="bugPageScreenshots">Zrzuty ekranu / Zdjęcia (maksymalnie 3):</label>
+        <input type="file" id="bugPageScreenshots" name="zalaczniki" accept="image/*" multiple class="input-sm">
+        <div id="bugPageImagePreviews" class="d-flex gap-10 flex-wrap mt-5"></div>
+
+        <div class="d-flex gap-10 mt-10">
+            <button type="submit" class="btn-action btn-warning" id="submitBtn">{{ _('zglosz_btn') }}</button>
+            <a href="/" class="btn-action btn-cancel">ANULUJ</a>
+            <a href="/moje_zgloszenia_bledow" class="btn-action btn-outline">Moje zgłoszenia</a>
+        </div>
+    </form>
+</div>
+
+<script>
+const pageFileInput = document.getElementById('bugPageScreenshots');
+const pagePreviewBox = document.getElementById('bugPageImagePreviews');
+if (pageFileInput) {
+    pageFileInput.addEventListener('change', function(e) {
+        if (pagePreviewBox) pagePreviewBox.innerHTML = '';
+        if (this.files.length > 3) {
+            alert('Możesz dodać maksymalnie 3 zdjęcia!');
+            this.value = '';
+            return;
+        }
+        Array.from(this.files).forEach(function(file) {
+            if (!file.type.startsWith('image/')) return;
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                if (pagePreviewBox) {
+                    var img = document.createElement('img');
+                    img.src = evt.target.result;
+                    img.style.height = '80px';
+                    img.style.width = '80px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    img.style.border = '1px solid #cbd5e1';
+                    pagePreviewBox.appendChild(img);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+}
+
+const _reportForm = document.getElementById('reportForm');
+if (_reportForm) _reportForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.textContent;
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Wysyłanie...';
+        
+        const formData = new FormData(this);
+        formData.append('sciezka', window.location.pathname);
+        const response = await fetch('/api/zglos_blad_systemu', {
+            method: 'POST',
+            body: formData
+        });
+        const resData = await response.json();
+        
+        if (response.ok && resData.success) {
+            if (typeof showToast === 'function') showToast('✓ Zgłoszenie zapisano pomyślnie', 'success');
+            else alert('✓ Zgłoszenie zapisano pomyślnie');
+            this.reset();
+            if (pagePreviewBox) pagePreviewBox.innerHTML = '';
+            window.location.href = '/moje_zgloszenia_bledow';
+        } else {
+            const msg = (resData && resData.message) || response.statusText;
+            if (typeof showToast === 'function') showToast('❌ Błąd: ' + msg, 'error');
+            else alert('❌ Błąd: ' + msg);
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        if (typeof showToast === 'function') showToast('❌ Błąd połączenia: ' + error.message, 'error');
+        else alert('❌ Błąd połączenia: ' + error.message);
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+});
+</script>
+
+{% endblock %}

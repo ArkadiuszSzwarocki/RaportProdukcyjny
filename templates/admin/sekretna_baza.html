@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .secret-db-shell {
+        max-width: 860px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+    }
+
+    .secret-db-panel {
+        background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
+        border: 1px solid rgba(39, 76, 119, 0.14);
+        border-radius: 18px;
+        box-shadow: 0 16px 40px rgba(25, 40, 56, 0.08);
+        padding: 24px;
+    }
+
+    .secret-db-eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: #2f7dd1;
+        margin-bottom: 10px;
+    }
+
+    .secret-db-title {
+        margin: 0;
+        font-size: 1.8rem;
+        color: #1d3248;
+    }
+
+    .secret-db-description {
+        margin-top: 10px;
+        color: #516579;
+        line-height: 1.55;
+    }
+
+    .secret-db-current {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 8px 14px;
+        border: 1px solid rgba(20, 117, 70, 0.35);
+        background: rgba(46, 204, 113, 0.13);
+        color: #0d6b3f;
+        font-weight: 700;
+        margin-top: 14px;
+    }
+
+    .secret-db-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+    }
+
+    .secret-db-option {
+        border: 1px solid rgba(29, 50, 72, 0.12);
+        border-radius: 14px;
+        padding: 16px;
+        background: #ffffff;
+        display: grid;
+        gap: 10px;
+    }
+
+    .secret-db-option.active {
+        border-color: rgba(20, 117, 70, 0.5);
+        box-shadow: inset 0 0 0 1px rgba(20, 117, 70, 0.2);
+        background: linear-gradient(180deg, #f3fff8 0%, #ffffff 100%);
+    }
+
+    .secret-db-option-name {
+        margin: 0;
+        color: #1d3248;
+        font-size: 1.1rem;
+    }
+
+    .secret-db-option-meta {
+        color: #617487;
+        font-size: 0.93rem;
+        line-height: 1.45;
+        min-height: 40px;
+    }
+
+    .secret-db-note {
+        margin: 0;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px dashed rgba(196, 97, 30, 0.5);
+        background: rgba(249, 226, 173, 0.35);
+        color: #6a4318;
+        line-height: 1.5;
+    }
+</style>
+
+<div class="section-box">
+    <div class="secret-db-shell">
+        <section class="secret-db-panel">
+            <div class="secret-db-eyebrow">Strefa techniczna</div>
+            <h2 class="secret-db-title">Tajemniczy przelacznik baz</h2>
+            <p class="secret-db-description">
+                Przelacznik zmienia aktywna baze danych dla calej uruchomionej instancji aplikacji.
+                Zmiana jest natychmiastowa dla kolejnych zapytan.
+            </p>
+
+            <div class="secret-db-current">
+                Aktywna baza: {{ current_db }}
+            </div>
+
+            <div class="secret-db-grid">
+                {% for db_name in allowed_databases %}
+                <article class="secret-db-option{% if db_name == current_db %} active{% endif %}">
+                    <h3 class="secret-db-option-name">{{ db_name }}</h3>
+                    <p class="secret-db-option-meta">
+                        {% if db_name == 'biblioteka' %}
+                        Dane glowne / produkcyjne.
+                        {% else %}
+                        Dane testowe / sandbox.
+                        {% endif %}
+                    </p>
+
+                    <form method="post" action="{{ url_for('admin.admin_secret_db_switch') }}">
+                        <input type="hidden" name="database" value="{{ db_name }}">
+                        {% if db_name == current_db %}
+                        <button type="submit" class="btn btn-secondary" disabled>Aktywna</button>
+                        {% else %}
+                        <button type="submit" class="btn btn-primary">Przelacz na {{ db_name }}</button>
+                        {% endif %}
+                    </form>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <p class="secret-db-note">
+            Uwaga: to ustawienie jest globalne dla serwera, wiec przejecie dotyczy wszystkich uzytkownikow.
+            Po restarcie aplikacja wraca do wartosci z pliku .env.
+        </p>
+    </div>
+</div>
+{% endblock %}

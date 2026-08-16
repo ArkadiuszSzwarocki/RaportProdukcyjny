@@ -1,0 +1,115 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container p-15">
+    <div class="section-box">
+        <div class="section-header d-flex justify-between align-center">
+            <h1 class="section-title">Monitor Wydajności Systemu</h1>
+            <button class="btn-action btn-danger" onclick="clearPerfLog()">Wyczyść log</button>
+        </div>
+        
+        <div class="alert-info mb-15">
+            <strong>O co chodzi?</strong> Ta strona mierzy czas reakcji między kliknięciem linku a pełnym załadowaniem nowej strony. 
+            Dane są zbierane lokalnie na Twoim urządzeniu.
+            <div class="mt-5 small">
+                • <strong>Pomiar czasu:</strong> Czas od kliknięcia do pełnego załadowania strony.<br>
+                • <strong>Interakcja (-):</strong> Kliknięcia, które nie przeładowują strony (np. rozwinięcie menu).<br>
+                • <strong>Anomalia:</strong> Bardzo długie czasy (np. >30s) zwykle wynikają z otwarcia strony w tle.
+            </div>
+        </div>
+
+        <div class="card p-0" style="overflow: hidden;">
+            <table class="table-modern" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Godzina</th>
+                        <th>Strona (URL)</th>
+                        <th>Czas Całkowity</th>
+                        <th>Serwer (Backend)</th>
+                        <th>Przeglądarka (Frontend)</th>
+                    </tr>
+                </thead>
+                <tbody id="perfLogBody">
+                    <!-- Data will be injected here -->
+                </tbody>
+            </table>
+            <div id="noDataMsg" class="p-20 text-center text-muted" style="display: none;">
+                Brak danych pomiarowych. Przejdź na kilka stron i wróć tutaj.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-modern th, .table-modern td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+    .table-modern th { background: #f8fafc; font-weight: 700; color: #64748b; }
+    .perf-high { color: #e11d48; font-weight: 700; }
+    .perf-med { color: #f59e0b; font-weight: 700; }
+    .perf-low { color: #10b981; font-weight: 700; }
+</style>
+
+<script>
+    function refreshPerfLog() {
+        const body = document.getElementById('perfLogBody');
+        const noData = document.getElementById('noDataMsg');
+        const log = window.rpPerfMonitor ? window.rpPerfMonitor.getLog() : [];
+        
+        if (log.length === 0) {
+            body.innerHTML = '';
+            noData.style.display = 'block';
+            return;
+        }
+        
+        noData.style.display = 'none';
+        body.innerHTML = log.map(entry => {
+            const date = new Date(entry.timestamp);
+            const timeStr = date.toLocaleTimeString('pl-PL');
+            
+            let colorClass = 'perf-low';
+            let total = entry.total_duration || 0;
+            let durationDisplay = total > 0 ? total + ' ms' : '< 50 ms';
+            
+            if (entry.type === 'interaction') {
+                colorClass = 'text-muted';
+                return `
+                    <tr style="background-color: #fcfcfc;">
+                        <td>${timeStr}</td>
+                        <td><span class="badge" style="background:#e2e8f0; color:#475569;">${entry.action || 'INTERAKCJA'}</span> ${entry.detail || ''}</td>
+                        <td class="${colorClass}">-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    </tr>
+                `;
+            }
+
+            if (total > 5000) colorClass = 'perf-high';
+            else if (total > 1500) colorClass = 'perf-med';
+            
+            // If total duration is huge, it might be due to a background tab
+            const isAnomaly = total > 30000;
+
+            return `
+                <tr ${isAnomaly ? 'style="opacity: 0.7;" title="Prawdopodobnie karta w tle"' : ''}>
+                    <td>${timeStr}</td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <a href="${entry.url}">${entry.url}</a>
+                        ${isAnomaly ? ' <span class="material-icons" style="font-size:14px; color:#94a3b8; vertical-align:middle;">info</span>' : ''}
+                    </td>
+                    <td class="${colorClass}">${durationDisplay}</td>
+                    <td>${Math.max(0, entry.backend || 0)} ms</td>
+                    <td>${Math.max(0, entry.frontend || 0)} ms</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function clearPerfLog() {
+        if (confirm('Na pewno wyczyścić log wydajności?')) {
+            if (window.rpPerfMonitor) window.rpPerfMonitor.clearLog();
+            refreshPerfLog();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', refreshPerfLog);
+</script>
+{% endblock %}

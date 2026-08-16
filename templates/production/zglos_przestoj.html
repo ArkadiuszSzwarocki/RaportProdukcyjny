@@ -1,0 +1,143 @@
+{% extends 'layout.html' %}
+{% block title %}{% if is_edit %}Edycja Przestoju #{{ przestoj.id }}{% else %}Zgłaszanie Przestoju — {{ linia }} {{ sekcja }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-md-5" style="max-width: 1300px;">
+    <!-- Top Back Header -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+        <div>
+            <h1 class="fw-bold m-0 text-dark" style="font-size: 2.2rem; display: flex; align-items: center; gap: 14px; letter-spacing: -0.02em;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 16px; font-size: 28px;">{% if is_edit %}✏️{% else %}⚠️{% endif %}</span>
+                {% if is_edit %}Edycja Wpisu Przestoju (#{{ przestoj.id }}){% else %}Zgłoszenie Przestoju Produkcyjnego{% endif %}
+            </h1>
+            <p class="text-muted mb-0 mt-2" style="font-size: 1.1rem;">
+                Rejestracja przestoju maszyny / linii dla sekcji <strong class="text-dark">{{ sekcja }}</strong> (Linia: <strong class="text-dark">{{ linia }}</strong>)
+            </p>
+        </div>
+        <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}" class="btn btn-outline-secondary btn-lg px-4 py-3" style="border-radius: 12px; font-weight: 700; font-size: 1.05rem;">
+            📋 LISTA PRZESTOJÓW
+        </a>
+    </div>
+
+    <!-- Main Card Form -->
+    <div class="card shadow-lg border-0" style="border-radius: 20px; background: #ffffff; overflow: hidden; border: 1px solid #cbd5e1 !important;">
+        <div class="card-header bg-white py-4 px-4 px-md-5" style="border-bottom: 2px solid #f1f5f9;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <span class="badge" style="background: #fee2e2; color: #991b1b; padding: 10px 20px; border-radius: 30px; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.03em;">
+                    SEKCJA: {{ sekcja|upper }} ({{ linia }})
+                </span>
+                <span class="text-muted fw-bold" style="font-size: 1rem;">{% if is_edit %}Wprowadź zmiany i kliknij Zapisz{% else %}Uzupełnij poniższy formularz i kliknij Zapisz{% endif %}</span>
+            </div>
+        </div>
+
+        <div class="card-body p-4 p-md-5">
+            <form action="{% if is_edit %}{{ url_for('production.edytuj_przestoj_page', id=przestoj.id) }}{% else %}{{ url_for('production.zglos_przestoj_page') }}{% endif %}" method="POST" id="przestojForm">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+
+                {% if wybrane_zlecenie %}
+                <!-- Connected Order Box (Large) -->
+                <div class="mb-5 p-4" style="background: #f8fafc; border: 2px solid #cbd5e1; border-left: 8px solid #ef4444; border-radius: 16px;">
+                    <div class="small text-muted fw-bold" style="font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase;">ZLECENIE PODPIĘTE:</div>
+                    <div class="fw-extrabold text-dark fs-3 mt-1" style="color: #0f172a !important;">
+                        {{ wybrane_zlecenie.produkt }} <span class="text-danger">({{ wybrane_zlecenie.tonaz }} kg)</span>
+                    </div>
+                    <input type="hidden" name="plan_id" value="{{ wybrane_zlecenie.id }}">
+                </div>
+                {% elif plany %}
+                <!-- Select Order Dropdown (Large) -->
+                <div class="mb-5">
+                    <label for="plan_id" class="form-label fw-bold text-dark fs-5 mb-2">Podepnij do zlecenia (opcjonalnie):</label>
+                    <select name="plan_id" id="plan_id" class="form-select style-large-input fs-5" style="border-radius: 14px; height: 60px; padding: 12px 20px;">
+                        <option value="">-- Brak podpięcia / Przestój ogólny --</option>
+                        {% for p in plany %}
+                        <option value="{{ p.id }}" {% if (is_edit and przestoj.plan_id == p.id) or (plan_id == p.id) %}selected{% endif %}>
+                            {{ p.produkt }} (Plan: {{ p.tonaz }} kg | Status: {{ p.status|upper }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <!-- Date & Times Grid (Large) -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <label for="data_przestoju" class="form-label fw-bold text-dark fs-5 mb-2">Data przestoju <span class="text-danger">*</span></label>
+                        <input type="date" name="data_przestoju" id="data_przestoju" class="form-control style-large-input fs-4" value="{{ dzisiaj }}" required style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="godzina_start" class="form-label fw-bold text-dark fs-5 mb-2">Godzina od <span class="text-danger">*</span></label>
+                        <input type="time" name="godzina_start" id="godzina_start" class="form-control style-large-input fs-4" value="{{ teraz_hm }}" required style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;" onchange="calcDuration()">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="godzina_stop" class="form-label fw-bold text-dark fs-5 mb-2">Godzina do (opcjonalnie)</label>
+                        <input type="time" name="godzina_stop" id="godzina_stop" class="form-control style-large-input fs-4" value="{% if is_edit and przestoj.godzina_stop %}{{ przestoj.godzina_stop }}{% endif %}" style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;" onchange="calcDuration()">
+                    </div>
+                </div>
+
+                <!-- Duration & Category Row (Large) -->
+                <div class="row g-4 mb-5">
+                    <div class="col-md-4">
+                        <label for="czas_trwania_min" class="form-label fw-bold text-dark fs-5 mb-2">Czas trwania (minuty)</label>
+                        <div class="input-group input-group-lg">
+                            <input type="number" name="czas_trwania_min" id="czas_trwania_min" class="form-control style-large-input fs-4" min="1" placeholder="np. 30" value="{% if is_edit and przestoj.czas_trwania_min %}{{ przestoj.czas_trwania_min }}{% endif %}" style="border-radius: 14px 0 0 14px; height: 62px; padding: 12px 18px; font-weight: 700;">
+                            <span class="input-group-text bg-light text-secondary fs-5 fw-bold px-4" style="border-radius: 0 14px 14px 0; border: 2px solid #cbd5e1; border-left: none;">MIN</span>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label for="kategoria" class="form-label fw-bold text-dark fs-5 mb-2">Kategoria / Powód <span class="text-danger">*</span></label>
+                        <select name="kategoria" id="kategoria" class="form-select style-large-input fs-5 fw-bold" required style="border-radius: 14px; height: 62px; padding: 12px 20px;">
+                            {% for kat in kategorie %}
+                            <option value="{{ kat }}" {% if is_edit and przestoj.kategoria == kat %}selected{% endif %}>{{ kat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Description Textarea (Large) -->
+                <div class="mb-5">
+                    <label for="opis" class="form-label fw-bold text-dark fs-5 mb-2">Szczegółowy opis / Przyczyna przestoju:</label>
+                    <textarea name="opis" id="opis" rows="5" class="form-control style-large-input fs-5" placeholder="Opisz dokładnie, co wywołało przestój (np. wymiana zgrzewarki, awaria taśmociągu, oczekiwanie na etykiety...)" style="border-radius: 16px; padding: 18px 20px; line-height: 1.5;">{% if is_edit and przestoj.opis %}{{ przestoj.opis }}{% endif %}</textarea>
+                </div>
+
+                <!-- Form Action Buttons (Large) -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 pt-4 border-top">
+                    <a href="{{ request.referrer or url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}" class="btn btn-outline-secondary btn-lg px-5 py-3" style="border-radius: 14px; font-weight: 700; font-size: 1.15rem; min-width: 180px;">
+                        Anuluj
+                    </a>
+                    <button type="submit" class="btn btn-danger btn-lg px-5 py-3 shadow-lg" style="border-radius: 14px; font-weight: 800; font-size: 1.25rem; background: linear-gradient(135deg, #ef4444, #b91c1c); border: none; min-width: 320px; height: 64px;">
+                        {% if is_edit %}💾 ZAPISZ ZMIANY W PRZESTOJU{% else %}💾 ZAPISZ ZGŁOSZENIE PRZESTOJU{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function calcDuration() {
+    const startVal = document.getElementById('godzina_start').value;
+    const stopVal = document.getElementById('godzina_stop').value;
+    const durationInput = document.getElementById('czas_trwania_min');
+    
+    if (startVal && stopVal) {
+        const [h1, m1] = startVal.split(':').map(Number);
+        const [h2, m2] = stopVal.split(':').map(Number);
+        let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+        if (diff < 0) diff += 24 * 60; // overnight
+        durationInput.value = diff;
+    }
+}
+</script>
+
+<style>
+.style-large-input {
+    border: 2px solid #cbd5e1 !important;
+    transition: all 0.2s ease-in-out;
+}
+.style-large-input:focus {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18) !important;
+}
+</style>
+{% endblock %}

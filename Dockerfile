@@ -1,26 +1,40 @@
-# Używamy lekkiej wersji Node.js 18
-FROM node:18-alpine
+FROM python:3.11-slim as builder
+WORKDIR /tmp
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Ustawiamy folder roboczy w kontenerze
+FROM python:3.11-slim
 WORKDIR /app
+RUN groupadd -r appgroup || true && useradd -m -u 1000 -g appgroup appuser
 
-# Kopiujemy pliki konfiguracyjne (zależności)
-COPY package*.json ./
+# Install mysqldump for database backups
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instalujemy WSZYSTKIE zależności (również te deweloperskie, bo są potrzebne do Vite i concurrently)
-RUN npm install --legacy-peer-deps
+# Copy Python dependencies from builder
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
 
-# Kopiujemy resztę kodu aplikacji
-COPY . .
+# Copy application
+COPY --chown=appuser:appuser . .
 
-# Ensure version file (generated in CI) is copied into image public folder
-COPY public/version.txt public/version.txt
+# Timezone
+ENV TZ=Europe/Warsaw
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Otwieramy porty.
-# 5173 - domyślny port Vite (Frontend)
-# 8089 - częsty port dla server.js (Backend) - jeśli masz inny, zmienimy to
-EXPOSE 5173
-EXPOSE 8089
+# Health check (handles both http and https)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD python -c "import requests; \
+    try: requests.get('https://localhost:8082', timeout=5, verify=False); \
+    except: requests.get('http://localhost:8082', timeout=5)" || exit 1
 
-# Komenda startowa - uruchamia to samo co u Ciebie lokalnie (front i back razem)
-CMD ["npm", "run", "dev"]
+EXPOSE 8082
+# UTWÓRZ KATALOGI I NADAJ UPRAWNIENIA
+RUN mkdir -p /app/raporty /app/logs /app/certs && \
+    chown -R appuser:appgroup /app && \
+    chmod -R 755 /app
+
+USER appuser
+
+CMD ["python", "app.py"]

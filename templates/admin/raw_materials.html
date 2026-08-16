@@ -1,0 +1,670 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+  <style>
+    /* Curated Color System & Glassmorphism Design System */
+    :root {
+      --primary-hsl: 190, 90%, 40%;
+      --primary-glow: hsla(var(--primary-hsl), 0.15);
+      --primary-accent: hsl(var(--primary-hsl));
+      --bg-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      --card-bg: rgba(255, 255, 255, 0.95);
+      --card-border: rgba(0, 0, 0, 0.04);
+      --danger-accent: #ef4444;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    /* Base Premium Style Reset */
+    .section-box {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .premium-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding-bottom: 16px;
+    }
+
+    .premium-header h2 {
+      margin: 0;
+      font-weight: 700;
+      font-size: 1.8rem;
+      letter-spacing: -0.025em;
+      background: linear-gradient(135deg, #0f172a 0%, #0284c7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-back-modern {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-weight: 500;
+      color: #475569;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      text-decoration: none;
+    }
+
+    .btn-back-modern:hover {
+      background: #f8fafc;
+      color: #0f172a;
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Premium Welcome Card & Stats */
+    .welcome-card {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      border-radius: 16px;
+      padding: 24px 32px;
+      color: white;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .welcome-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .welcome-info h3 {
+      margin: 0 0 6px 0;
+      font-weight: 700;
+      font-size: 1.4rem;
+    }
+
+    .welcome-info p {
+      margin: 0;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .welcome-stats {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px 24px;
+      text-align: center;
+      min-width: 120px;
+      transition: transform 0.3s ease;
+    }
+
+    .welcome-stats:hover {
+      transform: scale(1.05);
+    }
+
+    .welcome-stats .count {
+      font-size: 1.8rem;
+      font-weight: 800;
+      display: block;
+      line-height: 1.2;
+    }
+
+    .welcome-stats .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* Grid layout */
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    @media (min-width: 1024px) {
+      .grid-container {
+        grid-template-columns: 350px 1fr;
+      }
+    }
+
+    /* Add Card styling */
+    .premium-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      padding: 24px;
+      transition: all 0.3s ease;
+    }
+
+    .premium-card:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .material-icons {
+      color: #0284c7;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+
+    .input-premium {
+      width: 100%;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      transition: all 0.25s ease;
+      background: #f8fafc;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+
+    .input-premium:focus {
+      border-color: #0284c7;
+      background: white;
+      box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.12);
+      outline: none;
+    }
+    
+    .select-premium {
+      width: 100%;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      transition: all 0.25s ease;
+      background: #f8fafc;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+    
+    .select-premium:focus {
+      border-color: #0284c7;
+      background: white;
+      box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.12);
+      outline: none;
+    }
+
+    .btn-submit-premium {
+      width: 100%;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
+    }
+
+    .btn-submit-premium:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3);
+      filter: brightness(1.05);
+    }
+
+    .btn-submit-premium:active {
+      transform: translateY(0);
+    }
+    
+    .btn-cancel-premium {
+      width: 100%;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+      margin-top: 10px;
+    }
+    
+    .btn-cancel-premium:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    /* Dictionary Table and Filter styling */
+    .table-card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .filter-wrapper {
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .filter-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 20px;
+    }
+
+    .input-filter {
+      width: 100%;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px 10px 40px;
+      font-size: 0.9rem;
+      transition: all 0.25s ease;
+      background: white;
+      box-sizing: border-box;
+    }
+
+    .input-filter:focus {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+      outline: none;
+    }
+
+    .table-container {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.01);
+      background: white;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    .modern-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .modern-table th {
+      background: #f8fafc;
+      color: #475569;
+      padding: 14px 16px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1.5px solid #e2e8f0;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .modern-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      font-size: 0.95rem;
+      transition: background-color 0.2s ease;
+    }
+
+    .modern-table tbody tr:hover td {
+      background-color: #f8fafc;
+    }
+
+    .btn-icon-premium {
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-icon-premium.delete:hover {
+      background: #fee2e2;
+      color: var(--danger-accent);
+      transform: scale(1.08);
+    }
+    
+    .btn-icon-premium.edit:hover {
+      background: #e0f2fe;
+      color: #0284c7;
+      transform: scale(1.08);
+    }
+
+    .btn-icon-premium:active {
+      transform: scale(0.95);
+    }
+
+    /* Dynamic Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast-premium {
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-weight: 500;
+      font-size: 0.9rem;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateY(50px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .toast-premium.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast-premium.success {
+      border-left: 4px solid #10b981;
+    }
+
+    .toast-premium.error {
+      border-left: 4px solid #ef4444;
+    }
+
+    .badge-id {
+      background: #f1f5f9;
+      color: #64748b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .badge-typ {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-typ.surowiec { background: #dcfce7; color: #166534; }
+    .badge-typ.opakowanie { background: #fef9c3; color: #854d0e; }
+    .badge-typ.dodatek { background: #e0f2fe; color: #075985; }
+  </style>
+
+  <div class="premium-header">
+    <h2>
+      <span class="material-icons" style="font-size: 28px; color: #0284c7;">menu_book</span>
+      Słownik Surowców AGRO
+    </h2>
+    <a href="/admin/ustawienia" class="btn-back-modern">
+      <span class="material-icons">arrow_back</span>
+      Powrót do Admina
+    </a>
+  </div>
+
+  <div class="welcome-card">
+    <div class="welcome-info">
+      <h3>Centralna Baza Surowców</h3>
+      <p>Zarządzaj słownikiem surowców, symbolami dla etykiet ZPL oraz typami (surowiec/opakowanie/dodatek).</p>
+    </div>
+    <div class="welcome-stats">
+      <span class="count" id="statsCount">{{ items|length }}</span>
+      <span class="label">Razem pozycji</span>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div id="flash-data" style="display:none;">
+        {% for category, message in messages %}
+          <div data-category="{{ category }}" data-message="{{ message }}"></div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="grid-container">
+    <!-- Left panel: Add Raw Material -->
+    <div class="premium-card">
+      <h3 class="card-title" id="formTitle">
+        <span class="material-icons">add_circle_outline</span>
+        Dodaj Nowy Produkt
+      </h3>
+      <form id="surowiecForm" action="{{ url_for('admin.raw_materials_save') }}" method="POST">
+        <input type="hidden" name="id" id="itemId">
+        
+        <div class="form-group">
+          <label for="itemSymbol">Symbol (dla etykiet ZPL)</label>
+          <input type="text" id="itemSymbol" name="symbol" placeholder="np. MK3" class="input-premium">
+        </div>
+        
+        <div class="form-group">
+          <label for="itemNazwa">Nazwa produktu (wymagane)</label>
+          <input type="text" id="itemNazwa" name="nazwa" required 
+                 placeholder="np. Mączka kukurydziana" class="input-premium">
+        </div>
+        
+        <div class="form-group">
+          <label for="itemTyp">Typ</label>
+          <select id="itemTyp" name="typ" class="select-premium" required>
+            <option value="surowiec">Surowiec</option>
+            <option value="opakowanie">Opakowanie</option>
+            <option value="dodatek">Dodatek</option>
+          </select>
+        </div>
+        
+        <button type="submit" class="btn-submit-premium">
+          <span class="material-icons">save</span>
+          Zapisz w Słowniku
+        </button>
+        
+        <button type="button" class="btn-cancel-premium" id="btnCancel" style="display:none;" onclick="cancelEdit()">
+          <span class="material-icons">close</span>
+          Anuluj edycję
+        </button>
+      </form>
+    </div>
+
+    <!-- Right panel: Raw Materials List -->
+    <div class="premium-card table-card">
+      <h3 class="card-title">
+        <span class="material-icons">list_alt</span>
+        Lista Zarejestrowanych Produktów
+      </h3>
+      
+      <div class="filter-wrapper">
+        <span class="material-icons filter-icon">search</span>
+        <input type="text" id="filterInput" placeholder="Filtruj po nazwie lub symbolu..." class="input-filter">
+      </div>
+
+      <div class="table-container">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th style="width: 20%;">Symbol</th>
+              <th style="width: 45%;">Nazwa</th>
+              <th style="width: 15%;">Typ</th>
+              <th style="width: 20%; text-align: center;">Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="surowceBody">
+            {% for item in items %}
+            <tr data-id="{{ item.id }}" data-search="{{ item.nazwa|lower }} {{ item.symbol|default('')|lower }}">
+              <td><strong>{{ item.symbol or '' }}</strong></td>
+              <td class="surowiec-name">{{ item.nazwa }}</td>
+              <td><span class="badge-typ {{ item.typ }}">{{ item.typ }}</span></td>
+              <td style="text-align: center; white-space: nowrap;">
+                <button type="button" class="btn-icon-premium edit" data-id="{{ item.id }}" data-symbol="{{ item.symbol or '' }}" data-nazwa="{{ item.nazwa }}" data-typ="{{ item.typ }}" onclick="editSurowiec(this.dataset.id, this.dataset.symbol, this.dataset.nazwa, this.dataset.typ)" title="Edytuj">
+                  <span class="material-icons">edit</span>
+                </button>
+                <form action="{{ url_for('admin.raw_materials_delete', item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Czy na pewno chcesz usunąć ten produkt ze słownika?');" style="display:inline;">
+                    <button type="submit" class="btn-icon-premium delete" title="Usuń">
+                      <span class="material-icons">delete</span>
+                    </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr id="noDataRow">
+              <td colspan="4" style="text-align: center; color: #94a3b8; padding: 24px;">
+                Brak produktów w słowniku. Dodaj pierwszy produkt korzystając z panelu po lewej stronie.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  // Toast notifications creator
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-premium ${type}`;
+    
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    const color = type === 'success' ? '#10b981' : '#ef4444';
+    
+    toast.innerHTML = `
+      <span class="material-icons" style="color: ${color};">${icon}</span>
+      <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 50);
+    
+    // Remove after 3.5s
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 3500);
+  }
+
+  // Filter functionality
+  document.getElementById('filterInput').addEventListener('input', function(e) {
+    const query = e.target.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#surowceBody tr:not(#noDataRow)');
+    
+    rows.forEach(row => {
+      const search = row.getAttribute('data-search') || '';
+      if (search.includes(query)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+
+  // Edit functionality
+  window.editSurowiec = function(id, symbol, nazwa, typ) {
+    document.getElementById('itemId').value = id;
+    document.getElementById('itemSymbol').value = symbol || '';
+    document.getElementById('itemNazwa').value = nazwa || '';
+    document.getElementById('itemTyp').value = typ || 'surowiec';
+    
+    const title = document.getElementById('formTitle');
+    title.innerHTML = '<span class="material-icons">edit</span> Edytuj Produkt';
+    
+    document.getElementById('btnCancel').style.display = 'flex';
+    
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  window.cancelEdit = function() {
+    document.getElementById('itemId').value = '';
+    document.getElementById('itemSymbol').value = '';
+    document.getElementById('itemNazwa').value = '';
+    document.getElementById('itemTyp').value = 'surowiec';
+    
+    const title = document.getElementById('formTitle');
+    title.innerHTML = '<span class="material-icons">add_circle_outline</span> Dodaj Nowy Produkt';
+    
+    document.getElementById('btnCancel').style.display = 'none';
+  }
+
+  // Check for flashed messages from backend and show them as Toasts
+  document.addEventListener('DOMContentLoaded', function() {
+    const flashData = document.getElementById('flash-data');
+    if (flashData) {
+        const flashes = flashData.querySelectorAll('div');
+        flashes.forEach(flash => {
+            const category = flash.getAttribute('data-category');
+            const message = flash.getAttribute('data-message');
+            // convert danger to error for toast styles
+            const type = (category === 'danger' || category === 'error') ? 'error' : 'success';
+            showToast(message, type);
+        });
+    }
+  });
+</script>
+{% endblock %}

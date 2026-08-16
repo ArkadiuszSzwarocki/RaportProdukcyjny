@@ -1,0 +1,139 @@
+{% extends 'layout.html' %}
+{% block title %}Lista Przestojów Produkcyjnych — {{ linia }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-4">
+    <!-- Header Bar -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="fw-bold m-0" style="color: #0f172a; display: flex; align-items: center; gap: 10px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 12px; font-size: 22px;">⏱️</span>
+                Rejestr Przestojów Produkcyjnych ({{ linia }})
+            </h2>
+            <p class="text-muted mb-0 mt-1" style="font-size: 0.92rem;">
+                Wykaż zgłoszonych przestojów i awarii dla sekcji produkcyjnych
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja='Workowanie') }}" class="btn btn-danger shadow-sm px-3 py-2" style="border-radius: 10px; font-weight: 700; background: linear-gradient(135deg, #ef4444, #dc2626); border: none;">
+                ➕ Zgłoś Nowy Przestój
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter & Summary Bar -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 14px; background: #ffffff;">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('production.przestoje_list') }}" class="row g-3 align-items-end">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">Data od:</label>
+                    <input type="date" name="data_od" class="form-control form-control-sm" value="{{ data_od }}" style="border-radius: 8px;">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-secondary">Data do:</label>
+                    <input type="date" name="data_do" class="form-control form-control-sm" value="{{ data_do }}" style="border-radius: 8px;">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-secondary btn-sm px-3 w-100" style="border-radius: 8px; font-weight: 600; height: 31px;">
+                        🔍 Filtruj
+                    </button>
+                </div>
+                <div class="col-md-3 text-end">
+                    <div class="p-2" style="background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block;">
+                        <span class="text-muted small fw-bold">SUMA CZASU PRZESTOJÓW:</span>
+                        <span class="fs-6 fw-bold text-danger ms-2">{{ suma_minut }} min</span>
+                        {% set h = suma_minut // 60 %}{% set m = suma_minut % 60 %}
+                        {% if h > 0 %}<span class="text-muted small">({{ h }}h {{ m }}m)</span>{% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Downtimes Table -->
+    <div class="card border-0 shadow-sm" style="border-radius: 14px; overflow: hidden; background: #ffffff;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                    <tr style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">
+                        <th class="ps-4">Data</th>
+                        <th>Sekcja</th>
+                        <th>Godziny Od-Do</th>
+                        <th>Czas (min)</th>
+                        <th>Kategoria / Powód</th>
+                        <th>Zlecenie / Produkt</th>
+                        <th>Szczegóły / Opis</th>
+                        <th>Zgłaszający</th>
+                        <th class="text-end pe-4">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in przestoje %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td class="ps-4 fw-bold text-dark">
+                            {{ p.data_przestoju }}
+                        </td>
+                        <td>
+                            <span class="badge" style="background: #e2e8f0; color: #334155; padding: 4px 8px; border-radius: 6px; font-weight: 600;">
+                                {{ p.sekcja }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="font-monospace fw-bold" style="color: #0f172a;">
+                                {{ p.godzina_start if p.godzina_start else '-' }} 
+                                {% if p.godzina_stop %} → {{ p.godzina_stop }}{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if p.czas_trwania_min %}
+                            <span class="badge" style="background: #fee2e2; color: #991b1b; padding: 5px 10px; border-radius: 20px; font-weight: 700;">
+                                {{ p.czas_trwania_min }} min
+                            </span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong style="color: #1e293b;">{{ p.kategoria }}</strong>
+                        </td>
+                        <td>
+                            {% if p.produkt %}
+                            <span class="fw-semibold text-primary">{{ p.produkt }}</span>
+                            {% else %}
+                            <span class="text-muted small">Ogólny przestój</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 280px; font-size: 0.9rem; color: #475569;">
+                            {{ p.opis or '-' }}
+                        </td>
+                        <td class="small text-muted font-monospace">
+                            👤 {{ p.zglaszajacy }}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{{ url_for('production.edytuj_przestoj_page', id=p.id) }}" class="btn btn-link text-primary p-0 me-3" title="Edytuj wpis przestoju" style="text-decoration: none; font-weight: bold;">
+                                ✏️ Edytuj
+                            </a>
+                            {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] %}
+                            <form action="{{ url_for('production.usun_przestoj', id=p.id) }}" method="POST" style="display:inline;" data-confirm="Czy na pewno chcesz usunąć ten wpis przestoju?">
+                                <button type="submit" class="btn btn-link text-danger p-0" title="Usuń przestój" style="text-decoration: none; font-weight: bold;">
+                                    🗑️ Usuń
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <div style="font-size: 2rem; opacity: 0.5;">✅</div>
+                            <div class="mt-2 font-weight-bold">Brak zarejestrowanych przestojów w wybranym okresie.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,216 @@
+{% extends "includes/scanner_layout.html" %}
+
+{% block scanner_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v={{ static_version|default(3) }}">
+<style>
+    :root {
+        --scanner-mode-color: #3b82f6;
+    }
+.station-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.station-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.station-item:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.station-item-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 1.05em;
+}
+.station-item-details {
+  font-size: 0.85em;
+  color: #475569;
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+</style>
+{% endblock %}
+
+{% block scanner_header_back %}
+<a href="{{ url_for('agro_warehouse.index') }}" class="scanner-header-back">
+    <span class="material-icons">arrow_back</span> Magazyn
+</a>
+{% endblock %}
+
+{% block scanner_title %}Główny Skaner{% endblock %}
+{% block scanner_subtitle %}Magazyn i Produkcja ({{ linia }}){% endblock %}
+
+{% block scanner_content %}
+<div class="scanner-wrap" style="padding: 0; box-shadow: none; background: transparent; min-height: auto; max-width: 700px; margin: 0 auto;">
+
+  <!-- SCAN BOX -->
+  <div class="scan-card">
+    <div class="scan-title">
+      <span class="material-icons" style="color:var(--primary-color);">barcode_reader</span>
+      Skanuj kod regału lub palety
+    </div>
+    <div class="scan-input-wrap" style="display: flex; gap: 8px;">
+      <div style="position: relative; flex: 1;">
+        <span class="material-icons input-icon">qr_code</span>
+        <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="R030101, SUR-42, PAL-15" autofocus>
+      </div>
+      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
+        <span class="material-icons">qr_code_scanner</span>
+      </button>
+    </div>
+    
+  </div>
+
+  <!-- PALLET INFO -->
+  <div class="scan-card">
+    <div class="scan-title">
+      <span class="material-icons" style="color:#16a34a;">inventory_2</span>
+      Znaleziona paleta
+    </div>
+    <div class="pallet-card" id="palletCard">
+      <div id="palletTimeoutBarContainer" style="width: 100%; height: 4px; background-color: #e2e8f0; border-radius: 2px; overflow: hidden; margin-bottom: 12px; display: none;">
+        <div id="palletTimeoutBar" style="height: 100%; background-color: #3b82f6; width: 100%;"></div>
+      </div>
+      <div class="row justify-between items-start">
+        <div>
+          <div class="pallet-loc" id="palletLoc">R030101</div>
+          <div class="pallet-name" id="palletName">Mąka Pszenna</div>
+          <div class="row gap-8 mb-8 wrap">
+            <span class="pill" id="palletTypePill" style="display: none;"></span>
+          </div>
+          <div class="pallet-qty"><span id="palletQty">1600.0</span> kg</div>
+          <!-- Szczegóły palety -->
+          <div id="palletDetails" style="margin-top: 10px; font-size: 0.85em; color: #1e293b; font-weight: 500; line-height: 1.6;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong>Nr/SSCC:</strong> <span id="palletSSCC" style="font-family: monospace;">—</span>
+              <button type="button" onclick="const t=document.getElementById('palletSSCC').innerText; if(t&&t!=='—'){navigator.clipboard.writeText(t).then(()=>{const i=this.querySelector('.material-icons'); i.textContent='check'; i.style.color='#10b981'; setTimeout(()=>{i.textContent='content_copy'; i.style.color='inherit';}, 1500);})}" style="background:none; border:none; cursor:pointer; color:#64748b; padding: 2px; display:flex; align-items:center; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'" title="Kopiuj numer palety">
+                  <span class="material-icons" style="font-size: 16px;">content_copy</span>
+              </button>
+            </div>
+            <div><strong>Partia:</strong> <span id="palletPartia">—</span></div>
+            <div><strong>Data produkcji:</strong> <span id="palletDataProd">—</span></div>
+            <div><strong>Data przydatności:</strong> <span id="palletDataWaz">—</span></div>
+          </div>
+        </div>
+      <div id="scannerReturnBtnContainer" style="margin-top: 16px; width: 100%; display: none;">
+        <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="openScannerReturnModal()" style="background:#059669; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px; border: none; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.3);">
+          <span class="material-icons" style="font-size:22px;">keyboard_return</span> Zwróć na magazyn
+        </button>
+      </div>
+      <div style="margin-top: 8px; width: 100%;">
+        <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="printLabel('pallet')" style="background:#1e293b; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px;">
+          <span class="material-icons" style="font-size:22px;">print</span> Drukuj etykietę ZPL
+        </button>
+      </div>
+    </div>
+    <div id="nopalletMsg" class="text-muted small italic" style="display:none;">Zeskanuj kod żeby zobaczyć dane.</div>
+  </div>
+
+  <!-- STATION (SILLO) INFO -->
+  <div class="scan-card" id="stationCard" style="display:none;">
+    <div class="scan-title">
+      <span class="material-icons" style="color:#f97316;">warehouse</span>
+      Zawartość stacji <span id="stationCode" style="font-weight: bold;"></span>
+    </div>
+    <div id="stationItemsList" class="station-items-list">
+      <!-- Items will be injected here by JS -->
+    </div>
+    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Brak surowców na tej stacji.</div>
+  </div>
+
+  
+</div><!-- /scanner-wrap -->
+{% endblock %}
+
+{% block scanner_modals %}
+
+<!-- PRINTER MODAL -->
+<div class="modal-overlay" id="printerOverlay" style="display:none; z-index:9000;">
+  <div class="modal-box" style="max-width: 400px;">
+    <h2 class="m-0 row items-center gap-8 mb-10" style="color: #1e293b; font-size: 18px; margin-bottom: 16px;">
+      <span class="material-icons text-primary">print</span>
+      Wybierz drukarkę ZPL
+    </h2>
+    <div id="printerList" style="max-height: 300px; overflow-y: auto; margin-top: 16px;">
+      <!-- Printer options loaded here -->
+    </div>
+    <div class="row justify-end mt-20" style="margin-top: 16px; text-align: right;">
+      <button class="btn btn-outline" onclick="closePrinterModal()" style="padding: 8px 16px;">Anuluj</button>
+    </div>
+  </div>
+</div>
+
+<!-- DISPATCH MODAL -->
+<div class="modal-overlay" id="dispatchOverlay" style="display:none; z-index:9000;">
+  <div class="modal-box" style="max-width: 400px;">
+    <h2 class="m-0 row items-center gap-8 mb-10" style="color: #d97706; font-size: 18px; margin-bottom: 16px;">
+      <span class="material-icons text-primary">local_shipping</span>
+      Przekaż na produkcję
+    </h2>
+    <div style="margin-bottom: 16px; font-size: 14px; color: #475569;">
+      Lokalizacja docelowa: <strong id="dispatchModalLoc" style="color: #1e293b; font-size: 16px;"></strong>
+    </div>
+    
+    <label class="form-label small mb-4">Ilość do przesunięcia (kg)</label>
+    <input type="number" id="dispatchModalQty" class="form-control" step="0.1" placeholder="0.0" style="margin-bottom: 12px; font-size: 16px; font-weight: bold; width: 100%;">
+    
+    <label class="form-label small mb-4">Nr zlecenia (opcjonalnie)</label>
+    <input type="number" id="dispatchModalPlanId" class="form-control" placeholder="ID planu" style="margin-bottom: 20px; width: 100%;">
+    
+    <div class="row justify-between mt-20" style="margin-top: 16px;">
+      <button class="btn btn-outline" onclick="closeDispatchModal()" style="padding: 8px 16px;">Anuluj</button>
+      <button class="btn btn-primary" onclick="doFinalDispatch()" style="padding: 8px 16px; background: #d97706 !important;">Zatwierdź</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER RETURN MODAL -->
+<div class="modal-overlay" id="scannerReturnOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:8px;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#10b981; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:1.3em;">keyboard_return</span>
+        Zwrot na magazyn
+      </h3>
+      <button onclick="closeScannerReturnModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+    
+    <div style="font-size: 14px; color: #94a3b8; margin-bottom: 16px;">
+      Zwracasz surowiec ze stacji <strong id="scannerReturnLoc" style="color: #fff; font-size: 16px;"></strong>
+    </div>
+
+    <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Ilość do zwrotu (kg):</label>
+    <div style="position: relative;">
+      <input type="number" id="scannerReturnQty" step="0.1" placeholder="Wpisz wagę..."
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;">
+      <span id="scannerReturnMaxQty" style="position: absolute; right: 10px; top: 10px; color: #64748b; font-size: 0.9em; font-weight: bold; pointer-events: none;"></span>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; gap:8px; margin-top:20px; border-top:1px solid #334155; padding-top:12px;">
+      <button onclick="closeScannerReturnModal()" style="flex: 1; padding:10px; font-size:0.95em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button onclick="submitScannerReturn()" style="flex: 1; padding:10px; font-size:0.95em; border:none; background:#10b981; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(16, 185, 129, 0.3);">Zwróć</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+    const LINIA = '{{ linia }}';
+</script>
+<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v={{ static_version|default(3) }}"></script>
+{% endblock %}
+

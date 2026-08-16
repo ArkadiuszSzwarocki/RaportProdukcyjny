@@ -1,0 +1,1308 @@
+<div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę" data-plan-id="{{ plan_id }}" data-szarza-id="{{ szarza_id or '' }}">
+    <style>
+        .dosypka-popup-container {
+            padding: 2px 6px 8px;
+            color: #1f3347;
+        }
+
+        .dosypka-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+            gap: 12px;
+            align-items: start;
+        }
+
+        .dosypka-layout.dosypka-layout-single {
+            grid-template-columns: 1fr;
+        }
+
+        .dosypka-panel {
+            border: 1px solid #dfe8f1;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            box-shadow: 0 8px 20px rgba(21, 52, 78, 0.05);
+            overflow: hidden;
+        }
+
+        .dosypka-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e4ebf2;
+            background: linear-gradient(135deg, #f9fcff 0%, #f1f7fc 100%);
+        }
+
+        .dosypka-panel-title {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            color: #24415d;
+        }
+
+        .dosypka-panel-subtitle {
+            font-size: 0.74rem;
+            color: #678198;
+            font-weight: 600;
+        }
+
+        .dosypka-panel-body {
+            padding: 12px;
+        }
+
+        .dosypka-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 20px 28px;
+            border-bottom: none;
+            border-radius: 20px 20px 0 0;
+            background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%);
+        }
+
+        .dosypka-header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dosypka-header-icon {
+            font-size: 1.8rem;
+            line-height: 1;
+        }
+
+        .dosypka-header-subtitle {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 2px;
+        }
+
+        .dosypka-title {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+
+        .dosypka-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .dosypka-info {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f7fbff 0%, #eef5fb 100%);
+            border: 1px solid #dce8f2;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .info-item {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: baseline;
+            margin-bottom: 6px;
+        }
+
+        .info-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #5f778c;
+        }
+
+        .info-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e3a56;
+        }
+
+        .info-product {
+            margin-left: 6px;
+        }
+
+        .info-type {
+            color: #627a90;
+            font-weight: 600;
+        }
+
+        .dosypka-description {
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.4;
+            color: #496075;
+        }
+
+        .dosypka-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            background: #fbfdff;
+            border: 1px solid #e3ebf3;
+        }
+
+        .dosypka-field-group {
+            padding: 10px;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 1px solid #e6edf4;
+            box-shadow: 0 3px 10px rgba(26, 56, 84, 0.04);
+        }
+
+        .dosypka-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #24415d;
+        }
+
+        .field-number {
+            color: #2873b8;
+        }
+
+        .dosypka-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .dosypka-input-nazwa {
+            flex: 1 1 200px;
+        }
+        
+        .dosypka-input-kg {
+            flex: 0 0 110px;
+        }
+
+        /* Wide screen 2-column field grid */
+        .dosypka-fields-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .dosypka-input {
+            width: 100%;
+            min-height: 38px;
+            border: 1px solid #ccd8e4;
+            border-radius: 10px;
+            padding: 0 12px;
+            font-size: 0.9rem;
+            color: #1f3347;
+            background: #fff;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+            box-sizing: border-box;
+        }
+
+        .dosypka-input:focus {
+            outline: none;
+            border-color: #3a8ad3;
+            box-shadow: 0 0 0 4px rgba(58, 138, 211, 0.16);
+        }
+
+        .dosypka-input::placeholder {
+            color: #8a9caf;
+        }
+
+        .dosypka-add-field {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .dosypka-btn,
+        .dosypka-btn-add {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 38px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 0 14px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, background 0.16s ease;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+
+        .dosypka-btn:hover,
+        .dosypka-btn-add:hover {
+            transform: translateY(-1px);
+        }
+
+        .dosypka-btn-add {
+            background: #eff5fb;
+            color: #1f4568;
+            border-color: #d6e2ee;
+            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.05);
+        }
+
+        .dosypka-btn-add .btn-icon {
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .dosypka-btn-remove {
+            border: none;
+            background: transparent;
+            color: #8da1b4;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 8px;
+        }
+
+        .dosypka-btn-remove:hover {
+            color: #a12b2b;
+            background: rgba(161, 43, 43, 0.08);
+        }
+
+        .dosypka-existing {
+            height: 100%;
+        }
+
+        .dosypka-existing-title {
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #284560;
+            margin-bottom: 8px;
+        }
+
+        .dosypka-existing-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .dosypka-existing-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #dbe4ec;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.04);
+        }
+
+        .dosypka-existing-item.is-cancelled {
+            opacity: 0.75;
+            background: linear-gradient(180deg, #fff8f8 0%, #faf4f4 100%);
+            border-color: #ead2d2;
+        }
+
+        .dosypka-existing-item.is-cancelled .dosypka-existing-main {
+            text-decoration: line-through;
+        }
+
+        .dosypka-existing-main {
+            font-weight: 600;
+            color: #29445c;
+            line-height: 1.45;
+            font-size: 0.9rem;
+        }
+
+        .dosypka-existing-meta {
+            margin-top: 4px;
+            font-size: 0.78em;
+            color: #5d7286;
+        }
+
+        .dosypka-existing-cancel-meta {
+            margin-top: 4px;
+            font-size: 0.78em;
+            color: #8b1e1e;
+        }
+
+        .dosypka-existing-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .dosypka-existing-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(139, 30, 30, 0.12);
+            color: #8b1e1e;
+            font-size: 0.72em;
+            font-weight: 700;
+        }
+
+        .dosypka-btn-confirm {
+            background: linear-gradient(135deg, #2d8cd3 0%, #1f78be 100%);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(45, 140, 211, 0.24);
+        }
+
+        .dosypka-btn-none {
+            background: #f4f7fa;
+            color: #29445c;
+            border-color: #dbe4ec;
+        }
+
+        .dosypka-btn-cancel {
+            background: #fff;
+            color: #273c52;
+            border-color: #d6e0ea;
+        }
+
+        .dosypka-actions {
+            position: sticky;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0 2px;
+            margin-top: 2px;
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.92) 22%, #fff 100%);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+        }
+
+        .dosypka-actions-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dosypka-close-btn {
+            display: none;
+            width: 36px;
+            height: 36px;
+            place-items: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dosypka-close-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.08) rotate(90deg);
+        }
+
+        @media (min-width: 820px) {
+            .dosypka-close-btn {
+                display: grid !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container) .qp-header,
+            .quick-popup.qp-dosypka-full .qp-header {
+                display: none !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container),
+            .quick-popup.qp-dosypka-full {
+                max-width: min(1720px, 98vw) !important;
+                width: min(1720px, 98vw) !important;
+                height: min(95vh, 1000px) !important;
+                max-height: min(95vh, 1000px) !important;
+                top: 50% !important;
+                left: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                border-radius: 20px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4) !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container) .qp-body,
+            .quick-popup.qp-dosypka-full .qp-body {
+                max-height: none !important;
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+            }
+
+            .dosypka-popup-container {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+            }
+
+            .dosypka-header {
+                flex-shrink: 0 !important;
+                border-radius: 20px 20px 0 0 !important;
+                padding: 26px 44px !important;
+                background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%) !important;
+                border-bottom: none !important;
+            }
+
+            .dosypka-title {
+                font-size: 1.4rem !important;
+                color: #ffffff !important;
+            }
+
+            .dosypka-form {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 22px 44px 26px !important;
+                gap: 18px !important;
+            }
+
+            .dosypka-info {
+                flex-shrink: 0 !important;
+                margin-bottom: 0 !important;
+                padding: 16px 24px !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 12px 32px !important;
+                align-items: start !important;
+                border-radius: 14px !important;
+            }
+
+            .dosypka-info .dosypka-description {
+                grid-column: 1 / -1 !important;
+                font-size: 0.92rem !important;
+            }
+
+            .dosypka-info .info-item {
+                margin-bottom: 0 !important;
+            }
+
+            /* === MAIN LAYOUT: rownomierne 50/50 === */
+            .dosypka-layout {
+                flex: 1 !important;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) !important;
+                gap: 24px !important;
+                overflow: hidden !important;
+                min-height: 0 !important;
+                align-items: stretch !important;
+            }
+
+            .dosypka-layout.dosypka-layout-single {
+                grid-template-columns: 1fr !important;
+            }
+
+            .dosypka-panel {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                border: 1px solid #c8d7e6 !important;
+                background: #ffffff !important;
+                border-radius: 16px !important;
+            }
+
+            .dosypka-panel-header {
+                flex-shrink: 0 !important;
+                padding: 16px 22px !important;
+            }
+
+            .dosypka-panel-title {
+                font-size: 1.05rem !important;
+            }
+
+            .dosypka-panel-subtitle {
+                font-size: 0.82rem !important;
+            }
+
+            .dosypka-panel-body {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 20px 22px !important;
+                min-height: 0 !important;
+            }
+
+            .dosypka-fields {
+                flex: 1 !important;
+                overflow-y: auto !important;
+                min-height: 0 !important;
+                padding: 16px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 14px !important;
+                align-content: start !important;
+                border: 1px solid #d0dfed !important;
+                background: #f4f8fc !important;
+                border-radius: 12px !important;
+            }
+
+            .dosypka-field-group {
+                padding: 16px 18px !important;
+                border-radius: 12px !important;
+            }
+
+            .dosypka-label {
+                font-size: 0.95rem !important;
+                margin-bottom: 10px !important;
+            }
+
+            .dosypka-input {
+                min-height: 48px !important;
+                font-size: 1rem !important;
+                border-radius: 12px !important;
+                padding: 0 16px !important;
+            }
+
+            .dosypka-input-kg {
+                flex: 0 0 140px !important;
+            }
+
+            .dosypka-add-field {
+                margin-top: 14px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .dosypka-btn-add {
+                min-height: 44px !important;
+                font-size: 0.95rem !important;
+                padding: 0 20px !important;
+            }
+
+            /* === HISTORIA DOSYPEK (prawa strona) === */
+            .dosypka-existing {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+            }
+
+            .dosypka-existing-list {
+                flex: 1 !important;
+                overflow-y: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 10px !important;
+                padding: 4px 4px 4px 0 !important;
+            }
+
+            .dosypka-existing-item {
+                padding: 14px 18px !important;
+                border-radius: 12px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                gap: 14px !important;
+            }
+
+            .dosypka-existing-main {
+                font-size: 1rem !important;
+                font-weight: 700 !important;
+                color: #1a3a5c !important;
+            }
+
+            .dosypka-existing-meta {
+                font-size: 0.8rem !important;
+                margin-top: 3px !important;
+            }
+
+            .dosypka-existing-actions {
+                flex-shrink: 0 !important;
+            }
+
+            .dosypka-actions {
+                margin-top: 0 !important;
+                padding: 18px 0 2px !important;
+                border-top: 1px solid #e2eaf0 !important;
+                background: #fff !important;
+                flex-shrink: 0 !important;
+                position: static !important;
+                -webkit-backdrop-filter: none !important;
+                backdrop-filter: none !important;
+            }
+
+            .dosypka-btn {
+                min-height: 46px !important;
+                font-size: 0.95rem !important;
+                padding: 0 22px !important;
+                border-radius: 12px !important;
+            }
+        }
+
+        /* Extra wide screens: bigger inputs, even more padding */
+        @media (min-width: 1400px) {
+            .quick-popup:has(.dosypka-popup-container),
+            .quick-popup.qp-dosypka-full {
+                max-width: min(1840px, 98vw) !important;
+                width: min(1840px, 98vw) !important;
+            }
+
+            .dosypka-header {
+                padding: 30px 56px !important;
+            }
+
+            .dosypka-form {
+                padding: 26px 56px 30px !important;
+            }
+
+            .dosypka-layout {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 32px !important;
+            }
+
+            .dosypka-panel-body {
+                padding: 24px 26px !important;
+            }
+
+            .dosypka-panel-header {
+                padding: 18px 26px !important;
+            }
+
+            .dosypka-input {
+                min-height: 52px !important;
+                font-size: 1.05rem !important;
+            }
+
+            .dosypka-input-kg {
+                flex: 0 0 150px !important;
+            }
+
+            .dosypka-field-group {
+                padding: 18px 20px !important;
+            }
+
+            .dosypka-label {
+                font-size: 1.02rem !important;
+            }
+
+            .dosypka-btn {
+                min-height: 50px !important;
+                font-size: 1rem !important;
+            }
+
+            .dosypka-btn-add {
+                min-height: 48px !important;
+                font-size: 1rem !important;
+            }
+
+            .dosypka-existing-main {
+                font-size: 1.05rem !important;
+            }
+
+            .dosypka-existing-item {
+                padding: 16px 20px !important;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .dosypka-popup-container {
+                padding: 2px 2px 10px;
+            }
+
+            .dosypka-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .dosypka-title {
+                font-size: 1.06rem;
+            }
+
+            .info-value {
+                font-size: 0.94rem;
+            }
+
+            .dosypka-existing-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dosypka-existing-actions,
+            .dosypka-actions,
+            .dosypka-actions-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dosypka-btn,
+            .dosypka-btn-add {
+                width: 100%;
+            }
+        }
+    </style>
+
+    <div class="dosypka-header">
+        <div class="dosypka-header-content">
+            <span class="dosypka-header-icon">🧪</span>
+            <div>
+                <h4 class="dosypka-title">Dodaj Dosypkę</h4>
+                <div class="dosypka-header-subtitle">Skoryguj skład aktywnego zasypu</div>
+            </div>
+        </div>
+        <button type="button" class="dosypka-close-btn" data-action="close-popup" aria-label="Zamknij">✕</button>
+    </div>
+
+    <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
+        <input type="hidden" name="plan_id" value="{{ plan_id }}">
+        <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
+        <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+        <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
+
+        {% if dostepne_surowce %}
+        <datalist id="surowce-agro-list">
+            {% for s in dostepne_surowce %}
+            <option value="{{ s }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+
+        <div class="dosypka-info">
+            <div class="info-item">
+                <span class="info-label">Zlecenie:</span>
+                <span class="info-value">
+                    #{{ plan_id }}
+                    {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
+                    {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
+                </span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Zasyp (szarża):</span>
+                <span class="info-value">{{ szarza_id or '—' }}</span>
+            </div>
+            <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji.<br>Wybieraj tylko surowce dostępne na liście magazynu.</p>
+        </div>
+
+        <div class="dosypka-layout{% if not existing_dosypki %} dosypka-layout-single{% endif %}">
+            <section class="dosypka-panel">
+                <div class="dosypka-panel-header">
+                    <div>
+                        <div class="dosypka-panel-title">Nowa dosypka</div>
+                        <div class="dosypka-panel-subtitle">Wprowadź korektę dla aktywnego zasypu</div>
+                    </div>
+                </div>
+                <div class="dosypka-panel-body">
+                    <div class="dosypka-fields" id="dosypka-fields">
+                        {% for i in range(1,2) %}
+                        <div class="dosypka-field-group" data-field-index="{{ i }}">
+                            <label class="dosypka-label">
+                                Pozycja <span class="field-number">{{ i }}</span>
+                            </label>
+                            <div class="dosypka-row">
+                                <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
+                                <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="dosypka-add-field">
+                        <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
+                            <span class="btn-icon">+</span> Dodaj pozycję (maks. 10)
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {% if existing_dosypki %}
+            <aside class="dosypka-panel dosypka-existing">
+                <div class="dosypka-panel-header">
+                    <div>
+                        <div class="dosypka-panel-title">Historia dosypek</div>
+                        <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje zapisane dla tego zasypu{% else %}Pozycje zapisane dla tego zlecenia{% endif %}</div>
+                    </div>
+                </div>
+                <div class="dosypka-panel-body">
+                    <div class="dosypka-existing-list">
+                        {% for item in existing_dosypki %}
+                        <div class="dosypka-existing-item{% if item.anulowana %} is-cancelled{% endif %}" data-dosypka-id="{{ item.id }}">
+                            <div>
+                                <div class="dosypka-existing-main">{{ item.nazwa }} • {{ item.kg }} kg</div>
+                                <div class="dosypka-existing-meta">Dodano: {{ item.data_zlecenia }}</div>
+                                {% if item.anulowana %}
+                                <div class="dosypka-existing-cancel-meta">Anulował: {{ item.anulowal_login or '—' }}{% if item.data_anulowania %} • {{ item.data_anulowania }}{% endif %}</div>
+                                {% endif %}
+                            </div>
+                            <div class="dosypka-existing-actions">
+                                {% if item.anulowana %}
+                                <span class="dosypka-existing-badge">Anulowana</span>
+                                {% elif item.potwierdzone %}
+                                <span class="dosypka-existing-badge">Potwierdzona</span>
+                                {% else %}
+                                <button type="button" class="dosypka-btn dosypka-btn-cancel js-cancel-existing-dosypka" data-id="{{ item.id }}">✕ Anuluj wpis</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </aside>
+            {% endif %}
+        </div>
+
+        <div class="dosypka-actions">
+            <button type="button" class="dosypka-btn dosypka-btn-none" onclick="submitNoDosypki(event)">
+                <span class="btn-icon">📋</span> Brak dosypki
+            </button>
+            <div class="dosypka-actions-group">
+                <button type="submit" class="dosypka-btn dosypka-btn-confirm">
+                    <span class="btn-icon">✓</span> Potwierdź
+                </button>
+                <button type="button" 
+                    data-action="close-popup"
+                    class="dosypka-btn dosypka-btn-cancel">
+                    <span class="btn-icon">✕</span> Anuluj
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function focusFirstDosypkaNameInput() {
+    const container = document.querySelector('.dosypka-popup-container');
+    if (!container) return;
+
+    const nameInputs = container.querySelectorAll('.dosypka-input-nazwa');
+    if (!nameInputs || !nameInputs.length) return;
+
+    let target = null;
+    for (const input of nameInputs) {
+        if (input && !input.disabled && String(input.value || '').trim() === '') {
+            target = input;
+            break;
+        }
+    }
+    if (!target) target = nameInputs[0];
+    if (!target) return;
+
+    try {
+        target.focus();
+        target.select();
+    } catch (e) {
+        // ignore focus errors from transient DOM states
+    }
+}
+
+function initDosypkaPopup() {
+    const popup = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
+    if (popup) {
+        popup.classList.add('qp-dosypka-full');
+        popup.classList.add('qp-wide');
+    }
+
+    updateAddFieldButton();
+    focusFirstDosypkaNameInput();
+    setTimeout(focusFirstDosypkaNameInput, 60);
+
+    const form = document.getElementById('dosypka-form');
+    if (form && form.dataset.boundWarehouseValidation !== '1') {
+        form.dataset.boundWarehouseValidation = '1';
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const noDosypki = document.getElementById('brak_dosypki');
+            const isNoDosypki = noDosypki && noDosypki.value === '1';
+
+            if (!isNoDosypki) {
+                const datalist = document.getElementById('surowce-agro-list');
+                const allowed = new Map();
+                if (datalist) {
+                    Array.from(datalist.options || []).forEach(function (opt) {
+                        const value = String((opt && opt.value) || '').trim();
+                        if (value) allowed.set(value.toLowerCase(), value);
+                    });
+                }
+
+                const fieldGroups = Array.from(form.querySelectorAll('.dosypka-field-group'));
+                let hasAnyValue = false;
+                let validCount = 0;
+                let invalidField = null;
+                let invalidMessage = '';
+
+                fieldGroups.forEach(function (group) {
+                    const nameInput = group.querySelector('.dosypka-input-nazwa');
+                    const kgInput = group.querySelector('.dosypka-input-kg');
+                    const nameValue = String((nameInput && nameInput.value) || '').trim();
+                    const kgValueRaw = String((kgInput && kgInput.value) || '').trim();
+                    const hasName = nameValue.length > 0;
+                    const hasKg = kgValueRaw.length > 0;
+
+                    if (hasName || hasKg) {
+                        hasAnyValue = true;
+                    }
+
+                    if (!invalidField) {
+                        if (hasName && !hasKg) {
+                            invalidField = kgInput;
+                            invalidMessage = 'Podaj wagę (kg) dla wybranej pozycji.';
+                        } else if (!hasName && hasKg) {
+                            invalidField = nameInput;
+                            invalidMessage = 'Podaj nazwę surowca dla wpisanej wagi.';
+                        } else if (hasName && hasKg) {
+                            const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
+                            if (!Number.isFinite(kgParsed) || kgParsed <= 0) {
+                                invalidField = kgInput;
+                                invalidMessage = 'Waga musi być większa od 0.';
+                            } else {
+                                validCount += 1;
+                            }
+                        }
+                    }
+                });
+
+                if (invalidField) {
+                    alert(invalidMessage || 'Uzupełnij poprawnie pozycję dosypki.');
+                    try {
+                        invalidField.focus();
+                        invalidField.select && invalidField.select();
+                    } catch (e) {}
+                    return;
+                }
+
+                if (!hasAnyValue) {
+                    alert('Podaj co najmniej jedną pozycję dosypki lub wybierz "Brak dosypki".');
+                    return;
+                }
+
+                if (!validCount) {
+                    alert('Brak poprawnych pozycji dosypki do zapisania.');
+                    return;
+                }
+
+                const filled = fieldGroups
+                    .map(function (group) {
+                        const nameInput = group.querySelector('.dosypka-input-nazwa');
+                        const kgInput = group.querySelector('.dosypka-input-kg');
+                        const nameValue = String((nameInput && nameInput.value) || '').trim();
+                        const kgValueRaw = String((kgInput && kgInput.value) || '').trim();
+                        const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
+                        return {
+                            input: nameInput,
+                            value: nameValue,
+                            kg: Number.isFinite(kgParsed) ? kgParsed : null,
+                        };
+                    })
+                    .filter(function (item) {
+                        return item.value.length > 0 && item.kg !== null && item.kg > 0;
+                    });
+                if (!allowed.size) {
+                    alert('Brak dostępnego słownika surowców magazynu. Nie można zapisać własnych nazw.');
+                    return;
+                }
+
+                const invalid = filled.find(function (item) {
+                    return !allowed.has(item.value.toLowerCase());
+                });
+                if (invalid) {
+                    alert('Nazwa "' + invalid.value + '" nie jest dozwolona. Wybierz surowiec z listy magazynu.');
+                    try {
+                        invalid.input.focus();
+                        invalid.input.select();
+                    } catch (e) {}
+                    return;
+                }
+            }
+
+            // Validation passed, submit via AJAX fetch
+            const url = form.action || window.location.href;
+            const formData = new FormData(form);
+            const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            submitBtns.forEach(btn => btn.disabled = true);
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success !== false) {
+                    if (typeof window.closeQuickPopup === 'function') {
+                        window.closeQuickPopup();
+                    }
+                    if (typeof window.performPartialReload === 'function') {
+                        await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypka-add' });
+                    } else {
+                        window.location.reload();
+                    }
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Zapisano!', 'success');
+                    }
+                } else {
+                    submitBtns.forEach(btn => btn.disabled = false);
+                    alert((data && data.message) || 'Błąd podczas zapisywania');
+                }
+            } catch (err) {
+                submitBtns.forEach(btn => btn.disabled = false);
+                console.error('AJAX submit failed', err);
+                alert('Błąd sieci podczas zapisywania');
+            }
+        });
+    }
+
+    document.querySelectorAll('.js-cancel-existing-dosypka').forEach(function (btn) {
+        if (btn.dataset.boundCancel === '1') return;
+        btn.dataset.boundCancel = '1';
+        btn.addEventListener('click', async function () {
+            const dosypkaId = btn.getAttribute('data-id');
+            if (!dosypkaId) return;
+            if (!confirm('Anulować tę dosypkę?')) return;
+
+            const container = document.querySelector('.dosypka-popup-container');
+            const planId = container ? container.getAttribute('data-plan-id') : '';
+            const szarzaId = container ? container.getAttribute('data-szarza-id') : '';
+            const liniaVal = document.querySelector('input[name="linia"]')?.value || 'PSD';
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳...';
+
+            try {
+                const res = await fetch('/anuluj_dosypke/' + dosypkaId + '?linia=' + encodeURIComponent(liniaVal), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    alert((data && data.message) || 'Błąd podczas anulowania');
+                    return;
+                }
+
+                await refreshDosypkaPopup(planId, szarzaId);
+                await refreshPlanDosypkiView(planId);
+            } catch (error) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                alert('Błąd sieci');
+            }
+        });
+    });
+}
+
+async function refreshDosypkaPopup(planId, szarzaId) {
+    if (!planId) return;
+    let refreshUrl = '/dosypka_page/' + encodeURIComponent(planId);
+    const liniaVal = document.querySelector('input[name="linia"]')?.value || 'PSD';
+    refreshUrl += '?linia=' + encodeURIComponent(liniaVal);
+    if (szarzaId) refreshUrl += '&szarza_id=' + encodeURIComponent(szarzaId);
+
+    const resp = await fetch(refreshUrl, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        cache: 'no-store'
+    });
+    if (!resp.ok) throw new Error('refresh popup failed');
+
+    const html = await resp.text();
+    const popup = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
+    const body = document.getElementById('quickPopupBody') || (popup && popup.querySelector('.qp-body'));
+    if (!body) return;
+
+    body.innerHTML = html;
+    body.querySelectorAll('script').forEach(function (s) {
+        try {
+            if (s.src) {
+                const sc = document.createElement('script');
+                sc.src = s.src;
+                sc.async = false;
+                document.body.appendChild(sc);
+            } else {
+                window.eval(s.textContent);
+            }
+        } catch (e) {
+            console.warn('exec refreshed dosypka popup script failed', e);
+        }
+    });
+}
+window.refreshDosypkaPopup = refreshDosypkaPopup;
+
+async function refreshPlanDosypkiView(planId) {
+    if (!planId) return;
+    const resp = await fetch(window.location.href, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+    });
+    if (!resp.ok) throw new Error('refresh plan failed');
+
+    const text = await resp.text();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = text;
+
+    const currentBadge = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+    const freshBadge = tmp.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+    if (currentBadge && freshBadge) {
+        currentBadge.outerHTML = freshBadge.outerHTML;
+    }
+
+    const detailId = 'details-' + String(planId);
+    const currentDetails = document.getElementById(detailId);
+    const freshDetails = tmp.querySelector('#' + detailId);
+    if (currentDetails && freshDetails) {
+        const wasVisible = currentDetails.style.display !== 'none';
+        currentDetails.outerHTML = freshDetails.outerHTML;
+        if (wasVisible) {
+            const replaced = document.getElementById(detailId);
+            if (replaced) replaced.style.display = 'block';
+        }
+    }
+}
+
+function addDosypkaField() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const currentFields = fieldsContainer.querySelectorAll('.dosypka-field-group');
+    const fieldCount = currentFields.length;
+    
+    if (fieldCount >= 10) {
+        alert('Osiągnięto maksymalną liczbę pól (10)');
+        return;
+    }
+    
+    const newIndex = fieldCount + 1;
+    const newField = document.createElement('div');
+    newField.className = 'dosypka-field-group';
+    newField.setAttribute('data-field-index', newIndex);
+    newField.innerHTML = `
+        <label class="dosypka-label">
+            Pozycja <span class="field-number">${newIndex}</span>
+            <button type="button" class="dosypka-btn-remove" onclick="removeDosypkaField(this)" title="Usuń pole">✕</button>
+        </label>
+        <div class="dosypka-row">
+            <input type="text" name="nazwa_${newIndex}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
+            <input type="number" name="kg_${newIndex}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+        </div>
+    `;
+    
+    fieldsContainer.appendChild(newField);
+    
+    // Update button visibility
+    updateAddFieldButton();
+    
+    // Focus first input in new field
+    newField.querySelector('.dosypka-input-nazwa').focus();
+}
+
+function removeDosypkaField(btn) {
+    const fieldGroup = btn.closest('.dosypka-field-group');
+    fieldGroup.remove();
+    
+    // Renumber remaining fields
+    renumberFields();
+    updateAddFieldButton();
+}
+
+function renumberFields() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const fields = fieldsContainer.querySelectorAll('.dosypka-field-group');
+    
+    fields.forEach((field, index) => {
+        const newIndex = index + 1;
+        field.setAttribute('data-field-index', newIndex);
+        
+        const label = field.querySelector('.field-number');
+        if (label) label.textContent = newIndex;
+        
+        const nameInput = field.querySelector('[name^="nazwa_"]');
+        const kgInput = field.querySelector('[name^="kg_"]');
+        
+        if (nameInput) nameInput.name = `nazwa_${newIndex}`;
+        if (kgInput) kgInput.name = `kg_${newIndex}`;
+    });
+}
+
+function updateAddFieldButton() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const fieldCount = fieldsContainer.querySelectorAll('.dosypka-field-group').length;
+    const addBtn = document.getElementById('add-field-btn');
+    
+    if (fieldCount >= 10) {
+        addBtn.disabled = true;
+        addBtn.style.opacity = '0.5';
+        addBtn.style.cursor = 'not-allowed';
+    } else {
+        addBtn.disabled = false;
+        addBtn.style.opacity = '1';
+        addBtn.style.cursor = 'pointer';
+    }
+}
+
+async function submitNoDosypki(event) {
+    event.preventDefault();
+
+    // Set flag to indicate "no dosypka"
+    document.getElementById('brak_dosypki').value = '1';
+
+    // Submit via AJAX to avoid full page reload
+    const form = document.getElementById('dosypka-form');
+    const url = form.action || window.location.href;
+    const formData = new FormData(form);
+    const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    const noDosypkiBtn = event.currentTarget || event.target;
+    if (noDosypkiBtn) noDosypkiBtn.disabled = true;
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success !== false) {
+            if (typeof window.closeQuickPopup === 'function') {
+                window.closeQuickPopup();
+            }
+            if (typeof window.performPartialReload === 'function') {
+                await window.performPartialReload({ force: true, preserveScroll: true, source: 'no-dosypka' });
+            } else {
+                window.location.reload();
+            }
+            if (typeof window.showToast === 'function') {
+                window.showToast('Zapisano!', 'success');
+            }
+        } else {
+            if (noDosypkiBtn) noDosypkiBtn.disabled = false;
+            document.getElementById('brak_dosypki').value = '0';
+            alert((data && data.message) || 'Błąd podczas zapisywania');
+        }
+    } catch (err) {
+        if (noDosypkiBtn) noDosypkiBtn.disabled = false;
+        document.getElementById('brak_dosypki').value = '0';
+        console.error('AJAX no-dosypki submit failed', err);
+        alert('Błąd sieci podczas zapisywania');
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDosypkaPopup, { once: true });
+} else {
+    initDosypkaPopup();
+}
+</script>

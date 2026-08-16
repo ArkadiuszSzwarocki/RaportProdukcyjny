@@ -1,0 +1,406 @@
+<style>
+  .panel--wnioski {
+    display: grid;
+    gap: 14px;
+  }
+
+  .panel--wnioski .wniosek-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(32, 52, 73, 0.08);
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .panel--wnioski .wniosek-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .panel--wnioski .badge {
+    white-space: nowrap;
+  }
+
+  .panel--wnioski .date-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 768px) {
+    .quick-popup .panel--wnioski {
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    .quick-popup .panel--wnioski h6 {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.25;
+    }
+
+    .quick-popup .panel--wnioski .wnioski-list,
+    .quick-popup .panel--wnioski .nadgodziny-list {
+      margin-bottom: 8px !important;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-item {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 10px;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-item > div:first-child {
+      min-width: 0;
+    }
+
+    .quick-popup .panel--wnioski strong {
+      display: inline-block;
+      font-size: 0.95rem;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+
+    .quick-popup .panel--wnioski .separator {
+      display: none;
+    }
+
+    .quick-popup .panel--wnioski .date-info,
+    .quick-popup .panel--wnioski span,
+    .quick-popup .panel--wnioski .text-muted {
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .quick-popup .panel--wnioski .date-info,
+    .quick-popup .panel--wnioski .badge,
+    .quick-popup .panel--wnioski .badge-warning,
+    .quick-popup .panel--wnioski .badge-info {
+      margin-left: 0 !important;
+      font-size: 0.75rem !important;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-actions .btn {
+      width: 100%;
+      min-height: 38px;
+      font-size: 0.85rem;
+    }
+  }
+</style>
+
+<div class="panel panel--wnioski">
+  {% if not wnioski and not pending_nadgodziny and not (approved_wnioski is defined and approved_wnioski) %}
+  <p>Brak wniosków do zatwierdzenia.</p>
+  {% else %}
+
+  {% if wnioski %}
+  <h6 style="margin-top: 0; color: #495057;"><i class="fas fa-calendar-day text-primary"></i> Urlopy i wyjścia</h6>
+  <div class="wnioski-list" style="margin-bottom: 20px;">
+    {% for w in wnioski %}
+    <div class="wniosek-item" data-wniosek-id="{{ w.id }}">
+      <div>
+        <strong>{{ w.pracownik }}</strong>
+        <span class="separator">—</span>
+        <span><span class="badge badge-info">{{ w.typ }}</span></span>
+        <span class="date-info" style="margin-left: 8px;">
+          <i class="far fa-calendar-alt text-primary"></i>
+          {%- if w.data_od %} {{ w.data_od }}
+          {%- if w.data_do and w.data_do != w.data_od %} &rarr; {{ w.data_do }} {%- endif %}
+          {%- else %} - {%- endif %}
+        </span>
+        {% if w.czas_od %}
+        <span style="margin-left: 8px;"><i class="far fa-clock text-primary"></i> {{ w.czas_od }} - {{ w.czas_do
+          }}</span>
+        {% endif %}
+        {% if w.powod %}
+        <div class="text-muted" style="font-size: 0.85em; margin-top: 4px;"><i class="fas fa-info-circle"></i> {{
+          w.powod }}</div>
+        {% endif %}
+      </div>
+      <div class="wniosek-actions">
+        {% if w.id %}
+        <button type="button" class="btn btn-sm btn-success wn-approve-btn" data-wid="{{ w.id }}">✓ Zatwierdź</button>
+        <button type="button" class="btn btn-sm btn-danger wn-reject-btn" data-wid="{{ w.id }}">✕ Odrzuć</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if pending_nadgodziny %}
+  <h6 style="margin-top: 0; color: #495057;"><i class="fas fa-business-time text-primary"></i> Nadgodziny</h6>
+  <div class="nadgodziny-list">
+    {% for n in pending_nadgodziny %}
+    <div class="wniosek-item" data-nadgodzina-id="{{ n.id }}">
+      <div>
+        <strong>{{ n.imie_nazwisko }}</strong>
+        <span class="separator">—</span>
+        <span><i class="far fa-calendar-alt text-primary"></i> {{ n.data }}</span>
+        <span class="badge badge-warning" style="margin-left: 8px; color: #212529;"><i class="fas fa-clock"></i> {{
+          n.ilosc_nadgodzin }}h OT</span>
+        {% if n.powod %}
+        <div class="text-muted" style="font-size: 0.85em; margin-top: 4px;"><i class="fas fa-info-circle"></i> {{
+          n.powod }}</div>
+        {% endif %}
+      </div>
+      <div class="wniosek-actions">
+        {% if n.id %}
+        <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n.id }}">✓ Zatwierdź</button>
+        <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n.id }}">✕ Odrzuć</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if approved_wnioski is defined and approved_wnioski %}
+  <hr style="margin: 8px 0;">
+  <h6 style="margin-top:8px; color:#495057;"><i class="fas fa-check-circle text-success"></i> Zatwierdzone (ostatnie 30 dni)</h6>
+  <div class="wnioski-list">
+    {% for w in approved_wnioski %}
+    <div class="wniosek-item" data-wniosek-id="{{ w.id }}">
+      <div>
+        <strong>{{ w.pracownik }}</strong>
+        <span class="separator">—</span>
+        <span><span class="badge badge-success">{{ w.typ }}</span></span>
+        <span class="date-info" style="margin-left: 8px;">
+          <i class="far fa-calendar-alt text-success"></i>
+          {{ w.data_od }}{% if w.data_do and w.data_do != w.data_od %} &rarr; {{ w.data_do }}{% endif %}
+        </span>
+      </div>
+      <div class="wniosek-actions">
+        <button type="button" class="btn btn-sm btn-outline-danger wn-revoke-btn" data-wid="{{ w.id }}"
+          title="Anuluj zatwierdzony wniosek"><i class="fas fa-ban"></i> Anuluj</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    console.log('[WNIOSKI] Script załadowany');
+
+    function setupWniosekHandlers() {
+      console.log('[WNIOSKI] setupWniosekHandlers wywoływany');
+
+      const approveBtns = document.querySelectorAll('.wn-approve-btn');
+      const rejectBtns = document.querySelectorAll('.wn-reject-btn');
+
+      console.log('[WNIOSKI] Znaleziono przyciski zatwierdź:', approveBtns.length);
+      console.log('[WNIOSKI] Znaleziono przyciski odrzuć:', rejectBtns.length);
+
+      function handleWniosekAction(btn, action) {
+        const wid = btn.getAttribute('data-wid');
+        console.log('[WNIOSKI] handleWniosekAction:', action, 'wid:', wid);
+
+        if (!wid) {
+          console.error('[WNIOSKI] Brak data-wid!');
+          return;
+        }
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳...';
+
+        const url = '/api/wnioski/' + wid + '/' + action;
+        console.log('[WNIOSKI] Fetch do:', url);
+
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        })
+          .then(r => {
+            console.log('[WNIOSKI] Response status:', r.status);
+            if (!r.ok) {
+              // Spróbuj parsować JSON z błędu
+              return r.text().then(text => {
+                try {
+                  return Promise.reject(JSON.parse(text));
+                } catch (e) {
+                  return Promise.reject({ success: false, message: 'Błąd serwera: ' + r.status + ' ' + r.statusText });
+                }
+              });
+            }
+            return r.json();
+          })
+          .then(data => {
+            console.log('[WNIOSKI] Response data:', data);
+
+            if (data && data.success) {
+              const item = btn.closest('[data-wniosek-id]');
+              console.log('[WNIOSKI] Item do usunięcia:', item);
+
+              if (item) {
+                item.style.opacity = '0.5';
+                setTimeout(() => {
+                  item.remove();
+                  console.log('[WNIOSKI] Element usunięty');
+
+                  const list = document.querySelector('.wnioski-list');
+                  if (list && list.children.length === 0) {
+                    console.log('[WNIOSKI] Lista pusta, odświeżam panel');
+                    fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
+                      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                      .then(r => r.text())
+                      .then(html => {
+                        const panel = document.querySelector('.panel--wnioski');
+                        if (panel) {
+                          panel.outerHTML = html;
+                          setupWniosekHandlers();
+                        }
+                      });
+                  }
+                }, 300);
+              }
+
+              if (typeof showToast === 'function') {
+                showToast(data.message || 'OK', 'success');
+              } else {
+                alert(data.message || 'OK');
+              }
+            } else {
+              console.error('[WNIOSKI] Błąd:', data);
+              btn.disabled = false;
+              btn.textContent = originalText;
+              if (typeof showToast === 'function') {
+                showToast(data.message || 'Błąd', 'danger');
+              } else {
+                alert(data.message || 'Błąd');
+              }
+            }
+          })
+          .catch(err => {
+            console.error('[WNIOSKI] Fetch error:', err);
+            btn.disabled = false;
+            btn.textContent = originalText;
+            if (typeof showToast === 'function') {
+              showToast('Błąd: ' + err.message, 'danger');
+            } else {
+              alert('Błąd: ' + err.message);
+            }
+          });
+      }
+
+      approveBtns.forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          handleWniosekAction(this, 'approve');
+        });
+      });
+
+      rejectBtns.forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          handleWniosekAction(this, 'reject');
+        });
+      });
+
+      // OVERTIME HANDLERS (Nadgodziny)
+      const approveNgBtns = document.querySelectorAll('.ng-approve-btn');
+      const rejectNgBtns = document.querySelectorAll('.ng-reject-btn');
+
+      function handleNadgodzinyAction(btn, action) {
+        const ngid = btn.getAttribute('data-ngid');
+        if (!ngid) return;
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳...';
+
+        fetch('/api/nadgodziny/' + ngid + '/' + action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.success) {
+              const item = btn.closest('[data-nadgodzina-id]');
+              if (item) {
+                item.style.opacity = '0.5';
+                setTimeout(() => {
+                  item.remove();
+                }, 300);
+              }
+              if (typeof showToast === 'function') {
+                showToast(data.message || (action === 'approve' ? 'Zatwierdzone' : 'Odrzucone'), 'success');
+              } else {
+                alert(data.message || 'OK');
+              }
+            } else {
+              btn.disabled = false;
+              btn.textContent = originalText;
+              if (typeof showToast === 'function') {
+                showToast(data.message || 'Błąd', 'danger');
+              } else {
+                alert(data.message || 'Błąd');
+              }
+            }
+          })
+          .catch(err => {
+            btn.disabled = false;
+            btn.textContent = originalText;
+            if (typeof showToast === 'function') {
+              showToast('Błąd: ' + err.message, 'danger');
+            } else {
+              alert('Błąd: ' + err.message);
+            }
+          });
+      }
+
+      approveNgBtns.forEach(btn => {
+        btn.addEventListener('click', function (e) { e.preventDefault(); handleNadgodzinyAction(this, 'approve'); });
+      });
+      rejectNgBtns.forEach(btn => {
+        btn.addEventListener('click', function (e) { e.preventDefault(); handleNadgodzinyAction(this, 'reject'); });
+      });
+
+      // REVOKE (anulowanie zatwierdzonych wniosków)
+      document.querySelectorAll('.wn-revoke-btn').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (!confirm('Na pewno anulować ten zatwierdzony wniosek? Powiązane wpisy nieobecności zostaną usunięte.')) return;
+          handleWniosekAction(this, 'revoke');
+        });
+      });
+    }
+
+    // Zaraz się ładujesz
+    setupWniosekHandlers();
+
+    // Obserwuj zmiany DOM (na wypadek dynamicznego ładowania)
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(function (mutations) {
+        console.log('[WNIOSKI] DOM zmieniony, przeładowuję handlery');
+        setupWniosekHandlers();
+      });
+
+      const panel = document.querySelector('.panel--wnioski');
+      if (panel) {
+        observer.observe(panel, { childList: true, subtree: true });
+      }
+    }
+  })();
+</script>

@@ -1,0 +1,186 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>📋 Dziennik akcji użytkowników</h2>
+        <div><a href="/admin/centrum" class="btn">Powrót do Centrum</a></div>
+    </div>
+
+    <div class="card mb-15">
+        <form method="get" class="inline-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <div>
+                <label for="lines">Pokaż ostatnie linie:</label>
+                <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
+                <button class="btn" type="submit">Odśwież</button>
+            </div>
+            <div>
+                <label for="q">Szukaj w logach:</label>
+                <input type="search" id="q" name="q" value="{{ q or '' }}" placeholder="tekst do wyszukania" />
+                <select name="file">
+                    <option value="" {% if not q_file %}selected{% endif %}>Wszystkie</option>
+                    <option value="audit" {% if q_file=='audit' %}selected{% endif %}>audit.log (akcje)</option>
+                    <option value="palety" {% if q_file=='palety' %}selected{% endif %}>palety.log (detale)</option>
+                    <option value="app" {% if q_file=='app' %}selected{% endif %}>app.log (system)</option>
+                    <option value="frontend" {% if q_file=='frontend' %}selected{% endif %}>frontend.log (błędy Przeglądarki)</option>
+                    <option value="database" {% if q_file=='database' %}selected{% endif %}>db_errors.log (baza danych)</option>
+                    <option value="status" {% if q_file=='status' %}selected{% endif %}>status_changes.log (stany zleceń)</option>
+                </select>
+                <label for="since">Od</label>
+                <span style="display:inline-flex;align-items:center;gap:6px">
+                    <input type="text" id="since" name="since" value="{{ request.args.get('since','') }}" placeholder="dd.mm.yyyy gg:hh" />
+                    <span class="calendar-icon" title="Wpisz datę: dd.mm.yyyy gg:hh">📅</span>
+                </span>
+                <label for="until">Do</label>
+                <span style="display:inline-flex;align-items:center;gap:6px">
+                    <input type="text" id="until" name="until" value="{{ request.args.get('until','') }}" placeholder="dd.mm.yyyy gg:hh" />
+                    <span class="calendar-icon" title="Wpisz datę: dd.mm.yyyy gg:hh">📅</span>
+                </span>
+                <button class="btn" type="submit">Szukaj</button>
+            </div>
+        </form>
+        <div class="muted">Dostęp tylko dla administratorów. Dane osobowe (e‑mail, tokeny, klucze) są automatycznie redagowane.</div>
+    </div>
+
+    <div class="card mb-15">
+        <h3>📋 Dziennik akcji — audit.log (ostatnie {{ lines }} wpisów){% if audit_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <div class="muted" style="margin-bottom:8px">
+            Format: <code>DATA AUDIT: login [rola] — Akcja — Szczegóły</code><br>
+            Rejestruje: logowania, wylogowania, potwierdzenia palet, dodawanie/usuwanie/edycja palet i zleceń, zatwierdzenia/odrzucenia wniosków, zmiany kont użytkowników i uprawnień, zamknięcia zmian.
+        </div>
+        <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <input type="hidden" name="lines" value="{{ lines }}">
+            <label for="audit_user">Użytkownik</label>
+            <input id="audit_user" name="audit_user" type="text" value="{{ audit_filters.user if audit_filters else '' }}" placeholder="np. SzwarArk" />
+
+            <label for="audit_action">Akcja</label>
+            <input id="audit_action" name="audit_action" type="text" value="{{ audit_filters.action if audit_filters else '' }}" placeholder="np. Dodał zasyp" />
+
+            <label for="audit_trigger">Trigger</label>
+            <input id="audit_trigger" name="audit_trigger" type="text" value="{{ audit_filters.trigger if audit_filters else '' }}" placeholder="np. button:dodaj_szarze_popup" />
+
+            <label for="audit_ip">IP</label>
+            <input id="audit_ip" name="audit_ip" type="text" value="{{ audit_filters.ip if audit_filters else '' }}" placeholder="np. 192.168.1.10" />
+
+            <label for="audit_from">Od</label>
+            <input id="audit_from" name="audit_from" type="text" value="{{ audit_filters.from if audit_filters else '' }}" placeholder="2026-05-05 00:00" />
+
+            <label for="audit_to">Do</label>
+            <input id="audit_to" name="audit_to" type="text" value="{{ audit_filters.to if audit_filters else '' }}" placeholder="2026-05-05 23:59" />
+
+            <button class="btn" type="submit">Filtruj audit</button>
+            <a class="btn btn-outline" href="/admin/ustawienia/logs?lines={{ lines }}">Wyczyść</a>
+        </form>
+
+        {% if audit_filters and audit_filters.active %}
+            <div class="muted" style="margin-bottom:8px;">Wyniki filtrowania: {{ audit_rows|length }} / {{ audit_total_entries }} wpisów audit.</div>
+        {% else %}
+            <div class="muted" style="margin-bottom:8px;">Pokazano ostatnie {{ audit_rows|length }} wpisów audit (trigger widoczny w osobnej kolumnie).</div>
+        {% endif %}
+
+        {% if audit_rows %}
+            <div style="max-height:560px;overflow:auto;border:1px solid #e6e6e6;background:#fff;margin-bottom:10px;">
+                <table class="modern-table" style="width:100%;font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>Czas</th>
+                            <th>Użytkownik</th>
+                            <th>Rola</th>
+                            <th>Akcja</th>
+                            <th>Trigger</th>
+                            <th>IP</th>
+                            <th>Szczegóły</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in audit_rows %}
+                        <tr>
+                            <td>{{ row.timestamp }}</td>
+                            <td>{{ row.user }}</td>
+                            <td>{{ row.role }}</td>
+                            <td>{{ row.action }}</td>
+                            <td>
+                                {% if row.trigger %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#eef5ff;color:#1e5aa5;font-weight:700;">{{ row.trigger }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ row.ip or '-' }}</td>
+                            <td style="max-width:520px;white-space:pre-wrap;word-break:break-word;">{{ row.detail }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if audit_rows_limited %}
+            <div class="muted" style="margin-bottom:8px;">To podgląd (limit 200). Użyj filtrów, aby zawęzić wyniki.</div>
+            {% endif %}
+        {% elif raw_files_content %}
+            <div class="muted">Wyświetlanie zawartości pliku(ów):</div>
+            {% for f in raw_files_content %}
+                <div class="card" style="margin-bottom:8px;padding:8px;background:#fafafa">
+                    <strong>{{ f.name }}</strong> {% if f.truncated %}<em>(zawartość przycięta)</em>{% endif %}
+                    <pre class="log-block" style="white-space:pre-wrap;max-height:800px;overflow:auto">{{ f.content }}</pre>
+                </div>
+            {% endfor %}
+        {% elif q and search_results is not none %}
+            <div class="muted">Znaleziono {{ search_results|length }} dopasowań (ograniczenie wyników może obowiązywać).</div>
+            <div class="search-results" style="max-height:560px;overflow:auto;border:1px solid #eee;padding:8px;background:#fff;"> 
+                {% for m in search_results %}
+                    <div style="padding:6px;border-bottom:1px dashed #ddd">
+                        <strong>{{ m.file }}</strong> — linia {{ m.line_no }}<br>
+                        <code style="white-space:pre-wrap;">{{ m.line }}</code>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            {% if audit_log %}
+            <pre class="log-block">{{ audit_log }}</pre>
+            {% else %}
+            <div class="muted">Brak wpisów — plik audit.log jeszcze nie istnieje lub jest pusty. Wpisy pojawiają się automatycznie po wykonaniu pierwszych akcji przez użytkowników.</div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>📦 palety.log (ostatnie {{ lines }} linii){% if pal_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <pre class="log-block">{{ palety_log }}</pre>
+    </div>
+
+    <div class="card mb-15">
+        <h3>🚨 frontend_errors.log (błędy w przeglądarkach użytkowników - ostatnie {{ lines }} linii)</h3>
+        <div class="muted">Rejestruje błędy JavaScript z tabletów/komputerów operatorów. Pomaga w diagnozie problemów z interfejsem.</div>
+        {% if frontend_log %}
+        <pre class="log-block">{{ frontend_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych błędów frontendu.</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>🗄️ db_errors.log (ostatnie {{ lines }} linii){% if db_trunc %} — plik duży{% endif %}</h3>
+        <div class="muted">Rejestruje błędy operacyjne bazy danych (Pułapka Monitoringu Bazy).</div>
+        {% if db_log %}
+        <pre class="log-block">{{ db_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych błędów bazy danych. Wspaniale!</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15" style="border-left: 4px solid #3498db;">
+        <h3>🔄 status_changes.log (ostatnie {{ lines }} linii){% if stat_trunc %} — plik duży{% endif %}</h3>
+        <div class="muted">Szczegółowa historia zmian statusów i tonaży zleceń.</div>
+        {% if status_log %}
+        <pre class="log-block">{{ status_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych zmian statusów.</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>🛠️ app.log (logi techniczne serwera - ostatnie {{ lines }} linii){% if app_trunc %} — plik duży{% endif %}</h3>
+        <pre class="log-block">{{ app_log }}</pre>
+    </div>
+</div>
+{% endblock %}

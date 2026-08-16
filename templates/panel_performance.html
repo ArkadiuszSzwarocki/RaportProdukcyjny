@@ -1,0 +1,225 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="section-header">
+    <div>
+        <h2 class="header-title">📊 Wydajność Produkcji (KPI)</h2>
+    </div>
+    <div class="filters">
+        <form action="{{ url_for('panels.panel_performance_page') }}" method="GET" class="filters-form">
+            <label>
+                <span class="small">Od:</span>
+                <input type="date" name="data_od" value="{{ data_od }}" class="filters-input" aria-label="Data od">
+            </label>
+            <label>
+                <span class="small">Do:</span>
+                <input type="date" name="data_do" value="{{ data_do }}" class="filters-input" aria-label="Data do">
+            </label>
+            <button type="submit" class="btn btn-primary">Zastosuj</button>
+        </form>
+    </div>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <span class="label">Zakończone zlecenia</span>
+        <div class="header-title header-lg text-primary">{{ stats.orders_completed }}</div>
+        <div class="small text-muted">w wybranym okresie</div>
+    </div>
+    <div class="stat-card">
+        <span class="label">Wyprodukowano</span>
+        <div class="header-title header-lg text-success">{{ stats.total_tony|round(2) }} ton</div>
+        <div class="small text-muted">łącznie</div>
+    </div>
+    {% if stats.orders_completed > 0 %}
+    <div class="stat-card">
+        <span class="label">Średnia na zlecenie</span>
+        <div class="header-title header-lg text-info">{{ (stats.total_tony / stats.orders_completed)|round(2) }} ton</div>
+        <div class="small text-muted">tonów/zlecenie</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if stats.by_section %}
+<div class="section-box section-padding mt-30">
+    <h4>📊 Produkcja według sekcji</h4>
+    <table class="table-modern">
+        <thead>
+            <tr>
+                <th>Sekcja</th>
+                <th>Ilość zleceń</th>
+                <th>Wyprodukowano (ton)</th>
+                <th>Średnia na zlecenie</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in stats.by_section %}
+            <tr>
+                <td><strong>{{ row.sekcja }}</strong></td>
+                <td>{{ row.count }}</td>
+                <td>{{ row.tony|round(2) if row.tony else '0.00' }}</td>
+                <td>{{ (row.tony / row.count)|round(2) if row.tony and row.count > 0 else '0.00' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert-info mt-30">
+    <strong>Brak danych</strong> dla wybranego okresu. Spróbuj zmienić zakres dat.
+</div>
+{% endif %}
+
+<style>
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.filters {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.filters-form {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.filters-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filters-input {
+    padding: 6px 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-card .label {
+    display: block;
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.header-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.header-lg {
+    font-size: 32px;
+}
+
+.text-primary { color: #3b82f6; }
+.text-success { color: #10b981; }
+.text-info { color: #06b6d4; }
+.text-warning { color: #f59e0b; }
+.text-danger { color: #ef4444; }
+.text-muted { color: #94a3b8; }
+
+.section-box {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.section-padding {
+    padding: 20px;
+}
+
+.table-modern {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-modern th,
+.table-modern td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.table-modern thead th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
+.table-modern tbody tr:hover {
+    background: #f8fafc;
+}
+
+.alert-info {
+    background: #dbeafe;
+    border-left: 4px solid #3b82f6;
+    padding: 15px;
+    border-radius: 4px;
+    color: #1e40af;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+@media (max-width: 768px) {
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .filters-form {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+    
+    .filters-input {
+        width: 100%;
+    }
+}
+</style>
+
+{% endblock %}

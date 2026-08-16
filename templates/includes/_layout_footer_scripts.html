@@ -1,0 +1,1039 @@
+<script>
+    // Konfiguracja Telemetrii (HiveMQ Cloud) - musi być przed machine-stats.js
+    window.MQTT_CONFIG = {
+        host: '4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud',
+        port: 8884, // Port WebSockets w HiveMQ Cloud
+        clientId: 'web_' + Math.random().toString(16).substr(2, 8),
+        protocol: 'wss',
+        path: '/mqtt',
+        username: 'Lstech',
+        password: 'Lstech123'
+    };
+</script>
+
+<!-- External Scripts -->
+<script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/ui_dialogs.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/sidebar.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard/zasyp_calculator.js') }}?v={{ static_version }}"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard/machine-stats-v2.js') }}?v=2"></script>
+
+<script>
+    // PWA & Fullscreen + Web Push Notification Subscription
+    // -------------------------------------------------------
+    // Konwertuje base64url string do Uint8Array (wymagane przez PushManager)
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Wysyła subskrypcję na serwer
+    function sendSubscriptionToServer(subscription) {
+        return fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription.toJSON())
+        }).then(r => r.json()).catch(() => ({ success: false }));
+    }
+
+    // Główna funkcja — rejestruje SW i subskrybuje push
+    async function registerPushSubscription() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            console.warn('[PUSH] Service Worker lub PushManager niedostępny w tej przeglądarce.');
+            return false;
+        }
+
+        try {
+            // Pobierz publiczny klucz VAPID z serwera
+            const keyResp = await fetch('/api/push/vapid-public-key');
+            const keyData = await keyResp.json();
+            if (!keyData.success || !keyData.publicKey) {
+                console.warn('[PUSH] Brak klucza VAPID na serwerze.');
+                return false;
+            }
+            const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+
+            // Poczekaj na rejestrację SW
+            const registration = await navigator.serviceWorker.ready;
+
+            // Sprawdź czy mamy już subskrypcję
+            let subscription = await registration.pushManager.getSubscription();
+
+            if (!subscription) {
+                // Poproś o uprawnienia i utwórz subskrypcję
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                });
+                console.log('[PUSH] Nowa subskrypcja push zarejestrowana.');
+            } else {
+                console.log('[PUSH] Używam istniejącej subskrypcji push.');
+            }
+
+            // Wyślij subskrypcję na serwer Flask
+            const result = await sendSubscriptionToServer(subscription);
+            if (result.success) {
+                console.log('[PUSH] Subskrypcja zapisana na serwerze.');
+                // Zaktualizuj UI — ukryj przycisk prośby o uprawnienia
+                const navBtn = document.getElementById('navNotifPermissionBtn');
+                if (navBtn) navBtn.style.display = 'none';
+                // Zaktualizuj ikonę dzwonka na aktywną
+                const pushIcon = document.getElementById('pushNotifIcon');
+                if (pushIcon) pushIcon.textContent = 'notifications_active';
+                localStorage.setItem('pushSubscribed', '1');
+            }
+            return result.success;
+        } catch (err) {
+            // Użytkownik zablokował uprawnienia lub inny błąd
+            console.warn('[PUSH] Błąd rejestracji push:', err.message || err);
+            return false;
+        }
+    }
+
+    // Eksponuj funkcję globalnie — przycisk w navbar ją wywołuje
+    window.requestPushPermission = async function() {
+        if (!('Notification' in window)) {
+            alert('Ta przeglądarka nie obsługuje powiadomień.');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            alert('Powiadomienia zostały zablokowane w ustawieniach przeglądarki. Odblokuj je ręcznie i odśwież stronę.');
+            return;
+        }
+        // Poproś o uprawnienie (wymagany gest użytkownika)
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await registerPushSubscription();
+        }
+    };
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+            try {
+                const reg = await navigator.serviceWorker.register('/static/sw.js');
+                console.log('[SW] Registered:', reg.scope);
+
+                // Automatycznie subskrybuj push jeśli uprawnienia już przyznane
+                {% if session.get('zalogowany') %}
+                if (Notification.permission === 'granted') {
+                    // Opóźnienie żeby SW miał czas na aktywację
+                    setTimeout(() => registerPushSubscription(), 2000);
+                } else {
+                    // Pokaż przycisk zachęcający do włączenia push (jeśli nie odrzucono)
+                    if (Notification.permission !== 'denied') {
+                        const navBtn = document.getElementById('navNotifPermissionBtn');
+                        if (navBtn && !localStorage.getItem('pushSubscribed')) {
+                            navBtn.style.display = 'inline-flex';
+                        }
+                    }
+                }
+                {% endif %}
+            } catch (err) {
+                console.warn('[SW] Registration failed:', err);
+            }
+        });
+    }
+
+
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        const lastDismissed = localStorage.getItem('pwaPromptDismissed');
+        if (!isStandalone && (!lastDismissed || (Date.now() - lastDismissed > 24 * 60 * 60 * 1000))) {
+            setTimeout(() => { 
+                const m = document.getElementById('pwaInstallModal');
+                if (m) { m.style.display = 'flex'; m.classList.add('overlay-active'); }
+            }, 3000);
+        }
+    });
+
+    function closePwaModal(isDismiss) {
+        const m = document.getElementById('pwaInstallModal');
+        if (m) { m.style.display = 'none'; m.classList.remove('overlay-active'); }
+        if (isDismiss) localStorage.setItem('pwaPromptDismissed', Date.now());
+    }
+
+    function showPwaManualGuide() {
+        if (deferredPrompt) deferredPrompt.prompt();
+        else alert("Użyj menu przeglądarki: 'Zainstaluj aplikację'");
+    }
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        else if (document.exitFullscreen) document.exitFullscreen();
+    }
+
+    // Notifications logic
+    (function() {
+        const savedShown = sessionStorage.getItem('notif_shown_ids');
+        const initialShown = savedShown ? JSON.parse(savedShown) : [];
+        const savedMaxId = sessionStorage.getItem('notif_max_id');
+        let maxNotifId = savedMaxId ? parseInt(savedMaxId, 10) : 0;
+        const state = { 
+            initialized: savedShown !== null && savedMaxId !== null, 
+            shownIds: new Set(initialShown), 
+            notifications: [] 
+        };
+        function saveShown() {
+            sessionStorage.setItem('notif_shown_ids', JSON.stringify(Array.from(state.shownIds)));
+        }
+        function getElements() {
+            return {
+                toggle: document.getElementById('notificationsToggle'),
+                menu: document.getElementById('notificationsMenu'),
+                badge: document.getElementById('notificationsBadge'),
+                list: document.getElementById('notificationsList'),
+                markAll: document.getElementById('notificationsMarkAll')
+            };
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function closeMenu() {
+            const e = getElements();
+            if (e.menu) {
+                e.menu.style.display = 'none';
+                e.menu.setAttribute('aria-hidden', 'true');
+            }
+            if (e.toggle) {
+                e.toggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function toggleMenu() {
+            const e = getElements();
+            if (!e.menu || !e.toggle) return;
+            const shouldOpen = e.menu.style.display !== 'block';
+            e.menu.style.display = shouldOpen ? 'block' : 'none';
+            e.menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+            e.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        function render() {
+            const e = getElements();
+            if (!e.list || !e.badge) return;
+
+            const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
+            if (userRole === 'laborant' || userRole === 'laboratorium') {
+                e.badge.style.display = 'none';
+                return;
+            }
+
+            const items = Array.isArray(state.notifications) ? state.notifications : [];
+            const badgeCount = items.length;
+            e.badge.style.display = badgeCount > 0 ? 'inline-block' : 'none';
+            e.badge.textContent = badgeCount > 99 ? '99+' : String(badgeCount);
+
+            if (badgeCount === 0) {
+                e.list.innerHTML = '<div class="notifications-empty">Brak nowych powiadomień.</div>';
+                return;
+            }
+
+            e.list.innerHTML = items.map(function(item) {
+                const title = escapeHtml(item.title || 'Powiadomienie');
+                const message = escapeHtml(item.message || '');
+                const createdAt = escapeHtml(item.created_at || '');
+                const safeLink = escapeHtml(item.link_url || '');
+                const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                return [
+                    '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">',
+                    '<span class="notification-item-title" style="margin:0; font-weight:700; font-size:13px; color:#0f172a;">', title, '</span>',
+                    displayTime ? '<span style="font-size:11px; font-weight:600; color:#3b82f6; background:#eff6ff; padding:2px 6px; border-radius:4px; margin-left:8px; white-space:nowrap;">' + displayTime + '</span>' : '',
+                    '</div>',
+                    '<span class="notification-item-message">', message, '</span>',
+                    '<span class="notification-item-meta">', createdAt, '</span>',
+                    '</button>'
+                ].join('');
+            }).join('');
+        }
+
+        async function markRead(notificationId) {
+            const r = await fetch('/api/notifications/' + encodeURIComponent(notificationId) + '/read', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
+        async function markAllRead() {
+            const r = await fetch('/api/notifications/read-all', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
+        let notifsInterval = null;
+        async function fetchNotifs() {
+            try {
+                const r = await fetch('/api/notifications?limit=20', {
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    silent: true
+                });
+                if (r.status === 401) {
+                    // Session expired — stop polling and redirect to login immediately
+                    if (notifsInterval) clearInterval(notifsInterval);
+                    window.location.replace('/login');
+                    return;
+                }
+                if (r.ok) {
+                    const d = await r.json();
+                    
+                    if (d.concurrent_alert && typeof Swal !== 'undefined' && !window._concurrentAlertShowing) {
+                        window._concurrentAlertShowing = true;
+                        Swal.fire({
+                            title: 'Wykryto logowanie!',
+                            text: 'Ktoś właśnie zalogował się na to konto z innego urządzenia.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'OK, akceptuję',
+                            cancelButtonText: 'Wyloguj inne urządzenia',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then((result) => {
+                            window._concurrentAlertShowing = false;
+                            if (result.isConfirmed) {
+                                fetch('/api/session/accept-concurrent', { method: 'POST' });
+                            } else {
+                                fetch('/api/session/reject-concurrent', { method: 'POST' });
+                            }
+                        });
+                    }
+                    
+                    const notifications = Array.isArray(d.notifications) ? d.notifications : [];
+                    if (state.initialized) {
+                        notifications.forEach(function(item) {
+                            if (item.id > maxNotifId && !state.shownIds.has(item.id)) {
+                                state.shownIds.add(item.id);
+                                saveShown();
+                                
+                                if (item.id > maxNotifId) {
+                                    maxNotifId = item.id;
+                                    sessionStorage.setItem('notif_max_id', maxNotifId);
+                                }
+                                
+                                if (typeof showToast === 'function') {
+                                    const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
+                                    const isSticky = (userRole === 'laborant' || userRole === 'laboratorium');
+                                    const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                                    const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');
+                                    showToast(toastMsg, 'info', isSticky, function() {
+                                        markRead(item.id).then(() => {
+                                            state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
+                                            render();
+                                        });
+                                    });
+                                }
+                            }
+                        });
+                    } else {
+                        let maxIdInBatch = 0;
+                        notifications.forEach(function(item) {
+                            state.shownIds.add(item.id);
+                            if (item.id > maxIdInBatch) {
+                                maxIdInBatch = item.id;
+                            }
+                        });
+                        if (maxIdInBatch > maxNotifId) {
+                            maxNotifId = maxIdInBatch;
+                            sessionStorage.setItem('notif_max_id', maxNotifId);
+                        }
+                        saveShown();
+                        state.initialized = true;
+                    }
+                    state.notifications = notifications;
+                    render();
+                }
+            } catch(e) {}
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchNotifs();
+            notifsInterval = setInterval(fetchNotifs, 10000);
+
+            // Instant notifications fetch upon unlocking the phone or switching to tab (device sleep support)
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    fetchNotifs();
+                }
+            });
+
+            const e = getElements();
+
+            if (e.toggle) {
+                e.toggle.addEventListener('click', function(ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleMenu();
+                });
+            }
+
+            if (e.markAll) {
+                e.markAll.addEventListener('click', async function() {
+                    const ok = await markAllRead();
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się oznaczyć powiadomień.', 'warning');
+                        }
+                        return;
+                    }
+                    state.notifications = [];
+                    render();
+                    closeMenu();
+                });
+            }
+
+            if (e.list) {
+                e.list.addEventListener('click', async function(ev) {
+                    const button = ev.target.closest('.notification-item');
+                    if (!button) return;
+                    const notificationId = button.getAttribute('data-id');
+                    const linkUrl = button.getAttribute('data-link');
+
+                    const ok = await markRead(notificationId);
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się zapisać odczytu powiadomienia.', 'warning');
+                        }
+                        return;
+                    }
+
+                    state.notifications = state.notifications.filter(function(item) {
+                        return String(item.id) !== String(notificationId);
+                    });
+                    render();
+                    closeMenu();
+
+                    if (linkUrl) {
+                        window.location.href = linkUrl;
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(ev) {
+                const wrapper = document.querySelector('.notifications-wrapper');
+                if (wrapper && !wrapper.contains(ev.target)) {
+                    closeMenu();
+                }
+            });
+        });
+
+        window.closeNotificationsMenu = closeMenu;
+    })();
+
+    // Bug Report logic
+    function closeBugReportModal() {
+        try {
+            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                try { window.createQuickPopup._lastInst.close(); } catch (e) { }
+            }
+            if (window.closeQuickPopup) {
+                try { window.closeQuickPopup(); } catch (e) { }
+            }
+
+            // Hard fallback: force hide overlay/popup even if helper couldn't close current instance.
+            var qp = document.getElementById('quickPopup');
+            var qb = document.getElementById('quickBackdrop');
+            if (qp) {
+                qp.classList.remove('open');
+                qp.setAttribute('aria-hidden', 'true');
+                qp.style.display = 'none';
+                qp.style.pointerEvents = 'none';
+            }
+            if (qb) {
+                qb.classList.remove('show');
+                qb.setAttribute('aria-hidden', 'true');
+                qb.style.display = 'none';
+                qb.style.pointerEvents = 'none';
+            }
+        } catch (e) { }
+    }
+
+    function openBugReportModal() {
+        var html = '<form id="bugReportForm" enctype="multipart/form-data">';
+        html += '<div class="form-group">';
+        html += '<div class="text-muted small" style="margin-bottom:8px; line-height:1.45;">';
+        html += '<strong>Jak zgłosić skutecznie:</strong><br>';
+        html += '1) Co dokładnie klikasz (krok po kroku), 2) jaki jest efekt, 3) jaki efekt powinien być.<br>';
+        html += 'Dodaj też gdzie problem występuje (sekcja, linia, ekran).';
+        html += '</div></div>';
+        html += '<div class="form-group"><label style="display:block;margin-bottom:4px;font-weight:600;">Gdzie występuje problem? (sekcja/linia/ekran):</label>';
+        html += '<input type="text" name="gdzie" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;" placeholder="Np. Zasyp AGRO - popup dosypki" required></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Opis problemu i kroki odtworzenia:</label>';
+        html += '<textarea name="opis" rows="5" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;" placeholder="Np. 1. Wchodzę w ... 2. Klikam ... 3. Wyskakuje ..." required></textarea></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
+        html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
+        html += '<div class="text-muted small" style="margin-top:4px;font-size:11px;color:#64748b;">Najlepiej dodaj screen z wnętrza aplikacji z widocznym komunikatem lub błędnym stanem.</div>';
+        html += '<p class="text-muted small" id="bugFileCountMsg" style="margin-top:4px;font-size:11px;color:#1e293b;font-weight:700;"></p>';
+        html += '<div id="bugImagePreviews" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"></div>';
+        html += '<div class="d-flex gap-10 mt-15" style="display:flex;gap:10px;margin-top:20px;">';
+        html += '<button type="button" class="btn-action btn-success" style="background:#16a34a;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
+        html += '<button type="button" class="btn-action btn-cancel" style="background:#64748b;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="closeBugReportModal()">Anuluj</button>';
+        html += '<a href="/moje_zgloszenia_bledow" class="btn-action btn-outline" style="text-decoration:none;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;color:#334155;font-weight:700;display:inline-flex;align-items:center;justify-content:center;">Moje zgłoszenia</a>';
+        html += '</div></form>';
+        
+        if (window.showQuickPopup) {
+            showQuickPopup('🐞 Zgłoś błąd / usprawnienie w systemie', html);
+        }
+        
+        // Limit 3 files & image preview
+        var fileInput = document.getElementById('bugScreenshots');
+        var previewBox = document.getElementById('bugImagePreviews');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (previewBox) previewBox.innerHTML = '';
+                if (this.files.length > 3) {
+                    alert('Możesz dodać maksymalnie 3 zrzuty ekranu!');
+                    this.value = '';
+                    document.getElementById('bugFileCountMsg').innerText = '';
+                    return;
+                }
+                
+                document.getElementById('bugFileCountMsg').innerText = 'Wybrano zrzutów: ' + this.files.length;
+                Array.from(this.files).forEach(function(file) {
+                    if (!file.type.startsWith('image/')) return;
+                    var reader = new FileReader();
+                    reader.onload = function(evt) {
+                        if (previewBox) {
+                            var img = document.createElement('img');
+                            img.src = evt.target.result;
+                            img.style.height = '60px';
+                            img.style.width = '60px';
+                            img.style.objectFit = 'cover';
+                            img.style.borderRadius = '6px';
+                            img.style.border = '1px solid #cbd5e1';
+                            previewBox.appendChild(img);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+        }
+    }
+
+    function submitBugReport() {
+        var form = document.getElementById('bugReportForm');
+        if(!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        
+        var btn = form.querySelector('.btn-success');
+        var originalText = btn.innerText;
+        btn.innerText = 'Wysyłanie...';
+        btn.disabled = true;
+        
+        var formData = new FormData(form);
+        formData.append('sciezka', window.location.pathname + window.location.search);
+        
+        fetch('/api/zglos_blad_systemu', {
+            method: 'POST',
+            body: formData
+        }).then(r => r.json()).then(j => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if(j && j.success) {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Sukces', 'Dziękujemy! Błąd został zapisany.');
+                } else {
+                    alert('Sukces: Dziękujemy! Błąd został zapisany.');
+                }
+                closeBugReportModal();
+            } else {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Błąd', (j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                } else {
+                    alert((j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                }
+            }
+        }).catch(e => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if (typeof safeAlert === 'function') {
+                safeAlert('Błąd sieci', 'Nie udało się połączyć z serwerem.');
+            } else {
+                alert('Nie udało się połączyć z serwerem.');
+            }
+        });
+    }
+
+
+    function ackBugIconIntro() {
+        const modal = document.getElementById('bugIconIntroModal');
+        if (modal) modal.style.display = 'none';
+        
+        fetch('/api/ack_bug_icon_intro', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).catch(err => console.error('Failed to ack bug icon intro:', err));
+    }
+
+    function toggleLanguageMenu() {
+        const menu = document.getElementById('languageMenu');
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        const toggle = document.querySelector('.language-toggle');
+        const menu = document.getElementById('languageMenu');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (toggle && !toggle.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
+
+    // Unified system-state real-time polling to refresh views automatically
+    (function() {
+        // Only run for logged in users
+        const isUserLoggedIn = "{{ session.get('zalogowany')|default('') }}";
+        if (!isUserLoggedIn) return;
+
+        let sessionStateSum = 0;
+        const linia = "{{ session.get('selected_hall_view')|default('PSD') }}";
+
+        function checkSystemState() {
+            fetch('/api/system_state?linia=' + linia, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                silent: true
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    window.location.replace('/login');
+                    return null;
+                }
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (!data || !data.state) return;
+                
+                const s = data.state;
+                const currentSum = Number(s.last_pallet_psd || 0) +
+                                   Number(s.last_pallet_agro || 0) +
+                                   Number(s.last_plan || 0) +
+                                   Number(s.last_zasyp_psd || 0) +
+                                   Number(s.last_zasyp_agro || 0) +
+                                   Number(s.last_awaria || 0) +
+                                   Number(s.last_dosypka_psd || 0) +
+                                   Number(s.last_dosypka_agro || 0) +
+                                   Number(s.state_dosypka || 0);
+
+                if (sessionStateSum === 0) {
+                    sessionStateSum = currentSum;
+                    return;
+                }
+
+                if (currentSum !== sessionStateSum) {
+                    sessionStateSum = currentSum;
+                    
+                    // Ciche odświeżenie (tylko na stronach które to obsługują, np. dashboard)
+                    if (typeof window.performPartialReload === 'function') {
+                        window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });
+                    }
+                }
+            })
+            .catch(() => {});
+        }
+
+        // Poll every 4 seconds
+        setInterval(checkSystemState, 4000);
+        // Initial check after a brief delay
+        setTimeout(checkSystemState, 1000);
+    })();
+
+    // -------------------------------------------------------
+    // PRINTER SERVER TOGGLE LOGIC (with PIN modal)
+    // -------------------------------------------------------
+    let isPrinterServerRunning = false;
+    let isPrinterServerToggling = false;
+
+    function updatePrinterServerIcon(running) {
+        isPrinterServerRunning = running;
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+        if (!iconBtn) return;
+        
+        if (running) {
+            iconBtn.style.color = '#16a34a'; // Green
+            iconBtn.title = 'Serwer druku działa (Kliknij, aby wyłączyć)';
+        } else {
+            iconBtn.style.color = '#dc2626'; // Red
+            iconBtn.title = 'Serwer druku wyłączony (Kliknij, aby włączyć)';
+        }
+    }
+
+    function checkPrinterServerStatus() {
+        if (isPrinterServerToggling) return;
+        fetch('/api/printer-server/status', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            silent: true
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.success !== false) {
+                updatePrinterServerIcon(!!data.running);
+            }
+        })
+        .catch(() => {});
+    }
+
+    // Build & inject the PIN modal once
+    function ensurePrinterPinModal() {
+        if (document.getElementById('printerPinModal')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'printerPinModal';
+        overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99999;align-items:center;justify-content:center;';
+
+        overlay.innerHTML = `
+            <div id="printerPinCard" style="background:#fff;border-radius:16px;padding:32px 28px 24px;width:340px;max-width:92vw;box-shadow:0 25px 50px rgba(0,0,0,0.25);position:relative;animation:printerModalIn 0.25s ease-out;">
+                <button type="button" onclick="closePrinterPinModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;" title="Zamknij">&times;</button>
+                <div style="text-align:center;margin-bottom:20px;">
+                    <span class="material-icons" id="printerModalIcon" style="font-size:48px;color:#64748b;">print</span>
+                    <h3 id="printerModalTitle" style="margin:10px 0 4px;font-size:18px;font-weight:700;color:#0f172a;">Serwer Druku</h3>
+                    <p id="printerModalDesc" style="font-size:13px;color:#64748b;margin:0;">Podaj PIN, aby przełączyć serwer druku</p>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label for="printerPinInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">PIN</label>
+                    <input type="text" id="printerPinInput" maxlength="10" placeholder="••••" autocomplete="new-password" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:18px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;transition:border-color 0.2s;-webkit-text-security:disc;text-security:disc;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+                <div id="printerPinError" style="display:none;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:12px;font-weight:600;margin-bottom:12px;text-align:center;"></div>
+                <button type="button" id="printerPinSubmitBtn" onclick="submitPrinterPin()" style="width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;background:#3b82f6;color:#fff;">
+                    Potwierdź
+                </button>
+                <div id="printerPinStatus" style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Close on backdrop click
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closePrinterPinModal();
+        });
+
+        // Add animation keyframes
+        if (!document.getElementById('printerModalStyles')) {
+            const style = document.createElement('style');
+            style.id = 'printerModalStyles';
+            style.textContent = `
+                @keyframes printerModalIn {
+                    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    window.togglePrinterServerGlobal = function() {
+        ensurePrinterPinModal();
+
+        const modal = document.getElementById('printerPinModal');
+        const icon = document.getElementById('printerModalIcon');
+        const title = document.getElementById('printerModalTitle');
+        const desc = document.getElementById('printerModalDesc');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+
+        // Configure modal based on current state
+        if (isPrinterServerRunning) {
+            icon.style.color = '#16a34a';
+            title.textContent = 'Wyłącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest aktywny. Podaj PIN, aby go wyłączyć.';
+            submitBtn.style.background = '#dc2626';
+            submitBtn.textContent = '🔴 Wyłącz serwer druku';
+        } else {
+            icon.style.color = '#dc2626';
+            title.textContent = 'Włącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest wyłączony. Podaj PIN, aby go uruchomić.';
+            submitBtn.style.background = '#16a34a';
+            submitBtn.textContent = '🟢 Włącz serwer druku';
+        }
+
+        // Reset state
+        pinInput.value = '';
+        errorEl.style.display = 'none';
+        statusEl.textContent = '';
+        submitBtn.disabled = false;
+
+        modal.style.display = 'flex';
+        setTimeout(() => pinInput.focus(), 150);
+    };
+
+    window.closePrinterPinModal = function() {
+        const modal = document.getElementById('printerPinModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitPrinterPin = function() {
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+
+        const pin = (pinInput.value || '').trim();
+        if (!pin) {
+            errorEl.textContent = 'Podaj PIN.';
+            errorEl.style.display = 'block';
+            pinInput.focus();
+            return;
+        }
+
+        errorEl.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Trwa przełączanie...';
+        statusEl.textContent = '';
+
+        if (iconBtn) {
+            iconBtn.style.color = '#eab308'; // Yellow
+            iconBtn.title = 'Trwa przełączanie...';
+        }
+
+        isPrinterServerToggling = true;
+        const endpoint = isPrinterServerRunning ? '/api/printer-server/stop' : '/api/printer-server/start';
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ pin: pin })
+        })
+        .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+        .then(result => {
+            if (result.ok && result.data && result.data.success) {
+                statusEl.style.color = '#16a34a';
+                statusEl.textContent = result.data.message || 'Gotowe!';
+                if (typeof showToast === 'function') {
+                    showToast(result.data.message, 'success');
+                }
+                setTimeout(() => {
+                    closePrinterPinModal();
+                    checkPrinterServerStatus();
+                }, 1200);
+            } else {
+                const msg = (result.data && result.data.message) || 'Nieprawidłowy PIN lub błąd serwera.';
+                errorEl.textContent = msg;
+                errorEl.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+                // Restore icon color
+                if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+                pinInput.value = '';
+                pinInput.focus();
+            }
+        })
+        .catch(err => {
+            errorEl.textContent = 'Błąd komunikacji z serwerem.';
+            errorEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+            if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+        })
+        .finally(() => {
+            isPrinterServerToggling = false;
+        });
+    };
+
+    // Allow Enter key to submit PIN
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const modal = document.getElementById('printerPinModal');
+            if (modal && modal.style.display === 'flex') {
+                e.preventDefault();
+                submitPrinterPin();
+            }
+        }
+        if (e.key === 'Escape') {
+            closePrinterPinModal();
+        }
+    });
+
+    // Only start polling if the user is logged in (i.e. if the icon exists)
+    if (document.getElementById('navbarPrinterServerToggle')) {
+        checkPrinterServerStatus();
+        setInterval(checkPrinterServerStatus, 5000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // IN-APP VIEWER — otwiera etykiety i raporty w iframie wewnątrz
+    // aplikacji zamiast w nowej zakładce przeglądarki.
+    // Użycie: window.openInApp(url, 'Tytuł okna')
+    // ═══════════════════════════════════════════════════════════════
+    (function() {
+        function buildInAppViewer() {
+            if (document.getElementById('inAppViewerOverlay')) return;
+
+            const style = document.createElement('style');
+            style.textContent = `
+                #inAppViewerOverlay {
+                    display: none;
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.82);
+                    backdrop-filter: blur(6px);
+                    -webkit-backdrop-filter: blur(6px);
+                    z-index: 99990;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 12px;
+                    box-sizing: border-box;
+                    animation: inAppFadeIn 0.2s ease;
+                }
+                @keyframes inAppFadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                #inAppViewerCard {
+                    width: 100%;
+                    max-width: 900px;
+                    height: 92vh;
+                    background: #fff;
+                    border-radius: 16px;
+                    box-shadow: 0 30px 60px -10px rgba(0,0,0,0.5);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    animation: inAppSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                @keyframes inAppSlideIn {
+                    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0)   scale(1); }
+                }
+                #inAppViewerBar {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 12px 16px;
+                    background: #0f172a;
+                    color: #f8fafc;
+                    flex-shrink: 0;
+                }
+                #inAppViewerTitle {
+                    flex: 1;
+                    font-size: 15px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                #inAppViewerBar button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 7px 14px;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: opacity 0.15s;
+                }
+                #inAppViewerBar button:hover { opacity: 0.85; }
+                #inAppPrintBtn  { background: #3b82f6; color: #fff; }
+                #inAppCloseBtn  { background: #334155; color: #e2e8f0; }
+                #inAppViewerFrame {
+                    flex: 1;
+                    width: 100%;
+                    border: none;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const overlay = document.createElement('div');
+            overlay.id = 'inAppViewerOverlay';
+            overlay.innerHTML = `
+                <div id="inAppViewerCard">
+                    <div id="inAppViewerBar">
+                        <span class="material-icons" style="font-size:20px;color:#60a5fa;">description</span>
+                        <span id="inAppViewerTitle">Podgląd</span>
+                        <button id="inAppPrintBtn" onclick="window.inAppPrint()">
+                            <span class="material-icons" style="font-size:16px;">print</span> Drukuj
+                        </button>
+                        <button id="inAppCloseBtn" onclick="window.closeInApp()">
+                            <span class="material-icons" style="font-size:16px;">close</span> Zamknij
+                        </button>
+                    </div>
+                    <iframe id="inAppViewerFrame" src="about:blank" allow="same-origin"></iframe>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Zamknij klikając poza kartą
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) window.closeInApp();
+            });
+        }
+
+        window.openInApp = function(url, title) {
+            buildInAppViewer();
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            const titleEl = document.getElementById('inAppViewerTitle');
+            if (!overlay || !frame) return;
+            titleEl.textContent = title || 'Podgląd';
+            frame.src = url;
+            overlay.style.display = 'flex';
+        };
+
+        window.closeInApp = function() {
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            if (overlay) overlay.style.display = 'none';
+            if (frame)   frame.src = 'about:blank';
+        };
+
+        window.inAppPrint = function() {
+            const frame = document.getElementById('inAppViewerFrame');
+            if (frame && frame.contentWindow) {
+                try { frame.contentWindow.print(); } catch(e) {
+                    // fallback — otwórz w nowej karcie żeby wydrukować
+                    window.open(frame.src, '_blank');
+                }
+            }
+        };
+
+        // Escape zamyka viewer
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('inAppViewerOverlay');
+                if (overlay && overlay.style.display === 'flex') {
+                    window.closeInApp();
+                }
+            }
+        });
+    })();
+
+</script>
+<script src="{{ url_for('static', filename='js/scanner/keyboard-blocker.js') }}"></script>

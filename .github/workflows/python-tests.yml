@@ -1,0 +1,56 @@
+name: Python tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Use quoted strings to avoid YAML numeric parsing issues
+        python-version: ['3.10', '3.11', '3.12']
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpass
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; else pip install pytest pytest-mock; fi
+
+      - name: Run tests
+        run: pytest -q
+        env:
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_USER: testuser
+          DB_PASSWORD: testpass
+          DB_NAME: test_db
+          FLASK_ENV: testing
+          SECRET_KEY: ci-test-secret-key

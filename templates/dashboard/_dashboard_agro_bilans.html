@@ -1,0 +1,13 @@
+{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode and workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.is_active_plan %}
+{% set wrctx = workowanie_rozliczenie_ctx %}
+<div class="work-settlement-inline">
+    <div class="work-form">
+        <h3 style="margin-top: 0;"><span class="material-icons">inventory_2</span> Bieżący bilans worków (na żywo)</h3>
+        <div class="ctx-box">
+            <div class="ctx-row"><span>Wykonano palet:</span><strong>{{ (wrctx.palety_count or 0) }} szt. / {{ (wrctx.palety_kg_wykonane or 0)|round(2) }} kg</strong></div>
+            <div class="ctx-row"><span>Waga worka (typ):</span><strong>{{ (wrctx.bag_kg or 25.0) }} kg</strong></div>
+            <div class="ctx-row"><span>Teoret. zużycie:</span><strong>{{ (wrctx.estimated_bags or 0)|int }} szt.</strong></div>
+        </div>
+    </div>
+</div>
+{% endif %}

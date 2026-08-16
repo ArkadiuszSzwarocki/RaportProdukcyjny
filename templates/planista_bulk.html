@@ -1,0 +1,343 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/planista_bulk.css') }}?v=1">
+
+
+<div class="bulk-page-container">
+  <h2 class="bulk-page-title" id="bulkPageTitle">📥 Dodawanie wielu zleceń dla produkcji {% if domyslna_sekcja == 'Agro' %}AGRO{% else %}PSD{% endif %}</h2>
+
+  <!-- Banner Informacyjny o Ulepszeniach -->
+  <div id="planningInfoBanner" class="planning-info-banner" style="display: none;">
+    <div class="planning-info-banner-content">
+      <div class="planning-info-banner-icon">🚀</div>
+      <div class="planning-info-banner-text">
+        <strong>Aktualizacja systemu planowania!</strong> Zobacz najnowsze ulepszenia i ułatwienia w module planisty.
+      </div>
+    </div>
+    <button type="button" id="btnOpenPlanningInfo" class="btn-planning-info-open">🔍 Zobacz zmiany</button>
+  </div>
+
+  <!-- Header Card -->
+  <div class="bulk-header-card">
+    <div class="bulk-header-controls">
+      <label>
+        Data planu
+        <input type="date" id="data_planu" value="{{ wybrana_data }}">
+      </label>
+      <label>
+        Sekcja
+        <select id="sekcja_select">
+          <option value="Zasyp" {% if domyslna_sekcja=='Zasyp' %}selected{% endif %}>Zasyp</option>
+          <option value="Workowanie" {% if domyslna_sekcja=='Workowanie' %}selected{% endif %}>Workowanie</option>
+          <option value="Magazyn" {% if domyslna_sekcja=='Magazyn' %}selected{% endif %}>Magazyn</option>
+          <option value="Agro" {% if domyslna_sekcja=='Agro' %}selected{% endif %}>🌿 AGRO</option>
+        </select>
+      </label>
+      <button type="button" id="btnManageProducts" class="btn-manage-products">
+        ⚙️ Zarządzaj produktami
+      </button>
+      <button type="button" id="btnRaportDnia" class="btn-manage-products" style="background-color: #3b82f6; border-color: #2563eb; color: white;">
+        📊 Raport Dnia
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal Raportu Dnia -->
+  <div id="raportDniaModalBackdrop" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000;"></div>
+  <div id="raportDniaModal" class="modal-content" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 600px; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1001; padding: 20px; max-height: 80vh; display: flex; flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #0f172a;">📊 Raport z wyprodukowanych palet</h3>
+        <button type="button" id="btnRaportDniaClose" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+    </div>
+    <div id="raportDniaContent" style="overflow-y: auto; flex: 1;">
+        <div style="text-align: center; padding: 20px; color: #64748b;">Ładowanie danych...</div>
+    </div>
+    <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: right;">
+        <button type="button" id="btnRaportDniaCloseBottom" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">Zamknij</button>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="bulk-form-card">
+    <h3>➕ Dodaj nowy plan produkcji</h3>
+    <form id="bulkForm" method="post" action="#">
+      
+      <!-- LINIA 1: PRODUKT I WAGA -->
+      <div class="form-row form-row-1">
+        <div class="form-field produkty-container">
+          <label>Produkt <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <input type="text" id="selectProdukt" placeholder="Wpisz lub wybierz produkt..." style="width: 100%;">
+          <div id="produktyDropdown" class="produkty-dropdown" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; z-index: 100;">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Waga (kg) <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <input type="number" id="inpTonaz" placeholder="0">
+        </div>
+      </div>
+
+      <!-- LINIA 2: NR RECEPTURY I TYP PRODUKCJI -->
+      <div class="form-row form-row-2">
+        <div class="form-field">
+          <label>Nr receptury</label>
+          <input type="text" id="inpNr" placeholder="Auto-wypełniane" readonly style="background: #f5f5f5;">
+        </div>
+        <div class="form-field">
+          <label>Typ produkcji <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpTyp" aria-label="Typ produkcji" title="{{ _('typ_produkcji') }}">
+            <option value="worki_zgrzewane_25">Worki 25 kg</option>
+            <option value="worki_zgrzewane_20">Worki 20 kg</option>
+            <option value="worki_zszywane_25">Szyte 25 kg</option>
+            <option value="worki_zszywane_20">Szyte 20 kg</option>
+            <option value="bigbag">BigBag</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label style="display:flex;align-items:center;gap:6px;">🚢 Rodzaj palety <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpRodzajPalety" aria-label="Rodzaj palety" required style="border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; font-size: 0.95rem; cursor: pointer;">
+            <option value="">-- Wybierz rodzaj palety --</option>
+            <option value="krajowa">🏠 Krajowa (zwykła)</option>
+            <option value="eksportowa">🚢 Eksportowa</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- LINIA 2.5: TYP OPAKOWANIA (worki/bigbag) - pokazuje/ukrywa pola folii i etykiet -->
+      <div id="packagingTypeRow" class="form-row form-row-2-5" style="display: none; margin-top: 10px;">
+        <div class="form-field" style="flex: 1;">
+          <label>Typ opakowania <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpTypOpakowania" aria-label="Typ opakowania" required>
+            <option value="">-- Wybierz typ opakowania --</option>
+            <option value="worki">Worki (z folią i etykietą)</option>
+            <option value="bigbag">Big Bag (bez folii i etykiet)</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- LINIA 2.6: TERMIN PRZYDATNOŚCI -->
+      <div class="form-row form-row-2-6" style="margin-top: 10px;">
+        <div class="form-field" style="flex: 1;">
+          <label>Termin przydatności <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpTermin" aria-label="Termin przydatności" onchange="toggleCustomTermin()" required>
+            <option value="8 miesięcy">8 miesięcy</option>
+            <option value="12 miesięcy">12 miesięcy</option>
+            <option value="inna">Inna (wybierz datę)</option>
+          </select>
+          <div id="customTerminContainer" style="display: none; margin-top: 8px;">
+            <label style="font-size: 0.85em; color: #64748b;">Podaj datę przydatności:</label>
+            <input type="date" id="inpTerminCustom" style="width: 100%;">
+          </div>
+        </div>
+      </div>
+      
+      <!-- LINIA 3: AGRO specyficzne pola (opakowanie i etykieta) -->
+      <div id="agroFieldsContainer" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+        <div class="form-row form-row-3">
+          <div class="form-field">
+            <label style="font-weight: 600; color: #004d40;">Worek (wymagane) <span style="color: #ef4444; font-weight: bold;">*</span></label>
+            <div class="searchable-select-wrapper" id="wrapper_inpOpakowanie">
+              <span class="input-badge-indicator" id="inpOpakowanie_indicator"></span>
+              <input type="text" id="inpOpakowanie_search" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off">
+              <input type="hidden" id="inpOpakowanie" name="opakowanie_id">
+              <div id="inpOpakowanie_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
+            </div>
+          </div>
+          <div class="form-field">
+            <label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane) <span style="color: #ef4444; font-weight: bold;">*</span></label>
+            <div class="searchable-select-wrapper" id="wrapper_inpEtykieta">
+              <span class="input-badge-indicator" id="inpEtykieta_indicator"></span>
+              <input type="text" id="inpEtykieta_search" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off">
+              <input type="hidden" id="inpEtykieta" name="etykieta_id">
+              <div id="inpEtykieta_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LINIA 4: PRZYCISKI PO PRAWEJ STRONIE -->
+      <div class="form-buttons-row">
+        <button type="button" id="btnAddNewProduct" class="btn-small-icon" title="Dodaj nowy produkt do listy">
+          ➕ Nowy produkt
+        </button>
+        <button type="button" id="btnAddRow" class="btn-action btn-action-success">Dodaj do listy</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Table Card -->
+  <div class="bulk-table-card">
+    <h3>📋 Plany do zatwierdzenia</h3>
+    <div id="emptyState">
+      Brak planów - dodaj plany używając formularza powyżej
+    </div>
+    <table class="modern-table" id="bulkTable">
+      <thead>
+        <tr>
+          <th>{{ _('produkt') }}</th>
+          <th>{{ _('nr_receptury') }}</th>
+          <th>{{ _('waga_kg_symbol') }}</th>
+          <th>{{ _('typ_produkcji') }}</th>
+          <th>🚢 Paleta</th>
+          <th>Termin</th>
+          <th class="col-worek" style="display: none;">Worek</th>
+          <th class="col-etykieta" style="display: none;">Etykieta</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Submit Buttons -->
+  <div class="bulk-actions" style="justify-content: space-between;">
+    <p class="text-muted" id="planCount"></p>
+    <div style="display: flex; gap: 15px;">
+      <button type="button" id="btnCancel" class="btn-action" style="background: #f0f0f0; color: var(--text-dark);">
+        Anuluj
+      </button>
+      <button type="button" id="btnSubmitAll" class="btn-action btn-action-success" style="display: none;">
+        ✅ Zatwierdź wszystkie plany
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for adding new product -->
+<div class="modal-backdrop" id="productModalBackdrop"></div>
+<div class="product-modal" id="productModal">
+  <h3 id="productModalTitle">➕ Dodaj nowy produkt</h3>
+  <form id="newProductForm">
+    <div class="form-group">
+      <label for="newProductName">Nazwa produktu:</label>
+      <input type="text" id="newProductName" required>
+    </div>
+    <div class="form-group">
+      <label for="newProductNr">Nr receptury (opcjonalnie):</label>
+      <input type="text" id="newProductNr">
+    </div>
+    <div class="form-group">
+      <label for="newProductTyp">Typ produkcji:</label>
+      <select id="newProductTyp">
+        <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
+        <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
+        <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
+        <option value="worki_zszywane_20">Worki zszywane 20 kg</option>
+        <option value="bigbag">BigBag</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="newProductOpakowanie">Domyślny worek/folia (opcjonalnie):</label>
+      <select id="newProductOpakowanie">
+        <option value="">-- Brak / Nie określono --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="newProductEtykieta">Domyślna etykieta (opcjonalnie):</label>
+      <select id="newProductEtykieta">
+        <option value="">-- Brak / Nie określono --</option>
+      </select>
+    </div>
+    <div class="form-buttons">
+      <button type="button" id="btnCancelModal" class="btn-action" style="background: #f0f0f0; color: var(--text-dark);">Anuluj</button>
+      <button type="button" id="btnSaveProduct" class="btn-action btn-action-success">Dodaj produkt</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal for planning changes info -->
+<div class="modal-backdrop" id="infoModalBackdrop"></div>
+<div class="info-details-modal" id="infoModal">
+  <h3>🚀 Ulepszenia w systemie planowania</h3>
+  <div class="info-details-grid">
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">⚡</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Zreorganizowane akcje (PSD & Agro)</div>
+        <div class="info-detail-desc">Przenieśliśmy strzałki zmiany kolejności (góra-dół) na lewą stronę, tuż przed nazwę produktu. Pozostałe akcje zebraliśmy w jednym, czytelnym menu rozwijanym.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">📋</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Intuicyjny formularz AGRO</div>
+        <div class="info-detail-desc">Zaprojektowaliśmy przejrzysty, wieloliniowy układ pól: Produkt i Waga na samej górze, Nr receptury i Typ pod spodem, a Domyślne opakowanie i Etykieta w trzeciej linii z wyraźnymi czerwonymi gwiazdkami dla pól wymaganych.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🔎</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Nowoczesne zarządzanie produktami</div>
+        <div class="info-detail-desc">Całkowicie przeprojektowaliśmy i powiększyliśmy okno zarządzania produktami. Dodaliśmy szybką wyszukiwarkę na żywo wspierającą polskie znaki diakrytyczne.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🏷️</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Wizualne kolory etykiet</div>
+        <div class="info-detail-desc">Etykiety w oknie zarządzania produktami oraz na liście planowania posiadają teraz barwne oznaczenia (paski) odpowiadające rzeczywistym kolorom na workach (żółty, fioletowy, brązowy, biały).</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">💾</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Automatyczne wczytywanie opakowań</div>
+        <div class="info-detail-desc">Podczas edycji produktu możesz zapisać domyślny worek oraz etykietę. Przy wyborze tego produktu w formularzu planowania, system automatycznie uzupełni te dane!</div>
+      </div>
+    </div>
+    
+  </div>
+  <div class="info-details-footer">
+    <button type="button" id="btnDismissInfo" class="btn-info-dismiss">Przeczytałem – nie pokazuj więcej</button>
+  </div>
+</div>
+
+<!-- Modal for managing products -->
+<div class="modal-backdrop" id="manageModalBackdrop"></div>
+<div class="manage-modal" id="manageModal">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+    <h3 style="margin: 0; font-size: 20px; color: var(--text-dark); font-weight: 600;">⚙️ Zarządzaj produktami</h3>
+    <button type="button" id="btnCloseManageModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; transition: color 0.15s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">✕</button>
+  </div>
+  
+  <div style="margin-bottom: 20px; position: relative;">
+    <input type="text" id="manageSearchInput" placeholder="Wyszukaj produkt po nazwie lub numerze receptury..." style="width: 100%; height: 42px; padding: 10px 14px 10px 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; transition: all 0.2s;">
+    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 16px;">🔍</span>
+  </div>
+
+  <div class="products-list" id="productsList" style="max-height: 450px; overflow-y: auto;">
+    <!-- Products will be loaded here by JavaScript -->
+  </div>
+</div>
+
+
+<script>
+    window.PlanistaBulkConfig = {
+        urls: {
+            panelPlanisty: "{{ url_for('planista.panel_planisty') }}",
+            dodajPlanyBatch: "{{ url_for('planning.dodaj_plany_batch') }}"
+        },
+        data: {
+            wybranaData: "{{ wybrana_data }}",
+            userLogin: "{{ session.get('login') or 'anonymous' }}",
+            opakowania: [
+                {% for o in opakowania %}
+                { id: {{ o.id }}, nazwa: {{ o.nazwa|tojson|safe }} }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            etykiety: [
+                {% for e in etykiety %}
+                { id: {{ e.id }}, nazwa: {{ e.nazwa|tojson|safe }} }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        }
+    };
+</script>
+<script src="{{ url_for('static', filename='js/planista_bulk.js') }}?v=1"></script>
+
+{% endblock %}
