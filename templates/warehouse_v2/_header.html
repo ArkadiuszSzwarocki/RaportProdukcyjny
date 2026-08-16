@@ -40,6 +40,11 @@
         <span class="material-icons">print</span> Wydrukuj Listę
     </button>
     
+    <!-- PRZYCISK WYDANIA ZEWNĘTRZNE (ZZ) -->
+    <button onclick="window.location.href='{{ url_for('warehouse_v2.zamowienia', linia=linia) }}'" class="btn-action" style="padding: 10px 18px; background: #fffbeb; border: 1px solid #f59e0b; color: #92400e; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0;" title="Wydania Zewnętrzne (ZZ)">
+        <span class="material-icons" style="color: #d97706;">local_shipping</span> Wydania Zewnętrzne (ZZ)
+    </button>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('searchInput');
