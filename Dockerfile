@@ -18,9 +18,9 @@ COPY public/version.txt public/version.txt
 
 # Otwieramy porty.
 # 5173 - domyślny port Vite (Frontend)
-# 3000 - częsty port dla server.js (Backend) - jeśli masz inny, zmienimy to
+# 8089 - częsty port dla server.js (Backend) - jeśli masz inny, zmienimy to
 EXPOSE 5173
-EXPOSE 3000
+EXPOSE 8089
 
 # Komenda startowa - uruchamia to samo co u Ciebie lokalnie (front i back razem)
 CMD ["npm", "run", "dev"]

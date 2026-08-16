@@ -8,7 +8,8 @@ services:
       MYSQL_ROOT_PASSWORD: Filipinka2010
       MYSQL_DATABASE: MleczDroga
     ports:
-      - "3307:3306"
+      - "5173:5173" # Frontend
+      - "8089:8089" # Backend (TEGO BRAKOWAŁO)
     volumes:
       - ./database-server/mysql-data:/var/lib/mysql
     healthcheck:

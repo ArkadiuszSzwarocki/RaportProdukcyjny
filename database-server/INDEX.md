@@ -82,6 +82,7 @@ TYPE:     MariaDB / MySQL
 ## 📋 Pliki Konfiguracyjne
 
 ### `.env.example` (Bezpieczny - commituj!)
+
 Szablon zmiennych środowiskowych. Zawiera wszystkie wymagane parametry bez haseł.
 
 ```env
@@ -94,6 +95,7 @@ DB_NAME=MleczDroga
 ```
 
 ### `.env` (TAJNY - nie commituj!)
+
 Rzeczywisty plik konfiguracyjny z hasłami. Jest w `.gitignore`.
 
 ---
@@ -101,11 +103,13 @@ Rzeczywisty plik konfiguracyjny z hasłami. Jest w `.gitignore`.
 ## 🔌 API Endpoints
 
 ### Health Check
+
 ```bash
 curl http://localhost:5000/api/health
 ```
 
 ### Dostawy (Deliveries)
+
 ```bash
 GET    /api/deliveries          # Pobierz wszystkie
 POST   /api/deliveries          # Utwórz nową
@@ -118,7 +122,9 @@ DELETE /api/deliveries/:id      # Usuń
 ## 🗄️ Tabele Bazy Danych
 
 ### deliveries
+
 Dostawy towarów
+
 - `id` - Identyfikator dostawy
 - `orderRef` - Numer zamówienia
 - `supplier` - Dostawca
@@ -129,7 +135,9 @@ Dostawy towarów
 - `requiresLab` - Czy wymaga badań
 
 ### system_logs
+
 Logi systemowe dla diagnostyki
+
 - `id` - ID logu
 - `timestamp` - Data/czas
 - `level` - INFO/WARNING/ERROR/DEBUG
@@ -138,7 +146,9 @@ Logi systemowe dla diagnostyki
 - `user` - Użytkownik
 
 ### users
+
 Użytkownicy systemu
+
 - `id` - ID użytkownika
 - `username` - Nazwa użytkownika
 - `email` - Email
@@ -147,14 +157,18 @@ Użytkownicy systemu
 - `isActive` - Aktywny?
 
 ### warehouses
+
 Magazyny
+
 - `id` - ID magazynu
 - `name` - Nazwa
 - `location` - Lokalizacja
 - `capacity` - Pojemność
 
 ### products
+
 Produkty
+
 - `id` - ID produktu
 - `name` - Nazwa
 - `sku` - Kod SKU
@@ -166,9 +180,11 @@ Produkty
 ## 🔧 Główne Pliki Źródłowe
 
 ### api/server.js
+
 Główny serwer Express.js z API endpoints'ami.
 
 **Funkcje:**
+
 - Konfiguracja bazy danych z `.env`
 - Health check endpoint
 - CRUD dla dostaw
@@ -176,6 +192,7 @@ Główny serwer Express.js z API endpoints'ami.
 - Obsługa JSON
 
 **Uruchomienie:**
+
 ```bash
 node api/server.js
 ```
@@ -183,28 +200,34 @@ node api/server.js
 **Port:** 5000
 
 ### scripts/init-db.js
+
 Skrypt inicjalizacji bazy danych.
 
 **Funkcje:**
+
 - Łączy się z bazą danych
 - Tworzy tabele jeśli nie istnieją
 - Loguje status
 
 **Uruchomienie:**
+
 ```bash
 node scripts/init-db.js
 ```
 
 ### schema/schema.sql
+
 Pełny schemat bazy danych.
 
 **Zawiera:**
+
 - CREATE TABLE dla wszystkich tabel
 - Indeksy dla wydajności
 - Komentarze do każdej kolumny
 - Ustawienia UTF-8
 
 **Import:**
+
 ```bash
 mysql -h filipinka.myqnapcloud.com -u rootMlecznaDroga -p MleczDroga < schema/schema.sql
 ```
@@ -214,12 +237,14 @@ mysql -h filipinka.myqnapcloud.com -u rootMlecznaDroga -p MleczDroga < schema/sc
 ## 🚀 Uruchamianie
 
 ### Opcja 1: Tylko API (z tego folderu)
+
 ```bash
 cd database-server
 node api/server.js
 ```
 
 ### Opcja 2: Pełny Stack (z głównego folderu)
+
 ```bash
 npm run dev           # Backend + Frontend
 npm run backend       # Tylko backend
@@ -227,6 +252,7 @@ npm run frontend      # Tylko frontend
 ```
 
 ### Opcja 3: Inicjalizacja + API
+
 ```bash
 cd database-server
 node scripts/init-db.js && node api/server.js
@@ -237,6 +263,7 @@ node scripts/init-db.js && node api/server.js
 ## 🧪 Testowanie
 
 ### Curl
+
 ```bash
 # Health check
 curl http://localhost:5000/api/health
@@ -251,6 +278,7 @@ curl -X POST http://localhost:5000/api/deliveries \
 ```
 
 ### MySQL CLI
+
 ```bash
 mysql -h filipinka.myqnapcloud.com \
        -P 3307 \
@@ -266,13 +294,15 @@ SELECT * FROM deliveries;
 
 ## ⚠️ Bezpieczeństwo
 
-### 🔒 Nigdy nie commituj `.env`!
+### 🔒 Nigdy nie commituj `.env`
+
 ```bash
 # Sprawdź .gitignore
 cat ../.gitignore | grep "\.env"
 ```
 
 ### Bezpieczne Praktyki
+
 1. ✅ Commituj: `.env.example` (bez haseł)
 2. ❌ Nie commituj: `.env` (z hasłami)
 3. ✅ Używaj: Zmienne środowiskowe w CI/CD
@@ -283,7 +313,9 @@ cat ../.gitignore | grep "\.env"
 ## 🔄 Przełączanie między Bazami
 
 ### Localhost (Development)
+
 Zmień w `.env`:
+
 ```env
 DB_HOST=localhost
 DB_PORT=3306
@@ -293,7 +325,9 @@ DB_NAME=mleczna_droga
 ```
 
 ### QNAP (Production)
+
 Zmień w `.env`:
+
 ```env
 DB_HOST=filipinka.myqnapcloud.com
 DB_PORT=3307
@@ -303,6 +337,7 @@ DB_NAME=MleczDroga
 ```
 
 Restartuj serwer:
+
 ```bash
 pkill -f "node api/server.js"
 node api/server.js
@@ -324,16 +359,19 @@ node api/server.js
 ## 📊 Monitorowanie
 
 ### Sprawdź Status Bazy
+
 ```bash
 curl http://localhost:5000/api/health
 ```
 
 ### Pobierz Ostatnie Dostawy
+
 ```sql
 SELECT * FROM deliveries ORDER BY createdAt DESC LIMIT 10;
 ```
 
 ### Sprawdź Logi
+
 ```sql
 SELECT * FROM system_logs WHERE timestamp > DATE_SUB(NOW(), INTERVAL 1 HOUR);
 ```
