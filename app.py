@@ -24,9 +24,9 @@ if __name__ == '__main__':
     
     # Lokalnie chcemy HTTP (bo PWA i brak błędów certyfikatu), na QNAP chcemy HTTPS (bo port 443).
     is_local = os.environ.get('LOCAL_ENV', 'false').lower() == 'true'
-    # Pobieramy flagę USE_SSL. Jeśli w certs/ istnieją certyfikaty, domyślnie włączamy HTTPS.
-    default_ssl = 'true' if (os.path.exists(cert_path) and os.path.exists(key_path)) else 'false'
-    use_ssl = os.environ.get('USE_SSL', default_ssl).lower() == 'true'
+    # Pobieramy flagę USE_SSL. Domyślnie HTTP (ponieważ odwrotne proxy np. Apache/QNAP szyfruje ruch na zewnątrz).
+    # Aby włączyć SSL bezpośrednio w Flasku, ustaw USE_SSL=true w .env lub zmiennych środowiskowych.
+    use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
 
     
     if use_ssl:
