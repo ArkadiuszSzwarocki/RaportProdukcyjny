@@ -1,7 +1,7 @@
 """Configuration and helper functions for warehouse deliveries module."""
 from datetime import datetime
 
-# Lokalizacje z systemu Mleczna Droga
+# Domyślne lokalizacje magazynowe RaportProdukcyjny
 LOKALIZACJE_ZRODLO = [
     'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
     'OSIP', 'BF_MS01', 'BF_MP01', 'KO01', 'PSD', 'PSD01',
