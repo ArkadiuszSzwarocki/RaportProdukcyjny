@@ -67,10 +67,11 @@
         
         <a href="{{ url_for('warehouse_v2.zamowienia', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zamowienia' %}active{% endif %}">
             <span class="nav-sub-label">
-                <span class="nav-sub-text">Zamówienia</span>
+                <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
                 <span id="sidebarOrdersBadge" class="nav-pending-badge" aria-label="Nowe zamówienia" style="{% if not pending_orders_count or pending_orders_count == 0 %}display: none;{% endif %}">
                     {{ pending_orders_count if pending_orders_count else 0 }}
                 </span>
+            </span>
         </a>
     </div>
 </div>
