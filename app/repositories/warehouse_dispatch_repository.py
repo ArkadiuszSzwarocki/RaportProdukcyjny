@@ -5,6 +5,7 @@ Odpowiedzialność: Zapis i odczyt załadunków na samochód w tabeli magazyn_wy
 """
 
 from app.core.database import get_db_connection
+from app.db_tables import resolve_table_name as get_table_name
 
 
 class WarehouseDispatchRepository:
@@ -85,17 +86,25 @@ class WarehouseDispatchRepository:
         """
         conn = get_db_connection()
         try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT id, nr_palety, surowiec_nazwa AS nazwa, 'Surowiec' AS typ,
-                           stan_magazynowy_kg AS stan_magazynowy, lokalizacja, nr_partii
-                    FROM palety_magazynowe
-                    WHERE (stan_magazynowy_kg > 0 OR stan_magazynowy_kg IS NULL)
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """)
-                rows = cursor.fetchall()
-                return list(rows) if rows else []
+            with conn.cursor(dictionary=True) as cursor:
+                pallets = []
+                for linia in ['AGRO', 'PSD']:
+                    try:
+                        table = get_table_name('magazyn_surowce', linia)
+                        cursor.execute(f"""
+                            SELECT id, nr_palety, nazwa, 'Surowiec' AS typ,
+                                   stan_magazynowy, lokalizacja, nr_partii
+                            FROM {table}
+                            WHERE stan_magazynowy > 0
+                            ORDER BY id DESC
+                            LIMIT 100
+                        """)
+                        rows = cursor.fetchall()
+                        if rows:
+                            pallets.extend(list(rows))
+                    except Exception:
+                        pass
+                return pallets
         finally:
             if conn:
                 try:
