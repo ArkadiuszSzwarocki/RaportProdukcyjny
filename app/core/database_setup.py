@@ -794,6 +794,26 @@ def _create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_wyjazdy_samochodowe (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nr_palety VARCHAR(100) NOT NULL,
+            nazwa_produktu VARCHAR(255) NOT NULL,
+            typ_palety VARCHAR(50) DEFAULT 'Surowiec',
+            ilosc_kg DECIMAL(10,2) DEFAULT 0.00,
+            nr_rejestracyjny VARCHAR(100) DEFAULT NULL,
+            kierowca VARCHAR(255) DEFAULT NULL,
+            odbiorca VARCHAR(255) DEFAULT NULL,
+            nr_dokumentu_wz VARCHAR(100) DEFAULT NULL,
+            uwagi TEXT DEFAULT NULL,
+            magazynier VARCHAR(100) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_wyjazdy_nr_palety (nr_palety),
+            INDEX idx_wyjazdy_nr_rej (nr_rejestracyjny),
+            INDEX idx_wyjazdy_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
     try:

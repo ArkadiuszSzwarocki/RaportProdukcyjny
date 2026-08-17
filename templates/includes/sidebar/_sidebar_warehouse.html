@@ -73,8 +73,8 @@
                 </span>
             </span>
         </a>
-        <a href="{{ url_for('warehouse_v2.zamowienia', linia=effective_hall) }}" class="nav-sub-item">
-            <span class="nav-sub-text">Załadunki (ZZA/ZZL)</span>
+        <a href="{{ url_for('warehouse_v2.zaladunki_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zaladunki_view' %}active{% endif %}">
+            <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
         </a>
     </div>
 </div>

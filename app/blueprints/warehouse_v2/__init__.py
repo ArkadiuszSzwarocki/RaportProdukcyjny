@@ -5,5 +5,6 @@ from . import views
 from . import api_pallets
 from . import api_production
 from . import api_orders
+from . import zaladunki_routes
 
 __all__ = ['warehouse_v2_bp']
