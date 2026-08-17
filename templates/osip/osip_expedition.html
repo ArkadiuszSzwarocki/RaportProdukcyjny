@@ -1,271 +1,465 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 
 {% block title %}Wydania Zewnętrzne OSIP - Magazyn Zewnętrzny OSIP{% endblock %}
 
 {% block content %}
 <style>
-.osip-expedition-container {
-    max-width: 1400px;
-    margin: 0 auto;
-}
+    .osip-expedition-container {
+        max-width: 1300px;
+        margin: 0 auto;
+        padding: 20px 15px;
+    }
 
-.osip-hero-card {
-    border-radius: 18px;
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: #ffffff;
-    padding: 24px;
-    margin-bottom: 24px;
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
-}
+    /* BREADCRUMB & HEADER */
+    .osip-header-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
 
-.osip-title {
-    font-size: 1.6rem;
-    font-weight: 800;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
+    .osip-title-group {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
 
-.osip-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
-    margin-top: 18px;
-}
+    .osip-title-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        border: 1px solid #a7f3d0;
+        color: #059669;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-.osip-kpi-box {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 14px;
-    padding: 16px;
-    backdrop-filter: blur(10px);
-}
+    .osip-title-icon .material-icons {
+        font-size: 26px;
+    }
 
-.osip-kpi-label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #94a3b8;
-    font-weight: 700;
-}
+    .osip-title-group h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: -0.3px;
+    }
 
-.osip-kpi-val {
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: #38bdf8;
-    margin-top: 4px;
-}
+    .osip-title-group p {
+        margin: 2px 0 0 0;
+        font-size: 13px;
+        color: #64748b;
+        font-weight: 500;
+    }
 
-.dispatch-card {
-    background: #ffffff;
-    border-radius: 16px;
-    border: 2px solid #e2e8f0;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    overflow: hidden;
-}
+    .orders-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        background: #ffffff;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 12px;
+        color: #334155;
+        font-weight: 700;
+        font-size: 13px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+    }
 
-.dispatch-header {
-    background: #f8fafc;
-    padding: 16px 20px;
-    border-bottom: 2px solid #e2e8f0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
+    .orders-back-btn:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #0f172a;
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
 
-.dispatch-header h4 {
-    margin: 0;
-    font-weight: 800;
-    color: #0f172a;
-    font-size: 1.15rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
+    /* KPI GRID */
+    .osip-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
 
-.table-expedition {
-    width: 100%;
-    border-collapse: collapse;
-}
+    .osip-kpi-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
 
-.table-expedition th {
-    background: #f1f5f9;
-    color: #475569;
-    font-weight: 800;
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 12px 16px;
-    border-bottom: 2px solid #cbd5e1;
-    text-align: left;
-}
+    .osip-kpi-icon-box {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
 
-.table-expedition td {
-    padding: 14px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    font-size: 0.95rem;
-    vertical-align: middle;
-}
+    .osip-kpi-label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
 
-.table-expedition tr:hover {
-    background: #f8fafc;
-}
+    .osip-kpi-val {
+        font-size: 22px;
+        font-weight: 900;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+
+    /* FORM CARD */
+    .osip-form-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1.5px solid #cbd5e1;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        padding: 28px;
+        margin-bottom: 28px;
+    }
+
+    .osip-form-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 22px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 14px;
+        border-bottom: 1.5px solid #f1f5f9;
+    }
+
+    .osip-form-title .material-icons {
+        color: #10b981;
+        font-size: 24px;
+    }
+
+    .osip-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+        margin-bottom: 20px;
+    }
+
+    .osip-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .osip-form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .osip-form-group label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+    }
+
+    .osip-form-group label span.req {
+        color: #ef4444;
+    }
+
+    .osip-input-control {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+        background-color: #f8fafc;
+        transition: all 0.2s ease;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .osip-input-control:focus {
+        border-color: #10b981;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+    }
+
+    .osip-submit-btn {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #ffffff;
+        border: none;
+        padding: 14px 32px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+
+    .osip-submit-btn:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+    }
+
+    /* TABLE CARD */
+    .osip-table-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1.5px solid #cbd5e1;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .osip-table-header {
+        background: #f8fafc;
+        padding: 18px 24px;
+        border-bottom: 1.5px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .osip-table-header h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .osip-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .osip-table th {
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 14px 18px;
+        border-bottom: 1.5px solid #e2e8f0;
+        text-align: left;
+    }
+
+    .osip-table td {
+        padding: 16px 18px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        vertical-align: middle;
+    }
+
+    .osip-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .osip-table tr:hover td {
+        background-color: #f8fafc;
+    }
+
+    .badge-pallet {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-weight: 800;
+        font-size: 12px;
+        display: inline-block;
+    }
+
+    .badge-location {
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-weight: 800;
+        font-size: 12px;
+        display: inline-block;
+    }
 </style>
 
-<div class="container-fluid py-3 osip-expedition-container">
-
-    <!-- HERO HEADER -->
-    <div class="osip-hero-card">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
-            <div>
-                <h1 class="osip-title">
-                    <i class="fas fa-truck-loading text-info"></i>
-                    Wydania Zewnętrzne – Magazyn OSIP
-                </h1>
-                <p class="text-muted mb-0 mt-1" style="color: #94a3b8 !important; font-size: 0.95rem;">
-                    Dedykowany rejestr wydań zewnętrznych (EXPEDITION) wyłącznie dla surowców składowanych na hali OSIP (OS01–OS77).
-                </p>
+<div class="osip-expedition-container">
+    <!-- NAGŁÓWEK STRONY -->
+    <div class="osip-header-bar">
+        <div class="osip-title-group">
+            <div class="osip-title-icon">
+                <span class="material-icons">local_shipping</span>
             </div>
-            <div class="mt-3 mt-md-0">
-                <a href="{{ url_for('osip.warehouse_view') }}" class="btn btn-outline-light font-weight-bold">
-                    <i class="fas fa-warehouse mr-1"></i> Stan Hali OSIP
-                </a>
+            <div>
+                <h2>Wydania Zewnętrzne – Magazyn OSIP</h2>
+                <p>Dedykowany rejestr wydań zewnętrznych (EXPEDITION) wyłącznie dla surowców składowanych na hali OSIP (OS01–OS77).</p>
             </div>
         </div>
+        <div>
+            <a href="{{ url_for('osip.warehouse_view') }}" class="orders-back-btn">
+                <span class="material-icons">warehouse</span> STAN HALI OSIP
+            </a>
+        </div>
+    </div>
 
-        <div class="osip-kpi-grid">
-            <div class="osip-kpi-box">
+    <!-- STATYSTYKI KPI -->
+    <div class="osip-kpi-grid">
+        <div class="osip-kpi-card">
+            <div class="osip-kpi-icon-box" style="background: #eff6ff; color: #2563eb;">
+                <span class="material-icons">inventory_2</span>
+            </div>
+            <div>
                 <div class="osip-kpi-label">Dostępne Palety na OSIP</div>
-                <div class="osip-kpi-val">{{ inventory.total_raw + inventory.total_fg }} szt.</div>
+                <div class="osip-kpi-val">{{ inventory.total_raw + inventory.total_fg }} <span style="font-size:13px; font-weight:600; color:#64748b;">szt.</span></div>
             </div>
-            <div class="osip-kpi-box">
+        </div>
+        <div class="osip-kpi-card">
+            <div class="osip-kpi-icon-box" style="background: #ecfdf5; color: #059669;">
+                <span class="material-icons">category</span>
+            </div>
+            <div>
                 <div class="osip-kpi-label">Surowce na OSIP</div>
-                <div class="osip-kpi-val" style="color: #34d399;">{{ inventory.total_raw }} palet</div>
+                <div class="osip-kpi-val" style="color: #059669;">{{ inventory.total_raw }} <span style="font-size:13px; font-weight:600; color:#64748b;">palet</span></div>
             </div>
-            <div class="osip-kpi-box">
+        </div>
+        <div class="osip-kpi-card">
+            <div class="osip-kpi-icon-box" style="background: #fffbeb; color: #d97706;">
+                <span class="material-icons">history</span>
+            </div>
+            <div>
                 <div class="osip-kpi-label">Zrealizowane Wydania OSIP</div>
-                <div class="osip-kpi-val" style="color: #fbbf24;">{{ expeditions | length }} wydań</div>
+                <div class="osip-kpi-val" style="color: #d97706;">{{ expeditions | length }} <span style="font-size:13px; font-weight:600; color:#64748b;">wydań</span></div>
             </div>
         </div>
     </div>
 
     <!-- FORMULARZ WYDANIA ZEWNĘTRZNEGO Z OSIP -->
-    <div class="dispatch-card">
-        <div class="dispatch-header">
-            <h4>
-                <i class="fas fa-dolly text-primary"></i>
-                Nowe Wydanie Zewnętrzne z Hali OSIP
-            </h4>
-            <span class="badge badge-primary px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
-                Dedykowany Magazynier OSIP
-            </span>
+    <div class="osip-form-card">
+        <div class="osip-form-title">
+            <span class="material-icons">local_shipping</span>
+            Nowe Wydanie Zewnętrzne z Hali OSIP
         </div>
-        <div class="card-body p-4">
-            <form id="osipDispatchForm" onsubmit="handleOsipDispatchSubmit(event)">
-                <div class="row">
-                    <div class="col-md-5 mb-3">
-                        <label for="osipPalletSelect" class="font-weight-bold text-dark mb-1">
-                            Wybierz paletę ze strefy OSIP <span class="text-danger">*</span>
-                        </label>
-                        <select id="osipPalletSelect" class="form-control form-control-lg font-weight-bold" required style="border: 2px solid #3b82f6; border-radius: 10px;">
-                            <option value="">-- Wybierz paletę znajdującą się w OSIP --</option>
-                            {% for item in inventory.raw_materials %}
-                            <option value="{{ item.id }}" data-type="Surowiec" data-pallet-no="{{ item.nr_palety }}" data-weight="{{ item.stan_magazynowy }}">
-                                Paleta: {{ item.nr_palety or item.id }} | {{ item.nazwa }} | Partia: {{ item.nr_partii or '-' }} | Lok: {{ item.lokalizacja }} ({{ item.stan_magazynowy }} kg)
-                            </option>
-                            {% endfor %}
-                            {% for item in inventory.finished_goods %}
-                            <option value="{{ item.id }}" data-type="Wyrób Gotowy" data-pallet-no="{{ item.nr_palety }}" data-weight="{{ item.stan_magazynowy }}">
-                                Paleta WG: {{ item.nr_palety or item.id }} | {{ item.nazwa }} | Lok: {{ item.lokalizacja }} ({{ item.stan_magazynowy }} kg)
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label for="osipCustomerInput" class="font-weight-bold text-dark mb-1">
-                            Odbiorca Zewnętrzny / Klient
-                        </label>
-                        <input type="text" id="osipCustomerInput" class="form-control form-control-lg" placeholder="Np. Transport Zewnętrzny ABC / Firma XYZ" style="border-radius: 10px;">
-                    </div>
-
-                    <div class="col-md-3 mb-3">
-                        <label for="osipNotesInput" class="font-weight-bold text-dark mb-1">
-                            Uwagi / Nr Rejestracyjny
-                        </label>
-                        <input type="text" id="osipNotesInput" class="form-control form-control-lg" placeholder="Np. Nr autka, WZ 123..." style="border-radius: 10px;">
-                    </div>
+        <form id="osipDispatchForm" onsubmit="handleOsipDispatchSubmit(event)">
+            <div class="osip-form-grid">
+                <!-- WYBÓR PALETY -->
+                <div class="osip-form-group">
+                    <label for="osipPalletSelect">Wybierz paletę ze strefy OSIP <span class="req">*</span></label>
+                    <select id="osipPalletSelect" class="osip-input-control" required>
+                        <option value="">-- Wybierz paletę znajdującą się w OSIP --</option>
+                        {% for item in inventory.raw_materials %}
+                        <option value="{{ item.id }}" data-type="Surowiec" data-pallet-no="{{ item.nr_palety }}" data-weight="{{ item.stan_magazynowy }}">
+                            Paleta: {{ item.nr_palety or item.id }} | {{ item.nazwa }} | Partia: {{ item.nr_partii or '-' }} | Lok: {{ item.lokalizacja }} ({{ item.stan_magazynowy }} kg)
+                        </option>
+                        {% endfor %}
+                        {% for item in inventory.finished_goods %}
+                        <option value="{{ item.id }}" data-type="Wyrób Gotowy" data-pallet-no="{{ item.nr_palety }}" data-weight="{{ item.stan_magazynowy }}">
+                            Paleta WG: {{ item.nr_palety or item.id }} | {{ item.nazwa }} | Lok: {{ item.lokalizacja }} ({{ item.stan_magazynowy }} kg)
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
 
-                <div class="d-flex justify-content-end mt-2">
-                    <button type="submit" id="btnOsipSubmitDispatch" class="btn btn-success btn-lg font-weight-bold px-4 py-2" style="border-radius: 10px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <i class="fas fa-truck-loading mr-2"></i> Zatwierdź Wydanie Zewnętrzne z OSIP
-                    </button>
+                <!-- ODBIORCA ZEWNĘTRZNY -->
+                <div class="osip-form-group">
+                    <label for="osipCustomerInput">Odbiorca Zewnętrzny / Klient</label>
+                    <input type="text" id="osipCustomerInput" class="osip-input-control" placeholder="Np. Transport Zewnętrzny ABC / Firma XYZ">
                 </div>
-            </form>
-        </div>
+
+                <!-- UWAGI / NR REJESTRACYJNY -->
+                <div class="osip-form-group">
+                    <label for="osipNotesInput">Uwagi / Nr Rejestracyjny Samochodu</label>
+                    <input type="text" id="osipNotesInput" class="osip-input-control" placeholder="Np. Nr autka DW 12345, WZ 123...">
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+                <button type="submit" id="btnOsipSubmitDispatch" class="osip-submit-btn">
+                    <span class="material-icons">check_circle</span>
+                    ZATWIERDŹ WYDANIE ZEWNĘTRZNE Z OSIP
+                </button>
+            </div>
+        </form>
     </div>
 
     <!-- REJESTR WYDAŃ ZEWNĘTRZNYCH OSIP -->
-    <div class="dispatch-card">
-        <div class="dispatch-header">
-            <h4>
-                <i class="fas fa-history text-secondary"></i>
+    <div class="osip-table-card">
+        <div class="osip-table-header">
+            <h3>
+                <span class="material-icons" style="color:#059669;">history</span>
                 Rejestr Wydań Zewnętrznych z Magazynu OSIP
-            </h4>
-            <span class="badge badge-secondary px-3 py-1 font-weight-bold">
-                Archwizowane Zlecenia
+            </h3>
+            <span style="font-size:12px; font-weight:700; color:#64748b; background:#f1f5f9; padding:6px 14px; border-radius:10px;">
+                Zrealizowane zlecenia
             </span>
         </div>
-        <div class="card-body p-0">
-            {% if expeditions and expeditions | length > 0 %}
-            <div class="table-responsive">
-                <table class="table-expedition">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nr Palety / SSCC</th>
-                            <th>Nazwa Produktu</th>
-                            <th>Numer Partii</th>
-                            <th>Waga / Ilość</th>
-                            <th>Skąd (OSIP)</th>
-                            <th>Odbiorca / Komentarz</th>
-                            <th>Magazynier</th>
-                            <th>Data Wydania</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in expeditions %}
-                        <tr>
-                            <td class="font-weight-bold text-muted">{{ loop.index }}</td>
-                            <td>
-                                <span class="badge badge-light border font-weight-bold px-2 py-1" style="font-family: monospace; font-size: 0.9rem;">
-                                    {{ row.nr_palety or 'PAL-' ~ row.id }}
-                                </span>
-                            </td>
-                            <td class="font-weight-bold text-dark">{{ row.nazwa }}</td>
-                            <td style="font-family: monospace;" class="text-primary font-weight-bold">{{ row.nr_partii or '-' }}</td>
-                            <td class="font-weight-bold text-success">{{ row.ilosc or '-' }} kg</td>
-                            <td><span class="badge badge-info px-2 py-1">{{ row.lokalizacja_ostatnia or 'OSIP' }}</span></td>
-                            <td class="small text-muted">{{ row.komentarz or 'Wydanie zewnętrzne' }}</td>
-                            <td class="font-weight-bold small"><i class="fas fa-user mr-1 text-muted"></i>{{ row.user_login or 'Magazynier OSIP' }}</td>
-                            <td class="small text-muted font-weight-bold">{{ row.created_at or '-' }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-5 text-muted">
-                <i class="fas fa-inbox mb-3" style="font-size: 3rem; color: #cbd5e1;"></i>
-                <h5>Brak zarejestrowanych wydań zewnętrznych dla magazynu OSIP</h5>
-            </div>
-            {% endif %}
+        <div style="overflow-x: auto;">
+            <table class="osip-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nr Palety / SSCC</th>
+                        <th>Nazwa Produktu</th>
+                        <th>Numer Partii</th>
+                        <th style="text-align: right;">Waga / Ilość</th>
+                        <th>Skąd (OSIP)</th>
+                        <th>Odbiorca / Komentarz</th>
+                        <th>Magazynier</th>
+                        <th>Data Wydania</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if expeditions and expeditions | length > 0 %}
+                    {% for row in expeditions %}
+                    <tr>
+                        <td style="font-weight: 800; color: #94a3b8;">#{{ loop.index }}</td>
+                        <td><span class="badge-pallet">{{ row.nr_palety or 'PAL-' ~ row.id }}</span></td>
+                        <td style="font-weight: 800; color: #0f172a;">{{ row.nazwa }}</td>
+                        <td style="font-family: monospace; font-weight:700; color:#2563eb;">{{ row.nr_partii or '-' }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #16a34a;">{{ row.ilosc or '-' }} kg</td>
+                        <td><span class="badge-location">{{ row.lokalizacja_ostatnia or 'OSIP' }}</span></td>
+                        <td style="color:#64748b; font-size:12px;">{{ row.komentarz or 'Wydanie zewnętrzne' }}</td>
+                        <td style="font-weight: 700; color: #475569;">{{ row.user_login or 'Magazynier OSIP' }}</td>
+                        <td><span style="background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-weight:700;">{{ row.created_at or '-' }}</span></td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align:center; padding:30px; color:#94a3b8; font-weight:700;">
+                            Brak zarejestrowanych wydań zewnętrznych dla magazynu OSIP.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
-
 </div>
 
 <script>
@@ -290,7 +484,7 @@ function handleOsipDispatchSubmit(e) {
 
     const btnSubmit = document.getElementById('btnOsipSubmitDispatch');
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Zapisywanie wydania...';
+    btnSubmit.innerHTML = '<span class="material-icons spin">sync</span> Zapisywanie wydania...';
 
     fetch('/osip/api/expedition/dispatch', {
         method: 'POST',
@@ -310,13 +504,13 @@ function handleOsipDispatchSubmit(e) {
         } else {
             alert(`BŁĄD: ${res.error || res.message}`);
             btnSubmit.disabled = false;
-            btnSubmit.innerHTML = '<i class="fas fa-truck-loading mr-2"></i> Zatwierdź Wydanie Zewnętrzne z OSIP';
+            btnSubmit.innerHTML = '<span class="material-icons">check_circle</span> ZATWIERDŹ WYDANIE ZEWNĘTRZNE Z OSIP';
         }
     })
     .catch(err => {
         alert('Błąd połączenia z serwerem: ' + err);
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<i class="fas fa-truck-loading mr-2"></i> Zatwierdź Wydanie Zewnętrzne z OSIP';
+        btnSubmit.innerHTML = '<span class="material-icons">check_circle</span> ZATWIERDŹ WYDANIE ZEWNĘTRZNE Z OSIP';
     });
 }
 </script>
