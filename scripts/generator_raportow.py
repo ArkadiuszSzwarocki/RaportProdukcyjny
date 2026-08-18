@@ -42,17 +42,48 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
     print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
     
-    # Awarie: spróbuj pobrać szczegółowe kolumny, ale jeśli ich nie ma w schemacie, użyj prostszego SELECT
+    # Awarie i przestoje: pobieramy z DowntimeRepository (przestoje_zasyp + przestoje_produkcyjne)
     try:
-        # db schema uses `czas_start`/`czas_stop` and we compute `minuty` dynamically
-        df_awarie = pd.read_sql(
-            "SELECT sekcja, kategoria, problem, czas_start AS start_czas, czas_stop AS stop_czas, "
-            "TIMESTAMPDIFF(MINUTE, czas_start, czas_stop) AS minuty "
-            "FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s",
-            conn, params=(data_raportu, linia)
-        )
-    except Exception:
-        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s", conn, params=(data_raportu, linia))
+        from app.repositories.downtime_repository import DowntimeRepository
+        dts = DowntimeRepository().get_downtimes(linia, data_raportu, data_raportu)
+        awarie_records = []
+        for d in dts:
+            sek = d.get('sekcja') or 'Zasyp'
+            kat = d.get('kategoria') or 'Inne'
+            opis = d.get('opis') or d.get('problem') or ''
+            prod = d.get('produkt')
+            if prod:
+                opis = f"[{prod}] {opis}" if opis else f"[{prod}]"
+            
+            g_start = d.get('godzina_start')
+            g_stop = d.get('godzina_stop')
+            s_str = str(g_start)[:5] if g_start else ''
+            e_str = str(g_stop)[:5] if g_stop else ''
+            
+            dur = d.get('czas_trwania_min')
+            if dur is None and g_start and g_stop:
+                try:
+                    t1 = datetime.strptime(s_str, '%H:%M')
+                    t2 = datetime.strptime(e_str, '%H:%M')
+                    diff = int((t2 - t1).total_seconds() / 60)
+                    if diff < 0: diff += 1440
+                    dur = diff
+                except Exception:
+                    dur = 0
+            awarie_records.append({
+                'sekcja': sek,
+                'kategoria': kat,
+                'problem': opis,
+                'start_czas': s_str,
+                'stop_czas': e_str,
+                'minuty': dur or 0
+            })
+        df_awarie = pd.DataFrame(awarie_records)
+        if df_awarie.empty:
+            df_awarie = pd.DataFrame(columns=['sekcja', 'kategoria', 'problem', 'start_czas', 'stop_czas', 'minuty'])
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna zaladowac przestojow z repo: {_e}")
+        df_awarie = pd.DataFrame(columns=['sekcja', 'kategoria', 'problem', 'start_czas', 'stop_czas', 'minuty'])
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")
     print(f"[GENERATOR] OK Issues data: {len(df_awarie)} rows")
     
@@ -61,18 +92,18 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
     print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
 
-    # Obsada — kto był przydzielony do jakiej sekcji
+    # Obsada — kto był przydzielony do jakiej sekcji przez lidera
     try:
         df_obsada = pd.read_sql("""
-            SELECT oz.sekcja, p.imie_nazwisko AS pracownik
+            SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa
             FROM obsada_zmiany oz
             JOIN pracownicy p ON oz.pracownik_id = p.id
-            WHERE oz.data_wpisu = %s AND oz.linia = %s
+            WHERE oz.data_wpisu = %s
             ORDER BY oz.sekcja, p.imie_nazwisko
-        """, conn, params=(data_raportu, linia))
+        """, conn, params=(data_raportu,))
     except Exception as _e:
         logger.warning(f"[GENERATOR] Nie mozna pobrac obsady: {_e}")
-        df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik'])
+        df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik', 'grupa'])
     logger.info(f"[GENERATOR] Obsada data: {len(df_obsada)} rows")
 
     # Nieobecni — typ inny niż 'obecny'
@@ -152,12 +183,103 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     txt_path = os.path.join(folder, f"Do_Maila_{linia}_{data_raportu}.txt")
     logger.info(f"[GENERATOR] Creating TXT file: {txt_path}")
     print(f"[GENERATOR] Creating TXT: {os.path.abspath(txt_path)}")
+
+    # Rozbicie produkcji na Zasyp i Workowanie
+    try:
+        zasyp_mask = df_plan['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
+        suma_zasyp = int(df_plan[zasyp_mask]['tonaz_rzeczywisty'].sum())
+    except Exception:
+        suma_zasyp = 0
+
+    try:
+        workowanie_mask = df_plan['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
+        suma_workowanie = int(df_plan[workowanie_mask]['tonaz_rzeczywisty'].sum())
+    except Exception:
+        suma_workowanie = 0
+
+    suma_laczna = int(df_plan['tonaz_rzeczywisty'].sum()) if not df_plan.empty else (suma_zasyp + suma_workowanie)
+
+    # Pobranie zarejestrowanych przestojów z tabel przestoje_produkcyjne i przestoje_zasyp
+    downtimes = []
+    total_downtime_min = 0
+    try:
+        from app.repositories.downtime_repository import DowntimeRepository
+        downtimes = DowntimeRepository().get_downtimes(linia, data_raportu, data_raportu)
+        for dt in downtimes:
+            dur = dt.get('czas_trwania_min')
+            if dur is None and dt.get('godzina_start') and dt.get('godzina_stop'):
+                try:
+                    t1 = datetime.strptime(str(dt['godzina_start'])[:5], '%H:%M')
+                    t2 = datetime.strptime(str(dt['godzina_stop'])[:5], '%H:%M')
+                    diff = int((t2 - t1).total_seconds() / 60)
+                    if diff < 0:
+                        diff += 1440
+                    dur = diff
+                except Exception:
+                    dur = 0
+            dur_val = int(dur or 0)
+            total_downtime_min += dur_val
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac przestojow do maila: {_e}")
+
+    dt_hours = total_downtime_min // 60
+    dt_mins = total_downtime_min % 60
+    if dt_hours > 0:
+        dt_sum_str = f"{dt_hours}h {dt_mins} min ({total_downtime_min} min)"
+    else:
+        dt_sum_str = f"{dt_mins} min"
+
+    # Obliczenie wydajności Zasypu
+    from app.services.shift_time_service import ShiftTimeService
+    zasyp_dt_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in (downtimes or []) if (dt.get('sekcja') or '').strip().lower() == 'zasyp')
+    prod_metrics = ShiftTimeService.calculate_productivity(
+        mass_kg=suma_zasyp,
+        awarie_min=zasyp_dt_min,
+        date_str=data_raportu
+    )
+    zasyp_brutto_min = prod_metrics['brutto_min']
+    zasyp_netto_min = prod_metrics['netto_min']
+    wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna']
+    wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista']
+    start_str = prod_metrics['start_str']
+    end_str = prod_metrics['end_str']
+
     with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(f"RAPORT PRODUKCYJNY - {linia} - {data_raportu}\n")
-        f.write("="*30 + "\n\n")
-        f.write(f"NOTATKI ZMIANOWE:\n{uwagi_lidera}\n\n")
-        f.write(f"PRODUKCJA: {int(df_plan['tonaz_rzeczywisty'].sum())} kg\n")
-        f.write(f"AWRIE/PRZESTOJE: {len(df_awarie)} wpisów.")
+        f.write(f"RAPORT PRODUKCYJNY — {linia} — {data_raportu}\n")
+        f.write("=" * 50 + "\n\n")
+        
+        f.write("PRODUKCJA NA ZMIANIE:\n")
+        f.write(f"  * Zasyp (wytworzono): {suma_zasyp} kg\n")
+        if suma_zasyp > 0:
+            f.write(f"    - Wydajnosc efektywna (netto): {wydajnosc_efektywna:.1f} kg/h (wykonane w {zasyp_netto_min} min produkcyjnych [{zasyp_brutto_min} min - {zasyp_dt_min} min awarie])\n")
+            f.write(f"    - Wydajnosc rzeczywista (brutto / {start_str}-{end_str}): {wydajnosc_rzeczywista:.1f} kg/h ({suma_zasyp} kg / {zasyp_brutto_min} min * 60)\n")
+        f.write(f"  * Workowanie (spakowano): {suma_workowanie} kg\n\n")
+
+        f.write("PRZESTOJE I AWARIE:\n")
+        f.write(f"  * Laczny czas przestojow: {dt_sum_str}\n")
+        f.write(f"  * Liczba zarejestrowanych przestojow: {len(downtimes)}\n")
+        if downtimes:
+            for idx, dt in enumerate(downtimes, 1):
+                sek = dt.get('sekcja') or 'Produkcja'
+                kat = dt.get('kategoria') or 'Inne'
+                op = dt.get('opis') or ''
+                g_start = str(dt.get('godzina_start') or '')[:5]
+                g_stop = str(dt.get('godzina_stop') or '')[:5] if dt.get('godzina_stop') else 'w toku'
+                dur = dt.get('czas_trwania_min')
+                dur_txt = f"{dur} min" if dur is not None else "w trakcie"
+                prod = f" [{dt.get('produkt')}]" if dt.get('produkt') else ""
+                f.write(f"    {idx}. [{sek}] {g_start} - {g_stop} ({dur_txt}) — {kat}: {op}{prod}\n")
+        else:
+            f.write("    (Brak zarejestrowanych przestojow)\n")
+        f.write("\n")
+
+        if uwagi_lidera and uwagi_lidera.strip():
+            f.write(f"NOTATKI ZMIANOWE / UWAGI:\n{uwagi_lidera.strip()}\n\n")
+        else:
+            f.write("NOTATKI ZMIANOWE / UWAGI:\n(Brak uwag lidera)\n\n")
+
+        f.write("Informacja: Wiecej szczegolowych informacji (m.in. zestawienie zuzycia surowcow, czasy cykli, obsada pracownicza) znajduje sie w szczegolowym raporcie w zalacznikach (PDF / Excel).\n")
+
     txt_exists = os.path.exists(txt_path)
     logger.info(f"[GENERATOR] TXT file created: {txt_exists}")
     print(f"[GENERATOR] OK TXT created: {txt_exists} | Path: {os.path.abspath(txt_path)}")
@@ -208,7 +330,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
 
         bufor_rows = [(r.get('produkt', ''), r.get('nazwa_zlecenia', ''), r.get('tonaz_rzeczywisty', 0), r.get('spakowano', 0), r.get('pozostalo', 0)) for _, r in df_bufor.iterrows()]
-        obsada_rows = [(r.get('sekcja', ''), r.get('pracownik', '')) for _, r in df_obsada.iterrows()]
+        obsada_rows = [(r.get('sekcja', ''), r.get('pracownik', ''), r.get('funkcja', '')) for _, r in df_obsada.iterrows()]
         nieobecni_rows = [(r.get('pracownik', ''), r.get('typ', ''), r.get('komentarz', '')) for _, r in df_nieobecni.iterrows()]
         nadgodziny_rows = [(r.get('pracownik', ''), r.get('ilosc_nadgodzin', 0), r.get('powod', ''), r.get('status', '')) for _, r in df_nadgodziny.iterrows()]
 

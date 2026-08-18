@@ -1,0 +1,109 @@
+<!-- Reusable Send Report via Email Modal -->
+<div class="modal fade" id="sendReportEmailModal" tabindex="-1" aria-labelledby="sendReportEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header bg-primary text-white border-0" style="border-radius: 16px 16px 0 0;">
+                <h5 class="modal-title fw-bold" id="sendReportEmailModalLabel">
+                    📧 Wysyłanie Raportu przez E-mail
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="sendReportEmailForm" onsubmit="submitSendReportEmail(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark mb-1">Adresy E-mail Odbiorców <span class="text-danger">*</span></label>
+                        <input type="text" id="report_to_emails" class="form-control" placeholder="np. szef@firma.pl, biuro@firma.pl" required style="border-radius: 10px;">
+                        <div class="form-text">Możesz podać kilka adresów oddzielonych przecinkami.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark mb-1">Temat Wiadomości</label>
+                        <input type="text" id="report_subject" class="form-control" value="Raport Produkcyjny AGRO" required style="border-radius: 10px;">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark mb-1">Dodatkowa Notatka / Treść (opcjonalnie)</label>
+                        <textarea id="report_body_note" class="form-control" rows="3" placeholder="Wpisz opcjonalne uwagi dla odbiorcy..." style="border-radius: 10px;"></textarea>
+                    </div>
+
+                    <div id="sendReportAlert" style="display: none;"></div>
+
+                    <div class="d-flex align-items-center justify-content-end gap-2 mt-4 pt-2 border-top">
+                        <button type="button" class="btn btn-outline-secondary px-3" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600;">Anuluj</button>
+                        <button type="submit" id="btnSubmitSendReport" class="btn btn-primary px-4" style="border-radius: 10px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;">
+                            📤 Wyślij Raport
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openSendReportModal(customSubject, customBody) {
+    if (customSubject) {
+        document.getElementById('report_subject').value = customSubject;
+    }
+    if (customBody) {
+        document.getElementById('report_body_note').value = customBody;
+    }
+    const alertBox = document.getElementById('sendReportAlert');
+    alertBox.style.display = 'none';
+    const modal = new bootstrap.Modal(document.getElementById('sendReportEmailModal'));
+    modal.show();
+}
+
+async function submitSendReportEmail(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitSendReport');
+    const alertBox = document.getElementById('sendReportAlert');
+    const to_emails = document.getElementById('report_to_emails').value.trim();
+    const subject = document.getElementById('report_subject').value.trim();
+    const note = document.getElementById('report_body_note').value.trim();
+
+    if (!to_emails) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Wysyłanie...';
+    alertBox.style.display = 'none';
+
+    let body_html = `<p>Dzień dobry,</p><p>Przesyłam raport z aplikacji Raport Produkcyjny.</p>`;
+    if (note) {
+        body_html += `<p><strong>Uwagi:</strong> ${note}</p>`;
+    }
+
+    try {
+        const response = await fetch('/api/email/send_report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_emails, subject, body_html })
+        });
+        const res = await response.json();
+
+        alertBox.style.display = 'block';
+        if (res.success) {
+            alertBox.className = 'alert alert-success mt-3';
+            alertBox.style.borderRadius = '10px';
+            alertBox.innerHTML = `<strong>${res.message}</strong>`;
+            setTimeout(() => {
+                const modalEl = document.getElementById('sendReportEmailModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }, 2000);
+        } else {
+            alertBox.className = 'alert alert-danger mt-3';
+            alertBox.style.borderRadius = '10px';
+            alertBox.innerHTML = `<strong>Błąd wysyłki:</strong> ${res.message}`;
+        }
+    } catch (err) {
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert alert-danger mt-3';
+        alertBox.style.borderRadius = '10px';
+        alertBox.innerHTML = `<strong>Wystąpił błąd:</strong> ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '📤 Wyślij Raport';
+    }
+}
+</script>

@@ -963,4 +963,55 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start AGRO pallet auto-register thread')
 
+    # Start 15:00 / Dynamic Auto-Report Daemon Thread
+    try:
+        def _auto_report_scheduler_loop():
+            _safe_log_info('Auto-report daemon loop started (target: dynamic shift 1 scheduled time)')
+            while True:
+                try:
+                    now = datetime.now()
+                    today_str = now.strftime('%Y-%m-%d')
+                    now_time_str = now.strftime('%H:%M:%S')
+
+                    from app.services.auto_report_service import AutoReportService
+                    from datetime import timedelta
+
+                    # Sprawdzamy dzisiejszą datę oraz wczorajszą (w przypadku pracy po północy lub niewysłanego raportu)
+                    yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+                    candidate_dates = [yesterday_str, today_str]
+
+                    for target_date in candidate_dates:
+                        for linia in ['AGRO', 'PSD']:
+                            if not AutoReportService.is_1500_report_sent(linia, target_date):
+                                sched = AutoReportService.get_schedule(linia, target_date)
+                                if not sched.get('is_paused'):
+                                    sched_time = sched.get('scheduled_time_full') or '15:00:00'
+                                    should_trigger = False
+                                    
+                                    if target_date == today_str:
+                                        if now_time_str >= sched_time:
+                                            should_trigger = True
+                                    elif target_date == yesterday_str:
+                                        # Dla wczorajszej daty: wyślij jeśli ustawiono custom czas (np. po północy 00:xx) i minął ten czas,
+                                        # lub jeśli raport z wczoraj nie został wysłany
+                                        if sched.get('is_custom'):
+                                            if now_time_str >= sched_time or now_time_str >= '00:00:00':
+                                                should_trigger = True
+
+                                    if should_trigger:
+                                        _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {target_date} (sched: {sched_time}, now: {now_time_str})')
+                                        with app.app_context():
+                                            success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=target_date)
+                                            _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {target_date}: success={success}, msg={msg}')
+                except Exception as _e:
+                    _safe_log_exception(f'Error in auto-report scheduler loop: {_e}')
+                
+                time.sleep(10.0) # Check every 10 seconds
+
+        report_thread = threading.Thread(target=_auto_report_scheduler_loop, daemon=True)
+        report_thread.start()
+        _safe_log_info('Started Dynamic Auto-Report daemon thread')
+    except Exception:
+        _safe_log_exception('Failed to start Auto-Report daemon thread')
+
     _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')

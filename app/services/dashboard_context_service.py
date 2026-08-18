@@ -199,50 +199,43 @@ class DashboardContextService:
                 )
                 plan_meta = {int(row['id']): row for row in (cursor_stats.fetchall() or [])}
 
-                cursor_stats.execute(
-                    f"""
-                    SELECT
-                        plan_id,
-                        MIN(czas_start) AS first_start,
-                        MAX(COALESCE(czas_stop, NOW())) AS last_end,
-                        MAX(CASE WHEN czas_stop IS NULL THEN 1 ELSE 0 END) AS has_running
-                    FROM zasyp_etapy
-                    WHERE linia = %s AND plan_id IN ({fmt_ids}) AND czas_start IS NOT NULL
-                    GROUP BY plan_id
-                    """,
-                    [aktywna_linia] + plan_ids,
-                )
-                etapy_agg_map = {int(row['plan_id']): row for row in (cursor_stats.fetchall() or [])}
+                # Pobieramy zarejestrowane przestoje dla sekcji Zasyp w dniu dzisiejszym
+                awarie_zasyp_min = 0
+                try:
+                    from app.repositories.downtime_repository import DowntimeRepository
+                    downtimes_all = DowntimeRepository().get_downtimes(aktywna_linia, str(dzisiaj), str(dzisiaj))
+                    for dt in downtimes_all:
+                        if (dt.get('sekcja') or '').strip().lower() == 'zasyp':
+                            dur = dt.get('czas_trwania_min')
+                            if dur is not None:
+                                try:
+                                    awarie_zasyp_min += int(dur)
+                                except: pass
+                except Exception:
+                    pass
 
-                now_dt = datetime.now()
+                from app.services.shift_time_service import ShiftTimeService
+                brutto_min, start_str, end_str = ShiftTimeService.get_shift_time_range(str(dzisiaj))
+                czas_netto_min = max(1, brutto_min - awarie_zasyp_min)
+
                 for plan_id in plan_ids:
                     meta = plan_meta.get(plan_id) or {}
                     tonaz_plan = float(meta.get('tonaz_rzeczywisty') or 0.0)
                     tonaz_realized = float(plan_realized_kg.get(plan_id) or 0.0)
                     parametry = etapy_parametry.get(plan_id) or {}
-                    status = plan_status.get(plan_id, '')
-                    agg = etapy_agg_map.get(plan_id) or {}
 
                     tonaz = tonaz_realized if tonaz_realized > 0 else tonaz_plan
                     batch_tonaz = float(parametry.get('wielkosc_szarzy_kg') or 0.0)
-                    real_start = meta.get('real_start')
-                    real_stop = meta.get('real_stop')
-                    real_seconds = 0
-                    real_work_kgph = None
-                    if tonaz > 0:
-                        metric_start = real_start or agg.get('first_start')
-                        metric_end = now_dt if status == 'w toku' else agg.get('last_end') or real_stop or now_dt
-                        if metric_start:
-                            try:
-                                real_seconds = max(0, int((metric_end - metric_start).total_seconds()))
-                                real_hours = real_seconds / 3600.0
-                                if real_hours > 0:
-                                    real_work_kgph = tonaz / real_hours
-                            except Exception:
-                                real_work_kgph = None
-                                real_seconds = 0
 
-                    timeline_kgph = None
+                    # Dynamiczne wyliczenie od startu do zamknięcia/teraz
+                    prod_metrics = ShiftTimeService.calculate_productivity(
+                        mass_kg=tonaz,
+                        awarie_min=awarie_zasyp_min,
+                        date_str=str(dzisiaj)
+                    )
+                    wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna'] if tonaz > 0 else None
+                    wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista'] if tonaz > 0 else None
+
                     sessions_for_plan = etapy_sesje_mapa.get(plan_id) or []
 
                     def _session_etapy_breakdown(session_payload):
@@ -273,53 +266,27 @@ class DashboardContextService:
                         if int(session_payload.get('total_duration_s') or 0) > 0 and not bool(session_payload.get('has_running'))
                     ]
 
-                    if closed_sessions:
-                        timeline_seconds = sum(int(session_payload.get('total_duration_s') or 0) for session_payload in closed_sessions)
-                        timeline_mass = (batch_tonaz * len(closed_sessions)) if batch_tonaz > 0 else tonaz
-                        timeline_sources = []
-                        for session_payload in closed_sessions:
-                            timeline_sources.append(
-                                {
-                                    'szarza_nr': int(session_payload.get('szarza_nr') or session_payload.get('curr_szarza_nr') or 0),
-                                    'total_duration_s': int(session_payload.get('total_duration_s') or 0),
-                                    'total_duration_str': session_payload.get('total_duration_str') or '',
-                                    'etapy': _session_etapy_breakdown(session_payload),
-                                }
-                            )
-                    else:
-                        timeline_seconds = int(etapy_total_s.get(plan_id) or 0)
-                        timeline_mass = batch_tonaz if batch_tonaz > 0 else tonaz
-                        current_session = sessions_for_plan[0] if sessions_for_plan else None
-                        if current_session:
-                            timeline_sources = [
-                                {
-                                    'szarza_nr': int(current_session.get('szarza_nr') or current_session.get('curr_szarza_nr') or 0),
-                                    'total_duration_s': int(current_session.get('total_duration_s') or 0),
-                                    'total_duration_str': current_session.get('total_duration_str') or '',
-                                    'etapy': _session_etapy_breakdown(current_session),
-                                }
-                            ]
-                        else:
-                            timeline_sources = []
-
-                    if timeline_mass > 0 and timeline_seconds > 0:
-                        try:
-                            timeline_hours = timeline_seconds / 3600.0
-                            if timeline_hours > 0:
-                                timeline_kgph = timeline_mass / timeline_hours
-                        except Exception:
-                            timeline_kgph = None
+                    timeline_sources = []
+                    for session_payload in closed_sessions:
+                        timeline_sources.append(
+                            {
+                                'szarza_nr': int(session_payload.get('szarza_nr') or session_payload.get('curr_szarza_nr') or 0),
+                                'total_duration_s': int(session_payload.get('total_duration_s') or 0),
+                                'total_duration_str': session_payload.get('total_duration_str') or '',
+                                'etapy': _session_etapy_breakdown(session_payload),
+                            }
+                        )
 
                     kgph_stats_mapa[plan_id] = {
-                        'real_work': real_work_kgph,
-                        'timeline': timeline_kgph,
+                        'real_work': wydajnosc_rzeczywista,
+                        'timeline': wydajnosc_efektywna,
                         'real_mass_kg': tonaz,
-                        'real_seconds': real_seconds,
-                        'timeline_mass_kg': timeline_mass,
+                        'real_seconds': brutto_min * 60,
+                        'timeline_mass_kg': tonaz,
                         'timeline_batch_mass_kg': batch_tonaz if batch_tonaz > 0 else None,
-                        'timeline_seconds': timeline_seconds,
+                        'timeline_seconds': czas_netto_min * 60,
                         'timeline_closed_sessions': len(closed_sessions),
-                        'timeline_mode': 'closed_sessions' if closed_sessions else 'current_session',
+                        'timeline_mode': f"Wydajność efektywna ({start_str}–{end_str}, netto: {czas_netto_min} min [{brutto_min} min - {awarie_zasyp_min} min awarie])",
                         'timeline_sources': timeline_sources,
                     }
 

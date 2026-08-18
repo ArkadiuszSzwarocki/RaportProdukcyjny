@@ -108,10 +108,10 @@
                     {% set real_val = (r.kg_h_elapsed if r.kg_h_elapsed is defined else None) %}
                     {% if (prod_val and prod_val > 0) or (real_val and real_val > 0) %}
                         {% if prod_val and prod_val > 0 %}
-                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
+                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.1f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
                         {% endif %}
                         {% if real_val and real_val > 0 %}
-                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
+                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.1f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
                         {% endif %}
                     {% else %}
                         —
@@ -256,10 +256,10 @@
                     {% set real_val = (r.kg_h_elapsed if r.kg_h_elapsed is defined else None) %}
                     {% if (prod_val and prod_val > 0) or (real_val and real_val > 0) %}
                         {% if prod_val and prod_val > 0 %}
-                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
+                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.1f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
                         {% endif %}
                         {% if real_val and real_val > 0 %}
-                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
+                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.1f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
                         {% endif %}
                     {% else %}
                         —

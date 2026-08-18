@@ -1,0 +1,868 @@
+{% extends 'layout.html' %}
+{% block title %}Zarządzanie Kontem E-mail & Odbiorcami | AgroMES{% endblock %}
+
+{% block content %}
+<style>
+    .email-settings-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px 20px 60px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    /* Hero Header */
+    .hero-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        padding: 24px 30px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 60%, #eff6ff 100%);
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+    .hero-eyebrow {
+        font-size: 0.8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #2563eb;
+        margin-bottom: 6px;
+    }
+    .hero-title {
+        font-size: 1.85rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .hero-icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: rgba(37, 99, 235, 0.1);
+        color: #2563eb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+    .hero-subtitle {
+        color: #64748b;
+        font-size: 0.95rem;
+        margin: 6px 0 0;
+    }
+
+    /* Standard App Card */
+    .app-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+        overflow: hidden;
+    }
+    .app-card-header {
+        padding: 20px 26px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #ffffff;
+    }
+    .app-card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .app-card-body {
+        padding: 26px;
+    }
+
+    /* Quick Preset Badges */
+    .preset-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+    .preset-pill {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .preset-pill:hover {
+        background: #eff6ff;
+        border-color: #93c5fd;
+        color: #1d4ed8;
+        transform: translateY(-1px);
+    }
+    .preset-pill.active {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+    }
+
+    /* Modern Form Inputs */
+    .form-group-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    .input-icon {
+        position: absolute;
+        left: 14px;
+        color: #94a3b8;
+        font-size: 1rem;
+        pointer-events: none;
+    }
+    .custom-input {
+        width: 100%;
+        padding: 12px 14px 12px 42px;
+        border-radius: 12px;
+        border: 1.5px solid #e2e8f0;
+        background: #ffffff;
+        font-size: 0.95rem;
+        color: #0f172a;
+        transition: all 0.2s ease;
+    }
+    .custom-input:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        background: #ffffff;
+    }
+    .toggle-pwd-btn {
+        position: absolute;
+        right: 12px;
+        background: transparent;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        padding: 4px;
+        font-size: 1.1rem;
+    }
+    .toggle-pwd-btn:hover {
+        color: #0f172a;
+    }
+
+    /* Status Banner */
+    .status-banner {
+        padding: 18px 24px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    .status-banner.custom {
+        background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+        border: 1.5px solid #a7f3d0;
+    }
+    .status-banner.default {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        border: 1.5px solid #bfdbfe;
+    }
+
+    /* Standard Buttons */
+    .btn-app-primary {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #ffffff;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 26px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+    }
+    .btn-app-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        color: #ffffff;
+    }
+    .btn-app-secondary {
+        background: #ffffff;
+        color: #334155;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 12px 22px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+    .btn-app-secondary:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+    .btn-app-danger {
+        background: #fff1f2;
+        color: #e11d48;
+        border: 1.5px solid #fecdd3;
+        border-radius: 12px;
+        padding: 10px 18px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .btn-app-danger:hover {
+        background: #ffe4e6;
+        border-color: #fda4af;
+        color: #be123c;
+    }
+
+    /* Recipients Table */
+    .recipients-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .recipients-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 12px 16px;
+        border-bottom: 1.5px solid #e2e8f0;
+    }
+    .recipients-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #1e293b;
+        font-size: 0.92rem;
+        vertical-align: middle;
+    }
+    .recipients-table tr:hover td {
+        background: #f8fafc;
+    }
+</style>
+
+<div class="email-settings-container">
+    <!-- 1. Hero Header -->
+    <div class="hero-header">
+        <div>
+            <div class="hero-eyebrow">Centrum Konfiguracji & Komunikacji</div>
+            <h1 class="hero-title">
+                <span class="hero-icon-box">📧</span>
+                Zarządzanie Kontem E-mail & Odbiorcami
+            </h1>
+            <p class="hero-subtitle">
+                Skonfiguruj parametry SMTP do wysyłania raportów zmianowych oraz zarządzaj słownikiem odbiorców.
+            </p>
+        </div>
+        <div>
+            <a href="/admin/ustawienia" class="btn-app-secondary">
+                ← Powrót do Ustawień
+            </a>
+        </div>
+    </div>
+
+    <!-- 2. Status Konta Nadawcy -->
+    <div class="app-card">
+        <div class="app-card-body">
+            <div class="status-banner default" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1.5px solid #bfdbfe; margin-bottom: 24px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="font-size: 32px;">🌐</div>
+                    <div>
+                        <div class="fw-bold" style="color: #1e40af; font-size: 1.05rem;">Główne Konto Systemowe / Firmowe</div>
+                        <div style="color: #1d4ed8; font-size: 0.9rem;">
+                            Aktualnie ustawiona skrzynka domyślna: <strong id="statusSysEmail">{{ system_config.smtp_username }}</strong> ({{ system_config.smtp_server }}:{{ system_config.smtp_port }})
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="resetSystemAccountConfig()" class="btn-app-secondary" style="padding: 8px 16px; font-size: 0.85rem;" title="Przywróć pierwotne konto WP.pl">
+                        🔄 Przywróć Domyślne WP.pl
+                    </button>
+                    <span class="badge bg-primary px-3 py-2" style="font-size: 0.85rem; border-radius: 8px;">Konto Główne</span>
+                </div>
+            </div>
+
+            <!-- Wybór zakresu edycji (Konto Systemowe vs Konto Indywidualne) -->
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 p-3 mb-4 rounded-3 border" style="background: #f8fafc;">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size: 0.95rem;">🎯 Wybierz konto do edycji:</div>
+                    <div class="text-muted" style="font-size: 0.82rem;">Możesz zmienić globalne konto systemowe lub zdefiniować własne konto lidera.</div>
+                </div>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="accountScope" id="scopeSystem" value="system" checked onchange="switchAccountScope('system')">
+                    <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeSystem" style="border-radius: 10px 0 0 10px;">🌐 Konto Systemowe (Dla Wszystkich)</label>
+
+                    <input type="radio" class="btn-check" name="accountScope" id="scopeUser" value="user" onchange="switchAccountScope('user')">
+                    <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeUser" style="border-radius: 0 10px 10px 0;">👤 Moje Indywidualne Konto</label>
+                </div>
+            </div>
+
+            <!-- Szybki wybór popularnych serwerów -->
+            <div class="mt-3">
+                <div class="form-group-label mb-2">⚡ Szybka konfiguracja dostawcy:</div>
+                <div class="preset-pills">
+                    <div class="preset-pill" onclick="applyPreset('wp')">✉️ WP.pl</div>
+                    <div class="preset-pill" onclick="applyPreset('onet')">✉️ Onet.pl</div>
+                    <div class="preset-pill" onclick="applyPreset('gmail')">📮 Google Gmail</div>
+                    <div class="preset-pill" onclick="applyPreset('outlook')">🏢 Outlook / Office 365</div>
+                    <div class="preset-pill" onclick="applyPreset('custom')">⚙️ Własny Serwer Firmowy</div>
+                </div>
+            </div>
+
+            <!-- Formularz SMTP -->
+            <form id="emailConfigForm" onsubmit="saveEmailConfig(event)">
+                <div class="row g-4 mt-1">
+                    <div class="col-md-6">
+                        <label class="form-group-label">Adres e-mail / Login SMTP <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">✉️</span>
+                            <input type="email" id="smtp_username" class="custom-input" placeholder="np. raporty@twojafirma.pl" value="{{ system_config.smtp_username }}" required>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-group-label">Hasło e-mail (Hasło Aplikacji) <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔑</span>
+                            <input type="password" id="smtp_password" class="custom-input" placeholder="Wpisz hasło konta lub aplikacji" value="{{ system_config.smtp_password }}" required>
+                            <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility()" title="Pokaż / Ukryj hasło">👁️</button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-5">
+                        <label class="form-group-label">Serwer SMTP <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🌐</span>
+                            <input type="text" id="smtp_server" class="custom-input" placeholder="np. smtp.wp.pl" value="{{ system_config.smtp_server }}" required>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-group-label">Port SMTP <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔌</span>
+                            <input type="number" id="smtp_port" class="custom-input" placeholder="465 lub 587" value="{{ system_config.smtp_port }}" required>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-group-label">Typ Zabezpieczeń <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🛡️</span>
+                            <select id="smtp_security" class="custom-input">
+                                <option value="SSL" {% if system_config.smtp_security == 'SSL' %}selected{% endif %}>SSL (Port 465) - Zalecane</option>
+                                <option value="TLS" {% if system_config.smtp_security == 'TLS' %}selected{% endif %}>TLS / STARTTLS (Port 587)</option>
+                                <option value="NONE" {% if system_config.smtp_security == 'NONE' %}selected{% endif %}>Brak szyfrowania (Port 25)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-group-label">Wyświetlana Nazwa Nadawcy</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="sender_name" class="custom-input" placeholder="np. Raport Produkcyjny AGRO" value="{{ system_config.sender_name or '' }}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Result Box -->
+                <div id="testResultBox" class="mt-4" style="display: none;"></div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mt-4 pt-4 border-top">
+                    <button type="button" id="testBtn" onclick="testEmailConnection()" class="btn-app-secondary">
+                        🧪 Testuj Połączenie
+                    </button>
+                    <button type="submit" id="saveBtn" class="btn-app-primary">
+                        💾 Zapisz Konto Systemowe
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Słownik Odbiorców Raportów -->
+    <div class="app-card">
+        <div class="app-card-header">
+            <h5 class="app-card-title">
+                👥 Słownik Odbiorców Raportów Produkcyjnych
+            </h5>
+            <span class="badge bg-light text-dark border px-3 py-2" style="border-radius: 8px;">
+                Łącznie: {{ all_recipients|length if all_recipients else 0 }} odbiorców
+            </span>
+        </div>
+        <div class="app-card-body">
+            <!-- Formularz dodawania nowego odbiorcy -->
+            <div class="p-4 mb-4 rounded-3 border" style="background: #f8fafc; border: 1.5px solid #e2e8f0 !important;">
+                <div class="fw-bold text-dark mb-3" style="font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.2rem;">➕</span> Dodaj nowego odbiorcę do słownika:
+                </div>
+                <form id="addRecipientForm" onsubmit="addRecipient(event)" class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-group-label">Imię i Nazwisko / Rola <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="recip_nazwa" class="custom-input" placeholder="np. Jan Nowak - Kierownik Zmiany" required>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-group-label">Adres e-mail <span class="text-danger">*</span></label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">✉️</span>
+                            <input type="email" id="recip_email" class="custom-input" placeholder="np. j.nowak@agronetzwerk.com" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" id="addRecipBtn" class="btn-app-primary w-100 justify-content-center" style="height: 48px; padding: 0 16px;">
+                            ➕ Dodaj
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tabela odbiorców -->
+            <div class="table-responsive">
+                <table class="recipients-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Nazwa / Odbiorca</th>
+                            <th>Adres E-mail</th>
+                            <th>Grupa</th>
+                            <th style="text-align: right; width: 120px;">Akcja</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recipientsTableBody">
+                        {% if all_recipients %}
+                            {% for r in all_recipients %}
+                            <tr id="recip-row-{{ r.id }}">
+                                <td class="text-muted fw-bold">{{ loop.index }}</td>
+                                <td><strong>{{ r.nazwa }}</strong></td>
+                                <td><code style="color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 6px;">{{ r.email }}</code></td>
+                                <td><span class="badge bg-secondary" style="border-radius: 6px;">{{ r.grupa or 'Produkcja' }}</span></td>
+                                <td style="text-align: right;">
+                                    <button type="button" onclick="deleteRecipient({{ r.id }})" class="btn btn-sm btn-outline-danger" style="border-radius: 8px;" title="Usuń ze słownika">
+                                        🗑️ Usuń
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr id="noRecipientsRow">
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    Brak zdefiniowanych odbiorców w słowniku. Dodaj pierwszego odbiorcę powyżej.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aplikacyjny: Potwierdzenie Akcji (Zero okien systemowych) -->
+<div id="appModalOverlay" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 99999; align-items: center; justify-content: center;">
+    <div class="modal-card" style="background: #ffffff; border-radius: 18px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; border: 1px solid #e2e8f0; animation: modalPop 0.2s ease-out;">
+        <div style="padding: 18px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <div id="appModalTitle" style="font-weight: 800; color: #0f172a; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                ❓ Potwierdzenie
+            </div>
+            <button type="button" onclick="closeAppModal(false)" style="background: none; border: none; font-size: 22px; color: #64748b; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <div id="appModalMessage" style="padding: 24px; color: #334155; font-size: 0.95rem; line-height: 1.5;">
+            Czy na pewno chcesz wykonać tę operację?
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" id="appModalCancelBtn" onclick="closeAppModal(false)" class="btn-app-secondary" style="padding: 9px 18px; font-size: 0.9rem;">
+                Anuluj
+            </button>
+            <button type="button" id="appModalConfirmBtn" onclick="closeAppModal(true)" class="btn-app-primary" style="padding: 9px 20px; font-size: 0.9rem;">
+                Potwierdź
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const systemData = {
+    server: {{ system_config.smtp_server|tojson }},
+    port: {{ system_config.smtp_port|tojson }},
+    security: {{ system_config.smtp_security|tojson }},
+    username: {{ system_config.smtp_username|tojson }},
+    password: {{ system_config.smtp_password|tojson }},
+    sender_name: {{ (system_config.sender_name or '')|tojson }}
+};
+
+const userData = {
+    server: {{ (user_email_cfg.smtp_server if user_email_cfg else '')|tojson }},
+    port: {{ (user_email_cfg.smtp_port if user_email_cfg else 465)|tojson }},
+    security: {{ (user_email_cfg.smtp_security if user_email_cfg else 'SSL')|tojson }},
+    username: {{ (user_email_cfg.smtp_username if user_email_cfg else '')|tojson }},
+    password: {{ (user_email_cfg.smtp_password if user_email_cfg else '')|tojson }},
+    sender_name: {{ (user_email_cfg.sender_name if user_email_cfg and user_email_cfg.sender_name else '')|tojson }}
+};
+
+let currentScope = 'system';
+
+function switchAccountScope(scope) {
+    currentScope = scope;
+    const saveBtn = document.getElementById('saveBtn');
+    const data = (scope === 'system') ? systemData : userData;
+
+    document.getElementById('smtp_server').value = data.server || '';
+    document.getElementById('smtp_port').value = data.port || 465;
+    document.getElementById('smtp_security').value = data.security || 'SSL';
+    document.getElementById('smtp_username').value = data.username || '';
+    document.getElementById('smtp_password').value = data.password || '';
+    document.getElementById('sender_name').value = data.sender_name || '';
+
+    if (scope === 'system') {
+        saveBtn.innerHTML = '💾 Zapisz Konto Systemowe';
+    } else {
+        saveBtn.innerHTML = '💾 Zapisz Moje Konto Lidera';
+    }
+}
+
+let appModalResolver = null;
+
+function showAppConfirm(title, message, isDanger = false, confirmText = 'Potwierdź') {
+    return new Promise((resolve) => {
+        appModalResolver = resolve;
+        document.getElementById('appModalTitle').innerHTML = (isDanger ? '⚠️ ' : '❓ ') + title;
+        document.getElementById('appModalMessage').innerHTML = message;
+        const confirmBtn = document.getElementById('appModalConfirmBtn');
+        confirmBtn.innerHTML = confirmText;
+        if (isDanger) {
+            confirmBtn.className = 'btn-app-danger';
+        } else {
+            confirmBtn.className = 'btn-app-primary';
+        }
+        document.getElementById('appModalOverlay').style.display = 'flex';
+    });
+}
+
+function closeAppModal(result) {
+    document.getElementById('appModalOverlay').style.display = 'none';
+    if (appModalResolver) {
+        appModalResolver(result);
+        appModalResolver = null;
+    }
+}
+
+function showAppMessage(message, type = 'info') {
+    if (typeof showToast === 'function') {
+        showToast(message, type);
+    } else {
+        const box = document.getElementById('testResultBox');
+        if (box) {
+            box.className = `alert alert-${type === 'error' || type === 'danger' ? 'danger' : 'success'} mt-4 shadow-sm`;
+            box.style.borderRadius = '12px';
+            box.innerHTML = message;
+            box.style.display = 'block';
+        }
+    }
+}
+
+function togglePasswordVisibility() {
+    const pwdInput = document.getElementById('smtp_password');
+    pwdInput.type = pwdInput.type === 'password' ? 'text' : 'password';
+}
+
+function applyPreset(provider) {
+    const serverInput = document.getElementById('smtp_server');
+    const portInput = document.getElementById('smtp_port');
+    const secSelect = document.getElementById('smtp_security');
+
+    if (provider === 'wp') {
+        serverInput.value = 'smtp.wp.pl';
+        portInput.value = 465;
+        secSelect.value = 'SSL';
+    } else if (provider === 'onet') {
+        serverInput.value = 'smtp.poczta.onet.pl';
+        portInput.value = 465;
+        secSelect.value = 'SSL';
+    } else if (provider === 'gmail') {
+        serverInput.value = 'smtp.gmail.com';
+        portInput.value = 465;
+        secSelect.value = 'SSL';
+    } else if (provider === 'outlook') {
+        serverInput.value = 'smtp.office365.com';
+        portInput.value = 587;
+        secSelect.value = 'TLS';
+    } else if (provider === 'custom') {
+        serverInput.value = '';
+        portInput.value = 465;
+        secSelect.value = 'SSL';
+        serverInput.focus();
+    }
+}
+
+async function testEmailConnection() {
+    const testBtn = document.getElementById('testBtn');
+    const resultBox = document.getElementById('testResultBox');
+    
+    const smtp_server = document.getElementById('smtp_server').value.trim();
+    const smtp_port = document.getElementById('smtp_port').value;
+    const smtp_security = document.getElementById('smtp_security').value;
+    const smtp_username = document.getElementById('smtp_username').value.trim();
+    const smtp_password = document.getElementById('smtp_password').value.trim();
+
+    if (!smtp_username || !smtp_password) {
+        resultBox.className = 'alert alert-danger mt-4 shadow-sm';
+        resultBox.style.borderRadius = '12px';
+        resultBox.innerHTML = '<strong>⚠️ Błąd:</strong> Wprowadź login oraz hasło e-mail przed wykonaniem testu.';
+        resultBox.style.display = 'block';
+        return;
+    }
+
+    testBtn.disabled = true;
+    testBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Łączenie z serwerem SMTP...';
+    resultBox.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/email/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ smtp_server, smtp_port, smtp_security, smtp_username, smtp_password })
+        });
+        const res = await response.json();
+
+        resultBox.style.display = 'block';
+        if (res.success) {
+            resultBox.className = 'alert alert-success mt-4 shadow-sm';
+            resultBox.style.borderRadius = '12px';
+            resultBox.innerHTML = `<strong>✅ Sukces:</strong> ${res.message}`;
+        } else {
+            resultBox.className = 'alert alert-danger mt-4 shadow-sm';
+            resultBox.style.borderRadius = '12px';
+            resultBox.innerHTML = `<strong>❌ Błąd testu SMTP:</strong> ${res.message}`;
+        }
+    } catch (e) {
+        resultBox.style.display = 'block';
+        resultBox.className = 'alert alert-danger mt-4 shadow-sm';
+        resultBox.style.borderRadius = '12px';
+        resultBox.innerHTML = `<strong>❌ Błąd komunikacji z serwerem:</strong> ${e.message}`;
+    } finally {
+        testBtn.disabled = false;
+        testBtn.innerHTML = '🧪 Testuj Połączenie';
+    }
+}
+
+async function saveEmailConfig(e) {
+    e.preventDefault();
+    const saveBtn = document.getElementById('saveBtn');
+    const resultBox = document.getElementById('testResultBox');
+
+    const smtp_server = document.getElementById('smtp_server').value.trim();
+    const smtp_port = document.getElementById('smtp_port').value;
+    const smtp_security = document.getElementById('smtp_security').value;
+    const smtp_username = document.getElementById('smtp_username').value.trim();
+    const smtp_password = document.getElementById('smtp_password').value.trim();
+    const sender_name = document.getElementById('sender_name').value.trim();
+    const is_system = (currentScope === 'system');
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Zapisywanie...';
+    resultBox.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/email/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                smtp_server,
+                smtp_port,
+                smtp_security,
+                smtp_username,
+                smtp_password,
+                sender_name,
+                is_system
+            })
+        });
+        const res = await response.json();
+
+        resultBox.style.display = 'block';
+        if (res.success) {
+            resultBox.className = 'alert alert-success mt-4 shadow-sm';
+            resultBox.style.borderRadius = '12px';
+            resultBox.innerHTML = `<strong>✅ Sukces:</strong> ${res.message}`;
+            setTimeout(() => { window.location.reload(); }, 1000);
+        } else {
+            resultBox.className = 'alert alert-danger mt-4 shadow-sm';
+            resultBox.style.borderRadius = '12px';
+            resultBox.innerHTML = `<strong>❌ Błąd:</strong> ${res.message}`;
+        }
+    } catch (e) {
+        resultBox.style.display = 'block';
+        resultBox.className = 'alert alert-danger mt-4 shadow-sm';
+        resultBox.style.borderRadius = '12px';
+        resultBox.innerHTML = `<strong>❌ Błąd zapisu:</strong> ${e.message}`;
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = is_system ? '💾 Zapisz Konto Systemowe' : '💾 Zapisz Moje Konto Lidera';
+    }
+}
+
+async function resetSystemAccountConfig() {
+    const confirmed = await showAppConfirm(
+        "Przywracanie konta systemowego",
+        "Czy na pewno chcesz przywrócić domyślne parametry systemowego konta WP.pl?",
+        false,
+        "🔄 Przywróć WP.pl"
+    );
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch('/api/email/config/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_system: true })
+        });
+        const res = await response.json();
+        if (res.success) {
+            showAppMessage("Przywrócono domyślne konto systemowe.", "success");
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAppMessage("Błąd: " + res.message, "danger");
+        }
+    } catch (e) {
+        showAppMessage("Błąd połączenia: " + e.message, "danger");
+    }
+}
+
+async function clearUserAccountConfig() {
+    const confirmed = await showAppConfirm(
+        "Usuwanie konfiguracji e-mail",
+        "Czy na pewno chcesz usunąć zapisane dane swojego indywidualnego konta pocztowego SMTP?",
+        true,
+        "🗑️ Usuń dane konta"
+    );
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch('/api/email/config/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_system: false })
+        });
+        const res = await response.json();
+        if (res.success) {
+            showAppMessage("Indywidualna konfiguracja konta e-mail została usunięta.", "success");
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAppMessage("Błąd: " + res.message, "danger");
+        }
+    } catch (e) {
+        showAppMessage("Błąd połączenia: " + e.message, "danger");
+    }
+}
+
+async function addRecipient(e) {
+    e.preventDefault();
+    const nazwa = document.getElementById('recip_nazwa').value.trim();
+    const email = document.getElementById('recip_email').value.trim();
+    const btn = document.getElementById('addRecipBtn');
+
+    if (!nazwa || !email) {
+        showAppMessage("Uzupełnij nazwę i adres e-mail.", "danger");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Dodawanie...';
+    try {
+        const response = await fetch('/api/email/recipient/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nazwa, email, grupa: 'Produkcja' })
+        });
+        const res = await response.json();
+        if (res.success) {
+            showAppMessage("Dodano nowego odbiorcę.", "success");
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showAppMessage("Błąd: " + res.message, "danger");
+        }
+    } catch (e) {
+        showAppMessage("Błąd połączenia: " + e.message, "danger");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '➕ Dodaj';
+    }
+}
+
+async function deleteRecipient(id) {
+    const confirmed = await showAppConfirm(
+        "Usuwanie odbiorcy",
+        "Czy na pewno chcesz usunąć tego odbiorcę ze słownika raportów?",
+        true,
+        "🗑️ Usuń odbiorcę"
+    );
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch('/api/email/recipient/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        const res = await response.json();
+        if (res.success) {
+            const row = document.getElementById(`recip-row-${id}`);
+            if (row) {
+                row.style.transition = 'all 0.3s ease';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+            }
+            showAppMessage("Odbiorca został pomyślnie usunięty.", "success");
+        } else {
+            showAppMessage("Błąd: " + res.message, "danger");
+        }
+    } catch (e) {
+        showAppMessage("Błąd połączenia: " + e.message, "danger");
+    }
+}
+</script>
+{% endblock %}

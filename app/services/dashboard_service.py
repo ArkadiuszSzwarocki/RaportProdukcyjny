@@ -171,7 +171,7 @@ class DashboardService:
 
     @staticmethod
     def get_shift_notes(dzisiaj: date, linia='PSD', cursor=None) -> List[Dict]:
-        """Fetch notes from the end of shift report (Returns list for compatibility)."""
+        """Fetch notes for the given date and line from shift_notes table."""
         close_conn = False
         if cursor is None:
             try:
@@ -183,21 +183,42 @@ class DashboardService:
                 return []
         
         try:
-            cursor.execute("""
-                SELECT r.id, r.pracownik_id, r.data_raportu, r.lider_uwagi, p.imie_nazwisko, r.created_at 
-                FROM raporty_koncowe r
-                LEFT JOIN pracownicy p ON r.lider_id = p.id
-                WHERE r.data_raportu = %s AND r.linia = %s
-            """, (dzisiaj, linia))
+            from app.db import get_table_name
+            table_notes = get_table_name('shift_notes', linia)
+            # Sprawdź czy tabela istnieje lub użyj domyślnej
+            try:
+                cursor.execute(f"""
+                    SELECT id, pracownik_id, note, author, date, created, COALESCE(linia, '{linia}') 
+                    FROM {table_notes}
+                    WHERE (date = %s OR DATE(created) = %s) AND (linia = %s OR linia IS NULL OR %s = 'ALL')
+                    ORDER BY created ASC, id ASC
+                """, (dzisiaj, dzisiaj, linia, linia))
+            except Exception:
+                # Fallback do głównej tabeli shift_notes
+                cursor.execute("""
+                    SELECT id, pracownik_id, note, author, date, created, COALESCE(linia, 'PSD') 
+                    FROM shift_notes
+                    WHERE (date = %s OR DATE(created) = %s) AND (linia = %s OR linia IS NULL OR %s = 'ALL')
+                    ORDER BY created ASC, id ASC
+                """, (dzisiaj, dzisiaj, linia, linia))
+
             rows = cursor.fetchall()
             res = [{
-                'id': r[0], 'pracownik_id': r[1], 'data_raportu': r[2], 
-                'uwagi': r[3], 'user_login': r[4], 'timestamp': r[5]
+                'id': r[0],
+                'pracownik_id': r[1],
+                'note': r[2],
+                'uwagi': r[2],
+                'author': r[3] or 'Lider',
+                'user_login': r[3] or 'Lider',
+                'date': str(r[4] if r[4] else (r[5].date() if r[5] else dzisiaj)),
+                'created': str(r[5]) if r[5] else '',
+                'timestamp': str(r[5]) if r[5] else '',
+                'linia': r[6]
             } for r in rows]
             
             if close_conn: conn.close()
             return res
-        except Exception:
+        except Exception as e:
             if close_conn:
                 try: conn.close()
                 except Exception: pass

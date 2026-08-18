@@ -1,0 +1,202 @@
+{# Reusable Hamburger Dropdown Menu for Dashboard Quick Actions with Gray Backdrop #}
+<div id="dashboardActionsDropdownContainer" class="position-relative d-inline-block" style="z-index: 999995;">
+    <!-- Button AKCJE -->
+    <button class="btn btn-dark px-3 py-2 fw-bold" 
+            type="button" 
+            id="dashboardActionsDropdownBtn" 
+            onclick="window.toggleDashboardActionsDropdown(event)"
+            style="border-radius: 10px; background: #1e293b; border: 1px solid #334155; color: #ffffff; display: inline-flex; align-items: center; justify-content: flex-start; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2); font-size: 0.92rem; cursor: pointer; outline: none; position: relative; z-index: 999998;">
+        <span style="pointer-events: none; font-weight: 800; text-align: left;">AKCJE</span>
+    </button>
+    
+    <!-- Fullscreen Gray Backdrop Overlay -->
+    <div id="dashboardActionsBackdrop" 
+         onclick="window.closeDashboardActionsDropdown(event)"
+         style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); z-index: 999990; cursor: pointer;">
+    </div>
+
+    <!-- Actions Window (Positioned directly under the button) -->
+    <div id="dashboardActionsDropdownMenu"
+         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; min-width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 999999 !important; text-align: left;">
+        
+        <!-- Header with Close Button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 10px 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 6px; text-align: left;">
+            <span style="font-size: 0.8rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Szybkie Akcje</span>
+            <button type="button" onclick="window.closeDashboardActionsDropdown(event)" style="border: none; background: transparent; font-size: 18px; color: #94a3b8; cursor: pointer; line-height: 1; padding: 0 4px;">&times;</button>
+        </div>
+
+        <!-- Receptura -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerRecepturaFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 700; color: #1e293b;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Receptura / Składniki
+            </button>
+        </div>
+
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+        <!-- Surowce w produkcji -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerSurowceFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 700; color: #1e293b;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Surowce w produkcji
+            </button>
+        </div>
+        {% endif %}
+        
+        <!-- Zgłoś Przestój -->
+        <div style="margin: 0; padding: 0;">
+            <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
+               style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #dc2626; font-weight: 700; box-sizing: border-box;"
+               onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                Zgłoś Przestój ({{ sekcja }})
+            </a>
+        </div>
+
+        {% if sekcja == 'Zasyp' %}
+        <!-- Kalkulator Zapotrzebowania -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerCalculatorFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 600; color: #334155;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Kalkulator Zapotrzebowania
+            </button>
+        </div>
+        {% endif %}
+
+        {% if agro_focus_mode %}
+        <!-- Pokaż ukryte zlecenia -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerFocusFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 600; color: #334155;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Pokaż ukryte zlecenia
+            </button>
+        </div>
+        {% endif %}
+
+        <div style="margin: 6px 0; border-top: 1px solid #f1f5f9;"></div>
+
+        <!-- Czyszczenie Magnesu -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerMagnetFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 600; color: #334155;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Zgłoś czyszczenie magnesu
+            </button>
+        </div>
+
+        <!-- Czyszczenie Separatora -->
+        <div style="margin: 0; padding: 0;">
+            <button type="button" 
+                    onclick="window.triggerSeparatorFromMenu(event)" 
+                    style="width: 100%; text-align: left; border: none; background: transparent; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; cursor: pointer; display: block; font-weight: 600; color: #334155;"
+                    onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                Zgłoś czyszczenie separatora
+            </button>
+        </div>
+
+        {% if session.get('rola') in ['lider', 'admin', 'masteradmin', 'zarzad'] %}
+        <div style="margin: 6px 0; border-top: 1px solid #f1f5f9;"></div>
+        <!-- Zakończ Zmianę & Wyślij Raport E-mail -->
+        <div style="margin: 0; padding: 0;">
+            <a href="{{ url_for('main.raport_zakoncz_zmiane_page', linia=linia) }}"
+               style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #16a34a; font-weight: 800; box-sizing: border-box;"
+               onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                🏁 Zakończ zmianę & Wyślij e-mail
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+window.toggleDashboardActionsDropdown = function(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    var menu = document.getElementById('dashboardActionsDropdownMenu');
+    var backdrop = document.getElementById('dashboardActionsBackdrop');
+    if (menu && backdrop) {
+        var isVisible = (menu.style.display === 'block');
+        if (isVisible) {
+            menu.style.display = 'none';
+            backdrop.style.display = 'none';
+        } else {
+            menu.style.display = 'block';
+            backdrop.style.display = 'block';
+        }
+    }
+};
+
+window.closeDashboardActionsDropdown = function(e) {
+    if (e) { e.stopPropagation(); }
+    var menu = document.getElementById('dashboardActionsDropdownMenu');
+    var backdrop = document.getElementById('dashboardActionsBackdrop');
+    if (menu) { menu.style.display = 'none'; }
+    if (backdrop) { backdrop.style.display = 'none'; }
+};
+
+window.triggerRecepturaFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    var activeCard = document.querySelector('.card.status-wtoku') || document.querySelector('[data-plan-id]');
+    if (activeCard) {
+        var planId = activeCard.getAttribute('data-plan-id') || '';
+        var produkt = activeCard.getAttribute('data-produkt') || activeCard.getAttribute('data-product') || '';
+        var nrReceptury = activeCard.getAttribute('data-nr-receptury') || '';
+        if (typeof window.openRecepturaModal === 'function') {
+            window.openRecepturaModal(planId, produkt, nrReceptury);
+            return;
+        }
+    }
+    var recepturaBtn = document.querySelector('[onclick*="openRecepturaModal"]');
+    if (recepturaBtn) {
+        recepturaBtn.click();
+    } else if (typeof window.openRecepturaModal === 'function') {
+        window.openRecepturaModal('', 'Wybrane zlecenie', '');
+    } else {
+        alert('Receptura jest dostępna dla zlecenia produkcyjnego.');
+    }
+};
+
+window.triggerSurowceFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    if (typeof openSurowceWProdukcjiModal === 'function') {
+        openSurowceWProdukcjiModal();
+    } else {
+        alert('Modal surowców w produkcji jest niedostępny na tym widoku.');
+    }
+};
+
+window.triggerCalculatorFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    if (typeof window.openZasypCalculatorModal === 'function') {
+        window.openZasypCalculatorModal();
+    }
+};
+
+window.triggerFocusFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    if (typeof window.toggleFocusPlan === 'function') {
+        window.toggleFocusPlan(e.target);
+    }
+};
+
+window.triggerMagnetFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    if (typeof promptAdhocCleaning === 'function') {
+        promptAdhocCleaning();
+    }
+};
+
+window.triggerSeparatorFromMenu = function(e) {
+    window.closeDashboardActionsDropdown(e);
+    if (typeof promptAdhocSeparatorCleaning === 'function') {
+        promptAdhocSeparatorCleaning();
+    }
+};
+</script>

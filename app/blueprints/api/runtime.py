@@ -120,21 +120,35 @@ def register_api_runtime_routes(api_bp):
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             table_notes = get_table_name('shift_notes', linia)
-            query = f'SELECT id, note, author, created FROM {table_notes} WHERE DATE(created) = %s ORDER BY created DESC'
-            cursor.execute(query, (data_obj,))
-            shift_notes = cursor.fetchall()
+            try:
+                query = f'SELECT id, note, author, created, date FROM {table_notes} WHERE (date = %s OR DATE(created) = %s) AND (linia = %s OR linia IS NULL) ORDER BY created DESC'
+                cursor.execute(query, (data_obj, data_obj, linia))
+                shift_notes = cursor.fetchall()
+            except Exception:
+                query = 'SELECT id, note, author, created, date FROM shift_notes WHERE (date = %s OR DATE(created) = %s) AND (linia = %s OR linia IS NULL) ORDER BY created DESC'
+                cursor.execute(query, (data_obj, data_obj, linia))
+                shift_notes = cursor.fetchall()
             cursor.close()
             conn.close()
 
+            current_user = session.get('login') or ''
+            current_name = session.get('imie_nazwisko') or ''
+            current_role = str(session.get('rola') or '').lower()
+            is_admin = current_role in ['admin', 'masteradmin']
+
             formatted_notes = []
             for note in shift_notes:
+                d_str = str(note['date']) if note.get('date') else (note['created'].strftime('%Y-%m-%d') if note.get('created') else data_str)
+                author = note.get('author') or 'Lider'
+                can_manage = is_admin or (current_role == 'lider' and (author == current_user or author == current_name))
                 formatted_notes.append(
                     {
                         'id': note['id'],
                         'note': note['note'],
-                        'author': note['author'],
-                        'date': note['created'].strftime('%Y-%m-%d'),
-                        'time': note['created'].strftime('%H:%M:%S') if note['created'] else '',
+                        'author': author,
+                        'date': d_str,
+                        'time': note['created'].strftime('%H:%M:%S') if note.get('created') else '',
+                        'can_manage': can_manage
                     }
                 )
 

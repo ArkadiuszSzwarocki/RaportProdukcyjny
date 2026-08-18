@@ -1,143 +1,419 @@
 {% extends 'layout.html' %}
-{% block title %}{% if is_edit %}Edycja Przestoju #{{ przestoj.id }}{% else %}Zgłaszanie Przestoju — {{ linia }} {{ sekcja }}{% endif %}{% endblock %}
+{% block title %}{% if is_edit %}Edycja Przestoju #{{ przestoj.id }}{% else %}Zgłoszenie Przestoju — {{ linia }} / {{ sekcja }}{% endif %}{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4 px-md-5" style="max-width: 1300px;">
-    <!-- Top Back Header -->
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+<div style="padding: 20px 24px; box-sizing: border-box;">
+
+    <!-- Header -->
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px;">
         <div>
-            <h1 class="fw-bold m-0 text-dark" style="font-size: 2.2rem; display: flex; align-items: center; gap: 14px; letter-spacing: -0.02em;">
-                <span style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 16px; font-size: 28px;">{% if is_edit %}✏️{% else %}⚠️{% endif %}</span>
+            <h2 style="margin: 0; color: #0f172a; display: flex; align-items: center; gap: 12px; font-size: 1.55rem; font-weight: 800;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-radius: 12px; font-size: 22px; flex-shrink: 0;">
+                    {% if is_edit %}✏️{% else %}⚠️{% endif %}
+                </span>
                 {% if is_edit %}Edycja Wpisu Przestoju (#{{ przestoj.id }}){% else %}Zgłoszenie Przestoju Produkcyjnego{% endif %}
-            </h1>
-            <p class="text-muted mb-0 mt-2" style="font-size: 1.1rem;">
-                Rejestracja przestoju maszyny / linii dla sekcji <strong class="text-dark">{{ sekcja }}</strong> (Linia: <strong class="text-dark">{{ linia }}</strong>)
+            </h2>
+            <p style="margin: 8px 0 0 0; color: #64748b; font-size: 0.95rem;">
+                Rejestracja przestoju maszyny / linii dla sekcji <strong style="color: #0f172a;">{{ sekcja }}</strong> — Linia: <strong style="color: #0f172a;">{{ linia }}</strong>
             </p>
         </div>
-        <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}" class="btn btn-outline-secondary btn-lg px-4 py-3" style="border-radius: 12px; font-weight: 700; font-size: 1.05rem;">
-            📋 LISTA PRZESTOJÓW
+        <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+           style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #334155; font-weight: 600; font-size: 0.92rem; text-decoration: none; white-space: nowrap;">
+            ← Lista Przestojów
         </a>
     </div>
 
-    <!-- Main Card Form -->
-    <div class="card shadow-lg border-0" style="border-radius: 20px; background: #ffffff; overflow: hidden; border: 1px solid #cbd5e1 !important;">
-        <div class="card-header bg-white py-4 px-4 px-md-5" style="border-bottom: 2px solid #f1f5f9;">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                <span class="badge" style="background: #fee2e2; color: #991b1b; padding: 10px 20px; border-radius: 30px; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.03em;">
-                    SEKCJA: {{ sekcja|upper }} ({{ linia }})
-                </span>
-                <span class="text-muted fw-bold" style="font-size: 1rem;">{% if is_edit %}Wprowadź zmiany i kliknij Zapisz{% else %}Uzupełnij poniższy formularz i kliknij Zapisz{% endif %}</span>
-            </div>
+    <!-- Main Form Card -->
+    <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 24px rgba(15, 23, 42, 0.07); overflow: hidden;">
+        <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9;">
+            <h5 style="margin: 0; font-size: 1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                📋 Dane Przestoju
+            </h5>
         </div>
-
-        <div class="card-body p-4 p-md-5">
-            <form action="{% if is_edit %}{{ url_for('production.edytuj_przestoj_page', id=przestoj.id) }}{% else %}{{ url_for('production.zglos_przestoj_page') }}{% endif %}" method="POST" id="przestojForm">
+        <div style="padding: 24px;">
+            <form action="{% if is_edit %}{{ url_for('production.edytuj_przestoj_page', id=przestoj.id) }}{% else %}{{ url_for('production.zglos_przestoj_page') }}{% endif %}" method="POST" enctype="multipart/form-data" id="przestojForm">
                 <input type="hidden" name="linia" value="{{ linia }}">
                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
 
-                {% if wybrane_zlecenie %}
-                <!-- Connected Order Box (Large) -->
-                <div class="mb-5 p-4" style="background: #f8fafc; border: 2px solid #cbd5e1; border-left: 8px solid #ef4444; border-radius: 16px;">
-                    <div class="small text-muted fw-bold" style="font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase;">ZLECENIE PODPIĘTE:</div>
-                    <div class="fw-extrabold text-dark fs-3 mt-1" style="color: #0f172a !important;">
-                        {{ wybrane_zlecenie.produkt }} <span class="text-danger">({{ wybrane_zlecenie.tonaz }} kg)</span>
+                {% if aktywne_zlecenie %}
+                <!-- Active Order Auto-Detected Banner -->
+                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; border-left: 5px solid #22c55e; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 14px;">
+                    <span style="font-size: 24px; flex-shrink: 0;">🟢</span>
+                    <div>
+                        <div style="font-size: 0.72rem; font-weight: 800; color: #16a34a; text-transform: uppercase; letter-spacing: 0.06em;">Wykryto aktywne zlecenie (W TOKU)</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: #0f172a; margin-top: 4px;">
+                            {{ aktywne_zlecenie.produkt }}
+                            <span style="display: inline-block; background: #22c55e; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 8px;">{{ aktywne_zlecenie.tonaz }} kg</span>
+                        </div>
                     </div>
-                    <input type="hidden" name="plan_id" value="{{ wybrane_zlecenie.id }}">
-                </div>
-                {% elif plany %}
-                <!-- Select Order Dropdown (Large) -->
-                <div class="mb-5">
-                    <label for="plan_id" class="form-label fw-bold text-dark fs-5 mb-2">Podepnij do zlecenia (opcjonalnie):</label>
-                    <select name="plan_id" id="plan_id" class="form-select style-large-input fs-5" style="border-radius: 14px; height: 60px; padding: 12px 20px;">
-                        <option value="">-- Brak podpięcia / Przestój ogólny --</option>
-                        {% for p in plany %}
-                        <option value="{{ p.id }}" {% if (is_edit and przestoj.plan_id == p.id) or (plan_id == p.id) %}selected{% endif %}>
-                            {{ p.produkt }} (Plan: {{ p.tonaz }} kg | Status: {{ p.status|upper }})
-                        </option>
-                        {% endfor %}
-                    </select>
                 </div>
                 {% endif %}
 
-                <!-- Date & Times Grid (Large) -->
-                <div class="row g-4 mb-4">
-                    <div class="col-md-4">
-                        <label for="data_przestoju" class="form-label fw-bold text-dark fs-5 mb-2">Data przestoju <span class="text-danger">*</span></label>
-                        <input type="date" name="data_przestoju" id="data_przestoju" class="form-control style-large-input fs-4" value="{{ dzisiaj }}" required style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="godzina_start" class="form-label fw-bold text-dark fs-5 mb-2">Godzina od <span class="text-danger">*</span></label>
-                        <input type="time" name="godzina_start" id="godzina_start" class="form-control style-large-input fs-4" value="{{ teraz_hm }}" required style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;" onchange="calcDuration()">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="godzina_stop" class="form-label fw-bold text-dark fs-5 mb-2">Godzina do (opcjonalnie)</label>
-                        <input type="time" name="godzina_stop" id="godzina_stop" class="form-control style-large-input fs-4" value="{% if is_edit and przestoj.godzina_stop %}{{ przestoj.godzina_stop }}{% endif %}" style="border-radius: 14px; height: 62px; padding: 12px 18px; font-weight: 700;" onchange="calcDuration()">
-                    </div>
+                <!-- Podepnij do zlecenia — always visible -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                        Podepnij do zlecenia
+                        {% if aktywne_zlecenie %}<span style="font-weight: 500; color: #16a34a; font-size: 0.82rem;">(auto-wykryte)</span>{% endif %}
+                    </label>
+                    <select name="plan_id" style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #f8fafc; box-sizing: border-box;">
+                        <option value="">-- Brak podpięcia / Przestój ogólny --</option>
+                        {% for p in plany %}
+                        <option value="{{ p.id }}" {% if wybrane_zlecenie and wybrane_zlecenie.id == p.id %}selected{% elif is_edit and przestoj.plan_id == p.id %}selected{% endif %}>
+                            {{ p.produkt }} ({{ p.tonaz }} kg | {{ p.status|upper }}){% if aktywne_zlecenie and aktywne_zlecenie.id == p.id %} ← AKTYWNE{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if not plany %}
+                    <p style="margin: 6px 0 0 2px; font-size: 0.82rem; color: #94a3b8;">Brak dostępnych zleceń dla sekcji {{ sekcja }}.</p>
+                    {% endif %}
                 </div>
 
-                <!-- Duration & Category Row (Large) -->
-                <div class="row g-4 mb-5">
-                    <div class="col-md-4">
-                        <label for="czas_trwania_min" class="form-label fw-bold text-dark fs-5 mb-2">Czas trwania (minuty)</label>
-                        <div class="input-group input-group-lg">
-                            <input type="number" name="czas_trwania_min" id="czas_trwania_min" class="form-control style-large-input fs-4" min="1" placeholder="np. 30" value="{% if is_edit and przestoj.czas_trwania_min %}{{ przestoj.czas_trwania_min }}{% endif %}" style="border-radius: 14px 0 0 14px; height: 62px; padding: 12px 18px; font-weight: 700;">
-                            <span class="input-group-text bg-light text-secondary fs-5 fw-bold px-4" style="border-radius: 0 14px 14px 0; border: 2px solid #cbd5e1; border-left: none;">MIN</span>
+                <!-- Row 1: Data, Godzina od, Godzina do, Czas trwania -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label for="data_przestoju" style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                            Data przestoju <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="date" name="data_przestoju" id="data_przestoju"
+                               value="{{ dzisiaj }}" required
+                               style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #fff; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label for="godzina_start" style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                            Godzina od <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="time" name="godzina_start" id="godzina_start"
+                               value="{{ teraz_hm }}" required
+                               onchange="calcDuration()"
+                               style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #fff; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label for="godzina_stop" style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                            Godzina do
+                        </label>
+                        <input type="time" name="godzina_stop" id="godzina_stop"
+                               value="{% if is_edit and przestoj.godzina_stop %}{{ przestoj.godzina_stop }}{% endif %}"
+                               onchange="calcDuration()"
+                               style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #fff; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                            Czas trwania
+                        </label>
+                        <div style="display: flex; align-items: center; border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; background: #f1f5f9;">
+                            <input type="number" name="czas_trwania_min" id="czas_trwania_min"
+                                   readonly tabindex="-1"
+                                   value="{% if is_edit and przestoj.czas_trwania_min %}{{ przestoj.czas_trwania_min }}{% endif %}"
+                                   style="flex: 1; padding: 10px 12px; border: none; outline: none; font-size: 1.05rem; font-weight: 700; color: #0f172a; background: transparent; box-sizing: border-box; min-width: 0; cursor: default;">
+                            <span style="padding: 10px 14px; background: #e2e8f0; color: #64748b; font-size: 0.8rem; font-weight: 700; border-left: 1.5px solid #cbd5e1; white-space: nowrap;">MIN</span>
+                        </div>
+                        <div id="durationLiveHint" style="margin-top: 4px; font-size: 0.78rem; color: #22c55e; font-weight: 600; display: none;">
+                            ⏱️ <span id="durationLiveText">trwa...</span>
                         </div>
                     </div>
-                    <div class="col-md-8">
-                        <label for="kategoria" class="form-label fw-bold text-dark fs-5 mb-2">Kategoria / Powód <span class="text-danger">*</span></label>
-                        <select name="kategoria" id="kategoria" class="form-select style-large-input fs-5 fw-bold" required style="border-radius: 14px; height: 62px; padding: 12px 20px;">
-                            {% for kat in kategorie %}
-                            <option value="{{ kat }}" {% if is_edit and przestoj.kategoria == kat %}selected{% endif %}>{{ kat }}</option>
-                            {% endfor %}
-                        </select>
+                </div>
+
+                <!-- Kategoria -->
+                <div style="margin-bottom: 16px;">
+                    <label for="kategoria" style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                        Kategoria / Powód przestoju <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="kategoria" id="kategoria" required
+                            style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #fff; box-sizing: border-box;">
+                        {% for kat in kategorie %}
+                        <option value="{{ kat }}" {% if is_edit and przestoj.kategoria == kat %}selected{% endif %}>{{ kat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Opis / Przyczyna -->
+                <div style="margin-bottom: 20px;">
+                    <label for="opis" style="display: block; margin-bottom: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                        Szczegółowy opis / Przyczyna przestoju
+                    </label>
+                    <textarea name="opis" id="opis" rows="4"
+                              placeholder="Opisz dokładnie, co wywołało przestój (np. awaria silnika podajnika, uszkodzenie zgrzewarki, brak surowca, oczekiwanie na serwis...)"
+                              style="width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.95rem; color: #0f172a; background: #fff; box-sizing: border-box; resize: vertical; line-height: 1.6; font-family: inherit;">{% if is_edit and przestoj.opis %}{{ przestoj.opis }}{% endif %}</textarea>
+                    <p style="margin: 6px 0 0 2px; font-size: 0.82rem; color: #94a3b8;">
+                        💡 Precyzyjny opis usprawni analizę i działania serwisowe.
+                    </p>
+                </div>
+
+                <!-- Zdjęcie / Dokumentacja fotograficzna -->
+                <div style="margin-bottom: 24px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+                        📸 Zdjęcie / Dokumentacja (opcjonalnie)
+                    </label>
+
+                    <!-- Hidden inputs for file/camera and base64/removal -->
+                    <input type="file" id="zdjecie_file" name="zdjecie_file" accept="image/*" style="display: none;" onchange="handleFileSelected(this)">
+                    <input type="file" id="zdjecie_camera" name="zdjecie_camera" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelected(this)">
+                    <input type="hidden" name="zdjecie_base64" id="zdjecie_base64" value="">
+                    <input type="hidden" name="remove_zdjecie" id="remove_zdjecie" value="0">
+
+                    <!-- Drop / Paste / Action Zone -->
+                    <div id="dropZone"
+                         tabindex="0"
+                         style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; background: #f8fafc; text-align: center; transition: all 0.2s ease; outline: none; cursor: pointer;"
+                         onclick="if(event.target.tagName !== 'BUTTON' && event.target.tagName !== 'A') document.getElementById('zdjecie_file').click();"
+                         ondragover="event.preventDefault(); this.style.borderColor='#3b82f6'; this.style.background='#eff6ff';"
+                         ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';"
+                         ondrop="handleDrop(event)">
+
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                            <!-- Przycisk Ze Schowka / Screen -->
+                            <button type="button"
+                                    onclick="event.stopPropagation(); pasteFromClipboard();"
+                                    style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 700; font-size: 0.88rem; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                                📋 Wklej Screen (Ctrl+V)
+                            </button>
+
+                            <!-- Przycisk Z Dysku -->
+                            <button type="button"
+                                    onclick="event.stopPropagation(); document.getElementById('zdjecie_file').click();"
+                                    style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-weight: 700; font-size: 0.88rem; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                                📁 Wybierz z dysku
+                            </button>
+
+                            <!-- Przycisk Z Aparatu -->
+                            <button type="button"
+                                    onclick="event.stopPropagation(); document.getElementById('zdjecie_camera').click();"
+                                    style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 8px; color: #1d4ed8; font-weight: 700; font-size: 0.88rem; cursor: pointer; box-shadow: 0 1px 3px rgba(37,99,235,0.08);">
+                                📷 Zrób zdjęcie (Aparat)
+                            </button>
+                        </div>
+
+                        <p style="margin: 0; font-size: 0.84rem; color: #64748b;">
+                            Możesz też wcisnąć <kbd style="background:#e2e8f0; color:#334155; padding:2px 6px; border-radius:4px; font-weight:700;">Ctrl+V</kbd> w dowolnym miejscu lub przeciągnąć plik z komputera.
+                        </p>
+                    </div>
+
+                    <!-- Photo Preview Box -->
+                    <div id="photoPreviewBox"
+                         style="margin-top: 14px; display: {% if is_edit and przestoj.zdjecie_url %}flex{% else %}none{% endif %}; align-items: center; gap: 16px; padding: 14px 18px; background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <img id="photoPreviewImg"
+                             src="{% if is_edit and przestoj.zdjecie_url %}{{ przestoj.zdjecie_url }}{% endif %}"
+                             alt="Podgląd zdjęcia"
+                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1; cursor: pointer;"
+                             onclick="openLightbox(this.src)">
+                        <div style="flex: 1; min-width: 0;">
+                            <div id="photoPreviewName" style="font-weight: 700; color: #0f172a; font-size: 0.92rem; word-break: break-all;">
+                                {% if is_edit and przestoj.zdjecie_url %}Załączone zdjęcie przestoju{% else %}Wybrane zdjęcie{% endif %}
+                            </div>
+                            <div id="photoPreviewInfo" style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                                Kliknij miniaturkę, aby powiększyć
+                            </div>
+                        </div>
+                        <button type="button"
+                                onclick="removeCurrentPhoto()"
+                                style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; color: #b91c1c; font-weight: 700; font-size: 0.82rem; cursor: pointer;">
+                            ❌ Usuń
+                        </button>
                     </div>
                 </div>
 
-                <!-- Description Textarea (Large) -->
-                <div class="mb-5">
-                    <label for="opis" class="form-label fw-bold text-dark fs-5 mb-2">Szczegółowy opis / Przyczyna przestoju:</label>
-                    <textarea name="opis" id="opis" rows="5" class="form-control style-large-input fs-5" placeholder="Opisz dokładnie, co wywołało przestój (np. wymiana zgrzewarki, awaria taśmociągu, oczekiwanie na etykiety...)" style="border-radius: 16px; padding: 18px 20px; line-height: 1.5;">{% if is_edit and przestoj.opis %}{{ przestoj.opis }}{% endif %}</textarea>
-                </div>
-
-                <!-- Form Action Buttons (Large) -->
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 pt-4 border-top">
-                    <a href="{{ request.referrer or url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}" class="btn btn-outline-secondary btn-lg px-5 py-3" style="border-radius: 14px; font-weight: 700; font-size: 1.15rem; min-width: 180px;">
+                <!-- Action Buttons -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
+                    <a href="{{ request.referrer or url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+                       style="display: inline-flex; align-items: center; padding: 12px 24px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #475569; font-weight: 700; font-size: 0.95rem; text-decoration: none; cursor: pointer;">
                         Anuluj
                     </a>
-                    <button type="submit" class="btn btn-danger btn-lg px-5 py-3 shadow-lg" style="border-radius: 14px; font-weight: 800; font-size: 1.25rem; background: linear-gradient(135deg, #ef4444, #b91c1c); border: none; min-width: 320px; height: 64px;">
-                        {% if is_edit %}💾 ZAPISZ ZMIANY W PRZESTOJU{% else %}💾 ZAPISZ ZGŁOSZENIE PRZESTOJU{% endif %}
+                    <button type="submit"
+                            style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 32px; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+                        💾 {% if is_edit %}Zapisz Zmiany{% else %}Zapisz Zgłoszenie Przestoju{% endif %}
                     </button>
                 </div>
+
             </form>
         </div>
+    </div>
+
+</div>
+
+<!-- Lightbox Modal for Full Size Photo Preview -->
+<div id="lightboxOverlay"
+     style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 99999; display: none; align-items: center; justify-content: center; padding: 20px;"
+     onclick="closeLightbox()">
+    <div style="position: relative; max-width: 90vw; max-height: 90vh;" onclick="event.stopPropagation()">
+        <button type="button"
+                onclick="closeLightbox()"
+                style="position: absolute; top: -14px; right: -14px; width: 34px; height: 34px; background: #ef4444; color: #fff; border: 2px solid #fff; border-radius: 50%; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            ✕
+        </button>
+        <img id="lightboxImg" src="" alt="Pełny podgląd" style="max-width: 90vw; max-height: 85vh; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); object-fit: contain;">
     </div>
 </div>
 
 <script>
+var _liveTimer = null;
+
 function calcDuration() {
-    const startVal = document.getElementById('godzina_start').value;
-    const stopVal = document.getElementById('godzina_stop').value;
-    const durationInput = document.getElementById('czas_trwania_min');
-    
-    if (startVal && stopVal) {
-        const [h1, m1] = startVal.split(':').map(Number);
-        const [h2, m2] = stopVal.split(':').map(Number);
-        let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-        if (diff < 0) diff += 24 * 60; // overnight
-        durationInput.value = diff;
+    var s = document.getElementById('godzina_start').value;
+    var e = document.getElementById('godzina_stop').value;
+    var d = document.getElementById('czas_trwania_min');
+    var hint = document.getElementById('durationLiveHint');
+    var hintText = document.getElementById('durationLiveText');
+
+    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+
+    if (s && e) {
+        var parts1 = s.split(':').map(Number);
+        var parts2 = e.split(':').map(Number);
+        var diff = (parts2[0] * 60 + parts2[1]) - (parts1[0] * 60 + parts1[1]);
+        if (diff < 0) diff += 1440;
+        d.value = diff;
+        hint.style.display = 'none';
+    } else if (s && !e) {
+        hint.style.display = 'block';
+        function updateLive() {
+            var now = new Date();
+            var parts = s.split(':').map(Number);
+            var startMin = parts[0] * 60 + parts[1];
+            var nowMin = now.getHours() * 60 + now.getMinutes();
+            var elapsed = nowMin - startMin;
+            if (elapsed < 0) elapsed += 1440;
+            d.value = elapsed;
+            var h = Math.floor(elapsed / 60);
+            var m = elapsed % 60;
+            hintText.textContent = (h > 0 ? h + 'h ' : '') + m + 'min (trwa...)';
+        }
+        updateLive();
+        _liveTimer = setInterval(updateLive, 15000);
+    } else {
+        d.value = '';
+        hint.style.display = 'none';
     }
 }
-</script>
 
-<style>
-.style-large-input {
-    border: 2px solid #cbd5e1 !important;
-    transition: all 0.2s ease-in-out;
+// ----------------------------------------------------
+// PHOTO HANDLING: CLIPBOARD / SCREEN / DISK / CAMERA
+// ----------------------------------------------------
+
+function setPhotoPreview(src, name, info) {
+    var box = document.getElementById('photoPreviewBox');
+    var img = document.getElementById('photoPreviewImg');
+    var nameEl = document.getElementById('photoPreviewName');
+    var infoEl = document.getElementById('photoPreviewInfo');
+    var removeInput = document.getElementById('remove_zdjecie');
+
+    img.src = src;
+    nameEl.textContent = name || 'Załączone zdjęcie';
+    infoEl.textContent = info || 'Gotowe do zapisania';
+    box.style.display = 'flex';
+    if (removeInput) removeInput.value = '0';
 }
-.style-large-input:focus {
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18) !important;
+
+function removeCurrentPhoto() {
+    var box = document.getElementById('photoPreviewBox');
+    var img = document.getElementById('photoPreviewImg');
+    var fileInput = document.getElementById('zdjecie_file');
+    var cameraInput = document.getElementById('zdjecie_camera');
+    var base64Input = document.getElementById('zdjecie_base64');
+    var removeInput = document.getElementById('remove_zdjecie');
+
+    img.src = '';
+    fileInput.value = '';
+    cameraInput.value = '';
+    base64Input.value = '';
+    if (removeInput) removeInput.value = '1';
+    box.style.display = 'none';
 }
-</style>
+
+function handleFileSelected(input) {
+    if (input.files && input.files[0]) {
+        var file = input.files[0];
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var sizeKb = Math.round(file.size / 1024);
+            document.getElementById('zdjecie_base64').value = '';
+            setPhotoPreview(e.target.result, file.name, 'Plik: ' + sizeKb + ' KB');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    var dropZone = document.getElementById('dropZone');
+    dropZone.style.borderColor = '#cbd5e1';
+    dropZone.style.background = '#f8fafc';
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        var file = e.dataTransfer.files[0];
+        if (file.type.startsWith('image/')) {
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                var sizeKb = Math.round(file.size / 1024);
+                document.getElementById('zdjecie_base64').value = ev.target.result;
+                setPhotoPreview(ev.target.result, file.name, 'Upuszczony plik: ' + sizeKb + ' KB');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+}
+
+async function pasteFromClipboard() {
+    try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+                for (const type of item.types) {
+                    if (type.startsWith('image/')) {
+                        const blob = await item.getType(type);
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            document.getElementById('zdjecie_base64').value = e.target.result;
+                            setPhotoPreview(e.target.result, 'Zrzut ekranu ze schowka', 'Rozmiar: ' + Math.round(blob.size/1024) + ' KB');
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+            }
+            alert('W schowku nie ma obrazu. Zrób zrzut ekranu (np. Win+Shift+S lub PrintScreen) i spróbuj ponownie.');
+        } else {
+            alert('Wciśnij klawisze Ctrl+V, aby wkleić zrzut ekranu.');
+        }
+    } catch(err) {
+        alert('Aby wkleić zrzut ekranu, użyj skrótu klawiszowego Ctrl+V na tej stronie.');
+    }
+}
+
+// Global Ctrl+V paste listener
+document.addEventListener('paste', function(e) {
+    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (var index in items) {
+        var item = items[index];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            var blob = item.getAsFile();
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                document.getElementById('zdjecie_base64').value = event.target.result;
+                setPhotoPreview(event.target.result, 'Zrzut ekranu (Ctrl+V)', 'Wklejono: ' + Math.round(blob.size/1024) + ' KB');
+            };
+            reader.readAsDataURL(blob);
+            e.preventDefault();
+            break;
+        }
+    }
+});
+
+// Lightbox modal helpers
+function openLightbox(src) {
+    if (!src) return;
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightboxOverlay').style.display = 'flex';
+}
+
+function closeLightbox() {
+    document.getElementById('lightboxOverlay').style.display = 'none';
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+});
+
+// Auto-calculate on page load
+document.addEventListener('DOMContentLoaded', function() { calcDuration(); });
+</script>
 {% endblock %}

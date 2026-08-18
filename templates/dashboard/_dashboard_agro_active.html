@@ -42,8 +42,9 @@
     {% endfor %}
 
     {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+    {% set fb_downtime = (przestoje_mapa.get(fb_pid) if przestoje_mapa is defined and przestoje_mapa else None) %}
     
-    {% if (fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']) or fb_kstats %}
+    {% if (fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']) or fb_kstats or (fb_downtime and fb_downtime.count > 0) %}
     <div class="active-order-floating-bar-wrap {% if rola|string|trim|lower in ['laborant', 'laboratorium'] and sekcja == 'Zasyp' %}d-none-mobile-lab{% endif %}">
         <div class="active-order-floating-bar">
             <div class="active-order-status-inline">
@@ -53,6 +54,25 @@
                 {% endif %}
             </div>
             <div class="agro-kgph-inline">
+                {% set fb_downtime = (przestoje_mapa.get(fb_pid) if przestoje_mapa is defined and przestoje_mapa else None) %}
+                {% if fb_downtime and fb_downtime.total_min > 0 %}
+                    {% set dt_h = fb_downtime.total_min // 60 %}
+                    {% set dt_m = fb_downtime.total_min % 60 %}
+                    <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+                       class="agro-kgph-pill"
+                       style="background: #fef2f2; border-color: #fecaca; color: #dc2626; text-decoration: none; font-weight: 800;"
+                       title="Suma przestojów dla aktywnego zlecenia (kliknij, aby otworzyć rejestr)">
+                        ⚠️ Przestoje: {% if dt_h > 0 %}{{ dt_h }}h {% endif %}{{ dt_m }} min{% if fb_downtime.count > 1 %} ({{ fb_downtime.count }}){% endif %}
+                    </a>
+                {% elif fb_downtime and fb_downtime.count > 0 %}
+                    <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+                       class="agro-kgph-pill"
+                       style="background: #fef2f2; border-color: #fecaca; color: #dc2626; text-decoration: none; font-weight: 800;"
+                       title="Zgłoszono przestój w toku">
+                        ⚠️ Przestój w toku ({{ fb_downtime.count }})
+                    </a>
+                {% endif %}
+
                 {% if fb_kstats %}
                 <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
                     data-kind="real" data-plan-id="{{ fb_pid }}"

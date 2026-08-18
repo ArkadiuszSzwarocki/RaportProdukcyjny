@@ -1,41 +1,173 @@
-<div class="dashboard-header">
-  <div class="top-submenu" style="padding: 0; box-shadow: none; margin-top: 15px;">
+<div class="dashboard-header" style="max-width: 100%; width: 100%; box-sizing: border-box; overflow: visible; margin-bottom: 20px;">
+  <div class="top-submenu" style="padding: 0; box-shadow: none; margin-top: 6px; width: 100%; max-width: 100%; box-sizing: border-box;">
     <div class="top-submenu-inner"
-      style="margin-left: 0; display: flex; justify-content: space-between; align-items: center; width: 100%;">
-      <nav class="top-menu" style="margin: 0;">
+      style="margin-left: 0 !important; padding-left: 0 !important; padding-right: 0 !important; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 100%; flex-wrap: wrap; gap: 12px; box-sizing: border-box;">
+      
+      <!-- Left Submenu Links -->
+      <nav class="top-menu" style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
         <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
-          href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}" data-slide>
-          <span class="material-icons">people</span> {{ _('obsada') }}
+          href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}" data-slide
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
+          <span class="material-icons" style="font-size: 18px; color: #2563eb;">people</span> {{ _('obsada') }}
         </a>
+
         <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_wnioski_page') }}" data-slide> <span
-            class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+          href="{{ url_for('panels.panel_wnioski_page') }}" data-slide
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
+          <span class="material-icons" style="font-size: 18px; color: #16a34a;">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}
+        </a>
+
         <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_planowane_page') }}" data-slide> <span
-            class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+          href="{{ url_for('panels.panel_planowane_page') }}" data-slide
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
+          <span class="material-icons" style="font-size: 18px; color: #d97706;">beach_access</span> {{ _('planowane_urlopy') }}
+        </a>
+
         <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide> <span
-            class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+          href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
+          <span class="material-icons" style="font-size: 18px; color: #0284c7;">calendar_today</span> {{ _('nieobecnosci') }}
+        </a>
       </nav>
 
-      {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] %}
-      <div class="end-shift-wrapper-top" style="margin-left: auto;">
-        <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
-          id="endShiftForm" style="display: flex; gap: 10px; align-items: center;">
-          <input type="hidden" name="linia" value="{{ linia }}">
-          <label for="raport_date_picker" style="font-size: 0.85rem; color: #64748b; white-space: nowrap;">📅 Data:</label>
+      <!-- Right Shift Close & Email Controls -->
+      {% if session.get('rola') in ['lider', 'admin', 'masteradmin', 'zarzad'] %}
+      <div class="end-shift-wrapper-top" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; box-sizing: border-box;">
+        <div style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; padding: 5px 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+          <label for="raport_date_picker" style="font-size: 0.82rem; font-weight: 700; color: #475569; white-space: nowrap; margin: 0;">📅 Data:</label>
           <input type="date" id="raport_date_picker" name="data"
-            style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: #f8fafc; color: #1e293b; cursor: pointer;">
+            style="border: none; outline: none; font-size: 0.88rem; font-weight: 700; background: transparent; color: #0f172a; cursor: pointer; padding: 2px 4px; font-family: inherit;">
           <script>document.getElementById('raport_date_picker').value = new Date().toISOString().slice(0, 10);</script>
-          <button type="submit" class="btn-action btn-success btn-end-shift-large" style="white-space: nowrap;">
-            🏁 {{ _('zakonczy_zmiane_i_pobierz_raporty') }}
-          </button>
-          <button type="button" class="btn-action btn-info btn-send-email btn-end-shift-large" id="btnSendEmailReport"
-            style="white-space: nowrap;">
-            📧 {{ _('wyslij_raport_mailem') }}
-          </button>
-        </form>
+        </div>
+        
+        <!-- Auto-Report Schedule Button -->
+        <button type="button"
+                id="autoReportScheduleBtn"
+                onclick="window.openAutoReportScheduleModal('{{ linia }}')"
+                class="btn-action"
+                style="background: #ffffff; color: #1e40af; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 0.88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: all 0.15s ease;">
+          <span style="font-size: 16px;">⏰</span> <span id="autoReportScheduleLabel">Auto: 15:00</span>
+        </button>
+
+        <button type="button"
+                onclick="window.previewReportPdf('{{ linia }}')"
+                class="btn-action"
+                style="background: #ffffff; color: #0f172a; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 16px; font-weight: 700; font-size: 0.88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.15s ease;">
+          <span style="font-size: 16px;">📄</span> Podgląd PDF
+        </button>
+
+        <button type="button"
+                onclick="window.goToCloseShiftEmailPage('{{ linia }}')"
+                class="btn-action"
+                style="background: linear-gradient(135deg, #16a34a, #15803d); color: #ffffff; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 800; font-size: 0.88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3); transition: transform 0.15s ease;">
+          <span>🏁</span> Zakończ zmianę (E-mail)
+        </button>
       </div>
+
+      {% include "dashboard/_auto_report_modal.html" %}
+
+      <script>
+      window.previewReportPdf = function(linia) {
+          var dateInput = document.getElementById('raport_date_picker');
+          var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
+          window.location.href = '/raport/podglad_pdf?linia=' + encodeURIComponent(linia || 'AGRO') + '&data=' + encodeURIComponent(d);
+      };
+
+      window.goToCloseShiftEmailPage = function(linia) {
+          var dateInput = document.getElementById('raport_date_picker');
+          var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
+          window.location.href = '/raport/zakoncz_zmiane?linia=' + encodeURIComponent(linia || 'AGRO') + '&data=' + encodeURIComponent(d);
+      };
+
+      window.openAutoReportScheduleModal = function(linia) {
+          var modal = document.getElementById('autoReportScheduleModal');
+          if (modal) {
+              modal.style.display = 'flex';
+              window.refreshAutoReportStatus(linia);
+          }
+      };
+
+      window.closeAutoReportScheduleModal = function() {
+          var modal = document.getElementById('autoReportScheduleModal');
+          if (modal) modal.style.display = 'none';
+      };
+
+      window.refreshAutoReportStatus = function(linia) {
+          var dateInput = document.getElementById('raport_date_picker');
+          var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
+          fetch('/api/auto_raport/status?linia=' + encodeURIComponent(linia || 'AGRO') + '&data=' + encodeURIComponent(d))
+              .then(function(res){ return res.json(); })
+              .then(function(data){
+                  if (data && data.schedule) {
+                      var sched = data.schedule;
+                      var label = document.getElementById('autoReportScheduleLabel');
+                      var timeEl = document.getElementById('autoReportCurrentTime');
+                      var subEl = document.getElementById('autoReportSubNote');
+                      var customTimeInput = document.getElementById('autoReportCustomTime');
+                      
+                      if (sched.is_paused) {
+                          if (label) label.innerText = 'Auto: Wstrzymany';
+                          if (timeEl) timeEl.innerText = 'Wstrzymany (wysyłka ręczna)';
+                          if (subEl) subEl.innerText = 'Raport zostanie wysłany wyłącznie ręcznie przez lidera.';
+                      } else {
+                          var t = sched.scheduled_time || '15:00';
+                          if (label) label.innerText = 'Auto: ' + t;
+                          if (timeEl) timeEl.innerText = t + (sched.is_custom ? ' (odłożony)' : '');
+                          if (subEl) subEl.innerText = sched.is_custom ? 'Czas wysyłki został przesunięty.' : 'Raport I zmiany wysyła się automatycznie do zdefiniowanych odbiorców.';
+                          if (customTimeInput) customTimeInput.value = t;
+                      }
+                  }
+              })
+              .catch(function(err){ console.warn('Błąd pobierania statusu auto-raportu:', err); });
+      };
+
+      window.submitPostponeReport = function(params) {
+          var dateInput = document.getElementById('raport_date_picker');
+          var d = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+          var curLinia = '{{ linia }}';
+          if (!curLinia || curLinia === 'None' || curLinia === 'ALL') {
+              curLinia = (window.CURRENT_LINIA && window.CURRENT_LINIA !== 'None') ? window.CURRENT_LINIA : 'AGRO';
+          }
+          params.linia = params.linia || curLinia;
+          params.data = params.data || d;
+
+          fetch('/api/auto_raport/odloz', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(params)
+          })
+          .then(function(res){ return res.json(); })
+          .then(function(data){
+              if (data && data.success) {
+                  window.refreshAutoReportStatus(params.linia);
+                  window.closeAutoReportScheduleModal();
+                  if (window.showToast) {
+                      window.showToast(data.message, 'success');
+                  } else {
+                      alert('✅ ' + data.message);
+                  }
+              } else {
+                  alert('❌ ' + (data.message || 'Wystąpił błąd'));
+              }
+          })
+          .catch(function(err){ alert('Błąd sieci: ' + err); });
+      };
+
+      window.submitCustomTimeReport = function() {
+          var input = document.getElementById('autoReportCustomTime');
+          var val = input ? input.value : '';
+          if (!val) {
+              alert('Proszę podać prawidłową godzinę.');
+              return;
+          }
+          window.submitPostponeReport({new_time: val});
+      };
+
+      // Inicjalne załadowanie statusu po starcie
+      document.addEventListener('DOMContentLoaded', function(){
+          window.refreshAutoReportStatus('{{ linia }}');
+      });
+      </script>
       {% endif %}
     </div>
   </div>

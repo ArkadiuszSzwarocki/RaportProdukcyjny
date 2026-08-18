@@ -24,8 +24,8 @@
             {% endif %}
             {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
-                <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty (kg):</strong>
-                <input type="number" step="0.1" class="odrzuty-input form-control form-control-sm text-danger fw-bold" style="width: 70px; padding: 2px 4px; height: 26px; border-color: #dc3545;" data-plan-id="{{ p[0] }}" data-linia="{{ linia }}" value="{{ p[15]|default(0, true) }}" min="0" {% if is_readonly %}readonly{% endif %}>
+                <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty:</strong>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-weight: 800; font-size: 0.85rem; border-radius: 6px;">{{ p[15]|default(0, true) }} kg</span>
             </div>
             {% endif %}
         </div>
@@ -45,13 +45,11 @@
 
         <div class="header-actions" style="display: flex; align-items: center; gap: 8px; margin: 0;">
             {% set role_lc = rola|string|trim|lower %}
-            {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+            {% if sekcja in ['Workowanie', 'Zasyp'] and linia == 'AGRO' %}
             <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja=sekcja) }}"
-               class="btn-stop-icon"
-               style="background: #dc2626; color: white; text-decoration: none; font-size: 14px;"
-               title="Zgłoś przestój maszyny / workowania">⚠️ Przestój</a>
+               style="background: #dc2626; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border: none; box-shadow: 0 2px 5px rgba(220,38,38,0.25); white-space: nowrap; line-height: 1.2;"
+               title="Zgłoś przestój maszyny / {{ sekcja|lower }}">⚠️ Przestój</a>
             {% endif %}
-            <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
             {% if p[3] == 'zaplanowane' and not is_readonly %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
@@ -177,6 +175,25 @@
         <div class="card-row"><strong>⏱️ Czas:</strong> {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
         {% endif %}
 
+        {% set plan_downtime = (przestoje_mapa.get(p[0]) if przestoje_mapa is defined and przestoje_mapa else None) %}
+        {% if plan_downtime and plan_downtime.total_min > 0 %}
+        {% set dt_h = plan_downtime.total_min // 60 %}
+        {% set dt_m = plan_downtime.total_min % 60 %}
+        <div class="card-row">
+            <strong class="text-danger">⚠️ Suma przestojów:</strong>
+            <span style="background:#fee2e2; color:#b91c1c; font-weight:700; border-radius:6px; padding:2px 8px; font-size:0.85em; display:inline-flex; align-items:center;">
+                {% if dt_h > 0 %}{{ dt_h }}h {% endif %}{{ dt_m }} min{% if plan_downtime.count > 1 %} ({{ plan_downtime.count }}){% endif %}
+            </span>
+        </div>
+        {% elif plan_downtime and plan_downtime.count > 0 %}
+        <div class="card-row">
+            <strong class="text-danger">⚠️ Przestoje:</strong>
+            <span style="background:#fee2e2; color:#b91c1c; font-weight:700; border-radius:6px; padding:2px 8px; font-size:0.85em; display:inline-flex; align-items:center;">
+                trwa... ({{ plan_downtime.count }})
+            </span>
+        </div>
+        {% endif %}
+
         {% if p[3] == 'w toku' and linia == 'AGRO' %}
         {# Machine metrics moved to a separate panel on the right side #}
         {% endif %}
@@ -194,11 +211,6 @@
                             data-action="edit-workowanie-production-date"
                             data-plan-id="{{ p[0] }}"
                             title="Zmien date produkcji dla zlecenia Workowanie">DATA PROD</button>
-
-                    <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja=sekcja) }}"
-                       class="btn-action"
-                       style="background: #dc2626; color: white; font-weight: 700;"
-                       title="Zgłoś przestój maszyny / workowania">⚠️ PRZESTÓJ</a>
                             
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}

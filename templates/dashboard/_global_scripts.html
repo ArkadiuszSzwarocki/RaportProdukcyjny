@@ -27,36 +27,66 @@
 
   // Obsługa edycji i usuwania notatek
   document.addEventListener('click', function (e) {
-    if (e.target.classList.contains('note-delete-btn')) {
-      const id = e.target.getAttribute('data-id');
-      AppDialog.confirm('Czy na pewno chcesz usunąć tę notatkę?').then(ok => {
+    const delBtn = e.target.closest('.note-delete-btn');
+    if (delBtn) {
+      const id = delBtn.getAttribute('data-id');
+      const confirmPromise = (window.AppDialog && typeof window.AppDialog.confirm === 'function')
+        ? window.AppDialog.confirm('Czy na pewno chcesz usunąć tę notatkę?')
+        : Promise.resolve(window.confirm('Czy na pewno chcesz usunąć tę notatkę?'));
+
+      confirmPromise.then(ok => {
         if (ok) {
           const form = document.createElement('form');
           form.method = 'POST';
           form.action = `/api/shift_note/${id}/delete`;
+          
+          const liniaInput = document.createElement('input');
+          liniaInput.type = 'hidden';
+          liniaInput.name = 'linia';
+          liniaInput.value = '{{ linia }}' || 'AGRO';
+          form.appendChild(liniaInput);
+
           document.body.appendChild(form);
           form.submit();
         }
       });
+      return;
     }
-    if (e.target.classList.contains('note-edit-btn')) {
-      const id = e.target.getAttribute('data-id');
-      const noteCard = e.target.closest('.note-card');
-      const noteText = noteCard.querySelector('.note-text').innerText;
-      AppDialog.prompt('Edytuj notatkę:', noteText).then(newText => {
-        if (newText !== null && newText.trim() !== '') {
+
+    const editBtn = e.target.closest('.note-edit-btn');
+    if (editBtn) {
+      const id = editBtn.getAttribute('data-id');
+      const noteCard = editBtn.closest('.note-card');
+      const textEl = noteCard ? noteCard.querySelector('.note-text') : null;
+      const currentText = textEl ? textEl.innerText.trim() : '';
+
+      const promptPromise = (window.AppDialog && typeof window.AppDialog.prompt === 'function')
+        ? window.AppDialog.prompt('Edytuj treść notatki:', currentText)
+        : Promise.resolve(window.prompt('Edytuj treść notatki:', currentText));
+
+      promptPromise.then(newText => {
+        if (newText !== null && newText !== undefined && newText.trim() !== '') {
           const form = document.createElement('form');
           form.method = 'POST';
           form.action = `/api/shift_note/${id}/update`;
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = 'note';
-          input.value = newText;
-          form.appendChild(input);
+          
+          const inputNote = document.createElement('input');
+          inputNote.type = 'hidden';
+          inputNote.name = 'note';
+          inputNote.value = newText.trim();
+          form.appendChild(inputNote);
+
+          const liniaInput = document.createElement('input');
+          liniaInput.type = 'hidden';
+          liniaInput.name = 'linia';
+          liniaInput.value = '{{ linia }}' || 'AGRO';
+          form.appendChild(liniaInput);
+
           document.body.appendChild(form);
           form.submit();
         }
       });
+      return;
     }
   });
 </script>
@@ -253,25 +283,49 @@
           if (data.notes && data.notes.length > 0) {
             data.notes.forEach(note => {
               const noteCard = document.createElement('div');
-              noteCard.className = 'note-card';
-              noteCard.innerHTML = `
-              <div class="note-card-inner">
-                <div class="note-card-content">
-                  <div class="note-meta">
-                    <strong>📅 ${note.date}</strong> • <em>${note.author}</em> <span class="text-muted">${note.time}</span>
+              noteCard.style.cssText = 'background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); margin-bottom: 12px;';
+              
+              let actionButtons = '';
+              if (note.can_manage) {
+                actionButtons = `
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="note-edit-btn" data-id="${note.id}"
+                            style="padding: 3px 8px; font-size: 0.75rem; font-weight: 700; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; cursor: pointer;">
+                      ✏️ Edytuj
+                    </button>
+                    <button type="button" class="note-delete-btn" data-id="${note.id}"
+                            style="padding: 3px 8px; font-size: 0.75rem; font-weight: 700; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; color: #991b1b; cursor: pointer;">
+                      🗑️ Usuń
+                    </button>
                   </div>
-                  <div class="note-text">${note.note}</div>
+                `;
+              }
+
+              noteCard.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.78rem; font-weight: 800; color: #d97706; background: #fef3c7; padding: 2px 8px; border-radius: 6px;">
+                      📅 ${note.date}
+                    </span>
+                    <span style="font-size: 0.85rem; font-weight: 700; color: #0f172a;">
+                      👤 ${note.author}
+                    </span>
+                    ${note.time ? `<span style="font-size: 0.78rem; color: #64748b;">${note.time}</span>` : ''}
+                  </div>
+                  ${actionButtons}
                 </div>
-              </div>
-            `;
+                <div style="color: #334155; font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap;">
+                  ${note.note}
+                </div>
+              `;
               notesContainer.appendChild(noteCard);
             });
           } else {
-            notesContainer.innerHTML = '<p class="no-notes">{{ _("brak_notatek_wybranej_daty") }}</p>';
+            notesContainer.innerHTML = '<div style="padding: 18px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; font-size: 0.88rem; text-align: center;">Brak notatek dla wybranej daty.</div>';
           }
         })
         .catch(error => {
-          notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _("blad_ladowania") }}</div>';
+          notesContainer.innerHTML = '<div style="padding: 18px; color: #dc2626; font-size: 0.88rem; text-align: center;">Błąd ładowania notatek.</div>';
         });
     }
 

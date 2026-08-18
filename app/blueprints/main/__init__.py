@@ -150,6 +150,13 @@ def index():
         if aktywna_sekcja in ['dashboard', 'zasyp']:
             fefo_pallets = DashboardService.get_expiring_pallets(dzisiaj, aktywna_linia, days_threshold=30)
 
+        # Downtime summary map for orders
+        from app.repositories.downtime_repository import DowntimeRepository
+        downtime_repo = DowntimeRepository()
+        plan_dnia = main_h_data.get('plan_dnia', []) or []
+        plan_ids_all = [p[0] for p in plan_dnia if len(p) > 0 and p[0]]
+        przestoje_mapa = downtime_repo.get_downtime_summary_map(plan_ids_all)
+
         # Build final context
         context = {
             'halls_data': halls_data,
@@ -202,6 +209,7 @@ def index():
             'etapy_curr_szarza': zasyp_etapy_context['etapy_curr_szarza'],
             'etapy_sesje_mapa': zasyp_etapy_context['etapy_sesje_mapa'],
             'kgph_stats_mapa': zasyp_etapy_context['kgph_stats_mapa'],
+            'przestoje_mapa': przestoje_mapa,
             'agro_mix_mapa': agro_mix_mapa,
             'agro_mix_dostepne': agro_mix_dostepne,
             'fefo_pallets': fefo_pallets,

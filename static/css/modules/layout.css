@@ -1337,8 +1337,13 @@ button[type="submit"]:hover {
     }
     
     .top-submenu-inner {
-        margin-left: 280px !important;
+        margin-left: 0 !important;
         transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    .main-content .top-submenu-inner,
+    .dashboard-header .top-submenu-inner {
+        margin-left: 0 !important;
     }
 
     /* COLLAPSED STATE OVERRIDES */

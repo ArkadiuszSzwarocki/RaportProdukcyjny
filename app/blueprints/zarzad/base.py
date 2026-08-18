@@ -118,28 +118,185 @@ def dzien_szczegoly():
 @zarzad_bp.route('/raporty_okresowe')
 @dynamic_role_required('wyniki')
 def raporty_okresowe():
-    # Tu również można zastosować stats_service, aby odchudzić kod
+    import os
+    from flask import send_from_directory
+    from app.repositories.downtime_repository import DowntimeRepository
+    from app.db import get_table_name
+
     teraz = datetime.now()
     rok = request.args.get('rok', teraz.year, type=int)
     mc = request.args.get('miesiac', teraz.month, type=int)
-    linia = request.args.get('linia') or 'PSD'
-    
-    conn = get_db_connection()
-    from app.db import get_table_name
-    table_plan = get_table_name('plan_produkcji', linia)
-    cursor = conn.cursor()
-    # ... (oryginalne zapytania SQL lub przeniesione do serwisu) ...
-    # Dla skrócenia przykładu zostawiam jak jest, ale rekomenduję przeniesienie do services/stats_service.py
-    cursor.execute(f"SELECT MONTH(data_planu), COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)", (rok,))
-    trend = cursor.fetchall()
-    conn.close()
-    
-    labels = [['Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'][r[0]-1] for r in trend]
-    data = [float(r[1]) for r in trend]
-    
-    # Placeholder na pozostałe dane
-    stats = [0, 0, 0] 
-    awarie = []
+    linia = (request.args.get('linia') or 'AGRO').strip().upper()
+    if linia not in ['AGRO', 'PSD', 'ALL']:
+        linia = 'AGRO'
 
-    return render_template('raporty_okresowe.html', rok=rok, miesiac=mc, stats=stats, awarie=awarie, labels_rok=labels, data_rok=data)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # 1. Trend roczny
+    if linia == 'ALL':
+        t_agro = get_table_name('plan_produkcji', 'AGRO')
+        t_psd = get_table_name('plan_produkcji', 'PSD')
+        cursor.execute(f"""
+            SELECT m, SUM(tonaz) as suma FROM (
+                SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz
+                FROM {t_agro} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu)
+                UNION ALL
+                SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz
+                FROM {t_psd} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu)
+            ) as t GROUP BY m ORDER BY m
+        """, (rok, rok))
+    else:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor.execute(f"""
+            SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as suma
+            FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)
+        """, (rok,))
+    
+    trend_rows = cursor.fetchall() or []
+    trend_dict = {int(r['m']): float(r['suma'] or 0) for r in trend_rows}
+
+    months_pl = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
+    labels = months_pl
+    data = [trend_dict.get(i, 0.0) for i in range(1, 13)]
+
+    # 2. Statystyki wybranego miesiąca
+    if linia == 'ALL':
+        t_agro = get_table_name('plan_produkcji', 'AGRO')
+        t_psd = get_table_name('plan_produkcji', 'PSD')
+        cursor.execute(f"""
+            SELECT COUNT(1) as zlecenia_cnt, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz_sum
+            FROM (
+                SELECT tonaz_rzeczywisty, tonaz FROM {t_agro} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
+                UNION ALL
+                SELECT tonaz_rzeczywisty, tonaz FROM {t_psd} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
+            ) as m
+        """, (rok, mc, rok, mc))
+    else:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor.execute(f"""
+            SELECT COUNT(1) as zlecenia_cnt, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz_sum
+            FROM {table_plan} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
+        """, (rok, mc))
+    
+    month_stat = cursor.fetchone() or {'zlecenia_cnt': 0, 'tonaz_sum': 0}
+    stats = [
+        int(month_stat.get('zlecenia_cnt') or 0),
+        int(month_stat.get('tonaz_sum') or 0),
+        0 # Czas awarii obliczany poniżej
+    ]
+
+    # 3. Awarie w danym miesiącu
+    awarie = []
+    total_downtime_min = 0
+    try:
+        dt_repo = DowntimeRepository()
+        date_start = f"{rok}-{mc:02d}-01"
+        import calendar
+        last_day = calendar.monthrange(rok, mc)[1]
+        date_end = f"{rok}-{mc:02d}-{last_day:02d}"
+
+        raw_dts = []
+        if linia in ['AGRO', 'ALL']:
+            raw_dts.extend(dt_repo.get_downtimes('AGRO', date_start, date_end))
+        if linia in ['PSD', 'ALL']:
+            raw_dts.extend(dt_repo.get_downtimes('PSD', date_start, date_end))
+
+        # Agregacja awarii
+        aggr = {}
+        for d in raw_dts:
+            kat = d.get('kategoria') or d.get('sekcja') or 'Inne'
+            dur = int(d.get('czas_trwania_min') or 0)
+            total_downtime_min += dur
+            if kat not in aggr:
+                aggr[kat] = {'count': 0, 'duration': 0}
+            aggr[kat]['count'] += 1
+            aggr[kat]['duration'] += dur
+
+        for kat, vals in aggr.items():
+            awarie.append([kat, vals['count'], vals['duration']])
+    except Exception:
+        pass
+
+    stats[2] = total_downtime_min
+
+    # 4. Historia wysłanych raportów e-mail z tabeli auto_report_history
+    email_reports_history = []
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS auto_report_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                data_raportu DATE NOT NULL,
+                linia VARCHAR(20) NOT NULL,
+                typ_raportu VARCHAR(50) NOT NULL,
+                odbiorcy TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_rep (data_raportu, linia, typ_raportu)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """)
+        conn.commit()
+
+        q_hist = "SELECT * FROM auto_report_history"
+        params_hist = []
+        if linia != 'ALL':
+            q_hist += " WHERE linia = %s"
+            params_hist.append(linia)
+        q_hist += " ORDER BY created_at DESC LIMIT 50"
+
+        cursor.execute(q_hist, tuple(params_hist))
+        raw_hist = cursor.fetchall() or []
+
+        raporty_dir = 'raporty'
+        for h in raw_hist:
+            d_str = str(h.get('data_raportu') or '')
+            lin = h.get('linia') or 'AGRO'
+            pdf_name = f"Raport_{lin}_{d_str}.pdf"
+            xls_name = f"Raport_{lin}_{d_str}.xlsx"
+            pdf_exists = os.path.exists(os.path.join(raporty_dir, pdf_name))
+            xls_exists = os.path.exists(os.path.join(raporty_dir, xls_name))
+            
+            created_dt = h.get('created_at')
+            created_str = created_dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(created_dt, 'strftime') else str(created_dt)
+
+            email_reports_history.append({
+                'id': h.get('id'),
+                'data_raportu': d_str,
+                'linia': lin,
+                'typ_raportu': h.get('typ_raportu') or 'Zmianowy',
+                'odbiorcy': h.get('odbiorcy') or '-',
+                'created_at': created_str,
+                'pdf_filename': pdf_name if pdf_exists else None,
+                'xls_filename': xls_name if xls_exists else None
+            })
+    except Exception:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
+
+    return render_template(
+        'raporty_okresowe.html',
+        rok=rok,
+        miesiac=mc,
+        linia=linia,
+        stats=stats,
+        awarie=awarie,
+        labels_rok=labels,
+        data_rok=data,
+        email_reports_history=email_reports_history
+    )
+
+
+@zarzad_bp.route('/raporty/plik/<filename>')
+@dynamic_role_required('wyniki')
+def pobierz_plik_raportu(filename):
+    """Pobiera wygenerowany plik raportu PDF lub Excel z folderu raporty/."""
+    import os
+    from flask import send_from_directory, abort
+    safe_name = os.path.basename(filename)
+    raporty_dir = os.path.abspath('raporty')
+    file_path = os.path.join(raporty_dir, safe_name)
+    if not os.path.exists(file_path):
+        abort(404, description="Nie znaleziono pliku raportu.")
+    return send_from_directory(raporty_dir, safe_name, as_attachment=True)
 

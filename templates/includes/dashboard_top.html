@@ -1,8 +1,9 @@
 <div class="section-header" id="dashboard-config"
     data-current-role="{{ rola }}"
     data-linia="{{ linia or 'PSD' }}"
-    data-sekcja="{{ sekcja }}">
-    
+    data-sekcja="{{ sekcja }}"
+    style="overflow: visible !important; position: relative;">
+
     {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
     <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
         <div class="top-submenu-inner" style="margin-left: 0;">
@@ -26,7 +27,7 @@
     </div>
     {% endif %}
 
-    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
+    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20" style="overflow: visible !important; position: relative;">
         <div class="header-title-row d-flex align-center gap-10">
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <strong>{{ _(sekcja.lower()) if sekcja != 'Zasyp' else 'Zasyp ' ~ linia }}</strong>
@@ -70,12 +71,13 @@
                     <div id="current-date-display" class="day-date">{{ dzisiaj.strftime('%d.%m.%y') if dzisiaj else '' }}</div>
                 </div>
                 <button type="button" class="day-nav right" data-day-offset="{{ offset }}">▶</button>
-                <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
                 <button type="button" onclick="if(typeof openPrinterSettingsModal === 'function') { openPrinterSettingsModal(); } else { alert('Opcja wyboru drukarki jest niedostępna na tym widoku.'); }" style="background: none; border: none; cursor: pointer; padding: 0; display: inline-flex; align-items: center; outline: none;" title="Ustawienia Drukarki ZPL">
                     <span class="material-icons" style="font-size: 20px; color: #7f8c8d; margin-left: 10px; transition: color 0.2s;" onmouseover="this.style.color='#3498db'" onmouseout="this.style.color='#7f8c8d'">print</span>
                 </button>
             </div>
             {% endif %}
+
+            {% include 'dashboard/_dashboard_actions_dropdown.html' %}
         </div>
 
         <div class="d-flex align-center gap-12 header-stats">

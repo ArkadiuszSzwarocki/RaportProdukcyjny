@@ -1,7 +1,7 @@
-from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.db import get_active_database_name, get_runtime_switchable_databases, set_active_database_name
-from app.decorators import admin_required, dynamic_role_required, masteradmin_required
+from app.decorators import admin_required, dynamic_role_required, masteradmin_required, login_required
 
 
 def register_admin_system_routes(admin_bp, *, list_online_users):
@@ -451,6 +451,135 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         finally:
             conn.close()
         return render_template('ustawienia_drukarki.html', printers=printers)
+
+    @admin_bp.route('/admin/ustawienia/email')
+    @admin_bp.route('/moje_konto_email')
+    @login_required
+    def admin_ustawienia_email():
+        from app.services.email_service import EmailService
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        user_id = session.get('user_id')
+        repo = UserEmailSettingsRepository()
+        user_cfg = repo.get_by_user_id(user_id) if user_id else None
+        system_cfg = repo.get_system_config()
+        all_recipients = repo.get_all_recipients()
+        return render_template(
+            'ustawienia_email.html',
+            user_email_cfg=user_cfg,
+            system_config=system_cfg,
+            all_recipients=all_recipients
+        )
+
+    @admin_bp.route('/api/email/test', methods=['POST'])
+    @login_required
+    def api_email_test():
+        from app.services.email_service import EmailService
+        payload = request.get_json(silent=True) or request.form
+        smtp_server = payload.get('smtp_server')
+        smtp_port = payload.get('smtp_port')
+        smtp_security = payload.get('smtp_security')
+        smtp_username = payload.get('smtp_username')
+        smtp_password = payload.get('smtp_password')
+
+        email_svc = EmailService()
+        success, msg = email_svc.test_smtp_connection(
+            smtp_server=smtp_server,
+            smtp_port=int(smtp_port) if smtp_port else 465,
+            smtp_security=smtp_security or 'SSL',
+            smtp_username=smtp_username,
+            smtp_password=smtp_password
+        )
+        return jsonify({'success': success, 'message': msg})
+
+    @admin_bp.route('/api/email/config', methods=['POST'])
+    @login_required
+    def api_email_config_save():
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        user_id = session.get('user_id')
+        payload = request.get_json(silent=True) or request.form
+        smtp_server = payload.get('smtp_server')
+        smtp_port = payload.get('smtp_port')
+        smtp_security = payload.get('smtp_security')
+        smtp_username = payload.get('smtp_username')
+        smtp_password = payload.get('smtp_password')
+        sender_name = payload.get('sender_name')
+        domyslni_odbiorcy = payload.get('domyslni_odbiorcy')
+        is_system = bool(payload.get('is_system', False))
+
+        repo = UserEmailSettingsRepository()
+
+        if is_system or not user_id:
+            repo.save_system_config(
+                smtp_server=smtp_server,
+                smtp_port=int(smtp_port) if smtp_port else 465,
+                smtp_security=smtp_security or 'SSL',
+                smtp_username=smtp_username,
+                smtp_password=smtp_password,
+                sender_name=sender_name or 'Raport Produkcyjny AGRO'
+            )
+            return jsonify({'success': True, 'message': 'Główne konto systemowe/firmowe zostało zaktualizowane.'})
+
+        saved = repo.save_or_update(
+            user_id=user_id,
+            smtp_server=smtp_server,
+            smtp_port=int(smtp_port) if smtp_port else 465,
+            smtp_security=smtp_security or 'SSL',
+            smtp_username=smtp_username,
+            smtp_password=smtp_password,
+            sender_name=sender_name,
+            domyslni_odbiorcy=domyslni_odbiorcy
+        )
+        return jsonify({'success': True, 'message': 'Konfiguracja Twojego konta e-mail została pomyślnie zapisana.'})
+
+    @admin_bp.route('/api/email/config/reset', methods=['POST'])
+    @login_required
+    def api_email_config_reset():
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        payload = request.get_json(silent=True) or request.form
+        is_system = bool(payload.get('is_system', False))
+        user_id = session.get('user_id')
+
+        repo = UserEmailSettingsRepository()
+        if is_system:
+            repo.reset_system_config()
+            return jsonify({'success': True, 'message': 'Przywrócono domyślne parametry konta systemowego.'})
+
+        if user_id:
+            repo.delete_by_user_id(user_id)
+        return jsonify({'success': True, 'message': 'Wyczyszczono konfigurację Twojego konta.'})
+
+    @admin_bp.route('/api/email/recipient/add', methods=['POST'])
+    @login_required
+    def api_email_recipient_add():
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        payload = request.get_json(silent=True) or request.form
+        nazwa = (payload.get('nazwa') or '').strip()
+        email = (payload.get('email') or '').strip()
+        grupa = (payload.get('grupa') or 'Produkcja').strip()
+
+        if not nazwa or not email:
+            return jsonify({'success': False, 'message': 'Nazwa i adres e-mail są wymagane.'}), 400
+
+        repo = UserEmailSettingsRepository()
+        ok = repo.add_recipient(nazwa, email, grupa)
+        if ok:
+            return jsonify({'success': True, 'message': 'Odbiorca został dodany do słownika.', 'recipients': repo.get_all_recipients()})
+        return jsonify({'success': False, 'message': 'Nie udało się dodać odbiorcy.'}), 500
+
+    @admin_bp.route('/api/email/recipient/delete', methods=['POST'])
+    @login_required
+    def api_email_recipient_delete():
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        payload = request.get_json(silent=True) or request.form
+        recipient_id = payload.get('id')
+        if not recipient_id:
+            return jsonify({'success': False, 'message': 'Brak ID odbiorcy.'}), 400
+
+        repo = UserEmailSettingsRepository()
+        ok = repo.delete_recipient(int(recipient_id))
+        if ok:
+            return jsonify({'success': True, 'message': 'Odbiorca został usunięty.', 'recipients': repo.get_all_recipients()})
+        return jsonify({'success': False, 'message': 'Nie udało się usunąć odbiorcy.'}), 500
 
     @admin_bp.route('/admin/ustawienia/drukarki-biurowe')
     @dynamic_role_required('ustawienia')

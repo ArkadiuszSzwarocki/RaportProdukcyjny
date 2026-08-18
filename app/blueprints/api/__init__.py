@@ -4,6 +4,7 @@ from .plan_validation import register_api_plan_validation_routes
 from .products import register_api_product_routes
 from .receptury_agro import register_api_receptury_agro_routes
 from .runtime import register_api_runtime_routes
+from .email_routes import register_api_email_routes
 from flask import Blueprint
 
 api_bp = Blueprint('api', __name__)
@@ -13,3 +14,4 @@ register_api_attendance_admin_routes(api_bp)
 register_api_plan_validation_routes(api_bp)
 register_api_plan_ops_routes(api_bp)
 register_api_receptury_agro_routes(api_bp)
+register_api_email_routes(api_bp)

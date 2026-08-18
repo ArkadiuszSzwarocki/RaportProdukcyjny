@@ -1,49 +1,110 @@
-<section>
-  <h2>📝 Notatki Zmiany</h2>
-
-  {# Nawigacja po datach #}
-  <div class="day-nav-bar">
-    <button class="day-nav-btn" data-direction="prev">◀</button>
-    <span id="date-display-global">{{ dzisiaj }}</span>
-    <button class="day-nav-btn" data-direction="next">▶</button>
-  </div>
-
-  <form action="/add_shift_note" method="post" id="noteForm" class="note-form">
-    <label class="note-label" for="noteTextarea">{{ _('notatka_label') }}</label>
-    <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="{{ _('wpisz_notatke') }}"
-      title="{{ _('notatka_zapisu') }}" aria-label="Notatka"></textarea>
-    <input type="hidden" name="date" value="{{ dzisiaj }}">
-    <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
-    <input type="hidden" name="linia" value="{{ linia }}">
-    <button type="submit" class="note-save-btn">{{ _('zapisz_notatke') }}</button>
-  </form>
-
-  <div class="notes-container">
-    <h3>📌 Zapisane Notatki</h3>
-    <div id="shift-notes-container">
-      {% if shift_notes %}
-      {% for n in shift_notes %}
-      <div class="note-card">
-        <div class="note-card-inner">
-          <div class="note-card-content">
-            <div class="note-meta">
-              <strong>📅 {{ n.date }}</strong> • <em>{{ n.author }}</em>
-            </div>
-            <div class="note-text">{{ n.note }}</div>
-          </div>
-          {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] and session.get('imie_nazwisko') == n.author or
-          session.get('login') == n.author %}
-          <div class="note-actions">
-            <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>
-            <button class="note-delete-btn" data-id="{{ n.id }}">🗑️ Usuń</button>
-          </div>
-          {% endif %}
+<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06); margin-bottom: 24px; overflow: hidden;">
+  
+  <!-- Header bar -->
+  <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: rgba(245, 158, 11, 0.12); color: #d97706; border-radius: 10px; font-size: 20px;">
+        📝
+      </span>
+      <div>
+        <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">
+          Notatki Zmiany
+        </h3>
+        <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">
+          Wpisy i przekazanie informacji między zmianami
         </div>
       </div>
-      {% endfor %}
-      {% else %}
-      <p class="no-notes">{{ _('brak_notatek_dodaj') }}</p>
-      {% endif %}
+    </div>
+
+    <!-- Date navigation -->
+    <div style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; padding: 4px 8px; border: 1.5px solid #cbd5e1; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+      <button type="button" class="day-nav-btn" data-direction="prev"
+              style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; color: #334155; font-weight: 800;">
+        ◀
+      </button>
+      <span id="date-display-global" style="font-size: 0.88rem; font-weight: 800; color: #0f172a; padding: 0 8px; white-space: nowrap;">
+        {{ dzisiaj }}
+      </span>
+      <button type="button" class="day-nav-btn" data-direction="next"
+              style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; color: #334155; font-weight: 800;">
+        ▶
+      </button>
     </div>
   </div>
-</section>
+
+  <div style="padding: 20px;">
+    
+    <!-- Note Add Form -->
+    <form action="/add_shift_note" method="post" id="noteForm" style="margin-bottom: 24px;">
+      <input type="hidden" name="date" value="{{ dzisiaj }}">
+      <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
+      <input type="hidden" name="linia" value="{{ linia }}">
+
+      <div style="margin-bottom: 12px;">
+        <label for="noteTextarea" style="display: block; margin-bottom: 6px; font-weight: 700; color: #334155; font-size: 0.88rem;">
+          {{ _('notatka_label') }}
+        </label>
+        <textarea id="noteTextarea" name="note" required
+                  placeholder="{{ _('wpisz_notatke') }}"
+                  rows="3"
+                  style="width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.92rem; color: #0f172a; background: #ffffff; box-sizing: border-box; resize: vertical; line-height: 1.5; font-family: inherit; transition: border-color 0.15s ease;"
+                  onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit"
+                style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; background: linear-gradient(135deg, #ea580c, #c2410c); border: none; border-radius: 10px; color: #ffffff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3); transition: transform 0.15s ease;">
+          <span>💾</span> {{ _('zapisz_notatke') }}
+        </button>
+      </div>
+    </form>
+
+    <!-- Saved Notes List -->
+    <div>
+      <h4 style="margin: 0 0 14px 0; font-size: 0.95rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px;">
+        <span>📌</span> Zapisane Notatki dla Wybranego Dnia
+      </h4>
+
+      <div id="shift-notes-container" style="display: flex; flex-direction: column; gap: 12px;">
+        {% if shift_notes %}
+          {% for n in shift_notes %}
+          <div class="note-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.78rem; font-weight: 800; color: #d97706; background: #fef3c7; padding: 2px 8px; border-radius: 6px;">
+                  📅 {{ n.date }}
+                </span>
+                <span style="font-size: 0.85rem; font-weight: 700; color: #0f172a;">
+                  👤 {{ n.author }}
+                </span>
+              </div>
+
+              {% set is_admin = session.get('rola') in ['admin', 'masteradmin'] %}
+              {% set is_author_leader = session.get('rola') == 'lider' and (session.get('imie_nazwisko') == n.author or session.get('login') == n.author) %}
+              {% if is_admin or is_author_leader %}
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="note-edit-btn" data-id="{{ n.id }}"
+                        style="padding: 3px 8px; font-size: 0.75rem; font-weight: 700; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; cursor: pointer;">
+                  ✏️ Edytuj
+                </button>
+                <button type="button" class="note-delete-btn" data-id="{{ n.id }}"
+                        style="padding: 3px 8px; font-size: 0.75rem; font-weight: 700; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; color: #991b1b; cursor: pointer;">
+                  🗑️ Usuń
+                </button>
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="note-text" style="color: #334155; font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap;">{{ n.note }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="padding: 18px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; font-size: 0.88rem; text-align: center;">
+            {{ _('brak_notatek_dodaj') }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>

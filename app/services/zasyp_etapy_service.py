@@ -1303,6 +1303,7 @@ class ZasypEtapyService:
             total_s = int(r.get('total_s') or 0)
             total_kg = float(pr.get('szarze_kg') or 0.0) + float(pr.get('dosypki_kg') or 0.0)
             kg_h = (total_kg / (total_s / 3600.0)) if total_s > 0 else 0.0
+            kg_h_elapsed = (total_kg / 8.0) if total_kg > 0 else 0.0
 
             merged.append(
                 {
@@ -1319,6 +1320,7 @@ class ZasypEtapyService:
                     'dosypki_kg': float(pr.get('dosypki_kg') or 0.0),
                     'total_kg': total_kg,
                     'kg_h': kg_h,
+                    'kg_h_elapsed': kg_h_elapsed,
                 }
             )
 

@@ -79,30 +79,31 @@ def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict, 
 # ---------------------------------------------------------------------------
 
 def _load_shift_notes(date_str: str, linia: str = 'PSD') -> str:
-    uwagi = ""
+    uwagi_lines = []
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         table_notes = get_table_name('shift_notes', linia)
         cursor.execute(
             f"SELECT note, author, created FROM {table_notes} "
-            "WHERE DATE(created) = %s ORDER BY created ASC",
-            (date_str,)
+            "WHERE (date = %s OR DATE(created) = %s) AND (linia = %s OR linia IS NULL) ORDER BY created ASC",
+            (date_str, date_str, linia)
         )
         notes = cursor.fetchall()
         cursor.close()
         conn.close()
         if notes:
-            uwagi = "NOTATKI ZMIANOWE:\n" + "-" * 50 + "\n"
             for note in notes:
-                t = note['created'].strftime('%H:%M:%S') if note['created'] else '??:??:??'
-                uwagi += f"\n[{t}] {note['author']}:\n{note['note']}\n"
+                t = note['created'].strftime('%H:%M') if note.get('created') else ''
+                author = note.get('author') or 'Lider'
+                time_prefix = f"[{t}] " if t else ""
+                uwagi_lines.append(f"{time_prefix}{author}:\n{note['note']}")
             logger.info("[SHIFT_CLOSE] Zaladowano %d notatek zmianowych", len(notes))
         else:
             logger.info("[SHIFT_CLOSE] Brak notatek zmianowych dla %s", date_str)
     except Exception as exc:
         logger.warning("[SHIFT_CLOSE] Nie mozna zaladowac notatek: %s", exc)
-    return uwagi
+    return "\n\n".join(uwagi_lines)
 
 
 def _get_leader_name(session_data: dict, form_data: dict):

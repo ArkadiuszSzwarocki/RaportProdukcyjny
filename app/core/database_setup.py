@@ -641,12 +641,53 @@ def _create_tables(cursor):
             czas_trwania_min INT NULL,
             kategoria VARCHAR(100) NOT NULL,
             opis TEXT NULL,
+            zdjecie_url VARCHAR(500) NULL,
             zglaszajacy VARCHAR(100) NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_przestoje_linia_sekcja (linia, sekcja),
             INDEX idx_przestoje_data (data_przestoju),
             INDEX idx_przestoje_plan (plan_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS przestoje_zasyp (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            linia VARCHAR(20) NOT NULL DEFAULT 'AGRO',
+            sekcja VARCHAR(50) NOT NULL DEFAULT 'Zasyp',
+            plan_id INT NULL,
+            produkt VARCHAR(255) NULL,
+            data_przestoju DATE NOT NULL,
+            godzina_start TIME NOT NULL,
+            godzina_stop TIME NULL,
+            czas_trwania_min INT NULL,
+            kategoria VARCHAR(100) NOT NULL,
+            opis TEXT NULL,
+            zdjecie_url VARCHAR(500) NULL,
+            zglaszajacy VARCHAR(100) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_przestoje_zasyp_linia_sekcja (linia, sekcja),
+            INDEX idx_przestoje_zasyp_data (data_przestoju),
+            INDEX idx_przestoje_zasyp_plan (plan_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS uzytkownik_email_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            smtp_server VARCHAR(255) NOT NULL DEFAULT 'smtp.wp.pl',
+            smtp_port INT NOT NULL DEFAULT 465,
+            smtp_security VARCHAR(10) NOT NULL DEFAULT 'SSL',
+            smtp_username VARCHAR(255) NOT NULL,
+            smtp_password VARCHAR(255) NOT NULL,
+            sender_name VARCHAR(100) NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_email (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 

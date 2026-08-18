@@ -1,0 +1,66 @@
+{% extends 'layout.html' %}
+{% block title %}Podgląd Raportu PDF — Linia {{ linia }} ({{ date_str }}){% endblock %}
+
+{% block content %}
+<div style="padding: 16px 20px; box-sizing: border-box; max-width: 1300px; margin: 0 auto;">
+
+    <!-- Top Action Bar -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 20px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        
+        <!-- Left: Title & Meta -->
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="{{ url_for('main.index', linia=linia, data=date_str) }}"
+               style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #334155; font-weight: 700; font-size: 0.88rem; text-decoration: none; transition: all 0.15s ease;">
+                ← Wróć do Dashboardu
+            </a>
+            <div>
+                <h3 style="margin: 0; color: #0f172a; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>📄</span> Raport Dobowy PDF — Linia {{ linia }}
+                </h3>
+                <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">
+                    Data: <strong style="color: #0f172a;">{{ date_str }}</strong> • Lider: <strong style="color: #0f172a;">{{ lider_name }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Actions -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button type="button" onclick="printPdfFrame()"
+                    style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #0f172a; font-weight: 700; font-size: 0.88rem; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <span>🖨️</span> Drukuj
+            </button>
+            <a href="{{ url_for('main.raport_pobierz_pdf_file', linia=linia, data=date_str) }}"
+               style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #0f172a; font-weight: 700; font-size: 0.88rem; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <span>💾</span> Pobierz PDF
+            </a>
+            <a href="{{ url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=date_str) }}"
+               style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; background: linear-gradient(135deg, #16a34a, #15803d); border: none; border-radius: 10px; color: #ffffff; font-weight: 800; font-size: 0.88rem; text-decoration: none; box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);">
+                <span>🏁</span> Przejdź do Wysyłki E-mail
+            </a>
+        </div>
+    </div>
+
+    <!-- PDF Viewer Frame in same window -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);">
+        <iframe id="pdfViewerIframe"
+                src="{{ url_for('main.raport_podglad_pdf_stream', linia=linia, data=date_str) }}"
+                title="Podgląd Raportu PDF"
+                style="width: 100%; height: calc(100vh - 195px); min-height: 680px; border: none; display: block;">
+        </iframe>
+    </div>
+
+</div>
+
+<script>
+function printPdfFrame() {
+    var iframe = document.getElementById('pdfViewerIframe');
+    if (iframe && iframe.contentWindow) {
+        try {
+            iframe.contentWindow.print();
+        } catch (e) {
+            window.open("{{ url_for('main.raport_podglad_pdf_stream', linia=linia, data=date_str) }}", '_blank');
+        }
+    }
+}
+</script>
+{% endblock %}
