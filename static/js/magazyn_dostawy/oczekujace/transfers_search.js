@@ -25,6 +25,7 @@ function findWGByScannedCode(rawCode) {
         id: String(btn.dataset.wgId || '').trim(),
         nr: normalizeScanCode(btn.dataset.wgNr),
         waga: btn.dataset.wgWaga,
+        linia: String(btn.dataset.wgLinia || (String(btn.dataset.wgNr || '').startsWith('AGR') ? 'AGRO' : 'PSD')).trim().toUpperCase(),
     }));
 
     const directMatch = rows.find(item => item.nr === code || item.id === code);

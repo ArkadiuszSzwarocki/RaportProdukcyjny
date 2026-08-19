@@ -585,11 +585,11 @@
             </div>
         </div>
 
-        {% if pending_count > 0 %}
+        {% if dostawa.items_parsed and dostawa.items_parsed|length > 0 %}
         <div class="bulk-print-bar">
             <div class="bulk-print-label">
                 <span class="material-icons" style="font-size: 18px;">print</span>
-                Druk etykiet całego przesunięcia
+                {{ 'Druk etykiet całej dostawy' if is_external else 'Druk etykiet całego przesunięcia' }}
             </div>
             <select id="bulk_print_printer" class="premium-select" style="margin: 0; height: 36px; font-size: 0.85rem; border-color: #99f6e4; min-width: 220px;">
                 <option value="">-- WYBIERZ DRUKARKĘ --</option>
@@ -600,7 +600,7 @@
             </select>
             <button id="bulkPrintBtn" type="button" class="btn-reprint" style="height: 36px;" onclick="printAllPendingLabels()">
                 <span class="material-icons" style="font-size: 16px;">local_printshop</span>
-                Drukuj wszystkie
+                Drukuj wszystkie etykiety (2 szt)
             </button>
         </div>
         {% endif %}

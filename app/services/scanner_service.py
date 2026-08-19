@@ -25,7 +25,27 @@ class ScannerService:
 
     @staticmethod
     def _normalize_scanned_code(raw_code: str) -> str:
-        code = str(raw_code or '').strip().upper()
+        if not raw_code:
+            return ''
+            
+        raw_str = str(raw_code).strip()
+        if ('{' in raw_str and '}' in raw_str) or ('"sscc"' in raw_str):
+            try:
+                import json
+                j_match = re.search(r'\{[\s\S]*\}', raw_str)
+                if j_match:
+                    parsed = json.loads(j_match.group(0))
+                    val = parsed.get('sscc') or parsed.get('nr_palety') or parsed.get('id')
+                    if val:
+                        raw_str = str(val)
+                else:
+                    sscc_m = re.search(r'"sscc"\s*:\s*"([^"]+)"', raw_str, re.IGNORECASE)
+                    if sscc_m:
+                        raw_str = sscc_m.group(1)
+            except Exception:
+                pass
+
+        code = raw_str.strip().upper()
         if not code:
             return ''
 
@@ -52,7 +72,6 @@ class ScannerService:
 
         return code
 
-    @staticmethod
     @staticmethod
     def _extract_prefixed_id(code: str) -> tuple[str | None, int | None]:
         # Obsługa zarówno SUR-123 jak i SUR123

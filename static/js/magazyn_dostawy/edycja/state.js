@@ -156,6 +156,10 @@ function updateItem(index, key, value) {
             return;
         }
 
+        if (key === 'nr_palety' || key === 'productName' || key === 'sourceSpot') {
+            value = typeof extractSSCCFromScan === 'function' ? extractSSCCFromScan(value) : value;
+        }
+
         items[index][key] = value;
         saveDraftState();
         renderItems();

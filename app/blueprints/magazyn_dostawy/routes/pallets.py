@@ -43,6 +43,35 @@ def podglad_etykiety():
         else:
             typ_label = 'SUROWIEC'
 
+    qr_details = {
+        "sscc": nr_palety,
+        "prod": product_name,
+        "partia": nr_partii,
+        "data_prod": data_produkcji,
+        "data_przyd": data_przydatnosci,
+        "ilosc": f"{qty:.2f}",
+        "jm": "szt" if typ_label == "OPAKOWANIE" else "kg",
+        "typ": typ_label
+    }
+    qr_details_json = json.dumps(qr_details, ensure_ascii=False)
+    qr_details_safe = qr_details_json.replace('^', '').replace('~', '')
+
+    zpl_string = f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FD{typ_label} - {linia}^FS
+^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
+^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
+^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
+^FO40,750^A0N,50,50^FDPARTIA: {nr_partii}^FS
+^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
+^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
+^FO40,1000^A0N,70,70^FD{'ILOSC:' if typ_label == 'OPAKOWANIE' else 'WAGA NETTO:'}^FS
+^FO40,1100^A0N,100,100^FD{qty:.2f} {'szt' if typ_label == 'OPAKOWANIE' else 'kg'}^FS
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
+^XZ"""
+
     return render_template(
         'magazyn_dostawy/etykieta_podglad.html',
         nr_palety=nr_palety,
@@ -53,6 +82,8 @@ def podglad_etykiety():
         qty=qty,
         typ_label=typ_label,
         linia=linia,
+        qr_details_json=qr_details_json,
+        zpl_string=zpl_string,
         generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     )
 
@@ -93,6 +124,19 @@ def podglad_etykiety_system(paleta_id):
     else:
         typ_label_sys = 'WYROB GOTOWY'
 
+    qr_details = {
+        "sscc": nr_palety,
+        "prod": product_name,
+        "lp": str(nr_palety_lp or ''),
+        "partia": nr_partii,
+        "data_prod": data_produkcji,
+        "data_przyd": data_przydatnosci,
+        "ilosc": qty_display,
+        "jm": "kg",
+        "typ": f"{typ_label_sys} - {linia}"
+    }
+    qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+
     return render_template(
         'magazyn_dostawy/etykieta_podglad_system.html',
         nr_palety=nr_palety,
@@ -117,6 +161,7 @@ def podglad_etykiety_system(paleta_id):
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 ^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
 ^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^XZ"""
     )
 
@@ -528,6 +573,24 @@ def dodruk_etykiet():
 def get_available_pallets():
     linia = request.args.get('linia', 'PSD').upper()
     prefix = (request.args.get('prefix', '') or '').strip()
+    
+    # Obsługa kodów QR z wieloma danymi JSON (wyciągnij sam SSCC / numer palety)
+    if ('{' in prefix and '}' in prefix) or ('"sscc"' in prefix) or ('"nr_palety"' in prefix):
+        try:
+            import re
+            j_match = re.search(r'\{[\s\S]*\}', prefix)
+            if j_match:
+                parsed = json.loads(j_match.group(0))
+                val = parsed.get('sscc') or parsed.get('nr_palety') or parsed.get('id')
+                if val:
+                    prefix = str(val).strip()
+            else:
+                sscc_m = re.search(r'"sscc"\s*:\s*"([^"]+)"', prefix, re.IGNORECASE)
+                if sscc_m:
+                    prefix = sscc_m.group(1).strip()
+        except Exception:
+            pass
+
     skip_lookup_raw = str(request.args.get('skip_warehouse_lookup', '') or '').strip().lower()
     skip_warehouse_lookup = skip_lookup_raw in ('1', 'true', 'yes', 'on')
     
@@ -707,7 +770,62 @@ def get_available_pallets():
 
             filtered_pallets.append(pal)
 
-        return jsonify({"success": True, "pallets": filtered_pallets})
+        # Obliczenie kolejności FIFO/FEFO per produkt
+        product_groups = {}
+        for pal in filtered_pallets:
+            prod_key = str(pal.get('nazwa') or '').strip().lower()
+            if prod_key not in product_groups:
+                product_groups[prod_key] = []
+            product_groups[prod_key].append(pal)
+
+        def _fifo_sort_key(p):
+            exp = str(p.get('data_przydatnosci') or '').strip()
+            if not exp or exp in ('None', 'null', '-'):
+                exp = '9999-99-99'
+            prod = str(p.get('data_produkcji') or '').strip()
+            if not prod or prod in ('None', 'null', '-'):
+                prod = '9999-99-99'
+            pid = int(p.get('id') or 0)
+            return (exp, prod, pid)
+
+        fifo_ordered_pallets = []
+        for prod_key, group in product_groups.items():
+            group.sort(key=_fifo_sort_key)
+            total_in_group = len(group)
+
+            def _batch_key(p):
+                e = str(p.get('data_przydatnosci') or '').strip() or '9999-99-99'
+                pr = str(p.get('data_produkcji') or '').strip() or '9999-99-99'
+                return (e, pr)
+
+            earliest_batch = _batch_key(group[0]) if group else ('9999-99-99', '9999-99-99')
+
+            unique_batches = []
+            for p in group:
+                bk = _batch_key(p)
+                if bk not in unique_batches:
+                    unique_batches.append(bk)
+
+            for idx, pal in enumerate(group, start=1):
+                bk = _batch_key(pal)
+                batch_num = unique_batches.index(bk) + 1 if bk in unique_batches else 1
+                is_earliest = (bk == earliest_batch)
+                pal['fifo_index'] = idx
+                pal['fifo_batch_num'] = batch_num
+                pal['is_first_fifo'] = is_earliest
+                pal['fifo_total'] = total_in_group
+                pal['fifo_badge'] = '⚡ 1. DO ZUŻYCIA (FIFO)' if is_earliest else f'Partia #{batch_num}'
+            fifo_ordered_pallets.extend(group)
+
+        # Jeśli szukamy surowca po nazwie/kodzie, zwróć w ścisłej kolejności FIFO
+        # W przeciwnym razie posortuj wg nazwy i kolejności FIFO
+        fifo_ordered_pallets.sort(key=lambda x: (
+            str(x.get('nazwa') or ''),
+            x.get('fifo_index', 999),
+            str(x.get('lokalizacja') or '')
+        ))
+
+        return jsonify({"success": True, "pallets": fifo_ordered_pallets})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:

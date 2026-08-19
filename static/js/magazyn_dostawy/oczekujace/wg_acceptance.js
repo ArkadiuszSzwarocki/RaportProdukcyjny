@@ -4,9 +4,12 @@ function parseWeightValue(value) {
     return Number.isFinite(parsed) ? parsed : NaN;
 }
 
-function acceptWG(id, nrPalety, wagaNetto = null) {
+let currentWgAcceptLine = 'PSD';
+
+function acceptWG(id, nrPalety, wagaNetto = null, linia = null) {
     document.getElementById('wgId').value = id;
     document.getElementById('wgNrPalety').innerText = nrPalety;
+    currentWgAcceptLine = linia || (String(nrPalety || '').startsWith('AGR') ? 'AGRO' : window.MAGAZYN_CONFIG.linia);
     const wagaInput = document.getElementById('wgWaga');
     if (wagaInput) {
         if (wagaNetto === null || wagaNetto === undefined || wagaNetto === '' || Number.isNaN(Number(wagaNetto))) {
@@ -43,7 +46,7 @@ function submitAcceptWG() {
     fetch('/magazyn-dostawy/api/przyjmij-wg', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: id, lokalizacja: lok, linia: window.MAGAZYN_CONFIG.linia, waga: wagaValue })
+        body: JSON.stringify({ id: id, lokalizacja: lok, linia: currentWgAcceptLine, waga: wagaValue })
     }).then(r => r.json()).then(res => {
         if (res.success) {
             performSilentRefresh(); closeModal('modalWG');

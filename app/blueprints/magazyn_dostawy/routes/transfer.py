@@ -145,6 +145,13 @@ def edycja_dostawy(dostawa_id=None):
             wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
         wszystkie_produkty = sorted(list(wszystkie_produkty))
 
+        printers = []
+        try:
+            cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+            printers = cursor.fetchall()
+        except Exception as pe:
+            print(f"Error fetching printers in edycja_dostawy: {pe}")
+
     finally:
         conn.close()
 
@@ -155,6 +162,7 @@ def edycja_dostawy(dostawa_id=None):
         aktywne_zamowienia=aktywne_zamowienia,
         lokalizacje=LOKALIZACJE,
         lokalizacje_do=LOKALIZACJE_CEL,
+        printers=printers,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
 
@@ -255,7 +263,7 @@ def przyjecie_ruchu(dostawa_id):
     for item in dostawa.get('items_parsed', []) or []:
         if not isinstance(item, dict):
             continue
-        if item.get('accepted') or item.get('rejected'):
+        if item.get('rejected'):
             continue
 
         raw_qty = item.get('netWeight')
@@ -277,6 +285,7 @@ def przyjecie_ruchu(dostawa_id):
             'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
             'qty': qty,
             'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+            'accepted': bool(item.get('accepted')),
         })
 
     return render_template(
@@ -485,6 +494,13 @@ def raport_przesuniecia(dostawa_id):
         is_external = bool(dostawa.get('supplier')) or not dostawa.get('lokalizacja_z')
         template_name = 'magazyn_dostawy/raport_dostawy_zewnetrznej_print.html' if is_external else 'magazyn_dostawy/raport_przesuniecia_print.html'
         
+        printers = []
+        try:
+            cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+            printers = cursor.fetchall()
+        except Exception as pe:
+            print(f"Error fetching printers in raport_przesuniecia: {pe}")
+
         return render_template(
             template_name,
             dostawa=dostawa,
@@ -499,6 +515,7 @@ def raport_przesuniecia(dostawa_id):
             rejected_count=rejected_count,
             pending_count=pending_count,
             lokalizacja_do_str=lokalizacja_do_str,
+            printers=printers,
             created_at_str=_safe_datetime_str(dostawa.get('created_at')),
             confirmed_at_str=_safe_datetime_str(dostawa.get('potwierdzone_at')),
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

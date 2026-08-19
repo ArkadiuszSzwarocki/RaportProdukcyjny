@@ -90,6 +90,19 @@ for idx, dostawa in enumerate(dostawy, 1):
         
         typ_label = 'OPAKOWANIE' if p_type == 'opakowanie' else 'SUROWIEC'
         
+        import json
+        qr_details = {
+            "sscc": nr_palety,
+            "prod": product_name[:40],
+            "partia": nr_partii,
+            "data_prod": data_produkcji,
+            "data_przyd": data_przydatnosci,
+            "ilosc": str(qty),
+            "jm": "kg" if p_type == 'surowiec' else "szt",
+            "typ": f"{typ_label} - {dostawa['linia']}"
+        }
+        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+
         # Generuj ZPL
         zpl_code = f"""^XA
 ^CI28
@@ -103,6 +116,7 @@ for idx, dostawa in enumerate(dostawy, 1):
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 ^FO40,950^A0N,50,50^FDPRZYDATNOSC: {data_przydatnosci}^FS
 ^FO40,1100^A0N,70,70^FDWAGA: {qty} kg^FS
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^XZ"""
         
         print(f'      {item_idx}. {nr_palety}: {product_name[:30]}... ({qty} kg)')

@@ -248,6 +248,21 @@ def drukuj_zpl():
         # Waga (w 2 liniach: naglowek + wartosc)
         zpl_string += f"^FO60,950^A0N,72,72^FD{naglowek_wagi}^FS\n"
         zpl_string += f"^FO60,1030^A0N,100,100^FD{waga_text}^FS\n"
+
+        # Dodatkowy kod QR na dole po prawej stronie ze szczegółami palety
+        qr_details = {
+            "sscc": str(id_palety),
+            "prod": str(nazwa)[:60],
+            "partia": str(partia),
+            "data_prod": str(d_prod),
+            "data_przyd": str(d_wazn),
+            "ilosc": str(waga),
+            "jm": unit_raw,
+            "typ": tytul
+        }
+        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+        zpl_string += f"^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS\n"
+
         zpl_string += "^XZ"
 
     try:

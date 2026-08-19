@@ -69,10 +69,73 @@ function filterTable() {
     syncStateFromDOM();
 
     // 1. Filter JavaScript Array instead of DOM
-    currentFilteredItems = allWarehouseItems.filter(item => {
+    let filtered = allWarehouseItems.filter(item => {
         let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location}`.toUpperCase();
         return isMatch(allText, item.location || '', filter, selectedLocations);
     });
+
+    // 1b. Oblicz kolejność FIFO per produkt
+    const productGroups = {};
+    filtered.forEach(item => {
+        const pKey = String(item.productName || '').trim().toLowerCase();
+        if (!productGroups[pKey]) productGroups[pKey] = [];
+        productGroups[pKey].push(item);
+    });
+
+    const getBatchDateKey = (item) => {
+        const exp = (item.date_exp && item.date_exp !== '-') ? item.date_exp : '9999-99-99';
+        const prod = (item.date_prod && item.date_prod !== '-') ? item.date_prod : '9999-99-99';
+        return `${exp}_${prod}`;
+    };
+
+    const fifoKey = (item) => {
+        const batchKey = getBatchDateKey(item);
+        const added = (item.date_added && item.date_added !== '-') ? item.date_added : '9999-99-99';
+        const id = parseInt(item.id || 0) || 0;
+        return `${batchKey}_${added}_${String(id).padStart(10, '0')}`;
+    };
+
+    const fifoList = [];
+    Object.keys(productGroups).forEach(pKey => {
+        const group = productGroups[pKey];
+        group.sort((a, b) => fifoKey(a).localeCompare(fifoKey(b)));
+        const total = group.length;
+
+        // Znajdź najwcześniejszą datę partii w grupie
+        const earliestBatchKey = total > 0 ? getBatchDateKey(group[0]) : '';
+        const hasMultipleBatches = group.some(x => getBatchDateKey(x) !== earliestBatchKey);
+
+        const uniqueBatches = [];
+        group.forEach(item => {
+            const bKey = getBatchDateKey(item);
+            if (!uniqueBatches.includes(bKey)) uniqueBatches.push(bKey);
+        });
+
+        group.forEach((item, idx) => {
+            const bKey = getBatchDateKey(item);
+            const batchNum = uniqueBatches.indexOf(bKey) + 1;
+            const isEarliestBatch = (bKey === earliestBatchKey);
+
+            item.fifo_index = idx + 1;
+            item.fifo_batch_num = batchNum;
+            item.fifo_total = total;
+            // Zaznacz wszystkie palety posiadające najwcześniejszą datę ważności/produkcji
+            item.is_first_fifo = isEarliestBatch && (hasMultipleBatches || total > 1);
+        });
+        fifoList.push(...group);
+    });
+
+    // Jeśli szukamy frazy (np. "hydro"), posortuj wg nazwy i ścisłej kolejności FIFO
+    if (filter) {
+        fifoList.sort((a, b) => {
+            const nameCmp = String(a.productName || '').localeCompare(String(b.productName || ''));
+            if (nameCmp !== 0) return nameCmp;
+            return (a.fifo_index || 999) - (b.fifo_index || 999);
+        });
+        currentFilteredItems = fifoList;
+    } else {
+        currentFilteredItems = fifoList;
+    }
 
     // 2. Reset Pagination
     currentRenderedCount = 0;

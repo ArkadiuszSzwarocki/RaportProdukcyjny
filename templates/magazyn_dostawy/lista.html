@@ -227,7 +227,7 @@
                                 {% elif d.status == 'COMPLETED' %}
                                 <a href="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) }}"
                                    class="btn-premium btn-xs" onclick="event.stopPropagation();">
-                                    Drukuj raport
+                                    Raport / Etykiety
                                 </a>
                                 {% else %}
                                 <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" 

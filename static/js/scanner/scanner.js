@@ -68,11 +68,37 @@ function requestHardwareScanTrigger() {
   }
 }
 
+function extractSSCCFromScan(value) {
+  if (!value) return '';
+  let s = String(value).trim();
+  if ((s.startsWith('{') && s.endsWith('}')) || (s.includes('"sscc"') || s.includes('"prod"'))) {
+    try {
+      const match = s.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (parsed.sscc) return String(parsed.sscc).trim();
+        if (parsed.nr_palety) return String(parsed.nr_palety).trim();
+        if (parsed.id) return String(parsed.id).trim();
+      }
+    } catch (e) {
+      const ssccMatch = s.match(/"sscc"\s*:\s*"([^"]+)"/i);
+      if (ssccMatch) return ssccMatch[1].trim();
+      const nrMatch = s.match(/"nr_palety"\s*:\s*"([^"]+)"/i);
+      if (nrMatch) return nrMatch[1].trim();
+    }
+  }
+  return s;
+}
+
 function triggerScan() {
-  const code = scanInput.value.trim();
+  const rawCode = scanInput.value.trim();
+  const code = extractSSCCFromScan(rawCode);
+  if (code !== rawCode) {
+    scanInput.value = code;
+  }
   if (code) {
     if (currentPallet) {
-      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-') || code.startsWith('PAL-');
+      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-') || code.startsWith('PAL-') || code.startsWith('AGR') || code.startsWith('PSD');
       if (code.length > 10 || isPalletPrefix) {
         lookupPallet(code);
       } else {
@@ -222,6 +248,11 @@ scanInput.addEventListener('keyup', function(e) {
 // Zabezpieczenie (debounce) jeśli skaner tylko "wkleja" tekst bez Entera
 let scanTimeout;
 scanInput.addEventListener('input', function(e) {
+  const raw = this.value;
+  const cleaned = extractSSCCFromScan(raw);
+  if (cleaned !== raw) {
+    this.value = cleaned;
+  }
   clearTimeout(scanTimeout);
   scanTimeout = setTimeout(() => {
     const code = this.value.trim();
@@ -230,6 +261,15 @@ scanInput.addEventListener('input', function(e) {
       triggerScan();
     }
   }, 1200);
+});
+
+scanInput.addEventListener('paste', function(e) {
+  setTimeout(() => {
+    const cleaned = extractSSCCFromScan(scanInput.value);
+    if (cleaned !== scanInput.value) {
+      scanInput.value = cleaned;
+    }
+  }, 10);
 });
 
 function lookupPallet(code) {

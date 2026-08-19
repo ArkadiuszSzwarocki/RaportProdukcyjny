@@ -376,6 +376,19 @@ class PrintServer:
         else:
             waga_line = f"^FO40,1000^A0N,70,70^FDILOSC:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} {jednostka}^FS"
 
+        import json
+        qr_details = {
+            "sscc": nr_palety,
+            "prod": display_name,
+            "partia": nr_partii,
+            "data_prod": data_produkcji,
+            "data_przyd": data_przydatnosci,
+            "ilosc": qty_display,
+            "jm": jednostka,
+            "typ": "SUROWIEC"
+        }
+        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+
         return f"""^XA
 ^CI28
 ^PW812^LL1214
@@ -388,6 +401,7 @@ class PrintServer:
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 ^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
 {waga_line}
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ{copies}
 ^XZ"""
 
@@ -411,6 +425,20 @@ class PrintServer:
 
         header_text = f"SUROWIEC - {linia}" if (is_surowiec and linia) else ("SUROWIEC" if is_surowiec else (f"WYROB GOTOWY - {linia}" if linia else "WYROB GOTOWY"))
 
+        import json
+        qr_details = {
+            "sscc": nr_palety,
+            "prod": product_name,
+            "lp": str(nr_palety_lp),
+            "partia": nr_partii,
+            "plomba": nr_plomby,
+            "data_prod": data_produkcji,
+            "ilosc": qty_display,
+            "jm": "kg",
+            "typ": header_text
+        }
+        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+
         return f"""^XA
 ^CI28
 ^PW812^LL1214
@@ -425,6 +453,7 @@ class PrintServer:
 {plomba_line}
 ^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
 ^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ{copies}
 ^XZ"""
 

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Raport przyjęcia {{ dostawa.order_ref or dostawa.id }}</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <style>
         :root {
             --border: #dbe2ea;
@@ -282,11 +283,113 @@
             text-decoration: none;
         }
 
-        .btn.primary {
-            background: var(--accent);
-            border-color: #1e40af;
+        .print-control-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #eef6ff 100%);
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        }
+
+        .print-control-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #0f172a;
+        }
+
+        .print-control-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .print-select {
+            height: 38px;
+            padding: 0 12px;
+            border: 1px solid #94a3b8;
+            border-radius: 8px;
+            background: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+            outline: none;
+            min-width: 220px;
+        }
+
+        .btn-print-action {
+            height: 38px;
+            padding: 0 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-print-action.primary {
+            background: #10b981;
+            color: #ffffff;
+            border-color: #059669;
+        }
+
+        .btn-print-action.primary:hover {
+            background: #059669;
+        }
+
+        .btn-row-reprint {
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .btn-row-reprint:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: #2563eb;
+        }
+
+        .report-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            display: none;
+            align-items: center;
+            gap: 8px;
             color: #fff;
         }
+        .report-toast.success { background: #166534; border: 1px solid #22c55e; }
+        .report-toast.danger { background: #991b1b; border: 1px solid #ef4444; }
+        .report-toast.warning { background: #92400e; border: 1px solid #f59e0b; }
+        .report-toast.info { background: #1e40af; border: 1px solid #3b82f6; }
 
         @media (max-width: 980px) {
             .meta-grid {
@@ -321,8 +424,10 @@
                 table-layout: fixed;
             }
 
-            .footer-actions {
-                display: none;
+            .footer-actions,
+            .print-control-bar,
+            .action-col {
+                display: none !important;
             }
 
             .container {
@@ -413,6 +518,29 @@
 </head>
 <body>
     <div class="container">
+        <!-- Pasek narzędziowy wydruku etykiet -->
+        <div class="print-control-bar">
+            <div class="print-control-left">
+                <span class="material-icons" style="color: #2563eb; font-size: 22px;">local_printshop</span>
+                <div>
+                    <div style="font-weight: 800; font-size: 14px;">Wydruk etykiet ZPL / PDF</div>
+                    <div style="font-size: 11px; color: #64748b;">Druk etykiet całej dostawy zewnętrznej lub pojedynczych palet</div>
+                </div>
+            </div>
+            <div class="print-control-right">
+                <select id="global_printer_select" class="print-select">
+                    <option value="">-- Wybierz drukarkę ZPL --</option>
+                    <option value="__PDF_PREVIEW__">📄 Podgląd / PDF (test)</option>
+                    {% for pr in printers %}
+                    <option value="{{ pr.id }}">🖨️ {{ pr.nazwa }}{% if pr.lokalizacja %} ({{ pr.lokalizacja }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="bulkReprintBtn" class="btn-print-action primary" onclick="printAllReportLabels()">
+                    <span class="material-icons" style="font-size: 16px;">print</span> Drukuj wszystkie etykiety (2 szt)
+                </button>
+            </div>
+        </div>
+
         <div class="header">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
@@ -479,6 +607,7 @@
                     <col class="c-time" style="width: 8%;">
                     <col class="c-user" style="width: 8%;">
                     <col class="c-status" style="width: auto;">
+                    <col class="c-action action-col" style="width: 7%;">
                     {% if ns.has_rejections %}
                     <col class="c-reason" style="width: 13%;">
                     {% endif %}
@@ -497,6 +626,7 @@
                         <th class="c-time">CZAS PRZYJ. / ROZLOK.</th>
                         <th>KTO PRZYJĄŁ</th>
                         <th class="c-status">Status</th>
+                        <th class="center action-col">Etykieta</th>
                         {% if ns.has_rejections %}
                         <th>Powod odrzucenia</th>
                         {% endif %}
@@ -532,13 +662,23 @@
                             <span class="pill pill-pending">{{ row.status_label }}</span>
                             {% endif %}
                         </td>
+                        <td class="center action-col">
+                            {% if row.nr_palety and row.nr_palety != '-' %}
+                            <button type="button" class="btn-row-reprint" title="Wydrukuj etykietę tej palety"
+                                onclick="reprintRowLabel('{{ row.nr_palety }}', '{{ (row.product_name or '')|replace("'", "\\'") }}', '{{ row.nr_partii }}', '{{ row.data_produkcji }}', '{{ row.data_przydatnosci }}', {{ row.qty }}, '{{ 'packaging' if row.unit == 'szt' else 'surowiec' }}')">
+                                <span class="material-icons" style="font-size: 14px;">print</span> Drukuj
+                            </button>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         {% if ns.has_rejections %}
                         <td>{{ row.rejected_reason if row.rejected else '-' }}</td>
                         {% endif %}
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="{% if ns.has_rejections %}11{% else %}10{% endif %}" class="center">Brak pozycji w raporcie.</td>
+                        <td colspan="{% if ns.has_rejections %}12{% else %}11{% endif %}" class="center">Brak pozycji w raporcie.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -620,12 +760,189 @@
         </div>
 
         <div class="footer-actions">
-            <button onclick="window.print()" class="btn primary">🖨️ Drukuj</button>
-            <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
-            <!-- Lokalny druk wyłączony: etykiety drukowane tylko przez mostek ZPL po wyborze drukarki -->
+            <button onclick="window.print()" class="btn primary">🖨️ Drukuj raport (A4)</button>
+            <a href="{{ url_for('magazyn_dostawy.reception_view', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
         </div>
     </div>
 
-    <!-- Autoprint wyłączony - druk ZPL przez serwer mostka -->
+    <div id="reportToast" class="report-toast"></div>
+
+    <script>
+    const labelPreviewBaseUrl = {{ url_for('magazyn_dostawy.podglad_etykiety')|tojson }};
+    const reprintEndpointUrl = {{ url_for('magazyn_dostawy.dodruk_etykiet')|tojson }};
+    const reportRows = {{ rows|tojson }};
+    const pdfPreviewPrinterId = '__PDF_PREVIEW__';
+
+    function showReportToast(msg, kind) {
+        const toast = document.getElementById('reportToast');
+        if (!toast) return;
+        toast.className = 'report-toast ' + (kind || 'info');
+        toast.textContent = msg;
+        toast.style.display = 'flex';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3500);
+    }
+
+    function openLabelPreview(payload) {
+        const params = new URLSearchParams({
+            nr_palety: String((payload && payload.nr_palety) || '').trim() || '---',
+            product_name: String((payload && payload.product_name) || '').trim() || 'Brak nazwy',
+            nr_partii: String((payload && payload.nr_partii) || '').trim() || '---',
+            data_produkcji: String((payload && payload.data_produkcji) || '').trim() || '---',
+            data_przydatnosci: String((payload && payload.data_przydatnosci) || '').trim() || '---',
+            qty: String((payload && payload.qty) || 0),
+            p_type: String((payload && payload.p_type) || 'surowiec'),
+            linia: String('{{ dostawa.linia or "PSD" }}').toUpperCase(),
+        });
+        window.open(`${labelPreviewBaseUrl}?${params.toString()}`, '_blank', 'noopener');
+    }
+
+    async function reprintRowLabel(nrPalety, productName, batch, dateProd, dateExp, qty, pType) {
+        const printerSelect = document.getElementById('global_printer_select');
+        const printerId = printerSelect ? printerSelect.value : '';
+        if (!printerId) {
+            showReportToast('Wybierz drukarkę w górnym pasku przed wydrukiem.', 'warning');
+            if (printerSelect) printerSelect.focus();
+            return;
+        }
+
+        if (printerId === pdfPreviewPrinterId) {
+            openLabelPreview({
+                nr_palety: nrPalety,
+                product_name: productName,
+                nr_partii: batch || '---',
+                data_produkcji: dateProd || '---',
+                data_przydatnosci: dateExp || '---',
+                qty: qty,
+                p_type: pType || 'surowiec',
+            });
+            showReportToast('Otwarto podgląd etykiety.', 'info');
+            return;
+        }
+
+        const btn = event.currentTarget;
+        const oldHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons" style="font-size: 14px;">hourglass_empty</span>';
+
+        try {
+            const resp = await fetch(reprintEndpointUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nr_palety: nrPalety,
+                    printer_id: printerId,
+                    product_name: productName,
+                    nr_partii: batch || '---',
+                    data_produkcji: dateProd || '---',
+                    data_przydatnosci: dateExp || '---',
+                    qty: qty,
+                    p_type: pType
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                showReportToast(data.message || 'Etykiety wysłane do drukarki.', 'success');
+            } else {
+                showReportToast('Błąd: ' + (data.error || 'Nieznany błąd'), 'danger');
+            }
+        } catch (e) {
+            showReportToast('Błąd komunikacji z serwerem.', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
+    }
+
+    async function printAllReportLabels() {
+        const validRows = (reportRows || []).filter(r => r && r.nr_palety && r.nr_palety !== '-' && !r.rejected);
+        if (validRows.length === 0) {
+            showReportToast('Brak pozycji do wydruku w tym raporcie.', 'warning');
+            return;
+        }
+
+        const printerSelect = document.getElementById('global_printer_select');
+        const printerId = printerSelect ? printerSelect.value : '';
+        if (!printerId) {
+            showReportToast('Wybierz drukarkę przed rozpoczęciem drukowania.', 'warning');
+            if (printerSelect) printerSelect.focus();
+            return;
+        }
+
+        const btn = document.getElementById('bulkReprintBtn');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+        }
+
+        const wantsPdfPreview = printerId === pdfPreviewPrinterId;
+        let printed = 0;
+        let skipped = 0;
+
+        for (const row of validRows) {
+            const payload = {
+                nr_palety: row.nr_palety,
+                product_name: row.product_name || 'Brak nazwy',
+                nr_partii: row.nr_partii || '---',
+                data_produkcji: row.data_produkcji || '---',
+                data_przydatnosci: row.data_przydatnosci || '---',
+                qty: Number(row.qty || 0),
+                p_type: row.unit === 'szt' ? 'packaging' : 'surowiec',
+            };
+
+            if (wantsPdfPreview) {
+                openLabelPreview(payload);
+                printed += 1;
+                continue;
+            }
+
+            try {
+                const resp = await fetch(reprintEndpointUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nr_palety: payload.nr_palety,
+                        printer_id: printerId,
+                        product_name: payload.product_name,
+                        nr_partii: payload.nr_partii,
+                        data_produkcji: payload.data_produkcji,
+                        data_przydatnosci: payload.data_przydatnosci,
+                        qty: payload.qty,
+                        p_type: payload.p_type
+                    })
+                });
+
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    printed += 1;
+                } else {
+                    skipped += 1;
+                }
+            } catch (e) {
+                skipped += 1;
+            }
+        }
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
+
+        if (wantsPdfPreview) {
+            showReportToast(`Otwarto podgląd dla ${printed} etykiet.`, 'info');
+            return;
+        }
+
+        if (printed > 0) {
+            const skippedMsg = skipped ? ` Pominięto: ${skipped}.` : '';
+            showReportToast(`Wysłano ${printed} etykiet do drukarki.${skippedMsg}`, 'success');
+        } else {
+            showReportToast('Nie wydrukowano żadnej etykiety.', 'warning');
+        }
+    }
+    </script>
 </body>
 </html>

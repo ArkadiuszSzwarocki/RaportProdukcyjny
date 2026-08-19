@@ -1,5 +1,26 @@
 // utils.js
 
+function extractSSCCFromScan(value) {
+    if (!value) return '';
+    let s = String(value).trim();
+    if ((s.startsWith('{') && s.endsWith('}')) || (s.includes('"sscc"') || s.includes('"prod"'))) {
+        try {
+            const match = s.match(/\{[\s\S]*\}/);
+            if (match) {
+                const parsed = JSON.parse(match[0]);
+                if (parsed.sscc) return String(parsed.sscc).trim();
+                if (parsed.nr_palety) return String(parsed.nr_palety).trim();
+                if (parsed.id) return String(parsed.id).trim();
+            }
+        } catch (e) {
+            const ssccMatch = s.match(/"sscc"\s*:\s*"([^"]+)"/i);
+            if (ssccMatch) return ssccMatch[1].trim();
+            const nrMatch = s.match(/"nr_palety"\s*:\s*"([^"]+)"/i);
+            if (nrMatch) return nrMatch[1].trim();
+        }
+    }
+    return s;
+}
 
 function generateWZ() {
         const now = new Date();

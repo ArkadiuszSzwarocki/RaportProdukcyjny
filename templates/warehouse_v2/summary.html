@@ -66,11 +66,14 @@
                                 <th>Lokalizacja</th>
                                 <th style="text-align: right;">Ilość</th>
                                 <th>Nr Partii</th>
+                                <th>Data Prod.</th>
+                                <th>Data Ważn.</th>
+                                <th style="text-align: center;">Kolejność FIFO</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for p in data.pallets %}
-                            <tr>
+                            <tr style="{% if p.is_first_fifo %}background: #fffbeb; border-left: 4px solid #f59e0b;{% endif %}">
                                 <td style="text-align: center; color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
                                 <td class="font-bold">
                                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -81,6 +84,23 @@
                                 <td style="font-family: monospace; color: #2563eb; font-weight: 700;">{{ p.location or 'Brak' }}</td>
                                 <td style="text-align: right; font-weight: 800;">{{ p.amount }} <small>{{ p.unit }}</small></td>
                                 <td style="color: #64748b; font-size: 12px;">{{ p.nr_partii or '-' }}</td>
+                                <td style="color: #64748b; font-size: 12px;">{{ p.data_produkcji or '-' }}</td>
+                                <td style="font-size: 12px; {% if p.is_first_fifo %}color: #ea580c; font-weight: 700;{% else %}color: #64748b;{% endif %}">{{ p.data_przydatnosci or '-' }}</td>
+                                <td style="text-align: center;">
+                                    {% if p.is_first_fifo %}
+                                    <span class="badge" style="background: #f59e0b; color: white; font-weight: 800; font-size: 10px; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 1px 2px rgba(245,158,11,0.25);">
+                                        <span class="material-icons" style="font-size: 12px;">bolt</span> 1. DO ZUŻYCIA
+                                    </span>
+                                    {% elif p.fifo_batch_num and p.fifo_batch_num > 1 %}
+                                    <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+                                        Partia {{ p.fifo_batch_num }}
+                                    </span>
+                                    {% elif p.fifo_index %}
+                                    <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+                                        FIFO #{{ p.fifo_index }}
+                                    </span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>

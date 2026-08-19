@@ -206,6 +206,9 @@ function renderItems() {
                         <span class="material-icons" style="font-size:20px;">content_copy</span>
                    </button>`
                 : '';
+            const printButtonHtml = `<button type="button" onclick="previewItemLabel(${index})" title="Drukuj / podgląd etykiety" style="background:none; border:none; color:#10b981; cursor:pointer;">
+                    <span class="material-icons" style="font-size:20px;">print</span>
+                </button>`;
             const showWarning = (hasErr) => (hasErr && formSubmitAttempted) ? `<span class="material-icons" style="color: #dc2626; font-size: 16px; position: absolute; right: 18px; top: 17px; pointer-events: none;">warning</span>` : '';
 
             row.innerHTML = `
@@ -264,6 +267,7 @@ function renderItems() {
                 <td style="padding: 10px 20px; text-align: center; vertical-align: middle;">
                     <div style="display: inline-flex; align-items: center; gap: 6px;">
                         ${copyButtonHtml}
+                        ${printButtonHtml}
                         <button ${disabledAttr} onclick="removeItem(${index})" title="Usuń paletę nr ${index + 1}" style="background:none; border:none; color:#ef4444; cursor:pointer;">
                             <span class="material-icons" style="font-size:20px;">delete</span>
                         </button>
@@ -399,3 +403,28 @@ function copyItem(index) {
         saveDraftState();
         renderItems();
     }
+
+function previewItemLabel(index) {
+    const item = items[index];
+    if (!item) return;
+    const nrPalety = item.nr_palety || '---';
+    const productName = item.productName || 'Brak nazwy';
+    const batch = item.nr_partii || '---';
+    const dateProd = item.data_produkcji || '---';
+    const dateExp = item.data_przydatnosci || '---';
+    const qty = getItemQuantity(item) || 0;
+    const unit = getItemUnit(item) || 'kg';
+    const pType = unit === 'szt' ? 'packaging' : 'surowiec';
+
+    const params = new URLSearchParams({
+        nr_palety: nrPalety,
+        product_name: productName,
+        nr_partii: batch,
+        data_produkcji: dateProd,
+        data_przydatnosci: dateExp,
+        qty: qty,
+        p_type: pType,
+        linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'PSD'
+    });
+    window.open(`/magazyn-dostawy/podglad-etykiety?${params.toString()}`, '_blank', 'noopener');
+}

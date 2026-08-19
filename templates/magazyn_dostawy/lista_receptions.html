@@ -165,7 +165,7 @@
                                 {% endif %}
                                 <a href="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" 
                                    class="btn-premium btn-xs">
-                                    Szczegóły
+                                    {{ 'Raport / Etykiety' if d.status == 'COMPLETED' else 'Szczegóły' }}
                                 </a>
                             </div>
                         </td>

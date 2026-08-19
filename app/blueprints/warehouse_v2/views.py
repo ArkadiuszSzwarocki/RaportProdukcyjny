@@ -229,34 +229,42 @@ def summary():
         # Pobierz wszystkie dane (identycznie jak w index)
         # 1. Surowce
         table_surowce = get_table_name('magazyn_surowce', linia)
-        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, nr_partii FROM {table_surowce} WHERE stan_magazynowy > 0")
+        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE stan_magazynowy > 0")
         for row in cursor.fetchall():
             row['unit'] = 'kg'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"SUR-{row['id']}"
+            row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
+            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
             items.append(row)
             
         # 2. Opakowania
         table_opakowania = get_table_name('magazyn_opakowania', linia)
-        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, nr_partii FROM {table_opakowania} WHERE stan_magazynowy > 0")
+        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, nr_partii, data_produkcji, data_przydatnosci FROM {table_opakowania} WHERE stan_magazynowy > 0")
         for row in cursor.fetchall():
             row['unit'] = 'szt'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
+            row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
+            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
             items.append(row)
             
         # 3. Wyroby Gotowe (dla ALL łączymy PSD + AGRO)
         for linia_palety in palety_linie:
             table_palety = get_table_name('magazyn_palety', linia_palety)
-            cursor.execute(f"SELECT id, nr_palety, produkt as productName, lokalizacja as location, waga_netto as amount, 'Wyrób Gotowy' as type, nr_partii FROM {table_palety} WHERE waga_netto > 0")
+            cursor.execute(f"SELECT id, nr_palety, produkt as productName, lokalizacja as location, waga_netto as amount, 'Wyrób Gotowy' as type, nr_partii, data_produkcji, data_przydatnosci FROM {table_palety} WHERE waga_netto > 0")
             for row in cursor.fetchall():
                 row['unit'] = 'kg'
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"PAL-{row['id']}"
+                row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
+                row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
                 items.append(row)
 
         # 4. Dodatki (NEW)
-        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, nr_partii FROM magazyn_dodatki WHERE stan_magazynowy > 0")
+        cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE stan_magazynowy > 0")
         for row in cursor.fetchall():
             row['unit'] = 'kg'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"DOD-{row['id']}"
+            row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
+            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
             items.append(row)
             
         conn.close()
@@ -279,6 +287,38 @@ def summary():
         summary_data[name]['total'] += it['amount']
         summary_data[name]['count'] += 1
         summary_data[name]['pallets'].append(it)
+
+    def _summary_batch_key(p):
+        exp = str(p.get('data_przydatnosci') or '')
+        if not exp or exp == '-': exp = '9999-99-99'
+        prod = str(p.get('data_produkcji') or '')
+        if not prod or prod == '-': prod = '9999-99-99'
+        return (exp, prod)
+
+    def _summary_fifo_key(p):
+        bk = _summary_batch_key(p)
+        pid = int(p.get('id') or 0)
+        return (bk[0], bk[1], pid)
+
+    for name, data in summary_data.items():
+        data['pallets'].sort(key=_summary_fifo_key)
+        total_p = len(data['pallets'])
+        earliest_bk = _summary_batch_key(data['pallets'][0]) if data['pallets'] else ('9999-99-99', '9999-99-99')
+        has_multiple_batches = any(_summary_batch_key(p) != earliest_bk for p in data['pallets'])
+
+        unique_batches = []
+        for p in data['pallets']:
+            bk = _summary_batch_key(p)
+            if bk not in unique_batches:
+                unique_batches.append(bk)
+
+        for idx, p in enumerate(data['pallets'], 1):
+            bk = _summary_batch_key(p)
+            batch_num = unique_batches.index(bk) + 1 if bk in unique_batches else 1
+            is_earliest = (bk == earliest_bk)
+            p['fifo_index'] = idx
+            p['fifo_batch_num'] = batch_num
+            p['is_first_fifo'] = is_earliest and (has_multiple_batches or total_p > 1)
 
     return render_template('warehouse_v2/summary.html', summary=summary_data, linia=linia)
 

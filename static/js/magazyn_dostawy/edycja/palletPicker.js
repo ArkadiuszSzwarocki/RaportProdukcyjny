@@ -54,6 +54,14 @@ function renderPalletSelectionModal() {
             return;
         }
 
+        // Posortuj odfiltrowane pozycje według FIFO
+        filteredEntries.sort((a, b) => {
+            const fifoA = a.pal.fifo_index || 999;
+            const fifoB = b.pal.fifo_index || 999;
+            if (fifoA !== fifoB) return fifoA - fifoB;
+            return a.idx - b.idx;
+        });
+
         list.innerHTML = filteredEntries.map(entry => {
             const pal = entry.pal;
             const idx = entry.idx;
@@ -61,14 +69,39 @@ function renderPalletSelectionModal() {
             const code = pal.nr_palety || String(pal.id);
             const qty = pal.stan_magazynowy || 0;
             const typeLabel = pal.type === 'opakowanie' ? 'opakowanie' : 'surowiec';
+            const isFirstFifo = Boolean(pal.is_first_fifo);
+
+            const cardBg = isFirstFifo ? '#fffbeb' : '#ffffff';
+            const cardBorder = isFirstFifo ? '2px solid #f59e0b' : '1px solid #e2e8f0';
+            const shadow = isFirstFifo ? 'box-shadow: 0 4px 10px rgba(245, 158, 11, 0.2);' : '';
+
+            const fifoBadgeHtml = isFirstFifo
+                ? `<span style="background: #f59e0b; color: #ffffff; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 900; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(245,158,11,0.25);">
+                        <span class="material-icons" style="font-size: 13px;">bolt</span> 1. DO ZUŻYCIA (FIFO)
+                   </span>`
+                : (pal.fifo_batch_num && pal.fifo_batch_num > 1 ? `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">Partia ${pal.fifo_batch_num}</span>` : (pal.fifo_index ? `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">FIFO #${pal.fifo_index}</span>` : ''));
+
             return `
-                <label style="display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer;">
-                    <input type="checkbox" data-idx="${idx}" ${checked} onchange="togglePalletSelection(${idx}, this.checked)">
+                <label style="display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; align-items: center; border: ${cardBorder}; background: ${cardBg}; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s ease; ${shadow}">
+                    <input type="checkbox" data-idx="${idx}" ${checked} onchange="togglePalletSelection(${idx}, this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
                     <div style="min-width: 0;">
-                        <div style="font-size: 13px; font-weight: 800; color: #0f172a;">${escapeAttr(pal.nazwa || '-')}</div>
-                        <div style="font-size: 12px; color: #475569;">Kod: ${escapeAttr(code)} | Lokalizacja: ${escapeAttr(pal.lokalizacja || '-')} | Typ: ${escapeAttr(typeLabel)}</div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                            <span style="font-size: 14px; font-weight: 800; color: #0f172a;">${escapeAttr(pal.nazwa || '-')}</span>
+                            ${fifoBadgeHtml}
+                        </div>
+                        <div style="font-size: 12px; color: #475569; line-height: 1.4;">
+                            <strong style="color: #2563eb; font-family: monospace;">${escapeAttr(code)}</strong> | 
+                            Regał/Lokalizacja: <strong style="color: #0f172a;">${escapeAttr(pal.lokalizacja || '-')}</strong> | 
+                            Partia: <span style="font-family: monospace; font-weight: 700;">${escapeAttr(pal.nr_partii || '-')}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                            📅 Prod: <strong>${escapeAttr(pal.data_produkcji || '-')}</strong> | 
+                            ⌛ Ważność: <strong style="${isFirstFifo ? 'color: #b91c1c;' : ''}">${escapeAttr(pal.data_przydatnosci || '-')}</strong>
+                        </div>
                     </div>
-                    <div style="font-size: 12px; font-weight: 700; color: #334155; text-align: right;">Stan: ${escapeAttr(qty)}</div>
+                    <div style="font-size: 13px; font-weight: 900; color: #0f172a; text-align: right; white-space: nowrap;">
+                        ${escapeAttr(qty)} <span style="font-size: 10px; font-weight: 700; color: #64748b;">${typeLabel === 'opakowanie' ? 'szt' : 'kg'}</span>
+                    </div>
                 </label>
             `;
         }).join('');

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Podglad etykiety - {{ nr_palety }}</title>
+    <title>Podgląd etykiety - {{ nr_palety }}</title>
     <style>
         @page {
             size: 100mm 150mm;
@@ -16,7 +16,7 @@
 
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
+            font-family: "Segoe UI", Arial, sans-serif;
             background: #f1f5f9;
             color: #0f172a;
         }
@@ -36,7 +36,7 @@
             background: #ffffff;
             border: 1px solid #cbd5e1;
             border-radius: 10px;
-            padding: 10px;
+            padding: 10px 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -44,8 +44,9 @@
         }
 
         .toolbar-note {
-            font-size: 12px;
-            color: #475569;
+            font-size: 13px;
+            font-weight: 700;
+            color: #334155;
         }
 
         .toolbar-btn {
@@ -53,25 +54,61 @@
             background: #2563eb;
             color: #ffffff;
             border-radius: 8px;
-            padding: 8px 12px;
+            padding: 8px 14px;
             font-weight: 700;
+            font-size: 13px;
             cursor: pointer;
+        }
+
+        .toggle-btn {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #334155;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .toggle-btn.active {
+            background: #0f172a;
+            color: #ffffff;
+            border-color: #0f172a;
+        }
+
+        .zpl-container {
+            width: 101.6mm;
+            height: 152.4mm;
+            background: #ffffff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zpl-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         .label {
             width: 100mm;
             height: 150mm;
             background: #ffffff;
-            border: 2px solid #0f172a;
-            padding: 6mm;
-            display: grid;
-            grid-template-rows: auto auto auto 1fr auto;
-            gap: 4mm;
+            border: 2.5px solid #0f172a;
+            padding: 5mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
         }
 
         .head {
-            border-bottom: 2px solid #334155;
-            padding-bottom: 3mm;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 2mm;
+            margin-bottom: 2mm;
         }
 
         .head-row {
@@ -82,77 +119,155 @@
         }
 
         .badge {
-            border: 1px solid #1e293b;
-            padding: 2px 6px;
-            border-radius: 999px;
-            font-size: 10px;
-            font-weight: 700;
+            border: 1.5px solid #0f172a;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
         }
 
         .label-title {
             margin: 0;
             font-size: 14px;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.5px;
         }
 
-        .mono {
-            font-family: "Courier New", monospace;
-        }
-
-        .field {
-            border: 1px solid #cbd5e1;
+        .product-box {
+            border: 1.5px solid #cbd5e1;
             border-radius: 6px;
-            padding: 7px;
+            padding: 4px 8px;
+            margin-bottom: 2mm;
         }
 
-        .field-label {
+        .product-label {
             margin: 0;
-            font-size: 10px;
-            color: #475569;
+            font-size: 9px;
+            color: #64748b;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
+            font-weight: 800;
         }
 
-        .field-value {
-            margin: 4px 0 0;
-            font-size: 15px;
-            font-weight: 700;
+        .product-title {
+            margin: 2px 0 0;
+            font-size: 16px;
+            font-weight: 900;
             line-height: 1.2;
             word-break: break-word;
         }
 
-        .grid2 {
+        .qr-main-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 2mm 0;
+        }
+
+        .qr-main-img {
+            width: 42mm;
+            height: 42mm;
+            object-fit: contain;
+        }
+
+        .sscc-text {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-top: 2px;
+            text-align: center;
+        }
+
+        .details-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 3mm;
+            gap: 2mm;
+            margin-bottom: 2mm;
         }
 
-        .weight {
-            display: flex;
-            align-items: baseline;
-            gap: 6px;
+        .field-card {
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            padding: 4px 6px;
         }
 
-        .weight-main {
-            font-size: 34px;
-            font-weight: 900;
-            line-height: 1;
+        .field-lbl {
+            margin: 0;
+            font-size: 8px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
         }
 
-        .weight-unit {
-            font-size: 16px;
-            font-weight: 700;
+        .field-val {
+            margin: 1px 0 0;
+            font-size: 12px;
+            font-weight: 800;
+            font-family: "Courier New", Courier, monospace;
         }
 
-        .footer {
-            border-top: 1px solid #94a3b8;
+        .bottom-section {
+            border-top: 2px solid #0f172a;
             padding-top: 2mm;
-            font-size: 10px;
-            color: #475569;
             display: flex;
             justify-content: space-between;
+            align-items: flex-end;
             gap: 8px;
+        }
+
+        .weight-block {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .weight-lbl {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .weight-val {
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+
+        .qr-details-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .qr-details-img {
+            width: 11mm;
+            height: 11mm;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            padding: 1px;
+            background: #ffffff;
+        }
+
+        .qr-details-sub {
+            font-size: 7px;
+            font-weight: 700;
+            color: #64748b;
+            margin-top: 1px;
+            text-transform: uppercase;
+        }
+
+        .footer-note {
+            display: flex;
+            justify-content: space-between;
+            font-size: 8px;
+            color: #94a3b8;
+            margin-top: 2mm;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 1mm;
         }
 
         @media print {
@@ -166,65 +281,111 @@
             }
 
             .toolbar {
-                display: none;
+                display: none !important;
             }
 
-            .label {
-                border-width: 1px;
+            .zpl-container {
+                box-shadow: none;
             }
         }
     </style>
 </head>
 <body>
     <div class="layout">
-        <!-- Usunięto przycisk drukowania lokalnego / PDF. Etykiety drukowane tylko przez wybór drukarki ZPL. -->
-
-        <div class="label">
-            <div class="head">
-                <div class="head-row">
-                    <h1 class="label-title">{{ typ_label }} - MAGAZYN {{ linia }}</h1>
-                    <span class="badge">TEST</span>
-                </div>
-                <div style="margin-top: 5px; font-size: 11px; color: #334155;">Nr palety: <strong class="mono">{{ nr_palety }}</strong></div>
+        <div class="toolbar">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="toolbar-note">Podgląd:</span>
+                <button type="button" id="btnZplMode" class="toggle-btn active" onclick="switchView('zpl')">🖨️ ZPL (Zebra 1:1)</button>
+                <button type="button" id="btnHtmlMode" class="toggle-btn" onclick="switchView('html')">📄 HTML</button>
             </div>
+            <button class="toolbar-btn" onclick="window.print()">🖨️ Drukuj (A4/100x150)</button>
+        </div>
 
-            <div class="field">
-                <p class="field-label">Produkt</p>
-                <p class="field-value">{{ product_name }}</p>
-            </div>
+        {% if zpl_string %}
+        <!-- Domyślny widok: 1:1 render z silnika Zebra ZPL -->
+        <div class="zpl-container" id="viewZpl">
+            <img src="http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/{{ zpl_string | urlencode }}" alt="Oryginalna etykieta ZPL Zebra 1:1">
+        </div>
+        {% endif %}
 
-            <div class="grid2">
-                <div class="field">
-                    <p class="field-label">Partia</p>
-                    <p class="field-value mono">{{ nr_partii }}</p>
+        <!-- Alternatywny widok HTML -->
+        <div class="label" id="viewHtml" style="{% if zpl_string %}display: none;{% endif %}">
+            <div>
+                <div class="head">
+                    <div class="head-row">
+                        <h1 class="label-title">{{ typ_label }} - MAGAZYN {{ linia }}</h1>
+                        <span class="badge">{{ linia }}</span>
+                    </div>
                 </div>
-                <div class="field">
-                    <p class="field-label">Waga netto</p>
-                    <div class="weight">
-                        <span class="weight-main">{{ '%.2f'|format(qty) }}</span>
-                        <span class="weight-unit">kg</span>
+
+                <div class="product-box">
+                    <p class="product-label">Produkt</p>
+                    <p class="product-title">{{ product_name }}</p>
+                </div>
+
+                <!-- Główny kod QR: TYLKO SSCC -->
+                <div class="qr-main-section">
+                    <img class="qr-main-img" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ nr_palety|urlencode }}" alt="QR SSCC">
+                    <div class="sscc-text">{{ nr_palety }}</div>
+                </div>
+
+                <div class="details-grid">
+                    <div class="field-card">
+                        <p class="field-lbl">Partia</p>
+                        <p class="field-val">{{ nr_partii }}</p>
+                    </div>
+                    <div class="field-card">
+                        <p class="field-lbl">Data produkcji</p>
+                        <p class="field-val">{{ data_produkcji }}</p>
+                    </div>
+                    <div class="field-card" style="grid-column: span 2;">
+                        <p class="field-lbl">Data przydatności</p>
+                        <p class="field-val">{{ data_przydatnosci }}</p>
                     </div>
                 </div>
             </div>
 
-            <div class="grid2">
-                <div class="field">
-                    <p class="field-label">Data produkcji</p>
-                    <p class="field-value mono">{{ data_produkcji }}</p>
-                </div>
-                <div class="field">
-                    <p class="field-label">Data przydatnosci</p>
-                    <p class="field-value mono">{{ data_przydatnosci }}</p>
-                </div>
-            </div>
+            <!-- Dolna sekcja: Waga po lewej, kod QR ze szczegółami po prawej -->
+            <div>
+                <div class="bottom-section">
+                    <div class="weight-block">
+                        <span class="weight-lbl">Waga / Ilość:</span>
+                        <span class="weight-val">{{ '%.2f'|format(qty) }} {{ 'szt' if typ_label == 'OPAKOWANIE' else 'kg' }}</span>
+                    </div>
 
-            <div class="footer">
-                <span>Wygenerowano: {{ generated_at }}</span>
-                <span>Raport Produkcyjny</span>
+                    <div class="qr-details-block" title="Pełne dane palety">
+                        <img class="qr-details-img" src="https://api.qrserver.com/v1/create-qr-code/?size=50x50&data={{ (qr_details_json or nr_palety)|urlencode }}" alt="QR Dane">
+                        <span class="qr-details-sub">Szczegóły</span>
+                    </div>
+                </div>
+
+                <div class="footer-note">
+                    <span>Wygenerowano: {{ generated_at }}</span>
+                    <span>System RaportProdukcyjny</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Autoprint wyłączony - druk tylko przez serwer ZPL po wyborze drukarki -->
+    <script>
+        function switchView(mode) {
+            const viewZpl = document.getElementById('viewZpl');
+            const viewHtml = document.getElementById('viewHtml');
+            const btnZpl = document.getElementById('btnZplMode');
+            const btnHtml = document.getElementById('btnHtmlMode');
+
+            if (mode === 'zpl' && viewZpl) {
+                viewZpl.style.display = 'flex';
+                if (viewHtml) viewHtml.style.display = 'none';
+                if (btnZpl) btnZpl.classList.add('active');
+                if (btnHtml) btnHtml.classList.remove('active');
+            } else if (viewHtml) {
+                if (viewZpl) viewZpl.style.display = 'none';
+                viewHtml.style.display = 'flex';
+                if (btnZpl) btnZpl.classList.remove('active');
+                if (btnHtml) btnHtml.classList.add('active');
+            }
+        }
+    </script>
 </body>
 </html>

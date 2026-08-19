@@ -37,13 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
         scannerInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const val = e.target.value.trim();
-                if (val) {
+                const cleaned = extractSSCCFromScan(e.target.value);
+                e.target.value = cleaned;
+                if (cleaned) {
                     lookupAndAddPallets();
                 }
             }
         });
-        scannerInput.addEventListener('input', (e) => queueScannerSuggestions(e.target.value));
+        scannerInput.addEventListener('input', (e) => {
+            const raw = e.target.value;
+            const cleaned = extractSSCCFromScan(raw);
+            if (cleaned !== raw) {
+                e.target.value = cleaned;
+            }
+            queueScannerSuggestions(cleaned);
+        });
+        scannerInput.addEventListener('paste', (e) => {
+            setTimeout(() => {
+                const cleaned = extractSSCCFromScan(scannerInput.value);
+                if (cleaned !== scannerInput.value) {
+                    scannerInput.value = cleaned;
+                }
+            }, 10);
+        });
 
         // Global keydown listener to auto-focus scanner input
         document.addEventListener('keydown', (e) => {

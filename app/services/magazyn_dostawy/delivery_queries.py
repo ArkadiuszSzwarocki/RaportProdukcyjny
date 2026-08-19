@@ -129,6 +129,7 @@ class DeliveryQueries:
                 suggested_location = LocationService._normalize_location_code(row.get('suggested_location'))
                 row['suggested_location'] = suggested_location
                 row['target_zone'] = LocationService._derive_target_zone(suggested_location)
+                row['linia'] = normalized_line
             return rows
 
     def get_raport(date_from=None, date_to=None):

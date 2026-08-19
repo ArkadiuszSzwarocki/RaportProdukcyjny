@@ -41,7 +41,7 @@ function queueLocationSuggestions(rawValue) {
 
 function queueScannerSuggestions(value) {
         if (scannerSuggestTimer) clearTimeout(scannerSuggestTimer);
-        const prefix = (value || '').trim();
+        const prefix = (typeof extractSSCCFromScan === 'function' ? extractSSCCFromScan(value) : (value || '')).trim();
         if (prefix.length < 2) return;
         scannerSuggestTimer = setTimeout(() => fetchScannerSuggestions(prefix), 250);
     }
@@ -95,12 +95,11 @@ async function fetchScannerSuggestions(prefix) {
                 // Ograniczamy do 25 podpowiedzi, by nie zapchać przeglądarki
                 data.pallets.slice(0, 25).forEach(p => {
                     const option = document.createElement('option');
-                    // Jako value wstawiamy SSCC lub ID
                     const sscc = p.nr_palety || p.id;
                     option.value = sscc;
-                    // Jako tekst wstawiamy nazwę i lokalizację, żeby widział w podpowiedziach
-                    const stan = p.stan_magazynowy ? p.stan_magazynowy + ' kg/szt' : 'Brak';
-                    option.textContent = `${p.nazwa} | Lokalizacja: ${p.lokalizacja || '-'} | Stan: ${stan}`;
+                    const stan = p.stan_magazynowy ? p.stan_magazynowy + ' ' + (p.type === 'opakowanie' ? 'szt' : 'kg') : 'Brak';
+                    const fifoPrefix = p.is_first_fifo ? '⚡ [1. DO ZUŻYCIA FIFO] ' : (p.fifo_index ? `[FIFO #${p.fifo_index}] ` : '');
+                    option.textContent = `${fifoPrefix}${p.nazwa} | Lok: ${p.lokalizacja || '-'} | Partia: ${p.nr_partii || '-'} | Stan: ${stan}`;
                     list.appendChild(option);
                 });
             }
@@ -117,9 +116,11 @@ async function lookupAndAddPallets() {
         }
         const input = document.getElementById('scanner_input');
         const countInput = document.getElementById('pallet_count');
-        const code = input.value.trim();
+        const rawVal = input.value.trim();
+        const code = (typeof extractSSCCFromScan === 'function' ? extractSSCCFromScan(rawVal) : rawVal).trim();
         if (!code) return;
 
+        input.value = code;
         const count = parseInt(countInput.value) || 1;
         input.value = 'Szukam...';
         input.disabled = true;

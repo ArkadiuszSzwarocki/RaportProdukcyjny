@@ -390,32 +390,100 @@ class AcceptanceService:
                 conn.close()
 
     def accept_production_pallet(pallet_id, lokalizacja, linia='PSD', login='system', confirmed_weight=None):
-            """Moves a production pallet (WG) from 'do_przyjecia' to warehouse inventory."""
+            """Moves a production pallet (WG) from 'do_przyjecia' to warehouse inventory with robust cross-line detection."""
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                table_prod = 'palety_workowanie' if linia == 'PSD' else 'palety_agro'
-                table_wh = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
                 
-                # 1. Fetch pallet data
-                query = f"""
-                    SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
-                    FROM {table_prod} p
-                    LEFT JOIN plan_produkcji plan ON p.plan_id = plan.id
-                    WHERE p.id = %s AND p.status = 'do_przyjecia'
-                """
-                if linia == 'AGRO':
+                lokalizacja = str(lokalizacja or '').strip().upper()
+                if not lokalizacja:
+                    return False, "Podaj docelową lokalizację palety."
+
+                pallet_id_str = str(pallet_id or '').strip()
+                pallet_id_int = int(pallet_id_str) if pallet_id_str.isdigit() else None
+                pallet_nr_str = pallet_id_str.upper()
+
+                # Kolejność sprawdzania linii
+                req_line = str(linia or 'PSD').strip().upper()
+                if pallet_nr_str.startswith('AGR'):
+                    lines_to_try = ['AGRO', 'PSD']
+                elif pallet_nr_str.startswith('PSD'):
+                    lines_to_try = ['PSD', 'AGRO']
+                elif req_line == 'AGRO':
+                    lines_to_try = ['AGRO', 'PSD']
+                else:
+                    lines_to_try = ['PSD', 'AGRO']
+
+                pallet = None
+                matched_line = None
+                table_prod = None
+                table_wh = None
+
+                # 1. Szukaj w statusie 'do_przyjecia' (lub oczekującym)
+                for try_line in lines_to_try:
+                    t_prod = 'palety_workowanie' if try_line == 'PSD' else 'palety_agro'
+                    t_wh = 'magazyn_palety' if try_line == 'PSD' else 'magazyn_palety_agro'
+                    t_plan = 'plan_produkcji' if try_line == 'PSD' else 'plan_produkcji_agro'
+
+                    where_clauses = ["p.nr_palety = %s"]
+                    params = [pallet_nr_str]
+                    if pallet_id_int is not None:
+                        where_clauses.append("p.id = %s")
+                        params.append(pallet_id_int)
+
                     query = f"""
                         SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
-                        FROM {table_prod} p
-                        LEFT JOIN plan_produkcji_agro plan ON p.plan_id = plan.id
-                        WHERE p.id = %s AND p.status = 'do_przyjecia'
+                        FROM {t_prod} p
+                        LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
+                        WHERE ({' OR '.join(where_clauses)})
+                          AND (p.status = 'do_przyjecia' OR p.status IS NULL OR p.status = '')
+                        ORDER BY p.id DESC LIMIT 1
                     """
-                
-                cursor.execute(query, (pallet_id,))
-                pallet = cursor.fetchone()
+                    cursor.execute(query, tuple(params))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        pallet = p_row
+                        matched_line = try_line
+                        table_prod = t_prod
+                        table_wh = t_wh
+                        break
+
+                # 1b. Fallback: jeśli nie znaleziono ze statusem 'do_przyjecia', sprawdź czy paleta istnieje
                 if not pallet:
-                    return False, "Nie znaleziono palety lub jest już przyjęta."
+                    for try_line in lines_to_try:
+                        t_prod = 'palety_workowanie' if try_line == 'PSD' else 'palety_agro'
+                        t_wh = 'magazyn_palety' if try_line == 'PSD' else 'magazyn_palety_agro'
+                        t_plan = 'plan_produkcji' if try_line == 'PSD' else 'plan_produkcji_agro'
+
+                        where_clauses = ["p.nr_palety = %s"]
+                        params = [pallet_nr_str]
+                        if pallet_id_int is not None:
+                            where_clauses.append("p.id = %s")
+                            params.append(pallet_id_int)
+
+                        query = f"""
+                            SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
+                            FROM {t_prod} p
+                            LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
+                            WHERE ({' OR '.join(where_clauses)})
+                            ORDER BY p.id DESC LIMIT 1
+                        """
+                        cursor.execute(query, tuple(params))
+                        p_row = cursor.fetchone()
+                        if p_row:
+                            if p_row.get('status') in ('w_magazynie', 'przyjeta'):
+                                return False, f"Paleta {p_row.get('nr_palety') or pallet_id} została już wcześniej przyjęta do magazynu."
+                            pallet = p_row
+                            matched_line = try_line
+                            table_prod = t_prod
+                            table_wh = t_wh
+                            break
+
+                if not pallet:
+                    return False, f"Nie znaleziono palety wyrobu gotowego: {pallet_id}."
+
+                actual_pallet_id = pallet['id']
+                linia = matched_line
 
                 try:
                     confirmed_netto = float(confirmed_weight) if confirmed_weight is not None else float(pallet.get('waga') or 0)
@@ -428,13 +496,12 @@ class AcceptanceService:
                 # 2. Update production table status
                 cursor.execute(
                     f"UPDATE {table_prod} SET status = 'w_magazynie', data_potwierdzenia = %s, waga_potwierdzona = %s WHERE id = %s",
-                    (datetime.now(), confirmed_netto, pallet_id),
+                    (datetime.now(), confirmed_netto, actual_pallet_id),
                 )
                 
                 # 3. Insert into warehouse table
-                # Check if record already exists (some logic might have inserted it earlier)
                 fk_col = 'paleta_workowanie_id'
-                cursor.execute(f"SELECT id FROM {table_wh} WHERE {fk_col} = %s", (pallet_id,))
+                cursor.execute(f"SELECT id FROM {table_wh} WHERE {fk_col} = %s", (actual_pallet_id,))
                 existing = cursor.fetchone()
                 
                 if existing:
@@ -447,7 +514,7 @@ class AcceptanceService:
                         INSERT INTO {table_wh} 
                         ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (pallet_id, 
+                    """, (actual_pallet_id, 
                           pallet.get('plan_id'), 
                           pallet.get('data_planu'), 
                           pallet.get('produkt_nazwa') or pallet.get('produkt') or '', 
@@ -461,7 +528,7 @@ class AcceptanceService:
                 cursor.execute("""
                     INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
                     VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
-                """, (pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet['produkt_nazwa']}", login))
+                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
 
                 conn.commit()
                 

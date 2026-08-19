@@ -1,10 +1,24 @@
 
 function generateTableRow(item, index) {
     const isBlockedCls = item.is_blocked ? 'is-blocked-row' : '';
-    const icon = item.is_blocked ? '<span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>' : '<span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>';
+    const isFirstFifo = Boolean(item.is_first_fifo);
+    const rowStyle = isFirstFifo 
+        ? 'cursor: pointer; background: #fffbeb !important; border-left: 4px solid #f59e0b;' 
+        : 'cursor: pointer;';
+    const icon = item.is_blocked 
+        ? '<span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>' 
+        : (isFirstFifo 
+            ? '<span class="material-icons" style="color: #ea580c; font-size: 16px;" title="Pierwsza partia do zużycia (FIFO)">bolt</span>'
+            : '<span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>');
     
+    const fifoBadge = isFirstFifo
+        ? `<span class="badge" style="background: #f59e0b; color: #ffffff; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; vertical-align: middle; box-shadow: 0 1px 2px rgba(245,158,11,0.25);">
+                <span class="material-icons" style="font-size: 12px;">bolt</span> 1. DO ZUŻYCIA (FIFO)
+           </span>`
+        : (item.fifo_batch_num && item.fifo_batch_num > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">Partia ${item.fifo_batch_num}</span>` : (item.fifo_index && item.fifo_total > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">FIFO #${item.fifo_index}</span>` : ''));
+
     return `<tr class="pallet-row ${isBlockedCls}"
-                style="cursor: pointer;"
+                style="${rowStyle}"
                 data-display-id="${item.displayId}"
                 data-product="${item.productName.replace(/"/g, '&quot;')}"
                 data-amount="${item.amount}"
@@ -18,7 +32,7 @@ function generateTableRow(item, index) {
                 data-linia="${item.linia}"
                 data-blocked="${item.is_blocked}"
                 data-date-added="${item.date_added}">
-        <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">${index}</td>
+        <td style="text-align: center; color: #94a3b8; font-weight: 700; background: ${isFirstFifo ? '#fef3c7' : '#f8fafc'}; font-size: 11px;">${index}</td>
         <td class="font-bold">
             <div style="display: flex; align-items: center; gap: 6px;">
                 ${icon}
@@ -27,6 +41,7 @@ function generateTableRow(item, index) {
         </td>
         <td data-label="Produkt">
             <strong class="text-primary">${item.productName}</strong>
+            ${fifoBadge}
         </td>
         <td data-label="Ilość"><strong>${item.amount}</strong> <small>${item.unit}</small></td>
         <td data-label="Lokalizacja" class="location-cell" data-loc-raw="${item.location}">
@@ -36,13 +51,20 @@ function generateTableRow(item, index) {
             <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">${item.type}</span>
         </td>
         <td data-label="Produkcja" class="time-display">${item.date_prod}</td>
-        <td data-label="Ważność" class="time-display">${item.date_exp}</td>
+        <td data-label="Ważność" class="time-display" style="${isFirstFifo ? 'color: #ea580c; font-weight: 700;' : ''}">${item.date_exp}</td>
     </tr>`;
 }
 
 function generateGridCard(item) {
     const isBlockedCls = item.is_blocked ? 'is-blocked-card' : '';
-    const icon = item.is_blocked ? '<span class="material-icons text-danger" style="font-size: 18px;">block</span>' : '';
+    const isFirstFifo = Boolean(item.is_first_fifo);
+    const cardFifoStyle = isFirstFifo ? 'border: 2px solid #f59e0b; background: #fffbeb;' : '';
+    const icon = item.is_blocked 
+        ? '<span class="material-icons text-danger" style="font-size: 18px;">block</span>' 
+        : (isFirstFifo 
+            ? '<span class="badge" style="background: #f59e0b; color: white; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px;"><span class="material-icons" style="font-size: 10px;">bolt</span> 1. FIFO</span>' 
+            : '');
+
     let loc_code = (item.location || '').toUpperCase();
     let loc_html = item.location || '???';
     if (loc_code.length >= 7 && loc_code.startsWith('R')) {
@@ -54,7 +76,7 @@ function generateGridCard(item) {
     }
 
     return `<div class="pallet-card ${isBlockedCls}"
-                 style="cursor: pointer;"
+                 style="cursor: pointer; ${cardFifoStyle}"
                  data-display-id="${item.displayId}"
                  data-product="${item.productName.replace(/"/g, '&quot;')}"
                  data-amount="${item.amount}"

@@ -281,6 +281,7 @@
         wszystkieProdukty: {{ wszystkie_produkty|tojson|safe }},
         linia: '{{ linia }}',
         dostawaId: '{{ dostawa.id if dostawa else "" }}',
+        printers: {{ (printers|tojson if printers else '[]')|safe }},
         apiUrlSugerowane: '/magazyn-dostawy/api/sugerowane-lokalizacje',
         apiUrlDostepne: '/magazyn-dostawy/api/dostepne-palety',
         urlListaDostaw: "{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}",

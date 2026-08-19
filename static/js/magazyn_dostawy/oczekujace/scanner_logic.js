@@ -1,5 +1,16 @@
 function normalizeScanCode(value) {
-    return String(value || '').trim().toUpperCase();
+    let s = String(value || '').trim();
+    if (!s) return '';
+    // Jeśli skanujemy kod QR ze szczegółami JSON, wyciągnij pole sscc lub nr_palety
+    if (s.startsWith('{') && s.endsWith('}')) {
+        try {
+            const parsed = JSON.parse(s);
+            if (parsed.sscc) return String(parsed.sscc).trim().toUpperCase();
+            if (parsed.nr_palety) return String(parsed.nr_palety).trim().toUpperCase();
+            if (parsed.id) return String(parsed.id).trim().toUpperCase();
+        } catch (e) {}
+    }
+    return s.toUpperCase();
 }
 
 let activeGlobalItemType = null; // 'transfer' or 'wg'
@@ -104,7 +115,7 @@ async function handleGlobalLocationScanSubmit(rawLocationCode) {
                 body: JSON.stringify({
                     id: activeTransferItem.id,
                     lokalizacja: lok,
-                    linia: window.MAGAZYN_CONFIG.linia,
+                    linia: activeTransferItem.linia || (String(activeTransferItem.nr || '').startsWith('AGR') ? 'AGRO' : window.MAGAZYN_CONFIG.linia),
                     waga: Number.isFinite(parsedWaga) ? parsedWaga : null
                 })
             });

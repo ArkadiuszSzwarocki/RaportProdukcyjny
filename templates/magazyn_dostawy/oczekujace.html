@@ -172,7 +172,8 @@
                                 data-wg-id="{{ p.id }}"
                                 data-wg-nr="{{ p.nr_palety }}"
                                 data-wg-waga="{{ p.waga or '' }}"
-                                onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }})"
+                                data-wg-linia="{{ p.linia }}"
+                                onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }}, '{{ p.linia }}')"
                             >PRZYJMIJ</button>
                         </td>
                     </tr>
