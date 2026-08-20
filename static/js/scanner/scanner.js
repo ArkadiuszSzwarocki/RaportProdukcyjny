@@ -552,60 +552,85 @@ let wgPalletObj = null;
 
 function openWgAcceptModal(p) {
   wgPalletObj = p;
-  document.getElementById('wgPalletNo').textContent = p.nr_palety || 'ID: ' + p.id;
-  document.getElementById('wgPalletName').textContent = p.nazwa;
-  document.getElementById('wgWeightInput').value = parseFloat(p.stan_magazynowy || 0).toFixed(1);
-  document.getElementById('wgLocInput').value = '';
+  const overlay = document.getElementById('wgAcceptOverlay');
+  const palletNoEl = document.getElementById('wgPalletNo');
+  const palletNameEl = document.getElementById('wgPalletName');
+  const weightInput = document.getElementById('wgWeightInput');
+  const locInput = document.getElementById('wgLocInput');
+
+  if (palletNoEl) palletNoEl.textContent = p.nr_palety || 'ID: ' + p.id;
+  if (palletNameEl) palletNameEl.textContent = p.nazwa || '';
+  if (weightInput) weightInput.value = parseFloat(p.stan_magazynowy || 0).toFixed(1);
+  if (locInput) locInput.value = '';
   
   backToWgStep1();
   
-  document.getElementById('wgAcceptOverlay').style.display = 'flex';
-  setTimeout(() => {
-    const wInput = document.getElementById('wgWeightInput');
-    wInput.focus();
-    wInput.select();
-  }, 100);
+  if (overlay) {
+    overlay.style.display = 'flex';
+    setTimeout(() => {
+      if (weightInput) {
+        weightInput.focus();
+        weightInput.select();
+      }
+    }, 100);
+  }
 }
 
 function closeWgAcceptModal() {
-  document.getElementById('wgAcceptOverlay').style.display = 'none';
+  const overlay = document.getElementById('wgAcceptOverlay');
+  if (overlay) overlay.style.display = 'none';
   wgPalletObj = null;
   scanInput.value = '';
   scanInput.focus();
 }
 
 function goToWgStep2() {
-  const wVal = parseFloat(document.getElementById('wgWeightInput').value);
+  const weightInput = document.getElementById('wgWeightInput');
+  const wVal = weightInput ? parseFloat(weightInput.value) : 0;
   if (!wVal || wVal <= 0) {
     showToast('Wprowadź prawidłową wagę', 'warn');
     return;
   }
-  document.getElementById('wgStepWeight').style.display = 'none';
-  document.getElementById('wgStepLocation').style.display = 'block';
-  
-  document.getElementById('wgBackBtn').style.display = 'inline-block';
-  document.getElementById('wgNextBtn').style.display = 'none';
-  document.getElementById('wgConfirmBtn').style.display = 'inline-block';
+  const stepWeight = document.getElementById('wgStepWeight');
+  const stepLoc = document.getElementById('wgStepLocation');
+  const backBtn = document.getElementById('wgBackBtn');
+  const nextBtn = document.getElementById('wgNextBtn');
+  const confirmBtn = document.getElementById('wgConfirmBtn');
+
+  if (stepWeight) stepWeight.style.display = 'none';
+  if (stepLoc) stepLoc.style.display = 'block';
+  if (backBtn) backBtn.style.display = 'inline-block';
+  if (nextBtn) nextBtn.style.display = 'none';
+  if (confirmBtn) confirmBtn.style.display = 'inline-block';
   
   setTimeout(() => {
     const locInp = document.getElementById('wgLocInput');
-    locInp.focus();
-    locInp.select();
+    if (locInp) {
+      locInp.focus();
+      locInp.select();
+    }
   }, 100);
 }
 
 function backToWgStep1() {
-  document.getElementById('wgStepWeight').style.display = 'block';
-  document.getElementById('wgStepLocation').style.display = 'none';
-  
-  document.getElementById('wgBackBtn').style.display = 'none';
-  document.getElementById('wgNextBtn').style.display = 'inline-block';
-  document.getElementById('wgConfirmBtn').style.display = 'none';
+  const stepWeight = document.getElementById('wgStepWeight');
+  const stepLoc = document.getElementById('wgStepLocation');
+  const backBtn = document.getElementById('wgBackBtn');
+  const nextBtn = document.getElementById('wgNextBtn');
+  const confirmBtn = document.getElementById('wgConfirmBtn');
+
+  if (stepWeight) stepWeight.style.display = 'block';
+  if (stepLoc) stepLoc.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
+  if (nextBtn) nextBtn.style.display = 'inline-block';
+  if (confirmBtn) confirmBtn.style.display = 'none';
   
   setTimeout(() => {
     const wInp = document.getElementById('wgWeightInput');
-    wInp.focus();
-    wInp.select();
+    if (wInp) {
+      wInp.focus();
+      wInp.select();
+    }
   }, 100);
 }
 
@@ -738,8 +763,8 @@ function openScannerReturnModal() {
   const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
   
   document.getElementById('scannerReturnLoc').textContent = loc;
-  document.getElementById('scannerReturnQty').value = maxQty;
-  document.getElementById('scannerReturnMaxQty').textContent = `Max: ${maxQty.toFixed(1)} kg`;
+  document.getElementById('scannerReturnQty').value = maxQty > 0 ? maxQty : '';
+  document.getElementById('scannerReturnMaxQty').textContent = maxQty > 0 ? `Max: ${maxQty.toFixed(1)} kg` : '';
   
   document.getElementById('scannerReturnOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('scannerReturnQty').focus(), 100);
@@ -762,8 +787,8 @@ function submitScannerReturn() {
     return;
   }
   
-  if (qty > maxQty) {
-    showToast(`Ilość nie może być większa niż ${maxQty} kg`, 'danger');
+  if (maxQty > 0 && qty > maxQty) {
+    showToast(`Ilość nie może być większa niż ${maxQty.toFixed(1)} kg`, 'danger');
     return;
   }
   
@@ -782,11 +807,11 @@ function submitScannerReturn() {
   .then(r => r.json())
   .then(d => {
     if (d.success) {
-      showToast('Pomyślnie zwrócono na magazyn', 'success');
+      showToast(`Pomyślnie zwrócono ${qty} kg na magazyn`, 'success');
       closeScannerReturnModal();
       hidePallet();
     } else {
-      showToast('Błąd: ' + d.error, 'danger');
+      showToast('Błąd: ' + (d.error || 'Nieznany błąd'), 'danger');
     }
   })
   .catch(e => {
@@ -794,4 +819,5 @@ function submitScannerReturn() {
     showToast('Błąd połączenia z serwerem', 'danger');
   });
 }
+
 

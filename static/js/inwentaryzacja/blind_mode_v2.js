@@ -1,6 +1,8 @@
-function searchLocation() {
-    const rawLoc = document.getElementById('lokalizacjaInput').value.trim().toUpperCase();
+function searchLocation(locOverride) {
+    const inputEl = document.getElementById('lokalizacjaInput');
+    const rawLoc = (locOverride !== undefined && locOverride !== null ? String(locOverride) : (inputEl ? inputEl.value : '')).trim().toUpperCase();
     if(!rawLoc) return;
+    if (inputEl) inputEl.value = '';
     
     // Zabezpieczenie przed zeskanowaniem palety jako lokalizacji
     // Usuwamy znaki specjalne (np. nawiasy (00), prefiksy GS1 ]C1) i sprawdzamy czy ma 15+ cyfr
@@ -12,19 +14,23 @@ function searchLocation() {
         if (typeof AppDialog !== 'undefined') {
             AppDialog.alert('Zeskanowałeś kod palety zamiast lokalizacji. Najpierw zeskanuj LOKALIZACJĘ (np. R010101, MGW01)!', 'Zła kolejność skanowania');
         }
-        document.getElementById('lokalizacjaInput').value = '';
+        if (inputEl) inputEl.value = '';
         return;
     }
     
-    // Check if it's a Rack (e.g. "R01", "R-01" or similar length 3-4)
-    if(rawLoc.startsWith('R') && rawLoc.length >= 3 && rawLoc.length <= 4) {
-        loadRack(rawLoc);
+    // 1. If it's a Rack code (e.g. "R01", "R-01", "R1", "R-1")
+    if (isRackCode(rawLoc)) {
+        const rackPrefix = normalizeRackPrefix(rawLoc);
+        loadRack(rackPrefix);
         return;
     }
 
-    // If we are in Rack mode and scan a slot, handle it locally
-    if(currentRackPrefix && rawLoc.startsWith(currentRackPrefix) && rawLoc.length >= 6) {
-        // Here we should also verify, but for now we just verify when opening the blind scan container
+    // 2. If it's a Rack Slot code (e.g. "R010101", "R-01-01-01", "R10101")
+    if (isLocationCode(rawLoc)) {
+        const normalized = normalizeLocationCode(rawLoc);
+        const rackPrefix = normalized.substring(0, 3);
+        loadRack(rackPrefix, normalized);
+        return;
     }
 
     const sesjaId = window.inventoryConfig ? window.inventoryConfig.sesjaId : null;
@@ -47,13 +53,6 @@ function searchLocation() {
                 AppDialog.alert(data.message, 'Błąd lokalizacji');
             }
             document.getElementById('lokalizacjaInput').value = '';
-            return;
-        }
-
-        // If success, proceed to set location
-        if(currentRackPrefix && rawLoc.startsWith(currentRackPrefix) && rawLoc.length >= 6) {
-            highlightAndOpenSlot(rawLoc);
-            document.getElementById('lokalizacjaInput').value = ''; // clear for next scan
             return;
         }
 

@@ -1,7 +1,8 @@
 from flask import flash, jsonify, redirect, render_template, request, session, url_for
 
-from app.db import get_active_database_name, get_runtime_switchable_databases, set_active_database_name
+from app.db import get_active_database_name, get_runtime_switchable_databases, set_active_database_name, get_db_connection
 from app.decorators import admin_required, dynamic_role_required, masteradmin_required, login_required
+
 
 
 def register_admin_system_routes(admin_bp, *, list_online_users):
@@ -448,26 +449,89 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             printers = cursor.fetchall()
         except Exception as e:
             flash(f"Błąd pobierania drukarek: {e}", "error")
-        finally:
-            conn.close()
         return render_template('ustawienia_drukarki.html', printers=printers)
 
     @admin_bp.route('/admin/ustawienia/email')
     @admin_bp.route('/moje_konto_email')
     @login_required
+
     def admin_ustawienia_email():
         from app.services.email_service import EmailService
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
-        user_id = session.get('user_id')
+        session_user_id = session.get('user_id')
+        user_login = session.get('login')
+        user_role = (session.get('rola') or '').lower().strip()
+        is_admin_user = user_role in ('admin', 'masteradmin', 'administrator')
+        
+        if not session_user_id and user_login:
+            conn = get_db_connection()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT id FROM uzytkownicy WHERE LOWER(login) = LOWER(%s)", (user_login,))
+                r = cur.fetchone()
+                if r:
+                    session_user_id = int(r[0])
+                    session['user_id'] = session_user_id
+            except Exception:
+                pass
+            finally:
+                conn.close()
+
+        target_user_id = request.args.get('user_id', type=int)
+        edit_user_id = target_user_id if (target_user_id and is_admin_user) else session_user_id
+
+        # Fetch list of accounts for admin selection
+        user_accounts_list = []
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT u.id, u.login, u.rola, s.smtp_username 
+                FROM uzytkownicy u 
+                LEFT JOIN uzytkownik_email_settings s ON u.id = s.user_id 
+                WHERE u.rola IN ('lider', 'admin', 'masteradmin', 'zarzad', 'planista')
+                ORDER BY (s.smtp_username IS NOT NULL) DESC, u.login ASC
+            """)
+            user_accounts_list = cur.fetchall()
+            
+            # If admin has no target selected and no user_cfg for themselves, default to first configured leader (e.g. BoczkMar)
+            if is_admin_user and not target_user_id and edit_user_id:
+                has_own_cfg = any(u['id'] == edit_user_id and u['smtp_username'] for u in user_accounts_list)
+                if not has_own_cfg:
+                    first_cfg = next((u for u in user_accounts_list if u['smtp_username']), None)
+                    if first_cfg:
+                        edit_user_id = first_cfg['id']
+        except Exception as e:
+            print("Error fetching user accounts:", e)
+        finally:
+            conn.close()
+
         repo = UserEmailSettingsRepository()
-        user_cfg = repo.get_by_user_id(user_id) if user_id else None
+        user_cfg = repo.get_by_user_id(edit_user_id) if edit_user_id else None
         system_cfg = repo.get_system_config()
         all_recipients = repo.get_all_recipients()
+        
+        # Get login of the user being edited
+        edit_user_login = user_login
+        if edit_user_id and edit_user_id != session_user_id:
+            for u in user_accounts_list:
+                if u['id'] == edit_user_id:
+                    edit_user_login = u['login']
+                    break
+        
+        default_scope = 'user' if (user_role in ('lider', 'pracownik') or user_cfg is not None) else 'system'
+
         return render_template(
             'ustawienia_email.html',
             user_email_cfg=user_cfg,
             system_config=system_cfg,
-            all_recipients=all_recipients
+            all_recipients=all_recipients,
+            default_scope=default_scope,
+            current_user_login=user_login,
+            edit_user_id=edit_user_id,
+            edit_user_login=edit_user_login,
+            user_accounts_list=user_accounts_list,
+            is_admin_user=is_admin_user
         )
 
     @admin_bp.route('/api/email/test', methods=['POST'])
@@ -495,7 +559,25 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @login_required
     def api_email_config_save():
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
-        user_id = session.get('user_id')
+        session_user_id = session.get('user_id')
+        user_login = session.get('login')
+        user_role = (session.get('rola') or '').lower().strip()
+        is_admin_user = user_role in ('admin', 'masteradmin', 'administrator')
+        
+        if not session_user_id and user_login:
+            conn = get_db_connection()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT id FROM uzytkownicy WHERE LOWER(login) = LOWER(%s)", (user_login,))
+                r = cur.fetchone()
+                if r:
+                    session_user_id = int(r[0])
+                    session['user_id'] = session_user_id
+            except Exception:
+                pass
+            finally:
+                conn.close()
+
         payload = request.get_json(silent=True) or request.form
         smtp_server = payload.get('smtp_server')
         smtp_port = payload.get('smtp_port')
@@ -505,10 +587,13 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         sender_name = payload.get('sender_name')
         domyslni_odbiorcy = payload.get('domyslni_odbiorcy')
         is_system = bool(payload.get('is_system', False))
+        
+        target_user_id = payload.get('target_user_id')
+        save_user_id = int(target_user_id) if (target_user_id and is_admin_user) else session_user_id
 
         repo = UserEmailSettingsRepository()
 
-        if is_system or not user_id:
+        if is_system or not save_user_id:
             repo.save_system_config(
                 smtp_server=smtp_server,
                 smtp_port=int(smtp_port) if smtp_port else 465,
@@ -520,7 +605,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             return jsonify({'success': True, 'message': 'Główne konto systemowe/firmowe zostało zaktualizowane.'})
 
         saved = repo.save_or_update(
-            user_id=user_id,
+            user_id=save_user_id,
             smtp_server=smtp_server,
             smtp_port=int(smtp_port) if smtp_port else 465,
             smtp_security=smtp_security or 'SSL',
@@ -529,9 +614,10 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             sender_name=sender_name,
             domyslni_odbiorcy=domyslni_odbiorcy
         )
-        return jsonify({'success': True, 'message': 'Konfiguracja Twojego konta e-mail została pomyślnie zapisana.'})
+        return jsonify({'success': True, 'message': 'Konfiguracja konta e-mail została pomyślnie zapisana.'})
 
     @admin_bp.route('/api/email/config/reset', methods=['POST'])
+
     @login_required
     def api_email_config_reset():
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository

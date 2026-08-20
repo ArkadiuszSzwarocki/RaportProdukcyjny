@@ -2,26 +2,30 @@ function handleRackScan(code) {
     if (!code) return;
     code = code.trim().toUpperCase();
     const normalized = normalizeLocationCode(code);
+    const rackPrefix = currentRackPrefix ? normalizeRackPrefix(currentRackPrefix) : '';
     
-    // 1. Location on current rack → open slot detail
-    if (currentRackPrefix && normalized.startsWith(currentRackPrefix) && normalized.length >= 6) {
+    // 1. Location code on current rack (e.g. R010101 while viewing R01) → open slot detail
+    if (isLocationCode(normalized) && rackPrefix && normalized.startsWith(rackPrefix)) {
         safeToast('📍 Otwieram gniazdo ' + normalized, 'info');
         highlightAndOpenSlot(normalized);
         return;
     }
     
-    // 2. Different rack prefix (e.g., R05 while viewing R03) → load new rack
-    if (/^R\d{1,2}$/.test(normalized) && normalized !== currentRackPrefix) {
-        loadRack(normalized);
-        return;
+    // 2. Different rack code (e.g., R05, R-05, R5) → load new rack
+    if (isRackCode(code)) {
+        const targetRack = normalizeRackPrefix(code);
+        if (targetRack !== rackPrefix) {
+            safeToast('📍 Przechodzę do regału ' + targetRack, 'info');
+            loadRack(targetRack);
+            return;
+        }
     }
     
-    // 3. Location on a different rack (e.g., R050101) → load rack + open slot
-    if (isLocationCode(normalized) && currentRackPrefix && !normalized.startsWith(currentRackPrefix)) {
+    // 3. Location on a different rack (e.g., R050101 while viewing R01) → load rack + open slot
+    if (isLocationCode(normalized)) {
         const newPrefix = normalized.substring(0, 3);
-        safeToast('📍 Przechodzę do regału ' + newPrefix, 'info');
-        loadRack(newPrefix);
-        setTimeout(() => highlightAndOpenSlot(normalized), 600);
+        safeToast('📍 Przechodzę do gniazda ' + normalized, 'info');
+        loadRack(newPrefix, normalized);
         return;
     }
     
@@ -31,27 +35,28 @@ function handleRackScan(code) {
 
 /**
  * handleDetailScan - smart scanner router for slot detail modal.
- * If a location is scanned, closes current detail and opens new slot.
+ * If a location is scanned, switches directly to the new slot.
  * If a pallet is scanned, verifies it in the current slot.
  */
-
 function handleDetailScan(code) {
     if (!code) return;
     code = code.trim().toUpperCase();
     const normalized = normalizeLocationCode(code);
+    const rackPrefix = currentRackPrefix ? normalizeRackPrefix(currentRackPrefix) : '';
     
-    // 1. Location on current rack → close detail, open new slot
-    if (currentRackPrefix && normalized.startsWith(currentRackPrefix) && normalized.length >= 6) {
-        closeDetail();
+    // 1. Location on current rack → switch directly to new slot
+    if (isLocationCode(normalized) && rackPrefix && normalized.startsWith(rackPrefix)) {
         safeToast('📍 Przechodzę do gniazda ' + normalized, 'info');
-        setTimeout(() => highlightAndOpenSlot(normalized), 200);
+        highlightAndOpenSlot(normalized);
         return;
     }
     
-    // 2. Different rack prefix → close detail, load new rack
-    if (/^R\d{1,2}$/.test(normalized)) {
+    // 2. Different rack code (e.g. R05, R-05) → close detail, load new rack
+    if (isRackCode(code)) {
         closeDetail();
-        loadRack(normalized);
+        const targetRack = normalizeRackPrefix(code);
+        safeToast('📍 Przechodzę do regału ' + targetRack, 'info');
+        loadRack(targetRack);
         return;
     }
     
@@ -59,9 +64,8 @@ function handleDetailScan(code) {
     if (isLocationCode(normalized)) {
         closeDetail();
         const newPrefix = normalized.substring(0, 3);
-        safeToast('📍 Przechodzę do regału ' + newPrefix, 'info');
-        loadRack(newPrefix);
-        setTimeout(() => highlightAndOpenSlot(normalized), 600);
+        safeToast('📍 Przechodzę do gniazda ' + normalized, 'info');
+        loadRack(newPrefix, normalized);
         return;
     }
     
@@ -72,27 +76,59 @@ function handleDetailScan(code) {
 /**
  * refocusRackScanner - re-focuses the rack scanner input for continuous scanning.
  */
-
 function refocusRackScanner() {
     setTimeout(() => {
-        const inp = document.getElementById('ssccVerifierInputRack');
-        if (inp) inp.focus();
-    }, 500);
+        const modal = document.getElementById('slotDetail');
+        const isModalOpen = modal && modal.style.display !== 'none';
+        if (!isModalOpen) {
+            const inp = document.getElementById('ssccVerifierInputRack');
+            if (inp) inp.focus();
+        }
+    }, 100);
 }
 
 /**
  * refocusDetailScanner - re-focuses the detail scanner input.
  */
-
 function refocusDetailScanner() {
     setTimeout(() => {
-        const inp = document.getElementById('ssccVerifierInputDetail');
-        if (inp) inp.focus();
-    }, 500);
+        const modal = document.getElementById('slotDetail');
+        const isModalOpen = modal && modal.style.display !== 'none';
+        if (isModalOpen) {
+            const inp = document.getElementById('ssccVerifierInputDetail');
+            if (inp) inp.focus();
+        }
+    }, 100);
 }
 
 
+function initInventoryScannerListeners() {
+    if (typeof attachScannerAutoEnter !== 'function') return;
+
+    attachScannerAutoEnter('lokalizacjaInput', (code) => {
+        searchLocation(code);
+    });
+
+    attachScannerAutoEnter('ssccVerifierInputRack', (code) => {
+        handleRackScan(code);
+    });
+
+    attachScannerAutoEnter('ssccVerifierInputDetail', (code) => {
+        handleDetailScan(code);
+    });
+
+    attachScannerAutoEnter('ssccVerifierInputResults', (code) => {
+        verifyPalletSSCC(code, 'results');
+    });
+
+    attachScannerAutoEnter('blindSsccInput', (code) => {
+        handleBlindSSCCScan(code);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    initInventoryScannerListeners();
+
     const typeSelect = document.getElementById('newPalletType');
     if (typeSelect) {
         typeSelect.addEventListener('change', (e) => {
@@ -105,5 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Also initialize on window load to ensure all dynamic elements are caught
+window.addEventListener('load', () => {
+    initInventoryScannerListeners();
+});
+
 
 

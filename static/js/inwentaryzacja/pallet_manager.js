@@ -466,7 +466,9 @@ function verifyPalletSSCC(sscc, context) {
     sscc = sscc.trim().toUpperCase();
     
     let foundLocally = false;
-    let targetLoc = context === 'detail' ? document.getElementById('detailLocTitle').textContent : lastLocation;
+    let targetLoc = context === 'detail' 
+        ? normalizeLocationCode(document.getElementById('detailLocTitle').textContent) 
+        : normalizeLocationCode(lastLocation);
     
     if (context === 'results') {
         const p = currentLocationPallets.find(p => (p.displayId && p.displayId.toUpperCase().includes(sscc)) || (p.nr_palety && p.nr_palety.toUpperCase().includes(sscc)));
