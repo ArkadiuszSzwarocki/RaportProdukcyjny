@@ -2,33 +2,30 @@
         </div>
     </div>
 
-    <!-- FLOATING FINISH BUTTON -->
-    <div id="floatingFinishBanner" style="display: none; position:fixed; bottom:0; left:0; right:0; padding:12px 16px; background:white; border-top:2px solid #f1f5f9; box-shadow:0 -4px 20px rgba(0,0,0,0.08); z-index:500; gap:10px; max-width:500px; margin:0 auto;">
-        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="flex:1; padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; color:#475569; font-weight:700; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px;">
-            <span class="material-icons" style="font-size:18px;">summarize</span> RAPORT
-        </a>
-        <button onclick="finishInventory()" style="flex:2; padding:14px; border:none; border-radius:12px; background:#dc2626; color:white; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:6px;">
-            <span class="material-icons">check_circle</span> ZAKOŃCZ INWENTARYZACJĘ
-        </button>
-    </div>
-
     <!-- RACK GRID SECTION -->
     <div id="rackContainer" style="display: none; max-width: 1000px; margin: 0 auto;">
-        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px;">
-            <span class="material-icons" style="font-size: 18px;">grid_view</span>
-            Mapa Regału: <span id="activeRack" style="color: #1e293b; font-weight: 800;"></span>
-        </div>
+        <span id="activeRack" style="display: none !important;"></span>
 
         <div style="max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
-                <span class="material-icons" style="font-size: 14px; color: #10b981;">qr_code_scanner</span>
-                <span>① Skanuj <span style="color: #3b82f6;">lokalizację</span> → ② Skanuj <span style="color: #10b981;">paletę</span></span>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <span class="material-icons" style="font-size: 14px; color: #10b981;">qr_code_scanner</span>
+                    <span>① Skanuj <span style="color: #3b82f6;">lok</span> → ② Skanuj <span style="color: #10b981;">paletę</span></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button onclick="clearSkaner()" style="font-size: 11px; font-weight: 700; color: #3b82f6; background: none; border: none; cursor: pointer; text-decoration: underline;" title="Zmień regał">ZMIEŃ</button>
+                    <button onclick="finishInventory()" title="Zakończ inwentaryzację" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 8px; padding: 4px 8px; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; cursor: pointer;">
+                        <span class="material-icons" style="font-size: 16px;">stop_circle</span> ZAKOŃCZ
+                    </button>
+                </div>
             </div>
+
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+
                 <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                     <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                    <input type="text" id="ssccVerifierInputRack" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
-                           onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleRackScan(this.value); this.value='';}">
+                    <input type="text" id="ssccVerifierInputRack" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę...">
                 </div>
                 <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); handleRackScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
                     <span class="material-icons" style="font-size: 24px;">search</span>
@@ -47,7 +44,7 @@
             <!-- Renderowane przez renderRackList() -->
         </div>
 
-        <div id="slotDetail" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
+        <div id="slotDetail" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 2500; align-items: center; justify-content: center; padding: 16px;">
             <div style="background: white; border-radius: 20px; border: 2px solid #3b82f6; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 20px; letter-spacing: -0.5px;">R01-01-01</div>
@@ -58,13 +55,13 @@
                 <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
                     <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                         <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                        <input type="text" id="ssccVerifierInputDetail" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę..." 
-                               onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleDetailScan(this.value); this.value='';}">
+                        <input type="text" id="ssccVerifierInputDetail" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę...">
                     </div>
                     <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); handleDetailScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
                         <span class="material-icons" style="font-size: 24px;">search</span>
                     </button>
                 </div>
+
                 <div id="detailContent" style="flex: 1; overflow-y: auto;">
                     <!-- Content of slot -->
                 </div>

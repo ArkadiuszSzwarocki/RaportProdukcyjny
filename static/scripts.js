@@ -977,8 +977,9 @@
             setTimeout(() => { t.classList.add('show'); }, 10);
             
             if (!sticky) {
-                setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+                setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2000);
             }
+
         } catch (e) { console.warn('showToast', e); }
     }
 
@@ -1906,6 +1907,262 @@ window.showConfirmModal = function(message, onConfirm) {
         try { window.alert(message || title); } catch (e) { /* best-effort */ }
     }
     window.safeAlert = safeAlert;
+
+    /* ─── Global Obsada Handlers ─── */
+    window.dodajPracownikaDoObsady = async function(btn, sekcja, index) {
+        if (!btn) return;
+        const sectionEl = btn.closest('.obsada-section');
+        if (!sectionEl) return;
+        const select = sectionEl.querySelector('.obsada-select');
+        if (!select) return;
+        const val = select.value;
+        if (!val) {
+            alert('Wybierz pracownika z listy.');
+            return;
+        }
+        const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+        
+        let dateEl = document.getElementById('obsada-date');
+        if (sectionEl.closest('.quick-popup')) {
+            const pDate = sectionEl.closest('.quick-popup').querySelector('#obsada-date');
+            if (pDate) dateEl = pDate;
+        }
+        const dateVal = dateEl ? dateEl.value : '';
+        
+        btn.disabled = true;
+        const origText = btn.innerText;
+        btn.innerText = '...';
+        
+        try {
+            const fd = new URLSearchParams();
+            fd.append('sekcja', sekcja);
+            fd.append('pracownik_id', val);
+            if (dateVal) fd.append('date', dateVal);
+            
+            let resp = await fetch('/dodaj_do_obsady', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/api/dodaj_do_obsady', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            if (!resp.ok) {
+                alert('Błąd dodawania do obsady (status: ' + resp.status + ')');
+                return;
+            }
+            
+            const j = await resp.json();
+            if (j && (j.success || j.id)) {
+                const newId = j.id;
+                const newName = j.name || txt;
+                
+                const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                if (current) {
+                    let tbody = current.querySelector('tbody[id^="current-obsada-tbody-"]');
+                    if (!tbody) {
+                        current.innerHTML = '';
+                        const table = document.createElement('table');
+                        table.className = 'modern-table small obsada-table';
+                        table.innerHTML = `<thead><tr><th>Pracownik</th><th class="obsada-akcje-col">Akcje</th></tr></thead><tbody id="current-obsada-tbody-${index}"></tbody>`;
+                        current.appendChild(table);
+                        tbody = table.querySelector('tbody');
+                    }
+                    
+                    const tr = document.createElement('tr');
+                    if (newId) tr.setAttribute('data-id', newId);
+                    tr.setAttribute('data-pracownik-id', val);
+                    tr.setAttribute('data-pracownik-name', newName);
+                    tr.innerHTML = `
+                        <td>
+                            <div class="obsada-worker-row">
+                                <span class="obsada-avatar">${(newName ? newName[0].toUpperCase() : '?')}</span>
+                                <strong>${newName}</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <button type="button" class="delete-button" onclick="window.usunPracownikaZObsady(this, ${newId}, '${val}', '${newName.replace(/'/g, "\\'")}')" aria-label="Usuń z obsady">🗑️</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                    
+                    const head = sectionEl.querySelector('.obsada-section-head');
+                    let badge = sectionEl.querySelector('.obsada-count-badge');
+                    if (!badge && head) {
+                        badge = document.createElement('span');
+                        badge.className = 'obsada-count-badge';
+                        head.appendChild(badge);
+                    }
+                    if (badge) badge.innerText = tbody.children.length;
+                }
+                
+                const opt = select.querySelector(`option[value="${val}"]`);
+                if (opt) opt.remove();
+                select.selectedIndex = 0;
+                
+                if (typeof showToast === 'function') {
+                    showToast(`✅ Dodano: ${newName}`, 'success');
+                }
+            } else {
+                alert('Nie udało się dodać pracownika do obsady.');
+            }
+        } catch (err) {
+            console.error('Błąd dodaj do obsady:', err);
+            alert('Błąd połączenia z serwerem.');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
+    };
+
+    window.usunPracownikaZObsady = async function(btn, obsadaId, pracownikId, pracownikName) {
+        if (!confirm(`Czy na pewno usunąć ${pracownikName || 'pracownika'} z obsady?`)) return;
+        
+        btn.disabled = true;
+        try {
+            let resp = await fetch('/api/usun_z_obsady/' + obsadaId, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/usun_z_obsady/' + obsadaId, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            const tr = btn.closest('tr') || btn.closest('.chip');
+            const sectionEl = btn.closest('.obsada-section');
+            if (tr) tr.remove();
+            
+            if (sectionEl && pracownikId && pracownikName) {
+                const select = sectionEl.querySelector('.obsada-select');
+                if (select) {
+                    const opt = document.createElement('option');
+                    opt.value = pracownikId;
+                    opt.textContent = pracownikName;
+                    select.appendChild(opt);
+                }
+                
+                const tbody = sectionEl.querySelector('tbody');
+                const badge = sectionEl.querySelector('.obsada-count-badge');
+                if (tbody) {
+                    if (badge) badge.innerText = tbody.children.length;
+                    if (tbody.children.length === 0) {
+                        const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                        if (current) {
+                            current.innerHTML = `<div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>Brak przypisanych pracowników</span></div>`;
+                        }
+                        if (badge) badge.remove();
+                    }
+                }
+            }
+            
+            if (typeof showToast === 'function') {
+                showToast('Usunięto pracownika z obsady', 'success');
+            }
+        } catch(err) {
+            console.error('Błąd usuwania z obsady:', err);
+            alert('Błąd podczas usuwania pracownika.');
+        }
+    };
+
+    window.zapiszLiderowObsady = async function(btn) {
+        const container = btn.closest('.obsada-toolbar') || btn.closest('.quick-popup') || document;
+        const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
+        const dateVal = dateEl ? dateEl.value : '';
+        const lpsdWrap = container.querySelector('#lider_psd') || document.getElementById('lider_psd');
+        const lpsd = lpsdWrap ? lpsdWrap.value : '';
+        const lagroWrap = container.querySelector('#lider_agro') || document.getElementById('lider_agro');
+        const lagro = lagroWrap ? lagroWrap.value : '';
+        
+        btn.disabled = true;
+        const origText = btn.innerText;
+        btn.innerText = 'Zapisywanie...';
+        try {
+            const fd = new URLSearchParams();
+            if (dateVal) fd.append('date', dateVal);
+            if (lpsd) fd.append('lider_psd', lpsd);
+            if (lagro) fd.append('lider_agro', lagro);
+            
+            let resp = await fetch('/zapisz_liderow_obsady', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/api/zapisz_liderow_obsady', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            if (resp.ok) {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Zapisano liderów zmiany', 'success');
+                } else {
+                    alert('✅ Zapisano liderów zmiany');
+                }
+            } else {
+                alert('Błąd zapisu liderów');
+            }
+        } catch(e) {
+            console.error(e);
+            alert('Błąd połączenia');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
+    };
+
+    window.zmienDateObsady = function(newDate) {
+        if (!newDate) return;
+        const isInPopup = !!document.querySelector('.quick-popup.open, #quickPopup.open, .quick-popup[style*="display: block"], .quick-popup[style*="display: flex"]');
+        const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate);
+        if (isInPopup && typeof showSlideOver === 'function') {
+            showSlideOver(fetchUrl);
+        } else {
+            const url = new URL(window.location.href);
+            url.searchParams.set('date', newDate);
+            window.location.href = url.toString();
+        }
+    };
+
+    window.goToCloseShiftEmailPage = function(linia) {
+        var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+        var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+        var l = linia;
+        if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+            l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+        }
+        window.location.href = '/raport/zakoncz_zmiane?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
+    };
+
+    window.previewReportPdf = function(linia) {
+        var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+        var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+        var l = linia;
+        if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+            l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+        }
+        window.location.href = '/raport/podglad_pdf?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
+    };
+
 
     // Reinitialize event listeners after partial reload
     function reinitializeAfterPartialReload() {

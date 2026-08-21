@@ -203,9 +203,21 @@ def return_from_production():
         lokalizacja = data.get('lokalizacja')
         if not surowiec_id or ilosc <= 0:
             return (jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400)
-        worker_login = session.get('login')
         AgroTanksService.return_from_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, ruch_produkcja_id=ruch_produkcja_id, lokalizacja=lokalizacja)
+        
+        # Automatyczny wydruk etykiety po zwrocie z produkcji (2 kopie)
+        try:
+            from app.services.print_server import get_printer
+            from app.services.scanner_service import ScannerService
+            printer = get_printer()
+            label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
+            if label_data:
+                printer.print_pallet_label(label_data, copies=2)
+        except Exception as pe:
+            current_app.logger.warning(f"Nie udało się automatycznie wydrukować etykiety po zwrocie: {pe}")
+
         return jsonify({'success': True})
+
     except Exception as e:
         current_app.logger.error(f'Error in return_from_production: {e}')
         return (jsonify({'success': False, 'error': str(e)}), 500)

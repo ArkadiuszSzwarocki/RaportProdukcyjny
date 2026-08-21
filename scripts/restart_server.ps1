@@ -28,7 +28,10 @@ Write-Info "Restarting server for port $Port (app=$AppFile)..."
 for ($attempt = 1; $attempt -le $Retries; $attempt++) {
     Write-Info "Attempt $attempt of $Retries"
 
-    $conn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
+    $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $conn) {
+        $conn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -gt 0 } | Select-Object -First 1
+    }
     if ($conn) {
         $procId = $conn.OwningProcess
         try {
@@ -48,8 +51,8 @@ for ($attempt = 1; $attempt -le $Retries; $attempt++) {
 
     Start-Sleep -Seconds ($WaitSec + 1)
 
-    $newConn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($newConn) {
+    $newConn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($newConn -and $newConn.OwningProcess -gt 0) {
         Write-Info "Server started OK (pid=$($newConn.OwningProcess))."
         exit 0
     } else {

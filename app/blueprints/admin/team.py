@@ -64,7 +64,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         """Fetch single person data for editing."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, imie_nazwisko, grupa FROM pracownicy WHERE id = %s", (id,))
+        cursor.execute("SELECT id, imie_nazwisko, grupa, COALESCE(urlop_biezacy, 0), COALESCE(urlop_zalegly, 0) FROM pracownicy WHERE id = %s", (id,))
         row = cursor.fetchone()
         conn.close()
         if not row:
@@ -77,6 +77,8 @@ def register_admin_team_routes(admin_bp, *, load_roles):
                     'id': row[0],
                     'imie_nazwisko': row[1],
                     'grupa': row[2],
+                    'urlop_biezacy': row[3],
+                    'urlop_zalegly': row[4],
                 },
             }
         )
@@ -88,6 +90,15 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         person_id = request.form.get('id')
         name = request.form.get('imie_nazwisko')
         grupa = request.form.get('grupa')
+        try:
+            urlop_biezacy = int(request.form.get('urlop_biezacy', 0))
+        except (ValueError, TypeError):
+            urlop_biezacy = 0
+
+        try:
+            urlop_zalegly = int(request.form.get('urlop_zalegly', 0))
+        except (ValueError, TypeError):
+            urlop_zalegly = 0
 
         if not person_id or not name:
             flash('Błąd danych', 'danger')
@@ -95,7 +106,10 @@ def register_admin_team_routes(admin_bp, *, load_roles):
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE pracownicy SET imie_nazwisko = %s, grupa = %s WHERE id = %s", (name, grupa, person_id))
+        cursor.execute(
+            "UPDATE pracownicy SET imie_nazwisko = %s, grupa = %s, urlop_biezacy = %s, urlop_zalegly = %s WHERE id = %s",
+            (name, grupa, urlop_biezacy, urlop_zalegly, person_id)
+        )
         conn.commit()
         conn.close()
 
@@ -109,6 +123,15 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         name = request.form.get('imie_nazwisko')
         grupa = request.form.get('grupa', 'ALL')
         explicit_id = request.form.get('explicit_id')
+        try:
+            urlop_biezacy = int(request.form.get('urlop_biezacy', 26))
+        except (ValueError, TypeError):
+            urlop_biezacy = 26
+
+        try:
+            urlop_zalegly = int(request.form.get('urlop_zalegly', 0))
+        except (ValueError, TypeError):
+            urlop_zalegly = 0
 
         create_acc = request.form.get('create_account') == 'on'
         login = request.form.get('login')
@@ -124,10 +147,16 @@ def register_admin_team_routes(admin_bp, *, load_roles):
 
         try:
             if explicit_id:
-                cursor.execute("INSERT INTO pracownicy (id, imie_nazwisko, grupa) VALUES (%s, %s, %s)", (explicit_id, name, grupa))
+                cursor.execute(
+                    "INSERT INTO pracownicy (id, imie_nazwisko, grupa, urlop_biezacy, urlop_zalegly) VALUES (%s, %s, %s, %s, %s)",
+                    (explicit_id, name, grupa, urlop_biezacy, urlop_zalegly)
+                )
                 new_prac_id = explicit_id
             else:
-                cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (name, grupa))
+                cursor.execute(
+                    "INSERT INTO pracownicy (imie_nazwisko, grupa, urlop_biezacy, urlop_zalegly) VALUES (%s, %s, %s, %s)",
+                    (name, grupa, urlop_biezacy, urlop_zalegly)
+                )
                 new_prac_id = cursor.lastrowid
 
             if create_acc and login and haslo:

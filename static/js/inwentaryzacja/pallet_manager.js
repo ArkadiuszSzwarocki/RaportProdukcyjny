@@ -1,8 +1,10 @@
 function renderPallets(pallets) {
     const list = document.getElementById('palletsList');
+    if(!list) return;
     list.innerHTML = '';
     const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO' && (p.counted || p._unhidden)).reverse();
     currentPallets = realPallets;
+
     
     const isOccupied = realPallets.some(p => {
         if (p.counted) return parseFloat(p.waga_faktyczna) > 0;
@@ -64,9 +66,10 @@ function renderPallets(pallets) {
             <div style="display:flex; gap:10px; align-items:center;">
                 <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
                     <input type="number" step="0.1" class="weight-input actual-weight-input" 
-                           id="winput-${index}" placeholder="STAN FAKTYCZNY" autocomplete="off" inputmode="decimal"
+                           id="winput-${index}" placeholder="Wpisz wagę..." autocomplete="off" inputmode="none"
                            value="${isCounted && p.waga_faktyczna !== null && p.waga_faktyczna !== undefined ? p.waga_faktyczna : ''}"
                            style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+
                     <select class="actual-unit-select" id="uinput-${index}" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
                         <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
                         <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
@@ -261,6 +264,9 @@ function generateLocalSSCC(type) {
 
 
 function addNewPallet(loc) {
+    const detailModal = document.getElementById('slotDetail');
+    if (detailModal) detailModal.style.display = 'none';
+
     const pendingLocInput = document.getElementById('pendingNewPalletLoc');
     if(pendingLocInput) pendingLocInput.value = loc || '';
     
@@ -272,7 +278,6 @@ function addNewPallet(loc) {
     else openNewPalletModal(loc, 'surowiec'); // Fallback if modal not found
 }
 
-
 function confirmCategorySelection() {
     const loc = document.getElementById('pendingNewPalletLoc').value;
     const cat = document.getElementById('modalCategorySelect').value;
@@ -282,6 +287,9 @@ function confirmCategorySelection() {
 
 
 function openNewPalletModal(loc, selectedType) {
+    const detailModal = document.getElementById('slotDetail');
+    if (detailModal) detailModal.style.display = 'none';
+
     lookedUpPalletId = null;
     lookedUpSystemWeight = 0;
     
@@ -292,41 +300,75 @@ function openNewPalletModal(loc, selectedType) {
     }
     
     const typeSelect = document.getElementById('newPalletType');
-    if(selectedType) {
+    if(selectedType && typeSelect) {
         typeSelect.value = selectedType;
     }
     
-    document.getElementById('newPalletLoc').value = loc || lastLocation;
-    document.getElementById('newPalletSSCC').value = '';
-    document.getElementById('newPalletName').value = '';
-    document.getElementById('newPalletWeight').value = '0';
-    document.getElementById('newPalletUnit').value = (typeSelect.value === 'opakowanie') ? 'szt' : 'kg';
-    document.getElementById('newPalletBatch').value = '';
-    document.getElementById('newPalletDateProd').value = '';
-    document.getElementById('newPalletDateExp').value = '';
-    document.getElementById('newPalletPackaging').value = 'brak';
-    document.getElementById('newPalletModal').style.display = 'flex';
-    document.getElementById('newPalletSSCC').focus();
-    document.getElementById('newPalletSSCC').select();
+    const locInput = document.getElementById('newPalletLoc');
+    if (locInput) locInput.value = loc || lastLocation || '';
     
-    fetchProductNames(typeSelect.value);
+    const ssccInput = document.getElementById('newPalletSSCC');
+    if (ssccInput) ssccInput.value = '';
+    
+    const nameInput = document.getElementById('newPalletName');
+    if (nameInput) nameInput.value = '';
+    
+    const weightInput = document.getElementById('newPalletWeight');
+    if (weightInput) weightInput.value = '';
+    
+    const unitSelect = document.getElementById('newPalletUnit');
+    if (unitSelect && typeSelect) {
+        unitSelect.value = (typeSelect.value === 'opakowanie') ? 'szt' : 'kg';
+    }
+    
+    const batchInput = document.getElementById('newPalletBatch');
+    if (batchInput) batchInput.value = '';
+    
+    const prodDateInput = document.getElementById('newPalletProdDate') || document.getElementById('newPalletDateProd');
+    if (prodDateInput) prodDateInput.value = '';
+    
+    const expDateInput = document.getElementById('newPalletExpDate') || document.getElementById('newPalletDateExp');
+    if (expDateInput) expDateInput.value = '';
+    
+    const packagingSelect = document.getElementById('newPalletPackaging');
+    if (packagingSelect) packagingSelect.value = 'brak';
+    
+    const modal = document.getElementById('newPalletModal');
+    if (modal) modal.style.display = 'flex';
+    
+    if (ssccInput) {
+        setTimeout(() => {
+            ssccInput.focus();
+            ssccInput.select();
+        }, 100);
+    }
+    
+    if (typeSelect) {
+        fetchProductNames(typeSelect.value);
+    }
 }
 
 // Switch unit automatically based on category/type choice and regenerate SSCC
 
 function saveNewPallet() {
-    const sscc = document.getElementById('newPalletSSCC').value.trim();
-    const name = document.getElementById('newPalletName').value.trim();
-    const type = document.getElementById('newPalletType').value;
-    const weight = parseFloat(document.getElementById('newPalletWeight').value);
-    const batch = document.getElementById('newPalletBatch').value.trim() || 'NOWA';
-    const dProd = document.getElementById('newPalletDateProd').value;
-    const dExp = document.getElementById('newPalletDateExp').value;
-    const loc = document.getElementById('newPalletLoc').value;
-    const packaging = document.getElementById('newPalletPackaging').value;
-    const unit = document.getElementById('newPalletUnit').value;
+    const sscc = (document.getElementById('newPalletSSCC')?.value || '').trim();
+    const name = (document.getElementById('newPalletName')?.value || '').trim();
+    const type = document.getElementById('newPalletType')?.value || 'surowiec';
+    const weightVal = document.getElementById('newPalletWeight')?.value;
+    const weight = weightVal !== '' && !isNaN(parseFloat(weightVal)) ? parseFloat(weightVal) : 0;
+    const batch = (document.getElementById('newPalletBatch')?.value || '').trim() || 'BRAK';
+    const dProd = document.getElementById('newPalletProdDate')?.value || document.getElementById('newPalletDateProd')?.value || '';
+    const dExp = document.getElementById('newPalletExpDate')?.value || document.getElementById('newPalletDateExp')?.value || '';
+    const loc = document.getElementById('newPalletLoc')?.value || lastLocation;
+    const packaging = document.getElementById('newPalletPackaging')?.value || 'brak';
+    const unit = document.getElementById('newPalletUnit')?.value || 'kg';
 
-    if(!sscc || !name || isNaN(weight)) return alert('Wypełnij wszystkie pola!');
+    if(!sscc || !name) {
+        safeToast('Wpisz numer palety (SSCC) i nazwę produktu!', 'error');
+        return;
+    }
+    
+    safeToast('Zapisywanie nowej palety...', 'info');
     
     smartFetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
         method: 'POST',
@@ -349,16 +391,23 @@ function saveNewPallet() {
         })
     }).then(r => r.json()).then(data => {
         if(data.success) {
+            safeToast('✅ Paleta dodana pomyślnie!', 'success');
             document.getElementById('newPalletModal').style.display = 'none';
             if(currentRackPrefix) {
                 markCellDone(loc, false);
                 refreshRackData(currentRackPrefix, loc); // Refresh rack data AND slot detail popup!
             } else {
-                searchLocation(); // Refresh list
+                searchLocation(loc || lastLocation); // Refresh list with explicit location
+                if (typeof loadCountedBlindItems === 'function') {
+                    loadCountedBlindItems(loc || lastLocation);
+                }
             }
         } else {
-            alert("Błąd: " + data.message);
+            safeToast('Błąd: ' + (data.message || 'Nie udało się zapisać'), 'error');
         }
+    }).catch(err => {
+        console.error(err);
+        safeToast('Błąd sieci podczas zapisu', 'error');
     });
 }
 
@@ -461,6 +510,23 @@ function submitMoveLocation() {
 }
 
 
+function isPalletMatch(item, code) {
+    if (!item || !code) return false;
+    code = String(code).trim().toUpperCase();
+    const cleanCode = code.replace('(00)', '').replace(']C1', '').replace(/^SUR|^AGR|^OPK|^DOD/i, '').replace(/^0+/, '').trim();
+    
+    const did = item.displayId ? String(item.displayId).toUpperCase() : '';
+    const nrp = item.nr_palety ? String(item.nr_palety).toUpperCase() : '';
+    const cleanNrp = nrp.replace('(00)', '').replace(']C1', '').replace(/^SUR|^AGR|^OPK|^DOD/i, '').replace(/^0+/, '').trim();
+    const pid = item.id ? String(item.id) : '';
+
+    if (nrp && (nrp === code || nrp.includes(code) || code.includes(nrp))) return true;
+    if (did && (did === code || did.includes(code) || code.includes(did))) return true;
+    if (pid && (pid === code || pid === cleanCode)) return true;
+    if (cleanNrp && cleanCode && (cleanNrp === cleanCode || cleanNrp.includes(cleanCode) || cleanCode.includes(cleanNrp))) return true;
+    return false;
+}
+
 function verifyPalletSSCC(sscc, context) {
     if(!sscc) return;
     sscc = sscc.trim().toUpperCase();
@@ -471,7 +537,7 @@ function verifyPalletSSCC(sscc, context) {
         : normalizeLocationCode(lastLocation);
     
     if (context === 'results') {
-        const p = currentLocationPallets.find(p => (p.displayId && p.displayId.toUpperCase().includes(sscc)) || (p.nr_palety && p.nr_palety.toUpperCase().includes(sscc)));
+        const p = currentLocationPallets.find(p => isPalletMatch(p, sscc));
         if (p) {
             foundLocally = true;
             p._unhidden = true;
@@ -480,32 +546,22 @@ function verifyPalletSSCC(sscc, context) {
             setTimeout(() => {
                 const cards = document.querySelectorAll('#resultsContainer .pallet-card');
                 for (let card of cards) {
-                    if (card.textContent.toUpperCase().includes(sscc)) {
+                    if (isPalletMatch(p, sscc)) {
                         highlightAndFocusCard(card);
                         break;
                     }
                 }
             }, 100);
-            safeToast('✅ Paleta przypisana do tej lokalizacji!', 'success');
+            safeToast('✅ Odczytano paletę: ' + p.nazwa, 'success');
         }
     } else if (context === 'detail') {
         let items = rackData[targetLoc] || [];
-        const p = items.find(item => (item.displayId && item.displayId.toUpperCase().includes(sscc)) || (item.nr_palety && item.nr_palety.toUpperCase().includes(sscc)));
+        const p = items.find(item => isPalletMatch(item, sscc));
         if (p) {
             foundLocally = true;
             p._unhidden = true;
             openSlotDetail(targetLoc);
-            
-            setTimeout(() => {
-                const cards = document.querySelectorAll('#slotDetail .pallet-card');
-                for (let card of cards) {
-                    if (card.textContent.toUpperCase().includes(sscc)) {
-                        highlightAndFocusCard(card);
-                        break;
-                    }
-                }
-            }, 100);
-            safeToast('✅ Paleta przypisana do tego gniazda!', 'success');
+            safeToast('✅ Odczytano paletę: ' + p.nazwa, 'success');
         }
     }
     
@@ -525,13 +581,7 @@ function verifyPalletSSCCRack(sscc) {
     if (rackData) {
         for (const [loc, items] of Object.entries(rackData)) {
             for (const item of items) {
-                let did = item.displayId ? String(item.displayId).toUpperCase() : '';
-                let nrp = item.nr_palety ? String(item.nr_palety).toUpperCase() : '';
-                let nzw = item.nazwa ? String(item.nazwa).toUpperCase() : '';
-                
-                if ((did && (did.includes(sscc) || sscc.includes(did))) || 
-                    (nrp && (nrp.includes(sscc) || sscc.includes(nrp))) || 
-                    (nzw && (nzw.includes(sscc) || sscc.includes(nzw)))) {
+                if (isPalletMatch(item, sscc)) {
                     foundLocId = loc;
                     foundItem = item;
                     break;
@@ -543,71 +593,92 @@ function verifyPalletSSCCRack(sscc) {
     
     if (foundLocId) {
         foundItem._unhidden = true;
-        safeToast('✅ Paleta znajduje się w gnieździe ' + foundLocId, 'success');
+        safeToast('✅ Paleta w gnieździe ' + foundLocId + ': ' + foundItem.nazwa, 'success');
         highlightAndOpenSlot(foundLocId);
-        
-        setTimeout(() => {
-            const cards = document.querySelectorAll('#slotDetail .pallet-card');
-            for (let card of cards) {
-                if (card.textContent.toUpperCase().includes(sscc)) {
-                    highlightAndFocusCard(card);
-                    break;
-                }
-            }
-        }, 400);
     } else {
         globalSearchAndPrompt(sscc, 'rack', null);
     }
 }
 
 
+
 function globalSearchAndPrompt(sscc, context, targetLoc) {
+    if (!targetLoc) targetLoc = lastLocation;
     safeToast('Szukanie palety w systemie...', 'info');
+    
     fetch(window.INVENTORY_CONFIG.url_szukaj_globalnie, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({sscc: sscc})
+        body: JSON.stringify({
+            sscc: sscc,
+            sesja_id: window.INVENTORY_CONFIG.sesjaId
+        })
     })
+
     .then(r => r.json())
     .then(data => {
         if(data.success && data.paleta) {
-            if (context === 'rack') {
-                AppDialog.alert(
-                    `Paleta <b>${sscc}</b> (${data.paleta.nazwa}) znajduje się w lokalizacji: <b>${data.paleta.lokalizacja}</b>.<br><br>Aby ją zweryfikować, najpierw zeskanuj lub wybierz odpowiednie gniazdo na tym regale.`,
-                    'Paleta w innej lokalizacji'
-                ).then(() => refocusRackScanner());
-            } else {
+            const pal = data.paleta;
+            const destLoc = targetLoc || (typeof isLocationCode === 'function' && isLocationCode(lastLocation) ? lastLocation : null);
+            
+            if (destLoc) {
                 AppDialog.confirm(
-                    `Paleta <b>${sscc}</b> (${data.paleta.nazwa}) znajduje się w innej lokalizacji: <b>${data.paleta.lokalizacja}</b>.<br><br>Czy przenieść ją do <b>${targetLoc}</b> i zweryfikować?`,
-                    'Paleta znaleziona'
+                    `Znaleziono w bazie: <b>${pal.nazwa}</b><br>SSCC: <b>${sscc}</b> | Partia: <b>${pal.nr_partii || '-'}</b> | Waga: <b>${pal.waga || 0} ${pal.jednostka || 'kg'}</b><br>Poprzednia lok: <b>${pal.lokalizacja || 'BRAK'}</b><br><br>Czy przypisać tę paletę do gniazda <b>${destLoc}</b>?`,
+                    'Przypisanie palety do gniazda'
                 ).then(confirmed => {
                     if(confirmed) {
-                        movePalletToLocation(data.paleta, targetLoc, context);
+                        movePalletToLocation(pal, destLoc, context);
                     } else {
                         if (context === 'detail') refocusDetailScanner();
+                        else refocusRackScanner();
                     }
                 });
+            } else {
+                AppDialog.alert(
+                    `Znaleziono paletę <b>${sscc}</b> (${pal.nazwa}) w lokalizacji: <b>${pal.lokalizacja || 'Brak'}</b>.<br><br>Najpierw zeskanuj lub wybierz gniazdo na regale, do którego chcesz ją przypisać.`,
+                    'Wybierz gniazdo'
+                ).then(() => refocusRackScanner());
             }
         } else {
-            AppDialog.alert(`Paleta z kodem <b>${sscc}</b> NIE ZNAJDUJE SIĘ w bieżącym widoku ani w bazie systemu.<br><br>Dodaj ją ręcznie klikając "DODAJ PALETĘ".`, 'Brak palety').then(() => {
-                if (context === 'detail') refocusDetailScanner();
-                if (context === 'rack') refocusRackScanner();
+            const destLoc = targetLoc || lastLocation;
+            AppDialog.confirm(
+                `Paleta z kodem <b>${sscc}</b> nie znajduje się w bazie.<br><br>Czy chcesz ją teraz dodać do gniazda <b>${destLoc || ''}</b>?`,
+                'Brak palety w bazie'
+            ).then(confirmed => {
+                if (confirmed) {
+                    openNewPalletModal(destLoc, 'surowiec');
+                    setTimeout(() => {
+                        const ssccInp = document.getElementById('newPalletSSCC');
+                        if (ssccInp) {
+                            ssccInp.value = sscc;
+                            const nameInp = document.getElementById('newPalletName');
+                            if (nameInp) nameInp.focus();
+                        }
+                    }, 200);
+                } else {
+                    if (context === 'detail') refocusDetailScanner();
+                    else refocusRackScanner();
+                }
             });
         }
     }).catch(e => {
-        AppDialog.alert('Błąd połączenia podczas globalnego szukania palety.', 'Błąd');
+        console.error('globalSearch error:', e);
+        AppDialog.alert('Błąd połączenia podczas szukania palety.', 'Błąd');
     });
 }
 
 
 function movePalletToLocation(paleta, targetLoc, context) {
-    let mapTyp = 'PAL';
+    let mapTyp = 'surowiec';
     const t = (paleta.typ || '').toLowerCase();
-    if(t.includes('surowiec')) mapTyp = 'surowiec';
-    else if(t.includes('opakowanie')) mapTyp = 'opakowanie';
+    if(t.includes('opakowanie')) mapTyp = 'opakowanie';
     else if(t.includes('dodatek')) mapTyp = 'dodatek';
+    else if(t.includes('gotow') || t.includes('wyrób')) mapTyp = 'wyrób gotowy';
+    else if(t.includes('surowiec')) mapTyp = 'surowiec';
 
-    smartFetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
+    safeToast('Przypisywanie palety...', 'info');
+
+    fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -622,16 +693,16 @@ function movePalletToLocation(paleta, targetLoc, context) {
             waga_faktyczna: paleta.waga || 0,
             data_produkcji: paleta.data_produkcji || '',
             data_przydatnosci: paleta.data_przydatnosci || '',
-            linia: paleta.linia,
+            linia: paleta.linia || 'PSD',
             typ_opakowania: '',
             jednostka: paleta.jednostka || 'kg'
         })
     }).then(r => r.json()).then(saveData => {
         if (saveData.success) {
-            safeToast('Paleta przypisana pomyślnie!', 'success');
+            safeToast('✅ Paleta przypisana pomyślnie!', 'success');
             if(context === 'results') {
-                searchLocation(); 
-            } else if(context === 'detail') {
+                searchLocation(targetLoc || lastLocation); 
+            } else {
                 fetch(window.INVENTORY_CONFIG.url_szukaj_regalu, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -642,6 +713,7 @@ function movePalletToLocation(paleta, targetLoc, context) {
                     if(data.success) {
                         rackData = data.rack_data;
                         renderRackGrid(currentRackPrefix);
+                        markCellDone(targetLoc, false);
                         highlightAndOpenSlot(targetLoc); 
                     }
                 });
@@ -650,9 +722,11 @@ function movePalletToLocation(paleta, targetLoc, context) {
             AppDialog.alert(saveData.message || 'Wystąpił błąd', 'Błąd zapisu');
         }
     }).catch(e => {
+        console.error('movePallet error:', e);
         AppDialog.alert('Błąd połączenia podczas przypisywania.', 'Błąd');
     });
 }
+
 
 function openPrinterModal(palletId, palletType) {
     openSharedPrinterModal({id: palletId, type: palletType}, function(printerId, payload) {

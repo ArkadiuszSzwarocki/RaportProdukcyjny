@@ -59,43 +59,66 @@ def skaner_production_inventory(sesja_id):
     entries = ProductionInventoryService.get_session_entries(sesja_id)
 
     def get_group(tank):
-        m = re.match('([A-Z]+)[ -]?(\\d+)', tank.upper())
+        tank_str = (tank or '').strip().upper()
+        m = re.match('^([A-Z]+)[ -]?(\\d+)', tank_str)
         if not m:
-            return None
+            return 'Inne Zbiorniki'
         prefix = m.group(1)
-        num = int(m.group(2))
-        if prefix == 'BB':
-            if 1 <= num <= 6:
-                return 'Waga01'
-            if 11 <= num <= 14:
-                return 'Waga02'
-            if 15 <= num <= 22:
-                return 'Waga03'
-            return None
-        if prefix == 'MZ':
-            if 7 <= num <= 10:
-                return 'Waga02'
-            if 23 <= num <= 24:
-                return 'Waga03'
-            return None
+        try:
+            num = int(m.group(2))
+        except (TypeError, ValueError):
+            return f"{prefix} - Zbiorniki"
+
         if prefix == 'KO':
             if 1 <= num <= 12:
                 return 'KO - Rząd 1'
-            if 13 <= num <= 24:
+            elif 13 <= num <= 24:
                 return 'KO - Rząd 2'
-            return None
-        return None
+            elif 25 <= num <= 36:
+                return 'KO - Rząd 3'
+            else:
+                return 'KO - Rząd 4'
+        if prefix == 'BB':
+            if 1 <= num <= 6:
+                return 'BB - Waga 01 (BB01-BB06)'
+            elif 11 <= num <= 14:
+                return 'BB - Waga 02 (BB11-BB14)'
+            elif 15 <= num <= 22:
+                return 'BB - Waga 03 (BB15-BB22)'
+            else:
+                return 'BB - Pozostałe'
+
+        if prefix == 'MZ':
+            if 1 <= num <= 6:
+                return 'MZ - Waga 01'
+            elif 7 <= num <= 14:
+                return 'MZ - Waga 02'
+            elif 15 <= num <= 26:
+                return 'MZ - Waga 03'
+            else:
+                return 'MZ - Pozostałe'
+        return f"{prefix} - Zbiorniki"
+
     grouped_entries = {}
     for entry in entries:
         g = get_group(entry.get('zbiornik', ''))
-        if g is not None:
-            if g not in grouped_entries:
-                grouped_entries[g] = []
-            grouped_entries[g].append(entry)
+        if g not in grouped_entries:
+            grouped_entries[g] = []
+        grouped_entries[g].append(entry)
+
     sorted_groups = {}
     for k in sorted(grouped_entries.keys()):
-        sorted_groups[k] = grouped_entries[k]
+        # Sort tanks naturally within each group (e.g. KO01, KO02, ... KO40)
+        sorted_groups[k] = sorted(
+            grouped_entries[k], 
+            key=lambda x: (
+                int(re.search(r'\d+', x.get('zbiornik', '0')).group()) 
+                if re.search(r'\d+', x.get('zbiornik', '')) else 0,
+                x.get('zbiornik', '')
+            )
+        )
     return render_template('agro_warehouse/production_inventory_skaner.html', sesja_id=sesja_id, linia=linia, sesja=sesj, grouped_entries=sorted_groups)
+
 
 @agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zapisz', methods=['POST'])
 @login_required
@@ -152,35 +175,16 @@ def raport_production_inventory(sesja_id):
         conn.close()
     entries = ProductionInventoryService.get_session_entries(sesja_id)
 
-    def is_valid_group(tank):
-        m = re.match('([A-Z]+)[ -]?(\\d+)', tank.upper())
-        if not m:
-            return False
-        prefix = m.group(1)
-        num = int(m.group(2))
-        if prefix == 'BB':
-            if 1 <= num <= 6:
-                return True
-            if 11 <= num <= 14:
-                return True
-            if 15 <= num <= 22:
-                return True
-            return False
-        if prefix == 'MZ':
-            if 7 <= num <= 10:
-                return True
-            if 23 <= num <= 24:
-                return True
-            return False
-        if prefix == 'KO':
-            if 1 <= num <= 12:
-                return True
-            if 13 <= num <= 24:
-                return True
-            return False
-        return False
-    filtered_entries = [e for e in entries if is_valid_group(e.get('zbiornik', ''))]
-    return render_template('agro_warehouse/production_inventory_raport.html', sesja_id=sesja_id, linia=linia, sesja=sesj, entries=filtered_entries)
+    sorted_entries = sorted(
+        entries,
+        key=lambda x: (
+            int(re.search(r'\d+', x.get('zbiornik', '0')).group()) 
+            if re.search(r'\d+', x.get('zbiornik', '')) else 0,
+            x.get('zbiornik', '')
+        )
+    )
+    return render_template('agro_warehouse/production_inventory_raport.html', sesja_id=sesja_id, linia=linia, sesja=sesj, entries=sorted_entries)
+
 
 @agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zamknij', methods=['POST'])
 @login_required

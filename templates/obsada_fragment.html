@@ -70,7 +70,7 @@
             <div class="obsada-field-group">
                 <label for="obsada-date" class="obsada-field-label">Data</label>
                 <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
-                    class="input-sm">
+                    class="input-sm" onchange="window.zmienDateObsady(this.value)">
             </div>
             {% if rola in ['lider','admin', 'masteradmin'] %}
             {% if linia == 'PSD' or not linia %}
@@ -95,7 +95,7 @@
                 </select>
             </div>
             {% endif %}
-            <button type="button" id="btnSaveLiderzy" class="btn btn-primary">{{ _('zapisz_liderow') }}</button>
+            <button type="button" id="btnSaveLiderzy" class="btn btn-primary" onclick="window.zapiszLiderowObsady(this)">{{ _('zapisz_liderow') }}</button>
             {% endif %}
         </div>
         <div class="obsada-sections">
@@ -121,7 +121,7 @@
                         <option value="" disabled selected>+ Wybierz pracownika</option>
                         {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
                     </select>
-                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start">Dodaj</button>
+                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start" onclick="window.dodajPracownikaDoObsady(this, '{{ s }}', {{ loop.index0 }})">Dodaj</button>
                 </div>
                 {% endif %}
 
@@ -146,13 +146,11 @@
                                 </td>
                                 <td>
                                     {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
-                                    <form action="{{ url_for('leaves.usun_z_obsady', id=o[0]) }}" method="POST"
-                                        class="m-0 d-inline-block">
-                                        <button type="submit" class="delete-button"
-                                            data-pracownik-id="{{ o[2] }}"
-                                            data-pracownik-name="{{ o[1] }}"
-                                            aria-label="Usuń z obsady">🗑️</button>
-                                    </form>
+                                    <button type="button" class="delete-button"
+                                        onclick="window.usunPracownikaZObsady(this, {{ o[0] }}, '{{ o[2] }}', '{{ o[1]|e }}')"
+                                        data-pracownik-id="{{ o[2] }}"
+                                        data-pracownik-name="{{ o[1] }}"
+                                        aria-label="Usuń z obsady">🗑️</button>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -163,246 +161,242 @@
                     <div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>{{ _('brak_przypisanych') }}</span></div>
                     {% endif %}
                 </div>
-
-                <!-- immediate add: no pending list, no confirm/cancel buttons -->
             </div>
             {% endfor %}
         </div>
 
         <script>
-            (function () {
-                // Dynamicznie czytaj sekcje z HTML-u zamiast hardcoding
-                // Znajdź tylko te, które nie były jeszce inicjalizowane (zapobiega konfliktom z tłem)
-                const sectionEls = document.querySelectorAll('.obsada-section:not([data-obsada-init="true"])');
-
-                // Zapobiegaj zamknięciu sidebara gdy klikniemy na selecty
-                const allSelects = document.querySelectorAll('.obsada-toolbar select:not([data-obsada-init="true"]), .obsada-section select:not([data-obsada-init="true"])');
-                allSelects.forEach(sel => {
-                    sel.setAttribute('data-obsada-init', 'true');
-                    sel.addEventListener('click', function (e) {
-                        e.stopPropagation();
-                    });
-                    sel.addEventListener('change', function (e) {
-                        e.stopPropagation();
-                    });
-                });
-
-                sectionEls.forEach(function (sectionEl) {
-                    sectionEl.setAttribute('data-obsada-init', 'true');
-                    const name = sectionEl.getAttribute('data-sekcja');
-
-                    const select = sectionEl.querySelector('.obsada-select');
-                    const addBtn = sectionEl.querySelector('.btn-start');
-                    const pending = sectionEl.querySelector('[id^="pending-list-"]');
-                    const sekcjaEl = sectionEl.querySelector('input[type="hidden"]');
-                    const sekcja = sekcjaEl ? sekcjaEl.value : name;
-                    const confirmBtn = sectionEl.querySelector('[id^="btnConfirmObsada-"]');
-                    const current = sectionEl.querySelector('div[id^="current-obsada-"]');
-
-                    // Immediate add: when clicking 'Dodaj', send AJAX to add worker and update list
-                    if (addBtn) {
-                        addBtn.addEventListener('click', async function () {
-                            if (!select) return;
-                            const val = select.value; const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
-                            if (!val) return;
-                            addBtn.disabled = true;
-                            try {
-                                const fd = new URLSearchParams(); fd.append('sekcja', sekcja); fd.append('pracownik_id', val);
-                                // Search obsada date contextually via closest popup or fallback
-                                let dateEl = null;
-                                const popup = sectionEl.closest('.quick-popup');
-                                if (popup) dateEl = popup.querySelector('#obsada-date');
-                                if (!dateEl) dateEl = document.getElementById('obsada-date');
-                                const dateVal = dateEl ? dateEl.value : '';
-                                if (dateVal) fd.append('date', dateVal);
-
-                                const resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                                if (!resp.ok) { showToast && showToast('Błąd: ' + resp.status, 'error'); addBtn.disabled = false; return; }
-                                let j = null;
-                                try { j = await resp.json(); } catch (e) { j = null; }
-                                const newId = j && j.id ? j.id : null;
-                                const newName = j && j.name ? j.name : txt;
-                                if (current) {
-                                    // if a table body exists, append a row; otherwise fallback to previous chip behavior
-                                    const tbody = current.querySelector('tbody[id^="current-obsada-tbody-"]');
-                                    if (tbody) {
-                                        const tr = document.createElement('tr');
-                                        if (newId) tr.setAttribute('data-id', newId);
-                                        const tdName = document.createElement('td'); tdName.innerHTML = '<strong>' + (newName || '') + '</strong>';
-                                        const tdAct = document.createElement('td');
-                                        const remBtn = document.createElement('button');
-                                        remBtn.className = 'delete-button';
-                                        remBtn.type = 'button';
-                                        remBtn.innerHTML = '🗑️';
-                                        remBtn.setAttribute('data-pracownik-id', val);
-                                        remBtn.setAttribute('data-pracownik-name', txt);
-                                        if (newId) {
-                                            remBtn.addEventListener('click', async function (ev) {
-                                                ev.preventDefault();
-                                                ev.stopPropagation();
-                                                const url = '/api/usun_z_obsady/' + newId;
-                                                try {
-                                                    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                                                    if (r.status === 401) { window.location.href = '/login'; return; }
-                                                    if (!r.ok) { showToast && showToast('Błąd usuwania: ' + r.status, 'error'); return; }
-                                                    tr.remove();
-                                                    if (val && select) {
-                                                        const opt = document.createElement('option');
-                                                        opt.value = val;
-                                                        opt.textContent = txt;
-                                                        select.appendChild(opt);
-                                                    }
-                                                    showToast && showToast('Usunięto pracownika', 'success');
-                                                } catch (err) {
-                                                    console.error(err);
-                                                    showToast && showToast('Błąd sieci', 'error');
-                                                }
-                                            });
-                                        } else {
-                                            remBtn.addEventListener('click', function () { tr.remove(); });
-                                        }
-                                        tdAct.appendChild(remBtn);
-                                        tr.appendChild(tdName); tr.appendChild(tdAct); tbody.appendChild(tr);
-                                    } else {
-                                        // No table exists yet, need to create one
-                                        current.innerHTML = ''; // clear "Brak przypisanych"
-                                        const table = document.createElement('table'); table.className = 'modern-table small obsada-table';
-                                        const thead = document.createElement('thead');
-                                        thead.innerHTML = '<tr><th>Pracownik</th><th class="obsada-akcje-col">Akcje</th></tr>';
-                                        const newTbody = document.createElement('tbody');
-                                        // fallback id just in case
-                                        newTbody.id = 'current-obsada-tbody-' + Math.floor(Math.random() * 10000);
-
-                                        const tr = document.createElement('tr');
-                                        if (newId) tr.setAttribute('data-id', newId);
-                                        const tdName = document.createElement('td'); tdName.innerHTML = '<div class="obsada-worker-row"><span class="obsada-avatar">' + (newName ? newName[0].toUpperCase() : '?') + '</span><strong>' + (newName || '') + '</strong></div>';
-                                        const tdAct = document.createElement('td');
-                                        const remBtn = document.createElement('button');
-                                        remBtn.className = 'delete-button';
-                                        remBtn.type = 'button';
-                                        remBtn.innerHTML = '🗑️';
-                                        remBtn.setAttribute('data-pracownik-id', val);
-                                        remBtn.setAttribute('data-pracownik-name', txt);
-                                        if (newId) {
-                                            remBtn.addEventListener('click', async function (ev) {
-                                                ev.preventDefault();
-                                                ev.stopPropagation();
-                                                const url = '/api/usun_z_obsady/' + newId;
-                                                try {
-                                                    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                                                    if (r.status === 401) { window.location.href = '/login'; return; }
-                                                    if (!r.ok) { showToast && showToast('Błąd usuwania: ' + r.status, 'error'); return; }
-                                                    tr.remove();
-                                                    if (val && select) {
-                                                        const opt = document.createElement('option');
-                                                        opt.value = val;
-                                                        opt.textContent = txt;
-                                                        select.appendChild(opt);
-                                                    }
-                                                    showToast && showToast('Usunięto pracownika', 'success');
-                                                } catch (err) {
-                                                    console.error(err);
-                                                    showToast && showToast('Błąd sieci', 'error');
-                                                }
-                                            });
-                                        } else {
-                                            remBtn.addEventListener('click', function () { tr.remove(); });
-                                        }
-                                        tdAct.appendChild(remBtn);
-
-                                        tr.appendChild(tdName); tr.appendChild(tdAct);
-                                        newTbody.appendChild(tr);
-                                        table.appendChild(thead); table.appendChild(newTbody);
-                                        current.appendChild(table);
-                                    }
-                                }
-                                // remove option from select
-                                try { const opt = select.querySelector('option[value="' + val + '"]'); if (opt) opt.remove(); } catch (e) { }
-                                select.selectedIndex = 0;
-                                showToast && showToast('Dodano pracownika', 'success');
-                            } catch (e) { console.error(e); showToast && showToast('Błąd sieci', 'error'); }
-                            addBtn.disabled = false;
-                        });
-                    }
-
-                    if (current) {
-                        // delegate delete button clicks inside the table body
-                        current.addEventListener('click', function (ev) {
-                            const t = ev.target;
-                            if (!t.classList.contains('btn-delete') && !t.closest('.delete-button')) return;
-                            const frm = t.closest('form');
-                            if (frm) {
-                                ev.preventDefault();
-                                const url = frm.getAttribute('action') || window.location.href;
-                                const tr = t.closest('tr');
-                                const chip = t.closest('.chip');
-                                const pracownikId = t.getAttribute('data-pracownik-id') || (tr ? tr.getAttribute('data-pracownik-id') : null) || (chip ? chip.getAttribute('data-pracownik-id') : null);
-                                const pracownikName = t.getAttribute('data-pracownik-name') || (tr ? tr.getAttribute('data-pracownik-name') : null) || (chip ? chip.getAttribute('data-pracownik-name') : null);
-                                fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                                    .then(async function (resp) {
-                                        if (resp.status === 401) { window.location.href = '/login'; return; }
-                                        if (!resp.ok) { showToast && showToast('Błąd usuwania: ' + resp.status, 'error'); return; }
-                                        if (tr) tr.remove();
-                                        if (chip) chip.remove();
-                                        // zwroć pracownika na listę wyboru
-                                        if (pracownikId && select) {
-                                            const opt = document.createElement('option');
-                                            opt.value = pracownikId;
-                                            opt.textContent = pracownikName || pracownikId;
-                                            select.appendChild(opt);
-                                        }
-                                        showToast && showToast('Usunięto pracownika', 'success');
-                                    }).catch(function (err) { console.error('delete obsada failed', err); showToast && showToast('Błąd sieci', 'error'); });
-                            }
-                        });
-                    }
-
-                    // no pending list in immediate-add mode
-                });
-
-                // Date selector: nawiguj do tej samej strony z nową datą
-                const obsadaDateEl = document.querySelector('#obsada-date:not([data-obsada-init="true"])');
-                if (obsadaDateEl) {
-                    obsadaDateEl.dataset.obsadaInit = 'true';
-                    obsadaDateEl.addEventListener('change', function () {
-                        if (!this.value) return;
-                        const newDate = this.value;
-                        const isInPopup = !!this.closest('.quick-popup');
-                        if (isInPopup) {
-                            // Fragment jest w popupie – załaduj nową datę jako AJAX bez zamykania popupa
-                            const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&sekcja={{ sekcja|urlencode }}&linia={{ linia|urlencode }}';
-                            if (typeof showSlideOver === 'function') {
-                                showSlideOver(fetchUrl);
-                            }
-                        } else {
-                            // Pełna strona – normalna nawigacja
-                            const url = new URL(window.location.href);
-                            url.searchParams.set('date', newDate);
-                            window.location.href = url.toString();
-                        }
-                    });
+            window.dodajPracownikaDoObsady = async function(btn, sekcja, index) {
+                const sectionEl = btn.closest('.obsada-section');
+                if (!sectionEl) return;
+                const select = sectionEl.querySelector('.obsada-select');
+                if (!select) return;
+                const val = select.value;
+                if (!val) {
+                    alert('Wybierz pracownika z listy.');
+                    return;
                 }
-
-                // save leaders handler (bind once, avoid conflicts)
-                const uninitSaveBtns = document.querySelectorAll('#btnSaveLiderzy:not([data-obsada-init="true"])');
-                uninitSaveBtns.forEach(function (saveBtn) {
-                    saveBtn.setAttribute('data-obsada-init', 'true');
-                    saveBtn.addEventListener('click', async function () {
-                        // contextual search for values
-                        const container = saveBtn.closest('.quick-popup') || document;
-                        const dateEl = container.querySelector('#obsada-date'); const dateVal = dateEl ? dateEl.value : '';
-                        const lpsdWrap = container.querySelector('#lider_psd'); const lpsd = lpsdWrap ? lpsdWrap.value : '';
-                        const lagroWrap = container.querySelector('#lider_agro'); const lagro = lagroWrap ? lagroWrap.value : '';
-                        saveBtn.disabled = true;
-                        try {
-                            const fd = new URLSearchParams(); if (dateVal) fd.append('date', dateVal); fd.append('lider_psd', lpsd); fd.append('lider_agro', lagro);
-                            const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                            if (!resp.ok) { showToast && showToast('Błąd zapisu liderów: ' + resp.status, 'error'); saveBtn.disabled = false; return; }
-                            showToast && showToast('Zapisano liderów', 'success');
-                        } catch (e) { console.error(e); showToast && showToast('Błąd sieci', 'error'); }
-                        saveBtn.disabled = false;
+                const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+                
+                let dateEl = document.getElementById('obsada-date');
+                if (sectionEl.closest('.quick-popup')) {
+                    const pDate = sectionEl.closest('.quick-popup').querySelector('#obsada-date');
+                    if (pDate) dateEl = pDate;
+                }
+                const dateVal = dateEl ? dateEl.value : '';
+                
+                btn.disabled = true;
+                const origText = btn.innerText;
+                btn.innerText = '...';
+                
+                try {
+                    const fd = new URLSearchParams();
+                    fd.append('sekcja', sekcja);
+                    fd.append('pracownik_id', val);
+                    if (dateVal) fd.append('date', dateVal);
+                    
+                    let resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', {
+                        method: 'POST',
+                        body: fd,
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
                     });
-                });
-            })();
+                    
+                    if (!resp.ok) {
+                        resp = await fetch('/dodaj_do_obsady', {
+                            method: 'POST',
+                            body: fd,
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                    }
+                    
+                    if (!resp.ok) {
+                        resp = await fetch('/api/dodaj_do_obsady', {
+                            method: 'POST',
+                            body: fd,
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                    }
+                    
+                    if (!resp.ok) {
+                        alert('Błąd dodawania do obsady (status: ' + resp.status + ')');
+                        return;
+                    }
+                    
+                    const j = await resp.json();
+                    if (j && (j.success || j.id)) {
+                        const newId = j.id;
+                        const newName = j.name || txt;
+                        
+                        const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                        if (current) {
+                            let tbody = current.querySelector('tbody[id^="current-obsada-tbody-"]');
+                            if (!tbody) {
+                                current.innerHTML = '';
+                                const table = document.createElement('table');
+                                table.className = 'modern-table small obsada-table';
+                                table.innerHTML = `<thead><tr><th>Pracownik</th><th class="obsada-akcje-col">Akcje</th></tr></thead><tbody id="current-obsada-tbody-${index}"></tbody>`;
+                                current.appendChild(table);
+                                tbody = table.querySelector('tbody');
+                            }
+                            
+                            const tr = document.createElement('tr');
+                            if (newId) tr.setAttribute('data-id', newId);
+                            tr.setAttribute('data-pracownik-id', val);
+                            tr.setAttribute('data-pracownik-name', newName);
+                            tr.innerHTML = `
+                                <td>
+                                    <div class="obsada-worker-row">
+                                        <span class="obsada-avatar">${(newName ? newName[0].toUpperCase() : '?')}</span>
+                                        <strong>${newName}</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    <button type="button" class="delete-button" onclick="window.usunPracownikaZObsady(this, ${newId}, '${val}', '${newName.replace(/'/g, "\\'")}')" aria-label="Usuń z obsady">🗑️</button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                            
+                            const head = sectionEl.querySelector('.obsada-section-head');
+                            let badge = sectionEl.querySelector('.obsada-count-badge');
+                            if (!badge && head) {
+                                badge = document.createElement('span');
+                                badge.className = 'obsada-count-badge';
+                                head.appendChild(badge);
+                            }
+                            if (badge) badge.innerText = tbody.children.length;
+                        }
+                        
+                        const opt = select.querySelector(`option[value="${val}"]`);
+                        if (opt) opt.remove();
+                        select.selectedIndex = 0;
+                        
+                        if (typeof showToast === 'function') {
+                            showToast(`✅ Dodano: ${newName}`, 'success');
+                        }
+                    } else {
+                        alert('Nie udało się dodać pracownika do obsady.');
+                    }
+                } catch (err) {
+                    console.error('Błąd dodaj do obsady:', err);
+                    alert('Błąd połączenia z serwerem.');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = origText;
+                }
+            };
+
+            window.usunPracownikaZObsady = async function(btn, obsadaId, pracownikId, pracownikName) {
+                if (!confirm(`Czy na pewno usunąć ${pracownikName || 'pracownika'} z obsady?`)) return;
+                
+                btn.disabled = true;
+                try {
+                    let resp = await fetch('/api/usun_z_obsady/' + obsadaId, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    
+                    if (!resp.ok) {
+                        resp = await fetch('/usun_z_obsady/' + obsadaId, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                    }
+                    
+                    const tr = btn.closest('tr');
+                    const sectionEl = btn.closest('.obsada-section');
+                    if (tr) tr.remove();
+                    
+                    if (sectionEl && pracownikId && pracownikName) {
+                        const select = sectionEl.querySelector('.obsada-select');
+                        if (select) {
+                            const opt = document.createElement('option');
+                            opt.value = pracownikId;
+                            opt.textContent = pracownikName;
+                            select.appendChild(opt);
+                        }
+                        
+                        const tbody = sectionEl.querySelector('tbody');
+                        const badge = sectionEl.querySelector('.obsada-count-badge');
+                        if (tbody) {
+                            if (badge) badge.innerText = tbody.children.length;
+                            if (tbody.children.length === 0) {
+                                const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                                if (current) {
+                                    current.innerHTML = `<div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>Brak przypisanych pracowników</span></div>`;
+                                }
+                                if (badge) badge.remove();
+                            }
+                        }
+                    }
+                    
+                    if (typeof showToast === 'function') {
+                        showToast('Usunięto pracownika z obsady', 'success');
+                    }
+                } catch(err) {
+                    console.error('Błąd usuwania z obsady:', err);
+                    alert('Błąd podczas usuwania pracownika.');
+                }
+            };
+
+            window.zapiszLiderowObsady = async function(btn) {
+                const container = btn.closest('.obsada-toolbar') || btn.closest('.quick-popup') || document;
+                const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
+                const dateVal = dateEl ? dateEl.value : '';
+                const lpsdWrap = container.querySelector('#lider_psd') || document.getElementById('lider_psd');
+                const lpsd = lpsdWrap ? lpsdWrap.value : '';
+                const lagroWrap = container.querySelector('#lider_agro') || document.getElementById('lider_agro');
+                const lagro = lagroWrap ? lagroWrap.value : '';
+                
+                btn.disabled = true;
+                const origText = btn.innerText;
+                btn.innerText = 'Zapisywanie...';
+                try {
+                    const fd = new URLSearchParams();
+                    if (dateVal) fd.append('date', dateVal);
+                    if (lpsd) fd.append('lider_psd', lpsd);
+                    if (lagro) fd.append('lider_agro', lagro);
+                    
+                    const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', {
+                        method: 'POST',
+                        body: fd,
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    
+                    if (resp.ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('✅ Zapisano liderów zmiany', 'success');
+                        } else {
+                            alert('✅ Zapisano liderów zmiany');
+                        }
+                    } else {
+                        alert('Błąd zapisu liderów');
+                    }
+                } catch(e) {
+                    console.error(e);
+                    alert('Błąd połączenia');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = origText;
+                }
+            };
+
+            window.zmienDateObsady = function(newDate) {
+                if (!newDate) return;
+                const isInPopup = !!document.querySelector('.quick-popup.open, #quickPopup.open, .quick-popup[style*="display: block"], .quick-popup[style*="display: flex"]');
+                const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&sekcja={{ sekcja|urlencode }}&linia={{ linia|urlencode }}';
+                if (isInPopup && typeof showSlideOver === 'function') {
+                    showSlideOver(fetchUrl);
+                } else {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('date', newDate);
+                    window.location.href = url.toString();
+                }
+            };
         </script>
     </div>

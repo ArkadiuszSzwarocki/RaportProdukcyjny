@@ -6,7 +6,8 @@ import re
 
 _DODATEK_NAME_REGEX = re.compile(r'DODATEK')
 
-BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25)]
+BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
+
 MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 25)] + ["MZ05-01", "MZ06-01"]
 KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
 CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 99)]

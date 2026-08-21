@@ -5,7 +5,14 @@
     :root {
         --scanner-mode-color: #f97316;
     }
+    .scanner-unified-header {
+        display: none !important;
+    }
+    #btnAddPalletMain {
+        display: none !important;
+    }
     .scanner-card {
+
         background: white;
         border-radius: 16px;
         border: 1px solid #e2e8f0;
@@ -97,21 +104,33 @@ Inwentaryzacja Magazynu
 {% block scanner_content %}
 <div class="inventory-scanner" data-no-autorefresh="true">
 
+    <!-- GLOBAL TOP-RIGHT FINISH/STOP BUTTON -->
+    <div style="position: fixed; top: 10px; right: 10px; z-index: 2500;">
+        <button onclick="finishInventory()" title="Zakończ inwentaryzację (STOP)" style="background: #dc2626; color: white; border: none; border-radius: 10px; padding: 8px 12px; font-weight: 900; font-size: 13px; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); cursor: pointer;">
+            <span class="material-icons" style="font-size: 18px;">stop_circle</span> STOP
+        </button>
+    </div>
+
     <!-- SCANNER SECTION -->
     <div id="locationSearchCard" class="scanner-card" style="max-width: 500px; margin-left: auto; margin-right: auto;">
-        <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
-            <span class="material-icons" style="font-size:14px; vertical-align:middle;">qr_code_scanner</span> Zeskanuj Lokalizację
-        </label>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin: 0;">
+                <span class="material-icons" style="font-size:14px; vertical-align:middle;">qr_code_scanner</span> Zeskanuj Lokalizację
+            </label>
+            <button onclick="finishInventory()" title="Zakończ inwentaryzację" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 8px; padding: 4px 8px; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; cursor: pointer;">
+                <span class="material-icons" style="font-size: 16px;">stop_circle</span> ZAKOŃCZ
+            </button>
+        </div>
+
         <div class="input-group">
             <span class="material-icons input-icon">place</span>
-            <input type="text" id="lokalizacjaInput" class="scanner-input" placeholder="Np. R070101, MGW01..." 
+            <input type="text" id="lokalizacjaInput" inputmode="none" class="scanner-input" placeholder="Np. R070101, MGW01..." 
                    style="text-transform: uppercase;"
                    oninput="this.value = this.value.toUpperCase()"
-                   onkeydown="if(event.key==='Enter'){event.preventDefault(); searchLocation();}"
                    autofocus>
         </div>
         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button onclick="searchLocation()" class="btn-primary" style="padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white;">SZUKAJ</button>
+            <button onclick="let inp=document.getElementById('lokalizacjaInput'); searchLocation(inp.value); inp.value='';" class="btn-primary" style="padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white;">SZUKAJ</button>
             <button onclick="clearSkaner()" style="padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;">CZYŚĆ</button>
         </div>
         <div style="margin-top: 12px; text-align:center;">
@@ -126,18 +145,24 @@ Inwentaryzacja Magazynu
                 <span class="material-icons" style="font-size: 18px;">inventory_2</span>
                 Palety w: <span id="activeLocation" style="color: #1e293b; font-weight: 800;"></span>
             </div>
-            <button onclick="clearSkaner()" style="font-size:11px; font-weight:700; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;">← Skanuj inną</button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button onclick="clearSkaner()" style="font-size:11px; font-weight:700; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;">← Inna</button>
+                <button onclick="finishInventory()" title="Zakończ inwentaryzację" style="background: #fee2e2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer;" aria-label="Zakończ inwentaryzację">
+                    <span class="material-icons" style="font-size: 16px;">power_settings_new</span>
+                </button>
+            </div>
         </div>
+
         <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
             <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                 <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                <input type="text" id="ssccVerifierInputResults" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
-                       onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); verifyPalletSSCC(this.value, 'results'); this.value='';}">
+                <input type="text" id="ssccVerifierInputResults" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę...">
             </div>
             <button onclick="let inp=document.getElementById('ssccVerifierInputResults'); verifyPalletSSCC(inp.value, 'results'); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Sprawdź">
                 <span class="material-icons" style="font-size: 24px;">search</span>
             </button>
         </div>
+        <div id="palletsList" style="margin-bottom: 15px;"></div>
     </div>
 
     <!-- BLIND SCAN SECTION -->
@@ -147,32 +172,32 @@ Inwentaryzacja Magazynu
                 <span class="material-icons" style="font-size: 24px;">my_location</span>
                 <span id="blindActiveLocation"></span>
             </div>
-            <button onclick="clearSkaner()" style="font-size:12px; font-weight:700; color:#f97316; background:none; border:none; cursor:pointer; text-decoration:underline;">Zmień</button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button onclick="clearSkaner()" style="font-size:12px; font-weight:700; color:#f97316; background:none; border:none; cursor:pointer; text-decoration:underline;">ZMIEŃ</button>
+                <button onclick="finishInventory()" title="Zakończ inwentaryzację" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; border-radius: 8px; padding: 4px 8px; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; cursor: pointer;">
+                    <span class="material-icons" style="font-size: 16px;">stop_circle</span> ZAKOŃCZ
+                </button>
+            </div>
         </div>
+
         <label style="display: block; font-size: 12px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase;">
             Zeskanuj kod SSCC palety
         </label>
         <div class="input-group" style="margin-bottom: 15px;">
             <span class="material-icons input-icon" style="color: #f97316;">qr_code_scanner</span>
-            <input type="text" id="blindSsccInput" class="scanner-input" style="border-color: #f97316; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę..." 
-                   onkeydown="if(event.key==='Enter' || event.keyCode===13){event.preventDefault(); handleBlindSSCCScan(this.value); this.value='';}">
+            <input type="text" id="blindSsccInput" inputmode="none" class="scanner-input" style="border-color: #f97316; width: 100%; padding-left: 42px;" placeholder="Skanuj paletę...">
         </div>
         
-        <div id="blindScannedList" style="margin-top: 20px; border-top: 1px solid #fed7aa; padding-top: 15px;">
-            <h4 style="font-size: 12px; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase;">Zeskanowane w tej sesji:</h4>
-            <div id="blindScannedItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="blindScannedList" style="margin-top: 15px; border-top: 1px solid #fed7aa; padding-top: 12px;">
+            <div id="blindScannedItems" style="display: flex; flex-direction: column; gap: 4px;"></div>
         </div>
     </div>
 
-        <button id="btnAddPalletMain" onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #3b82f6; border-radius: 12px; background: #f0f9ff; color: #2563eb; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;">
-            <span class="material-icons">add_circle</span> DODAJ PALETĘ (BRAK W SYSTEMIE)
-        </button>
-
-        <div id="palletsList" style="margin-bottom: 15px;">
     <!-- RACK GRID SECTION -->
     {% include 'inwentaryzacja/partials/_rack_grid.html' %}
 
 </div>
+
 {% endblock %}
 
 {% block scanner_modals %}
@@ -195,12 +220,35 @@ Inwentaryzacja Magazynu
         url_raport: '{{ url_for("inwentaryzacja.raport", sesja_id=sesja_id) }}'
     };
 </script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/globals.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=3"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/globals.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}&v2=26"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 {% endblock %}

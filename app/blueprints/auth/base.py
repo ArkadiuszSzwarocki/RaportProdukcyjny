@@ -5,7 +5,7 @@ Handles login, logout, and user-specific interface settings (e.g., bug icon ackn
 from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app
 from datetime import datetime
 import time
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 import os
 import socket
 import subprocess
@@ -576,5 +576,55 @@ def ack_bug_icon_intro():
     """Mark bug-report icon intro as acknowledged for current login session."""
     session['show_bug_icon_intro'] = False
     return jsonify({'success': True})
+
+
+@auth_bp.route('/api/zmien-moje-haslo', methods=['POST'])
+@login_required
+def zmien_moje_haslo():
+    """Pozwala zalogowanemu użytkownikowi na zmianę własnego hasła."""
+    data = request.get_json(silent=True) or request.form
+    stare_haslo = (data.get('stare_haslo') or '').strip()
+    nowe_haslo = (data.get('nowe_haslo') or '').strip()
+    powtorz_haslo = (data.get('powtorz_nowe_haslo') or data.get('powtorz_haslo') or '').strip()
+
+    if not stare_haslo or not nowe_haslo:
+        return jsonify({'success': False, 'message': 'Wypełnij wszystkie pola.'}), 400
+
+    if nowe_haslo != powtorz_haslo:
+        return jsonify({'success': False, 'message': 'Nowe hasła nie są identyczne.'}), 400
+
+    if len(nowe_haslo) < 4:
+        return jsonify({'success': False, 'message': 'Nowe hasło musi mieć co najmniej 4 znaki.'}), 400
+
+    login = session.get('login')
+    if not login:
+        return jsonify({'success': False, 'message': 'Brak aktywnej sesji.'}), 401
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, haslo FROM uzytkownicy WHERE login = %s", (login,))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({'success': False, 'message': 'Nie znaleziono konta użytkownika.'}), 404
+
+        current_hash = user['haslo'] or ''
+        if not check_password_hash(current_hash, stare_haslo):
+            return jsonify({'success': False, 'message': 'Aktualne hasło jest nieprawidłowe.'}), 400
+
+        new_hash = generate_password_hash(nowe_haslo, method='pbkdf2:sha256')
+        cursor.execute("UPDATE uzytkownicy SET haslo = %s WHERE id = %s", (new_hash, user['id']))
+        conn.commit()
+
+        from app.core.audit import audit_log
+        audit_log('Zmiana hasła', f'Użytkownik {login} zmienił własne hasło')
+        return jsonify({'success': True, 'message': 'Hasło zostało pomyślnie zmienione.'})
+    except Exception as e:
+        conn.rollback()
+        current_app.logger.error(f"Błąd zmiany hasła dla {login}: {e}")
+        return jsonify({'success': False, 'message': 'Błąd serwera podczas zmiany hasła.'}), 500
+    finally:
+        conn.close()
+
 
 

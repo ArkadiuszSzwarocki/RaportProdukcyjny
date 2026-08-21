@@ -68,16 +68,25 @@
 
       <script>
       window.previewReportPdf = function(linia) {
-          var dateInput = document.getElementById('raport_date_picker');
-          var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
-          window.location.href = '/raport/podglad_pdf?linia=' + encodeURIComponent(linia || 'AGRO') + '&data=' + encodeURIComponent(d);
+          var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+          var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+          var l = linia;
+          if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+              l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+          }
+          window.location.href = '/raport/podglad_pdf?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
       };
 
       window.goToCloseShiftEmailPage = function(linia) {
-          var dateInput = document.getElementById('raport_date_picker');
-          var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
-          window.location.href = '/raport/zakoncz_zmiane?linia=' + encodeURIComponent(linia || 'AGRO') + '&data=' + encodeURIComponent(d);
+          var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+          var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+          var l = linia;
+          if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+              l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+          }
+          window.location.href = '/raport/zakoncz_zmiane?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
       };
+
 
       window.openAutoReportScheduleModal = function(linia) {
           var modal = document.getElementById('autoReportScheduleModal');

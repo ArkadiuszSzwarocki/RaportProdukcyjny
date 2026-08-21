@@ -381,8 +381,9 @@
                 <div class="d-flex gap-5">
                     <button class="btn-unified btn-edit" onclick="openEditPerson({{ p.id }})">✎ Dane</button>
                     {% if p.user_id %}
-                        <button class="btn-unified btn-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}')">🔑 Hasło/Rola</button>
+                        <button class="btn-unified btn-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}', '{{ p.login|e }}', '{{ p.rola|e }}', '{{ p.user_hall|e }}')">🔑 Hasło/Rola</button>
                     {% endif %}
+
                 </div>
                 
                 {% if not p.user_id %}
@@ -433,6 +434,17 @@
                         <div class="form-group">
                             <label class="form-label">ID Pracownika</label>
                             <input type="number" name="explicit_id" class="input-unified" placeholder="Automatyczne">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                        <div class="form-group">
+                            <label class="form-label">Urlop bieżący (dni)</label>
+                            <input type="number" min="0" max="365" name="urlop_biezacy" value="26" class="input-unified">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Urlop zaległy (dni)</label>
+                            <input type="number" min="0" max="365" name="urlop_zalegly" value="0" class="input-unified">
                         </div>
                     </div>
 
@@ -500,6 +512,16 @@
                                 <option value="AGRO" ${p.grupa == 'AGRO' ? 'selected' : ''}>Hala 2 (AGRO)</option>
                             </select>
                         </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                            <div class="form-group">
+                                <label class="form-label">Urlop bieżący (dni)</label>
+                                <input type="number" min="0" max="365" name="urlop_biezacy" value="${p.urlop_biezacy ?? 26}" class="input-unified">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Urlop zaległy (dni)</label>
+                                <input type="number" min="0" max="365" name="urlop_zalegly" value="${p.urlop_zalegly ?? 0}" class="input-unified">
+                            </div>
+                        </div>
                         <div class="d-flex space-between align-center mt-40">
                              <div class="d-flex gap-12">
                                 <button type="submit" class="btn-popup-primary">Zapisz zmiany</button>
@@ -513,47 +535,58 @@
         });
     }
 
-    function openEditAccount(userId, name) {
-         showQuickPopup('⚙️ Uprawnienia: ' + name, `
+    function openEditAccount(userId, name, login, currentRole, currentHall) {
+        currentRole = currentRole || 'pracownik';
+        currentHall = currentHall || 'ALL';
+        login = login || '';
+
+        showQuickPopup('⚙️ Uprawnienia: ' + name, `
             <div class="popup-content-inner">
                 <form action="/admin/konto/edytuj" method="POST">
                     <input type="hidden" name="id" value="${userId}">
-                    <p style="color:#64748b; margin-bottom:32px;">Możesz zmienić hasło lub rolę użytkownika. Dane personalne edytuje się w profilu pracownika.</p>
+                    <p style="color:#64748b; margin-bottom:20px;">Możesz zmienić hasło lub uprawnienia dla konta: <strong style="color:#0f172a;">${login}</strong></p>
                     
                     <div class="form-group">
                         <label class="form-label">Zmień Hasło</label>
-                        <input name="haslo" type="password" autocomplete="new-password" class="input-unified" placeholder="Wpisz nowe lub zostaw puste">
+                        <input name="haslo" type="password" autocomplete="new-password" class="input-unified" placeholder="Wpisz nowe hasło lub zostaw puste">
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:24px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
                         <div class="form-group">
                             <label class="form-label">Rola systemowa</label>
                             <select name="rola" class="input-unified">
-                                <option value="pracownik">Pracownik Produkcji</option>
-                                <option value="lider">Lider Hali</option>
-                                <option value="planista">Planista</option>
-                                <option value="admin">Administrator</option>
-                                <option value="zarzad">Zarząd</option>
+                                <option value="pracownik" ${currentRole === 'pracownik' ? 'selected' : ''}>Pracownik Produkcji</option>
+                                <option value="lider" ${currentRole === 'lider' ? 'selected' : ''}>Lider Hali</option>
+                                <option value="magazynier" ${currentRole === 'magazynier' ? 'selected' : ''}>Magazynier</option>
+                                <option value="laborant" ${currentRole === 'laborant' ? 'selected' : ''}>Laborant</option>
+                                <option value="planista" ${currentRole === 'planista' ? 'selected' : ''}>Planista</option>
+                                <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>Administrator</option>
+                                <option value="zarzad" ${currentRole === 'zarzad' ? 'selected' : ''}>Zarząd</option>
+                                <option value="masteradmin" ${currentRole === 'masteradmin' ? 'selected' : ''}>Główny Administrator</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Zakres widoczności</label>
                             <select name="grupa" class="input-unified">
-                                <option value="ALL">Wszystkie (ALL)</option>
-                                <option value="PSD">Hala 1 (PSD)</option>
-                                <option value="AGRO">Hala 2 (AGRO)</option>
+                                <option value="ALL" ${currentHall === 'ALL' ? 'selected' : ''}>Wszystkie (ALL)</option>
+                                <option value="PSD" ${currentHall === 'PSD' ? 'selected' : ''}>Hala 1 (PSD)</option>
+                                <option value="AGRO" ${currentHall === 'AGRO' ? 'selected' : ''}>Hala 2 (AGRO)</option>
+                                <option value="Laboratorium" ${currentHall === 'Laboratorium' ? 'selected' : ''}>Laboratorium</option>
+                                <option value="Handel" ${currentHall === 'Handel' ? 'selected' : ''}>Handel</option>
+                                <option value="Zarząd" ${currentHall === 'Zarząd' ? 'selected' : ''}>Zarząd</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="d-flex gap-12 mt-40">
-                        <button type="submit" class="btn-popup-primary">Aktualizuj uprawnienia</button>
+                    <div class="d-flex gap-12 mt-30">
+                        <button type="submit" class="btn-popup-primary">Zapisz zmiany</button>
                         <button type="button" class="btn-popup-secondary" onclick="closeQuickPopup()">Anuluj</button>
                     </div>
                 </form>
             </div>
         `);
     }
+
 
     function openCreateAccount(personId, name) {
         showQuickPopup('Włącz dostęp do systemu: ' + name, `

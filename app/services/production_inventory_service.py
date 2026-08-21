@@ -93,19 +93,29 @@ class ProductionInventoryService:
 
     @staticmethod
     def update_material(sesja_id, entry_id, new_material, user_login, paleta_id=None, nr_palety=None, nr_partii=None, data_produkcji=None, data_przydatnosci=None, waga_faktyczna=None):
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            # Kiedy zmieniamy surowiec, systemowy stan tego nowego (lub "pustego") w danym zbiorniku 
-            # jest zerowy, bo to nowo nadpisana relacja inwentaryzacyjna.
+            is_empty = (new_material == 'PUSTY ZBIORNIK' or not new_material)
+            mat_name = 'PUSTY ZBIORNIK' if is_empty else new_material
+            actual_w = 0.0 if is_empty else (waga_faktyczna if waga_faktyczna is not None else 0.0)
+            
             cursor.execute(
                 """UPDATE magazyn_inwentaryzacja_produkcji_wpisy 
                    SET old_ruch_id = IFNULL(old_ruch_id, ruch_id),
-                       ruch_id = NULL,
-                       surowiec_nazwa = %s, waga_systemowa = 0, waga_faktyczna = COALESCE(%s, waga_faktyczna), user_login = %s, data_wpisu = CURRENT_TIMESTAMP,
-                       paleta_id = %s, nr_palety = %s, nr_partii = %s, data_produkcji = %s, data_przydatnosci = %s
+                       ruch_id = CASE WHEN %s = 1 THEN ruch_id ELSE NULL END,
+                       surowiec_nazwa = %s,
+                       waga_faktyczna = %s,
+                       user_login = %s,
+                       data_wpisu = CURRENT_TIMESTAMP,
+                       paleta_id = %s,
+                       nr_palety = %s,
+                       nr_partii = %s,
+                       data_produkcji = %s,
+                       data_przydatnosci = %s
                    WHERE id = %s AND sesja_id = %s""",
-                (new_material, waga_faktyczna, user_login, paleta_id, nr_palety, nr_partii, data_produkcji, data_przydatnosci, entry_id, sesja_id)
+                (1 if is_empty else 0, mat_name, actual_w, user_login, paleta_id, nr_palety or '', nr_partii or '', data_produkcji, data_przydatnosci, entry_id, sesja_id)
             )
             conn.commit()
             return True, "Zaktualizowano surowiec."
@@ -114,6 +124,7 @@ class ProductionInventoryService:
             return False, str(e)
         finally:
             conn.close()
+
 
     @staticmethod
     def get_session_entries(sesja_id):

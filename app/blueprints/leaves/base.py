@@ -232,7 +232,6 @@ def dodaj_do_obsady():
 
 @leaves_bp.route('/zapisz_liderow_obsady', methods=['POST'])
 @login_required
-@roles_required(['lider', 'admin'])
 def zapisz_liderow_obsady():
     """Save shift leaders - delegated to AttendanceService."""
     date_str = request.form.get('date') or request.args.get('date')
@@ -253,7 +252,7 @@ def zapisz_liderow_obsady():
 
 
 @leaves_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
-@masteradmin_required
+@login_required
 def usun_z_obsady(id):
     linia = request.form.get('linia') or request.args.get('linia', 'PSD')
     success = AttendanceService.remove_from_schedule(id, linia=linia)

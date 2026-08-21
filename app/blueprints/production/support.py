@@ -4,6 +4,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 
 from app.db import get_db_connection, get_table_name, rollover_unfinished
 from app.decorators import login_required, roles_required
+from app.services.attendance_service import AttendanceService
 
 
 def register_production_support_routes(production_bp, bezpieczny_powrot):
@@ -110,6 +111,67 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
             lider_agro_id=lider_agro_id,
             all_pracownicy=all_pracownicy,
         )
+
+    @production_bp.route('/dodaj_do_obsady', methods=['POST'])
+    @login_required
+    def dodaj_do_obsady_alias():
+        """Add worker to schedule (root alias)."""
+        sekcja = request.form.get('sekcja') or request.args.get('sekcja', 'Zasyp')
+        pracownik_id = request.form.get('pracownik_id')
+        date_str = request.form.get('date') or request.args.get('date')
+        linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+        
+        if not pracownik_id:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'success': False, 'message': 'Nie wybrano pracownika'}), 400
+            flash('Nie wybrano pracownika.', 'warning')
+            return redirect(request.referrer or url_for('production.obsada_page'))
+            
+        success, inserted_id, employee_name = AttendanceService.add_to_schedule(sekcja, int(pracownik_id), date_str, linia=linia)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': success, 'id': inserted_id, 'pracownik_id': pracownik_id, 'name': employee_name})
+        
+        if success:
+            flash(f'Pracownik {employee_name} dodany do obsady.', 'success')
+        else:
+            flash('Błąd przy dodawaniu do obsady.', 'warning')
+        
+        return redirect(request.referrer or url_for('production.obsada_page'))
+
+    @production_bp.route('/zapisz_liderow_obsady', methods=['POST'])
+    @login_required
+    def zapisz_liderow_obsady_alias():
+        """Save shift leaders (root alias)."""
+        date_str = request.form.get('date') or request.args.get('date')
+        lider_psd = request.form.get('lider_psd') or None
+        lider_agro = request.form.get('lider_agro') or None
+        
+        success = AttendanceService.save_shift_leaders(date_str, lider_psd, lider_agro)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': success})
+        
+        if success:
+            flash('Liderzy zmiany zapisani.', 'success')
+        else:
+            flash('Błąd przy zapisywaniu liderów.', 'warning')
+        
+        return redirect(request.referrer or url_for('production.obsada_page'))
+
+    @production_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
+    @login_required
+    def usun_z_obsady_alias(id):
+        """Remove from schedule (root alias)."""
+        linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+        success = AttendanceService.remove_from_schedule(id, linia=linia)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': success})
+        
+        if success:
+            flash('Pracownik usunięty z obsady.', 'success')
+        return redirect(request.referrer or url_for('production.obsada_page'))
 
     @production_bp.route('/zasyp/szarza_notatka/<int:szarza_id>', methods=['GET'], endpoint='szarza_notatka_page')
     @production_bp.route('/zasyp/zasyp_notatka/<int:szarza_id>', methods=['GET'], endpoint='zasyp_notatka_page')

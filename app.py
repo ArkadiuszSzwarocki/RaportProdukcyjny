@@ -1,8 +1,14 @@
 """
-Wersja: 1.1.1
+Wersja: 1.1.7
 Opis: Główny punkt wejściowy aplikacji RaportProdukcyjny. 
 Obsługuje HTTP oraz opcjonalnie HTTPS (jeśli certyfikaty są w folderze /certs).
 """
+
+
+
+
+
+
 
 import os
 import sys

@@ -206,8 +206,9 @@ def print_label():
     surowiec_id  = data.get('surowiec_id')
     label_type   = data.get('type', 'pallet')   # 'pallet' | 'location'
     linia        = data.get('linia', 'AGRO')
-    printer_ip   = data.get('printer_ip')
-    printer_name = data.get('printer_name')
+    printer_ip   = data.get('printer_ip') or data.get('override_ip')
+    printer_name = data.get('printer_name') or data.get('override_name')
+    copies       = int(data.get('copies') or 2)
 
     if not surowiec_id:
         return jsonify({'success': False, 'error': 'Brak surowiec_id'}), 400
@@ -226,10 +227,12 @@ def print_label():
             ok, msg = printer.print_pallet_label(
                 label_data, 
                 override_ip=printer_ip, 
-                override_name=printer_name
+                override_name=printer_name,
+                copies=copies
             )
     except Exception as e:
         ok, msg = False, str(e)
+
 
     # Always return label URL so frontend can open it
     label_url = f"/agro/scanner/label/{surowiec_id}?linia={linia}&autoprint=1"

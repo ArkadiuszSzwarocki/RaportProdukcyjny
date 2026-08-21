@@ -12,6 +12,7 @@
 </script>
 
 <!-- External Scripts -->
+<script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/ui_dialogs.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/sidebar.js') }}?v={{ static_version }}"></script>
@@ -21,6 +22,264 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
 <script src="{{ url_for('static', filename='js/dashboard/machine-stats-v2.js') }}?v=2"></script>
+
+<script>
+    /* ─── Global Obsada Handlers (Guaranteed fallback) ─── */
+    window.dodajPracownikaDoObsady = async function(btn, sekcja, index) {
+        if (!btn) return;
+        const sectionEl = btn.closest('.obsada-section');
+        if (!sectionEl) return;
+        const select = sectionEl.querySelector('.obsada-select');
+        if (!select) return;
+        const val = select.value;
+        if (!val) {
+            alert('Wybierz pracownika z listy.');
+            return;
+        }
+        const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+        
+        let dateEl = document.getElementById('obsada-date');
+        if (sectionEl.closest('.quick-popup')) {
+            const pDate = sectionEl.closest('.quick-popup').querySelector('#obsada-date');
+            if (pDate) dateEl = pDate;
+        }
+        const dateVal = dateEl ? dateEl.value : '';
+        
+        btn.disabled = true;
+        const origText = btn.innerText;
+        btn.innerText = '...';
+        
+        try {
+            const fd = new URLSearchParams();
+            fd.append('sekcja', sekcja);
+            fd.append('pracownik_id', val);
+            if (dateVal) fd.append('date', dateVal);
+            
+            let resp = await fetch('/dodaj_do_obsady', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/api/dodaj_do_obsady', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            if (!resp.ok) {
+                alert('Błąd dodawania do obsady (status: ' + resp.status + ')');
+                return;
+            }
+            
+            const j = await resp.json();
+            if (j && (j.success || j.id)) {
+                const newId = j.id;
+                const newName = j.name || txt;
+                
+                const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                if (current) {
+                    let tbody = current.querySelector('tbody[id^="current-obsada-tbody-"]');
+                    if (!tbody) {
+                        current.innerHTML = '';
+                        const table = document.createElement('table');
+                        table.className = 'modern-table small obsada-table';
+                        table.innerHTML = `<thead><tr><th>Pracownik</th><th class="obsada-akcje-col">Akcje</th></tr></thead><tbody id="current-obsada-tbody-${index}"></tbody>`;
+                        current.appendChild(table);
+                        tbody = table.querySelector('tbody');
+                    }
+                    
+                    const tr = document.createElement('tr');
+                    if (newId) tr.setAttribute('data-id', newId);
+                    tr.setAttribute('data-pracownik-id', val);
+                    tr.setAttribute('data-pracownik-name', newName);
+                    tr.innerHTML = `
+                        <td>
+                            <div class="obsada-worker-row">
+                                <span class="obsada-avatar">${(newName ? newName[0].toUpperCase() : '?')}</span>
+                                <strong>${newName}</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <button type="button" class="delete-button" onclick="window.usunPracownikaZObsady(this, ${newId}, '${val}', '${newName.replace(/'/g, "\\'")}')" aria-label="Usuń z obsady">🗑️</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                    
+                    const head = sectionEl.querySelector('.obsada-section-head');
+                    let badge = sectionEl.querySelector('.obsada-count-badge');
+                    if (!badge && head) {
+                        badge = document.createElement('span');
+                        badge.className = 'obsada-count-badge';
+                        head.appendChild(badge);
+                    }
+                    if (badge) badge.innerText = tbody.children.length;
+                }
+                
+                const opt = select.querySelector(`option[value="${val}"]`);
+                if (opt) opt.remove();
+                select.selectedIndex = 0;
+                
+                if (typeof showToast === 'function') {
+                    showToast(`✅ Dodano: ${newName}`, 'success');
+                }
+            } else {
+                alert('Nie udało się dodać pracownika do obsady.');
+            }
+        } catch (err) {
+            console.error('Błąd dodaj do obsady:', err);
+            alert('Błąd połączenia z serwerem.');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
+    };
+
+    window.usunPracownikaZObsady = async function(btn, obsadaId, pracownikId, pracownikName) {
+        if (!confirm(`Czy na pewno usunąć ${pracownikName || 'pracownika'} z obsady?`)) return;
+        
+        btn.disabled = true;
+        try {
+            let resp = await fetch('/api/usun_z_obsady/' + obsadaId, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/usun_z_obsady/' + obsadaId, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            const tr = btn.closest('tr') || btn.closest('.chip');
+            const sectionEl = btn.closest('.obsada-section');
+            if (tr) tr.remove();
+            
+            if (sectionEl && pracownikId && pracownikName) {
+                const select = sectionEl.querySelector('.obsada-select');
+                if (select) {
+                    const opt = document.createElement('option');
+                    opt.value = pracownikId;
+                    opt.textContent = pracownikName;
+                    select.appendChild(opt);
+                }
+                
+                const tbody = sectionEl.querySelector('tbody');
+                const badge = sectionEl.querySelector('.obsada-count-badge');
+                if (tbody) {
+                    if (badge) badge.innerText = tbody.children.length;
+                    if (tbody.children.length === 0) {
+                        const current = sectionEl.querySelector('div[id^="current-obsada-"]');
+                        if (current) {
+                            current.innerHTML = `<div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>Brak przypisanych pracowników</span></div>`;
+                        }
+                        if (badge) badge.remove();
+                    }
+                }
+            }
+            
+            if (typeof showToast === 'function') {
+                showToast('Usunięto pracownika z obsady', 'success');
+            }
+        } catch(err) {
+            console.error('Błąd usuwania z obsady:', err);
+            alert('Błąd podczas usuwania pracownika.');
+        }
+    };
+
+    window.zapiszLiderowObsady = async function(btn) {
+        const container = btn.closest('.obsada-toolbar') || btn.closest('.quick-popup') || document;
+        const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
+        const dateVal = dateEl ? dateEl.value : '';
+        const lpsdWrap = container.querySelector('#lider_psd') || document.getElementById('lider_psd');
+        const lpsd = lpsdWrap ? lpsdWrap.value : '';
+        const lagroWrap = container.querySelector('#lider_agro') || document.getElementById('lider_agro');
+        const lagro = lagroWrap ? lagroWrap.value : '';
+        
+        btn.disabled = true;
+        const origText = btn.innerText;
+        btn.innerText = 'Zapisywanie...';
+        try {
+            const fd = new URLSearchParams();
+            if (dateVal) fd.append('date', dateVal);
+            if (lpsd) fd.append('lider_psd', lpsd);
+            if (lagro) fd.append('lider_agro', lagro);
+            
+            let resp = await fetch('/zapisz_liderow_obsady', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (!resp.ok) {
+                resp = await fetch('/api/zapisz_liderow_obsady', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+            
+            if (resp.ok) {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Zapisano liderów zmiany', 'success');
+                } else {
+                    alert('✅ Zapisano liderów zmiany');
+                }
+            } else {
+                alert('Błąd zapisu liderów');
+            }
+        } catch(e) {
+            console.error(e);
+            alert('Błąd połączenia');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
+    };
+
+    window.zmienDateObsady = function(newDate) {
+        if (!newDate) return;
+        const isInPopup = !!document.querySelector('.quick-popup.open, #quickPopup.open, .quick-popup[style*="display: block"], .quick-popup[style*="display: flex"]');
+        const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate);
+        if (isInPopup && typeof showSlideOver === 'function') {
+            showSlideOver(fetchUrl);
+        } else {
+            const url = new URL(window.location.href);
+            url.searchParams.set('date', newDate);
+            window.location.href = url.toString();
+        }
+    };
+
+    window.goToCloseShiftEmailPage = function(linia) {
+        var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+        var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+        var l = linia;
+        if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+            l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+        }
+        window.location.href = '/raport/zakoncz_zmiane?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
+    };
+
+    window.previewReportPdf = function(linia) {
+        var dateInput = document.getElementById('raport_date_picker') || document.getElementById('obsada-date');
+        var d = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+        var l = linia;
+        if (!l || l === 'None' || l === 'undefined' || l === 'null') {
+            l = (window.location.href.indexOf('/agro') !== -1) ? 'AGRO' : 'PSD';
+        }
+        window.location.href = '/raport/podglad_pdf?linia=' + encodeURIComponent(l) + '&data=' + encodeURIComponent(d);
+    };
+</script>
+
 
 <script>
     // PWA & Fullscreen + Web Push Notification Subscription
@@ -443,105 +702,113 @@
         window.closeNotificationsMenu = closeMenu;
     })();
 
-    // Bug Report logic
+    // Bug Report logic (Standalone & 100% reliable on all pages)
     function closeBugReportModal() {
+        var overlay = document.getElementById('bugReportStandaloneOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
         try {
-            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
-                try { window.createQuickPopup._lastInst.close(); } catch (e) { }
-            }
-            if (window.closeQuickPopup) {
-                try { window.closeQuickPopup(); } catch (e) { }
-            }
-
-            // Hard fallback: force hide overlay/popup even if helper couldn't close current instance.
-            var qp = document.getElementById('quickPopup');
-            var qb = document.getElementById('quickBackdrop');
-            if (qp) {
-                qp.classList.remove('open');
-                qp.setAttribute('aria-hidden', 'true');
-                qp.style.display = 'none';
-                qp.style.pointerEvents = 'none';
-            }
-            if (qb) {
-                qb.classList.remove('show');
-                qb.setAttribute('aria-hidden', 'true');
-                qb.style.display = 'none';
-                qb.style.pointerEvents = 'none';
-            }
-        } catch (e) { }
+            if (window.closeQuickPopup) window.closeQuickPopup();
+        } catch(e) {}
     }
 
     function openBugReportModal() {
-        var html = '<form id="bugReportForm" enctype="multipart/form-data">';
-        html += '<div class="form-group">';
-        html += '<div class="text-muted small" style="margin-bottom:8px; line-height:1.45;">';
-        html += '<strong>Jak zgłosić skutecznie:</strong><br>';
-        html += '1) Co dokładnie klikasz (krok po kroku), 2) jaki jest efekt, 3) jaki efekt powinien być.<br>';
-        html += 'Dodaj też gdzie problem występuje (sekcja, linia, ekran).';
-        html += '</div></div>';
-        html += '<div class="form-group"><label style="display:block;margin-bottom:4px;font-weight:600;">Gdzie występuje problem? (sekcja/linia/ekran):</label>';
-        html += '<input type="text" name="gdzie" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;" placeholder="Np. Zasyp AGRO - popup dosypki" required></div>';
-        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Opis problemu i kroki odtworzenia:</label>';
-        html += '<textarea name="opis" rows="5" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;" placeholder="Np. 1. Wchodzę w ... 2. Klikam ... 3. Wyskakuje ..." required></textarea></div>';
-        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
-        html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
-        html += '<div class="text-muted small" style="margin-top:4px;font-size:11px;color:#64748b;">Najlepiej dodaj screen z wnętrza aplikacji z widocznym komunikatem lub błędnym stanem.</div>';
-        html += '<p class="text-muted small" id="bugFileCountMsg" style="margin-top:4px;font-size:11px;color:#1e293b;font-weight:700;"></p>';
-        html += '<div id="bugImagePreviews" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"></div>';
-        html += '<div class="d-flex gap-10 mt-15" style="display:flex;gap:10px;margin-top:20px;">';
-        html += '<button type="button" class="btn-action btn-success" style="background:#16a34a;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
-        html += '<button type="button" class="btn-action btn-cancel" style="background:#64748b;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="closeBugReportModal()">Anuluj</button>';
-        html += '<a href="/moje_zgloszenia_bledow" class="btn-action btn-outline" style="text-decoration:none;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;color:#334155;font-weight:700;display:inline-flex;align-items:center;justify-content:center;">Moje zgłoszenia</a>';
-        html += '</div></form>';
-        
-        if (window.showQuickPopup) {
-            showQuickPopup('🐞 Zgłoś błąd / usprawnienie w systemie', html);
-        }
-        
-        // Limit 3 files & image preview
-        var fileInput = document.getElementById('bugScreenshots');
-        var previewBox = document.getElementById('bugImagePreviews');
-        if (fileInput) {
-            fileInput.addEventListener('change', function(e) {
-                if (previewBox) previewBox.innerHTML = '';
+        var overlay = document.getElementById('bugReportStandaloneOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'bugReportStandaloneOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:15px;';
+            overlay.innerHTML = `
+                <div style="background:white;width:100%;max-width:550px;max-height:90vh;overflow-y:auto;border-radius:18px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);padding:24px;position:relative;font-family:inherit;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
+                        <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:22px;">🐞</span> Zgłoś błąd / usprawnienie
+                        </h3>
+                        <button type="button" onclick="closeBugReportModal()" style="background:none;border:none;font-size:24px;color:#94a3b8;cursor:pointer;padding:4px;line-height:1;">&times;</button>
+                    </div>
+                    
+                    <form id="bugReportForm" enctype="multipart/form-data">
+                        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#475569;line-height:1.5;">
+                            <strong style="color:#0f172a;">Jak zgłosić skutecznie:</strong><br>
+                            1) Co dokładnie klikasz, 2) jaki jest efekt, 3) jaki efekt powinien być.<br>
+                            Dodaj też gdzie problem występuje (sekcja, linia, ekran).
+                        </div>
+                        
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Gdzie występuje problem? (sekcja / linia / ekran):</label>
+                            <input type="text" name="gdzie" id="bugReportGdzie" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;" placeholder="Np. Inwentaryzacja AGRO - zatwierdzanie" required>
+                        </div>
+                        
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Opis problemu i kroki odtworzenia:</label>
+                            <textarea name="opis" id="bugReportOpis" rows="4" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;resize:vertical;outline:none;" placeholder="Np. 1. Wchodzę w ... 2. Wpisuję wagę ... 3. Po kliknięciu nic się nie dzieje ..." required></textarea>
+                        </div>
+                        
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>
+                            <input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots" style="font-size:13px;color:#475569;">
+                            <div id="bugFileCountMsg" style="margin-top:4px;font-size:12px;color:#10b981;font-weight:700;"></div>
+                            <div id="bugImagePreviews" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"></div>
+                        </div>
+                        
+                        <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+                            <button type="button" id="bugSubmitBtn" class="btn-action btn-success" style="background:#16a34a;color:#fff;border:0;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;flex:1;" onclick="submitBugReport()">Wyślij zgłoszenie</button>
+                            <button type="button" class="btn-action btn-cancel" style="background:#64748b;color:#fff;border:0;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;" onclick="closeBugReportModal()">Anuluj</button>
+                            <a href="/moje_zgloszenia_bledow" style="text-decoration:none;border:1px solid #cbd5e1;padding:12px 16px;border-radius:10px;color:#334155;font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center;">Moje zgłoszenia</a>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            // Hook file inputs
+            var fileInput = overlay.querySelector('#bugScreenshots');
+            var previewBox = overlay.querySelector('#bugImagePreviews');
+            var countMsg = overlay.querySelector('#bugFileCountMsg');
+            
+            fileInput.addEventListener('change', function() {
+                previewBox.innerHTML = '';
                 if (this.files.length > 3) {
                     alert('Możesz dodać maksymalnie 3 zrzuty ekranu!');
                     this.value = '';
-                    document.getElementById('bugFileCountMsg').innerText = '';
+                    countMsg.innerText = '';
                     return;
                 }
-                
-                document.getElementById('bugFileCountMsg').innerText = 'Wybrano zrzutów: ' + this.files.length;
+                countMsg.innerText = 'Wybrano zdjęć: ' + this.files.length;
                 Array.from(this.files).forEach(function(file) {
                     if (!file.type.startsWith('image/')) return;
                     var reader = new FileReader();
-                    reader.onload = function(evt) {
-                        if (previewBox) {
-                            var img = document.createElement('img');
-                            img.src = evt.target.result;
-                            img.style.height = '60px';
-                            img.style.width = '60px';
-                            img.style.objectFit = 'cover';
-                            img.style.borderRadius = '6px';
-                            img.style.border = '1px solid #cbd5e1';
-                            previewBox.appendChild(img);
-                        }
+                    reader.onload = function(e) {
+                        var img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.style.cssText = 'height:60px;width:60px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;';
+                        previewBox.appendChild(img);
                     };
                     reader.readAsDataURL(file);
                 });
             });
         }
+        
+        // Auto-fill context
+        var gdzieInput = overlay.querySelector('#bugReportGdzie');
+        if (gdzieInput && !gdzieInput.value) {
+            gdzieInput.value = document.title || window.location.pathname;
+        }
+        
+        overlay.style.display = 'flex';
     }
 
     function submitBugReport() {
         var form = document.getElementById('bugReportForm');
-        if(!form.checkValidity()) {
+        if (!form) return;
+        if (!form.checkValidity()) {
             form.reportValidity();
             return;
         }
         
-        var btn = form.querySelector('.btn-success');
-        var originalText = btn.innerText;
+        var btn = document.getElementById('bugSubmitBtn') || form.querySelector('.btn-success');
+        var originalText = btn.innerHTML;
         btn.innerText = 'Wysyłanie...';
         btn.disabled = true;
         
@@ -551,33 +818,158 @@
         fetch('/api/zglos_blad_systemu', {
             method: 'POST',
             body: formData
-        }).then(r => r.json()).then(j => {
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
             btn.disabled = false;
-            btn.innerText = originalText;
-            if(j && j.success) {
-                if (typeof safeAlert === 'function') {
-                    safeAlert('Sukces', 'Dziękujemy! Błąd został zapisany.');
+            btn.innerHTML = originalText;
+            if (j && j.success) {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Dziękujemy! Zgłoszenie zostało zapisane.', 'success');
                 } else {
-                    alert('Sukces: Dziękujemy! Błąd został zapisany.');
+                    alert('Dziękujemy! Zgłoszenie błędu zostało przyjęte.');
                 }
+                form.reset();
+                var previewBox = document.getElementById('bugImagePreviews');
+                if (previewBox) previewBox.innerHTML = '';
+                var countMsg = document.getElementById('bugFileCountMsg');
+                if (countMsg) countMsg.innerText = '';
                 closeBugReportModal();
             } else {
-                if (typeof safeAlert === 'function') {
-                    safeAlert('Błąd', (j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
-                } else {
-                    alert((j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
-                }
+                alert('Błąd: ' + (j && j.message ? j.message : 'Nieznany błąd'));
             }
-        }).catch(e => {
+        })
+        .catch(function(err) {
+            console.error('submitBugReport error:', err);
             btn.disabled = false;
-            btn.innerText = originalText;
-            if (typeof safeAlert === 'function') {
-                safeAlert('Błąd sieci', 'Nie udało się połączyć z serwerem.');
-            } else {
-                alert('Nie udało się połączyć z serwerem.');
-            }
+            btn.innerHTML = originalText;
+            alert('Błąd połączenia podczas wysyłania zgłoszenia.');
         });
     }
+
+    window.openBugReportModal = openBugReportModal;
+    window.closeBugReportModal = closeBugReportModal;
+    window.submitBugReport = submitBugReport;
+
+    // Self-Service Password Change logic
+    function closeChangeMyPasswordModal() {
+        var overlay = document.getElementById('changePasswordStandaloneOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    function openChangeMyPasswordModal() {
+        var overlay = document.getElementById('changePasswordStandaloneOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'changePasswordStandaloneOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:15px;';
+            overlay.innerHTML = `
+                <div style="background:white;width:100%;max-width:440px;border-radius:18px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);padding:24px;position:relative;font-family:inherit;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
+                        <h3 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+                            <span class="material-icons" style="color:#2563eb;">lock_reset</span> Zmiana hasła
+                        </h3>
+                        <button type="button" onclick="closeChangeMyPasswordModal()" style="background:none;border:none;font-size:24px;color:#94a3b8;cursor:pointer;padding:4px;line-height:1;">&times;</button>
+                    </div>
+                    
+                    <form id="changeMyPasswordForm" onsubmit="event.preventDefault();submitChangeMyPassword();">
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Aktualne hasło:</label>
+                            <input type="password" name="stare_haslo" id="myOldPassword" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;" placeholder="Wpisz dotychczasowe hasło" required>
+                        </div>
+                        
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Nowe hasło:</label>
+                            <input type="password" name="nowe_haslo" id="myNewPassword" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;" placeholder="Minimum 4 znaki" required>
+                        </div>
+                        
+                        <div style="margin-bottom:20px;">
+                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Powtórz nowe hasło:</label>
+                            <input type="password" name="powtorz_nowe_haslo" id="myNewPasswordRepeat" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;outline:none;" placeholder="Powtórz nowe hasło" required>
+                        </div>
+                        
+                        <div style="display:flex;gap:10px;">
+                            <button type="submit" id="changePasswordSubmitBtn" style="background:#2563eb;color:#fff;border:0;padding:12px 20px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;flex:1;">Zapisz nowe hasło</button>
+                            <button type="button" onclick="closeChangeMyPasswordModal()" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">Anuluj</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        
+        var form = overlay.querySelector('#changeMyPasswordForm');
+        if (form) form.reset();
+        overlay.style.display = 'flex';
+        var firstInput = overlay.querySelector('#myOldPassword');
+        if (firstInput) setTimeout(function() { firstInput.focus(); }, 50);
+    }
+
+    function submitChangeMyPassword() {
+        var form = document.getElementById('changeMyPasswordForm');
+        if (!form) return;
+        
+        var oldP = (form.querySelector('#myOldPassword').value || '').trim();
+        var newP = (form.querySelector('#myNewPassword').value || '').trim();
+        var repP = (form.querySelector('#myNewPasswordRepeat').value || '').trim();
+        
+        if (!oldP || !newP) {
+            alert('Wypełnij wszystkie pola.');
+            return;
+        }
+        if (newP !== repP) {
+            alert('Nowe hasła nie są identyczne.');
+            return;
+        }
+        if (newP.length < 4) {
+            alert('Nowe hasło musi mieć co najmniej 4 znaki.');
+            return;
+        }
+        
+        var btn = document.getElementById('changePasswordSubmitBtn');
+        var originalText = btn.innerText;
+        btn.innerText = 'Zapisywanie...';
+        btn.disabled = true;
+        
+        fetch('/api/zmien-moje-haslo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                stare_haslo: oldP,
+                nowe_haslo: newP,
+                powtorz_nowe_haslo: repP
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if (j && j.success) {
+                if (typeof showToast === 'function') {
+                    showToast('✅ ' + j.message, 'success');
+                } else {
+                    alert('✅ ' + j.message);
+                }
+                closeChangeMyPasswordModal();
+            } else {
+                alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zmienić hasła'));
+            }
+        })
+        .catch(function(err) {
+            console.error('submitChangeMyPassword error:', err);
+            btn.disabled = false;
+            btn.innerText = originalText;
+            alert('Błąd połączenia z serwerem.');
+        });
+    }
+
+    window.openChangeMyPasswordModal = openChangeMyPasswordModal;
+    window.closeChangeMyPasswordModal = closeChangeMyPasswordModal;
+    window.submitChangeMyPassword = submitChangeMyPassword;
+
+
 
 
     function ackBugIconIntro() {

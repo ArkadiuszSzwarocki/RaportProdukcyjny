@@ -79,5 +79,14 @@ function showToast(message, type){
     
     d.appendChild(closeBtn);
     container.appendChild(d);
+
+    setTimeout(function() {
+      if (d && d.parentNode) {
+        d.style.transition = 'opacity 0.25s';
+        d.style.opacity = '0';
+        setTimeout(function(){ d.remove(); }, 250);
+      }
+    }, 2000);
   }catch(e){ if(window && window.console) console.error('showToast error', e); }
 }
+

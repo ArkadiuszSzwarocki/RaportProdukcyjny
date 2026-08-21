@@ -516,6 +516,8 @@ def restore_from_archive(archive_id):
             return jsonify({'success': False, 'error': 'Nie znaleziono wpisu w archiwum.'}), 404
             
         new_location = data.get('lokalizacja') or arc_row['lokalizacja_ostatnia']
+        new_weight = float(data.get('waga') if data.get('waga') is not None else (arc_row.get('waga_ostatnia') or 0))
+        nr_partii = arc_row.get('nr_partii') or ''
         typ_palety = arc_row['typ_palety'].lower()
         linia = arc_row.get('linia', 'PSD')
         
@@ -544,11 +546,17 @@ def restore_from_archive(archive_id):
                 conn.close()
                 return jsonify({'success': False, 'error': f'Paleta o numerze {nr_palety} już istnieje w głównym magazynie!'}), 400
                 
-        # 3. Wstaw z powrotem
-        cursor.execute(f"""
-            INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (nr_palety, arc_row['nazwa'], new_weight, new_location, linia))
+        # 3. Wstaw z powrotem (z partią jeśli istnieje)
+        if typ_palety in ['surowiec', 'opakowanie']:
+            cursor.execute(f"""
+                INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (nr_palety, arc_row['nazwa'], new_weight, new_location, nr_partii, linia))
+        else:
+            cursor.execute(f"""
+                INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (nr_palety, arc_row['nazwa'], new_weight, new_location, linia))
         
         new_id = cursor.lastrowid
         
@@ -557,13 +565,14 @@ def restore_from_archive(archive_id):
         cursor.execute("""
             INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login)
             VALUES (%s, %s, %s, 'PRZYWROCENIE_Z_ARCHIWUM', %s, %s, %s)
-        """, (new_id, linia, typ_palety, arc_row['lokalizacja_ostatnia'], f'Przywrócono z archiwum z wagą: {new_weight}. Dawna lokalizacja: {arc_row["lokalizacja_ostatnia"]}', user_login))
+        """, (new_id, linia, typ_palety, new_location, f'Przywrócono z archiwum z wagą: {new_weight} kg. Lokalizacja: {new_location}. Partia: {nr_partii}', user_login))
         
         # 5. Usuń z archiwum
         cursor.execute("DELETE FROM magazyn_archiwum WHERE id = %s", (archive_id,))
         
         conn.commit()
-        return jsonify({'success': True, 'message': 'Paleta została pomyślnie przywrócona.'})
+        return jsonify({'success': True, 'message': f'Paleta {nr_palety or arc_row["nazwa"]} została pomyślnie przywrócona na {new_location}.'})
+
         
     except Exception as e:
         if 'conn' in locals() and conn:

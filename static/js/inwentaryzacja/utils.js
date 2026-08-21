@@ -118,6 +118,7 @@ function attachScannerAutoEnter(inputElementOrId, callback, options = {}) {
     input._scannerAutoEnterAttached = true;
 
     let scanTimer = null;
+    let lastSubmitTime = 0;
     const minLength = options.minLength || 2;
     const debounceMs = options.debounceMs || 250;
 
@@ -126,11 +127,16 @@ function attachScannerAutoEnter(inputElementOrId, callback, options = {}) {
             clearTimeout(scanTimer);
             scanTimer = null;
         }
+        const now = Date.now();
+        if (now - lastSubmitTime < 150) return; // Prevent double trigger within 150ms
+        
         const val = input.value.trim();
         if (!val) return;
+        lastSubmitTime = now;
         input.value = '';
         callback(val);
     }
+
 
     // 1. Enter key via keydown
     input.addEventListener('keydown', (e) => {

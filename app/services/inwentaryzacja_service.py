@@ -43,7 +43,7 @@ class InwentaryzacjaService:
         return f"{prefix}-{item_id}"
 
     @staticmethod
-    def szukaj_globalnie_palety(sscc_lub_id: str):
+    def szukaj_globalnie_palety(sscc_lub_id: str, sesja_id=None):
         """
         Przeszukuje całą bazę (magazyn_palety, magazyn_palety_agro, magazyn_surowce, magazyn_opakowania, magazyn_dodatki)
         w poszukiwaniu palety po nr_palety (SSCC), prefiksie ID (np. SUR-1357) lub ID.
@@ -67,70 +67,93 @@ class InwentaryzacjaService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            found_row = None
             
             # 1. Surowce
             if extracted_id is not None:
                 cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                     (extracted_id, raw_code, clean_code)
                 )
             else:
                 cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                     (raw_code, clean_code)
                 )
-            row = cursor.fetchone()
-            if row: return row
+            found_row = cursor.fetchone()
 
             # 2. Opakowania
-            if extracted_id is not None:
-                cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
-                    (extracted_id, raw_code, clean_code)
-                )
-            else:
-                cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
-                    (raw_code, clean_code)
-                )
-            row = cursor.fetchone()
-            if row: return row
-
-            # 3. Dodatki
-            if extracted_id is not None:
-                cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
-                    (extracted_id, raw_code, clean_code)
-                )
-            else:
-                cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
-                    (raw_code, clean_code)
-                )
-            row = cursor.fetchone()
-            if row: return row
-
-            # 4. Wyroby gotowe (PSD i AGRO)
-            for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
+            if not found_row:
                 if extracted_id is not None:
                     cursor.execute(
-                        f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (extracted_id, raw_code, clean_code)
                     )
                 else:
                     cursor.execute(
-                        f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (raw_code, clean_code)
                     )
-                row = cursor.fetchone()
-                if row: return row
+                found_row = cursor.fetchone()
 
-            return None
+            # 3. Dodatki
+            if not found_row:
+                if extracted_id is not None:
+                    cursor.execute(
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        (extracted_id, raw_code, clean_code)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        (raw_code, clean_code)
+                    )
+                found_row = cursor.fetchone()
+
+            # 4. Wyroby gotowe (PSD i AGRO)
+            if not found_row:
+                for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
+                    if extracted_id is not None:
+                        cursor.execute(
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            (extracted_id, raw_code, clean_code)
+                        )
+                    else:
+                        cursor.execute(
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            (raw_code, clean_code)
+                        )
+                    found_row = cursor.fetchone()
+                    if found_row:
+                        break
+
+
+            # 5. Sprawdź czy paleta została już zeskanowana w bieżącej sesji
+            if found_row and sesja_id:
+                typ_map = 'PAL'
+                t_low = (found_row.get('typ') or '').lower()
+                if 'surowiec' in t_low: typ_map = 'surowiec'
+                elif 'opakowanie' in t_low: typ_map = 'opakowanie'
+                elif 'dodatek' in t_low: typ_map = 'dodatek'
+                
+                cursor.execute(
+                    "SELECT id, waga_faktyczna, lokalizacja, data_wpisu FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND (UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s OR (paleta_id = %s AND typ_palety = %s)) ORDER BY id DESC LIMIT 1",
+                    (sesja_id, raw_code, clean_code, found_row['id'], typ_map)
+                )
+                counted_row = cursor.fetchone()
+                if counted_row:
+                    found_row['already_counted'] = True
+                    found_row['previous_weight'] = counted_row['waga_faktyczna']
+                    found_row['previous_location'] = counted_row['lokalizacja']
+                    found_row['counted_at'] = str(counted_row['data_wpisu'])
+
+            return found_row
         except Exception as e:
             print(f"Error szukaj_globalnie_palety: {e}")
             return None
         finally:
             conn.close()
+
 
 
     @staticmethod
@@ -341,8 +364,9 @@ class InwentaryzacjaService:
             cursor = conn.cursor(dictionary=True)
             
             # Fetch all counted entries for this location
-            counted_map = {} # Key: f"{typ_palety}_{paleta_id}" -> row
-            new_items_list = [] # List of new items
+            counted_by_sscc = {} # Key: clean SSCC -> row
+            counted_by_id = {}   # Key: f"{typ_palety}_{paleta_id}" -> row
+            all_counted_rows = []
             
             # Prepare IN variants for robust matching
             norm_loc = InwentaryzacjaService.normalize_loc_key(lokalizacja)
@@ -369,30 +393,36 @@ class InwentaryzacjaService:
                     (sesja_id, *loc_variants)
                 )
                 for row in cursor.fetchall():
-                    if row['paleta_id']:
-                        counted_map[f"{row['typ_palety']}_{row['paleta_id']}"] = row
-                    else:
-                        new_items_list.append(row)
+                    all_counted_rows.append(row)
+                    if row.get('nr_palety'):
+                        clean_sscc = str(row['nr_palety']).replace('(00)', '').replace(']C1', '').strip().upper()
+                        if clean_sscc:
+                            counted_by_sscc[clean_sscc] = row
+                    if row.get('paleta_id'):
+                        t_norm = (row.get('typ_palety') or '').lower()
+                        counted_by_id[f"{t_norm}_{row['paleta_id']}"] = row
 
             hall_contexts = ['PSD', 'AGRO']
-            
-            matched_keys = set()
+            matched_counted_ids = set()
+
             # Helper to process pallets
             def process_pallet(p):
-                key = f"{p['typ_palety']}_{p['id']}"
-                if key in counted_map:
-                    # If it was moved to another location, don't return it for THIS location
-                    new_loc = InwentaryzacjaService.normalize_loc_key(counted_map[key]['lokalizacja'])
-                    requested_loc = InwentaryzacjaService.normalize_loc_key(lokalizacja)
-                    
-                    if new_loc != requested_loc:
-                        return None
-                        
+                clean_sscc = str(p.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+                t_norm = (p.get('typ_palety') or '').lower()
+                id_key = f"{t_norm}_{p['id']}"
+                
+                counted_row = None
+                if clean_sscc and clean_sscc in counted_by_sscc:
+                    counted_row = counted_by_sscc[clean_sscc]
+                elif id_key in counted_by_id:
+                    counted_row = counted_by_id[id_key]
+                
+                if counted_row:
                     p['counted'] = True
-                    p['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
-                    p['jednostka'] = counted_map[key]['jednostka'] or 'kg'
-                    p['lokalizacja'] = counted_map[key]['lokalizacja']
-                    matched_keys.add(key)
+                    p['waga_faktyczna'] = counted_row['waga_faktyczna']
+                    p['jednostka'] = counted_row['jednostka'] or p.get('jednostka') or 'kg'
+                    p['lokalizacja'] = counted_row['lokalizacja']
+                    matched_counted_ids.add(counted_row['id'])
                 else:
                     p['counted'] = False
                     p['waga_faktyczna'] = None
@@ -404,8 +434,6 @@ class InwentaryzacjaService:
                     p.get('nr_palety')
                 )
                 return p
-
-            # IN variants were already defined above in this function.
 
             # 1. Surowce
             table_sur = 'magazyn_surowce'
@@ -448,42 +476,22 @@ class InwentaryzacjaService:
                     res = process_pallet(p)
                     if res: all_pallets.append(res)
             
-            # 4. Append new pallets
-            for new_p in new_items_list:
-                if new_p['nazwa'] != 'PUSTE GNIAZDO' and (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
-                    continue
-                synthetic = {
-                    "id": None,
-                    "nr_palety": new_p['nr_palety'],
-                    "nazwa": new_p['nazwa'],
-                    "nr_partii": new_p['nr_partii'],
-                    "stan_magazynowy": 0,
-                    "data_produkcji": new_p['data_produkcji'].strftime('%Y-%m-%d') if hasattr(new_p['data_produkcji'], 'strftime') else new_p['data_produkcji'],
-                    "data_przydatnosci": new_p['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(new_p['data_przydatnosci'], 'strftime') else new_p['data_przydatnosci'],
-                    "typ_palety": new_p['typ_palety'],
-                    "linia": new_p['linia'],
-                    "displayId": new_p['nr_palety'] if new_p['nr_palety'] else f"NEW-{new_p['id']}",
-                    "counted": True,
-                    "waga_faktyczna": new_p['waga_faktyczna'],
-                    "jednostka": new_p['jednostka'] or 'kg'
-                }
-                all_pallets.append(synthetic)
-                
-            # 5. Add system items that were counted here but belong to another location in the system
-            for key, row in counted_map.items():
-                if key not in matched_keys:
+            # 4. Append counted items that were added or moved here and didn't match any existing system pallet
+            for row in all_counted_rows:
+                if row['id'] not in matched_counted_ids:
+                    if row['nazwa'] == 'PUSTE GNIAZDO':
+                        continue
                     synthetic = {
                         "id": row['paleta_id'],
                         "nr_palety": row['nr_palety'],
                         "nazwa": row['nazwa'],
                         "nr_partii": row['nr_partii'],
-                        "stan_magazynowy": row['waga_systemowa'],
-                        "lokalizacja": row['lokalizacja'],
+                        "stan_magazynowy": row['waga_systemowa'] or 0,
                         "data_produkcji": row['data_produkcji'].strftime('%Y-%m-%d') if hasattr(row['data_produkcji'], 'strftime') else row['data_produkcji'],
                         "data_przydatnosci": row['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(row['data_przydatnosci'], 'strftime') else row['data_przydatnosci'],
                         "typ_palety": row['typ_palety'],
                         "linia": row['linia'],
-                        "displayId": InwentaryzacjaService._build_display_id(row.get('typ_palety'), row.get('paleta_id'), row.get('nr_palety')),
+                        "displayId": row['nr_palety'] if row['nr_palety'] else f"NEW-{row['id']}",
                         "counted": True,
                         "waga_faktyczna": row['waga_faktyczna'],
                         "jednostka": row['jednostka'] or 'kg'
@@ -547,36 +555,36 @@ class InwentaryzacjaService:
 
             # Check if entry already exists for this item in this session
             existing = None
-            if paleta_id is not None:
-                # 1. Systemic pallet: match strictly by paleta_id and typ_palety and linia
+            if nr_palety and str(nr_palety).strip():
+                # 1. Primary match by SSCC barcode in this session
                 cursor.execute(
-                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id = %s AND typ_palety = %s AND linia = %s",
-                    (sesja_id, paleta_id, typ_palety, linia)
+                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND UPPER(nr_palety) = %s",
+                    (sesja_id, str(nr_palety).strip().upper())
                 )
                 existing = cursor.fetchone()
-            else:
-                # 2. Manual/synthetic pallet (paleta_id is NULL)
-                # If nr_palety is provided, we match by nr_palety and lokalizacja
-                if nr_palety:
-                    cursor.execute(
-                        "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id IS NULL AND nr_palety = %s AND lokalizacja = %s AND typ_palety = %s AND linia = %s",
-                        (sesja_id, nr_palety, lokalizacja, typ_palety, linia)
-                    )
-                    existing = cursor.fetchone()
-                
-                # If still not found or nr_palety is empty, check by nazwa and lokalizacja
-                if not existing:
-                    cursor.execute(
-                        "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id IS NULL AND (nr_palety IS NULL OR nr_palety = '') AND nazwa = %s AND lokalizacja = %s AND typ_palety = %s AND linia = %s",
-                        (sesja_id, nazwa, lokalizacja, typ_palety, linia)
-                    )
-                    existing = cursor.fetchone()
+
+            if not existing and paleta_id is not None:
+                # 2. Systemic pallet: match by paleta_id and typ_palety
+                cursor.execute(
+                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id = %s AND typ_palety = %s",
+                    (sesja_id, paleta_id, typ_palety)
+                )
+                existing = cursor.fetchone()
+
+            if not existing:
+                # 3. Manual entry by name and location
+                cursor.execute(
+                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id IS NULL AND (nr_palety IS NULL OR nr_palety = '') AND nazwa = %s AND lokalizacja = %s",
+                    (sesja_id, nazwa, lokalizacja)
+                )
+                existing = cursor.fetchone()
 
             if existing:
                 cursor.execute(
                     "UPDATE magazyn_inwentaryzacja_wpisy SET waga_faktyczna = %s, lokalizacja = %s, data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s, data_wpisu = NOW(), user_login = %s, jednostka = %s WHERE id = %s",
                     (waga_faktyczna, lokalizacja, d_prod, d_przyd, typ_opakowania, user_login, jednostka, existing[0])
                 )
+
             else:
                 cursor.execute(
                     "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
@@ -619,40 +627,81 @@ class InwentaryzacjaService:
                 
             lokalizacja = sesja['lokalizacja']
             
-            # Pobierz wszystkie palety z prefixem lokalizacji (używając get_rack_data dla prawidłowego dopasowania regałów np R060101)
-            rack_data_map = InwentaryzacjaService.get_rack_data(lokalizacja, sesja_id)
-            pallets_at_loc = []
-            for items in rack_data_map.values():
-                pallets_at_loc.extend(items)
+            # 1. Pobierz wszystkie pozycje aktualnie zarejestrowane w magazynie dla tej lokalizacji
+            pallets_at_loc = InwentaryzacjaService.get_pallets_at_location(lokalizacja, sesja_id)
+            pallets_by_sscc = {}
+            for p in pallets_at_loc:
+                if p.get('nr_palety'):
+                    clean_sscc = str(p['nr_palety']).replace('(00)', '').replace(']C1', '').strip().upper()
+                    if clean_sscc:
+                        pallets_by_sscc[clean_sscc] = p
             
-            # 1. Usuń z wpisów te palety, które zostały przeniesione (nie ma ich w bazie na tej lokacji)
-            cursor.execute("SELECT id, paleta_id, typ_palety FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
+            # 2. Pobierz aktualne wpisy z inwentaryzacji (co operator faktycznie zeskanował)
+            cursor.execute("SELECT * FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
             current_entries = cursor.fetchall()
             
-            # Zbuduj set kluczy palet, które faktycznie są na regale
-            actual_db_keys = set()
-            for p in pallets_at_loc:
-                if p.get('id'): # Zwykła systemowa paleta
-                    actual_db_keys.add(f"{str(p['typ_palety']).lower()}_{p['id']}")
-            
-            to_delete = []
+            # Zbuduj indeksy zeskanowanych palet (po SSCC oraz po ID) i zsynchronizuj z lokalnymi danymi magazynowymi
+            scanned_ssccs = set()
+            scanned_keys = set()
             for entry in current_entries:
-                if entry['paleta_id']: # Tylko systemowe sprawdzamy, nowych nie ruszamy
-                    key = f"{str(entry['typ_palety']).lower()}_{entry['paleta_id']}"
-                    if key not in actual_db_keys:
-                        to_delete.append(entry['id'])
-            
-            if to_delete:
-                format_strings = ','.join(['%s'] * len(to_delete))
-                cursor.execute(f"DELETE FROM magazyn_inwentaryzacja_wpisy WHERE id IN ({format_strings})", tuple(to_delete))
-            
-            # 2. Dodaj do wpisów te palety, które są w bazie, ale nie zostały zeskanowane (waga_faktyczna = 0)
-            missing_pallets = [p for p in pallets_at_loc if not p.get('counted') and p.get('id')]
-            for p in missing_pallets:
-                cursor.execute(
-                    "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'system', %s, %s)",
-                    (sesja_id, p['id'], p['nr_palety'], p['typ_palety'], p['nazwa'], p.get('lokalizacja') or lokalizacja, p['nr_partii'], p['data_produkcji'], p['data_przydatnosci'], p['stan_magazynowy'], p.get('typ_opakowania', 'brak'), p.get('linia', 'PSD'), p.get('jednostka', 'kg'))
-                )
+                clean_sscc = str(entry.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+                if clean_sscc:
+                    scanned_ssccs.add(clean_sscc)
+                    if clean_sscc in pallets_by_sscc:
+                        loc_p = pallets_by_sscc[clean_sscc]
+                        # Zaktualizuj wpis o lokalne dane z magazynu (paleta_id i waga systemowa)
+                        if entry['waga_faktyczna'] > 0 and (entry['waga_systemowa'] == 0 or entry['paleta_id'] != loc_p.get('id')):
+                            cursor.execute(
+                                "UPDATE magazyn_inwentaryzacja_wpisy SET paleta_id = %s, waga_systemowa = %s WHERE id = %s",
+                                (loc_p.get('id'), loc_p.get('stan_magazynowy') or 0, entry['id'])
+                            )
+                if entry.get('paleta_id'):
+                    t_norm = (entry.get('typ_palety') or '').lower()
+                    scanned_keys.add(f"{t_norm}_{entry['paleta_id']}")
+
+            # 3. Dodaj jako brakujące (waga_faktyczna = 0) TYLKO te palety z lokalizacji, których operator NIE zeskanował
+            for p in pallets_at_loc:
+                if p.get('counted'):
+                    continue  # Już policzona i zarejestrowana
+                    
+                p_sscc = str(p.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+                t_norm = (p.get('typ_palety') or '').lower()
+                p_key = f"{t_norm}_{p.get('id')}"
+                
+                # Jeśli paleta o tym SSCC lub ID została zeskanowana, nie dodajemy jej jako brakującej
+                if (p_sscc and p_sscc in scanned_ssccs) or (p_key in scanned_keys):
+                    continue
+                    
+                # Jeśli faktycznie nie ma jej w zeskanowanych i ma stan systemowy > 0
+                if p.get('id') and (p.get('stan_magazynowy') or 0) > 0:
+                    cursor.execute(
+                        "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'system', %s, %s)",
+                        (
+                            sesja_id, 
+                            p['id'], 
+                            p.get('nr_palety'), 
+                            p.get('typ_palety') or 'surowiec', 
+                            p.get('nazwa'), 
+                            p.get('lokalizacja') or lokalizacja, 
+                            p.get('nr_partii') or 'BRAK', 
+                            InwentaryzacjaService._clean_date(p.get('data_produkcji')), 
+                            InwentaryzacjaService._clean_date(p.get('data_przydatnosci')), 
+                            p.get('stan_magazynowy') or 0, 
+                            p.get('typ_opakowania', 'brak'), 
+                            p.get('linia', 'PSD'), 
+                            p.get('jednostka', 'kg')
+                        )
+                    )
+
+            # Usuń ewentualne wpisy zerowe dla SSCC, które zostały rzeczywiście zeskanowane
+            cursor.execute("""
+                DELETE w0 FROM magazyn_inwentaryzacja_wpisy w0
+                JOIN magazyn_inwentaryzacja_wpisy w1 ON w0.sesja_id = w1.sesja_id 
+                    AND UPPER(TRIM(w0.nr_palety)) = UPPER(TRIM(w1.nr_palety))
+                    AND w0.waga_faktyczna = 0 AND w1.waga_faktyczna > 0
+                WHERE w0.sesja_id = %s
+            """, (sesja_id,))
+
 
             # Zamknij sesję
             cursor.execute(
@@ -667,6 +716,7 @@ class InwentaryzacjaService:
             return False, f"Błąd: {e}"
         finally:
             if conn: conn.close()
+
 
     @staticmethod
     def resume_session(sesja_id):
@@ -757,6 +807,14 @@ class InwentaryzacjaService:
                     col_amount = 'waga_netto'
                     col_name = 'produkt'
 
+                # If paleta_id is not set, try to find existing pallet by SSCC in the target table
+                if not e['paleta_id'] and e.get('nr_palety'):
+                    clean_sscc = str(e['nr_palety']).replace('(00)', '').replace(']C1', '').strip().upper()
+                    cursor.execute(f"SELECT id FROM {table} WHERE UPPER(nr_palety) = %s LIMIT 1", (clean_sscc,))
+                    existing_p = cursor.fetchone()
+                    if existing_p:
+                        e['paleta_id'] = existing_p['id']
+
                 if e['paleta_id']:
                     # UPDATE EXISTING
                     if e['waga_faktyczna'] <= 0:
@@ -799,6 +857,7 @@ class InwentaryzacjaService:
                         new_pallet_id = cursor.lastrowid
                         cursor.execute("UPDATE magazyn_inwentaryzacja_wpisy SET paleta_id = %s WHERE id = %s", (new_pallet_id, e['id']))
                         e['paleta_id'] = new_pallet_id
+
                 
                 # Log in history for both new and updated
                 p_id = e['paleta_id'] or cursor.lastrowid

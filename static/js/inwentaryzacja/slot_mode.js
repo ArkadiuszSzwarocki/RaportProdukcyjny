@@ -55,23 +55,27 @@ function openSlotDetail(locId) {
             document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
         }
     } else {
-        const realItems = items.filter(p => p.nazwa !== 'PUSTE GNIAZDO' && (p.counted || p._unhidden));
+        const visibleItems = items.filter(p => p.nazwa !== 'PUSTE GNIAZDO' && (p.counted || p._unhidden));
         
-        if (realItems.length === 0) {
+        if (visibleItems.length === 0) {
             content.innerHTML = `
-            <div style="text-align: center; padding: 20px;">
-                <p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">Zeskanuj paletę, aby ją sprawdzić.</p>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
-                    <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
-                        <span class="material-icons">add</span> DODAJ RĘCZNIE
-                    </button>
-                </div>
+            <div style="text-align: center; padding: 20px 10px; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1; margin-bottom: 15px;">
+                <span class="material-icons" style="font-size: 36px; color: #3b82f6;">qr_code_scanner</span>
+                <div style="font-size: 14px; font-weight: 800; color: #1e293b; margin-top: 6px;">Zeskanuj kod SSCC palety</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Szczegóły palety i wpisanie wagi pojawią się po zeskanowaniu etykiety</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <span class="material-icons">check_circle</span> POTWIERDŹ PUSTE GNIAZDO
+                </button>
+                <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+                    <span class="material-icons">add</span> DODAJ RĘCZNIE
+                </button>
             </div>
             `;
             document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
         } else {
-            realItems.forEach(p => {
+            visibleItems.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
             card.style.transition = 'all 0.2s';
@@ -79,7 +83,7 @@ function openSlotDetail(locId) {
             
             const systemQty = p.stan_magazynowy || 0;
             const displayWeight = p.counted && p.waga_faktyczna !== null && p.waga_faktyczna !== undefined ? p.waga_faktyczna : '';
-            
+
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                     <div style="overflow: hidden; flex: 1; padding-right: 8px;">
@@ -99,31 +103,29 @@ function openSlotDetail(locId) {
                 </div>
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                        <input type="number" step="0.1" inputmode="none" class="weight-input slot-weight-input" placeholder="STAN FAKTYCZNY" value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                    <div style="display: flex; flex-1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
+                        <input type="number" step="0.1" inputmode="none" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
                         <select class="slot-unit-select" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
                             <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
                         </select>
                     </div>
                     <button class="save-btn" style="background: ${p.counted ? '#059669' : '#10b981'}" title="Zapisz">
+
                         <span class="material-icons">${p.counted ? 'done_all' : 'save'}</span>
                     </button>
                 </div>
             `;
+
             
             content.appendChild(card);
             
             const input = card.querySelector('.slot-weight-input');
-            
-            // Allow soft keyboard to open on explicit user click/tap
-            const allowKeyboard = () => input.removeAttribute('inputmode');
-            input.addEventListener('click', allowKeyboard);
-            input.addEventListener('touchstart', allowKeyboard);
             const unitSelect = card.querySelector('.slot-unit-select');
             const saveBtn = card.querySelector('.save-btn');
             const indicator = card.querySelector('.slot-change-indicator');
             const nameEl = card.querySelector('.pallet-pname');
+
             
             function updateSlotCardStyle() {
                 const w = parseFloat(input.value);
@@ -175,73 +177,79 @@ function openSlotDetail(locId) {
                 };
             }
             
-            if(p.counted) {
-                updateSlotCardStyle();
-            }
-            
-            // Auto-save on blur/change
-            input.addEventListener('change', () => {
-                if (input.value !== '') {
-                    saveBtn.click();
-                }
-            });
-            unitSelect.addEventListener('change', () => {
-                if (input.value !== '') {
-                    saveBtn.click();
-                }
-            });
-            
-            saveBtn.onclick = () => {
+            let isSaving = false;
+            const doSave = async () => {
+                if (isSaving) return;
                 const weight = parseFloat(input.value);
                 const unit = unitSelect.value;
-                if(isNaN(weight)) return alert('Podaj poprawną wagę!');
+                if(isNaN(weight)) {
+                    safeToast('Podaj poprawną wagę!', 'error');
+                    return;
+                }
                 
-                saveBtn.innerHTML = '<span class="material-icons">hourglass_top</span>';
+                isSaving = true;
+                saveBtn.innerHTML = '<span class="material-icons" style="font-size:16px; animation:spin 1s linear infinite;">hourglass_top</span>';
                 saveBtn.style.background = '#94a3b8';
-                
-                smartFetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        sesja_id: window.INVENTORY_CONFIG.sesjaId,
-                        paleta_id: p.id,
-                        nr_palety: p.nr_palety,
-                        typ_palety: p.typ_palety,
-                        nazwa: p.nazwa,
-                        lokalizacja: locId,
-                        nr_partii: p.nr_partii,
-                        waga_systemowa: systemQty,
-                        waga_faktyczna: weight,
-                        linia: p.linia || 'PSD',
-                        data_produkcji: p.data_produkcji,
-                        data_przydatnosci: p.data_przydatnosci,
-                        jednostka: unit
-                    })
-                }).then(r => r.json()).then(data => {
+                safeToast('Zapisywanie wagi...', 'info');
+
+                try {
+                    const resp = await fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            sesja_id: window.INVENTORY_CONFIG.sesjaId,
+                            paleta_id: p.id,
+                            nr_palety: p.nr_palety,
+                            typ_palety: p.typ_palety,
+                            nazwa: p.nazwa,
+                            lokalizacja: locId,
+                            nr_partii: p.nr_partii,
+                            waga_systemowa: systemQty,
+                            waga_faktyczna: weight,
+                            linia: p.linia || 'PSD',
+                            data_produkcji: p.data_produkcji,
+                            data_przydatnosci: p.data_przydatnosci,
+                            jednostka: unit
+                        })
+                    });
+                    const data = await resp.json();
                     if(data.success) {
                         saveBtn.innerHTML = '<span class="material-icons">done_all</span>';
                         saveBtn.style.background = '#059669';
+                        safeToast('✅ Zapisano wagę ' + weight + ' ' + unit, 'success');
                         markCellDone(locId, false);
                         
-                        refreshRackData(currentRackPrefix);
-                        setTimeout(() => { closeDetail(); refocusRackScanner(); }, 300);
+                        closeDetail();
+                        if (typeof refreshRackData === 'function') {
+                            await refreshRackData(currentRackPrefix);
+                        }
                     } else {
                         saveBtn.innerHTML = '<span class="material-icons">error</span>';
                         saveBtn.style.background = '#ef4444';
-                        alert('Błąd: ' + data.message);
+                        safeToast('Błąd: ' + (data.message || 'Nieznany błąd'), 'error');
                     }
-                }).catch(() => {
+                } catch(err) {
+                    console.error('Save error:', err);
                     saveBtn.innerHTML = '<span class="material-icons">save</span>';
                     saveBtn.style.background = '#10b981';
-                });
+                    safeToast('Błąd połączenia podczas zapisu', 'error');
+                } finally {
+                    isSaving = false;
+                }
+            };
+            
+            saveBtn.onclick = (e) => {
+                e.preventDefault();
+                doSave();
             };
             
             input.addEventListener('keydown', (e) => {
                 if(e.key === 'Enter') {
                     e.preventDefault();
-                    saveBtn.click();
+                    doSave();
                 }
             });
+
         });
         
         // Also add options to add/clear
@@ -271,13 +279,20 @@ function openSlotDetail(locId) {
     }
     detail.style.display = 'flex';
     
-    // Autofocus SSCC verifier first and attach auto-enter
+    // Autofocus weight input if pallet exists, or SSCC verifier if empty
     setTimeout(() => {
         if (typeof initInventoryScannerListeners === 'function') initInventoryScannerListeners();
-        const ssccInput = document.getElementById('ssccVerifierInputDetail');
-        if(ssccInput) ssccInput.focus();
+        const weightInput = content.querySelector('.slot-weight-input');
+        if (weightInput) {
+            weightInput.focus();
+            weightInput.select();
+        } else {
+            const ssccInput = document.getElementById('ssccVerifierInputDetail');
+            if(ssccInput) ssccInput.focus();
+        }
     }, 100);
 }
+
 
 
 
@@ -294,59 +309,91 @@ document.getElementById('slotDetail').addEventListener('click', (e) => {
 });
 
 
-function markEmpty(locId) {
+async function markEmpty(locId) {
     locId = normalizeLocationCode(locId);
-    // Confirmed empty without additional question as requested
-    
-    // If there were items, we need to set them to 0
     const items = rackData[locId] || [];
-    if(items.length === 0) {
-        smartFetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                sesja_id: window.INVENTORY_CONFIG.sesjaId,
-                paleta_id: null,
-                typ_palety: 'surowiec',
-                nazwa: 'PUSTE GNIAZDO',
-                lokalizacja: locId,
-                nr_partii: '-',
-                waga_systemowa: 0,
-                waga_faktyczna: 0,
-                linia: 'PSD'
-            })
-        }).then(() => {
-            markCellDone(locId, true);
-            refreshRackData(currentRackPrefix, locId);
-            setTimeout(() => closeDetail(), 1000);
-        });
-    } else {
-        let count = 0;
-        items.forEach(p => {
-            smartFetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
+    
+    safeToast('Potwierdzanie pustego gniazda...', 'info');
+    
+    const btn = document.getElementById('btnConfirmEmpty');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px; animation:spin 1s linear infinite;">hourglass_top</span> ZAPISYWANIE...';
+    }
+    const footerBtn = document.getElementById('btnConfirmEmptyFooter');
+    if (footerBtn) {
+        footerBtn.disabled = true;
+        footerBtn.textContent = 'ZAPISYWANIE...';
+    }
+
+    try {
+        if (items.length === 0) {
+            const resp = await fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     sesja_id: window.INVENTORY_CONFIG.sesjaId,
-                    paleta_id: p.id,
-                    typ_palety: p.typ_palety,
-                    nazwa: p.nazwa,
+                    paleta_id: null,
+                    typ_palety: 'surowiec',
+                    nazwa: 'PUSTE GNIAZDO',
                     lokalizacja: locId,
-                    nr_partii: p.nr_partii,
-                    waga_systemowa: p.stan_magazynowy,
+                    nr_partii: '-',
+                    waga_systemowa: 0,
                     waga_faktyczna: 0,
-                    linia: p.linia || 'PSD'
+                    linia: 'PSD'
                 })
-            }).then(() => {
-                count++;
-                if(count === items.length) {
-                    markCellDone(locId, true);
-                    refreshRackData(currentRackPrefix, locId);
-                    setTimeout(() => closeDetail(), 1000);
-                }
             });
-        });
+            const data = await resp.json();
+            if (data.success) {
+                safeToast('✅ Potwierdzono puste: ' + locId, 'success');
+                markCellDone(locId, true);
+                closeDetail();
+                if (typeof refreshRackData === 'function') {
+                    await refreshRackData(currentRackPrefix);
+                }
+            } else {
+                safeToast('Błąd: ' + (data.message || 'Nieznany'), 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'POTWIERDŹ PUSTE';
+                }
+            }
+        } else {
+            for (const p of items) {
+                await fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        sesja_id: window.INVENTORY_CONFIG.sesjaId,
+                        paleta_id: p.id,
+                        typ_palety: p.typ_palety,
+                        nazwa: p.nazwa,
+                        lokalizacja: locId,
+                        nr_partii: p.nr_partii || '-',
+                        waga_systemowa: p.stan_magazynowy || 0,
+                        waga_faktyczna: 0,
+                        linia: p.linia || 'PSD'
+                    })
+                });
+            }
+            safeToast('✅ Potwierdzono puste: ' + locId, 'success');
+            markCellDone(locId, true);
+            closeDetail();
+            if (typeof refreshRackData === 'function') {
+                await refreshRackData(currentRackPrefix);
+            }
+        }
+    } catch (err) {
+        console.error('Błąd markEmpty:', err);
+        safeToast('Błąd połączenia podczas zapisu', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'POTWIERDŹ PUSTE';
+        }
     }
 }
+
+
+
 
 

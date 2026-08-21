@@ -315,15 +315,26 @@ class ScannerService:
             
             def sort_key(item):
                 loc = str(item.get('lokalizacja') or '').upper()
+                is_oczek = 'OCZEK' in loc
                 is_prod = is_production_tank_code(loc)
-                is_warehouse = not is_prod
-                qty = float(item.get('stan_magazynowy', 0))
-                # Chcemy: magazyn (True) wyżej niż produkcja (False), potem większa ilość
-                return (is_warehouse, qty)
+                qty = float(item.get('stan_magazynowy') or item.get('ilosc') or 0)
+                item_id = int(item.get('id') or 0)
                 
-            # Dla SSCC zwracamy główną paletę z magazynu, unikając wskazywania częściowego worka na stacji
+                # Priority:
+                # 1. Has quantity > 0
+                # 2. Not 'OCZEKUJĄCE' (physical location / station over pending receiving queue)
+                # 3. Warehouse over production if both have stock > 0
+                # 4. Quantity
+                # 5. Newer ID
+                has_qty = qty > 0
+                not_oczek = not is_oczek
+                is_warehouse = (not is_prod) and not_oczek
+                
+                return (has_qty, not_oczek, is_warehouse, qty, item_id)
+                
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]
+
 
         if final_res:
             if transfer_info:
@@ -1132,18 +1143,33 @@ class ScannerService:
     @staticmethod
     def get_label_data(surowiec_id: int, linia: str = 'Agro') -> dict | None:
         """Zwraca słownik danych potrzebnych do wydruku etykiety ZPL."""
+
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
             tables = [
                 (get_table_name('magazyn_surowce', linia), 'SUR'),
                 (get_table_name('magazyn_opakowania', linia), 'OPK'),
-                ('magazyn_dodatki', 'DOD')
+                ('magazyn_dodatki', 'DOD'),
+                (get_table_name('magazyn_palety', linia), 'PAL'),
+                # Fallbacks for other lines
+                ('magazyn_surowce', 'SUR'),
+                ('magazyn_surowce_agro', 'SUR'),
+                ('magazyn_opakowania', 'OPK'),
+                ('magazyn_opakowania_agro', 'OPK'),
+                ('magazyn_palety', 'PAL'),
+                ('magazyn_palety_agro', 'PAL')
             ]
+            seen_tables = set()
             for table_name, prefix in tables:
+                if table_name in seen_tables:
+                    continue
+                seen_tables.add(table_name)
                 try:
+                    qty_col = 'waga_netto' if 'palety' in table_name and 'dodatki' not in table_name and 'surowce' not in table_name and 'opakowania' not in table_name else 'stan_magazynowy'
+                    name_col = 'produkt' if 'palety' in table_name and 'dodatki' not in table_name and 'surowce' not in table_name and 'opakowania' not in table_name else 'nazwa'
                     cur.execute(
-                        f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja FROM {table_name} WHERE id=%s",
+                        f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, lokalizacja FROM {table_name} WHERE id=%s",
                         (surowiec_id,)
                     )
                     row = cur.fetchone()
@@ -1160,6 +1186,7 @@ class ScannerService:
                         }
                 except Exception:
                     pass
+
 
             # Check wiaderka_maluchy
             try:

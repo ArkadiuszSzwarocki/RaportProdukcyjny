@@ -250,12 +250,30 @@ function openTankModal(zbiornik) {
     document.getElementById('modal_komentarz').value = tile.dataset.komentarz || '';
     document.getElementById('tankModal').style.display = 'flex';
 
-    setTimeout(() => document.getElementById('modal_nazwa').focus(), 50);
+    setTimeout(() => {
+        const wInput = document.getElementById('modal_waga');
+        wInput.focus();
+        wInput.select();
+    }, 50);
 }
+
+// Bind Enter key to submit tank modal
+['modal_nazwa', 'modal_nr_partii', 'modal_waga', 'modal_komentarz'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                saveTankEntry();
+            }
+        });
+    }
+});
 
 function closeTankModal() {
     document.getElementById('tankModal').style.display = 'none';
 }
+
 
 function markEmpty() {
     document.getElementById('modal_nazwa').value = 'PUSTY';

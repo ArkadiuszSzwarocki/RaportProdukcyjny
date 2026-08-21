@@ -120,12 +120,14 @@ def szukaj_regalu():
 def szukaj_globalnie():
     data = request.json
     sscc = data.get('sscc', '').strip().upper()
+    sesja_id = data.get('sesja_id')
     
-    paleta = InwentaryzacjaService.szukaj_globalnie_palety(sscc)
+    paleta = InwentaryzacjaService.szukaj_globalnie_palety(sscc, sesja_id)
     if paleta:
         return jsonify({"success": True, "paleta": paleta})
     else:
         return jsonify({"success": False, "message": "Nie znaleziono palety w systemie."})
+
 
 
 

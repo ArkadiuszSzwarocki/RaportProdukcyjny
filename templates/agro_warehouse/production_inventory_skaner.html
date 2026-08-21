@@ -96,14 +96,16 @@ function saveEntries() {
         });
     });
 
-    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             sesja_id: {{ sesja_id }},
             updates: updates
         })
-    }).then(r => r.json()).then(data => {
+    })
+    .then(r => r.json())
+    .then(data => {
         if(data.success) {
             btn.innerHTML = '<span class="material-icons">done_all</span> ZAPISANO';
             btn.style.background = '#059669';
@@ -113,16 +115,23 @@ function saveEntries() {
                 btn.disabled = false;
             }, 2000);
         } else {
-            alert("Błąd: " + data.message);
+            alert("Błąd zapisu: " + (data.message || 'Nieznany błąd'));
             btn.innerHTML = originalText;
             btn.style.background = '#10b981';
             btn.disabled = false;
         }
+    })
+    .catch(err => {
+        console.error('saveEntries error:', err);
+        alert("Błąd połączenia podczas zapisu.");
+        btn.innerHTML = originalText;
+        btn.style.background = '#10b981';
+        btn.disabled = false;
     });
 }
 
 function finishSession() {
-    if(!confirm("Czy na pewno chcesz zapisać postęp i zamknąć sesję?")) return;
+    if(!confirm("Czy na pewno chcesz zapisać postęp i zamknąć sesję inwentaryzacji?")) return;
     
     // First save, then close
     const updates = [];
@@ -133,29 +142,42 @@ function finishSession() {
         });
     });
 
-    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ sesja_id: {{ sesja_id }}, updates: updates })
-    }).then(r => r.json()).then(data => {
+    })
+    .then(r => r.json())
+    .then(data => {
         if(data.success) {
             // Close session
-            smartFetch('/agro/api/inwentaryzacja-produkcji/zamknij', {
+            fetch('/agro/api/inwentaryzacja-produkcji/zamknij', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({sesja_id: {{ sesja_id }}})
-            }).then(r => r.json()).then(d => {
+                body: JSON.stringify({ sesja_id: {{ sesja_id }} })
+            })
+            .then(r => r.json())
+            .then(d => {
                 if(d.success) {
                     window.location.href = "{{ url_for('agro_warehouse.raport_production_inventory', sesja_id=sesja_id, linia=linia) }}";
                 } else {
-                    alert("Błąd przy zamykanie: " + d.message);
+                    alert("Błąd przy zamykaniu sesji: " + (d.message || 'Nieznany błąd'));
                 }
+            })
+            .catch(err => {
+                console.error('Błąd zamykania:', err);
+                alert("Błąd połączenia podczas zamykania sesji.");
             });
         } else {
-            alert("Błąd zapisu: " + data.message);
+            alert("Błąd zapisu: " + (data.message || 'Nieznany błąd'));
         }
+    })
+    .catch(err => {
+        console.error('Błąd zapisu:', err);
+        alert("Błąd połączenia podczas zapisu danych.");
     });
 }
+
 
 // Auto-save when an input loses focus if it was changed
 document.querySelectorAll('.weight-input').forEach(input => {
@@ -225,12 +247,7 @@ function handleSSCCInput() {
     }, 400);
 }
 
-function setEmpty(entryId) {
-    if(!confirm("Oznaczyć zbiornik jako pusty? (Waga faktyczna zostanie wyzerowana)")) return;
-    
-    // Change material to PUSTY ZBIORNIK directly via API
-    changeMaterial(entryId, 'PUSTY ZBIORNIK', null, '', '', '', '', 0);
-}
+
 
 function openTankDetailModal(entryId, tank, surowiec, sscc, partia, wSystemowa, wFaktyczna) {
     currentEntryId = entryId;
@@ -244,15 +261,34 @@ function openTankDetailModal(entryId, tank, surowiec, sscc, partia, wSystemowa, 
     wInput.value = wFaktyczna;
     
     document.getElementById('tankDetailModal').style.display = 'flex';
-    setTimeout(() => wInput.focus(), 100);
+    setTimeout(() => {
+        wInput.focus();
+        wInput.select();
+    }, 100);
 }
+
+// Bind Enter key on tank detail weight input
+document.addEventListener('DOMContentLoaded', () => {
+    const tdInput = document.getElementById('td-weightInput');
+    if (tdInput) {
+        tdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveWeightFromDetail();
+            }
+        });
+    }
+});
 
 function closeTankDetailModal() {
     document.getElementById('tankDetailModal').style.display = 'none';
 }
 
+
 function saveWeightFromDetail() {
-    const val = parseFloat(document.getElementById('td-weightInput').value) || 0;
+    if (!currentEntryId) return;
+    const rawInput = (document.getElementById('td-weightInput').value || '').replace(',', '.').trim();
+    const val = parseFloat(rawInput) || 0;
     
     // Update hidden input on card
     const hiddenInput = document.getElementById(`hidden-winput-${currentEntryId}`);
@@ -268,20 +304,38 @@ function saveWeightFromDetail() {
         card.style.borderColor = '#10b981';
     }
     
+    // Close modal immediately for smooth UX
+    closeTankDetailModal();
+    
     // Save to server
     const updates = [{
         id: currentEntryId,
         waga_faktyczna: val
     }];
     
-    smartFetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ sesja_id: {{ sesja_id }}, updates: updates })
-    }).then(() => {
-        closeTankDetailModal();
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            if (typeof showToast === 'function') {
+                showToast(`✅ Zapisano stan: ${val} kg`, 'success');
+            }
+        } else {
+            alert("Błąd zapisu: " + (data.message || 'Nieznany błąd'));
+        }
+    })
+    .catch(err => {
+        console.error('saveWeightFromDetail error:', err);
+        if (typeof showToast === 'function') {
+            showToast('Błąd połączenia podczas zapisu', 'error');
+        }
     });
 }
+
 
 function openChangeMaterialModalFromDetail() {
     const tankName = document.getElementById('td-tankName').textContent;
@@ -338,30 +392,50 @@ function saveEntriesLocalToDom() {
     // They are updated directly by saveWeightFromDetail.
 }
 
+function setEmpty(entryId) {
+    const targetId = entryId || currentEntryId;
+    if(!targetId) return;
+    
+    if(!confirm("Oznaczyć zbiornik jako pusty? (Waga faktyczna zostanie wyzerowana)")) return;
+    
+    // Change material to PUSTY ZBIORNIK directly via API
+    changeMaterial(targetId, 'PUSTY ZBIORNIK', null, '', '', '', '', 0);
+}
+
 function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd, dExp, actualWeight) {
-    smartFetch('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', {
+    const targetId = entryId || currentEntryId;
+    if(!targetId) return;
+    
+    fetch('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             sesja_id: {{ sesja_id }},
-            entry_id: entryId,
+            entry_id: targetId,
             nowy_surowiec: materialName,
             paleta_id: palId,
-            nr_palety: nrPalety,
-            nr_partii: nrPartii,
-            data_produkcji: dProd,
-            data_przydatnosci: dExp,
-            waga_faktyczna: actualWeight
+            nr_palety: nrPalety || '',
+            nr_partii: nrPartii || '',
+            data_produkcji: dProd || null,
+            data_przydatnosci: dExp || null,
+            waga_faktyczna: actualWeight !== undefined && actualWeight !== null ? actualWeight : 0
         })
-    }).then(r => r.json()).then(data => {
+    })
+    .then(r => r.json())
+    .then(data => {
         if(data.success) {
             window.location.reload();
         } else {
-            alert("Błąd: " + data.message);
+            alert("Błąd: " + (data.message || 'Nieznany błąd'));
             closeChangeMaterialModal();
         }
+    })
+    .catch(err => {
+        console.error('changeMaterial error:', err);
+        alert('Błąd połączenia podczas zmiany surowca');
     });
 }
+
 </script>
 
 <!-- MODAL: Szczegóły Zbiornika (Tank Detail) -->
@@ -384,18 +458,20 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
         <div style="margin-bottom: 20px;">
             <div style="display:flex; gap:10px; align-items:center;">
                 <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                          <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="td-weightInput" placeholder="STAN FAKTYCZNY" autocomplete="off"
-                           style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                    <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="td-weightInput" placeholder="STAN FAKTYCZNY" autocomplete="off"
+                           style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();saveWeightFromDetail();}">
                     <select disabled style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: default; appearance: none;">
                         <option>kg</option>
                     </select>
                 </div>
-                <button onclick="saveWeightFromDetail()" title="Zapisz"
+                <button type="button" onclick="saveWeightFromDetail()" title="Zapisz"
                         style="background:#10b981; color: white; border: none; padding: 12px 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                     <span class="material-icons">save</span>
                 </button>
             </div>
         </div>
+
         
         <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button onclick="openChangeMaterialModalFromDetail()" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700; cursor:pointer;">ZMIEŃ SUROWIEC</button>
