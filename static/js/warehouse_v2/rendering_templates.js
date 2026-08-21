@@ -17,10 +17,16 @@ function generateTableRow(item, index) {
            </span>`
         : (item.fifo_batch_num && item.fifo_batch_num > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">Partia ${item.fifo_batch_num}</span>` : (item.fifo_index && item.fifo_total > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">FIFO #${item.fifo_index}</span>` : ''));
 
+    const batchSubtitle = (item.batch && item.batch !== '-' && item.batch !== 'brak')
+        ? `<div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">Partia: <span style="font-family: monospace; color: #334155; font-weight: 700;">${item.batch}</span></div>`
+        : '';
+
+    const displayName = (item.productName && item.productName !== '-' && item.productName.trim() !== '') ? item.productName : (item.produkt || item.nazwa || 'Nieznany produkt');
+
     return `<tr class="pallet-row ${isBlockedCls}"
                 style="${rowStyle}"
                 data-display-id="${item.displayId}"
-                data-product="${item.productName.replace(/"/g, '&quot;')}"
+                data-product="${displayName.replace(/"/g, '&quot;')}"
                 data-amount="${item.amount}"
                 data-unit="${item.unit || 'kg'}"
                 data-location="${item.location}"
@@ -40,8 +46,9 @@ function generateTableRow(item, index) {
             </div>
         </td>
         <td data-label="Produkt">
-            <strong class="text-primary">${item.productName}</strong>
+            <strong class="text-primary">${displayName}</strong>
             ${fifoBadge}
+            ${batchSubtitle}
         </td>
         <td data-label="Ilość"><strong>${item.amount}</strong> <small>${item.unit}</small></td>
         <td data-label="Lokalizacja" class="location-cell" data-loc-raw="${item.location}">
@@ -75,10 +82,16 @@ function generateGridCard(item) {
                     <span class="location-part-row">${loc_code.substring(5,7)}</span>`;
     }
 
+    const batchSubtitle = (item.batch && item.batch !== '-' && item.batch !== 'brak')
+        ? `<div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">Partia: <span style="font-family: monospace; color: #334155; font-weight: 700;">${item.batch}</span></div>`
+        : '';
+
+    const displayName = (item.productName && item.productName !== '-' && item.productName.trim() !== '') ? item.productName : (item.produkt || item.nazwa || 'Nieznany produkt');
+
     return `<div class="pallet-card ${isBlockedCls}"
                  style="cursor: pointer; ${cardFifoStyle}"
                  data-display-id="${item.displayId}"
-                 data-product="${item.productName.replace(/"/g, '&quot;')}"
+                 data-product="${displayName.replace(/"/g, '&quot;')}"
                  data-amount="${item.amount}"
                  data-unit="${item.unit || 'kg'}"
                  data-location="${item.location}"
@@ -97,10 +110,15 @@ function generateGridCard(item) {
             <span class="id-tag">#${item.displayId}</span>
         </div>
         <div class="card-body">
-            <div class="product-name">${item.productName}</div>
+            <div class="product-name">${displayName}</div>
+            ${batchSubtitle}
             <div class="amount-row">
                 <span class="val">${item.amount}</span>
                 <span class="unit">${item.unit}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #e2e8f0;">
+                <span>Prod: <strong style="color: #334155;">${item.date_prod}</strong></span>
+                <span>Ważn: <strong style="${isFirstFifo ? 'color: #ea580c; font-weight: 700;' : 'color: #0284c7;'}">${item.date_exp}</strong></span>
             </div>
         </div>
         <div class="card-footer">
@@ -166,13 +184,48 @@ function _updateFilterBanner(filter, visible, total) {
 
 function clearAllFilters() {
     const input = document.getElementById('searchInput');
-    if (input) { input.value = ''; localStorage.removeItem('warehouse_search'); }
+    if (input) { 
+        input.value = ''; 
+        localStorage.removeItem('warehouse_search'); 
+    }
+    const clearBtn = document.getElementById('clearSearchBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
     currentSearchQuery = '';
+
     // Reset radio buttons
     const allWh = document.getElementById('radio-all');
-    if (allWh) { allWh.checked = true; currentWarehouseId = 'all'; }
+    if (allWh) { 
+        allWh.checked = true; 
+        currentWarehouseId = 'all'; 
+        localStorage.setItem('warehouse_tab', 'all');
+        if (typeof updateWhLabel === 'function') updateWhLabel('Wszystkie');
+    }
     const allRack = document.getElementById('rack-all');
-    if (allRack) { allRack.checked = true; currentSubWarehouseId = 'all'; }
+    if (allRack) { 
+        allRack.checked = true; 
+        currentSubWarehouseId = 'all'; 
+        localStorage.setItem('warehouse_subtab', 'all');
+        if (typeof updateRackLabel === 'function') updateRackLabel('Wszystkie Lokalizacje');
+    }
+
+    // Reset location checkboxes
+    localStorage.removeItem('warehouse_locations');
+    const checkboxes = document.querySelectorAll('.loc-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+    selectedLocations = Array.from(checkboxes).map(cb => cb.value);
+    if (typeof updateLocationDropdownLabel === 'function') {
+        updateLocationDropdownLabel(checkboxes.length);
+    }
+
+    // Reset sorting
+    currentSortCol = null;
+    currentSortDir = 'asc';
+    localStorage.removeItem('warehouse_sort_col');
+    localStorage.removeItem('warehouse_sort_dir');
+    if (typeof updateSortHeaderIndicators === 'function') {
+        updateSortHeaderIndicators();
+    }
+
     filterTable();
 }
 

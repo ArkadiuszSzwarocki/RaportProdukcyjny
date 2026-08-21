@@ -11,10 +11,16 @@ function togglePalletBlock() {
     }).then(r => r.json()).then(data => {
         if(data.success) {
             showToast(data.message || 'Status blokady zmieniony.', 'success');
-            // Zaktualizuj stan wizualny wiersza bez reload
-            const row = document.querySelector(`tr[data-id="${currentPallet.id}"]`);
-            const card = document.querySelector(`.pallet-card[data-id="${currentPallet.id}"]`);
             const newBlocked = !currentPallet.is_blocked;
+            currentPallet.is_blocked = newBlocked;
+            const targetId = currentPallet.id;
+            const it = allWarehouseItems.find(x => String(x.id) === String(targetId));
+            if (it) {
+                it.is_blocked = newBlocked ? 1 : 0;
+            }
+            // Zaktualizuj stan wizualny wiersza bez reload
+            const row = document.querySelector(`tr[data-id="${targetId}"]`);
+            const card = document.querySelector(`.pallet-card[data-id="${targetId}"]`);
             [row, card].forEach(el => {
                 if (!el) return;
                 el.dataset.blocked = newBlocked ? '1' : '0';
@@ -22,6 +28,9 @@ function togglePalletBlock() {
                 el.classList.toggle('is-blocked-card', newBlocked);
             });
             closePalletModal();
+            if (typeof filterTable === 'function') {
+                filterTable();
+            }
         } else {
             AppDialog.alert("Błąd: " + data.error);
         }

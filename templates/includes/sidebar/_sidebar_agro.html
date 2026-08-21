@@ -17,6 +17,10 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Zasyp Agro
         </a>
+        <a href="{{ url_for('maluchy.index', linia='AGRO') }}"
+            class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'AGRO') == 'AGRO' %}active{% endif %}">
+            🪣 Maluchy (Wiadra)
+        </a>
         {% endif %}
 
         <a href="{{ url_for('production.agro_station_history') }}"
@@ -76,7 +80,7 @@
             Raport Zasypów i Dosypek
         </a>
 
-        <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" 
+        <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}" 
            class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
             Raport Palet AGRO
         </a>

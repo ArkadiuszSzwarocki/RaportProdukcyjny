@@ -98,9 +98,37 @@
                 <div class="active-order-szarze-dosypki">
                     <div style="font-size:0.85em; font-weight:700; color:#d97706; margin-bottom:4px; border-bottom:1px solid #fcd34d; padding-bottom:2px;">Dodane dosypki:</div>
                     {% for dosypka_item in pal[3] %}
-                    <div class="active-order-szarze-dosypki-item" style="display:flex; justify-content:space-between; margin-bottom:2px;">
-                        <span>{{ dosypka_item[0] }}</span>
-                        <strong>{{ dosypka_item[1] }} kg</strong>
+                    <div class="active-order-szarze-dosypki-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; font-size:12.5px;">
+                        <span style="font-weight:700; color:#1e293b;">{{ dosypka_item[0] }}</span>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            {% if dosypka_item|length > 2 and dosypka_item[2] is not none %}
+                            <span style="font-size:11px; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 5px; border-radius:4px;" title="Zaplanowane przez laboranta">plan: <strong>{{ dosypka_item[2] }} kg</strong></span>
+                            {% endif %}
+                            <span style="color:#047857; font-weight:800; background:#ecfdf5; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px;" title="Faktycznie wydozowane przez operatora">{{ dosypka_item[1] }} kg</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if sekcja == 'Zasyp' and pal|length > 7 and pal[7] and pal[7]|length > 0 %}
+                <div class="active-order-szarze-maluchy" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin-top:6px;">
+                    <div style="font-size:0.85em; font-weight:800; color:#1d4ed8; margin-bottom:4px; border-bottom:1px solid #bfdbfe; padding-bottom:2px;">
+                        🪣 Maluchy (Wrzucone Wiaderka):
+                    </div>
+                    {% for wiaderko in pal[7] %}
+                    <div style="margin-bottom:6px; font-size:12px;">
+                        <div style="display:flex; justify-content:space-between; font-weight:700; color:#1e293b;">
+                            <span>Wiadro <strong>{{ wiaderko.kod }}</strong> {% if wiaderko.mieszalnik %}<span style="color:#059669; font-weight:800;">({{ wiaderko.mieszalnik }})</span>{% endif %}</span>
+                            <span style="font-size:11px; color:#64748b;">{{ wiaderko.godzina }}</span>
+                        </div>
+                        {% if wiaderko.pozycje %}
+                        <ul style="margin:2px 0 0 14px; padding:0; color:#475569; font-size:11px;">
+                            {% for poz in wiaderko.pozycje %}
+                            <li><strong>[{{ poz.stacja }}]</strong> {{ poz.surowiec }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>

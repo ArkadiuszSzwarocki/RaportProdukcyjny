@@ -40,6 +40,7 @@ from app.blueprints.traceability import traceability_bp
 from app.blueprints.inwentaryzacja import inwentaryzacja_bp
 from app.blueprints.inwentaryzacja_produkcji import inwentaryzacja_produkcji_bp
 from app.blueprints.osip import osip_bp
+from app.blueprints.maluchy import maluchy_bp
 from app import db
 
 from app.core.middleware import register_middleware
@@ -131,6 +132,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(inwentaryzacja_bp)
     app.register_blueprint(inwentaryzacja_produkcji_bp)
     app.register_blueprint(osip_bp)
+    app.register_blueprint(maluchy_bp, url_prefix='/maluchy')
 
 
     # Register debug routes if in debug mode

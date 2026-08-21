@@ -1,139 +1,109 @@
 <style>
+    .dosypki-list-root {
+        position: relative;
+        font-family: inherit;
+    }
+
     #dosypki-table {
         width: 100%;
-        display: none;
-        font-size: 0.9em;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-top: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        font-size: 13.5px;
     }
 
-    /* Ensure Akcja column is always visible */
-    #dosypki-table th:nth-child(6), 
-    #dosypki-table td:nth-child(6) {
-        display: table-cell !important;
+    #dosypki-table thead th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        padding: 12px 14px;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
     }
 
-    /* On small screens, hide Plan ID and show only essential columns */
-    @media (max-width: 640px) {
-        #dosypki-table th:nth-child(1),
-        #dosypki-table td:nth-child(1),
-        #dosypki-table th:nth-child(2),
-        #dosypki-table td:nth-child(2),
-        #dosypki-table th:nth-child(5),
-        #dosypki-table td:nth-child(5) {
-            display: none !important;
-        }
-        
-        #dosypki-table {
-            width: 100% !important;
-            display: table !important;
-            border-collapse: collapse !important;
-        }
+    #dosypki-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
 
-        #dosypki-table thead {
-            display: table-header-group !important;
-        }
+    #dosypki-table tbody tr:hover {
+        background-color: #f1f5f9;
+    }
 
-        #dosypki-table tr {
-            display: table-row !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }
-        
-        #dosypki-table th,
-        #dosypki-table td {
-            display: table-cell !important;
-            padding: 8px 6px !important;
-            font-size: 13px !important;
-            line-height: 1.3 !important;
-            border-bottom: 1px solid var(--border-color) !important;
-            text-align: left !important;
-            width: auto !important;
-            min-height: unset !important;
-        }
+    #dosypki-table tbody td {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf2f7;
+        color: #1e293b;
+        vertical-align: middle;
+    }
 
-        #dosypki-table th {
-            font-weight: 700 !important;
-            color: #64748b !important;
-            text-transform: uppercase !important;
-            font-size: 11px !important;
-            letter-spacing: 0.5px !important;
-            background: #f8fafc !important;
-        }
+    #dosypki-table tbody tr:last-child td {
+        border-bottom: none;
+    }
 
-        #dosypki-table td::before {
-            display: none !important;
-        }
-        
-        #dosypki-table td > * {
-            display: inline-block !important;
-            font-size: 13px !important;
-            font-weight: unset !important;
-            color: unset !important;
-            width: auto !important;
-        }
+    .dosypka-actual-kg:focus {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
+        outline: none;
+    }
 
-        #dosypki-table td:nth-child(4) { /* Kg */
-            font-weight: 700 !important;
-            color: #1e293b !important;
-        }
-        
-        #dosypki-table td:nth-child(6) { /* Akcja */
-            text-align: right !important;
-            white-space: nowrap !important;
-        }
-        
-        #dosypki-table.no-mobile-cards .dosypka-confirm-btn {
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            width: auto !important;
-            min-height: 32px !important;
-            padding: 4px 10px !important;
-            font-size: 12px !important;
-            font-weight: 600 !important;
-            background-color: #2563eb !important; /* Premium Blue */
-            color: #ffffff !important;
-            border-radius: 6px !important;
-            border: none !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
-            transition: all 0.2s ease !important;
-            margin: 0 !important;
-        }
+    .dosypka-confirm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 6px 14px;
+        font-size: 12.5px;
+        font-weight: 700;
+        border-radius: 8px;
+        border: none;
+        background: #10b981;
+        color: #ffffff;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+        transition: all 0.15s ease;
+    }
 
-        #dosypki-table.no-mobile-cards .dosypka-confirm-btn:active {
-            transform: scale(0.96) !important;
-            background-color: #1d4ed8 !important;
-        }
+    .dosypka-confirm-btn:hover:not(:disabled) {
+        background: #059669;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+    }
+
+    .dosypka-confirm-btn:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    .dosypka-confirm-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        background: #94a3b8;
+        box-shadow: none;
     }
 
     .dosypki-status-row {
         display: flex;
         align-items: center;
-        gap: 8px
+        gap: 8px;
+        margin-top: 8px;
     }
 
     .dosypki-spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid #ccc;
-        border-top-color: #2b7cff;
+        width: 18px;
+        height: 18px;
+        border: 2.5px solid #e2e8f0;
+        border-top-color: #3b82f6;
         border-radius: 50%;
-        animation: spin 1s linear infinite;
+        animation: spin 0.8s linear infinite;
     }
 
     .dosypki-spinner.hidden {
-        display: none
-    }
-
-    .dosypka-confirm-btn {
-        padding: 4px 6px;
-        font-size: 0.75em;
-        min-width: 50px;
-    }
-
-    .dosypki-list-root {
-        position: relative;
+        display: none;
     }
 
     .dosypki-confirm-overlay {
@@ -142,11 +112,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(255, 255, 255, 0.82);
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(2px);
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.15s ease-in-out;
-        z-index: 5;
+        transition: opacity 0.2s ease-in-out;
+        z-index: 20;
+        border-radius: 12px;
     }
 
     .dosypki-confirm-overlay.is-active {
@@ -155,63 +127,88 @@
     }
 
     .dosypki-confirm-spinner {
-        width: 64px;
-        height: 64px;
-        border: 6px solid #cbd5e1;
-        border-top-color: #2b7cff;
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e2e8f0;
+        border-top-color: #2563eb;
         border-radius: 50%;
-        animation: spin 0.9s linear infinite;
+        animation: spin 0.8s linear infinite;
     }
 
     @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+        to { transform: rotate(360deg); }
     }
 </style>
 
-<div class="p-15 dosypki-list-root" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
-    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
-        <h4 class="m-0 text-zarzad">Dosypki — lista oczekujących</h4>
+<div class="p-15 dosypki-list-root" data-popup-title="{% if linia == 'AGRO' %}Dosypki Agro{% else %}Dosypki PSD{% endif %}" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
+    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:bold;">⚡</div>
+            <div>
+                <h4 class="m-0" style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">{% if linia == 'AGRO' %}Dosypki Agro{% else %}Dosypki PSD{% endif %} — lista oczekujących</h4>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">Wprowadź faktyczną wagę i potwierdź dodanie składnika do szarży.</div>
+            </div>
+        </div>
+        {% if plan_id %}
+        <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:6px 12px; border-radius:20px; font-size:12px;">
+            Zlecenie #{{ plan_id }}
+        </span>
+        {% endif %}
     </div>
+
     <div class="mt-10">
         <div class="dosypki-status-row">
-            <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length>0 %} hidden{% endif %}">
+            <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length > 0 %} hidden{% endif %}"></div>
+            <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length > 0 %} style="display:none"{% endif %}>
+                {% if dosypki and dosypki|length == 0 %}
+                <div style="padding: 20px; text-align: center; color: #64748b; background: #f8fafc; border-radius: 10px; border: 1px dashed #cbd5e1;">
+                    ✓ Brak oczekujących dosypek dla tego zlecenia.
+                </div>
+                {% else %}
+                Ładowanie dosypek...
+                {% endif %}
             </div>
-            <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length>0 %} style="display:none"{%
-                endif %}>Ładowanie...</div>
         </div>
-        <table id="dosypki-table" class="modern-table small no-mobile-cards" {% if dosypki and dosypki|length>0
-            %}style="display:table"{% else %}style="display:none"{% endif %}>
+
+        <table id="dosypki-table" class="modern-table small no-mobile-cards" {% if dosypki and dosypki|length > 0 %}style="display:table"{% else %}style="display:none"{% endif %}>
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Plan ID</th>
-                    <th>Nazwa</th>
-                    <th>Kg</th>
-                    <th>Dodana</th>
-                    <th>Akcja</th>
+                    <th style="width: 40px;">#</th>
+                    <th style="width: 80px;">Plan ID</th>
+                    <th>Nazwa składnika</th>
+                    <th style="width: 130px; color:#1d4ed8;">Zaplanowane (Laborant)</th>
+                    <th style="width: 150px; color:#047857;">Wydozowano (Operator)</th>
+                    <th style="width: 140px;">Data zlecenia</th>
+                    <th style="width: 120px; text-align: right;">Akcja</th>
                 </tr>
             </thead>
             <tbody>
                 {% if dosypki and dosypki|length > 0 %}
-                {# Render server-side rows as fallback when JS doesn't run #}
                 {% for d in dosypki %}
-                <tr>
+                <tr data-plan-id="{{ d.plan_id }}" data-dosypka-id="{{ d.id }}">
                     <td class="text-muted" data-label="#">{{ loop.index }}</td>
-                    <td data-label="Plan ID">{{ d.plan_id }}</td>
-                    <td data-label="Nazwa">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
-                    <td data-label="Kg">{{ d.kg }} kg</td>
-                    <td data-label="Dodana">{{ d.data_zlecenia }}</td>
-                    <td data-label="Akcja">
+                    <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#{{ d.plan_id }}</span></td>
+                    <td data-label="Nazwa">
+                        <span style="font-weight:800; font-size:14px; color:#1e293b;">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</span>
+                    </td>
+                    <td data-label="Zaplanowane">
+                        <span style="display:inline-block; padding:4px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; color:#1e40af; font-weight:800;">{{ d.kg_planowane if d.kg_planowane is defined and d.kg_planowane is not none else d.kg }} kg</span>
+                    </td>
+                    <td data-label="Wydozowano">
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                            <input type="number" step="0.01" min="0.01" class="dosypka-actual-kg" value="{{ d.kg_wydozowane if d.kg_wydozowane is defined and d.kg_wydozowane is not none else (d.kg_planowane if d.kg_planowane is defined and d.kg_planowane is not none else d.kg) }}" style="width: 90px; padding: 6px 8px; border: 2px solid #10b981; border-radius: 8px; font-weight: 800; font-size:14px; text-align: right; background: #fff;" placeholder="wpisz kg" autocomplete="off" />
+                            <span style="font-weight:700; font-size:12px; color:#64748b;">kg</span>
+                        </div>
+                    </td>
+                    <td data-label="Dodana" style="font-size:12px; color:#64748b;">{{ d.data_zlecenia }}</td>
+                    <td data-label="Akcja" style="text-align: right;">
                         {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
-                        <button class="btn-action btn-save dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
+                        <button class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
                         {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
                 <script>
-                    // If server rendered rows exist, hide spinner/status so UI looks populated immediately
                     (function () {
                         const sp = document.getElementById('dosypki-spinner');
                         const st = document.getElementById('dosypki-status');
@@ -227,13 +224,9 @@
     </div>
 </div>
 
-<!-- Script moved to static/js/dosypki.js to ensure execution when slide-over injects the fragment -->
-
 <script>
-    // Initialize dosypki logic right after the HTML fragment is inserted.
     (function () {
         if (typeof window.initDosypkiList === 'function') {
-            // The container is the .quick-popup that houses this fragment
             var qbody = document.querySelector('.quick-popup');
             if (qbody) {
                 window.initDosypkiList(qbody);

@@ -1,0 +1,504 @@
+{% extends "layout.html" %}
+
+{% block extra_css %}
+<style>
+    .maluchy-page, .maluchy-page * {
+        box-sizing: border-box !important;
+    }
+
+    /* ── CONTAINER & THEME ── */
+    .maluchy-page {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 16px 20px 40px 20px;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    /* ── HEADER BANNER ── */
+    .m-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e3a8a 100%);
+        border-radius: 16px;
+        padding: 20px 28px;
+        margin-bottom: 24px;
+        color: #ffffff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .m-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .m-header-icon {
+        width: 52px;
+        height: 52px;
+        background: rgba(59, 130, 246, 0.25);
+        border: 1px solid rgba(147, 197, 253, 0.4);
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+    }
+    .m-header-title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+    }
+    .m-header-subtitle {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        color: #94a3b8;
+    }
+    .m-header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .m-badge-linia {
+        background: #2563eb;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 800;
+        padding: 6px 14px;
+        border-radius: 20px;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 4px rgba(37,99,235,0.3);
+    }
+    .m-btn-back {
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        padding: 8px 16px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .m-btn-back:hover {
+        background: rgba(255, 255, 255, 0.22);
+        color: #ffffff;
+    }
+
+    /* ── GRID LAYOUT ── */
+    .m-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 24px;
+    }
+    @media (max-width: 1024px) {
+        .m-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── CARDS ── */
+    .m-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 22px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+    .m-card-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 10px;
+    }
+    .m-card-title span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* ── FORM ROWS & CONTROLS ── */
+    .m-form-row {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    @media (max-width: 640px) {
+        .m-form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+    .m-form-row-items {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    @media (max-width: 640px) {
+        .m-form-row-items {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .m-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #475569;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .m-input, .m-select {
+        display: block;
+        width: 100%;
+        height: 48px;
+        padding: 0 14px;
+        font-size: 15px;
+        font-weight: 700;
+        border-radius: 10px;
+        border: 1.5px solid #cbd5e1;
+        background: #f8fafc;
+        color: #0f172a;
+        transition: all 0.2s;
+    }
+    .m-input:focus, .m-select:focus {
+        outline: none;
+        border-color: #2563eb;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    /* ── BUTTONS ── */
+    .m-btn-primary {
+        background: #2563eb;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 800;
+        padding: 13px 20px;
+        border-radius: 10px;
+        border: none;
+        width: 100%;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+    }
+    .m-btn-primary:hover {
+        background: #1d4ed8;
+        transform: translateY(-1px);
+    }
+    .m-btn-primary:active {
+        transform: translateY(0);
+    }
+
+    .m-btn-success {
+        background: #10b981;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 800;
+        padding: 14px 20px;
+        border-radius: 10px;
+        border: none;
+        width: 100%;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
+    }
+    .m-btn-success:hover {
+        background: #059669;
+        transform: translateY(-1px);
+    }
+
+    /* ── STATIONS GRID (KO01 - KO40) ── */
+    .m-stations-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+    @media (max-width: 768px) {
+        .m-stations-grid {
+            grid-template-columns: repeat(5, 1fr);
+        }
+    }
+    @media (max-width: 480px) {
+        .m-stations-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+    .m-st-btn {
+        padding: 9px 2px;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-weight: 800;
+        font-size: 13px;
+        color: #334155;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-align: center;
+    }
+    .m-st-btn:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+    .m-st-btn.active {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #1d4ed8;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+    }
+
+    /* ── BUCKET BADGE ── */
+    .m-bucket-pill {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1.5px solid #bfdbfe;
+        font-size: 14px;
+        font-weight: 900;
+        padding: 3px 10px;
+        border-radius: 8px;
+        letter-spacing: 0.5px;
+    }
+
+    /* ── TABLE ── */
+    .m-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .m-table th {
+        background: #f8fafc;
+        padding: 10px 12px;
+        font-size: 11px;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+    }
+    .m-table td {
+        padding: 11px 12px;
+        font-size: 13px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #1e293b;
+    }
+    .m-table tr:hover td {
+        background: #f8fafc;
+    }
+
+    /* ── STATUS BADGES ── */
+    .status-badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .status-w_trakcie_nawazania { background: #fef3c7; color: #b45309; }
+    .status-skompletowane { background: #dbeafe; color: #1d4ed8; }
+    .status-wrzucone_do_mieszalnika { background: #d1fae5; color: #047857; }
+
+    /* ── CUSTOM TOAST NOTIFICATION ── */
+    #mToastContainer {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    }
+    .m-toast {
+        pointer-events: auto;
+        min-width: 300px;
+        max-width: 420px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #ffffff;
+        box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.25);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: opacity 0.3s;
+    }
+    .m-toast-success { background: #059669; border: 1px solid #34d399; }
+    .m-toast-error { background: #dc2626; border: 1px solid #f87171; }
+    .m-toast-info { background: #2563eb; border: 1px solid #60a5fa; }
+    @keyframes toastSlideIn {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* ── CUSTOM CONFIRM MODAL ── */
+    #mConfirmModal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="maluchy-page" id="maluchyAppContainer" data-linia="{{ linia }}">
+    <!-- ── HEADER ── -->
+    <div class="m-header">
+        <div class="m-header-left">
+            <div class="m-header-icon">🪣</div>
+            <div>
+                <h1 class="m-header-title">Naważanie Maluchów (Stacje KO01–KO40)</h1>
+                <p class="m-header-subtitle">
+                    Skanuj wiadro, dodawaj składniki ze stacji KO i potwierdź skompletowanie.
+                </p>
+            </div>
+        </div>
+        <div class="m-header-right">
+            <span class="m-badge-linia">LINIA: {{ linia }}</span>
+            <a href="{{ url_for('main.index', linia=linia, sekcja='Zasyp') }}" class="m-btn-back">
+                ↩ Powrót do Zasypu
+            </a>
+        </div>
+    </div>
+
+    <!-- ── MAIN CONTENT GRID ── -->
+    <div class="m-grid">
+        <!-- LEFT COLUMN: Step 1 & Step 2 -->
+        <div>
+            <!-- KROK 1: Wybór Wiadra i Zlecenia -->
+            <div class="m-card">
+                <div class="m-card-title">
+                    <span>1. Zeskanuj Wiadro i Wybierz Zlecenie</span>
+                </div>
+                <div class="m-form-row">
+                    <div>
+                        <label class="m-label" for="inputKodWiadra">Kod Wiadra (01–99 / Skaner)</label>
+                        <input type="text" id="inputKodWiadra" class="m-input" placeholder="np. 04, 12 (Enter)" 
+                               style="text-transform: uppercase; font-weight: 800; font-size: 16px;" autofocus />
+                    </div>
+                    <div>
+                        <label class="m-label" for="selectPlanId">Aktywne Zlecenie Zasypu (Ostatnie 7 dni)</label>
+                        <select id="selectPlanId" class="m-select">
+                            {% for p in active_plans %}
+                            <option value="{{ p.id }}" {% if p.id == selected_plan_id %}selected{% endif %}>
+                                #{{ p.id }} - {{ p.produkt }} ({{ p.data_planu_fmt }}) {% if p.status == 'w toku' %}🔥 [W TOKU]{% endif %}
+                            </option>
+                            {% else %}
+                            <option value="">Brak zleceń zasypu z ostatnich 7 dni dla linii {{ linia }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button type="button" id="btnStartBucket" class="m-btn-primary">
+                    ▶ Rozpocznij / Otwórz Wiadro (Enter)
+                </button>
+            </div>
+
+            <!-- KROK 2: Dodawanie Składników (KO01–KO40) -->
+            <div class="m-card" id="cardNawazanie" style="display: none;">
+                <div class="m-card-title">
+                    <span>2. Skanuj Zbiornik / Stację (KO01–KO40)</span>
+                    <span id="activeBucketDisplay" class="m-bucket-pill">00</span>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label class="m-label" for="inputStacjaKod" style="color: #2563eb; font-size: 13px;">
+                        🎯 Zeskanuj Kod Zbiornika / Stacji KO (Enter dodaje automatycznie):
+                    </label>
+                    <input type="text" id="inputStacjaKod" class="m-input" placeholder="np. KO04, 04, KO12 (Skaner)" 
+                           style="text-transform: uppercase; font-weight: 800; font-size: 16px; border: 2px solid #2563eb;" />
+                </div>
+
+                <label class="m-label" style="font-size: 11px; color: #64748b;">Lub wybierz dotykowo zbiornik z listy:</label>
+                <div class="m-stations-grid">
+                    {% for st in ko_stations %}
+                    <button type="button" class="m-st-btn" data-stacja="{{ st }}">{{ st }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Bucket contents & History -->
+        <div>
+            <!-- Zawartość bieżącego wiadra -->
+            <div class="m-card" id="cardBucketDetails" style="display: none;">
+                <div class="m-card-title">
+                    <span>Zawartość Wiadra: <strong id="detailsBucketCode" style="color: #2563eb; margin-left: 4px;">—</strong></span>
+                    <span id="detailsItemsCount" style="color: #64748b; font-size: 13px; font-weight: 700;">0 pozycji</span>
+                </div>
+
+                <div style="max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 14px;">
+                    <table class="m-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Stacja</th>
+                                <th>Surowiec</th>
+                                <th style="text-align: center; width: 15%;">Usuń</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bucketItemsBody">
+                            <tr><td colspan="3" class="text-center text-muted" style="padding: 16px;">Brak dodanych pozycji</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="btnCompleteBucket" class="m-btn-primary" style="flex: 2; background: #1e3a8a;">
+                        📦 ZAKOŃCZ KOMPLETACJĘ WIADRA
+                    </button>
+                    <button type="button" id="btnDeleteActiveBucket" style="flex: 1; background: #fee2e2; color: #dc2626; border: 1.5px solid #fca5a5; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; padding: 10px 14px;">
+                        🗑 USUŃ WIADRO
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lista wiaderek dla zlecenia -->
+            <div class="m-card">
+                <div class="m-card-title">
+                    <span>📋 Przygotowane Wiaderka dla Zlecenia</span>
+                </div>
+                <div id="planBucketsList" style="max-height: 380px; overflow-y: auto;">
+                    <p class="text-muted text-center" style="padding: 20px;">Ładowanie listy wiaderek...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TOAST CONTAINER ── -->
+<div id="mToastContainer"></div>
+
+<!-- ── CONFIRM MODAL (Zero system alert/confirm) ── -->
+<div id="mConfirmModal">
+    <div style="background: #ffffff; border-radius: 14px; max-width: 440px; width: 90%; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
+        <h3 id="mConfirmTitle" style="margin: 0 0 10px 0; font-size: 17px; font-weight: 800; color: #0f172a;">Potwierdzenie</h3>
+        <p id="mConfirmMsg" style="margin: 0 0 20px 0; font-size: 14px; color: #475569;"></p>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" id="mConfirmCancel" style="padding: 10px 18px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; font-weight: 700; cursor: pointer;">Anuluj</button>
+            <button type="button" id="mConfirmOk" style="padding: 10px 18px; border: none; background: #2563eb; color: #fff; border-radius: 8px; font-weight: 800; cursor: pointer;">Potwierdź</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/maluchy/maluchy_nawazanie.js') }}"></script>
+{% endblock %}

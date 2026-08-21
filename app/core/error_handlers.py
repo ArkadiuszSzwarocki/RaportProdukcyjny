@@ -199,6 +199,20 @@ def register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
         """Handle uncaught exceptions with logging and user-friendly response."""
+        from werkzeug.exceptions import HTTPException
+        if isinstance(error, HTTPException):
+            if error.code == 404:
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                    if is_xhr or accepts_json or request.path.startswith('/api/'):
+                        return jsonify({'success': False, 'message': 'Nie znaleziono zasobu (404)'}), 404
+                    return render_template('404.html'), 404
+                except Exception:
+                    return error.get_response()
+            if error.code and error.code < 500:
+                return error.get_response()
+
         try:
             # Gather context for precise identification
             error_msg = f"{error.__class__.__name__}: {str(error)}"

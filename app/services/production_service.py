@@ -326,7 +326,7 @@ class ProductionService:
 
                 cursor.execute(
                     f"""
-                    SELECT d.szarza_id, d.nazwa, d.kg
+                    SELECT d.szarza_id, d.nazwa, COALESCE(d.kg_wydozowane, d.kg), COALESCE(d.kg_planowane, d.kg)
                     FROM {table_dosypki} d
                     WHERE d.plan_id IN ({fmt_ids})
                       AND d.szarza_id IS NOT NULL
@@ -338,7 +338,7 @@ class ProductionService:
                 )
                 dosypki_rows = cursor.fetchall() or []
 
-                dosypki_by_szarza: Dict[int, List[Tuple[str, float]]] = {}
+                dosypki_by_szarza: Dict[int, List[Tuple[str, float, float]]] = {}
                 dosypki_sum_by_szarza: Dict[int, float] = {}
                 for d_row in dosypki_rows:
                     try:
@@ -346,9 +346,61 @@ class ProductionService:
                     except Exception:
                         continue
                     nazwa = str(d_row[1] or '').strip()
-                    kg = float(d_row[2] or 0)
-                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg))
-                    dosypki_sum_by_szarza[szarza_id] = float(dosypki_sum_by_szarza.get(szarza_id, 0.0)) + kg
+                    kg_wyd = float(d_row[2] or 0)
+                    kg_plan = float(d_row[3] or d_row[2] or 0)
+                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg_wyd, kg_plan))
+                    dosypki_sum_by_szarza[szarza_id] = float(dosypki_sum_by_szarza.get(szarza_id, 0.0)) + kg_wyd
+
+                # Load dumped Wiaderka z Maluchami
+                cursor.execute(
+                    f"""
+                    SELECT w.szarza_id, w.id, w.kod_wiadra, w.waga_calkowita, DATE_FORMAT(w.data_zasypania, '%H:%i'), COALESCE(w.mieszalnik_kod, 'MI01')
+                    FROM wiaderka_maluchy w
+                    WHERE w.plan_id IN ({fmt_ids})
+                      AND w.status = 'wrzucone_do_mieszalnika'
+                    ORDER BY w.data_zasypania ASC, w.id ASC
+                    """,
+                    plan_ids,
+                )
+                wiaderka_rows = cursor.fetchall() or []
+                bucket_ids = [int(w[1]) for w in wiaderka_rows if w[1] is not None]
+                items_by_bucket: Dict[int, List[Dict[str, Any]]] = {}
+                if bucket_ids:
+                    fmt_b_ids = ','.join(['%s'] * len(bucket_ids))
+                    cursor.execute(
+                        f"""
+                        SELECT wiaderko_id, stacja_kod, surowiec_nazwa, waga_faktyczna
+                        FROM wiaderka_maluchy_pozycje
+                        WHERE wiaderko_id IN ({fmt_b_ids})
+                        ORDER BY id ASC
+                        """,
+                        bucket_ids,
+                    )
+                    for item_row in cursor.fetchall() or []:
+                        b_id = int(item_row[0])
+                        items_by_bucket.setdefault(b_id, []).append({
+                            'stacja': item_row[1],
+                            'surowiec': item_row[2],
+                            'waga': float(item_row[3] or 0),
+                        })
+
+                wiaderka_by_szarza: Dict[int, List[Dict[str, Any]]] = {}
+                for w_row in wiaderka_rows:
+                    sz_id = int(w_row[0]) if w_row[0] is not None else 0
+                    b_id = int(w_row[1])
+                    w_kod = str(w_row[2] or '')
+                    w_waga = float(w_row[3] or 0)
+                    w_godz = str(w_row[4] or '')
+                    w_mieszalnik = str(w_row[5] or 'MI01')
+                    wiaderko_obj = {
+                        'id': b_id,
+                        'kod': w_kod,
+                        'waga': w_waga,
+                        'godzina': w_godz,
+                        'mieszalnik': w_mieszalnik,
+                        'pozycje': items_by_bucket.get(b_id, []),
+                    }
+                    wiaderka_by_szarza.setdefault(sz_id, []).append(wiaderko_obj)
 
                 for row in szarze_rows:
                     pid = row[0]
@@ -360,7 +412,7 @@ class ProductionService:
                     autor = row[5] or ''
                     uwagi = row[6] or ''
 
-                    # Dla widoku szarży pokazujemy łączną wagę: zasyp + potwierdzone dosypki.
+                    # Dla widoku szarży łączna waga: zasyp + dosypki (wiaderka to info bez dodawania wagi)
                     waga_laczna = baza_waga + suma_dosypki
 
                     if pid not in palety_mapa:
@@ -374,6 +426,7 @@ class ProductionService:
                             status,
                             autor,
                             uwagi,
+                            wiaderka_by_szarza.get(szarza_id, []),
                         ]
                     )
 

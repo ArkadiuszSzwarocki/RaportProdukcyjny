@@ -110,25 +110,55 @@
         }
     }
 
-    function renderActionCell(d, role) {
+    function renderActionCell(d, role, initialDisabled = false) {
         if (role === 'masteradmin' || role === 'operator' || role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin' || role === 'zarzad') {
-            return '<button class="btn-action btn-save dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm">✓ Potwierdź</button>';
+            const disabledAttr = initialDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : '';
+            return '<button class="dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm" ' + disabledAttr + '>✓ Potwierdź</button>';
         }
         return '';
     }
 
     function buildRowHtml(d, idx, role) {
         const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
+        const planKg = d.kg_planowane !== undefined && d.kg_planowane !== null ? d.kg_planowane : d.kg;
+        const valKg = d.kg_wydozowane !== undefined && d.kg_wydozowane !== null ? d.kg_wydozowane : planKg;
         return `
-            <tr data-plan-id="${escapeHtml(d.plan_id)}">
+            <tr data-plan-id="${escapeHtml(d.plan_id)}" data-dosypka-id="${escapeHtml(d.id)}">
                 <td class="text-muted" data-label="#">${idx + 1}</td>
-                <td data-label="Plan ID">${escapeHtml(d.plan_id)}</td>
-                <td data-label="Nazwa">${nameHtml}</td>
-                <td data-label="Kg">${escapeHtml(d.kg)} kg</td>
-                <td data-label="Dodana">${escapeHtml(d.data_zlecenia)}</td>
-                <td data-label="Akcja">${renderActionCell(d, role)}</td>
+                <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#${escapeHtml(d.plan_id)}</span></td>
+                <td data-label="Nazwa">
+                    <span style="font-weight:800; font-size:14px; color:#1e293b;">${nameHtml}</span>
+                </td>
+                <td data-label="Zaplanowane">
+                    <span style="display:inline-block; padding:4px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; color:#1e40af; font-weight:800;">${escapeHtml(planKg)} kg</span>
+                </td>
+                <td data-label="Wydozowano">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                        <input type="number" step="0.01" min="0.01" class="dosypka-actual-kg" 
+                               value="${escapeHtml(valKg)}" 
+                               style="width: 90px; padding: 6px 8px; border: 2px solid #10b981; border-radius: 8px; font-weight: 800; font-size:14px; text-align: right; background: #fff;" 
+                               placeholder="wpisz kg" 
+                               autocomplete="off" />
+                        <span style="font-weight:700; font-size:12px; color:#64748b;">kg</span>
+                    </div>
+                </td>
+                <td data-label="Dodana" style="font-size:12px; color:#64748b;">${escapeHtml(d.data_zlecenia)}</td>
+                <td data-label="Akcja" style="text-align: right;">${renderActionCell(d, role, false)}</td>
             </tr>
         `;
+    }
+
+    function focusFirstEmptyInput(container) {
+        if (!container) return;
+        setTimeout(() => {
+            const inputs = container.querySelectorAll('input.dosypka-actual-kg');
+            for (const input of inputs) {
+                if (!input.value && !input.disabled) {
+                    input.focus();
+                    break;
+                }
+            }
+        }, 120);
     }
 
     async function fetchDosypki(container) {
@@ -188,6 +218,7 @@
                 tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx, role));
             });
             debugLog('[dosypki.fetch] Populated tbody with', list.length, 'rows');
+            focusFirstEmptyInput(container);
         } catch (e) {
             if (spinner) spinner.classList.add('hidden');
             if (container && container.querySelector('#dosypki-status')) {
@@ -204,6 +235,22 @@
         try {
             const row = btn.closest('tr');
             const planId = row ? row.getAttribute('data-plan-id') : null;
+            const actualInput = row ? row.querySelector('.dosypka-actual-kg') : null;
+            let actualKg = null;
+            if (actualInput) {
+                const rawVal = (actualInput.value || '').replace(',', '.').trim();
+                const parsed = parseFloat(rawVal);
+                if (isNaN(parsed) || parsed <= 0) {
+                    if (typeof AppDialog !== 'undefined' && AppDialog.alert) {
+                        AppDialog.alert('Wpisz prawidłową wagę wydozowaną przez maszynę (większą od 0 kg)!');
+                    } else {
+                        alert('Wpisz prawidłową wagę wydozowaną przez maszynę (większą od 0 kg)!');
+                    }
+                    actualInput.focus();
+                    return;
+                }
+                actualKg = parsed;
+            }
 
             const p15 = btn.closest && btn.closest('.p-15');
             const linia = getCurrentLinia(p15 || btn);
@@ -218,8 +265,10 @@
                 credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ kg: actualKg })
             });
             const data = await res.json().catch(() => ({}));
 
@@ -259,11 +308,45 @@
         if (container.__dosypki_inited) return;
         container.__dosypki_inited = true;
 
+        // Real-time input validation to enable/disable confirm button
+        container.addEventListener('input', function (ev) {
+            const input = ev.target.closest && ev.target.closest('input.dosypka-actual-kg');
+            if (!input) return;
+            const row = input.closest('tr');
+            const btn = row ? row.querySelector('.dosypka-confirm-btn') : null;
+            if (!btn) return;
+            const val = parseFloat((input.value || '').replace(',', '.').trim());
+            if (!isNaN(val) && val > 0) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
+        });
+
+        // Pressing Enter in the input field submits confirmation
+        container.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                const input = ev.target.closest && ev.target.closest('input.dosypka-actual-kg');
+                if (!input) return;
+                const row = input.closest('tr');
+                const btn = row ? row.querySelector('.dosypka-confirm-btn') : null;
+                if (btn && !btn.disabled) {
+                    ev.preventDefault();
+                    btn.click();
+                }
+            }
+        });
+
         // delegate click for confirmation buttons
         // Only handle clicks on buttons explicitly rendered as dosypka confirmation
         container.addEventListener('click', function (ev) {
             const btn = ev.target.closest && ev.target.closest('button.dosypka-confirm-btn[data-id]');
             if (!btn) return;
+            if (btn.disabled) return;
             const id = btn.getAttribute('data-id');
             if (!id) return;
 
@@ -274,6 +357,7 @@
 
         // initial load
         fetchDosypki(container);
+        focusFirstEmptyInput(container);
     }
 
     // Expose for manual init

@@ -1,30 +1,21 @@
 // ---- WAREHOUSE FILTERING & TABS ----
-function switchWarehouse(warehouseId) {
-    console.log("Przełączanie magazynu na:", warehouseId);
+function switchWarehouse(warehouseId, keepCurrentSubtab = false) {
+    console.log("Przełączanie magazynu na:", warehouseId, "keepCurrentSubtab:", keepCurrentSubtab);
     
     currentWarehouseId = warehouseId;
-    currentSubWarehouseId = 'all'; // Resetuj regał przy zmianie magazynu
     localStorage.setItem('warehouse_tab', warehouseId);
-    localStorage.setItem('warehouse_subtab', 'all');
-    
-    // Zaktualizuj UI regałów (zaznacz "Wszystkie")
-    const allRackInput = document.getElementById('rack-all');
-    if (allRackInput) {
-        allRackInput.checked = true;
-        updateRackLabel('Wszystkie Lokalizacje');
-    }
     
     // Dynamiczne ukrywanie/pokazywanie opcji w menu regałów
     document.querySelectorAll('.nav-item-row-rack').forEach(row => {
         const rid = row.getAttribute('data-rack-id');
         if (warehouseId === 'OSIP') {
-            if (rid === 'all' || rid === 'OS01' || rid === 'OSIP') {
+            if (rid === 'all' || rid === 'OS01' || rid === 'OS01-77' || rid === 'OSIP') {
                 row.style.display = 'flex';
             } else {
                 row.style.display = 'none';
             }
         } else {
-            if (rid === 'OS01' || rid === 'OSIP') {
+            if (rid === 'OS01' || rid === 'OS01-77' || rid === 'OSIP') {
                 row.style.display = 'none';
             } else {
                 row.style.display = 'flex';
@@ -32,19 +23,50 @@ function switchWarehouse(warehouseId) {
         }
     });
 
+    const isOsipRack = (currentSubWarehouseId === 'OS01' || currentSubWarehouseId === 'OS01-77' || currentSubWarehouseId === 'OSIP');
+    const isStandardRack = (!isOsipRack && currentSubWarehouseId !== 'all');
+
+    // Sprawdź czy bieżący regał jest kompatybilny z nowym magazynem
+    if (!keepCurrentSubtab || (warehouseId === 'OSIP' && isStandardRack) || (warehouseId !== 'OSIP' && isOsipRack)) {
+        currentSubWarehouseId = 'all';
+        localStorage.setItem('warehouse_subtab', 'all');
+        const allRackInput = document.getElementById('rack-all');
+        if (allRackInput) {
+            allRackInput.checked = true;
+            if (typeof updateRackLabel === 'function') {
+                updateRackLabel('Wszystkie Lokalizacje');
+            }
+        }
+    } else {
+        // Zachowaj wybrany regał
+        localStorage.setItem('warehouse_subtab', currentSubWarehouseId);
+        const activeRackInput = document.getElementById('rack-' + currentSubWarehouseId);
+        if (activeRackInput) {
+            activeRackInput.checked = true;
+            const labelEl = document.querySelector(`label[for="${activeRackInput.id}"] .item-name`);
+            if (labelEl && typeof updateRackLabel === 'function') {
+                updateRackLabel(labelEl.innerText);
+            }
+        }
+    }
+
     // 1. Paski pojemności (Przełączanie widoczności)
     document.querySelectorAll('.capacity-bar').forEach(b => b.style.display = 'none');
     
-    let capBar = document.getElementById('cap-' + warehouseId) || 
-                 document.getElementById('cap-' + warehouseId.toUpperCase()) ||
-                 document.getElementById('cap-' + warehouseId.toLowerCase());
+    let targetCapId = (currentSubWarehouseId !== 'all') ? currentSubWarehouseId : warehouseId;
+    let capBar = document.getElementById('cap-' + targetCapId) || 
+                 document.getElementById('cap-' + targetCapId.toUpperCase()) ||
+                 document.getElementById('cap-' + targetCapId.toLowerCase()) ||
+                 document.getElementById('cap-' + warehouseId);
                  
     if (capBar) {
         capBar.style.display = 'block';
     }
     
     // 2. Filtruj tabelę lokalnie
-    filterTable(); 
+    if (typeof filterTable === 'function') {
+        filterTable();
+    }
 }
 
 function switchSubWarehouse(subId, element) {

@@ -1,5 +1,3 @@
-let selectedLocations = []; // To store selected locations from multiselect
-
 function populateLocationFilter() {
     const checkboxesContainer = document.getElementById('locationCheckboxes');
     if (!checkboxesContainer) return;
@@ -24,9 +22,26 @@ function populateLocationFilter() {
     
     const uniqueLocations = [...uniqueLocationsSet].sort((a, b) => a.localeCompare(b));
     
+    // Odczytaj zapisane lokalizacje z localStorage
+    const savedLocs = localStorage.getItem('warehouse_locations');
+    if (savedLocs) {
+        try {
+            const parsed = JSON.parse(savedLocs);
+            if (Array.isArray(parsed)) {
+                selectedLocations = parsed;
+            }
+        } catch (e) {
+            console.warn("Błąd parsowania warehouse_locations z localStorage:", e);
+        }
+    }
+    
+    if (!selectedLocations || selectedLocations.length === 0) {
+        selectedLocations = [...uniqueLocations];
+    }
+    
     let html = '';
     uniqueLocations.forEach(loc => {
-        const isChecked = selectedLocations.length === 0 || selectedLocations.includes(loc) ? 'checked' : '';
+        const isChecked = selectedLocations.includes(loc) ? 'checked' : '';
         html += `
             <label style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: 6px; hover:background-color: #f1f5f9;">
                 <input type="checkbox" value="${loc}" class="loc-checkbox" onchange="updateSelectedLocations()" ${isChecked}>
@@ -35,8 +50,20 @@ function populateLocationFilter() {
         `;
     });
     checkboxesContainer.innerHTML = html;
-    if (selectedLocations.length === 0) {
-        selectedLocations = [...uniqueLocations];
+    updateLocationDropdownLabel(uniqueLocations.length);
+}
+
+function updateLocationDropdownLabel(totalUnique) {
+    const labelEl = document.getElementById('locationDropdownLabel');
+    if (!labelEl) return;
+    
+    const total = totalUnique || document.querySelectorAll('.loc-checkbox').length;
+    if (selectedLocations.length === total || total === 0) {
+        labelEl.textContent = 'Filtruj Lokacje';
+    } else if (selectedLocations.length === 0) {
+        labelEl.textContent = 'Żadna Lokacja (0)';
+    } else {
+        labelEl.textContent = `Lokacje (${selectedLocations.length}/${total})`;
     }
 }
 
@@ -45,6 +72,9 @@ function updateSelectedLocations() {
     selectedLocations = Array.from(checkboxes)
         .filter(cb => cb.checked)
         .map(cb => cb.value);
+    
+    localStorage.setItem('warehouse_locations', JSON.stringify(selectedLocations));
+    updateLocationDropdownLabel(checkboxes.length);
     filterTable();
 }
 
@@ -56,7 +86,6 @@ function selectAllLocations(select) {
 
 function filterTable() {
     const input = document.getElementById("searchInput");
-    
     const filter = input ? input.value.toUpperCase().trim() : "";
     
     // Zapisz aktualną wartość wyszukiwania do localStorage (persist po reload)
@@ -125,8 +154,10 @@ function filterTable() {
         fifoList.push(...group);
     });
 
-    // Jeśli szukamy frazy (np. "hydro"), posortuj wg nazwy i ścisłej kolejności FIFO
-    if (filter) {
+    // Zastosuj sortowanie lub domyślny porządek FIFO
+    if (typeof currentSortCol !== 'undefined' && currentSortCol !== null && typeof sortWarehouseItems === 'function') {
+        currentFilteredItems = sortWarehouseItems(fifoList, currentSortCol, currentSortDir);
+    } else if (filter) {
         fifoList.sort((a, b) => {
             const nameCmp = String(a.productName || '').localeCompare(String(b.productName || ''));
             if (nameCmp !== 0) return nameCmp;
@@ -155,7 +186,9 @@ function filterTable() {
     loadMoreItems();
 
     // 4. Aktualizuj banner statusu filtra
-    _updateFilterBanner(filter, currentFilteredItems.length, allWarehouseItems.length);
+    if (typeof _updateFilterBanner === 'function') {
+        _updateFilterBanner(filter, currentFilteredItems.length, allWarehouseItems.length);
+    }
 }
 
 function loadMoreItems() {

@@ -41,29 +41,6 @@
             flex-wrap: wrap;
         }
 
-        .keyboard-controls {
-            margin-top: 12px;
-            text-align: center;
-        }
-
-        .btn-keyboard-toggle {
-            background: #0f766e !important;
-            color: #fff !important;
-            border: 1px solid #0f766e !important;
-        }
-
-        .btn-keyboard-toggle.enabled {
-            background: #0369a1 !important;
-            border-color: #0369a1 !important;
-        }
-
-        .keyboard-hint {
-            margin: 8px 0 0;
-            color: #475569;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-
         .anti-autofill-trap {
             position: absolute;
             left: -10000px;
@@ -75,12 +52,52 @@
             pointer-events: none;
         }
 
-        .password-field-wrap {
+        .input-with-icon-wrap {
             position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .input-with-icon-wrap .form-input {
+            padding-left: 42px !important;
+            width: 100%;
         }
 
         .password-field-wrap .form-input {
-            padding-right: 46px;
+            padding-right: 46px !important;
+        }
+
+        .input-keyboard-icon-btn {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #64748b;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            z-index: 2;
+            transition: color 0.2s ease, transform 0.15s ease;
+        }
+
+        .input-keyboard-icon-btn:hover {
+            color: #0284c7;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .input-with-icon-wrap:focus-within .input-keyboard-icon-btn {
+            color: #0284c7;
+        }
+
+        .password-field-wrap {
+            position: relative;
         }
 
         .password-visibility-toggle {
@@ -98,6 +115,7 @@
             justify-content: center;
             cursor: pointer;
             padding: 0;
+            z-index: 2;
         }
 
         .password-visibility-toggle:hover {
@@ -121,7 +139,6 @@
         .password-visibility-toggle.visible .password-eye-closed {
             display: inline-flex;
         }
-
 
         /* Premium Loading Overlay inside login-card */
         .login-card {
@@ -323,12 +340,42 @@
         </div>
         <div class="form-group">
             <label for="login" class="form-label">{{ _('login') }}</label>
-            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="none" spellcheck="false" data-lpignore="true">
+            <div class="input-with-icon-wrap">
+                <button type="button" class="input-keyboard-icon-btn" onclick="focusFieldWithKeyboard('login')" title="Klawiatura ekranowa" tabindex="-1">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                        <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                        <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                        <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                        <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                        <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                        <line x1="10" y1="12" x2="10.01" y2="12"></line>
+                        <line x1="14" y1="12" x2="14.01" y2="12"></line>
+                        <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                        <line x1="7" y1="16" x2="17" y2="16"></line>
+                    </svg>
+                </button>
+                <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="text" spellcheck="false" data-lpignore="true">
+            </div>
         </div>
         <div class="form-group">
             <label for="haslo" class="form-label">{{ _('haslo') }}</label>
-            <div class="password-field-wrap">
-                <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password" autocorrect="off" inputmode="none" data-lpignore="true">
+            <div class="input-with-icon-wrap password-field-wrap">
+                <button type="button" class="input-keyboard-icon-btn" onclick="focusFieldWithKeyboard('haslo')" title="Klawiatura ekranowa" tabindex="-1">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                        <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                        <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                        <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                        <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                        <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                        <line x1="10" y1="12" x2="10.01" y2="12"></line>
+                        <line x1="14" y1="12" x2="14.01" y2="12"></line>
+                        <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                        <line x1="7" y1="16" x2="17" y2="16"></line>
+                    </svg>
+                </button>
+                <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password" autocorrect="off" inputmode="text" data-lpignore="true">
                 <button type="button" id="toggle-password-visibility" class="password-visibility-toggle" aria-label="Pokaż hasło" aria-pressed="false">
                     <span class="password-eye-open" aria-hidden="true">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -345,10 +392,6 @@
                     </span>
                 </button>
             </div>
-        </div>
-        <div class="keyboard-controls">
-            <button type="button" id="toggle-soft-keyboard" class="btn-login btn-keyboard-toggle" aria-pressed="false">Włącz klawiaturę ekranową</button>
-            <p id="keyboard-hint" class="keyboard-hint">Tryb skanera: klawiatura ekranowa jest wyłączona. Włącz tylko przy ręcznym wpisywaniu.</p>
         </div>
         <div class="login-actions">
             <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
@@ -373,17 +416,26 @@ function changeLanguage(lang) {
     window.location.href = window.location.pathname + "?lang=" + lang;
 }
 
-// Usunięto logikę serwera druku na ekranie logowania
-
 // Ustawiamy selektor na domyślny się wybrany język z cookie oraz dodajemy animację logowania
 window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
     const loginInput = document.getElementById('login');
     const passwordInput = document.getElementById('haslo');
     const passwordVisibilityToggleBtn = document.getElementById('toggle-password-visibility');
-    const softKeyboardToggleBtn = document.getElementById('toggle-soft-keyboard');
-    const keyboardHintEl = document.getElementById('keyboard-hint');
     const keyboardManagedInputs = [loginInput, passwordInput].filter(Boolean);
+
+    window.focusFieldWithKeyboard = function(fieldId) {
+        setSoftKeyboardState(true, false);
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.setAttribute('inputmode', 'text');
+            field.focus();
+            try {
+                const len = String(field.value || '').length;
+                field.setSelectionRange(len, len);
+            } catch (e) {}
+        }
+    };
 
     function setPasswordVisible(isVisible) {
         if (!passwordInput || !passwordVisibilityToggleBtn) return;
@@ -393,53 +445,11 @@ window.addEventListener('DOMContentLoaded', function() {
         passwordVisibilityToggleBtn.setAttribute('aria-label', isVisible ? 'Ukryj hasło' : 'Pokaż hasło');
     }
 
-    function getKeyboardCopy(language, enabled) {
-        const i18n = {
-            pl: {
-                buttonOn: 'Wylacz klawiature ekranowa',
-                buttonOff: 'Wlacz klawiature ekranowa',
-                hintOn: 'Tryb reczny: klawiatura ekranowa jest wlaczona.',
-                hintOff: 'Tryb skanera: klawiatura ekranowa jest wylaczona. Wlacz tylko przy recznym wpisywaniu.'
-            },
-            uk: {
-                buttonOn: 'Вимкнути екранну клавіатуру',
-                buttonOff: 'Увімкнути екранну клавіатуру',
-                hintOn: 'Ручний режим: екранна клавіатура увімкнена.',
-                hintOff: 'Режим сканера: екранна клавіатура вимкнена. Увімкніть її лише для ручного введення.'
-            },
-            en: {
-                buttonOn: 'Disable on-screen keyboard',
-                buttonOff: 'Enable on-screen keyboard',
-                hintOn: 'Manual mode: on-screen keyboard is enabled.',
-                hintOff: 'Scanner mode: on-screen keyboard is disabled. Enable it only for manual typing.'
-            }
-        };
-
-        const copy = i18n[language] || i18n.pl;
-        return {
-            button: enabled ? copy.buttonOn : copy.buttonOff,
-            hint: enabled ? copy.hintOn : copy.hintOff
-        };
-    }
-
     function setSoftKeyboardState(enabled, shouldFocusLogin) {
         keyboardManagedInputs.forEach(function(input) {
             if (!input) return;
-            if (enabled) {
-                input.setAttribute('inputmode', 'text');
-            } else {
-                input.setAttribute('inputmode', 'none');
-            }
+            input.setAttribute('inputmode', enabled ? 'text' : 'none');
         });
-
-        if (softKeyboardToggleBtn) {
-            const selectedLang = langSelector ? langSelector.value : 'pl';
-            const copy = getKeyboardCopy(selectedLang, enabled);
-            softKeyboardToggleBtn.textContent = copy.button;
-            softKeyboardToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-            softKeyboardToggleBtn.classList.toggle('enabled', enabled);
-            if (keyboardHintEl) keyboardHintEl.textContent = copy.hint;
-        }
 
         if (shouldFocusLogin && loginInput) {
             setTimeout(function() {
@@ -466,7 +476,8 @@ window.addEventListener('DOMContentLoaded', function() {
 
     setPasswordVisible(false);
 
-    setSoftKeyboardState(false, false);
+    // Klawiatura ekranowa włączona domyślnie
+    setSoftKeyboardState(true, false);
 
     if (langSelector) {
         // Czytaj język z URL lub cookie
@@ -476,7 +487,7 @@ window.addEventListener('DOMContentLoaded', function() {
         const currentLang = langParam || (langCookie ? langCookie.split('=')[1] : 'pl');
         
         langSelector.value = currentLang;
-        setSoftKeyboardState(false, false);
+        setSoftKeyboardState(true, false);
     }
 
     if (softKeyboardToggleBtn) {

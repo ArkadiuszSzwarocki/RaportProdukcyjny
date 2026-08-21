@@ -157,6 +157,7 @@ function setViewMode(mode) {
 }
 </script>
 
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/state.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/modals.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_delete.js') }}?v={{ static_version }}"></script>
@@ -165,11 +166,11 @@ function setViewMode(mode) {
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_block.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/filters.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/sorting.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/init.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/reports.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/returns.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_logic.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/rendering_templates.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_logic.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/init.js') }}?v={{ static_version }}"></script>
 
 <script>
 // ---- DELEGOWANY EVENT LISTENER DLA MODALU PALETY ----
@@ -177,15 +178,6 @@ function setViewMode(mode) {
 document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('warehouseItemsContainer');
     if (!container) return;
-    
-    // Initialize location filter dropdown
-    if (typeof populateLocationFilter === 'function') {
-        populateLocationFilter();
-    }
-
-    if (typeof filterTable === 'function') {
-        filterTable();
-    }
 
     container.addEventListener('click', function(e) {
         // Znajdź klikniętą paletę (wiersz tabeli lub kafelek)

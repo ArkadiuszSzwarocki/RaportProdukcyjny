@@ -24,13 +24,17 @@ class WarehouseV2Service:
             historia_stara = []
             
             if pallet_type in ['Surowiec', 'Opakowanie']:
-                cursor.execute(f"""
-                    SELECT id, typ_ruchu, autor_login, autor_data, komentarz 
-                    FROM {table_ruch} 
-                    WHERE surowiec_id = %s 
-                    ORDER BY autor_data DESC
-                """, (pallet_id,))
-                historia_stara = cursor.fetchall()
+                for t_ruch in ['magazyn_ruch', 'magazyn_agro_ruch']:
+                    try:
+                        cursor.execute(f"""
+                            SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz 
+                            FROM {t_ruch} 
+                            WHERE surowiec_id = %s 
+                            ORDER BY id DESC
+                        """, (pallet_id,))
+                        historia_stara.extend(cursor.fetchall())
+                    except Exception:
+                        pass
             else:
                 cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz FROM {get_table_name('magazyn_palety', linia)} WHERE id = %s", (pallet_id,))
                 row = cursor.fetchone()

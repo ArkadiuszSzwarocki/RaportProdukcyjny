@@ -595,7 +595,7 @@ def get_available_pallets():
     skip_warehouse_lookup = skip_lookup_raw in ('1', 'true', 'yes', 'on')
     
     # Uniwersalny skaner - szukaj we wszystkich liniach gdy podano kod/nr palety
-    search_all_lines = bool(prefix and prefix not in ('MP01', 'MS01', 'MGW01', 'MOP01', 'OSIP'))
+    search_all_lines = bool(prefix and prefix not in ('MP01', 'MS01', 'MGW01', 'MGW02', 'MOP01', 'OSIP'))
     
     conn = get_db_connection()
     try:
@@ -621,8 +621,8 @@ def get_available_pallets():
             elif prefix == 'MS01':
                 where_clause = "(lokalizacja LIKE 'MS01%' OR lokalizacja LIKE 'R04%' OR lokalizacja LIKE 'R05%' OR lokalizacja LIKE 'R06%' OR lokalizacja LIKE 'R07%')"
                 params = []
-            elif prefix == 'MGW01':
-                where_clause = "lokalizacja LIKE 'MGW01%'"
+            elif prefix in ('MGW01', 'MGW02'):
+                where_clause = f"lokalizacja LIKE '{prefix}%'"
             elif prefix == 'MOP01':
                 where_clause = "lokalizacja LIKE 'MOP01%'"
             elif prefix == 'OSIP':

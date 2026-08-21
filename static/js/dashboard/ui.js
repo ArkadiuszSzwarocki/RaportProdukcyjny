@@ -33,7 +33,7 @@
         return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
     }
 
-    function openQuickPopup(html) {
+    function openQuickPopup(html, title) {
         var popup = document.getElementById('quickPopup');
         var backdrop = document.getElementById('quickBackdrop');
         if (!popup || !backdrop) {
@@ -43,6 +43,13 @@
         var body = document.getElementById('quickPopupBody');
         if (body) {
             body.innerHTML = html || '';
+        }
+
+        if (title) {
+            var titleElem = popup.querySelector('.header-title');
+            if (titleElem) {
+                titleElem.textContent = title;
+            }
         }
 
         var popupHtml = String(html || '');
@@ -132,7 +139,7 @@
     }
 
     function bindSlideLinks() {
-        if (slideLinksBound || typeof global.showQuickPopup !== 'function') {
+        if (slideLinksBound) {
             return;
         }
         slideLinksBound = true;
@@ -169,13 +176,7 @@
                 })
                 .then(function (html) {
                     try {
-                        global.showQuickPopup(title, html);
-                        global.setTimeout(function () {
-                            var popup = document.getElementById('quickPopup');
-                            if (popup && getComputedStyle(popup).display !== 'none') {
-                                popup.setAttribute('aria-hidden', 'false');
-                            }
-                        }, 0);
+                        openQuickPopup(html, title);
                         if (href.indexOf('dosypki_list') !== -1 && typeof global.initDosypkiList === 'function') {
                             var popup = document.querySelector('.quick-popup');
                             if (popup) {
@@ -277,10 +278,14 @@
 
     global.openQuickPopup = openQuickPopup;
     global.closeQuickPopup = closeQuickPopup;
+    global.showQuickPopup = function (title, html) { openQuickPopup(html, title); };
+    global.createQuickPopup = function (title, html) { openQuickPopup(html, title); };
     global.dashboardUi = {
         init: init,
         openQuickPopup: openQuickPopup,
         closeQuickPopup: closeQuickPopup,
+        showQuickPopup: function (title, html) { openQuickPopup(html, title); },
+        createQuickPopup: function (title, html) { openQuickPopup(html, title); },
         updateWpisyForDate: updateWpisyForDate,
     };
 

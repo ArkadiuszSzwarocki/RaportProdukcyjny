@@ -121,6 +121,45 @@ let pendingProductionLoc = null;
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
+
+  if (currentPallet && currentPallet.is_bucket) {
+    const cleanLoc = (loc || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
+    if (cleanLoc !== 'MI01' && cleanLoc !== 'MI1') {
+      showToast(`❌ Nieprawidłowy kod '${loc}'! Wiadro można wrzucić wyłącznie do mieszalnika MI01. Nie można go przenosić na magazyn ani do innych lokalizacji.`, 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+      return;
+    }
+    // Skanowanie mieszalnika po uprzednim zeskanowaniu wiadra (MI01)
+    fetch('/maluchy/api/dump-to-mixer', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({
+        kod_wiadra: currentPallet.kod_wiadra,
+        plan_id: currentPallet.plan_id,
+        mieszalnik_kod: 'MI01',
+        linia: currentPallet.linia || LINIA
+      })
+    })
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message, d.success ? 'success' : 'danger');
+      if (d.success) {
+        window.hideAfterLoad = true;
+        hidePallet();
+      } else {
+        scanInput.value = '';
+        scanInput.focus();
+      }
+    })
+    .catch(e => {
+      showToast('Błąd: ' + e, 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+    });
+    return;
+  }
+
   const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('PSD') || loc.startsWith('MIX') || loc.startsWith('BF_');
   
   if (isProduction) {
@@ -348,17 +387,25 @@ function showPallet(p) {
   currentPallet = p;
   document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
   document.getElementById('palletName').textContent = p.nazwa;
-  document.getElementById('palletQty').textContent  = parseFloat(p.stan_magazynowy).toFixed(1);
+  if (p.is_bucket) {
+    document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${p.jednostka || 'składniki'}`;
+  } else {
+    document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy).toFixed(1)}</span> kg`;
+  }
   
   // Badge typu palety
   const typePill = document.getElementById('palletTypePill');
   if (typePill) {
     const invType = p.inventory_type || 'Surowiec';
-    typePill.textContent = invType;
+    typePill.textContent = p.status_pl || invType;
     typePill.style.display = 'inline-block';
     
     // Kolory w zależności od typu
-    if (invType === 'Wyrób Gotowy') {
+    if (p.is_bucket) {
+      typePill.className = 'pill';
+      typePill.style.background = '#8b5cf6';
+      typePill.style.color = '#fff';
+    } else if (invType === 'Wyrób Gotowy') {
       typePill.className = 'pill';
       typePill.style.background = '#10b981';
       typePill.style.color = '#fff';

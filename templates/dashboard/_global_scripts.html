@@ -431,3 +431,49 @@
     });
   });
 </script>
+
+<script>
+  // Global Accordion and Collapsible Sections Controls
+  window.toggleHallOverview = function (hallId, e) {
+    if (e && (e.target.closest('a') || e.target.closest('button') || e.target.closest('input') || e.target.closest('form'))) {
+      return;
+    }
+    const content = document.getElementById('hall-content-' + hallId);
+    const chevron = document.getElementById('chevron-hall-' + hallId);
+    if (!content) return;
+    const isClosed = (content.style.display === 'none' || !content.style.display);
+    content.style.display = isClosed ? 'flex' : 'none';
+    if (chevron) {
+      chevron.classList.toggle('rotated', isClosed);
+    }
+  };
+
+  window.toggleSectionAccordion = function (sectionId, e) {
+    if (e && (e.target.closest('a') || e.target.closest('button') || e.target.closest('input') || e.target.closest('form'))) {
+      return;
+    }
+    const content = document.getElementById(sectionId);
+    const chevron = document.getElementById('chevron-' + sectionId);
+    if (!content) return;
+    const isClosed = (content.style.display === 'none' || !content.style.display);
+    content.style.display = isClosed ? 'block' : 'none';
+    if (chevron) {
+      chevron.classList.toggle('rotated', isClosed);
+    }
+  };
+
+  window.toggleShiftNotes = function (e) {
+    if (e && (e.target.closest('button') || e.target.closest('input') || e.target.closest('form') || e.target.closest('.day-nav-btn'))) {
+      return;
+    }
+    const body = document.getElementById('shift-notes-body');
+    const chevron = document.getElementById('chevron-shift-notes');
+    if (!body) return;
+    const isClosed = (body.style.display === 'none' || !body.style.display);
+    body.style.display = isClosed ? 'block' : 'none';
+    if (chevron) {
+      chevron.classList.toggle('rotated', isClosed);
+    }
+  };
+</script>
+

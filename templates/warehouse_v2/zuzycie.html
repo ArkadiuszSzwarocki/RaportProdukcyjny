@@ -1,0 +1,204 @@
+{% extends "layout.html" %}
+
+{% block content %}
+{% include 'warehouse_v2/_styles.html' %}
+
+<div class="consumption-container" style="max-width: 1200px; margin: 0 auto; padding: 10px 15px 40px;">
+    
+    <!-- TOP HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="font-size: 32px; color: #dc2626;">delete_sweep</span>
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">Zużycie w Produkcji</h1>
+                <span style="background: #fee2e2; color: #991b1b; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 1px solid #fca5a5;">
+                    Archiwizacja do 0 kg
+                </span>
+            </div>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 14px;">
+                Skanowanie etykiet zebranych z produkcji, potwierdzenie wydozowania do 0 kg i przeniesienie do archiwum.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('warehouse_v2.index', linia=linia) }}" class="btn-action" 
+               style="background: white; border: 1px solid #cbd5e1; color: #475569; padding: 10px 18px; border-radius: 12px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <span class="material-icons" style="font-size: 18px;">arrow_back</span> Powrót do Magazynu
+            </a>
+        </div>
+    </div>
+
+    <!-- SCANNER SECTION -->
+    <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4" style="border: 1.5px solid #e2e8f0;">
+        <div style="max-width: 700px; margin: 0 auto; text-align: center;">
+            <label for="consumptionScanInput" style="display: block; font-weight: 800; font-size: 16px; color: #1e293b; margin-bottom: 8px;">
+                📷 Zeskanuj kod QR / SSCC lub wpisz numer palety
+            </label>
+            
+            <form id="consumptionScanForm" onsubmit="handleConsumptionLookup(event)" style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <div style="position: relative; flex: 1;">
+                    <span class="material-icons" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 22px;">qr_code_scanner</span>
+                    <input type="text" id="consumptionScanInput" placeholder="Skanuj kod SSCC / nr palety..." autocomplete="off" autofocus
+                           style="width: 100%; padding: 14px 44px 14px 48px; border: 2px solid #3b82f6; border-radius: 14px; font-size: 16px; font-weight: 700; box-sizing: border-box; outline: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);">
+                    <span id="clearScanBtn" class="material-icons" onclick="clearConsumptionInput()"
+                          style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 20px; cursor: pointer; display: none;">close</span>
+                </div>
+                
+                <button type="submit" class="btn-action" style="padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+                    <span class="material-icons">search</span> Szukaj
+                </button>
+
+                <button type="button" onclick="openQrScannerModal('consumptionScanInput', 'consumptionScanInput')" class="btn-action" 
+                        style="padding: 12px 16px; background: #059669; color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer;" title="Skanuj aparatem">
+                    <span class="material-icons">photo_camera</span>
+                </button>
+            </form>
+            <div id="scanStatusMsg" style="font-size: 13px; color: #64748b;">
+                Gotowy do skanowania czytnikiem ręcznym Zebra lub wpisania ręcznego.
+            </div>
+        </div>
+    </div>
+
+    <!-- PALLET CONFIRMATION CARD (Hidden by default) -->
+    <div id="consumptionConfirmCard" class="card border-0 shadow-lg rounded-4 p-4 mb-4" 
+         style="display: none; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%); border: 2px solid #fda4af !important; animation: fadeInScale 0.25s ease-out;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid #fecdd3; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="font-size: 32px; color: #e11d48;">help_outline</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 900; color: #9f1239;">Potwierdzenie Zużycia Palety</h3>
+                    <span style="font-size: 13px; color: #be123c;">Sprawdź dane palety przed potwierdzeniem archiwizacji</span>
+                </div>
+            </div>
+            <span id="confirmPalletTypeBadge" style="background: #be123c; color: white; font-weight: 800; font-size: 12px; padding: 4px 12px; border-radius: 12px; text-transform: uppercase;">
+                Surowiec
+            </span>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 15px;" id="confirmPalletName">
+                Nazwa Produktu
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; border: 1px solid #fecdd3;">
+                    <div style="font-size: 11px; font-weight: 800; color: #881337; text-transform: uppercase;">Nr SSCC / Etykieta</div>
+                    <div style="font-size: 15px; font-weight: 900; color: #0f172a; font-family: monospace;" id="confirmPalletSSCC">-</div>
+                </div>
+
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; border: 1px solid #fecdd3;">
+                    <div style="font-size: 11px; font-weight: 800; color: #881337; text-transform: uppercase;">Ostatnia Ilość/Waga w Systemie</div>
+                    <div style="font-size: 16px; font-weight: 900; color: #e11d48;" id="confirmPalletAmount">0.0 kg</div>
+                </div>
+
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; border: 1px solid #fecdd3;">
+                    <div style="font-size: 11px; font-weight: 800; color: #881337; text-transform: uppercase;">Partia (Batch)</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #334155;" id="confirmPalletBatch">-</div>
+                </div>
+
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; border: 1px solid #fecdd3;">
+                    <div style="font-size: 11px; font-weight: 800; color: #881337; text-transform: uppercase;">Lokalizacja Źródłowa</div>
+                    <div style="font-size: 14px; font-weight: 800; color: #1e293b;" id="confirmPalletLocation">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #fff; border: 1.5px solid #fb7185; border-radius: 14px; padding: 15px; margin-bottom: 20px; text-align: center;">
+            <span style="font-size: 16px; font-weight: 800; color: #9f1239;">
+                ⚠️ Czy na pewno chcesz zużyć tę paletę do 0 kg i przenieść do archiwum?
+            </span>
+            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+                Po zatwierdzeniu paleta zostanie wyzerowana, usunięta ze stanu aktywnego i przeniesiona do archiwum magazynowego.
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
+            <button type="button" onclick="cancelConsumptionConfirm()" 
+                    style="padding: 12px 24px; background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 14px;">
+                Anuluj / Skanuj kolejną
+            </button>
+            <button type="button" id="btnExecuteConsumption" onclick="executeConsumption()" 
+                    style="padding: 14px 32px; background: #dc2626; border: none; color: white; border-radius: 12px; font-weight: 900; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);">
+                <span class="material-icons">done_all</span> ZUŻYJ I ZARCHIWIZUJ PALETĘ
+            </button>
+        </div>
+    </div>
+
+    <!-- DAILY HISTORY SECTION -->
+    <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden" style="border: 1px solid #e2e8f0;">
+        <div class="card-header bg-transparent p-4 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #0284c7; font-size: 24px;">history</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Dzisiejsza Historia Zużyć na Produkcji</h3>
+                    <div style="font-size: 12px; color: #64748b;">Zarejestrowane dziś palety wyzerowane do 0 kg</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="historyCountBadge" style="background: #e0f2fe; color: #0369a1; font-weight: 800; font-size: 12px; padding: 4px 12px; border-radius: 12px;">
+                    Pozycji: {{ daily_history|length }}
+                </span>
+                <button onclick="refreshConsumptionHistory()" class="btn-action" style="padding: 6px 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; cursor: pointer;" title="Odśwież historię">
+                    <span class="material-icons" style="font-size: 16px;">refresh</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="modern-table small mb-0" id="consumptionHistoryTable" style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: #f8fafc; color: #475569; font-size: 11px; font-weight: 800; text-transform: uppercase;">
+                        <tr>
+                            <th style="padding: 10px 14px; width: 85px;">Godzina</th>
+                            <th style="padding: 10px 14px; width: 140px;">Nr SSCC / Palety</th>
+                            <th style="padding: 10px 14px; width: 110px;">Typ</th>
+                            <th style="padding: 10px 14px;">Nazwa Produktu</th>
+                            <th style="padding: 10px 14px; width: 120px;">Partia</th>
+                            <th style="padding: 10px 14px; text-align: right; width: 100px;">Waga Przed</th>
+                            <th style="padding: 10px 14px; text-align: center; width: 100px;">Lokalizacja</th>
+                            <th style="padding: 10px 14px; width: 110px;">Magazynier</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consumptionHistoryBody">
+                        {% if not daily_history %}
+                        <tr id="emptyHistoryRow">
+                            <td colspan="8" style="text-align: center; padding: 30px; color: #94a3b8;">
+                                <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
+                                <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
+                                <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        {% for row in daily_history %}
+                        <tr>
+                            <td style="padding: 10px 14px; font-family: monospace; font-weight: 700; color: #0284c7;">{{ row.time }}</td>
+                            <td style="padding: 10px 14px; font-family: monospace; font-weight: 800;">{{ row.nr_palety }}</td>
+                            <td style="padding: 10px 14px;"><span class="badge" style="background:#e2e8f0; color:#334155; font-size:11px; padding:3px 8px; border-radius:6px;">{{ row.typ_palety }}</span></td>
+                            <td style="padding: 10px 14px; font-weight: 700; color: #0f172a;">{{ row.nazwa }}</td>
+                            <td style="padding: 10px 14px; font-size: 12px; color: #475569;">{{ row.nr_partii or '-' }}</td>
+                            <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #dc2626;">{{ "%.1f"|format(row.waga_ostatnia or 0) }} kg</td>
+                            <td style="padding: 10px 14px; text-align: center; font-weight: 700; font-size: 12px;">{{ row.lokalizacja_ostatnia or '-' }}</td>
+                            <td style="padding: 10px 14px; font-size: 12px; color: #64748b;">{{ row.user_login or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+</style>
+
+<!-- QR Scanner Modal & script -->
+{% include 'includes/qr_scanner_modal.html' %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr_scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/production_consumption.js') }}?v={{ static_version }}"></script>
+
+{% endblock %}

@@ -55,6 +55,15 @@ def register_production_dosypki_routes(
                 return redirect(bezpieczny_powrot())
 
             szarza_id_int = _read_zasyp_id()
+            if not szarza_id_int:
+                cursor.execute(
+                    f"SELECT id FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania DESC, id DESC LIMIT 1",
+                    (plan_id,),
+                )
+                latest_sz = cursor.fetchone()
+                if latest_sz and latest_sz[0]:
+                    szarza_id_int = int(latest_sz[0])
+
             szarza_id = str(szarza_id_int) if szarza_id_int else None
 
             if szarza_id_int:
@@ -217,6 +226,12 @@ def register_production_dosypki_routes(
                 if latest_szarza and latest_szarza[0]:
                     szarza_id = int(latest_szarza[0])
 
+            if not szarza_id and not brak_dosypki:
+                if is_ajax:
+                    return jsonify({'success': False, 'message': 'Brak aktywnego zasypu dla tego zlecenia! Operator musi najpierw rozpocząć zasyp (dodać szarżę).'}), 400
+                flash('Brak aktywnego zasypu dla tego zlecenia! Operator musi najpierw rozpocząć zasyp (dodać szarżę).', 'warning')
+                return redirect(bezpieczny_powrot())
+
             if not brak_dosypki:
                 allowed_surowce = get_allowed_dosypka_materials(cursor, linia)
                 if not allowed_surowce:
@@ -250,8 +265,8 @@ def register_production_dosypki_routes(
 
             for name, kg in entries:
                 cursor.execute(
-                    f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)",
-                    (plan_id, szarza_id, name, kg, pracownik_id),
+                    f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, kg_planowane, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, %s, 0)",
+                    (plan_id, szarza_id, name, kg, kg, pracownik_id),
                 )
                 try:
                     audit_log('Dodał dosypkę', f'nazwa={name}, kg={kg}, plan_id={plan_id}')
@@ -329,14 +344,31 @@ def register_production_dosypki_routes(
 
             pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
 
+            payload = request.get_json(silent=True) or {}
+            raw_kg = payload.get('kg') if isinstance(payload, dict) and 'kg' in payload else (request.form.get('kg') or request.args.get('kg'))
+            actual_kg = None
+            if raw_kg is not None:
+                try:
+                    val = float(str(raw_kg).replace(',', '.').strip())
+                    if val > 0:
+                        actual_kg = val
+                except (ValueError, TypeError):
+                    pass
+
             cursor.execute(f"SELECT plan_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
             dosypka_row = cursor.fetchone()
             plan_id = dosypka_row[0] if dosypka_row else None
 
-            cursor.execute(
-                f"UPDATE {table_dosypki} SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
-                (pracownik_id, dosypka_id),
-            )
+            if actual_kg is not None:
+                cursor.execute(
+                    f"UPDATE {table_dosypki} SET kg=%s, kg_wydozowane=%s, potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
+                    (actual_kg, actual_kg, pracownik_id, dosypka_id),
+                )
+            else:
+                cursor.execute(
+                    f"UPDATE {table_dosypki} SET kg_wydozowane=kg, potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
+                    (pracownik_id, dosypka_id),
+                )
 
             if plan_id:
                 cursor.execute(
@@ -382,12 +414,13 @@ def register_production_dosypki_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/anuluj_dosypke/<int:dosypka_id>', methods=['POST'])
-    @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad', 'masteradmin')
+    @roles_required('laborant', 'laboratorium', 'lider', 'admin', 'zarzad')
     def anuluj_dosypke(dosypka_id):
-        """Mark dosypka as anulowana instead of deleting it."""
+        """Laborant / lider anuluje oczekującą dosypkę."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         table_dosypki = get_table_name('dosypki', linia)
+        anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'nieznany'
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -398,22 +431,13 @@ def register_production_dosypki_routes(
             row = cursor.fetchone()
             if not row:
                 if is_ajax:
-                    return jsonify({'success': False, 'message': 'Pozycja nie istnieje, została już potwierdzona albo anulowana'}), 404
-                flash('Pozycja nie istnieje, została już potwierdzona albo anulowana', 'warning')
+                    return jsonify({'success': False, 'message': 'Pozycja nie istnieje lub została już przetworzona'}), 404
+                flash('Pozycja nie istnieje lub została już przetworzona', 'warning')
                 return redirect(bezpieczny_powrot())
 
-            anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'unknown'
             cursor.execute(
                 f"UPDATE {table_dosypki} SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
                 (anulowal_login, dosypka_id),
-            )
-            sync_dosypka_notifications(
-                plan_id=row[1],
-                author_name=session.get('imie_nazwisko') or session.get('login'),
-                created_by_user_id=session.get('user_id'),
-                conn=conn,
-                cursor=cursor,
-                linia=linia,
             )
             conn.commit()
             mark_dosypki_updated(linia)
@@ -462,8 +486,8 @@ def register_production_dosypki_routes(
             if plan_id:
                 cursor.execute(
                     f"""
-                    SELECT id, plan_id, nazwa, kg, data_zlecenia,
-                           COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                    SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia,
+                           COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
                     FROM {table_dosypki}
                     WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0 AND plan_id = %s
                     ORDER BY data_zlecenia ASC
@@ -473,8 +497,8 @@ def register_production_dosypki_routes(
             else:
                 cursor.execute(
                     f"""
-                    SELECT id, plan_id, nazwa, kg, data_zlecenia,
-                           COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                    SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia,
+                           COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
                     FROM {table_dosypki}
                     WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
                     ORDER BY data_zlecenia ASC
@@ -494,7 +518,9 @@ def register_production_dosypki_routes(
                         'id': r[0],
                         'plan_id': r[1],
                         'nazwa': nazwa,
-                        'kg': float(r[3]),
+                        'kg': float(r[3]) if r[3] is not None else 0.0,
+                        'kg_planowane': float(r[3]) if r[3] is not None else 0.0,
+                        'kg_wydozowane': float(r[8]) if len(r) > 8 and r[8] is not None else None,
                         'data_zlecenia': str(r[4]),
                         'anulowana': bool(r[5]),
                         'anulowal_login': r[6],
@@ -534,7 +560,11 @@ def register_production_dosypki_routes(
                     'plan_id': r[1],
                     'nazwa': nazwa,
                     'kg': float(r[3]) if r[3] is not None else None,
+                    'kg_planowane': float(r[3]) if r[3] is not None else None,
+                    'kg_wydozowane': float(r[9]) if len(r) > 9 and r[9] is not None else None,
                     'data_zlecenia': str(r[4]) if r[4] is not None else '',
                 }
             )
-        return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id, rola=role, linia=linia)
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == '1'
+        tpl = 'dosypki_list.html' if is_ajax else 'dosypki_list_full.html'
+        return render_template(tpl, dosypki=dosypki, plan_id=plan_id, rola=role, linia=linia)

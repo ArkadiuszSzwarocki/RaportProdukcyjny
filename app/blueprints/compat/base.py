@@ -52,6 +52,19 @@ def health_check() -> Tuple[Response, int]:
 # --- Backward-compatible aliases for forms that post to root paths ---
 # These ensure legacy forms continue to work without breaking existing HTML
 
+@compat_bp.route('/warehouse', methods=['GET'])
+@compat_bp.route('/warehouse/', methods=['GET'])
+def alias_warehouse_redirect() -> Response:
+    """Redirects legacy /warehouse URL to /warehouse-v2/"""
+    return redirect(url_for('warehouse_v2.index'))
+
+
+@compat_bp.route('/dashboard', methods=['GET'], endpoint='dashboard')
+def alias_dashboard_redirect() -> Response:
+    """Redirects legacy /dashboard URL to main.index with params"""
+    return redirect(url_for('main.index', **request.args))
+
+
 @compat_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
 @login_required
 def alias_dodaj_plan_zaawansowany() -> Union[Response, str]:

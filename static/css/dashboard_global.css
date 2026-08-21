@@ -28,3 +28,47 @@
     border-color: #2563eb !important;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
+
+/* Accordion & Collapsible sections */
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+}
+
+.collapsible-header:hover {
+    background: #f1f5f9 !important;
+}
+
+.chevron-icon {
+    transition: transform 0.25s ease;
+    font-size: 24px;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chevron-icon.rotated {
+    transform: rotate(180deg);
+    color: #2563eb;
+}
+
+.section-accordion-header {
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-accordion-header:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+

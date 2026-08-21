@@ -11,6 +11,10 @@ let currentPallet = {};
 let scanBuffer = '';
 let scanTimeout = null;
 
+let selectedLocations = []; // To store selected locations from multiselect
+let currentSortCol = null; // Column index for sorting
+let currentSortDir = 'asc'; // 'asc' or 'desc'
+
 let currentFilteredItems = [];
 let currentRenderedCount = 0;
 const PAGE_SIZE = 100;

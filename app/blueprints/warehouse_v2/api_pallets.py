@@ -41,7 +41,20 @@ def get_pallet_details():
             cur.execute(f"SELECT *, nazwa as productName, stan_magazynowy as amount, 'kg' as unit FROM {t_name} WHERE id = %s OR nr_palety = %s", (pallet_id, pallet_id))
         else:
             t_name = get_table_name('magazyn_palety', linia)
-            cur.execute(f"SELECT *, produkt as productName, waga_netto as amount, 'kg' as unit FROM {t_name} WHERE id = %s OR nr_palety = %s", (pallet_id, pallet_id))
+            table_plan = get_table_name('plan_produkcji', linia)
+            cur.execute(f"""
+                SELECT m.*, 
+                       COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
+                       m.waga_netto as amount, 
+                       'kg' as unit,
+                       COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii,
+                       COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji,
+                       COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
+                       COALESCE(m.created_at, m.data_potwierdzenia) as created_at
+                FROM {t_name} m
+                LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
+                WHERE m.id = %s OR m.nr_palety = %s
+            """, (pallet_id, pallet_id))
             
         row = cur.fetchone()
         if not row:
@@ -52,6 +65,8 @@ def get_pallet_details():
             if hasattr(val, 'strftime'): return val.strftime(fmt)
             return str(val)[:10]
 
+        from .views import compute_expiry_date
+
         details = {
             'id': row.get('id'),
             'displayId': row.get('nr_palety') or f"PAL-{row.get('id')}",
@@ -61,7 +76,7 @@ def get_pallet_details():
             'location': row.get('lokalizacja') or row.get('location') or '-',
             'batch': row.get('nr_partii') or '-',
             'date_prod': fmt_d(row.get('data_produkcji')),
-            'date_exp': fmt_d(row.get('data_przydatnosci')),
+            'date_exp': compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji')),
             'date_added': fmt_d(row.get('created_at'), '%Y-%m-%d %H:%M'),
             'type': t_type,
             'is_blocked': row.get('is_blocked', 0)
@@ -224,7 +239,7 @@ def print_pallet_label():
             
         # Determine correct table
         if pallet_type == 'Wyrób Gotowy':
-            table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
+            table_mag = 'magazyn_palety'
             cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Surowiec':
             table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'

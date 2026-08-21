@@ -9,41 +9,80 @@
             <button onclick="closeStationHistoryModal()" class="modal-premium-close">&times;</button>
         </div>
         <div class="modal-premium-body" style="flex-grow: 1; overflow-y: auto;">
+            <!-- Line filter pills -->
+            <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                <span style="font-size: 12px; font-weight: 700; color: #475569; margin-right: 4px;">LINIA:</span>
+                <button type="button" class="btn-line-filter active" id="filterLineAll" onclick="setStationHistoryLine('ALL')">Wszystkie Magazyny</button>
+                <button type="button" class="btn-line-filter" id="filterLinePsd" onclick="setStationHistoryLine('PSD')">PSD</button>
+                <button type="button" class="btn-line-filter" id="filterLineAgro" onclick="setStationHistoryLine('AGRO')">AGRO</button>
+            </div>
+
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                 <input type="date" id="historyFilterDataOd" class="modern-input" style="flex: 1; min-width: 120px;" placeholder="Data od">
                 <input type="date" id="historyFilterDataDo" class="modern-input" style="flex: 1; min-width: 120px;" placeholder="Data do">
-                <input type="text" id="historyFilterSurowiec" class="modern-input" style="flex: 2; min-width: 150px;" placeholder="Nazwa surowca">
-                <input type="text" id="historyFilterStacja" class="modern-input" style="flex: 1; min-width: 100px;" placeholder="Stacja (np. BB01)">
+                <input type="text" id="historyFilterSurowiec" class="modern-input" style="flex: 2; min-width: 150px;" placeholder="Nazwa surowca lub SSCC">
+                <input type="text" id="historyFilterStacja" class="modern-input" style="flex: 1; min-width: 100px;" placeholder="Stacja / Regał (np. BB04, MZ01)">
                 <button onclick="fetchStationHistory()" class="btn-premium" style="padding: 8px 15px;"><span class="material-icons" style="font-size:18px;">search</span>Szukaj</button>
             </div>
             <table class="modern-table small compact-mobile" style="width: 100%;">
                 <thead>
                     <tr>
                         <th>Data</th>
-                        <th>Stacja</th>
+                        <th>Linia</th>
+                        <th>Stacja / Regał</th>
                         <th>Produkt</th>
-                        <th>SSCC</th>
+                        <th>SSCC / Nr</th>
                         <th>Ilość [kg]</th>
                         <th>Typ</th>
                         <th>Użytkownik</th>
                     </tr>
                 </thead>
                 <tbody id="stationHistoryTableBody">
-                    <tr><td colspan="7" style="text-align: center;">Ładowanie danych...</td></tr>
+                    <tr><td colspan="8" style="text-align: center;">Ładowanie danych...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
+<style>
+.btn-line-filter {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid #cbd5e1;
+    background: white;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-line-filter.active {
+    background: #0284c7;
+    color: white;
+    border-color: #0284c7;
+    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
+}
+</style>
+
 <script>
+let currentStationHistoryLine = 'ALL';
+
+function setStationHistoryLine(line) {
+    currentStationHistoryLine = line;
+    document.querySelectorAll('.btn-line-filter').forEach(btn => btn.classList.remove('active'));
+    if (line === 'PSD') document.getElementById('filterLinePsd').classList.add('active');
+    else if (line === 'AGRO') document.getElementById('filterLineAgro').classList.add('active');
+    else document.getElementById('filterLineAll').classList.add('active');
+    fetchStationHistory();
+}
+
 function openStationHistoryModal() {
     document.getElementById('stationHistoryModal').style.display = 'flex';
-    // set default dates to today and yesterday
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    document.getElementById('historyFilterDataOd').value = yesterday.toISOString().split('T')[0];
+    const pastWeek = new Date(today);
+    pastWeek.setDate(pastWeek.getDate() - 7);
+    document.getElementById('historyFilterDataOd').value = pastWeek.toISOString().split('T')[0];
     document.getElementById('historyFilterDataDo').value = today.toISOString().split('T')[0];
     fetchStationHistory();
 }
@@ -54,10 +93,9 @@ function closeStationHistoryModal() {
 
 function fetchStationHistory() {
     const tbody = document.getElementById('stationHistoryTableBody');
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
     
-    // Zmienna linia zależy od miejsca z którego wywołujemy. Default: AGRO
-    let linia = (typeof LINIA !== 'undefined') ? LINIA : 'AGRO';
+    let linia = currentStationHistoryLine || 'ALL';
     const dataOd = document.getElementById('historyFilterDataOd').value;
     const dataDo = document.getElementById('historyFilterDataDo').value;
     const surowiec = document.getElementById('historyFilterSurowiec').value;
@@ -74,17 +112,22 @@ function fetchStationHistory() {
         .then(data => {
             if (!data.success) throw new Error(data.error);
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Brak danych w historii stacji.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Brak danych w historii stacji dla wybranych filtrów.</td></tr>';
                 return;
             }
             
             let html = '';
             data.data.forEach(r => {
+                const lineBadge = r.linia === 'AGRO' 
+                    ? '<span class="badge" style="background:#fef3c7; color:#92400e; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold;">AGRO</span>'
+                    : '<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold;">PSD</span>';
+                
                 html += `<tr>
                     <td>${r.data}</td>
+                    <td style="text-align:center;">${lineBadge}</td>
                     <td style="font-weight: bold; color: #0284c7;">${r.stacja}</td>
                     <td>${r.nazwa}</td>
-                    <td style="font-size: 11px; color: #64748b;">${r.nr_palety}</td>
+                    <td style="font-size: 11px; font-family: monospace; color: #334155; font-weight: 600;">${r.nr_palety}</td>
                     <td style="font-weight: bold; color: #16a34a;">${r.ilosc.toFixed(1)}</td>
                     <td><span class="status-badge">${r.typ}</span></td>
                     <td>${r.user}</td>
@@ -94,7 +137,7 @@ function fetchStationHistory() {
         })
         .catch(err => {
             console.error(err);
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd ładowania danych: ${err.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Błąd ładowania danych: ${err.message}</td></tr>`;
         });
 }
 </script>

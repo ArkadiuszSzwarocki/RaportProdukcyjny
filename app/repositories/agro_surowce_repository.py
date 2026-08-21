@@ -428,22 +428,24 @@ class AgroSurowceRepository:
                 cursor.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
                 stan_po = cursor.fetchone()[0]
                 
-                # Add movement record
-                plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
-                cursor.execute(
-                    f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
-                    "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",
-                    (surowiec_id, -ilosc, stan_po, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), plan_id_val, komentarz, zbiornik_val)
-                )
-
-                # Log to palety_historia
+                # Get material name for movement record
                 cursor.execute(f"SELECT nazwa, lokalizacja FROM {table_surowce} WHERE id = %s", (surowiec_id,))
                 s_row = cursor.fetchone()
                 s_name = s_row[0] if s_row else 'surowiec'
                 s_loc = s_row[1] if s_row else None
+
+                # Add movement record
+                plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'WYDANIE_PROD', %s, %s, %s)",
-                    (surowiec_id, linia, s_loc, f"Pobranie na produkcję ({ilosc} kg): {s_name}. Zbiornik: {zbiornik_val or '—'}", worker_login)
+                    f"INSERT INTO {table_ruch} (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
+                    "VALUES (%s, %s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",
+                    (surowiec_id, s_name, -ilosc, stan_po, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), plan_id_val, komentarz, zbiornik_val)
+                )
+
+                # Log to palety_historia
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'WYDANIE_PROD', %s, %s, %s, %s)",
+                    (surowiec_id, linia, s_loc, zbiornik_val, f"Pobranie na produkcję ({ilosc} kg): {s_name}. Zbiornik: {zbiornik_val or '—'}", worker_login)
                 )
                 
                 conn.commit()

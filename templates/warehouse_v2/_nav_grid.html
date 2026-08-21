@@ -107,8 +107,8 @@
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.production_status', linia=linia) }}'" class="status-link-btn">
                     <span class="material-icons">analytics</span> STATUS PRODUKCJI
                 </button>
-                <button onclick="window.location.href='{{ url_for('warehouse_v2.zamowienia', linia=linia) }}'" class="status-link-btn" style="background: #fffbeb; border-color: #f59e0b; color: #92400e;">
-                    <span class="material-icons">shopping_cart</span> ZAMÓWIENIA
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.zuzycie_view', linia=linia) }}'" class="status-link-btn" style="background: #fef2f2; border-color: #ef4444; color: #991b1b;">
+                    <span class="material-icons" style="color: #ef4444;">delete_sweep</span> ZUŻYCIE W PRODUKCJI (0 kg)
                 </button>
                 <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
                     <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
@@ -149,39 +149,6 @@
         document.getElementById('current-wh-display').innerText = id;
     }
     
-    // SYNCHRONIZACJA STARTOWA
-    document.addEventListener('DOMContentLoaded', function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlZakladka = urlParams.get('zakladka');
-        if (urlZakladka) {
-            const targetRadio = document.getElementById('radio-' + urlZakladka);
-            if (targetRadio) {
-                targetRadio.checked = true;
-            }
-        }
-
-        // 1. Sprawdź co jest zaznaczone i pobierz PEŁNĄ NAZWĘ z etykiety
-        const checkedWhInput = document.querySelector('input[name="main_wh"]:checked');
-        const checkedRackInput = document.querySelector('input[name="rack_select"]:checked');
-        
-        if (checkedWhInput) {
-            const label = document.querySelector(`label[for="${checkedWhInput.id}"] .item-name`);
-            if (label) updateWhLabel(label.innerText);
-        }
-        
-        if (checkedRackInput) {
-            const label = document.querySelector(`label[for="${checkedRackInput.id}"] .item-name`);
-            if (label) updateRackLabel(label.innerText);
-        }
-        
-        // 2. Wymuś odświeżenie paska zajętości i filtrów
-        setTimeout(() => {
-            if (checkedWhInput) {
-                switchWarehouse(checkedWhInput.id.replace('radio-', ''));
-            }
-        }, 200);
-    });
-
     window.onclick = function(event) {
         if (!event.target.matches('.main-dropdown-btn') && !event.target.closest('.main-dropdown-btn')) {
             closeUnifiedMenu();

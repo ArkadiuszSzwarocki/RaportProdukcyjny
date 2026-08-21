@@ -1,6 +1,54 @@
+import re
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 from flask import Blueprint, jsonify, render_template, request, session
 from app.db import get_db_connection, get_table_name
 from .blueprint import warehouse_v2_bp
+
+def parse_date_obj(d_val):
+    if not d_val:
+        return None
+    if isinstance(d_val, (datetime, date)):
+        return d_val if isinstance(d_val, date) else d_val.date()
+    if isinstance(d_val, str):
+        for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%Y/%m/%d', '%Y-%m-%d %H:%M:%S', '%d-%m-%Y'):
+            try:
+                return datetime.strptime(d_val.strip()[:10], fmt).date()
+            except Exception:
+                pass
+    return None
+
+def compute_expiry_date(exp_val, prod_date_val=None, fmt='%Y-%m-%d'):
+    if not exp_val:
+        return '-'
+    if hasattr(exp_val, 'strftime'):
+        try:
+            return exp_val.strftime(fmt)
+        except Exception:
+            return str(exp_val)
+    exp_str = str(exp_val).strip()
+    if not exp_str or exp_str in ('-', 'None', 'null', 'brak'):
+        return '-'
+    parsed_exp = parse_date_obj(exp_str)
+    if parsed_exp and ('-' in exp_str or '.' in exp_str or '/' in exp_str) and len(exp_str) >= 8:
+        return parsed_exp.strftime(fmt)
+    base_date = parse_date_obj(prod_date_val) or date.today()
+    match_months = re.search(r'(\d+)\s*(?:miesi|m-c|m\b|mies)', exp_str, re.IGNORECASE)
+    if match_months:
+        months = int(match_months.group(1))
+        return (base_date + relativedelta(months=months)).strftime(fmt)
+    match_days = re.search(r'(\d+)\s*(?:dni|d\b|dzień)', exp_str, re.IGNORECASE)
+    if match_days:
+        days = int(match_days.group(1))
+        return (base_date + timedelta(days=days)).strftime(fmt)
+    match_years = re.search(r'(\d+)\s*(?:rok|lat|lata)', exp_str, re.IGNORECASE)
+    if match_years:
+        years = int(match_years.group(1))
+        return (base_date + relativedelta(years=years)).strftime(fmt)
+    if exp_str.isdigit():
+        months = int(exp_str)
+        return (base_date + relativedelta(months=months)).strftime(fmt)
+    return exp_str
 
 def format_date_val(val, fmt='%Y-%m-%d'):
     if not val:
@@ -39,7 +87,7 @@ def index():
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"SUR-{row['id']}"
                 row['linia'] = shared_linia
                 row['date_prod'] = format_date_val(row.get('data_produkcji'))
-                row['date_exp'] = format_date_val(row.get('data_przydatnosci'))
+                row['date_exp'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
                 row['date_added'] = format_date_val(row.get('created_at'), '%Y-%m-%d %H:%M')
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'kg'
@@ -57,7 +105,7 @@ def index():
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
                 row['linia'] = shared_linia
                 row['date_prod'] = format_date_val(row.get('data_produkcji'))
-                row['date_exp'] = format_date_val(row.get('data_przydatnosci'))
+                row['date_exp'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
                 row['date_added'] = format_date_val(row.get('created_at'), '%Y-%m-%d %H:%M')
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'szt'
@@ -69,24 +117,34 @@ def index():
         # 3. Wyroby Gotowe (dla ALL łączymy PSD + AGRO)
         for linia_palety in palety_linie:
             table_palety = get_table_name('magazyn_palety', linia_palety)
+            table_plan = get_table_name('plan_produkcji', linia_palety)
             try:
-                try:
-                    cursor.execute(
-                        f"SELECT id, nr_palety, produkt as productName, lokalizacja as location, waga_netto as amount, 'Wyrób Gotowy' as type, data_produkcji, data_przydatnosci, linia, nr_partii, is_blocked FROM {table_palety} WHERE waga_netto > 0"
-                    )
-                    palety = cursor.fetchall()
-                except Exception:
-                    cursor.execute(
-                        f"SELECT id, nr_palety, produkt as productName, lokalizacja as location, waga_netto as amount, 'Wyrób Gotowy' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked FROM {table_palety} WHERE waga_netto > 0"
-                    )
-                    palety = cursor.fetchall()
+                cursor.execute(
+                    f"""
+                    SELECT m.id, m.nr_palety, 
+                           COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
+                           COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as location, 
+                           m.waga_netto as amount, 
+                           'Wyrób Gotowy' as type, 
+                           COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji, 
+                           COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci, 
+                           COALESCE(NULLIF(TRIM(m.linia), ''), '{linia_palety}') as linia, 
+                           COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii, 
+                           m.is_blocked, 
+                           COALESCE(m.created_at, m.data_potwierdzenia) as created_at
+                    FROM {table_palety} m
+                    LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
+                    WHERE m.waga_netto > 0
+                    """
+                )
+                palety = cursor.fetchall()
 
                 for row in palety:
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"PAL-{row['id']}"
                     row['linia'] = (row.get('linia') or linia_palety)
                     row['date_prod'] = format_date_val(row.get('data_produkcji'))
-                    row['date_exp'] = format_date_val(row.get('data_przydatnosci'))
-                    row['date_added'] = format_date_val(row.get('data_produkcji'), '%Y-%m-%d %H:%M')
+                    row['date_exp'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
+                    row['date_added'] = format_date_val(row.get('created_at'), '%Y-%m-%d %H:%M')
                     row['batch'] = row.get('nr_partii') or '-'
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
@@ -107,7 +165,7 @@ def index():
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"DOD-{row['id']}"
                 row['linia'] = shared_linia
                 row['date_prod'] = format_date_val(row.get('data_produkcji'))
-                row['date_exp'] = format_date_val(row.get('data_przydatnosci'))
+                row['date_exp'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
                 row['date_added'] = format_date_val(row.get('created_at'), '%Y-%m-%d %H:%M')
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'kg'
@@ -133,13 +191,6 @@ def index():
                 return (1, loc, '', '')
         return (1, loc, '', '')
 
-    # Usunięto deduplikację na prośbę użytkownika (pokaż wszystkie wpisy, nawet duplikaty)
-    # seen_pallets = set()
-    # deduplicated_items = []
-    # for item in items:
-    #     pid = item.get('nr_palety')
-    #     if pid:
-    #         if pid not in seen_pallets:
     items.sort(key=get_sort_key)
 
     # Struktura magazynów z Mlecznej Drogi
@@ -184,7 +235,7 @@ def index():
                 occupied = len([it for it in items if 'MS01' in (it.get('location') or '').upper() or 'PODŁOGA' in (it.get('location') or '').upper()])
                 total = caps.get('MS01', 0)
             elif zid in ['MGW01', 'MGW02']:
-                occupied = len([it for it in items if (it.get('location') or '').upper() == zid or (it.get('type') == 'Wyrób Gotowy' and not it.get('location'))])
+                occupied = len([it for it in items if (it.get('location') or '').upper() == zid or (it.get('type') == 'Wyrób Gotowy' and not it.get('location') and zid == 'MGW01')])
             else:
                 # Pozostałe (bufory, opakowania itp.)
                 occupied = len([it for it in items if zid in (it.get('location') or '').upper()])
@@ -234,7 +285,7 @@ def summary():
             row['unit'] = 'kg'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"SUR-{row['id']}"
             row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
-            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
+            row['data_przydatnosci'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
             items.append(row)
             
         # 2. Opakowania
@@ -244,18 +295,31 @@ def summary():
             row['unit'] = 'szt'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
             row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
-            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
+            row['data_przydatnosci'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
             items.append(row)
             
         # 3. Wyroby Gotowe (dla ALL łączymy PSD + AGRO)
         for linia_palety in palety_linie:
             table_palety = get_table_name('magazyn_palety', linia_palety)
-            cursor.execute(f"SELECT id, nr_palety, produkt as productName, lokalizacja as location, waga_netto as amount, 'Wyrób Gotowy' as type, nr_partii, data_produkcji, data_przydatnosci FROM {table_palety} WHERE waga_netto > 0")
+            table_plan = get_table_name('plan_produkcji', linia_palety)
+            cursor.execute(f"""
+                SELECT m.id, m.nr_palety, 
+                       COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
+                       COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as location, 
+                       m.waga_netto as amount, 
+                       'Wyrób Gotowy' as type, 
+                       COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii, 
+                       COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji, 
+                       COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci 
+                FROM {table_palety} m
+                LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
+                WHERE m.waga_netto > 0
+            """)
             for row in cursor.fetchall():
                 row['unit'] = 'kg'
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"PAL-{row['id']}"
                 row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
-                row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
+                row['data_przydatnosci'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
                 items.append(row)
 
         # 4. Dodatki (NEW)
@@ -264,7 +328,7 @@ def summary():
             row['unit'] = 'kg'
             row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"DOD-{row['id']}"
             row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
-            row['data_przydatnosci'] = format_date_val(row.get('data_przydatnosci'))
+            row['data_przydatnosci'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
             items.append(row)
             
         conn.close()

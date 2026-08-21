@@ -117,14 +117,23 @@ def raport_palet():
     """Generates a printable pallet report for AGRO line."""
     from datetime import date, timedelta
     today = date.today()
-    start_of_week = today - timedelta(days=today.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-    data_od = request.args.get('data_od', str(start_of_week))
-    data_do = request.args.get('data_do', str(end_of_week))
+    default_od = today - timedelta(days=30)
+    default_do = today
+
+    data_od = request.args.get('data_od')
+    data_do = request.args.get('data_do')
+    select_mode = request.args.get('select') == '1'
     legacy_data = request.args.get('data')
-    if legacy_data and (not request.args.get('data_od')):
-        data_od = legacy_data
-        data_do = legacy_data
+
+    if not data_od:
+        if legacy_data and not select_mode:
+            data_od = legacy_data
+            data_do = legacy_data if not data_do else data_do
+        else:
+            data_od = str(default_od)
+
+    if not data_do:
+        data_do = str(default_do)
     plan_id = request.args.get('plan_id')
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     conn = get_db_connection()

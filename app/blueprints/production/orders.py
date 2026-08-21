@@ -486,11 +486,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             except Exception:
                 pass
             flash('❌ Błąd zakończenia zlecenia', 'danger')
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Błąd zakończenia zlecenia'}), 500
         finally:
             try:
                 conn.close()
             except Exception:
                 pass
+
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        if is_ajax:
+            return jsonify({'success': True, 'message': f'Zlecenie {produkt or id} zakończone.'})
 
         if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
             return redirect(url_for('agro_warehouse.raport_palet', plan_id=id))
@@ -532,6 +539,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
         produkt = None
         tonaz_rzeczywisty = None
+        unused_buckets = []
         conn = get_db_connection()
         try:
             table_plan = get_table_name('plan_produkcji', linia)
@@ -544,8 +552,31 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
                 cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
                 if cursor.fetchone()[0] > 0:
-                    # Zamiast przekierowania (które psuje data-slide), renderujemy ten sam szablon z przekazanym błędem
                     return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, linia=linia, block_error='Nie można zakończyć zlecenia: najpierw zamknij aktywną folię. Przejdź do zakładki "Materiały pod bieżącą produkcję" i zdejmij rolkę z maszyny.')
+
+            # Check for buckets (prepared, uncompleted, or zero dumped)
+            dumped_buckets_count = 0
+            if sekcja == 'Zasyp':
+                try:
+                    cursor.execute(
+                        """SELECT kod_wiadra, status, DATE_FORMAT(data_rozpoczecia, '%%H:%%i') as czas
+                           FROM wiaderka_maluchy
+                           WHERE plan_id = %s AND status IN ('w_trakcie_nawazania', 'skompletowane')
+                           ORDER BY kod_wiadra ASC""",
+                        (id,)
+                    )
+                    unused_buckets = [
+                        {'kod': r[0], 'status': r[1], 'czas': r[2]}
+                        for r in cursor.fetchall()
+                    ]
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'",
+                        (id,)
+                    )
+                    dumped_row = cursor.fetchone()
+                    dumped_buckets_count = int(dumped_row[0]) if dumped_row else 0
+                except Exception as e:
+                    current_app.logger.warning('Failed to check buckets for plan %s: %s', id, e)
 
         except Exception as e:
             current_app.logger.error(f'Failed to fetch plan {id} for koniec_zlecenie_page: {e}', exc_info=True)
@@ -560,7 +591,17 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
             linked_packaging = AgroOpakowaniaPlanService.get_linked_packaging(id)
 
-        return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty, linked_packaging=linked_packaging, linia=linia)
+        return render_template(
+            'koniec_zlecenie.html',
+            id=id,
+            sekcja=sekcja,
+            produkt=produkt,
+            tonaz=tonaz_rzeczywisty,
+            linked_packaging=linked_packaging,
+            linia=linia,
+            unused_buckets=unused_buckets,
+            dumped_buckets_count=dumped_buckets_count
+        )
 
     @production_bp.route('/test-pobierz-raport', methods=['GET'])
     @login_required

@@ -423,8 +423,8 @@ def list_unconfirmed_dosypki(linia='PSD'):
         cursor = conn.cursor()
         cursor.execute(
             f"""
-            SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id,
-                   COALESCE(anulowana, 0), anulowal_login, data_anulowania
+            SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia, pracownik_id,
+                   COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
             FROM {table_dosypki}
             WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
             ORDER BY data_zlecenia ASC

@@ -34,7 +34,7 @@ SSCC_SEARCH_SPECS: tuple[dict[str, Any], ...] = (
         'source': 'magazyn',
         'table_base': 'magazyn_palety',
         'select': (
-            "id, nr_palety, waga_netto AS waga, produkt, COALESCE(lokalizacja, IF(%s='AGRO', 'MGW02', 'MGW01')) AS lokalizacja, "
+            "id, nr_palety, waga_netto AS waga, produkt, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
             "plan_id, 'magazyn' AS source, %s AS linia, data_planu"
         ),
         'where': "UPPER(nr_palety) = UPPER(%s) AND waga_netto > 0",
@@ -43,7 +43,7 @@ SSCC_SEARCH_SPECS: tuple[dict[str, Any], ...] = (
         'source': 'produkcja',
         'table_base': 'palety_workowanie',
         'select': (
-            "pw.id, pw.nr_palety, pw.waga, p.produkt, IF(%s='AGRO', 'MGW02', 'MGW01') AS lokalizacja, "
+            "pw.id, pw.nr_palety, pw.waga, p.produkt, 'MGW01' AS lokalizacja, "
             "pw.plan_id, 'produkcja' AS source, %s AS linia, p.data_planu AS data_planu"
         ),
         'from_extra': (

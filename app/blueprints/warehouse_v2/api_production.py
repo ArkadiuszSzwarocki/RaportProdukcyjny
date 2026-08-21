@@ -63,94 +63,20 @@ def get_production_stations():
 
 @warehouse_v2_bp.route('/historia-stacji/data')
 def get_station_history():
-    linia = request.args.get('linia', 'PSD').upper()
-    table_ruch = get_table_name('magazyn_ruch', linia)
-    timestamp_col = 'autor_data' if linia == 'AGRO' else 'created_at'
+    from app.services.warehouse_history_service import WarehouseHistoryService
+    linia = (request.args.get('linia') or 'ALL').upper()
+    data_od = request.args.get('dataOd')
+    data_do = request.args.get('dataDo')
+    surowiec = request.args.get('surowiec')
+    stacja = request.args.get('stacja')
     
-    conn = get_db_connection()
-    try:
-        data_od = request.args.get('dataOd')
-        data_do = request.args.get('dataDo')
-        surowiec = request.args.get('surowiec')
-        stacja = request.args.get('stacja')
-        
-        cursor = conn.cursor(dictionary=True)
-        
-        where_clauses = ["r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA')"]
-        where_params = []
-        
-        # Obowiązkowy filtr dla stanowisk, chyba że wybrano konkretną stację
-        if stacja:
-            where_clauses.append("(r.zbiornik LIKE %s OR r.lokalizacja LIKE %s OR r.komentarz LIKE %s OR r.komentarz LIKE %s)")
-            where_params.extend([f"%{stacja}%", f"%{stacja}%", f"%do {stacja}%", f"%-> {stacja}%"])
-        else:
-            where_clauses.append("(r.lokalizacja LIKE 'BB%%' OR r.lokalizacja LIKE 'MZ%%' OR r.lokalizacja LIKE 'WZ%%' OR r.lokalizacja LIKE 'KO%%' OR r.lokalizacja LIKE 'ZB%%' OR r.zbiornik LIKE 'BB%%' OR r.zbiornik LIKE 'MZ%%' OR r.zbiornik LIKE 'WZ%%' OR r.zbiornik LIKE 'KO%%' OR r.zbiornik LIKE 'ZB%%' OR r.komentarz LIKE '%do BB%' OR r.komentarz LIKE '%do MZ%' OR r.komentarz LIKE '%do WZ%' OR r.komentarz LIKE '%do KO%' OR r.komentarz LIKE '%do ZB%' OR r.komentarz LIKE '%-> BB%' OR r.komentarz LIKE '%-> MZ%' OR r.komentarz LIKE '%-> WZ%' OR r.komentarz LIKE '%-> KO%' OR r.komentarz LIKE '%-> ZB%')")
-
-        if data_od:
-            where_clauses.append(f"r.{timestamp_col} >= %s")
-            where_params.append(f"{data_od} 00:00:00")
-        if data_do:
-            where_clauses.append(f"r.{timestamp_col} <= %s")
-            where_params.append(f"{data_do} 23:59:59")
-        if surowiec:
-            where_clauses.append("r.surowiec_nazwa LIKE %s")
-            where_params.append(f"%{surowiec}%")
-            
-        where_sql = " AND ".join(where_clauses)
-        
-        query = f"""
-            SELECT 
-                r.id, 
-                r.surowiec_nazwa, 
-                r.typ_ruchu, 
-                r.ilosc, 
-                r.ilosc_po, 
-                r.lokalizacja, 
-                r.zbiornik, 
-                r.autor_login, 
-                r.{timestamp_col} AS created_at, 
-                r.komentarz,
-                pal.nr_palety,
-                pal.nazwa AS pal_nazwa
-            FROM {table_ruch} r
-            LEFT JOIN magazyn_surowce pal ON r.surowiec_id = pal.id
-            WHERE {where_sql}
-            ORDER BY r.{timestamp_col} DESC
-            LIMIT 500
-        """
-        cursor.execute(query, where_params)
-        rows = cursor.fetchall()
-        
-        data = []
-        for r in rows:
-            stacja = r.get('zbiornik') or r.get('lokalizacja')
-            if not stacja and r.get('komentarz'):
-                kom = r.get('komentarz')
-                if 'do ' in kom:
-                    parts = kom.split('do ')
-                    if len(parts) > 1:
-                        stacja = parts[1].strip()
-                elif '-> ' in kom:
-                    parts = kom.split('-> ')
-                    if len(parts) > 1:
-                        stacja = parts[1].strip()
-            stacja = stacja or '-'
-            data.append({
-                'id': r['id'],
-                'data': r['created_at'].strftime('%Y-%m-%d %H:%M') if r.get('created_at') else '-',
-                'stacja': stacja,
-                'nazwa': r.get('surowiec_nazwa') or r.get('pal_nazwa') or '-',
-                'nr_palety': r.get('nr_palety') or '-',
-                'ilosc': float(r.get('ilosc') or 0),
-                'typ': r.get('typ_ruchu') or '-',
-                'user': r.get('autor_login') or '-',
-                'komentarz': r.get('komentarz') or '-'
-            })
-            
-        return jsonify({'success': True, 'data': data})
-    except Exception as e:
-        print(f"Error fetching station history: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        conn.close()
+    data = WarehouseHistoryService.get_unified_station_and_movement_history(
+        linia=linia,
+        data_od=data_od,
+        data_do=data_do,
+        surowiec=surowiec,
+        stacja=stacja,
+        limit=500
+    )
+    return jsonify({'success': True, 'data': data})
 

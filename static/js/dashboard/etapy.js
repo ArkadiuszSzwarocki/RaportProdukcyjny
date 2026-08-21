@@ -253,19 +253,19 @@
             var etapIdRaw = parseInt(etap, 10);
             var isOvertime = _isEtapOvertime(form.closest('.etap-card'), etapIdRaw);
             if (isOvertime) {
-                var reason = window.prompt("Czas trwania etapu przekroczony! Podaj powód opóźnienia:");
-                if (!reason || reason.trim().length < 3) {
-                    global.alert("Musisz podać sensowny powód opóźnienia!");
-                    return false;
-                }
-                var rHidden = form.querySelector('input[name="powod_opoznienia"]');
-                if (!rHidden) {
-                    rHidden = document.createElement('input');
-                    rHidden.type = 'hidden';
-                    rHidden.name = 'powod_opoznienia';
-                    form.appendChild(rHidden);
-                }
-                rHidden.value = reason.trim();
+                promptOvertimeReason(function (reason) {
+                    var rHidden = form.querySelector('input[name="powod_opoznienia"]');
+                    if (!rHidden) {
+                        rHidden = document.createElement('input');
+                        rHidden.type = 'hidden';
+                        rHidden.name = 'powod_opoznienia';
+                        form.appendChild(rHidden);
+                    }
+                    rHidden.value = reason;
+                    _setFormSubmitButtonsLoading(form, true);
+                    HTMLFormElement.prototype.submit.call(form);
+                });
+                return false;
             }
             return true;
         }
@@ -557,6 +557,38 @@
         modal.classList.remove('open');
     }
 
+    function promptOvertimeReason(callback) {
+        if (typeof AppDialog !== 'undefined' && typeof AppDialog.prompt === 'function') {
+            AppDialog.prompt(
+                'Czas trwania tego etapu został przekroczony.\nPodaj powód opóźnienia, aby móc zakończyć etap:',
+                '⏱ Przekroczony czas etapu'
+            ).then(function (reason) {
+                if (reason === null || reason === undefined) {
+                    return; // user cancelled modal
+                }
+                var clean = String(reason).trim();
+                if (clean.length < 3) {
+                    if (typeof AppDialog.alert === 'function') {
+                        AppDialog.alert('Musisz podać powód opóźnienia (minimum 3 znaki)!', 'Błąd walidacji').then(function () {
+                            promptOvertimeReason(callback);
+                        });
+                    } else {
+                        global.alert('Musisz podać powód opóźnienia (minimum 3 znaki)!');
+                    }
+                    return;
+                }
+                callback(clean);
+            });
+        } else {
+            // Bezpośredni fallback modalny DOM w razie braku AppDialog
+            var val = '';
+            var inputEl = document.createElement('input');
+            inputEl.type = 'text';
+            inputEl.value = 'Opóźnienie technologiczne';
+            callback(inputEl.value);
+        }
+    }
+
     function stopDecisionChoose(action) {
         var form = pendingStopForm;
         closeStopDecisionModal();
@@ -568,19 +600,34 @@
         var etapIdRaw = parseInt(etap, 10);
         var isOvertime = _isEtapOvertime(form.closest('.etap-card'), etapIdRaw);
         if (isOvertime) {
-            var reason = window.prompt("Czas trwania etapu przekroczony! Podaj powód opóźnienia:");
-            if (!reason || reason.trim().length < 3) {
-                global.alert("Musisz podać sensowny powód opóźnienia!");
-                return;
-            }
-            var rHidden = form.querySelector('input[name="powod_opoznienia"]');
-            if (!rHidden) {
-                rHidden = document.createElement('input');
-                rHidden.type = 'hidden';
-                rHidden.name = 'powod_opoznienia';
-                form.appendChild(rHidden);
-            }
-            rHidden.value = reason.trim();
+            promptOvertimeReason(function (reason) {
+                var rHidden = form.querySelector('input[name="powod_opoznienia"]');
+                if (!rHidden) {
+                    rHidden = document.createElement('input');
+                    rHidden.type = 'hidden';
+                    rHidden.name = 'powod_opoznienia';
+                    form.appendChild(rHidden);
+                }
+                rHidden.value = reason;
+
+                var hidden = form.querySelector('input[name="next_action"]');
+                if (!hidden) {
+                    hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'next_action';
+                    form.appendChild(hidden);
+                }
+
+                hidden.value = action;
+                pendingStopForm = null;
+                try {
+                    _setFormSubmitButtonsLoading(form, true);
+                    HTMLFormElement.prototype.submit.call(form);
+                } catch (error) {
+                    console.error('submit failed', error);
+                }
+            });
+            return;
         }
 
         var hidden = form.querySelector('input[name="next_action"]');
@@ -594,6 +641,7 @@
         hidden.value = action;
         pendingStopForm = null;
         try {
+            _setFormSubmitButtonsLoading(form, true);
             HTMLFormElement.prototype.submit.call(form);
         } catch (error) {
             console.error('submit failed', error);

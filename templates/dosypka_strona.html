@@ -562,6 +562,16 @@
                     </div>
                 </div>
 
+                {% if not szarza_id %}
+                <div style="background:#fef2f2; border:1.5px solid #f87171; color:#991b1b; padding:16px 20px; border-radius:10px; margin-bottom:20px; display:flex; align-items:center; gap:14px;">
+                    <span style="font-size:28px;">⚠️</span>
+                    <div>
+                        <strong style="font-size:15px; display:block; margin-bottom:4px;">Brak aktywnego zasypu dla tego zlecenia!</strong>
+                        <span style="font-size:13px; color:#7f1d1d;">Dosypkę można dodać wyłącznie do trwającego zasypu. Operator na stacji musi najpierw rozpocząć zasyp (dodać szarżę).</span>
+                    </div>
+                </div>
+                {% endif %}
+
                 <form id="ds-form" action="{{ url_for('production.dodaj_dosypke') }}" method="POST">
                     <input type="hidden" name="plan_id" value="{{ plan_id }}">
                     <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
@@ -577,17 +587,21 @@
                                 <input type="text" name="nazwa_1" class="ds-input ds-input-nazwa"
                                     placeholder="Wybierz surowiec z listy..."
                                     {% if dostepne_surowce %}list="surowce-list"{% endif %}
+                                    {% if not szarza_id %}disabled style="background:#f1f5f9; cursor:not-allowed;"{% endif %}
                                     autocomplete="off" spellcheck="false">
                                 <input type="number" name="kg_1" class="ds-input ds-input-kg"
-                                    step="0.01" min="0" placeholder="kg">
+                                    step="0.01" min="0" placeholder="kg"
+                                    {% if not szarza_id %}disabled style="background:#f1f5f9; cursor:not-allowed;"{% endif %}>
                             </div>
                             <div class="ds-field-error"></div>
                         </div>
                     </div>
 
+                    {% if szarza_id %}
                     <button type="button" class="ds-btn-add" id="ds-btn-add" onclick="dsAddField()">
                         + Dodaj kolejną pozycję
                     </button>
+                    {% endif %}
                 </form>
 
                 <!-- SUCCESS feedback (shown after submit) -->
@@ -606,7 +620,7 @@
             <div class="ds-actions">
                 {% set active_dosypki = existing_dosypki | rejectattr('anulowana') | list %}
                 
-                {% if not active_dosypki %}
+                {% if not active_dosypki and szarza_id %}
                 <button type="button" class="ds-btn ds-btn-none" onclick="dsSubmitNone()">
                     📋 Brak dosypki
                 </button>
@@ -614,9 +628,15 @@
                 <div></div>
                 {% endif %}
                 <div class="ds-actions-right">
+                    {% if szarza_id %}
                     <button type="button" class="ds-btn ds-btn-confirm" id="ds-btn-confirm" onclick="dsSubmit()">
                         ✓ Potwierdź dosypkę
                     </button>
+                    {% else %}
+                    <button type="button" class="ds-btn" disabled style="background:#cbd5e1; color:#64748b; cursor:not-allowed;">
+                        Brak aktywnego zasypu
+                    </button>
+                    {% endif %}
                 </div>
             </div>
         </div>

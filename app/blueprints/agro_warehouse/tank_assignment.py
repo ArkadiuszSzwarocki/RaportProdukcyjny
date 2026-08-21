@@ -32,11 +32,11 @@ def _normalize_tank_code(code):
 
 
 def _is_valid_tank_code(code):
-    """Sprawdza czy kod to poprawny zbiornik BB/MZ/KO."""
+    """Sprawdza czy kod to poprawny zbiornik BB/MZ/KO/CZ/WZ."""
     if not code:
         return False
     code = _normalize_tank_code(code)
-    patterns = [r'^BB\d{2}$', r'^MZ\d{2}$', r'^KO\d{2}$']
+    patterns = [r'^BB\d{2}$', r'^MZ\d{2}$', r'^KO\d{2}$', r'^CZ\d{2}$', r'^WZ\d{2}$']
     return any(re.match(p, code) for p in patterns)
 
 
@@ -317,7 +317,7 @@ def assign_pallet_to_tank():
             table_surowce = get_table_name('magazyn_surowce', linia)
             
             cursor.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, nr_palety FROM {table_surowce} WHERE id = %s",
+                f"SELECT * FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             paleta = cursor.fetchone()

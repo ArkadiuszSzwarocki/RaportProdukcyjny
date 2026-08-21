@@ -289,7 +289,57 @@ class ScannerService:
                 "lokalizacja": transfer_info['source_warehouse'],
                 "typ": "TRANSFER"
             }
-            
+
+        # Sprawdź czy kod to wiadro z Maluchów (01-99, W01-W99)
+        try:
+            from app.services.bucket_maluch_service import BucketMaluchService
+            from app.repositories.bucket_maluch_repository import BucketMaluchRepository
+            norm_bucket = BucketMaluchService.normalize_bucket_code(location_code)
+            if norm_bucket:
+                bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, linia)
+                if not bucket:
+                    alt_linia = 'AGRO' if str(linia).upper() == 'PSD' else 'PSD'
+                    bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, alt_linia)
+                if not bucket:
+                    bucket = BucketMaluchRepository.find_latest_by_code(norm_bucket)
+
+                if bucket:
+                    pozycje = bucket.get('pozycje') or []
+                    pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Brak pozycji"
+                    status_pl = {
+                        'w_trakcie_nawazania': 'W trakcie naważania',
+                        'skompletowane': 'Skompletowane (Gotowe do wsypania)',
+                        'wrzucone_do_mieszalnika': f"Wsypane do mieszalnika ({bucket.get('mieszalnik_kod') or 'MI01'})"
+                    }.get(bucket.get('status'), bucket.get('status'))
+
+                    data_prod_str = bucket.get('data_produkcji').strftime('%Y-%m-%d %H:%M') if bucket.get('data_produkcji') else (bucket.get('created_at').strftime('%Y-%m-%d %H:%M') if bucket.get('created_at') else '')
+                    data_przyd_str = bucket.get('data_przydatnosci').strftime('%Y-%m-%d %H:%M') if bucket.get('data_przydatnosci') else ''
+                    sscc = bucket.get('nr_sscc') or BucketMaluchService.generate_bucket_sscc(norm_bucket, bucket.get('plan_id', 0), bucket.get('created_at'))
+
+                    return {
+                        'id': bucket['id'],
+                        'nazwa': f"Wiadro {norm_bucket} ({pozycje_txt})",
+                        'typ': 'Wiaderko',
+                        'inventory_type': 'Wiaderko',
+                        'is_bucket': True,
+                        'kod_wiadra': norm_bucket,
+                        'status': bucket.get('status'),
+                        'status_pl': status_pl,
+                        'stan_magazynowy': float(len(pozycje)),
+                        'jednostka': 'skł.',
+                        'lokalizacja': 'Naważanie Maluchów' if bucket.get('status') != 'wrzucone_do_mieszalnika' else (bucket.get('mieszalnik_kod') or 'MI01'),
+                        'nr_palety': sscc,
+                        'sscc': sscc,
+                        'plan_id': bucket.get('plan_id'),
+                        'linia': bucket.get('linia'),
+                        'nr_partii': f"Zlecenie #{bucket.get('plan_id')}",
+                        'data_produkcji': data_prod_str,
+                        'data_przydatnosci': data_przyd_str,
+                        'pozycje': pozycje
+                    }
+        except Exception:
+            pass
+
         return None
 
     @staticmethod
@@ -832,6 +882,22 @@ class ScannerService:
                     plan_id_val, komentarz, zbiornik_val
                 )
             )
+
+            # Zapisz także do palety_historia
+            try:
+                cur.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
+                    "VALUES (%s, %s, %s, 'WYDANIE_PRODUKCJA', %s, %s, %s, %s)",
+                    (
+                        surowiec_id, linia, pallet_type.lower(),
+                        lokalizacja_zrodlowa or 'Magazyn', zbiornik_val,
+                        f"Wydanie do stacji {zbiornik_val} (ilość: {ilosc:.1f} kg)",
+                        worker_login
+                    )
+                )
+            except Exception as hist_err:
+                print("Błąd zapisu palety_historia w dispatch_to_production:", hist_err)
+
             conn.commit()
 
             extra_data = {
@@ -996,6 +1062,42 @@ class ScannerService:
                         }
                 except Exception:
                     pass
+
+            # Check wiaderka_maluchy
+            try:
+                cur.execute(
+                    "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at FROM wiaderka_maluchy WHERE id=%s",
+                    (surowiec_id,)
+                )
+                b_row = cur.fetchone()
+                if b_row:
+                    from app.repositories.bucket_maluch_repository import BucketMaluchRepository
+                    from app.services.bucket_maluch_service import BucketMaluchService
+                    pozycje = BucketMaluchRepository.get_items_for_bucket(b_row['id'])
+                    pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Puste wiadro"
+                    sscc = b_row.get('nr_sscc') or BucketMaluchService.generate_bucket_sscc(b_row['kod_wiadra'], b_row.get('plan_id', 0), b_row.get('created_at'))
+                    
+                    data_prod = b_row.get('data_produkcji') or b_row.get('created_at') or datetime.now()
+                    data_przyd = b_row.get('data_przydatnosci') or (data_prod + relativedelta(hours=24))
+
+                    return {
+                        'id': b_row['id'],
+                        'nr_palety': sscc,
+                        'nazwa': f"WIADRO {b_row['kod_wiadra']}: {pozycje_txt}",
+                        'ilosc': float(len(pozycje)),
+                        'jednostka': 'skł.',
+                        'lokalizacja': 'Naważanie Maluchów',
+                        'qr_data': sscc,
+                        'partia': f"Zlecenie #{b_row.get('plan_id')}",
+                        'data_produkcji': data_prod.strftime('%d.%m.%Y %H:%M'),
+                        'data_przydatnosci': data_przyd.strftime('%d.%m.%Y %H:%M'),
+                        'termin': data_przyd.strftime('%d.%m.%Y %H:%M'),
+                        'data': data_prod.strftime('%d.%m.%Y %H:%M'),
+                        'is_bucket': True
+                    }
+            except Exception:
+                pass
+
             return None
         finally:
             conn.close()

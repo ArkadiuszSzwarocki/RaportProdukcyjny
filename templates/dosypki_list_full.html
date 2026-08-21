@@ -1,8 +1,18 @@
 {% extends 'layout.html' %}
 {% block content %}
-    <main id="mainContent">
+<main id="mainContent" class="main-content" style="max-width: 1000px; margin: 25px auto; padding: 0 15px;">
+    <div style="margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+        <a href="javascript:history.back()" class="btn-action btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px;">
+            <span class="material-icons" style="font-size: 18px;">arrow_back</span> Powrót do panelu
+        </a>
+        <div style="font-size: 13px; color: #64748b; font-weight: 600;">
+            {% if linia == 'AGRO' %}Linia AGRO{% else %}Linia PSD{% endif %} {% if plan_id %}• Zlecenie #{{ plan_id }}{% endif %}
+        </div>
+    </div>
+    <div class="card" style="background: #ffffff; border-radius: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; overflow: hidden;">
         {% include 'dosypki_list.html' %}
-    </main>
+    </div>
+</main>
 {% endblock %}
 
 <script>

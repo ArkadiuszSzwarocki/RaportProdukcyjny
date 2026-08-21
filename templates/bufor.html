@@ -467,7 +467,7 @@
     <div class="section-header bufor-page-header">
         <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-0">
             <div class="header-title-row d-flex align-center gap-10">
-                <h2 class="header-title m-0"><strong>Bufor</strong></h2>
+                <h2 class="header-title m-0"><strong>{% if linia == 'AGRO' %}Bufor Agro{% else %}Bufor PSD{% endif %}</strong></h2>
                 <div class="day-tile">
                     <button type="button" class="day-nav left" onclick="changeDate(-1)" aria-label="Poprzedni dzień">◀</button>
                     <div class="day-center">

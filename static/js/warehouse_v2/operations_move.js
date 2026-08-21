@@ -67,10 +67,29 @@ function submitMoveLocation() {
         })
     }).then(r => r.json()).then(data => {
         if(data.success) {
-            showToast("Przeniesiono pomyślnie.", 'success');
+            showToast("Przeniesiono pomyślnie na: " + newLoc, 'success');
+            const targetId = currentPallet.id;
+            const targetType = currentPallet.type;
+            const targetDisplayId = currentPallet.displayId;
+
             closeMoveLocationModal();
             closePalletModal();
-            setTimeout(() => window.location.reload(), 1000);
+
+            allWarehouseItems.forEach(x => {
+                if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                    x.location = newLoc;
+                }
+            });
+            if (typeof currentFilteredItems !== 'undefined') {
+                currentFilteredItems.forEach(x => {
+                    if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                        x.location = newLoc;
+                    }
+                });
+            }
+            if (typeof filterTable === 'function') {
+                filterTable();
+            }
         } else {
             if(errEl) {
                 errEl.textContent = "Błąd: " + (data.error || data.message || "Nieznany błąd zapisu");
@@ -89,46 +108,102 @@ function submitMoveLocation() {
 
 async function promptRename() {
     if(!currentPallet.id) return;
+    const targetId = currentPallet.id;
+    const targetType = currentPallet.type;
+    const targetDisplayId = currentPallet.displayId;
+
     let newName = await AppDialog.prompt(`Zmień nazwę produktu dla palety ${currentPallet.displayId}:`, currentPallet.productName);
-    if(newName && newName !== currentPallet.productName) {
+    if(newName && newName.trim() !== '' && newName.trim() !== currentPallet.productName) {
+        const trimmedName = newName.trim();
         fetch('/warehouse-v2/api/pallet/rename', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                name: newName,
+                id: targetId,
+                type: targetType,
+                name: trimmedName,
                 linia: currentPallet.linia
             })
         }).then(r => r.json()).then(data => {
             if(data.success) {
-                AppDialog.alert("Nazwa zaktualizowana.").then(() => window.location.reload());
+                showToast("Nazwa zaktualizowana pomyślnie.", 'success');
+                allWarehouseItems.forEach(x => {
+                    if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                        x.productName = trimmedName;
+                    }
+                });
+                if (typeof currentFilteredItems !== 'undefined') {
+                    currentFilteredItems.forEach(x => {
+                        if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                            x.productName = trimmedName;
+                        }
+                    });
+                }
+                closePalletModal();
+                if (typeof filterTable === 'function') {
+                    filterTable();
+                }
             } else {
-                AppDialog.alert("Błąd: " + data.error);
+                AppDialog.alert("Błąd: " + (data.error || data.message));
             }
+        }).catch(err => {
+            AppDialog.alert("Błąd połączenia z serwerem: " + err);
         });
     }
 }
 
 async function promptUpdateWeight() {
     if(!currentPallet.id) return;
-    let newWeight = await AppDialog.prompt(`Podaj nową wagę/ilość dla palety ${currentPallet.displayId}:`, currentPallet.amount);
-    if(newWeight !== null && newWeight !== currentPallet.amount) {
+    const targetId = currentPallet.id;
+    const targetType = currentPallet.type;
+    const targetDisplayId = currentPallet.displayId;
+    const targetLinia = currentPallet.linia;
+
+    let newWeight = await AppDialog.prompt(`Podaj nową wagę/ilość dla palety ${targetDisplayId}:`, currentPallet.amount);
+    if(newWeight !== null && newWeight !== undefined && String(newWeight).trim() !== '' && parseFloat(newWeight) !== parseFloat(currentPallet.amount)) {
+        const parsedW = parseFloat(newWeight);
+        if (isNaN(parsedW)) {
+            AppDialog.alert("Podana wartość nie jest prawidłową liczbą.");
+            return;
+        }
+
         fetch('/warehouse-v2/api/pallet/update-weight', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                weight: parseFloat(newWeight),
-                linia: currentPallet.linia
+                id: targetId,
+                type: targetType,
+                weight: parsedW,
+                linia: targetLinia
             })
         }).then(r => r.json()).then(data => {
             if(data.success) {
-                AppDialog.alert(data.message || "Waga zaktualizowana.").then(() => window.location.reload());
+                showToast(data.message || "Waga zaktualizowana.", 'success');
+                if (parsedW <= 0) {
+                    removePalletFromDOM(targetId, `Paleta ${targetDisplayId} zarchiwizowana ✓`);
+                } else {
+                    allWarehouseItems.forEach(x => {
+                        if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                            x.amount = parsedW;
+                        }
+                    });
+                    if (typeof currentFilteredItems !== 'undefined') {
+                        currentFilteredItems.forEach(x => {
+                            if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                                x.amount = parsedW;
+                            }
+                        });
+                    }
+                    closePalletModal();
+                    if (typeof filterTable === 'function') {
+                        filterTable();
+                    }
+                }
             } else {
-                AppDialog.alert("Błąd: " + data.error);
+                AppDialog.alert("Błąd: " + (data.error || data.message));
             }
+        }).catch(err => {
+            AppDialog.alert("Błąd połączenia z serwerem: " + err);
         });
     }
 }
