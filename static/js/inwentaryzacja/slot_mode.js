@@ -1,4 +1,5 @@
 function highlightAndOpenSlot(locId) {
+    locId = normalizeLocationCode(locId);
     // Remove highlight from all
     document.querySelectorAll('#rackGrid > div').forEach(d => {
         d.style.outline = 'none';
@@ -18,6 +19,7 @@ function highlightAndOpenSlot(locId) {
 
 
 function openSlotDetail(locId) {
+    locId = normalizeLocationCode(locId);
     const detail = document.getElementById('slotDetail');
     const title = document.getElementById('detailLocTitle');
     const content = document.getElementById('detailContent');
@@ -269,12 +271,14 @@ function openSlotDetail(locId) {
     }
     detail.style.display = 'flex';
     
-    // Autofocus SSCC verifier first
+    // Autofocus SSCC verifier first and attach auto-enter
     setTimeout(() => {
+        if (typeof initInventoryScannerListeners === 'function') initInventoryScannerListeners();
         const ssccInput = document.getElementById('ssccVerifierInputDetail');
         if(ssccInput) ssccInput.focus();
     }, 100);
 }
+
 
 
 function closeDetail() {
@@ -291,6 +295,7 @@ document.getElementById('slotDetail').addEventListener('click', (e) => {
 
 
 function markEmpty(locId) {
+    locId = normalizeLocationCode(locId);
     // Confirmed empty without additional question as requested
     
     // If there were items, we need to set them to 0

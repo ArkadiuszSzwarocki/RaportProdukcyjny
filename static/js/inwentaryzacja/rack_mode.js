@@ -1,37 +1,44 @@
-function loadRack(prefix) {
-    currentRackPrefix = prefix;
-    localStorage.setItem('lastInventoryRack', prefix);
+function loadRack(prefix, slotToOpen = null) {
+    const normPrefix = normalizeRackPrefix(prefix);
+    currentRackPrefix = normPrefix;
+    localStorage.setItem('lastInventoryRack', normPrefix);
     localStorage.removeItem('lastInventoryLoc');
     
-    fetch(window.INVENTORY_CONFIG.url_szukaj_regalu, {
+    return fetch(window.INVENTORY_CONFIG.url_szukaj_regalu, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({prefix: prefix, sesja_id: window.INVENTORY_CONFIG.sesjaId})
+        body: JSON.stringify({prefix: normPrefix, sesja_id: window.INVENTORY_CONFIG.sesjaId})
     })
     .then(r => r.json())
     .then(data => {
         if(data.success) {
-            rackData = data.rack_data;
+            rackData = data.rack_data || {};
             document.getElementById('locationSearchCard').style.display = 'none';
             document.getElementById('resultsContainer').style.display = 'none';
-            document.getElementById('activeRack').textContent = prefix;
-            renderRackGrid(prefix);
+            const blindContainer = document.getElementById('blindScanContainer');
+            if (blindContainer) blindContainer.style.display = 'none';
+
+            document.getElementById('activeRack').textContent = normPrefix;
+            renderRackGrid(normPrefix);
             document.getElementById('rackContainer').style.display = 'block';
             
             // Pokaż dolny baner z raportem i zakończeniem
             const banner = document.getElementById('floatingFinishBanner');
             if (banner) banner.style.display = 'flex';
             
-            setTimeout(() => {
-                const ssccInput = document.getElementById('ssccVerifierInputRack');
-                if(ssccInput) ssccInput.focus();
-            }, 100);
+            if (slotToOpen) {
+                const normSlot = normalizeLocationCode(slotToOpen);
+                highlightAndOpenSlot(normSlot);
+            } else {
+                refocusRackScanner();
+            }
         }
     });
 }
 
 
 function renderRackGrid(prefix) {
+    const normPrefix = normalizeRackPrefix(prefix);
     const grid = document.getElementById('rackGrid');
     grid.innerHTML = '';
     
@@ -39,10 +46,10 @@ function renderRackGrid(prefix) {
     let maxRows = 3;
     
     // R05 has 4 rows and 4 columns
-    if (prefix === 'R05') {
+    if (normPrefix === 'R05') {
         maxCols = 4;
         maxRows = 4;
-    } else if (prefix === 'R06') {
+    } else if (normPrefix === 'R06') {
         maxCols = 5;
         maxRows = 5;
     }
@@ -54,10 +61,8 @@ function renderRackGrid(prefix) {
         for(let c = 1; c <= maxCols; c++) {
             const colStr = c.toString().padStart(2, '0');
             const rowStr = r.toString().padStart(2, '0');
-            // Format: R010101 (prefix + col + row)
-            // But prefix might be "R01" or "R-01". Let's handle clean prefix.
-            const cleanPrefix = prefix.replace('-', '');
-            const locId = `${cleanPrefix}${colStr}${rowStr}`;
+            // Format: R010101 (normPrefix + col + row)
+            const locId = `${normPrefix}${colStr}${rowStr}`;
             
             const cell = document.createElement('div');
             cell.id = `cell-${locId}`;

@@ -261,6 +261,9 @@ class FolioService:
             # --- AUTO DRUKOWANIE ETYKIETY ZEBRA (ZAMKNIĘCIE ROLKI) ---
             if pozostalo_szt > 0:
                 try:
+                    from app.services.print_server import get_printer
+                    printer_service = get_printer()
+
                     # Szukamy domyślnej drukarki (Zebra)
                     cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 AND nazwa LIKE %s LIMIT 1", ('%Zebra%',))
                     printer = cursor.fetchone()
@@ -269,47 +272,35 @@ class FolioService:
                         cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 LIMIT 1")
                         printer = cursor.fetchone()
 
-                    if printer:
-                        # Pobieramy dane rolki
-                        cursor.execute("SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
-                        rolka_dane = cursor.fetchone()
+                    # Pobieramy dane rolki
+                    cursor.execute("SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+                    rolka_dane = cursor.fetchone() or {}
 
-                        if rolka_dane:
-                            import threading
-                            import requests
-                            import urllib3
-                            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    dp = rolka_dane.get('data_produkcji')
+                    dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))
+                    dz = rolka_dane.get('data_przydatnosci')
+                    dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '---')
 
-                            payload = {
-                                "drukarka": printer['nazwa'],
-                                "ip": printer['ip'],
-                                "typ": "opakowanie",
-                                "dane": {
-                                    "palletData": {
-                                        "nrPalety": rolka_dane.get('nr_palety') or '---',
-                                        "productName": opak_nazwa,
-                                        "batchNumber": rolka_dane.get('nr_partii') or '---',
-                                        "productionDate": str(rolka_dane.get('data_produkcji')) if rolka_dane.get('data_produkcji') else '---',
-                                        "expiryDate": str(rolka_dane.get('data_przydatnosci')) if rolka_dane.get('data_przydatnosci') else '---',
-                                        "currentWeight": float(pozostalo_szt),
-                                        "unit": "szt.",
-                                        "labNotes": f"ZAMKNIĘTO ROLKĘ"
-                                    }
-                                }
-                            }
+                    label_data = {
+                        "id": opakowanie_id,
+                        "nr_palety": rolka_dane.get('nr_palety') or f"OPK-{opakowanie_id}",
+                        "nazwa": opak_nazwa,
+                        "partia": rolka_dane.get('nr_partii') or '---',
+                        "data": dp_str,
+                        "termin": dz_str,
+                        "ilosc": float(pozostalo_szt),
+                        "linia": "AGRO",
+                        "lokalizacja": "Maszyna"
+                    }
 
-                            def run_print():
-                                url = "http://127.0.0.1:3001/drukuj-zpl"
-                                for _ in range(2):
-                                    try:
-                                        requests.post(url, json=payload, verify=False, timeout=3)
-                                    except Exception:
-                                        pass
+                    target_ip = printer['ip'] if printer else None
+                    target_name = printer['nazwa'] if printer else None
 
-                            threading.Thread(target=run_print, daemon=True).start()
-                            print(f"[FolioService] Automatyczny wydruk etykiety dla rolki {opak_nazwa} na drukarkę {printer['nazwa']}")
+                    ok, msg = printer_service.print_pallet_label(label_data, override_ip=target_ip, override_name=target_name, copies=2)
+                    print(f"[FolioService] Wydruk etykiety dla zamkniętej rolki {opak_nazwa}: {ok} ({msg})")
                 except Exception as print_ex:
                     print(f"[FolioService] Błąd automatycznego druku po zamknięciu rolki: {print_ex}")
+
 
             conn.commit()
             return True, None

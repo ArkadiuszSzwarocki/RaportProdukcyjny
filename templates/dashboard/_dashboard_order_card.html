@@ -25,9 +25,20 @@
             {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
                 <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty:</strong>
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-weight: 800; font-size: 0.85rem; border-radius: 6px;">{{ p[15]|default(0, true) }} kg</span>
+                <input type="number" 
+                       class="form-control form-control-sm odrzuty-input" 
+                       data-plan-id="{{ p[0] }}" 
+                       data-linia="{{ linia }}" 
+                       value="{{ p[15]|default(0, true) }}" 
+                       min="0" 
+                       step="0.1" 
+                       style="width: 75px; text-align: center; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background-color: #fef2f2; border-radius: 6px; padding: 2px 4px;"
+                       placeholder="kg"
+                       title="Wpisz wagę odrzutów na przesiewaczu">
+                <span style="font-size: 0.85em; font-weight: 700; color: #dc2626;">kg</span>
             </div>
             {% endif %}
+
         </div>
         
         <div style="flex-grow: 1;"></div>

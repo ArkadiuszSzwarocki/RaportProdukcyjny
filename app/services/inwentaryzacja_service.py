@@ -2,6 +2,7 @@
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
 import json
+import re
 
 class InwentaryzacjaService:
     ID_PREFIX_MAP = {
@@ -11,6 +12,22 @@ class InwentaryzacjaService:
         'wyrób gotowy': 'PAL',
         'wyrob gotowy': 'PAL',
     }
+
+    @staticmethod
+    def normalize_loc_key(loc_str):
+        if not loc_str:
+            return ''
+        l = re.sub(r'[^A-Z0-9]', '', str(loc_str).strip().upper())
+        if l and l[0].isdigit() and len(l) == 6:
+            l = 'R' + l
+        match = re.match(r'^R?(\d{1,2})(\d{2})(\d{2})$', l)
+        if match:
+            rack = match.group(1).zfill(2)
+            col = match.group(2)
+            row = match.group(3)
+            return f"R{rack}{col}{row}"
+        return l
+
 
     @staticmethod
     def _build_display_id(typ_palety, item_id, nr_palety=None):
@@ -28,33 +45,85 @@ class InwentaryzacjaService:
     @staticmethod
     def szukaj_globalnie_palety(sscc_lub_id: str):
         """
-        Przeszukuje całą bazę (magazyn_palety, magazyn_surowce, itp.)
-        w poszukiwaniu palety po nr_palety (SSCC) lub ID.
+        Przeszukuje całą bazę (magazyn_palety, magazyn_palety_agro, magazyn_surowce, magazyn_opakowania, magazyn_dodatki)
+        w poszukiwaniu palety po nr_palety (SSCC), prefiksie ID (np. SUR-1357) lub ID.
         Zwraca dict z danymi palety lub None.
         """
-        sscc = str(sscc_lub_id or '').strip().upper()
-        if not sscc:
+        raw_code = str(sscc_lub_id or '').strip().upper()
+        if not raw_code:
             return None
             
+        clean_code = raw_code.replace('(00)', '').replace(']C1', '').strip()
+        
+        # Check if ID passed directly or with prefix like SUR-1357, PAL-123, etc.
+        extracted_id = None
+        if clean_code.isdigit():
+            extracted_id = int(clean_code)
+        else:
+            match = re.search(r'^[A-Z]+-(\d+)$', clean_code)
+            if match:
+                extracted_id = int(match.group(1))
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Wyrób gotowy (PSD i AGRO)
+            # 1. Surowce
+            if extracted_id is not None:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (extracted_id, raw_code, clean_code)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (raw_code, clean_code)
+                )
+            row = cursor.fetchone()
+            if row: return row
+
+            # 2. Opakowania
+            if extracted_id is not None:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (extracted_id, raw_code, clean_code)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (raw_code, clean_code)
+                )
+            row = cursor.fetchone()
+            if row: return row
+
+            # 3. Dodatki
+            if extracted_id is not None:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (extracted_id, raw_code, clean_code)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                    (raw_code, clean_code)
+                )
+            row = cursor.fetchone()
+            if row: return row
+
+            # 4. Wyroby gotowe (PSD i AGRO)
             for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
-                cursor.execute(f"SELECT id, nr_palety, nazwa, nr_partii, waga_aktualna as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka FROM {tbl} WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
+                if extracted_id is not None:
+                    cursor.execute(
+                        f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                        (extracted_id, raw_code, clean_code)
+                    )
+                else:
+                    cursor.execute(
+                        f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s",
+                        (raw_code, clean_code)
+                    )
                 row = cursor.fetchone()
                 if row: return row
-                
-            # Surowce
-            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, jednostka FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
-            row = cursor.fetchone()
-            if row: return row
-            
-            # Opakowania
-            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR id = %s", (sscc, sscc))
-            row = cursor.fetchone()
-            if row: return row
 
             return None
         except Exception as e:
@@ -62,6 +131,7 @@ class InwentaryzacjaService:
             return None
         finally:
             conn.close()
+
 
     @staticmethod
     def get_active_session(linia=None):
@@ -114,16 +184,23 @@ class InwentaryzacjaService:
             new_items_list = [] # List of new items (paleta_id is None)
             
             # Prepare LIKE patterns for robust matching
-            clean_prefix = rack_prefix.strip().upper()
-            base_prefix = clean_prefix
-            if base_prefix.startswith('R-'): base_prefix = base_prefix[2:]
-            elif base_prefix.startswith('R'): base_prefix = base_prefix[1:]
-            
-            p1 = f"{base_prefix}%"
-            p2 = f"R{base_prefix}%"
-            p3 = f"R-{base_prefix}%"
-            like_clause = "(UPPER(TRIM(lokalizacja)) LIKE %s OR UPPER(TRIM(lokalizacja)) LIKE %s OR UPPER(TRIM(lokalizacja)) LIKE %s)"
-            params = (p1, p2, p3)
+            clean_prefix = re.sub(r'[^A-Z0-9]', '', str(rack_prefix).strip().upper())
+            if clean_prefix.startswith('R'):
+                clean_prefix = clean_prefix[1:]
+            num = clean_prefix.lstrip('0')
+            p_01 = clean_prefix.zfill(2)
+            p_1 = num or "0"
+
+            p_list = list(dict.fromkeys([
+                f"{p_01}%",
+                f"R{p_01}%",
+                f"R-{p_01}%",
+                f"R{p_1}%",
+                f"R-{p_1}%",
+            ]))
+            like_conditions = " OR ".join(["UPPER(TRIM(lokalizacja)) LIKE %s"] * len(p_list))
+            like_clause = f"({like_conditions})"
+            params = tuple(p_list)
 
             if sesja_id:
                 cursor.execute(
@@ -137,12 +214,6 @@ class InwentaryzacjaService:
                         new_items_list.append(row)
 
             hall_contexts = ['PSD', 'AGRO']
-            
-            def normalize_loc_key(loc_str):
-                l = str(loc_str).strip().upper()
-                if l.startswith('R-'): return 'R' + l[2:]
-                if not l.startswith('R') and l and l[0].isdigit(): return 'R' + l
-                return l
 
             matched_keys = set()
             # Helper to add items to map
@@ -161,7 +232,7 @@ class InwentaryzacjaService:
                         r['waga_faktyczna'] = None
                         r['jednostka'] = r.get('jednostka') or 'kg'
                         
-                    loc = normalize_loc_key(raw_loc)
+                    loc = InwentaryzacjaService.normalize_loc_key(raw_loc)
                     r['lokalizacja'] = loc # update it so frontend gets consistent value
                     
                     if loc not in all_items: all_items[loc] = []
@@ -210,7 +281,7 @@ class InwentaryzacjaService:
             for new_p in new_items_list:
                 if new_p['nazwa'] != 'PUSTE GNIAZDO' and (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
                     continue
-                loc = new_p['lokalizacja']
+                loc = InwentaryzacjaService.normalize_loc_key(new_p['lokalizacja'])
                 if loc not in all_items: all_items[loc] = []
                 
                 # Build synthetic pallet object
@@ -235,7 +306,7 @@ class InwentaryzacjaService:
             # 5. Add system items that were counted here but belong to another location in the system
             for key, row in counted_map.items():
                 if key not in matched_keys:
-                    loc = row['lokalizacja']
+                    loc = InwentaryzacjaService.normalize_loc_key(row['lokalizacja'])
                     if loc not in all_items: all_items[loc] = []
                     synthetic = {
                         "id": row['paleta_id'],
@@ -274,13 +345,23 @@ class InwentaryzacjaService:
             new_items_list = [] # List of new items
             
             # Prepare IN variants for robust matching
-            clean_loc = lokalizacja.strip().upper()
-            base_loc = clean_loc
-            if base_loc.startswith('R-'): base_loc = base_loc[2:]
-            elif base_loc.startswith('R'): base_loc = base_loc[1:]
+            norm_loc = InwentaryzacjaService.normalize_loc_key(lokalizacja)
+            loc_variants_set = {lokalizacja.strip().upper(), norm_loc}
             
-            loc_variants = (base_loc, f"R{base_loc}", f"R-{base_loc}")
-            in_clause = "UPPER(TRIM(lokalizacja)) IN (%s, %s, %s)"
+            match = re.match(r'^R(\d{2})(\d{2})(\d{2})$', norm_loc)
+            if match:
+                r_no, c_no, ro_no = match.group(1), match.group(2), match.group(3)
+                loc_variants_set.update([
+                    f"R-{r_no}-{c_no}-{ro_no}",
+                    f"R{r_no}-{c_no}-{ro_no}",
+                    f"R-{int(r_no)}-{int(c_no)}-{int(ro_no)}",
+                    f"R{int(r_no)}-{int(c_no)}-{int(ro_no)}",
+                    f"{r_no}{c_no}{ro_no}",
+                    f"{r_no}-{c_no}-{ro_no}"
+                ])
+            loc_variants = tuple(loc_variants_set)
+            in_placeholders = ', '.join(['%s'] * len(loc_variants))
+            in_clause = f"UPPER(TRIM(lokalizacja)) IN ({in_placeholders})"
 
             if sesja_id:
                 cursor.execute(
@@ -301,17 +382,10 @@ class InwentaryzacjaService:
                 key = f"{p['typ_palety']}_{p['id']}"
                 if key in counted_map:
                     # If it was moved to another location, don't return it for THIS location
-                    new_loc = counted_map[key]['lokalizacja'].strip().upper()
-                    requested_loc = lokalizacja.strip().upper()
-                    # Normalize both to check
-                    if new_loc.startswith('R-'): new_loc = 'R' + new_loc[2:]
-                    elif not new_loc.startswith('R') and new_loc and new_loc[0].isdigit(): new_loc = 'R' + new_loc
+                    new_loc = InwentaryzacjaService.normalize_loc_key(counted_map[key]['lokalizacja'])
+                    requested_loc = InwentaryzacjaService.normalize_loc_key(lokalizacja)
                     
-                    req_l = requested_loc
-                    if req_l.startswith('R-'): req_l = 'R' + req_l[2:]
-                    elif not req_l.startswith('R') and req_l and req_l[0].isdigit(): req_l = 'R' + req_l
-                    
-                    if new_loc != req_l:
+                    if new_loc != requested_loc:
                         return None
                         
                     p['counted'] = True
@@ -750,23 +824,42 @@ class InwentaryzacjaService:
         """Get unique product names from relevant tables for autocomplete."""
         conn = get_db_connection()
         names = set()
+        typ_lower = (typ or '').lower().strip()
         try:
             cursor = conn.cursor()
-            if typ == 'surowiec' or not typ:
+            if typ_lower in ('surowiec', '') or not typ_lower:
                 cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
-                for r in cursor.fetchall(): names.add(r[0])
-            if typ == 'opakowanie' or not typ:
+                for r in cursor.fetchall(): names.add(r[0].strip())
+                try:
+                    cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND nazwa != ''")
+                    for r in cursor.fetchall(): names.add(r[0].strip())
+                except Exception:
+                    pass
+
+            if typ_lower in ('opakowanie', '') or not typ_lower:
                 cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
-                for r in cursor.fetchall(): names.add(r[0])
-            if typ == 'wyrób gotowy' or not typ:
-                # Fetch from PSD and AGRO
+                for r in cursor.fetchall(): names.add(r[0].strip())
+
+            if typ_lower in ('wyrób gotowy', 'wyrob gotowy', 'pal', '') or not typ_lower:
                 for hall in ['PSD', 'AGRO']:
-                    table = get_table_name('magazyn_palety', hall)
-                    cursor.execute(f"SELECT DISTINCT produkt FROM {table} WHERE produkt IS NOT NULL AND produkt != ''")
-                    for r in cursor.fetchall(): names.add(r[0])
-            if typ == 'dodatek' or not typ:
-                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND nazwa != ''")
-                for r in cursor.fetchall(): names.add(r[0])
+                    try:
+                        table = get_table_name('magazyn_palety', hall)
+                        cursor.execute(f"SELECT DISTINCT produkt FROM {table} WHERE produkt IS NOT NULL AND produkt != ''")
+                        for r in cursor.fetchall(): names.add(r[0].strip())
+                    except Exception:
+                        pass
+                try:
+                    cursor.execute("SELECT DISTINCT produkt FROM receptury WHERE produkt IS NOT NULL AND produkt != ''")
+                    for r in cursor.fetchall(): names.add(r[0].strip())
+                except Exception:
+                    pass
+
+            if typ_lower in ('dodatek', '') or not typ_lower:
+                try:
+                    cursor.execute("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND nazwa != ''")
+                    for r in cursor.fetchall(): names.add(r[0].strip())
+                except Exception:
+                    pass
                 
             return sorted(list(names))
         except Exception as e:
@@ -775,6 +868,7 @@ class InwentaryzacjaService:
         finally:
             if 'conn' in locals() and conn:
                 conn.close()
+
 
     @staticmethod
     def get_daily_summary(date_str=None):

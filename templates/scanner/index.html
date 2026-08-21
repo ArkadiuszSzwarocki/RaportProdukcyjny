@@ -205,6 +205,54 @@
     </div>
   </div>
 </div>
+
+<!-- WG ACCEPT MODAL (PRZYJĘCIE Z PRODUKCJI) -->
+<div class="modal-overlay" id="wgAcceptOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:8px;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+    
+    <!-- Modal Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:1.3em;">inventory_2</span>
+        Przyjęcie Wyrobu z Produkcji
+      </h3>
+      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+
+    <!-- Pallet Info Card -->
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:12px;">
+      <div style="font-size:0.7em; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:2px;">Zeskanowana Paleta</div>
+      <div id="wgPalletNo" style="font-size:1.05em; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
+      <div id="wgPalletName" style="font-size:0.85em; color:#94a3b8;">—</div>
+    </div>
+
+    <!-- STEP 1: Weight Confirmation -->
+    <div id="wgStepWeight">
+      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">1. Potwierdź wagę netto (kg):</label>
+      <input type="number" id="wgWeightInput" step="0.1" placeholder="Waga w kg..."
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;"
+             onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); goToWgStep2();}">
+    </div>
+
+    <!-- STEP 2: Location Scan -->
+    <div id="wgStepLocation" style="display:none;">
+      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">2. Zeskanuj lokalizację docelową:</label>
+      <input type="text" id="wgLocInput" placeholder="np. R010101, MGW01..."
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #3b82f6; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box; text-transform:uppercase;">
+      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
+      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Wstecz</button>
+      <button onclick="closeWgAcceptModal()" style="padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:8px 16px; font-size:0.9em; border:none; background:#3b82f6; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
+      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:8px 16px; font-size:0.9em; border:none; background:#22c55e; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
+    </div>
+
+  </div>
+</div>
+
 {% endblock %}
 
 {% block footer_scripts %}

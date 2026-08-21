@@ -41,8 +41,11 @@ window.addEventListener('load', () => {
         if (target && target !== 'WSZYSTKO' && target !== 'WSZYSTKIE') {
             document.getElementById('lokalizacjaInput').value = target;
             document.getElementById('locationSearchCard').style.display = 'none';
-            if (target.startsWith('R') && target.length >= 3 && target.length <= 4) {
-                loadRack(target);
+            if (isRackCode(target)) {
+                loadRack(normalizeRackPrefix(target));
+            } else if (isLocationCode(target)) {
+                const normSlot = normalizeLocationCode(target);
+                loadRack(normSlot.substring(0, 3), normSlot);
             } else {
                 searchLocation();
             }

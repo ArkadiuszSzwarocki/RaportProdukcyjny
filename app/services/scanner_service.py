@@ -95,6 +95,34 @@ class ScannerService:
         return bool(re.match(r'^([A-Z]{3}\d{18,20}|\d{18,20}|00\d{18,20})$', normalized))
 
     @staticmethod
+    def _get_active_production_qty(cur, surowiec_id: int, linia: str) -> tuple[float, str]:
+        """Zwraca (pozostała_ilość_w_produkcji, zbiornik) dla danego surowca."""
+        if not surowiec_id:
+            return 0.0, ''
+        try:
+            table_ruch = get_table_name('magazyn_ruch', linia)
+            cur.execute(
+                f"SELECT r.id, ABS(r.ilosc) as pobrana, COALESCE(r.zbiornik, '') as zbiornik, "
+                f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as zwrocona, "
+                f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as korekta "
+                f"FROM {table_ruch} r "
+                f"WHERE r.surowiec_id = %s AND r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
+                f"ORDER BY r.autor_data DESC, r.id DESC LIMIT 1",
+                (surowiec_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                pobrana = float(row.get('pobrana') or 0)
+                zwrocona = float(row.get('zwrocona') or 0)
+                korekta = float(row.get('korekta') or 0)
+                rem = round(pobrana - zwrocona + korekta, 2)
+                if rem > 0:
+                    return rem, (row.get('zbiornik') or '').strip().upper()
+        except Exception:
+            pass
+        return 0.0, ''
+
+    @staticmethod
     def _lookup_inventory_row(
         cur,
         base_table: str,
@@ -132,23 +160,48 @@ class ScannerService:
         )
         try:
             cur.execute(sql, tuple(params))
-            return cur.fetchone()
+            row = cur.fetchone()
+            if row:
+                return row
         except Exception:
-            if item_id is None:
-                return None
+            pass
 
-            # Część tabel nie ma kolumny lokalizacja — fallback tylko dla lookupu po ID.
-            fallback_sql = (
-                f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, '' AS lokalizacja, "
-                f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                f"data_produkcji, data_przydatnosci "
-                f"FROM {table_name} WHERE COALESCE({qty_col}, 0) > 0 AND id = %s LIMIT 1"
-            )
-            try:
-                cur.execute(fallback_sql, (item_id,))
-                return cur.fetchone()
-            except Exception:
-                return None
+        # Jeśli nie znaleziono z qty > 0, ale szukano po ID lub nr_palety — sprawdź czy paleta jest w produkcji
+        if location_code is None and (item_id is not None or pallet_no is not None or partial_pallet_no is not None):
+            where_unbound = []
+            params_unbound: list[object] = []
+            if item_id is not None:
+                where_unbound.append("id = %s")
+                params_unbound.append(item_id)
+            if pallet_no is not None:
+                where_unbound.append("UPPER(COALESCE(nr_palety, '')) = %s")
+                params_unbound.append(str(pallet_no).upper())
+            if partial_pallet_no is not None:
+                where_unbound.append("UPPER(COALESCE(nr_palety, '')) LIKE %s")
+                params_unbound.append('%' + str(partial_pallet_no).upper())
+
+            if where_unbound:
+                sql_unbound = (
+                    f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
+                    f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
+                    f"data_produkcji, data_przydatnosci "
+                    f"FROM {table_name} WHERE {' AND '.join(where_unbound)} ORDER BY id DESC LIMIT 1"
+                )
+                try:
+                    cur.execute(sql_unbound, tuple(params_unbound))
+                    p_row = cur.fetchone()
+                    if p_row:
+                        prod_qty, prod_tank = ScannerService._get_active_production_qty(cur, p_row['id'], linia)
+                        if prod_qty > 0:
+                            p_row['ilosc'] = prod_qty
+                            if prod_tank:
+                                p_row['lokalizacja'] = prod_tank
+                            return p_row
+                except Exception:
+                    pass
+
+        return None
+
 
     @staticmethod
     def _lookup_finished_goods(
@@ -426,6 +479,12 @@ class ScannerService:
                     cur.execute(sql, (normalized_for_lookup,))
                     rows = cur.fetchall()
                     for row in rows:
+                        if float(row.get('ilosc') or 0) <= 0:
+                            prod_qty, prod_tank = ScannerService._get_active_production_qty(cur, row['id'], linia)
+                            if prod_qty > 0:
+                                row['ilosc'] = prod_qty
+                                if prod_tank:
+                                    row['lokalizacja'] = prod_tank
                         results.append(_normalize_lookup_item(
                             row,
                             inventory_type=inv_type,
@@ -452,18 +511,22 @@ class ScannerService:
                     cur.execute(sql, (normalized_for_lookup,))
                     row = cur.fetchone()
                     if row:
+                        s_id = row.get('surowiec_id') or row.get('id')
+                        prod_qty, prod_tank = ScannerService._get_active_production_qty(cur, s_id, linia)
+                        actual_qty = prod_qty if prod_qty > 0 else abs(float(row.get('ilosc', 0) or 0))
+                        actual_loc = prod_tank or (row.get('lokalizacja_do') or row.get('lokalizacja') or '').strip().upper()
                         results.append({
-                            'id': row.get('surowiec_id') or row.get('id'),
+                            'id': s_id,
                             'nazwa': row.get('nazwa') or '',
-                            'stan_magazynowy': float(row.get('ilosc', 0) or 0),
-                            'lokalizacja': (row.get('lokalizacja_do') or row.get('lokalizacja') or '').strip().upper(),
+                            'stan_magazynowy': actual_qty,
+                            'lokalizacja': actual_loc,
                             'nr_palety': row.get('nr_palety') or '',
                             'nr_partii': row.get('nr_partii') or '',
                             'data_produkcji': row.get('data_produkcji').strftime('%Y-%m-%d') if row.get('data_produkcji') else '',
                             'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else '',
                             'inventory_type': 'Surowiec (Produkcja)',
                             'inventory_key': 'SUR',
-                            'inventory_code': f"SUR-{row.get('surowiec_id', row.get('id'))}",
+                            'inventory_code': f"SUR-{s_id}",
                             'can_dispatch': False,
                             'can_split': False,
                             'can_print_label': False,
@@ -511,6 +574,36 @@ class ScannerService:
                             can_print_label=can_print,
                         ))
                 
+                # Dodatkowo sprawdź aktywne surowce na stacji z historii ruchów produkcyjnych
+                try:
+                    from app.repositories.agro_tanks_repository import AgroTanksRepository, _normalize_tank_code
+                    norm_code = _normalize_tank_code(location_code)
+                    prod_inventory = AgroTanksRepository.get_production_inventory(limit=1000, linia=linia)
+                    existing_ids = {it['id'] for it in items}
+                    for p_item in prod_inventory:
+                        p_zbiornik = _normalize_tank_code(p_item.get('zbiornik'))
+                        if (p_zbiornik == norm_code or str(p_item.get('lokalizacja')).upper() == location_code) and p_item.get('surowiec_id') not in existing_ids:
+                            items.append({
+                                'id': p_item['surowiec_id'],
+                                'nazwa': p_item['nazwa'],
+                                'stan_magazynowy': float(p_item.get('stan_systemowy') or 0),
+                                'lokalizacja': location_code,
+                                'nr_palety': p_item.get('nr_palety') or f"SUR-{p_item['surowiec_id']}",
+                                'nr_partii': '',
+                                'data_produkcji': '',
+                                'data_przydatnosci': '',
+                                'inventory_type': 'Surowiec (Produkcja)',
+                                'inventory_key': 'SUR',
+                                'inventory_code': f"SUR-{p_item['surowiec_id']}",
+                                'can_dispatch': False,
+                                'can_split': False,
+                                'can_print_label': True,
+                                'unit': 'kg',
+                            })
+                            existing_ids.add(p_item.get('surowiec_id'))
+                except Exception:
+                    pass
+
                 # Zwracamy specjalny obiekt z listą (nawet pustą), aby frontend pokazał stan stacji
                 return [{
                     'is_station': True,
@@ -520,6 +613,7 @@ class ScannerService:
 
             finally:
                 conn.close()
+
 
 
         prefixed_type, prefixed_id = ScannerService._extract_prefixed_id(location_code)
@@ -588,6 +682,10 @@ class ScannerService:
                             )
                     unconf_row = cur.fetchone()
                     if unconf_row:
+                        dp = unconf_row.get('data_produkcji')
+                        dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
+                        dz = unconf_row.get('data_przydatnosci')
+                        dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '')
                         results.append({
                             'id': unconf_row['id'],
                             'nr_palety': unconf_row['nr_palety'],
@@ -596,9 +694,9 @@ class ScannerService:
                             'lokalizacja': '',
                             'inventory_type': 'Wyrób Gotowy',
                             'is_unconfirmed_wg': True,
-                            'data_produkcji': unconf_row['data_produkcji'],
-                            'nr_partii': unconf_row['nr_partii'],
-                            'data_przydatnosci': unconf_row.get('data_przydatnosci')
+                            'data_produkcji': dp_str,
+                            'nr_partii': unconf_row.get('nr_partii') or '',
+                            'data_przydatnosci': dz_str
                         })
                 except Exception:
                     pass

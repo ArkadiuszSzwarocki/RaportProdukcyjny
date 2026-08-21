@@ -328,14 +328,29 @@
                     <div class="fw-bold text-dark" style="font-size: 0.95rem;">🎯 Wybierz konto do edycji:</div>
                     <div class="text-muted" style="font-size: 0.82rem;">Możesz zmienić globalne konto systemowe lub zdefiniować własne konto lidera.</div>
                 </div>
-                <div class="btn-group" role="group">
-                    <input type="radio" class="btn-check" name="accountScope" id="scopeSystem" value="system" checked onchange="switchAccountScope('system')">
-                    <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeSystem" style="border-radius: 10px 0 0 10px;">🌐 Konto Systemowe (Dla Wszystkich)</label>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    {% if is_admin_user and user_accounts_list %}
+                    <div class="d-flex align-items-center gap-2 me-2">
+                        <label for="adminUserSelect" class="fw-bold text-secondary small mb-0" style="white-space: nowrap;">Wybierz użytkownika:</label>
+                        <select id="adminUserSelect" class="form-select form-select-sm" style="width: auto; min-width: 240px; font-weight: 700; border-color: #93c5fd; background-color: #eff6ff;" onchange="window.location.href='/admin/ustawienia/email?user_id=' + this.value">
+                            {% for u in user_accounts_list %}
+                            <option value="{{ u.id }}" {% if u.id == edit_user_id %}selected{% endif %}>
+                                {{ u.login }} ({{ u.rola }}) {% if u.smtp_username %}— {{ u.smtp_username }}{% else %}— [brak konta]{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="accountScope" id="scopeSystem" value="system" {% if default_scope != 'user' %}checked{% endif %} onchange="switchAccountScope('system')">
+                        <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeSystem" style="border-radius: 10px 0 0 10px;">🌐 Konto Systemowe</label>
 
-                    <input type="radio" class="btn-check" name="accountScope" id="scopeUser" value="user" onchange="switchAccountScope('user')">
-                    <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeUser" style="border-radius: 0 10px 10px 0;">👤 Moje Indywidualne Konto</label>
+                        <input type="radio" class="btn-check" name="accountScope" id="scopeUser" value="user" {% if default_scope == 'user' %}checked{% endif %} onchange="switchAccountScope('user')">
+                        <label class="btn btn-outline-primary fw-bold px-3 py-2" for="scopeUser" style="border-radius: 0 10px 10px 0;">👤 Konto: {{ edit_user_login or current_user_login }}</label>
+                    </div>
                 </div>
             </div>
+
 
             <!-- Szybki wybór popularnych serwerów -->
             <div class="mt-3">
@@ -351,12 +366,13 @@
 
             <!-- Formularz SMTP -->
             <form id="emailConfigForm" onsubmit="saveEmailConfig(event)">
+                {% set init_cfg = user_email_cfg if default_scope == 'user' and user_email_cfg else system_config %}
                 <div class="row g-4 mt-1">
                     <div class="col-md-6">
                         <label class="form-group-label">Adres e-mail / Login SMTP <span class="text-danger">*</span></label>
                         <div class="input-wrapper">
                             <span class="input-icon">✉️</span>
-                            <input type="email" id="smtp_username" class="custom-input" placeholder="np. raporty@twojafirma.pl" value="{{ system_config.smtp_username }}" required>
+                            <input type="email" id="smtp_username" class="custom-input" placeholder="np. raporty@twojafirma.pl" value="{{ init_cfg.smtp_username or '' }}" required>
                         </div>
                     </div>
 
@@ -364,7 +380,7 @@
                         <label class="form-group-label">Hasło e-mail (Hasło Aplikacji) <span class="text-danger">*</span></label>
                         <div class="input-wrapper">
                             <span class="input-icon">🔑</span>
-                            <input type="password" id="smtp_password" class="custom-input" placeholder="Wpisz hasło konta lub aplikacji" value="{{ system_config.smtp_password }}" required>
+                            <input type="password" id="smtp_password" class="custom-input" placeholder="Wpisz hasło konta lub aplikacji" value="{{ init_cfg.smtp_password or '' }}" required>
                             <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility()" title="Pokaż / Ukryj hasło">👁️</button>
                         </div>
                     </div>
@@ -373,7 +389,7 @@
                         <label class="form-group-label">Serwer SMTP <span class="text-danger">*</span></label>
                         <div class="input-wrapper">
                             <span class="input-icon">🌐</span>
-                            <input type="text" id="smtp_server" class="custom-input" placeholder="np. smtp.wp.pl" value="{{ system_config.smtp_server }}" required>
+                            <input type="text" id="smtp_server" class="custom-input" placeholder="np. smtp.wp.pl" value="{{ init_cfg.smtp_server or '' }}" required>
                         </div>
                     </div>
 
@@ -381,7 +397,7 @@
                         <label class="form-group-label">Port SMTP <span class="text-danger">*</span></label>
                         <div class="input-wrapper">
                             <span class="input-icon">🔌</span>
-                            <input type="number" id="smtp_port" class="custom-input" placeholder="465 lub 587" value="{{ system_config.smtp_port }}" required>
+                            <input type="number" id="smtp_port" class="custom-input" placeholder="465 lub 587" value="{{ init_cfg.smtp_port or 465 }}" required>
                         </div>
                     </div>
 
@@ -390,9 +406,9 @@
                         <div class="input-wrapper">
                             <span class="input-icon">🛡️</span>
                             <select id="smtp_security" class="custom-input">
-                                <option value="SSL" {% if system_config.smtp_security == 'SSL' %}selected{% endif %}>SSL (Port 465) - Zalecane</option>
-                                <option value="TLS" {% if system_config.smtp_security == 'TLS' %}selected{% endif %}>TLS / STARTTLS (Port 587)</option>
-                                <option value="NONE" {% if system_config.smtp_security == 'NONE' %}selected{% endif %}>Brak szyfrowania (Port 25)</option>
+                                <option value="SSL" {% if init_cfg.smtp_security == 'SSL' %}selected{% endif %}>SSL (Port 465) - Zalecane</option>
+                                <option value="TLS" {% if init_cfg.smtp_security == 'TLS' %}selected{% endif %}>TLS / STARTTLS (Port 587)</option>
+                                <option value="NONE" {% if init_cfg.smtp_security == 'NONE' %}selected{% endif %}>Brak szyfrowania (Port 25)</option>
                             </select>
                         </div>
                     </div>
@@ -401,10 +417,11 @@
                         <label class="form-group-label">Wyświetlana Nazwa Nadawcy</label>
                         <div class="input-wrapper">
                             <span class="input-icon">👤</span>
-                            <input type="text" id="sender_name" class="custom-input" placeholder="np. Raport Produkcyjny AGRO" value="{{ system_config.sender_name or '' }}">
+                            <input type="text" id="sender_name" class="custom-input" placeholder="np. Raport Produkcyjny AGRO" value="{{ init_cfg.sender_name or '' }}">
                         </div>
                     </div>
                 </div>
+
 
                 <!-- Alert Result Box -->
                 <div id="testResultBox" class="mt-4" style="display: none;"></div>
@@ -544,7 +561,11 @@ const userData = {
     sender_name: {{ (user_email_cfg.sender_name if user_email_cfg and user_email_cfg.sender_name else '')|tojson }}
 };
 
-let currentScope = 'system';
+let currentScope = {{ (default_scope or 'system')|tojson }};
+
+document.addEventListener('DOMContentLoaded', () => {
+    switchAccountScope(currentScope);
+});
 
 function switchAccountScope(scope) {
     currentScope = scope;
@@ -564,6 +585,7 @@ function switchAccountScope(scope) {
         saveBtn.innerHTML = '💾 Zapisz Moje Konto Lidera';
     }
 }
+
 
 let appModalResolver = null;
 
@@ -718,8 +740,10 @@ async function saveEmailConfig(e) {
                 smtp_username,
                 smtp_password,
                 sender_name,
-                is_system
+                is_system,
+                target_user_id: {{ (edit_user_id or '')|tojson }}
             })
+
         });
         const res = await response.json();
 
