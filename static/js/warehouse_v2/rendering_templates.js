@@ -246,7 +246,7 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
     const locNormalized = normalizeLocationCode(locText);
     const locParts = parseLocationCode(locText);
     const upLoc = (locText || '').toUpperCase();
-    const isOsip = upLoc.includes('OSIP') || upLoc.startsWith('OS');
+    const isOsip = upLoc.includes('OSIP') || upLoc.startsWith('OS') || upLoc.startsWith('A') || upLoc === 'BFOS';
 
     // 0. Magazyn OSIP widzi WYŁĄCZNIE własne lokalizacje (OS*, OSIP)
     if (currentWarehouseId === 'OSIP') {

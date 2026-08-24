@@ -579,8 +579,8 @@ def zapisz_raport_koncowy_global():
         
         # Pobierz dane dla ALL sekcji z paletami
         wszystkie_plany = {}
-        if linia == 'Agro':
-            sekcje = ['Hala Agro']
+        if linia and linia.upper() == 'AGRO':
+            sekcje = ['Operator sterowni', 'Operator workowania', 'Operator zasypów 1', 'Operator zasypów 2', 'Operator zasypów 3', 'Operator zasypów 4', 'Technik utrzymania Ruchu']
         else:
             sekcje = ['Zasyp', 'Workowanie', 'Magazyn']
         

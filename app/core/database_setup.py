@@ -848,12 +848,14 @@ def _create_tables(cursor):
             nr_dokumentu_wz VARCHAR(100) DEFAULT NULL,
             uwagi TEXT DEFAULT NULL,
             magazynier VARCHAR(100) DEFAULT NULL,
+            linia VARCHAR(50) DEFAULT 'AGRO',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_wyjazdy_nr_palety (nr_palety),
             INDEX idx_wyjazdy_nr_rej (nr_rejestracyjny),
             INDEX idx_wyjazdy_created (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+    _add_column_if_missing(cursor, 'magazyn_wyjazdy_samochodowe', 'linia', "VARCHAR(50) DEFAULT 'AGRO'", "dodanie linii magazynu do wyjazdów")
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
@@ -1097,6 +1099,11 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "uzytkownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do uzytkownicy")
     _add_column_if_missing(cursor, "pracownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do pracownicy")
     _add_column_if_missing(cursor, "uzytkownicy", "pracownik_id", "INT NULL", "Dodawanie kolumny 'pracownik_id' do uzytkownicy")
+    _add_column_if_missing(cursor, "uzytkownicy", "email", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'email' do uzytkownicy")
+    _add_column_if_missing(cursor, "pracownicy", "email", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'email' do pracownicy")
+    _add_column_if_missing(cursor, "pracownicy", "urlop_biezacy", "INT DEFAULT 0", "Dodawanie kolumny 'urlop_biezacy' do pracownicy")
+    _add_column_if_missing(cursor, "pracownicy", "urlop_zalegly", "INT DEFAULT 0", "Dodawanie kolumny 'urlop_zalegly' do pracownicy")
+    _add_column_if_missing(cursor, "pracownicy", "widoczny_agro", "TINYINT(1) DEFAULT 1", "Dodawanie kolumny 'widoczny_agro' do pracownicy")
 
     # bufor columns
     _add_column_if_missing(cursor, "bufor", "linia", "VARCHAR(10) DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do bufor (rozróżnienie PSD/AGRO)")

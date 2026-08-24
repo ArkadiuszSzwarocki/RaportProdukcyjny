@@ -325,7 +325,7 @@ def register_production_notification_routes(
                 WHERE d.potwierdzone = 0
                   AND COALESCE(d.anulowana, 0) = 0
                   AND p.sekcja = 'Zasyp'
-                  AND DATE(p.data_planu) = %s
+                  AND (DATE(p.data_planu) = %s OR p.status = 'w toku')
                 GROUP BY d.plan_id
                 """,
                 (target_day,),

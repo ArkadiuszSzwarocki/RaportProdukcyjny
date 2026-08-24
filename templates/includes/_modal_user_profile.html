@@ -1,0 +1,186 @@
+<!-- Modal Ustawień Osobistych Użytkownika -->
+<div id="userProfileModal" class="user-profile-modal-overlay" style="display: none;" aria-hidden="true">
+    <div class="user-profile-modal-card">
+        <!-- Header -->
+        <div class="user-profile-modal-header">
+            <div class="user-profile-header-title">
+                <span class="material-icons header-icon">manage_accounts</span>
+                <div>
+                    <h3 class="modal-title">Ustawienia Osobiste</h3>
+                    <p class="modal-subtitle">Zarządzaj swoim kontem, danymi kontaktowymi i urlopem</p>
+                </div>
+            </div>
+            <button type="button" class="user-profile-close-btn" onclick="closeUserProfileModal()" aria-label="Zamknij">&times;</button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="user-profile-nav-tabs">
+            <button type="button" class="profile-tab-btn active" data-tab="profile" onclick="switchUserProfileTab('profile')">
+                <span class="material-icons">person</span>
+                <span>Dane & Email</span>
+            </button>
+            <button type="button" class="profile-tab-btn" data-tab="password" onclick="switchUserProfileTab('password')">
+                <span class="material-icons">lock_reset</span>
+                <span>Zmiana Hasła</span>
+            </button>
+            <button type="button" class="profile-tab-btn" data-tab="leave" onclick="switchUserProfileTab('leave')">
+                <span class="material-icons">beach_access</span>
+                <span>Ilość Urlopu</span>
+            </button>
+            <button type="button" class="profile-tab-btn" data-tab="shortcuts" onclick="switchUserProfileTab('shortcuts')">
+                <span class="material-icons">apps</span>
+                <span>Skróty & Akcje</span>
+            </button>
+        </div>
+
+        <!-- Modal Body Content -->
+        <div class="user-profile-modal-body">
+            <!-- TAB 1: DANE & EMAIL -->
+            <div id="userProfileTab_profile" class="profile-tab-content active">
+                <form id="userProfileGeneralForm" onsubmit="event.preventDefault(); submitUserProfileGeneral();">
+                    <div class="profile-form-grid">
+                        <div class="profile-input-group">
+                            <label class="profile-label">Login w systemie:</label>
+                            <div class="profile-input-readonly">
+                                <span class="material-icons">badge</span>
+                                <input type="text" id="upLogin" readonly class="readonly-field" value="{{ session.get('login') or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group">
+                            <label class="profile-label">Rola w systemie:</label>
+                            <div class="profile-input-readonly">
+                                <span class="material-icons">admin_panel_settings</span>
+                                <input type="text" id="upRola" readonly class="readonly-field" value="{{ session.get('role') or session.get('rola') or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group full-width">
+                            <label class="profile-label">Imię i Nazwisko:</label>
+                            <div class="profile-input-readonly">
+                                <span class="material-icons">person_outline</span>
+                                <input type="text" id="upImieNazwisko" readonly class="readonly-field" value="{{ session.get('imie_nazwisko') or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group full-width">
+                            <label class="profile-label" for="upEmail">Adres E-mail do powiadomień:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">email</span>
+                                <input type="email" id="upEmail" name="email" placeholder="jan.kowalski@example.com">
+                            </div>
+                            <span class="profile-field-hint">Adres e-mail wykorzystywany jest do wysyłki raportów i powiadomień systemowych.</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-form-actions">
+                        <button type="submit" id="saveGeneralProfileBtn" class="btn-profile-save">
+                            <span class="material-icons">save</span> Zapisz dane
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 2: ZMIANA HASŁA -->
+            <div id="userProfileTab_password" class="profile-tab-content">
+                <form id="userProfilePasswordForm" onsubmit="event.preventDefault(); submitUserProfilePassword();">
+                    <div class="profile-form-stack">
+                        <div class="profile-input-group">
+                            <label class="profile-label" for="upOldPassword">Aktualne hasło:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">key</span>
+                                <input type="password" id="upOldPassword" required placeholder="Wpisz dotychczasowe hasło" autocomplete="current-password">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group">
+                            <label class="profile-label" for="upNewPassword">Nowe hasło:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">lock</span>
+                                <input type="password" id="upNewPassword" required placeholder="Minimum 4 znaki" autocomplete="new-password">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group">
+                            <label class="profile-label" for="upNewPasswordRepeat">Powtórz nowe hasło:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">lock_reset</span>
+                                <input type="password" id="upNewPasswordRepeat" required placeholder="Powtórz nowe hasło" autocomplete="new-password">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-form-actions">
+                        <button type="submit" id="savePasswordBtn" class="btn-profile-save btn-warning-save">
+                            <span class="material-icons">vpn_key</span> Zapisz nowe hasło
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 3: ILOŚĆ URLOPU -->
+            <div id="userProfileTab_leave" class="profile-tab-content">
+                <form id="userProfileLeaveForm" onsubmit="event.preventDefault(); submitUserProfileLeave();">
+                    <div class="leave-summary-card">
+                        <div class="leave-stat-item">
+                            <div class="leave-stat-value" id="upLeaveTotal">0</div>
+                            <div class="leave-stat-label">Łącznie dostępnych [dni]</div>
+                        </div>
+                        <div class="leave-stat-divider"></div>
+                        <div class="leave-stat-item">
+                            <div class="leave-stat-value text-accent" id="upLeaveUsed">0</div>
+                            <div class="leave-stat-label">Wykorzystano w tym roku</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-form-grid" style="margin-top: 16px;">
+                        <div class="profile-input-group">
+                            <label class="profile-label" for="upUrlopBiezacy">Urlop bieżący [dni]:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">today</span>
+                                <input type="number" id="upUrlopBiezacy" min="0" max="100" step="1" required placeholder="np. 26">
+                            </div>
+                        </div>
+
+                        <div class="profile-input-group">
+                            <label class="profile-label" for="upUrlopZalegly">Urlop zaległy [dni]:</label>
+                            <div class="profile-input-wrapper">
+                                <span class="material-icons">history</span>
+                                <input type="number" id="upUrlopZalegly" min="0" max="100" step="1" required placeholder="np. 5">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-form-actions">
+                        <button type="submit" id="saveLeaveBtn" class="btn-profile-save">
+                            <span class="material-icons">save</span> Zaktualizuj urlop
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 4: SKRÓTY -->
+            <div id="userProfileTab_shortcuts" class="profile-tab-content">
+                <div class="profile-shortcuts-grid">
+                    <a href="/moje_godziny" class="shortcut-card">
+                        <span class="material-icons card-icon" style="color: #3b82f6;">schedule</span>
+                        <div class="card-title">Moje Godziny</div>
+                        <div class="card-desc">Podgląd przepracowanych godzin i wykaz wniosków</div>
+                    </a>
+
+                    <a href="{{ url_for('auth.my_bug_reports') }}" class="shortcut-card">
+                        <span class="material-icons card-icon" style="color: #f59e0b;">bug_report</span>
+                        <div class="card-title">Moje Zgłoszenia</div>
+                        <div class="card-desc">Lista zgłoszonych uwag i odpowiedzi od wsparcia</div>
+                    </a>
+
+                    <a href="/logout" class="shortcut-card shortcut-card-danger">
+                        <span class="material-icons card-icon" style="color: #ef4444;">logout</span>
+                        <div class="card-title">Wyloguj się</div>
+                        <div class="card-desc">Bezpieczne zakończenie bieżącej sesji w systemie</div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

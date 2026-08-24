@@ -55,16 +55,20 @@ class OsipTransferRepository:
             cursor.close()
             conn.close()
 
-    def get_transfer_by_id(self, transfer_id: int) -> Optional[OsipTransferModel]:
+    def get_transfer_by_id(self, transfer_id: Any) -> Optional[OsipTransferModel]:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute("SELECT * FROM osip_transfers WHERE id = %s", (transfer_id,))
+            val_str = str(transfer_id).strip()
+            if val_str.isdigit():
+                cursor.execute("SELECT * FROM osip_transfers WHERE id = %s OR transfer_code = %s", (int(val_str), val_str))
+            else:
+                cursor.execute("SELECT * FROM osip_transfers WHERE transfer_code = %s", (val_str,))
             t_row = cursor.fetchone()
             if not t_row:
                 return None
 
-            cursor.execute("SELECT * FROM osip_transfer_items WHERE transfer_id = %s", (transfer_id,))
+            cursor.execute("SELECT * FROM osip_transfer_items WHERE transfer_id = %s", (t_row['id'],))
             i_rows = cursor.fetchall()
 
             items = [

@@ -1,10 +1,14 @@
 {% extends "includes/scanner_layout.html" %}
 
 {% block scanner_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v={{ static_version|default(3) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v=20260822_2135">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/high_bay_camera_scanner.css') }}?v=20260822_2135">
 <style>
     :root {
         --scanner-mode-color: #3b82f6;
+    }
+    .scanner-unified-header {
+        display: none !important;
     }
 .station-items-list {
   display: flex;
@@ -56,22 +60,37 @@
 <div class="scanner-wrap" style="padding: 0; box-shadow: none; background: transparent; min-height: auto; max-width: 700px; margin: 0 auto;">
 
   <!-- SCAN BOX -->
-  <div class="scan-card">
-    <div class="scan-title">
+  <div class="scan-card" style="margin-top: 4px;">
+    <div class="scan-title" style="margin-bottom: 12px;">
       <span class="material-icons" style="color:var(--primary-color);">barcode_reader</span>
       Skanuj kod regału lub palety
     </div>
-    <div class="scan-input-wrap" style="display: flex; gap: 8px;">
-      <div style="position: relative; flex: 1;">
-        <span class="material-icons input-icon">qr_code</span>
-        <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
-               placeholder="R030101, SUR-42, PAL-15" autofocus>
-      </div>
-      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
-        <span class="material-icons">qr_code_scanner</span>
-      </button>
-    </div>
     
+    <!-- Pole tekstowe - pełna szerokość, tekst od lewej krawędzi -->
+    <div style="width: 100%;">
+      <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
+             placeholder="Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)" autofocus>
+    </div>
+
+    <!-- Przyciski akcji pod spodem okna -->
+    <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+      <!-- Pomarańczowy przycisk zatwierdzenia -->
+      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()" title="Zatwierdź / Szukaj"
+              style="width: 100%; padding: 13px 16px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; background: #d35400 !important; color: #ffffff !important; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(211, 84, 0, 0.25);">
+        <span class="material-icons">qr_code_scanner</span>
+        <span>Zatwierdź kod</span>
+      </button>
+
+      <!-- Niebieski przycisk skanera na żywo -->
+      <button type="button" id="camera-scan-btn" onclick="openHighBayCameraScanner()" 
+              style="width: 100%; box-sizing: border-box; padding: 13px 16px; background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #ffffff; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); text-align: center;">
+        <span class="material-icons" style="font-size: 22px;">photo_camera</span>
+        <span>Skaner na żywo w telefonie (Zoom 7m)</span>
+      </button>
+      
+      <!-- Native camera capture fallback -->
+      <input type="file" id="highBayNativeCameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleHighBayNativePhotoCapture(this)">
+    </div>
   </div>
 
   <!-- PALLET INFO -->
@@ -253,12 +272,88 @@
   </div>
 </div>
 
+<!-- HIGH-BAY CAMERA SCANNER (7M ZOOM) MODAL -->
+<div id="highBayCameraModal" class="high-bay-scanner-modal">
+  <!-- Top Bar -->
+  <div class="high-bay-header">
+    <div class="high-bay-title">
+      <span class="material-icons" style="color: #3b82f6;">photo_camera</span>
+      <span>Skaner Aparatem (Zoom 7m)</span>
+    </div>
+    <div class="high-bay-header-actions">
+      <button type="button" onclick="window.openNativeCameraCapture()" class="high-bay-tool-btn" style="background: rgba(37, 99, 235, 0.6); border-color: #3b82f6;" title="Zrób zdjęcie aparatem telefonu">
+        <span class="material-icons" style="font-size: 16px;">add_a_photo</span> Aparat tel.
+      </button>
+      <button type="button" id="cameraTorchBtn" onclick="window.toggleHighBayTorch()" class="high-bay-tool-btn" style="display: none;">
+        <span class="material-icons" style="font-size: 16px;">flash_off</span> Latarka
+      </button>
+      <button type="button" onclick="window.switchHighBayCamera()" class="high-bay-tool-btn" title="Zmień aparat">
+        <span class="material-icons" style="font-size: 16px;">flip_camera_android</span>
+      </button>
+      <button type="button" onclick="window.closeHighBayCameraScanner()" class="high-bay-close-btn">
+        <span class="material-icons" style="font-size: 16px;">close</span> Zamknij
+      </button>
+    </div>
+  </div>
+
+  <!-- Video Viewfinder Viewport -->
+  <div class="high-bay-viewport-wrap">
+    <div id="camera-preview-container"></div>
+
+    <!-- Reticle with Aiming Box, Corners and Crosshair -->
+    <div class="high-bay-reticle">
+      <div class="reticle-corner-tr"></div>
+      <div class="reticle-corner-bl"></div>
+      <div class="reticle-crosshair"></div>
+      <div class="high-bay-scanline"></div>
+      <div class="high-bay-target-hint">🎯 Skieruj celownik na etykietę na regale (wysokość 7m)</div>
+    </div>
+
+    <!-- Floating Zoom Badge -->
+    <div class="high-bay-zoom-badge" id="cameraZoomFloatingBadge">
+      🔍 1.0x
+    </div>
+  </div>
+
+  <!-- Bottom Zoom Controls -->
+  <div class="high-bay-controls">
+    <!-- Quick Zoom Presets -->
+    <div class="high-bay-zoom-presets">
+      <button type="button" class="btn-zoom-preset active" data-zoom="1.0" onclick="window.applyHighBayZoom(1.0)">1x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="2.0" onclick="window.applyHighBayZoom(2.0)">2x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="3.0" onclick="window.applyHighBayZoom(3.0)">3x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="5.0" onclick="window.applyHighBayZoom(5.0)">5x (7m)</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="8.0" onclick="window.applyHighBayZoom(8.0)">8x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="10.0" onclick="window.applyHighBayZoom(10.0)">10x Max</button>
+    </div>
+
+    <!-- Smooth Slider with +/- Step Buttons -->
+    <div class="high-bay-slider-row">
+      <button type="button" class="btn-step-zoom" onclick="window.stepHighBayZoom(-0.5)" title="Oddal">
+        <span class="material-icons">remove</span>
+      </button>
+      <input type="range" id="cameraZoomSlider" class="high-bay-range-slider" min="1.0" max="10.0" step="0.1" value="1.0"
+             oninput="window.applyHighBayZoom(this.value)">
+      <button type="button" class="btn-step-zoom" onclick="window.stepHighBayZoom(0.5)" title="Przybliż">
+        <span class="material-icons">add</span>
+      </button>
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #94a3b8; padding: 0 4px;">
+      <span>💡 Wskazówka: Możesz też szczypać ekran (Pinch-to-Zoom)</span>
+      <span style="font-weight: 700; color: #60a5fa;">Regały do 7m</span>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block footer_scripts %}
 <script>
     const LINIA = '{{ linia }}';
 </script>
-<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v={{ static_version|default(3) }}"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260822_2135"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260822_2135"></script>
 {% endblock %}
 

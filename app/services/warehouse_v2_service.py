@@ -285,6 +285,16 @@ class WarehouseV2Service:
                             print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)
                 except Exception as e:
                     print("Błąd podczas automatycznego przyjmowania dostawy ze skanera:", e)
+
+            # --- AUTO-AKCEPTACJA PRZESUNIĘCIA OSIP ---
+            try:
+                from app.services.osip_transfer_service import OsipTransferService
+                code_to_check = nr_palety or str(new_pallet_id)
+                OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login)
+                if new_pallet_id and str(new_pallet_id) != str(code_to_check):
+                    OsipTransferService.auto_receive_pallet_by_code(str(new_pallet_id), new_location, worker_login)
+            except Exception as osip_e:
+                print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
             
             conn.commit()
             return True, "Pomyślnie przeniesiono."

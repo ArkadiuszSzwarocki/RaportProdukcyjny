@@ -14,20 +14,20 @@ class OsipWarehouseService:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            # 1. Surowce w OSIP / OSxx
+            # 1. Surowce w OSIP / A01..A99 / BFOS / OSxx
             query_sur = """
                 SELECT id, nr_palety, nazwa, stan_magazynowy, stan_magazynowy as ilosc_kg, data_przydatnosci, nr_partii, lokalizacja, 'raw' as item_type
                 FROM magazyn_surowce
-                WHERE stan_magazynowy > 0 AND (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%')
+                WHERE stan_magazynowy > 0 AND (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
             """
             cursor.execute(query_sur)
             raw_materials = cursor.fetchall()
 
-            # 2. Wyroby Gotowe w OSIP / OSxx (sprawdzamy tabele palety_workowanie lub magazyn_wyroby_gotowe)
+            # 2. Wyroby Gotowe w OSIP / A01..A99 / BFOS / OSxx
             query_fg = """
                 SELECT id, nr_palety, 'Wyrób Gotowy' as nazwa, waga as ilosc_kg, waga as stan_magazynowy, data_dodania as data_przydatnosci, 'brak' as nr_partii, lokalizacja, 'fg' as item_type
                 FROM palety_workowanie
-                WHERE (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%')
+                WHERE (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
             """
             try:
                 cursor.execute(query_fg)
@@ -58,13 +58,14 @@ class OsipWarehouseService:
             conn.close()
 
     def get_osip_layout_stats(self) -> Dict[str, Any]:
-        """Pobiera strukturę 77 alejek (OS01-OS77) wraz ze statystykami obłożenia."""
+        """Pobiera strukturę alejek OSIP (A01-A99 oraz BFOS, oraz kompatybilne OS01-OS77) wraz ze statystykami obłożenia."""
         inventory = self.get_osip_inventory()
         all_items = inventory["raw_materials"] + inventory["finished_goods"]
 
         aisles = {}
-        for i in range(1, self.TOTAL_AISLES + 1):
-            aisle_code = f"OS{str(i).zfill(2)}"
+        # Generowanie alejek A01..A99
+        for i in range(1, 100):
+            aisle_code = f"A{str(i).zfill(2)}"
             aisles[aisle_code] = {
                 "id": aisle_code,
                 "number": i,
@@ -72,9 +73,17 @@ class OsipWarehouseService:
                 "count": 0
             }
 
+        # Generowanie strefy BFOS
+        aisles["BFOS"] = {
+            "id": "BFOS",
+            "number": 100,
+            "items": [],
+            "count": 0
+        }
+
         unallocated_osip = []
         for item in all_items:
-            loc = str(item.get("lokalizacja", "")).strip()
+            loc = str(item.get("lokalizacja", "")).strip().upper()
             if loc in aisles:
                 aisles[loc]["items"].append(item)
                 aisles[loc]["count"] += 1
@@ -82,7 +91,7 @@ class OsipWarehouseService:
                 unallocated_osip.append(item)
 
         return {
-            "total_aisles": self.TOTAL_AISLES,
+            "total_aisles": len(aisles),
             "aisles": list(aisles.values()),
             "unallocated_osip": unallocated_osip,
             "total_occupancy": len(all_items)

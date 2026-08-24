@@ -1,325 +1,12 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<style>
-    .zaladunki-container {
-        max-width: 1300px;
-        margin: 0 auto;
-        padding: 20px 15px;
-    }
-
-    /* BREADCRUMB & HEADER */
-    .zaladunki-header-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    .zaladunki-title-group {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-
-    .zaladunki-title-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #bfdbfe;
-        color: #2563eb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .zaladunki-title-icon .material-icons {
-        font-size: 26px;
-    }
-
-    .zaladunki-title-group h2 {
-        margin: 0;
-        font-size: 22px;
-        font-weight: 900;
-        color: #0f172a;
-        letter-spacing: -0.3px;
-    }
-
-    .zaladunki-title-group p {
-        margin: 2px 0 0 0;
-        font-size: 13px;
-        color: #64748b;
-        font-weight: 500;
-    }
-
-    .orders-back-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 18px;
-        background: #ffffff;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 12px;
-        color: #334155;
-        font-weight: 700;
-        font-size: 13px;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-    }
-
-    .orders-back-btn:hover {
-        background: #f8fafc;
-        border-color: #94a3b8;
-        color: #0f172a;
-        transform: translateY(-1px);
-        text-decoration: none;
-    }
-
-    /* KPI GRID */
-    .zaladunki-kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    .zaladunki-kpi-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 20px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-
-    .zaladunki-kpi-icon-box {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .zaladunki-kpi-label {
-        font-size: 11px;
-        font-weight: 800;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-    }
-
-    .zaladunki-kpi-val {
-        font-size: 22px;
-        font-weight: 900;
-        color: #0f172a;
-        line-height: 1.2;
-    }
-
-    /* FORM CARD */
-    .zaladunki-form-card {
-        background: #ffffff;
-        border-radius: 18px;
-        border: 1.5px solid #cbd5e1;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        padding: 28px;
-        margin-bottom: 28px;
-    }
-
-    .zaladunki-form-title {
-        font-size: 16px;
-        font-weight: 800;
-        color: #0f172a;
-        margin-bottom: 22px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding-bottom: 14px;
-        border-bottom: 1.5px solid #f1f5f9;
-    }
-
-    .zaladunki-form-title .material-icons {
-        color: #2563eb;
-        font-size: 24px;
-    }
-
-    .zaladunki-form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 18px;
-        margin-bottom: 20px;
-    }
-
-    .zaladunki-form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .zaladunki-form-group.full-width {
-        grid-column: 1 / -1;
-    }
-
-    .zaladunki-form-group label {
-        font-size: 11px;
-        font-weight: 800;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin: 0;
-    }
-
-    .zaladunki-form-group label span.req {
-        color: #ef4444;
-    }
-
-    .zaladunki-input-control {
-        width: 100%;
-        padding: 12px 14px;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 12px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #0f172a;
-        background-color: #f8fafc;
-        transition: all 0.2s ease;
-        outline: none;
-        box-sizing: border-box;
-    }
-
-    .zaladunki-input-control:focus {
-        border-color: #2563eb;
-        background-color: #ffffff;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
-    }
-
-    .zaladunki-submit-btn {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: #ffffff;
-        border: none;
-        padding: 14px 32px;
-        border-radius: 12px;
-        font-weight: 800;
-        font-size: 15px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-    }
-
-    .zaladunki-submit-btn:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
-    }
-
-    /* TABLE CARD */
-    .zaladunki-table-card {
-        background: #ffffff;
-        border-radius: 18px;
-        border: 1.5px solid #cbd5e1;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        overflow: hidden;
-    }
-
-    .zaladunki-table-header {
-        background: #f8fafc;
-        padding: 18px 24px;
-        border-bottom: 1.5px solid #e2e8f0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
-    .zaladunki-table-header h3 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 800;
-        color: #0f172a;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .zaladunki-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .zaladunki-table th {
-        background: #f1f5f9;
-        color: #475569;
-        font-size: 11px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding: 14px 18px;
-        border-bottom: 1.5px solid #e2e8f0;
-        text-align: left;
-    }
-
-    .zaladunki-table td {
-        padding: 16px 18px;
-        border-bottom: 1px solid #f1f5f9;
-        font-size: 13px;
-        font-weight: 600;
-        color: #334155;
-        vertical-align: middle;
-    }
-
-    .zaladunki-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .zaladunki-table tr:hover td {
-        background-color: #f8fafc;
-    }
-
-    .badge-pallet {
-        background: #eff6ff;
-        color: #1d4ed8;
-        border: 1px solid #bfdbfe;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: 800;
-        font-size: 12px;
-        display: inline-block;
-    }
-
-    .badge-reg {
-        background: #fffbeb;
-        color: #92400e;
-        border: 1px solid #fde68a;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: 800;
-        font-size: 12px;
-        display: inline-block;
-    }
-
-    .badge-wz {
-        background: #f0fdf4;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: 800;
-        font-size: 12px;
-        display: inline-block;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/warehouse_v2/zaladunki.css') }}?v={{ static_version or '20260824_02' }}">
 
 <div class="zaladunki-container">
+    <!-- UKRYTE DANE KONTEKSTU -->
+    <input type="hidden" id="currentWarehouseLine" value="{{ linia }}">
+
     <!-- NAGŁÓWEK STRONY -->
     <div class="zaladunki-header-bar">
         <div class="zaladunki-title-group">
@@ -327,14 +14,20 @@
                 <span class="material-icons">local_shipping</span>
             </div>
             <div>
-                <h2>Załadunki na Samochód / Wydania Zewnętrzne (ZZA/ZZL)</h2>
-                <p>Magazyn Główny — Formularz rejestracji wyjazdu pojazdu i wydań paletowych</p>
+                <h2>Załadunki na Samochód / Wydania Zewnętrzne (ZZA/ZZL){% if linia == 'OSIP' %} – Magazyn OSIP{% endif %}</h2>
+                <p>Magazyn {% if linia == 'OSIP' %}OSIP{% else %}{{ linia }}{% endif %} — Rejestracja wydań na samochód i skanowanie kodów palet (Zebra / SSCC / QR)</p>
             </div>
         </div>
         <div>
+            {% if linia == 'OSIP' %}
+            <a href="{{ url_for('osip.warehouse_view') }}" class="orders-back-btn">
+                <span class="material-icons">warehouse</span> STAN HALI OSIP
+            </a>
+            {% else %}
             <a href="{{ url_for('warehouse_v2.index', linia=linia) }}" class="orders-back-btn">
                 <span class="material-icons">arrow_back</span> POWRÓT DO MAGAZYNU
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -345,220 +38,281 @@
                 <span class="material-icons">inventory_2</span>
             </div>
             <div>
-                <div class="zaladunki-kpi-label">Dostępne Palety</div>
-                <div class="zaladunki-kpi-val">{{ available_pallets | length }} <span style="font-size:13px; font-weight:600; color:#64748b;">szt.</span></div>
+                <div class="zaladunki-kpi-label">Palety na Samochodzie</div>
+                <div class="zaladunki-kpi-val" style="color: #2563eb;">
+                    <span id="kpiCurrentPalletCount">0</span> 
+                    <span style="font-size:14px; font-weight:600; color:#64748b;">szt.</span>
+                </div>
             </div>
         </div>
         <div class="zaladunki-kpi-card">
             <div class="zaladunki-kpi-icon-box" style="background: #f0fdf4; color: #16a34a;">
-                <span class="material-icons">local_shipping</span>
+                <span class="material-icons">scale</span>
             </div>
             <div>
-                <div class="zaladunki-kpi-label">Wyjazdy w Rejestrze</div>
-                <div class="zaladunki-kpi-val" style="color: #16a34a;">{{ history | length }} <span style="font-size:13px; font-weight:600; color:#64748b;">wydań</span></div>
+                <div class="zaladunki-kpi-label">Łączna Waga Załadunku</div>
+                <div class="zaladunki-kpi-val" style="color: #16a34a;">
+                    <span id="kpiCurrentTotalWeight">0.00</span> 
+                    <span style="font-size:14px; font-weight:600; color:#64748b;">kg</span>
+                </div>
             </div>
         </div>
         <div class="zaladunki-kpi-card">
             <div class="zaladunki-kpi-icon-box" style="background: #fffbeb; color: #d97706;">
-                <span class="material-icons">domain</span>
+                <span class="material-icons">history</span>
             </div>
             <div>
-                <div class="zaladunki-kpi-label">Linia Magazynowa</div>
-                <div class="zaladunki-kpi-val" style="color: #d97706;">{{ linia }}</div>
+                <div class="zaladunki-kpi-label">Zrealizowane Załadunki</div>
+                <div class="zaladunki-kpi-val" style="color: #d97706;">
+                    <span id="kpiHistoryCount">{{ history | length }}</span>
+                    <span style="font-size:14px; font-weight:600; color:#64748b;">wydań</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- FORMULARZ NOWEGO ZAŁADUNKU -->
-    <div class="zaladunki-form-card">
+    <!-- 1. DANE TRANSPORTOWE ZAŁADUNKU (NA GÓRZE) -->
+    <div class="zaladunki-form-card" id="transportCard">
         <div class="zaladunki-form-title">
-            <span class="material-icons">add_chart</span>
-            Formularz Nowego Załadunku na Samochód
-        </div>
-        <form id="vehicleDispatchForm" onsubmit="submitVehicleDispatch(event)">
-            <div class="zaladunki-form-grid">
-                <!-- WYBÓR PALETY -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchPalletSelect">Wybierz Paletę z Magazynu <span class="req">*</span></label>
-                    <select id="dispatchPalletSelect" class="zaladunki-input-control" required onchange="onPalletSelectChange(this)">
-                        <option value="">-- Wybierz paletę do załadunku --</option>
-                        {% for p in available_pallets %}
-                        <option value="{{ p.nr_palety or p.id }}" data-nazwa="{{ p.nazwa }}" data-typ="{{ p.typ }}" data-weight="{{ p.stan_magazynowy }}">
-                            Paleta: {{ p.nr_palety or ('SUR-' ~ p.id) }} | {{ p.nazwa }} | Lok: {{ p.lokalizacja or '-' }} ({{ p.stan_magazynowy or 0 }} kg)
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- NAZWA PRODUKTU -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchProductName">Nazwa Produktu / Surowca <span class="req">*</span></label>
-                    <input type="text" id="dispatchProductName" class="zaladunki-input-control" placeholder="Nazwa produktu" required>
-                </div>
-
-                <!-- NR REJESTRACYJNY SAMOCHODU -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchVehicleReg">Nr Rejestracyjny Samochodu</label>
-                    <input type="text" id="dispatchVehicleReg" class="zaladunki-input-control" placeholder="Np. DW 12345">
-                </div>
-
-                <!-- KIEROWCA / PRZEWOŹNIK -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchDriver">Kierowca / Przewoźnik</label>
-                    <input type="text" id="dispatchDriver" class="zaladunki-input-control" placeholder="Np. Jan Kowalski / Trans-Logistics">
-                </div>
-
-                <!-- ODBIORCA / KLIENT -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchCustomer">Odbiorca Zewnętrzny / Klient</label>
-                    <input type="text" id="dispatchCustomer" class="zaladunki-input-control" placeholder="Np. Hurtownia ABC / Poznań">
-                </div>
-
-                <!-- NUMER DOKUMENTU WZ -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchWz">Nr Dokumentu WZ / ZZA</label>
-                    <input type="text" id="dispatchWz" class="zaladunki-input-control" placeholder="Np. WZ/2026/0817-1">
-                </div>
-
-                <!-- ILOŚĆ KG -->
-                <div class="zaladunki-form-group">
-                    <label for="dispatchWeight">Ilość (kg)</label>
-                    <input type="number" step="0.01" id="dispatchWeight" class="zaladunki-input-control" placeholder="0.00">
-                </div>
-
-                <!-- UWAGI -->
-                <div class="zaladunki-form-group full-width">
-                    <label for="dispatchNotes">Uwagi Magazyniera</label>
-                    <input type="text" id="dispatchNotes" class="zaladunki-input-control" placeholder="Opcjonalne uwagi dotyczące załadunku lub pojazdu...">
-                </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color:#2563eb;">local_shipping</span>
+                <span>1. Dane Transportowe Załadunku</span>
             </div>
-
-            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-                <button type="submit" id="btnSubmitDispatch" class="zaladunki-submit-btn">
-                    <span class="material-icons">check_circle</span>
-                    ZATWIERDŹ ZAŁADUNEK NA SAMOCHÓD
+            <div id="dispatchDraftBadge" style="display: none; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 4px 10px; border-radius: 8px;">
+                <span class="material-icons" style="font-size: 16px; color: #16a34a;">save</span>
+                <span>Wersja robocza (autozapis)</span>
+                <button type="button" onclick="clearDispatchDraftAndReset()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 800; cursor: pointer; text-decoration: underline; padding: 0 4px;" title="Wyczyść wersję roboczą">
+                    Wyczyść
                 </button>
             </div>
-        </form>
+        </div>
+
+        <div class="zaladunki-form-grid">
+            <!-- NR REJESTRACYJNY SAMOCHODU -->
+            <div class="zaladunki-form-group">
+                <label for="dispatchVehicleReg">Nr Rejestracyjny Samochodu <span class="req">*</span></label>
+                <input type="text" id="dispatchVehicleReg" class="zaladunki-input-control" placeholder="Np. DW 12345 / PO 98765" autocomplete="off" required>
+            </div>
+
+            <!-- KIEROWCA / PRZEWOŹNIK -->
+            <div class="zaladunki-form-group">
+                <label for="dispatchDriver">Kierowca / Przewoźnik</label>
+                <input type="text" id="dispatchDriver" class="zaladunki-input-control" placeholder="Np. Jan Kowalski / Trans-Sped" autocomplete="off">
+            </div>
+
+            <!-- ODBIORCA / KLIENT -->
+            <div class="zaladunki-form-group">
+                <label for="dispatchCustomer">Odbiorca Zewnętrzny / Klient</label>
+                <input type="text" id="dispatchCustomer" class="zaladunki-input-control" placeholder="Np. Hurtownia Rolnicza Agro-Plus" autocomplete="off">
+            </div>
+
+            <!-- NUMER DOKUMENTU WZ / ZZA / ZZL -->
+            <div class="zaladunki-form-group">
+                <label for="dispatchWz">Nr Dokumentu WZ / ZZA / ZZL</label>
+                <input type="text" id="dispatchWz" class="zaladunki-input-control" placeholder="Np. WZ/2026/0824-1 lub ZZA-104" autocomplete="off">
+            </div>
+
+            <!-- UWAGI -->
+            <div class="zaladunki-form-group full-width">
+                <label for="dispatchNotes">Uwagi Magazyniera</label>
+                <input type="text" id="dispatchNotes" class="zaladunki-input-control" placeholder="Opcjonalne uwagi dotyczące załadunku, rampy lub zabezpieczenia ładunku..." autocomplete="off">
+            </div>
+        </div>
     </div>
 
-    <!-- REJESTR ZREALIZOWANYCH WYDAŃ ZEWNĘTRZNYCH -->
-    <div class="zaladunki-table-card">
-        <div class="zaladunki-table-header">
-            <h3>
-                <span class="material-icons" style="color:#2563eb;">history</span>
-                Rejestr Wydań Zewnętrznych Na Samochód (Załadunki)
-            </h3>
-            <span style="font-size:12px; font-weight:700; color:#64748b; background:#f1f5f9; padding:6px 14px; border-radius:10px;">
-                Ostatnie 50 załadunków
+    <!-- 2. SKANOWANIE PALET NA POJAZD (POŚRODKU) -->
+    <div class="zaladunki-scanner-card" id="scannerCard">
+        <div class="zaladunki-scanner-title">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="material-icons" style="color:#2563eb;">barcode_reader</span>
+                <span>2. Zeskanuj Paletę do Załadunku na Pojazd</span>
+            </div>
+            <span style="font-size:12px; font-weight:700; color:#2563eb; background:#eff6ff; padding:4px 10px; border-radius:8px; border:1px solid #bfdbfe;">
+                Ciągłe Skanowanie Czytnikiem Zebra / Kamera
             </span>
         </div>
+
+        <form id="palletScanForm" class="zaladunki-scan-form" onsubmit="handlePalletScanLookup(event)">
+            <div class="zaladunki-scan-input-wrap">
+                <span class="material-icons scan-icon">qr_code_scanner</span>
+                <input type="text" id="palletScanInput" class="zaladunki-scan-input" 
+                       placeholder="Zeskanuj kod SSCC / QR / kod kreskowy palety..." 
+                       autocomplete="off" autocorrect="off" spellcheck="false" autofocus>
+                <span id="clearScanBtn" class="material-icons zaladunki-clear-btn" onclick="clearPalletScanInput()" title="Wyczyść">close</span>
+            </div>
+
+            <button type="submit" id="scanLookupBtn" class="zaladunki-scan-btn">
+                <span class="material-icons">add_circle</span>
+                DODAJ PALETĘ
+            </button>
+
+            <button type="button" class="zaladunki-camera-btn" onclick="openQrScannerModal('palletScanInput', 'palletScanInput')" title="Skanuj aparatem">
+                <span class="material-icons">photo_camera</span>
+            </button>
+        </form>
+
+        <div id="palletScanStatus" class="zaladunki-scan-status">
+            <span class="material-icons" style="font-size:16px; color:#2563eb;">qr_code_scanner</span>
+            Gotowy do skanowania. Po każdym skanie paleta automatycznie doda się do listy poniżej.
+        </div>
+    </div>
+
+    <!-- 3. LISTA ZESKANOWANYCH PALET NA TEN ZAŁADUNEK (PONIŻEJ SKANOWANIA) -->
+    <div class="zaladunki-scanned-card" id="scannedListCard">
+        <div class="zaladunki-scanned-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="material-icons" style="color:#16a34a; font-size:24px;">view_list</span>
+                <div>
+                    <h3 style="margin:0; font-size:16px; font-weight:800; color:#0f172a;">3. Palety Załadowane na Samochód</h3>
+                    <div style="font-size:12px; color:#64748b; font-weight:600;">Sprawdź listę pozycji przed zatwierdzeniem wyjazdu</div>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="badge-total-pallets"><span id="badgePalletCount">0</span> palet</span>
+                <span class="badge-total-weight"><span id="badgeTotalWeight">0.00</span> kg</span>
+            </div>
+        </div>
+
         <div style="overflow-x: auto;">
-            <table class="zaladunki-table">
+            <table class="zaladunki-table" id="scannedPalletsTable">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Data / Czas</th>
-                        <th>Nr Palety</th>
-                        <th>Nazwa Produktu</th>
-                        <th style="text-align: right;">Ilość (kg)</th>
-                        <th>Nr Rejestracyjny</th>
-                        <th>Kierowca / Odbiorca</th>
-                        <th>Dokument WZ</th>
-                        <th>Magazynier</th>
+                        <th style="width: 50px;">LP</th>
+                        <th style="width: 220px;">Kod Palety / SSCC</th>
+                        <th>Nazwa Towaru / Surowca</th>
+                        <th style="width: 140px;">Typ & Linia</th>
+                        <th style="width: 140px; text-align: right;">Ilość (kg)</th>
+                        <th style="width: 130px;">Partia (Batch)</th>
+                        <th style="width: 120px;">Lokalizacja</th>
+                        <th style="width: 80px; text-align: center;">Akcja</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% if history and history | length > 0 %}
-                    {% for h in history %}
-                    <tr>
-                        <td style="font-weight: 800; color: #94a3b8;">#{{ h.id }}</td>
-                        <td><span style="background:#f8fafc; border:1px solid #e2e8f0; padding:4px 8px; border-radius:6px; font-weight:700;">{{ h.created_at or '-' }}</span></td>
-                        <td><span class="badge-pallet">{{ h.nr_palety }}</span></td>
-                        <td style="font-weight: 800; color: #0f172a;">{{ h.nazwa_produktu }}</td>
-                        <td style="text-align: right; font-weight: 800; color: #16a34a;">{{ h.ilosc_kg }} kg</td>
-                        <td><span class="badge-reg">{{ h.nr_rejestracyjny or '-' }}</span></td>
-                        <td>
-                            <div><strong>Kierowca:</strong> {{ h.kierowca or '-' }}</div>
-                            <div style="color:#64748b; font-size:12px;"><strong>Odbiorca:</strong> {{ h.odbiorca or '-' }}</div>
-                        </td>
-                        <td><span class="badge-wz">{{ h.nr_dokumentu_wz or '-' }}</span></td>
-                        <td style="font-weight: 700; color: #475569;">{{ h.magazynier or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                    {% else %}
-                    <tr>
-                        <td colspan="9" style="text-align:center; padding:30px; color:#94a3b8; font-weight:700;">
-                            Brak zarejestrowanych wydań zewnętrznych na samochód.
+                <tbody id="scannedPalletsTbody">
+                    <tr id="emptyScannedRow">
+                        <td colspan="8" style="text-align: center; padding: 36px 15px; color: #94a3b8; font-weight: 700;">
+                            <span class="material-icons" style="font-size: 36px; display: block; margin-bottom: 6px; color: #cbd5e1;">qr_code_scanner</span>
+                            Brak zeskanowanych palet na ten załadunek.<br>
+                            <span style="font-size: 12px; font-weight: 500;">Zeskanuj kod kreskowy lub SSCC powyżej, aby dodać paletę do załadunku.</span>
                         </td>
                     </tr>
-                    {% endif %}
                 </tbody>
+                <tfoot id="scannedPalletsTfoot" style="display: none;">
+                    <tr style="background: #f8fafc; font-weight: 900; border-top: 2px solid #cbd5e1;">
+                        <td colspan="4" style="text-align: right; padding: 12px 14px; font-size: 14px; color: #334155;">SUMA ZAŁADUNKU:</td>
+                        <td style="text-align: right; padding: 12px 14px; font-size: 16px; color: #16a34a;" id="tfootTotalWeight">0.00 kg</td>
+                        <td colspan="3" style="padding: 12px 14px; color: #64748b; font-size: 13px;" id="tfootPalletCount">0 palet</td>
+                    </tr>
+                </tfoot>
             </table>
+        </div>
+
+        <!-- 4. PRZYCISK ZATWIERDŹ ZAŁADUNEK NA SAMOCHÓD (NA DOLE LISTY) -->
+        <div class="zaladunki-action-footer">
+            <button type="button" class="zaladunki-cancel-all-btn" onclick="clearAllScannedPallets()">
+                <span class="material-icons">delete_sweep</span> Wyczyść listę palet
+            </button>
+            <button type="button" id="btnSubmitDispatch" class="zaladunki-submit-btn" onclick="submitVehicleDispatch(event)">
+                <span class="material-icons">check_circle</span>
+                <span id="submitBtnText">ZATWIERDŹ ZAŁADUNEK NA SAMOCHÓD (0 palet)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 5. REJESTR ZREALIZOWANYCH WYDAŃ ZEWNĘTRZNYCH (GRUPOWANY PO WZ) -->
+    <div class="zaladunki-history-card">
+        <div class="zaladunki-history-header">
+            <div>
+                <h3 style="margin:0; font-size:16px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px;">
+                    <span class="material-icons" style="color:#2563eb;">fact_check</span>
+                    Rejestr Wydań Zewnętrznych (Grupowany po Dokumencie WZ)
+                </h3>
+                <div style="font-size:12px; color:#64748b; font-weight:600; margin-top:2px;">
+                    Zestawienie wyjazdów samochodów, dokumentów WZ/ZZA/ZZL i załadowanych palet
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="badge-total-pallets" id="historyGroupCountBadge">
+                    {{ history_grouped | length if history_grouped else 0 }} dokumentów WZ
+                </span>
+            </div>
+        </div>
+
+        <div id="dispatchHistoryGroupedContainer" class="zaladunki-history-groups">
+            {% if history_grouped %}
+                {% for grp in history_grouped %}
+                <div class="wz-group-card">
+                    <div class="wz-group-header" onclick="toggleWzGroupDetails('wzGroupDetails-{{ loop.index }}')">
+                        <div class="wz-group-header-left">
+                            <span class="wz-doc-badge {% if grp.has_wz %}wz-doc-badge-active{% else %}wz-doc-badge-fallback{% endif %}">
+                                <span class="material-icons" style="font-size:16px;">description</span>
+                                <strong>{{ grp.nr_dokumentu_wz }}</strong>
+                            </span>
+                            <span class="badge-reg">{{ grp.nr_rejestracyjny }}</span>
+                            <span class="wz-header-meta">
+                                <strong>Kierowca:</strong> {{ grp.kierowca }} &bull; 
+                                <strong>Odbiorca:</strong> {{ grp.odbiorca }}
+                            </span>
+                        </div>
+                        <div class="wz-group-header-right">
+                            <span class="wz-stat-pill" title="Łączna waga w dokumencie WZ">
+                                <span class="material-icons" style="font-size:15px; color:#16a34a;">scale</span>
+                                <strong>{{ "%.2f"|format(grp.total_weight_kg or 0) }} kg</strong>
+                            </span>
+                            <span class="wz-stat-pill" title="Liczba palet w tym WZ">
+                                <span class="material-icons" style="font-size:15px; color:#2563eb;">inventory_2</span>
+                                <strong>{{ grp.pallets_count }} {{ 'paleta' if grp.pallets_count == 1 else 'palet' }}</strong>
+                            </span>
+                            <span style="font-size:12px; color:#64748b; font-weight:700;">{{ grp.created_at }}</span>
+                            <button type="button" class="wz-toggle-btn" title="Pokaż / ukryj pozycje WZ">
+                                <span class="material-icons wz-toggle-icon" id="wzIcon-{{ loop.index }}">expand_more</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ROZWIJANA TABELA POZYCJI W RAMACH TEGO WZ -->
+                    <div class="wz-group-body" id="wzGroupDetails-{{ loop.index }}" style="display: none;">
+                        <table class="zaladunki-table wz-subtable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">LP</th>
+                                    <th style="width: 190px;">Nr Palety / SSCC</th>
+                                    <th>Nazwa Towaru / Surowca</th>
+                                    <th style="width: 130px;">Typ & Linia</th>
+                                    <th style="width: 130px; text-align: right;">Ilość (kg)</th>
+                                    <th style="width: 120px;">Magazynier</th>
+                                    <th style="width: 140px;">Data Załadunku</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in grp['items'] %}
+                                <tr>
+                                    <td style="font-weight: 800; color: #94a3b8;">#{{ loop.index }}</td>
+                                    <td><span class="badge-pallet">{{ item.nr_palety or '-' }}</span></td>
+                                    <td style="font-weight: 800; color: #0f172a;">{{ item.nazwa_produktu or '-' }}</td>
+                                    <td><span class="badge-type-line">{{ item.typ_palety or '-' }}</span></td>
+                                    <td style="text-align: right; font-weight: 800; color: #16a34a;">{{ "%.2f"|format(item.ilosc_kg or 0) }} kg</td>
+                                    <td style="font-weight: 700; color: #475569;">{{ item.magazynier or '-' }}</td>
+                                    <td style="font-size: 12px; color: #64748b; font-weight: 600;">{{ item.created_at or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 40px 15px; color: #94a3b8; font-weight: 700;">
+                    <span class="material-icons" style="font-size: 36px; display: block; margin-bottom: 6px; color: #cbd5e1;">local_shipping</span>
+                    Brak zarejestrowanych wydań zewnętrznych na samochód.
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
-<script>
-function onPalletSelectChange(selectElem) {
-    const selectedOption = selectElem.options[selectElem.selectedIndex];
-    if (!selectedOption || !selectedOption.value) return;
-    
-    const nazwa = selectedOption.getAttribute('data-nazwa') || '';
-    const weight = selectedOption.getAttribute('data-weight') || '';
-    
-    if (nazwa) {
-        document.getElementById('dispatchProductName').value = nazwa;
-    }
-    if (weight) {
-        document.getElementById('dispatchWeight').value = weight;
-    }
-}
+<!-- KONTENER NA POWIADOMIENIA TOAST -->
+<div id="zaladunkiToastContainer" class="zaladunki-toast-container"></div>
 
-async function submitVehicleDispatch(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btnSubmitDispatch');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="material-icons spin">sync</span> Rejestrowanie...';
-    
-    const palletSelect = document.getElementById('dispatchPalletSelect');
-    const palletVal = palletSelect.value;
-    const selectedOption = palletSelect.options[palletSelect.selectedIndex];
-    const palletType = selectedOption ? (selectedOption.getAttribute('data-typ') || 'Surowiec') : 'Surowiec';
-    
-    const payload = {
-        nr_palety: palletVal,
-        nazwa_produktu: document.getElementById('dispatchProductName').value,
-        typ_palety: palletType,
-        ilosc_kg: document.getElementById('dispatchWeight').value,
-        nr_rejestracyjny: document.getElementById('dispatchVehicleReg').value,
-        kierowca: document.getElementById('dispatchDriver').value,
-        odbiorca: document.getElementById('dispatchCustomer').value,
-        nr_dokumentu_wz: document.getElementById('dispatchWz').value,
-        uwagi: document.getElementById('dispatchNotes').value
-    };
-
-    try {
-        const resp = await fetch('/warehouse-v2/api/zaladunki/dispatch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const res = await resp.json();
-        
-        if (res.success) {
-            alert('✅ ' + (res.message || 'Wydanie zewnętrzne na samochód zarejestrowane!'));
-            window.location.reload();
-        } else {
-            alert('❌ Błąd: ' + (res.message || 'Nie udało się zarejestrować załadunku.'));
-        }
-    } catch (err) {
-        console.error('Błąd połączenia:', err);
-        alert('❌ Wystąpił błąd połączenia z serwerem.');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-icons">check_circle</span> ZATWIERDŹ ZAŁADUNEK NA SAMOCHÓD';
-    }
-}
-</script>
+<!-- SKRYPT OBSŁUGI -->
+<script src="{{ url_for('static', filename='js/warehouse_v2/zaladunki.js') }}?v={{ static_version or '20260824_02' }}"></script>
 {% endblock %}

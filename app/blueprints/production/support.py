@@ -7,6 +7,37 @@ from app.decorators import login_required, roles_required
 from app.services.attendance_service import AttendanceService
 
 
+SECTION_ALIASES_AGRO = {
+    'workowanie': 'Operator workowania',
+    'operator workowania': 'Operator workowania',
+    'zasyp': 'Operator zasypów 1',
+    'zasyp 1': 'Operator zasypów 1',
+    'operator zasypów 1': 'Operator zasypów 1',
+    'operator zasypow 1': 'Operator zasypów 1',
+    'zasyp 2': 'Operator zasypów 2',
+    'operator zasypów 2': 'Operator zasypów 2',
+    'operator zasypow 2': 'Operator zasypów 2',
+    'zasyp 3': 'Operator zasypów 3',
+    'operator zasypów 3': 'Operator zasypów 3',
+    'operator zasypow 3': 'Operator zasypów 3',
+    'zasyp 4': 'Operator zasypów 4',
+    'operator zasypów 4': 'Operator zasypów 4',
+    'operator zasypow 4': 'Operator zasypów 4',
+    'sterownia': 'Operator sterowni',
+    'operator sterowni': 'Operator sterowni',
+    'hala agro': 'Operator sterowni',
+    'technik': 'Technik utrzymania Ruchu',
+    'technik ur': 'Technik utrzymania Ruchu',
+    'technik utrzymania ruchu': 'Technik utrzymania Ruchu',
+}
+
+
+def normalize_agro_section(sec_name):
+    if not sec_name:
+        return sec_name
+    return SECTION_ALIASES_AGRO.get(sec_name.strip().lower(), sec_name)
+
+
 def register_production_support_routes(production_bp, bezpieczny_powrot):
     @production_bp.route('/manual_rollover', methods=['POST'])
     @roles_required('lider', 'admin')
@@ -34,7 +65,14 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
     def obsada_page():
         """Render slide-over for managing obsada (workers on shift) for a sekcja."""
         sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Workowanie'))
-        linia = request.args.get('linia', request.form.get('linia')) or session.get('selected_hall_view') or 'PSD'
+        linia = request.args.get('linia') or request.form.get('linia')
+        if not linia or linia == 'None':
+            referrer = request.referrer or ''
+            if '/agro' in referrer.lower() or 'linia=agro' in referrer.lower():
+                linia = 'AGRO'
+            else:
+                linia = session.get('selected_hall_view') or 'PSD'
+
         date_str = request.args.get('date') or request.form.get('date')
         try:
             qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
@@ -44,25 +82,53 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                "SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko",
-                (qdate,),
-            )
+            try:
+                cursor.execute(
+                    "SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s AND (UPPER(COALESCE(oz.linia, 'PSD')) = %s OR (%s = 'PSD' AND (oz.linia IS NULL OR oz.linia = ''))) ORDER BY oz.sekcja, p.imie_nazwisko",
+                    (qdate, str(linia).strip().upper(), str(linia).strip().upper()),
+                )
+            except Exception:
+                cursor.execute(
+                    "SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko",
+                    (qdate,),
+                )
             rows = cursor.fetchall()
             obsady_map = {}
             for r in rows:
-                sekc, oz_id, name, pracownik_id = r[0], r[1], r[2], r[3]
-                obsady_map.setdefault(sekc, []).append((oz_id, name, pracownik_id))
+                raw_sec, oz_id, name, pracownik_id = r[0], r[1], r[2], r[3]
+                sec_key = normalize_agro_section(raw_sec) if str(linia).strip().upper() == 'AGRO' else raw_sec
+                obsady_map.setdefault(sec_key, []).append((oz_id, name, pracownik_id))
 
-            cursor.execute(
-                "SELECT id, imie_nazwisko FROM pracownicy "
-                "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
-                "AND id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
-                "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
-                "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
-                "ORDER BY imie_nazwisko",
-                (qdate, qdate, qdate, qdate),
-            )
+            if str(linia).strip().upper() == 'AGRO':
+                try:
+                    cursor.execute(
+                        "SELECT id, imie_nazwisko FROM pracownicy "
+                        "WHERE COALESCE(widoczny_agro, 1) = 1 "
+                        "AND id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
+                        "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
+                        "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
+                        "ORDER BY imie_nazwisko",
+                        (qdate, qdate, qdate),
+                    )
+                except Exception:
+                    cursor.execute(
+                        "SELECT id, imie_nazwisko FROM pracownicy "
+                        "WHERE id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
+                        "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
+                        "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
+                        "ORDER BY imie_nazwisko",
+                        (qdate, qdate, qdate),
+                    )
+            else:
+                cursor.execute(
+                    "SELECT id, imie_nazwisko FROM pracownicy "
+                    "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+                    "AND id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
+                    "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
+                    "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
+                    "ORDER BY imie_nazwisko",
+                    (qdate, qdate, qdate, qdate),
+                )
             wszyscy = cursor.fetchall()
 
             cursor.execute(
@@ -80,11 +146,7 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
             except Exception:
                 pass
 
-        try:
-            is_ajax = request.headers.get('X-Requested-With', '') == 'XMLHttpRequest' or request.path.startswith('/api/') or request.args.get('fragment') == 'true'
-        except Exception:
-            is_ajax = False
-
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('ajax') == '1'
         if is_ajax:
             return render_template(
                 'obsada_fragment.html',
@@ -111,6 +173,94 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
             lider_agro_id=lider_agro_id,
             all_pracownicy=all_pracownicy,
         )
+
+    @production_bp.route('/api/obsada/agro_staff_visibility', methods=['GET'])
+    @login_required
+    def get_agro_staff_visibility():
+        """Get all employees with their widoczny_agro status and current shift staffing."""
+        qdate = request.args.get('date') or date.today().strftime('%Y-%m-%d')
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            try:
+                cursor.execute("SELECT id, imie_nazwisko, COALESCE(widoczny_agro, 1) FROM pracownicy ORDER BY imie_nazwisko")
+                rows = cursor.fetchall()
+            except Exception:
+                cursor.execute("SELECT id, imie_nazwisko, 1 FROM pracownicy ORDER BY imie_nazwisko")
+                rows = cursor.fetchall()
+            staff = [{'id': r[0], 'imie_nazwisko': r[1], 'widoczny_agro': bool(r[2])} for r in rows]
+
+            # Fetch current obsada for AGRO on qdate
+            try:
+                cursor.execute(
+                    "SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s AND UPPER(COALESCE(oz.linia, '')) = 'AGRO' ORDER BY oz.sekcja, p.imie_nazwisko",
+                    (qdate,),
+                )
+                obs_rows = cursor.fetchall()
+            except Exception:
+                obs_rows = []
+
+            obsada_map = {}
+            for r in obs_rows:
+                sec_key = normalize_agro_section(r[0])
+                obsada_map.setdefault(sec_key, []).append({'id': r[1], 'imie_nazwisko': r[2], 'pracownik_id': r[3]})
+
+            return jsonify({'success': True, 'staff': staff, 'obsada': obsada_map, 'date': qdate})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+        finally:
+            conn.close()
+
+    @production_bp.route('/api/obsada/agro_staff_visibility', methods=['POST'])
+    @login_required
+    @roles_required(['lider', 'admin', 'masteradmin'])
+    def update_agro_staff_visibility():
+        """Update widoczny_agro status and shift assignments for AGRO employees."""
+        data = request.get_json() or {}
+        visible_ids = data.get('visible_ids', [])
+        assignments = data.get('assignments', None)
+        qdate = data.get('date') or date.today().strftime('%Y-%m-%d')
+
+        if not isinstance(visible_ids, list):
+            return jsonify({'success': False, 'message': 'Nieprawidłowy format danych'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("UPDATE pracownicy SET widoczny_agro = 0")
+            if visible_ids:
+                format_strings = ','.join(['%s'] * len(visible_ids))
+                cursor.execute(f"UPDATE pracownicy SET widoczny_agro = 1 WHERE id IN ({format_strings})", tuple(visible_ids))
+
+            # Save position assignments ONLY if explicitly passed as a dictionary
+            if isinstance(assignments, dict):
+                agro_sections = [
+                    'Operator sterowni', 'Operator workowania',
+                    'Operator zasypów 1', 'Operator zasypów 2', 'Operator zasypów 3', 'Operator zasypów 4',
+                    'Technik utrzymania Ruchu'
+                ]
+                for sekc in agro_sections:
+                    if sekc in assignments:
+                        p_ids = assignments[sekc]
+                        if isinstance(p_ids, list):
+                            # Delete old records for standard section name and aliases
+                            cursor.execute(
+                                "DELETE FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(COALESCE(linia, '')) = 'AGRO' AND (sekcja = %s OR sekcja = %s)",
+                                (qdate, sekc, sekc.replace('Operator ', '').replace('zasypów', 'zasyp'))
+                            )
+                            for pid in p_ids:
+                                cursor.execute(
+                                    "INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id, linia) VALUES (%s, %s, %s, 'AGRO')",
+                                    (qdate, sekc, pid)
+                                )
+
+            conn.commit()
+            return jsonify({'success': True, 'message': 'Zapisano obsadę stanowisk oraz ustawienia pracowników AGRO.'})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 500
+        finally:
+            conn.close()
 
     @production_bp.route('/dodaj_do_obsady', methods=['POST'])
     @login_required

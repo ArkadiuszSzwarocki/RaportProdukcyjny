@@ -1,356 +1,260 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 
 {% block title %}Formularz Przyjęcia Transferu {{ transfer.transfer_code }} - OSIP{% endblock %}
 
 {% block content %}
 <style>
+/* FORMULARZ PRZYJĘCIA TRANSFERU OSIP - STYLES V2 */
+
 .receipt-screen {
-    max-width: 1440px;
-    margin: 0 auto;
+    width: 100% !important;
+    max-width: 1240px !important;
+    margin: 0 auto !important;
+    padding: 24px 16px !important;
+    box-sizing: border-box !important;
 }
 
+/* HERO HEADER */
 .receipt-hero {
-    border-radius: 18px;
-    border: 1px solid #dbe7ff;
-    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
-    padding: 18px;
-    margin-bottom: 18px;
+    border-radius: 18px !important;
+    border: 1.5px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    padding: 22px 24px !important;
+    margin-bottom: 24px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04) !important;
 }
 
 .receipt-hero-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+    flex-wrap: wrap !important;
 }
 
 .receipt-title {
-    margin: 0;
-    font-size: 1.55rem;
-    font-weight: 800;
-    color: #1f2937;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin: 0 !important;
+    font-size: 1.55rem !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    letter-spacing: -0.3px !important;
 }
 
 .receipt-subtitle {
-    margin: 6px 0 0;
-    color: #64748b;
-    font-size: 0.92rem;
+    margin: 6px 0 0 0 !important;
+    color: #64748b !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
 }
 
 .stage-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    background: #e7f1ff;
-    color: #1e40af;
-    border: 1px solid #cfe0ff;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border-radius: 999px !important;
+    padding: 6px 14px !important;
+    font-size: 0.78rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.3px !important;
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border: 1px solid #bfdbfe !important;
+    margin-top: 10px !important;
 }
 
 .hero-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    display: flex !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
 }
 
+.hero-back-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 18px !important;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    color: #334155 !important;
+    font-weight: 800 !important;
+    font-size: 13px !important;
+    text-decoration: none !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03) !important;
+}
+
+.hero-back-btn:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+    text-decoration: none !important;
+}
+
+/* KPI GRID */
 .kpi-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    margin-top: 18px !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+    gap: 14px !important;
 }
 
 .kpi-card {
-    background: #ffffff;
-    border: 1px solid #e6edf8;
-    border-radius: 12px;
-    padding: 12px;
-    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+    background: #f8fafc !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 14px 18px !important;
+    box-sizing: border-box !important;
 }
 
 .kpi-card .k-label {
-    color: #64748b;
-    font-size: 0.74rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.35px;
-    margin-bottom: 6px;
+    color: #64748b !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 6px !important;
 }
 
 .kpi-card .k-value {
-    font-size: 1.06rem;
-    font-weight: 800;
-    color: #0f172a;
+    font-size: 1.2rem !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
 }
 
 .kpi-route {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    color: #0f172a;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    font-size: 1.05rem !important;
 }
 
 .kpi-route .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: #1d4ed8;
+    font-family: monospace !important;
+    color: #2563eb !important;
+    background: #eff6ff !important;
+    padding: 2px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid #bfdbfe !important;
 }
 
 .receipt-progress {
-    margin-top: 8px;
-    background: #e2e8f0;
-    border-radius: 999px;
-    height: 9px;
-    overflow: hidden;
+    margin-top: 8px !important;
+    background: #e2e8f0 !important;
+    border-radius: 999px !important;
+    height: 10px !important;
+    overflow: hidden !important;
 }
 
 .receipt-progress > div {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #0ea5e9, #22c55e);
-}
-
-/* ── STYLIZACJA KART PRZYJĘCIA ── */
-.receipt-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-}
-
-.receipt-item {
-    background: #ffffff;
-    border: 1px solid #e6edf8;
-    border-radius: 14px;
-    box-shadow: 0 2px 6px rgba(2, 6, 23, 0.05);
-    overflow: hidden;
-    transition: all 0.2s ease;
-}
-
-.receipt-item.done {
-    opacity: 1;
-    border: 2px solid #22c55e;
-    background: #f0fdf4;
-}
-
-.receipt-head {
-    padding: 12px 14px;
-    border-bottom: 1px solid #eef2f7;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-}
-
-.receipt-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-
-.idx-badge {
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    background: #f1f5f9;
-    color: #475569;
-    font-weight: 800;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.item-title {
-    font-weight: 800;
-    color: #0f172a;
-    font-size: 1.05rem;
-}
-
-.item-meta {
-    font-size: 0.82rem;
-    color: #64748b;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-.qty-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 999px;
-    background: #ecfdf5;
-    color: #166534;
-    border: 1px solid #c9f2da;
-    padding: 5px 12px;
-    font-weight: 800;
-    font-size: 0.85rem;
-    flex-shrink: 0;
-}
-
-.done-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 999px;
-    background: #dcfce7;
-    color: #15803d;
-    font-weight: 800;
-    font-size: 0.82rem;
-    border: 1px solid #bbf7d0;
-}
-
-.bottom-row-grid {
-    padding: 14px;
-    display: grid;
-    grid-template-columns: 1fr 240px;
-    gap: 12px;
-    align-items: end;
-}
-
-.field-box label {
-    display: block;
-    margin-bottom: 5px;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    font-weight: 800;
-    color: #475569;
-}
-
-.field-box input {
-    width: 100%;
-    min-width: 0;
-    height: 42px;
-    border: 2px solid #93c5fd;
-    border-radius: 10px;
-    padding: 0 12px;
-    font-size: 1rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    background: #eff6ff;
-    color: #1e3a8a;
-    box-sizing: border-box;
-}
-
-.field-box input:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-}
-
-.btn-confirm {
-    width: 100%;
-    height: 42px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, #1f8c4f, #16713f);
-    color: #ffffff;
-    border: 1px solid #14683a;
-    padding: 0 16px;
-    font-weight: 800;
-    font-size: 0.95rem;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-.btn-confirm:hover {
-    background: linear-gradient(180deg, #16713f, #115c32);
+    height: 100% !important;
+    border-radius: 999px !important;
+    background: linear-gradient(90deg, #2563eb, #16a34a) !important;
+    transition: width 0.3s ease !important;
 }
 
 /* ── STYLIZACJA PROFESJONALNEGO SKANERA ── */
 .scanner-hero-card {
-    background: #ffffff;
-    border-radius: 18px;
-    border: 2px solid #2563eb;
-    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.12), 0 8px 10px -6px rgba(37, 99, 235, 0.04);
-    margin-bottom: 24px;
-    overflow: hidden;
+    background: #ffffff !important;
+    border-radius: 18px !important;
+    border: 2px solid #3b82f6 !important;
+    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.1) !important;
+    margin-bottom: 24px !important;
+    overflow: hidden !important;
 }
 
 .scanner-hero-body {
-    padding: 22px 24px;
+    padding: 24px !important;
+}
+
+.scanner-header-row {
+    display: flex !items-center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 14px !important;
+    margin-bottom: 18px !important;
+    padding-bottom: 16px !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+}
+
+.scanner-header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
 }
 
 .scanner-icon-box {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    color: #ffffff;
-    font-size: 1.6rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-    flex-shrink: 0;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    color: #ffffff !important;
+    font-size: 1.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+    flex-shrink: 0 !important;
 }
 
 .scanner-title {
-    margin: 0;
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #0f172a;
+    margin: 0 !important;
+    font-size: 1.25rem !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
 }
 
 .scanner-step-flow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-    font-size: 0.85rem;
-    color: #475569;
-    flex-wrap: wrap;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 4px !important;
+    font-size: 0.85rem !important;
+    color: #475569 !important;
+    flex-wrap: wrap !important;
 }
 
 .step-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    background: #f1f5f9;
-    color: #64748b;
-    font-weight: 700;
-    font-size: 0.78rem;
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    font-weight: 700 !important;
+    font-size: 0.78rem !important;
 }
 
 .step-badge.step-active {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
+    background: #dbeafe !important;
+    color: #1e40af !important;
+    border: 1px solid #bfdbfe !important;
 }
 
 .scanner-live-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    background: #f0fdf4;
-    color: #166534;
-    border: 1px solid #bbf7d0;
-    font-weight: 800;
-    font-size: 0.78rem;
-    letter-spacing: 0.5px;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 6px 14px !important;
+    border-radius: 20px !important;
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #bbf7d0 !important;
+    font-weight: 800 !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.5px !important;
 }
 
 .pulse-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-    animation: pulse 1.6s infinite;
+    width: 9px !important;
+    height: 9px !important;
+    border-radius: 50% !important;
+    background: #22c55e !important;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7) !important;
+    animation: pulse 1.6s infinite !important;
 }
 
 @keyframes pulse {
@@ -360,125 +264,295 @@
 }
 
 .scanner-input-container {
-    position: relative;
-    width: 100%;
+    position: relative !important;
+    width: 100% !important;
+    margin-bottom: 16px !important;
 }
 
 .scanner-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    width: 100%;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
 }
 
 .scanner-input-icon {
-    position: absolute;
-    left: 18px;
-    font-size: 1.5rem;
-    color: #2563eb;
-    pointer-events: none;
-    z-index: 2;
+    position: absolute !important;
+    left: 16px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 1.4rem !important;
+    color: #2563eb !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
 }
 
 .scanner-field {
-    width: 100%;
-    height: 56px;
-    padding: 0 54px 0 54px;
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: #0f172a;
-    background: #ffffff;
-    border: 2px solid #3b82f6;
-    border-radius: 12px;
-    outline: none;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
-    letter-spacing: 0.5px;
+    width: 100% !important;
+    height: 52px !important;
+    padding: 0 48px 0 48px !important;
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
+    border: 2px solid #93c5fd !important;
+    border-radius: 12px !important;
+    outline: none !important;
+    transition: all 0.2s ease !important;
+    box-sizing: border-box !important;
+    letter-spacing: 0.5px !important;
 }
 
 .scanner-field:focus {
-    background: #ffffff;
-    border-color: #1d4ed8;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+    background: #ffffff !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18) !important;
 }
 
 .btn-clear-scan {
-    position: absolute;
-    right: 12px;
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    border: none;
-    background: #fee2e2;
-    color: #dc2626;
-    font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    z-index: 2;
+    position: absolute !important;
+    right: 12px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    font-size: 1rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    z-index: 2 !important;
 }
 
 .btn-clear-scan:hover {
-    background: #fca5a5;
-    color: #991b1b;
+    background: #fca5a5 !important;
+    color: #991b1b !important;
 }
 
 .scan-status-banner {
-    padding: 14px 18px;
-    border-radius: 12px;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    color: #1e40af;
-    font-size: 1rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    padding: 14px 18px !important;
+    border-radius: 12px !important;
+    background: #eff6ff !important;
+    border: 1.5px solid #bfdbfe !important;
+    color: #1e40af !important;
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
 }
 
-@media (max-width: 768px) {
-    .kpi-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    .bottom-row-grid {
-        grid-template-columns: 1fr;
-    }
-    .scanner-field {
-        font-size: 1rem;
-        height: 48px;
-        padding-left: 44px;
-    }
+/* ── STYLIZACJA KART PRZYJĘCIA ── */
+.receipt-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
 }
-</style>
 
-<div class="container-fluid py-3 receipt-screen">
+.receipt-item {
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+    overflow: hidden !important;
+    transition: all 0.2s ease !important;
+}
 
-    {% set received_count = transfer.items | selectattr('status', 'equalto', 'RECEIVED') | list | length %}
-    {% set total_count = transfer.items | length %}
-    {% set pending_count = total_count - received_count %}
-    {% set progress = (received_count / total_count * 100) if total_count > 0 else 0 %}
+.receipt-item.done {
+    opacity: 1 !important;
+    border: 2px solid #22c55e !important;
+    background: #ffffff !important;
+}
 
-    <!-- HERO HEADER (Identyczny jak w przyjecie_ruchu.html) -->
+.receipt-head {
+    padding: 16px 20px !important;
+    background: #ffffff !important;
+    border-bottom: 1.5px solid #f1f5f9 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 16px !important;
+    flex-wrap: wrap !important;
+}
+
+.receipt-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    min-width: 0 !important;
+}
+
+.idx-badge {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+    background: #2563eb !important;
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    font-size: 0.85rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+}
+
+.item-title {
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    font-size: 1.05rem !important;
+    margin-bottom: 2px !important;
+}
+
+.item-meta {
+    font-size: 0.84rem !important;
+    color: #64748b !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.badge-sscc {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    font-family: monospace !important;
+}
+
+.qty-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border-radius: 999px !important;
+    background: #ecfdf5 !important;
+    color: #166534 !important;
+    border: 1px solid #a7f3d0 !important;
+    padding: 5px 14px !important;
+    font-weight: 800 !important;
+    font-size: 0.85rem !important;
+    flex-shrink: 0 !important;
+}
+
+.done-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 14px !important;
+    border-radius: 999px !important;
+    background: #dcfce7 !important;
+    color: #15803d !important;
+    font-weight: 800 !important;
+    font-size: 0.82rem !important;
+    border: 1px solid #bbf7d0 !important;
+}
+
+.bottom-row-grid {
+    padding: 18px 20px !important;
+    background: #f8fafc !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    flex-wrap: wrap !important;
+    box-sizing: border-box !important;
+}
+
+.field-box.loc {
+    flex: 1 !important;
+    min-width: 280px !important;
+    margin-bottom: 0 !important;
+}
+
+.field-box label {
+    display: block !important;
+    margin-bottom: 6px !important;
+    font-size: 0.75rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    font-weight: 800 !important;
+    color: #334155 !important;
+}
+
+.field-box input {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    padding: 0 16px !important;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    transition: all 0.2s ease !important;
+}
+
+.field-box input:focus {
+    outline: none !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.btn-confirm {
+    height: 48px !important;
+    min-width: 220px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    padding: 0 24px !important;
+    font-weight: 900 !important;
+    font-size: 0.95rem !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
+    white-space: nowrap !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+}
+
+.btn-confirm:hover {
+    background: linear-gradient(135deg, #15803d 0%, #166534 100%) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35) !important;
+}
+{% set total_count = total_count|default(transfer.items|length) %}
+{% set received_count = received_count|default(transfer.items|selectattr('status', 'equalto', 'RECEIVED')|list|length) %}
+{% set pending_count = pending_count|default(total_count - received_count) %}
+{% set progress = progress|default(((received_count / total_count * 100) if total_count > 0 else 0)|round|int) %}
+
+<div class="receipt-screen">
+    <!-- NAGŁÓWEK KARTA HERO -->
     <div class="receipt-hero">
         <div class="receipt-hero-head">
             <div>
                 <h1 class="receipt-title">
-                    <i class="fas fa-check-circle text-primary"></i>
+                    <i class="fas fa-boxes text-primary"></i>
                     Formularz Przyjęcia Przesunięcia OSIP
                 </h1>
                 <p class="receipt-subtitle">
                     Magazynier potwierdza przyjęcie poszczególnych palet i wpisuje lokalizację odstawienia w hali OSIP.
                 </p>
-                <div class="stage-pill mt-2">
+                <div class="stage-pill">
                     <i class="fas fa-dolly"></i>
                     Dwuetapowy proces: Odbiór na OSIP
                 </div>
             </div>
             <div class="hero-actions">
-                <a href="{{ url_for('osip.transfers_view') }}" class="btn btn-outline-secondary font-weight-bold">
-                    <i class="fas fa-arrow-left mr-1"></i> Rejestr Transferów
+                <a href="{{ url_for('osip.transfers_view') }}" class="hero-back-btn">
+                    <i class="fas fa-arrow-left"></i> Rejestr Transferów
                 </a>
             </div>
         </div>
@@ -494,7 +568,7 @@
                 <div class="k-label">Trasa ruchu</div>
                 <div class="kpi-route">
                     <span class="mono">{{ transfer.source_warehouse }}</span>
-                    <i class="fas fa-arrow-right text-muted"></i>
+                    <i class="fas fa-arrow-right text-muted" style="font-size:14px;"></i>
                     <span class="mono">{{ transfer.destination_warehouse }}</span>
                 </div>
             </div>
@@ -521,13 +595,24 @@
         </div>
     </div>
 
+    {% if transfer.status == 'COMPLETED' %}
+    <!-- BANER INFORMACYJNY ZLECENIA ZAKOŃCZONEGO -->
+    <div class="alert alert-success shadow-sm mb-4 border-0 d-flex align-items-center p-3" style="border-radius: 14px; background: #dcfce7; color: #15803d; border: 1.5px solid #bbf7d0;">
+        <i class="fas fa-check-circle fa-2x mr-3"></i>
+        <div>
+            <h5 class="font-weight-bold mb-1" style="font-size: 1.05rem;">Zlecenie Transferu Zostało Zakończone</h5>
+            <div class="small">Wszystkie palety z tego zlecenia zostały pomyślnie odebrane i umieszczone w magazynie. Poniżej znajduje się pełny podgląd rozliczonych pozycji.</div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if pending_count > 0 and transfer.status in ['PLANNED', 'IN_TRANSIT'] %}
     <!-- BEZOBSŁUGOWY PANEL SKANERA (PROMINENT HIGH-VISIBILITY SCANNER) -->
     <div class="scanner-hero-card">
         <div class="scanner-hero-body">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 pb-3 border-bottom">
-                <div class="d-flex align-items-center mb-2 mb-md-0">
-                    <div class="scanner-icon-box mr-3">
+            <div class="scanner-header-row">
+                <div class="scanner-header-left">
+                    <div class="scanner-icon-box">
                         <i class="fas fa-barcode"></i>
                     </div>
                     <div>
@@ -537,7 +622,7 @@
                         <div class="scanner-step-flow" id="scan-step-hint">
                             <span class="step-badge step-active"><i class="fas fa-box mr-1"></i> 1. Skanuj Paletę (SUR...)</span>
                             <i class="fas fa-chevron-right text-muted"></i>
-                            <span class="step-badge"><i class="fas fa-map-marker-alt mr-1"></i> 2. Skanuj Aleję (OS01–OS77)</span>
+                            <span class="step-badge"><i class="fas fa-map-marker-alt mr-1"></i> 2. Skanuj Aleję (A01–A99, BFOS)</span>
                         </div>
                     </div>
                 </div>
@@ -548,11 +633,11 @@
             </div>
 
             <!-- PEŁNE POLE SKANERA -->
-            <div class="scanner-input-container mb-3">
+            <div class="scanner-input-container">
                 <div class="scanner-input-wrapper">
                     <i class="fas fa-qrcode scanner-input-icon"></i>
                     <input type="text" id="osip-scanner-input" class="scanner-field" 
-                           placeholder="Zeskanuj kod palety (SUR...) lub aleję odstawienia (OS01–OS77)..." 
+                           placeholder="Zeskanuj kod palety (SUR...) lub aleję odstawienia (A01–A99, BFOS)..." 
                            autocomplete="off" autofocus>
                     <button type="button" class="btn-clear-scan" onclick="clearScannerInput()" title="Wyczyść wpis">
                         <i class="fas fa-times"></i>
@@ -562,14 +647,14 @@
 
             <!-- STAN SKANERA STATUS BANNER -->
             <div id="scan-status-alert" class="scan-status-banner">
-                <span id="scan-status-icon" class="mr-2"><i class="fas fa-box text-primary"></i></span>
+                <span id="scan-status-icon"><i class="fas fa-box text-primary"></i></span>
                 <span id="scan-status-msg">Oczekiwanie na zeskanowanie kodu palety...</span>
             </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- LISTA PALET DO PRZYJĘCIA (Karty w stylu przyjecie_ruchu.html) -->
+    <!-- LISTA PALET DO PRZYJĘCIA -->
     <div class="receipt-list mb-4">
         {% for item in transfer.items %}
         {% set idx = loop.index %}
@@ -579,10 +664,10 @@
                     <span class="idx-badge">{{ idx }}</span>
                     <div style="min-width: 0;">
                         <div class="item-title">{{ item.product_name or 'Surowiec' }}</div>
-                        <div class="item-meta">SSCC / Nr Palety: <strong>{{ item.nr_palety or 'Brak' }}</strong></div>
+                        <div class="item-meta">SSCC / Nr Palety: <span class="badge-sscc">{{ item.nr_palety or 'Brak' }}</span></div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     {% if item.status == 'RECEIVED' %}
                     <span class="done-badge" id="badge-done-{{ item.id }}">
                         <i class="fas fa-check-circle"></i>
@@ -601,9 +686,9 @@
             </div>
 
             {% if item.status == 'RECEIVED' %}
-            <div style="padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4;">
+            <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; flex-wrap: wrap; gap: 10px;">
                 <div style="font-size: 0.95rem; font-weight: 800; color: #15803d;">
-                    ID palety: <span style="font-family: monospace; font-size: 1.05rem; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">{{ item.nr_palety }}</span>
+                    ID palety: <span style="font-family: monospace; font-size: 1rem; background: #dcfce7; padding: 3px 10px; border-radius: 6px; border: 1px solid #bbf7d0;">{{ item.nr_palety }}</span>
                 </div>
                 <div style="font-size: 0.9rem; color: #166534; font-weight: 800;">
                     Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">OSIP</span>
@@ -623,6 +708,12 @@
                 </div>
             </div>
             {% endif %}
+        </div>
+        {% else %}
+        <div class="card p-5 text-center text-muted border-0 shadow-sm" style="border-radius: 16px; background: #ffffff;">
+            <span class="material-icons opacity-50 mb-2" style="font-size: 48px; color: #cbd5e1;">inventory_2</span>
+            <h4 class="font-weight-bold text-dark">Brak pozycji w tym zleceniu transferu</h4>
+            <p class="mb-0">To zlecenie nie posiada powiązanych palet do przyjęcia.</p>
         </div>
         {% endfor %}
     </div>
@@ -751,9 +842,9 @@ function markRowAsReceived(itemId, location) {
         const bottomGrid = itemCard.querySelector('.bottom-row-grid');
         if (bottomGrid) {
             bottomGrid.outerHTML = `
-                <div style="padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4;">
+                <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; flex-wrap: wrap; gap: 10px;">
                     <div style="font-size: 0.95rem; font-weight: 800; color: #15803d;">
-                        ID palety: <span style="font-family: monospace; font-size: 1.05rem; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">SUR...</span>
+                        ID palety: <span style="font-family: monospace; font-size: 1rem; background: #dcfce7; padding: 3px 10px; border-radius: 6px; border: 1px solid #bbf7d0;">SUR...</span>
                     </div>
                     <div style="font-size: 0.9rem; color: #166534; font-weight: 800;">
                         Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">${location}</span>

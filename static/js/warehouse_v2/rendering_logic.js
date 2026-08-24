@@ -9,7 +9,7 @@ function populateLocationFilter() {
         if (loc.length === 0) return;
         
         if (typeof currentWarehouseId !== 'undefined' && currentWarehouseId === 'OSIP') {
-            const isOsip = loc.includes('OSIP') || loc.startsWith('OS');
+            const isOsip = loc.includes('OSIP') || loc.startsWith('OS') || loc.startsWith('A') || loc === 'BFOS';
             if (!isOsip) return;
         }
         
@@ -19,6 +19,13 @@ function populateLocationFilter() {
             uniqueLocationsSet.add(loc);
         }
     });
+    
+    if (typeof currentWarehouseId !== 'undefined' && currentWarehouseId === 'OSIP') {
+        for (let i = 1; i <= 99; i++) {
+            uniqueLocationsSet.add(`A${String(i).padStart(2, '0')}`);
+        }
+        uniqueLocationsSet.add('BFOS');
+    }
     
     const uniqueLocations = [...uniqueLocationsSet].sort((a, b) => a.localeCompare(b));
     

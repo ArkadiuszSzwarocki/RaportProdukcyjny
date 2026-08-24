@@ -9,13 +9,13 @@ function switchWarehouse(warehouseId, keepCurrentSubtab = false) {
     document.querySelectorAll('.nav-item-row-rack').forEach(row => {
         const rid = row.getAttribute('data-rack-id');
         if (warehouseId === 'OSIP') {
-            if (rid === 'all' || rid === 'OS01' || rid === 'OS01-77' || rid === 'OSIP') {
+            if (rid === 'all' || rid === 'OS01' || rid === 'OS01-77' || rid === 'A01-A99' || rid === 'BFOS' || rid === 'OSIP') {
                 row.style.display = 'flex';
             } else {
                 row.style.display = 'none';
             }
         } else {
-            if (rid === 'OS01' || rid === 'OS01-77' || rid === 'OSIP') {
+            if (rid === 'OS01' || rid === 'OS01-77' || rid === 'A01-A99' || rid === 'BFOS' || rid === 'OSIP') {
                 row.style.display = 'none';
             } else {
                 row.style.display = 'flex';
@@ -23,7 +23,7 @@ function switchWarehouse(warehouseId, keepCurrentSubtab = false) {
         }
     });
 
-    const isOsipRack = (currentSubWarehouseId === 'OS01' || currentSubWarehouseId === 'OS01-77' || currentSubWarehouseId === 'OSIP');
+    const isOsipRack = (currentSubWarehouseId === 'OS01' || currentSubWarehouseId === 'OS01-77' || currentSubWarehouseId === 'A01-A99' || currentSubWarehouseId === 'BFOS' || currentSubWarehouseId === 'OSIP');
     const isStandardRack = (!isOsipRack && currentSubWarehouseId !== 'all');
 
     // Sprawdź czy bieżący regał jest kompatybilny z nowym magazynem

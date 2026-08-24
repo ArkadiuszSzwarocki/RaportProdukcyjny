@@ -14,6 +14,28 @@
         return false;
     };
 
+    /** Prevent pull-to-refresh on mobile / PWA */
+    (function() {
+        var touchStartY = 0;
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches && e.touches.length === 1) {
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            if (e.touches && e.touches.length === 1) {
+                var touchY = e.touches[0].clientY;
+                var touchDiff = touchY - touchStartY;
+                if ((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) <= 0 && touchDiff > 0) {
+                    if (e.cancelable) {
+                        e.preventDefault();
+                    }
+                }
+            }
+        }, { passive: false });
+    })();
+
     /** Polyfill for Element.prototype.closest for older browsers (Zebra handhelds) */
     if (!Element.prototype.matches) {
         Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
@@ -1038,3 +1060,5 @@
         };
     };
 </script>
+<script src="{{ url_for('static', filename='js/user_profile.js') }}"></script>
+

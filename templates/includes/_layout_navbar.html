@@ -7,22 +7,64 @@
 
     <div class="top-bar-right">
         {% if is_test_db %}
-        <div class="top-user-meta" style="margin-right: 12px;">
+        <div class="top-user-meta" style="margin-right: 6px;">
             <span class="user-role" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);">
-                <span class="material-icons text-danger" style="font-size: 16px; margin-right: 4px;">warning</span>
-                <span class="user-role-label text-danger" style="font-weight: 700;">BAZA TESTOWA:</span>
+                <span class="material-icons text-danger" style="font-size: 16px; margin-right: 2px;">warning</span>
+                <span class="user-role-label text-danger d-none d-sm-inline" style="font-weight: 700;">BAZA TESTOWA:</span>
                 <strong class="user-role-name text-danger">{{ db_name }}</strong>
             </span>
         </div>
         {% endif %}
 
         {% if session.get('zalogowany') %}
-        <div class="top-user-meta">
-            <span class="user-role" style="cursor: pointer;" onclick="openChangeMyPasswordModal()" title="Kliknij, aby zmienić własne hasło">
-                <span class="user-role-label">{{ _('zalogowany') }}:</span>
+        <div class="top-user-meta" style="position: relative;">
+            <span class="user-role user-profile-toggle" id="userProfileToggle" style="cursor: pointer;" onclick="toggleUserProfileMenu(event)" title="Kliknij, aby otworzyć Ustawienia Osobiste">
+                <span class="user-role-label d-none d-sm-inline">{{ _('zalogowany') }}:</span>
                 <strong class="user-role-name">{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong>
-                <span class="material-icons" style="font-size: 14px; margin-left: 4px; opacity: 0.7;">key</span>
+                <span class="material-icons user-profile-chevron" style="font-size: 16px; margin-left: 4px; opacity: 0.8; transition: transform 0.2s ease;">expand_more</span>
             </span>
+
+            <!-- User Profile Dropdown Menu -->
+            <div id="userProfileMenu" class="user-profile-menu hidden" aria-hidden="true">
+                <div class="user-profile-menu-header">
+                    <div class="user-profile-avatar">
+                        <span class="material-icons">account_circle</span>
+                    </div>
+                    <div class="user-profile-meta">
+                        <div class="user-profile-name">{{ session.get('imie_nazwisko') or session.get('login') or 'Użytkownik' }}</div>
+                        <div class="user-profile-sub">
+                            <span class="user-profile-badge">{{ session.get('role') or session.get('rola') or 'Użytkownik' }}</span>
+                            <span class="user-profile-login">@{{ session.get('login') }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile-menu-divider"></div>
+                <div class="user-profile-menu-items">
+                    <button type="button" class="user-profile-menu-item" onclick="openUserProfileModal('profile')">
+                        <span class="material-icons" style="color: #3b82f6;">person</span>
+                        <span>Ustawienia Profilu & E-mail</span>
+                    </button>
+                    <button type="button" class="user-profile-menu-item" onclick="openUserProfileModal('password')">
+                        <span class="material-icons" style="color: #f59e0b;">lock_reset</span>
+                        <span>Zmiana Hasła</span>
+                    </button>
+                    <button type="button" class="user-profile-menu-item" onclick="openUserProfileModal('leave')">
+                        <span class="material-icons" style="color: #10b981;">beach_access</span>
+                        <span>Ilość Urlopu</span>
+                    </button>
+                    <a href="/moje_godziny" class="user-profile-menu-item">
+                        <span class="material-icons" style="color: #8b5cf6;">schedule</span>
+                        <span>Moje Godziny i Wnioski</span>
+                    </a>
+                </div>
+                <div class="user-profile-menu-divider"></div>
+                <div class="user-profile-menu-footer">
+                    <a href="/logout" class="user-profile-menu-item user-profile-menu-item-logout">
+                        <span class="material-icons" style="color: #ef4444;">logout</span>
+                        <span>Wyloguj się</span>
+                    </a>
+                </div>
+            </div>
         </div>
 
         <div class="top-user-meta" id="sessionTimeoutWrapper" style="margin-left: 8px; display: none;">
@@ -37,7 +79,7 @@
 
         <div class="top-icons-group">
             {% if session.get('zalogowany') %}
-            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
+            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon d-none d-md-flex" title="{{ _('zgnlosz_problem') }}">
                 <span class="material-icons">report_problem</span>
             </a>
             <button type="button" id="bugReportTopButton" class="btn-icon text-warning {% if session.get('show_bug_icon_intro') %}bug-icon-onboarding-highlight{% endif %}" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
@@ -47,10 +89,6 @@
 
             {% if session.get('zalogowany') %}
             <div class="notifications-wrapper">
-                <button type="button" id="navNotifPermissionBtn" class="btn-icon text-warning" style="display:none; margin-right: 8px;" title="Włącz powiadomienia push (na zablokowanym ekranie)" onclick="window.requestPushPermission()">
-                    <span class="material-icons" id="pushNotifIcon">notifications_paused</span>
-                </button>
-                
                 <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia" aria-label="Powiadomienia" aria-expanded="false" 
                     data-pending-deliveries="{{ _pending_total|default(0) }}" 
                     data-pending-link="{{ url_for('magazyn_dostawy.oczekujace', linia=_pending_hall_for_link|default('PSD')) }}">
@@ -71,7 +109,7 @@
             </div>
 
             <!-- Printer Server Toggle -->
-            <button type="button" id="navbarPrinterServerToggle" class="btn-icon" title="Sprawdzanie stanu serwera druku..." onclick="togglePrinterServerGlobal()" style="color: #64748b; transition: color 0.3s; margin-right: 8px;">
+            <button type="button" id="navbarPrinterServerToggle" class="btn-icon" title="Sprawdzanie stanu serwera druku..." onclick="togglePrinterServerGlobal()" style="color: #64748b; transition: color 0.3s;">
                 <span class="material-icons">print</span>
             </button>
             {% endif %}

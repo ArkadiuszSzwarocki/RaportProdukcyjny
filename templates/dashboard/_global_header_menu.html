@@ -6,25 +6,25 @@
       <!-- Left Submenu Links -->
       <nav class="top-menu" style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
         <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
-          href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}" data-slide
+          href="{{ url_for('production.obsada_page', sekcja='Workowanie', linia=linia) }}" title="{{ _('obsada') }}" data-slide
           style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
           <span class="material-icons" style="font-size: 18px; color: #2563eb;">people</span> {{ _('obsada') }}
         </a>
 
         <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_wnioski_page') }}" data-slide
+          href="{{ url_for('panels.panel_wnioski_page', linia=linia) }}" data-slide
           style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
           <span class="material-icons" style="font-size: 18px; color: #16a34a;">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}
         </a>
 
         <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_planowane_page') }}" data-slide
+          href="{{ url_for('panels.panel_planowane_page', linia=linia) }}" data-slide
           style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
           <span class="material-icons" style="font-size: 18px; color: #d97706;">beach_access</span> {{ _('planowane_urlopy') }}
         </a>
 
         <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
-          href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide
+          href="{{ url_for('panels.panel_obecnosci_page', linia=linia) }}" data-slide
           style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #334155; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.15s ease;">
           <span class="material-icons" style="font-size: 18px; color: #0284c7;">calendar_today</span> {{ _('nieobecnosci') }}
         </a>
@@ -101,6 +101,59 @@
           if (modal) modal.style.display = 'none';
       };
 
+      window.switchAutoReportTab = function(tabName) {
+          var tabToday = document.getElementById('tabContent_today');
+          var tabConfig = document.getElementById('tabContent_config');
+          var btnToday = document.getElementById('tabBtn_today');
+          var btnConfig = document.getElementById('tabBtn_config');
+
+          if (tabName === 'config') {
+              if (tabToday) tabToday.style.display = 'none';
+              if (tabConfig) tabConfig.style.display = 'block';
+              if (btnToday) {
+                  btnToday.style.background = 'transparent';
+                  btnToday.style.color = '#64748b';
+                  btnToday.style.fontWeight = '600';
+                  btnToday.style.borderBottom = '2.5px solid transparent';
+              }
+              if (btnConfig) {
+                  btnConfig.style.background = '#ffffff';
+                  btnConfig.style.color = '#1d4ed8';
+                  btnConfig.style.fontWeight = '700';
+                  btnConfig.style.borderBottom = '2.5px solid #2563eb';
+              }
+          } else {
+              if (tabToday) tabToday.style.display = 'block';
+              if (tabConfig) tabConfig.style.display = 'none';
+              if (btnToday) {
+                  btnToday.style.background = '#ffffff';
+                  btnToday.style.color = '#1d4ed8';
+                  btnToday.style.fontWeight = '700';
+                  btnToday.style.borderBottom = '2.5px solid #2563eb';
+              }
+              if (btnConfig) {
+                  btnConfig.style.background = 'transparent';
+                  btnConfig.style.color = '#64748b';
+                  btnConfig.style.fontWeight = '600';
+                  btnConfig.style.borderBottom = '2.5px solid transparent';
+              }
+          }
+      };
+
+      window.setDaysPreset = function(preset) {
+          var cbs = document.querySelectorAll('.cfg-day-cb');
+          cbs.forEach(function(cb){
+              var day = parseInt(cb.getAttribute('data-day'), 10);
+              if (preset === 'workdays') {
+                  cb.checked = (day >= 0 && day <= 4);
+              } else if (preset === 'all') {
+                  cb.checked = true;
+              } else if (preset === 'clear') {
+                  cb.checked = false;
+              }
+          });
+      };
+
       window.refreshAutoReportStatus = function(linia) {
           var dateInput = document.getElementById('raport_date_picker');
           var d = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
@@ -126,8 +179,68 @@
                           if (customTimeInput) customTimeInput.value = t;
                       }
                   }
+
+                  if (data && data.config) {
+                      var cfg = data.config;
+                      var cbAgro = document.getElementById('cfgLine_AGRO');
+                      var cbPsd = document.getElementById('cfgLine_PSD');
+                      if (cbAgro) cbAgro.checked = !!cfg.agro_enabled;
+                      if (cbPsd) cbPsd.checked = !!cfg.psd_enabled;
+
+                      var daysMap = cfg.days_map || {};
+                      var cbs = document.querySelectorAll('.cfg-day-cb');
+                      cbs.forEach(function(cb){
+                          var day = parseInt(cb.getAttribute('data-day'), 10);
+                          cb.checked = !!daysMap[day];
+                      });
+                  }
               })
               .catch(function(err){ console.warn('Błąd pobierania statusu auto-raportu:', err); });
+      };
+
+      window.saveAutoReportGlobalConfig = function() {
+          var cbAgro = document.getElementById('cfgLine_AGRO');
+          var cbPsd = document.getElementById('cfgLine_PSD');
+          var enabledLines = [];
+          if (cbAgro && cbAgro.checked) enabledLines.push('AGRO');
+          if (cbPsd && cbPsd.checked) enabledLines.push('PSD');
+
+          var activeDays = [];
+          var cbs = document.querySelectorAll('.cfg-day-cb');
+          cbs.forEach(function(cb){
+              if (cb.checked) {
+                  activeDays.push(parseInt(cb.getAttribute('data-day'), 10));
+              }
+          });
+
+          var statusEl = document.getElementById('cfgSaveStatus');
+
+          fetch('/api/auto_raport/config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  active_days: activeDays,
+                  enabled_lines: enabledLines
+              })
+          })
+          .then(function(res){ return res.json(); })
+          .then(function(data){
+              if (data && data.success) {
+                  if (statusEl) {
+                      statusEl.innerText = '✅ ' + data.message;
+                      statusEl.style.display = 'block';
+                      setTimeout(function(){ statusEl.style.display = 'none'; }, 4000);
+                  }
+                  if (window.showToast) {
+                      window.showToast(data.message, 'success');
+                  } else {
+                      alert('✅ ' + data.message);
+                  }
+              } else {
+                  alert('❌ ' + (data.message || 'Wystąpił błąd zapisu'));
+              }
+          })
+          .catch(function(err){ alert('Błąd sieci: ' + err); });
       };
 
       window.submitPostponeReport = function(params) {

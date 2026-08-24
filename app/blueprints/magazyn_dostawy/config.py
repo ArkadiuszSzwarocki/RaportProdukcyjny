@@ -13,8 +13,8 @@ _r04 = [f'R04{str(i+1).zfill(2)}01' for i in range(20)]
 _r05 = [f'R05{str(i+1).zfill(2)}01' for i in range(20)]
 _r06 = [f'R06{str(i+1).zfill(2)}01' for i in range(10)]
 _r07 = [f'R07{str(i+1).zfill(2)}01' for i in range(20)]
-# OSIP – 77 lokalizacji OS01..OS77
-_osip = [f'OS{str(i+1).zfill(2)}' for i in range(77)]
+# OSIP – lokalizacje A01..A99 oraz BFOS (+ wsparcie legacy OS01..OS77)
+_osip = [f'A{str(i+1).zfill(2)}' for i in range(99)] + ['BFOS'] + [f'OS{str(i+1).zfill(2)}' for i in range(77)]
 # Stanowiska produkcyjne BB01..BB24, MZ01..MZ06
 _bb = [f'BB{str(i+1).zfill(2)}' for i in range(24)]
 _mz = ['MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06', 'MZ05-01', 'MZ06-01']
@@ -26,7 +26,7 @@ LOKALIZACJE_SZCZEGOLOWE = {
     'Regał R05': _r05,
     'Regał R06': _r06,
     'Regał R07': _r07,
-    'OSIP (OS01-OS77)': _osip,
+    'OSIP (A01-A99, BFOS)': _osip,
     'Stanowiska BB': _bb,
     'Stanowiska MZ': _mz,
     'Stanowiska KO': _ko,

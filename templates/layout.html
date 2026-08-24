@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}?v={{ static_version }}&v2=2">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/inline-styles.css') }}?v={{ static_version }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
     <!-- GLOBAL LAYOUT ASSETS -->
     {% include 'includes/_layout_styles.html' %}

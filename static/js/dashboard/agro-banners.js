@@ -325,28 +325,27 @@
             if (!planId) {
                 return;
             }
-            var trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
-            if (!trigger) {
-                return;
-            }
-            var badge = trigger.querySelector('.action-badge');
-            var current = badge ? (parseInt(badge.textContent, 10) || 0) : 0;
-            var next = Math.max(0, current + (parseInt(delta, 10) || 0));
-            if (next <= 0) {
-                if (badge) {
-                    try {
-                        badge.remove();
-                    } catch (error) {
+            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+            triggers.forEach(function (trigger) {
+                var badge = trigger.querySelector('.action-badge');
+                var current = badge ? (parseInt(badge.textContent, 10) || 0) : 0;
+                var next = Math.max(0, current + (parseInt(delta, 10) || 0));
+                if (next <= 0) {
+                    if (badge) {
+                        try {
+                            badge.remove();
+                        } catch (error) {
+                        }
                     }
+                    return;
                 }
-                return;
-            }
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'action-badge';
-                trigger.appendChild(badge);
-            }
-            badge.textContent = String(next);
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'action-badge';
+                    trigger.appendChild(badge);
+                }
+                badge.textContent = String(next);
+            });
         } catch (error) {
         }
     }
@@ -356,27 +355,26 @@
             if (!planId) {
                 return;
             }
-            var trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
-            if (!trigger) {
-                return;
-            }
-            var badge = trigger.querySelector('.action-badge');
-            var next = Math.max(0, parseInt(value, 10) || 0);
-            if (next <= 0) {
-                if (badge) {
-                    try {
-                        badge.remove();
-                    } catch (error) {
+            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+            triggers.forEach(function (trigger) {
+                var badge = trigger.querySelector('.action-badge');
+                var next = Math.max(0, parseInt(value, 10) || 0);
+                if (next <= 0) {
+                    if (badge) {
+                        try {
+                            badge.remove();
+                        } catch (error) {
+                        }
                     }
+                    return;
                 }
-                return;
-            }
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'action-badge';
-                trigger.appendChild(badge);
-            }
-            badge.textContent = String(next);
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'action-badge';
+                    trigger.appendChild(badge);
+                }
+                badge.textContent = String(next);
+            });
         } catch (error) {
         }
     }

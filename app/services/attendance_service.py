@@ -40,10 +40,13 @@ class AttendanceService:
                 # Invalid date supplied -> fail validation
                 return False, None, ""
 
+            if str(linia).strip().upper() == 'AGRO':
+                from app.blueprints.production.support import normalize_agro_section
+                sekcja = normalize_agro_section(sekcja)
+
             conn = get_db_connection()
             cursor = conn.cursor()
             inserted_id = None
-
             try:
                 # Insert schedule record
                 cursor.execute(
@@ -51,6 +54,7 @@ class AttendanceService:
                        VALUES (%s, %s, %s, %s)""",
                     (add_date, sekcja, pracownik_id, linia)
                 )
+                conn.commit()
 
                 # Retrieve inserted ID
                 try:
@@ -73,7 +77,7 @@ class AttendanceService:
                 except Exception:
                     name = ""
 
-                # Auto-create attendance record if needed
+                # Auto-create attendance record if needed (in isolated try block)
                 try:
                     default_hours = 8
                     cursor.execute(
@@ -90,13 +94,9 @@ class AttendanceService:
                             VALUES (%s, %s, %s, %s, %s)""",
                             (add_date, pracownik_id, 'Obecność', default_hours, 'Automatyczne z obsady')
                         )
-                except Exception:
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        pass
-
-                conn.commit()
+                        conn.commit()
+                except Exception as ex:
+                    current_app.logger.warning("Nie udalo sie automatycznie dodac wpisu obecnosci: %s", ex)
 
                 return True, inserted_id, name
 

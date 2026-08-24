@@ -13,8 +13,20 @@ class OsipTransferService:
     def __init__(self, repository: Optional[OsipTransferRepository] = None):
         self.repository = repository or OsipTransferRepository()
 
-    def get_transfer_by_id(self, transfer_id: int) -> Optional[OsipTransferModel]:
-        """Pobiera zlecenie transferu po ID."""
+    @staticmethod
+    def _extract_items(transfer: Any) -> List[Any]:
+        """Bezpiecznie wyciąga listę pozycji ze zlecenia transferu (model lub słownik)."""
+        if not transfer:
+            return []
+        if isinstance(transfer, dict):
+            return transfer.get('items', [])
+        items_attr = getattr(transfer, 'items', None)
+        if callable(items_attr):
+            return transfer.get('items', []) if hasattr(transfer, 'get') else []
+        return items_attr or []
+
+    def get_transfer_by_id(self, transfer_id: Any) -> Optional[OsipTransferModel]:
+        """Pobiera zlecenie transferu po ID lub po kodzie (transfer_code)."""
         return self.repository.get_transfer_by_id(transfer_id)
 
     def create_transfer_order(self, source_warehouse: str, destination_warehouse: str, items: List[Dict[str, Any]], created_by: str, notes: Optional[str] = None) -> OsipTransferModel:
@@ -26,7 +38,7 @@ class OsipTransferService:
         self.repository.add_transfer_items(transfer.id, items)
         return self.repository.get_transfer_by_id(transfer.id)
 
-    def dispatch_transfer(self, transfer_id: int, loaded_pallets: List[Dict[str, Any]], user_login: str) -> OsipTransferModel:
+    def dispatch_transfer(self, transfer_id: Any, loaded_pallets: List[Dict[str, Any]], user_login: str) -> OsipTransferModel:
         """Wykonuje załadunek zlecenia - przestawia status palet na W_TRANZYCIE_OSIP."""
         transfer = self.repository.get_transfer_by_id(transfer_id)
         if not transfer:
@@ -40,8 +52,11 @@ class OsipTransferService:
         try:
             # Przestawiamy lokalizację wybranych palet na W_TRANZYCIE_OSIP
             items_to_update = loaded_pallets if loaded_pallets else [
-                {'pallet_id': item.pallet_id, 'nr_palety': item.nr_palety, 'loaded_qty': item.requested_qty, 'id': item.id} 
-                for item in transfer.items
+                {'pallet_id': getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else None),
+                 'nr_palety': getattr(item, 'nr_palety', '') or (item.get('nr_palety') if isinstance(item, dict) else ''),
+                 'loaded_qty': getattr(item, 'requested_qty', 0.0) or (item.get('requested_qty', 0.0) if isinstance(item, dict) else 0.0),
+                 'id': getattr(item, 'id', None) or (item.get('id') if isinstance(item, dict) else None)} 
+                for item in self._extract_items(transfer)
             ]
             
             for item in items_to_update:
@@ -63,11 +78,11 @@ class OsipTransferService:
             cursor.close()
             conn.close()
 
-        self.repository.update_items_loaded(transfer_id, loaded_pallets)
-        self.repository.update_transfer_status(transfer_id, "IN_TRANSIT", user_login)
-        return self.repository.get_transfer_by_id(transfer_id)
+        self.repository.update_items_loaded(transfer.id, loaded_pallets)
+        self.repository.update_transfer_status(transfer.id, "IN_TRANSIT", user_login)
+        return self.repository.get_transfer_by_id(transfer.id)
 
-    def receive_transfer(self, transfer_id: int, target_locations: Dict[Any, str], user_login: str) -> OsipTransferModel:
+    def receive_transfer(self, transfer_id: Any, target_locations: Dict[Any, str], user_login: str) -> OsipTransferModel:
         """Przyjmuje transfer w magazynie docelowym i ustawia docelowe lokalizacje palet (np. OS01, OSIP lub MS01)."""
         transfer = self.repository.get_transfer_by_id(transfer_id)
         if not transfer:
@@ -79,29 +94,34 @@ class OsipTransferService:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            for item in transfer.items:
+            for item in self._extract_items(transfer):
                 # Find matching target location by item.id, item.pallet_id, or item.nr_palety
-                new_loc = target_locations.get(item.id) or target_locations.get(item.pallet_id) or target_locations.get(item.nr_palety)
+                item_id = getattr(item, 'id', None) or (item.get('id') if isinstance(item, dict) else None)
+                pallet_id = getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else None)
+                nr_palety = getattr(item, 'nr_palety', '') or (item.get('nr_palety') if isinstance(item, dict) else '')
+
+                new_loc = target_locations.get(item_id) or target_locations.get(pallet_id) or target_locations.get(nr_palety)
                 if not new_loc:
                     new_loc = target_locations.get('default', transfer.destination_warehouse)
                 
                 new_loc = str(new_loc or transfer.destination_warehouse).strip().upper()
 
-                if item.pallet_id:
+                if pallet_id:
                     cursor.execute(
                         "UPDATE magazyn_surowce SET lokalizacja = %s WHERE id = %s",
-                        (new_loc, item.pallet_id)
+                        (new_loc, pallet_id)
                     )
-                elif item.nr_palety:
+                elif nr_palety:
                     cursor.execute(
                         "UPDATE magazyn_surowce SET lokalizacja = %s WHERE nr_palety = %s",
-                        (new_loc, item.nr_palety)
+                        (new_loc, nr_palety)
                     )
                 
-                cursor.execute(
-                    "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
-                    (item.id,)
-                )
+                if item_id:
+                    cursor.execute(
+                        "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
+                        (item_id,)
+                    )
 
             conn.commit()
         finally:
@@ -111,64 +131,79 @@ class OsipTransferService:
         self.repository.update_transfer_status(transfer_id, "COMPLETED", user_login)
         return self.repository.get_transfer_by_id(transfer_id)
 
-    def receive_single_item(self, transfer_id: int, pallet_code: str, target_location: str, user_login: str) -> Dict[str, Any]:
+    def receive_single_item(self, transfer_id: Any, pallet_code: str, target_location: str, user_login: str) -> Dict[str, Any]:
         """Przyjmuje pojedynczą paletę w transferze na podstawie zeskanowanego kodu palety i lokalizacji."""
         transfer = self.repository.get_transfer_by_id(transfer_id)
         if not transfer:
             raise ValueError("Nie znaleziono zlecenia transferu.")
 
         code_upper = str(pallet_code or '').strip().upper()
+        code_digits = ''.join(c for c in code_upper if c.isdigit())
         target_loc = str(target_location or transfer.destination_warehouse).strip().upper()
 
         matched_item = None
-        for item in transfer.items:
-            item_code = str(item.nr_palety or '').strip().upper()
-            item_id_str = str(item.pallet_id or '')
-            if code_upper and (code_upper in item_code or item_code in code_upper or code_upper == item_id_str):
+        for item in self._extract_items(transfer):
+            item_code = str(getattr(item, 'nr_palety', None) or (item.get('nr_palety') if isinstance(item, dict) else '')).strip().upper()
+            item_digits = ''.join(c for c in item_code if c.isdigit())
+            item_id_str = str(getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else ''))
+            if code_upper and (
+                code_upper == item_code or 
+                code_upper in item_code or 
+                item_code in code_upper or 
+                code_upper == item_id_str or 
+                (len(code_digits) >= 8 and len(item_digits) >= 8 and (code_digits in item_digits or item_digits in code_digits))
+            ):
                 matched_item = item
                 break
 
         if not matched_item:
             raise ValueError(f"Paleta '{pallet_code}' nie występuje w tym zleceniu transferu.")
 
+        matched_pallet_id = getattr(matched_item, 'pallet_id', None) or (matched_item.get('pallet_id') if isinstance(matched_item, dict) else None)
+        matched_nr_palety = getattr(matched_item, 'nr_palety', '') or (matched_item.get('nr_palety') if isinstance(matched_item, dict) else '')
+        matched_item_id = getattr(matched_item, 'id', None) or (matched_item.get('id') if isinstance(matched_item, dict) else None)
+
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            if matched_item.pallet_id:
+            if matched_pallet_id:
                 cursor.execute(
                     "UPDATE magazyn_surowce SET lokalizacja = %s WHERE id = %s",
-                    (target_loc, matched_item.pallet_id)
+                    (target_loc, matched_pallet_id)
                 )
-            elif matched_item.nr_palety:
+            elif matched_nr_palety:
                 cursor.execute(
                     "UPDATE magazyn_surowce SET lokalizacja = %s WHERE nr_palety = %s",
-                    (target_loc, matched_item.nr_palety)
+                    (target_loc, matched_nr_palety)
                 )
 
-            cursor.execute(
-                "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
-                (matched_item.id,)
-            )
+            if matched_item_id:
+                cursor.execute(
+                    "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
+                    (matched_item_id,)
+                )
             conn.commit()
         finally:
             cursor.close()
             conn.close()
 
         # Check if all items in transfer are now received
-        updated_transfer = self.repository.get_transfer_by_id(transfer_id)
-        all_received = all(it.status == 'RECEIVED' for it in updated_transfer.items)
+        updated_transfer = self.repository.get_transfer_by_id(transfer.id)
+        updated_items = self._extract_items(updated_transfer)
+        all_received = all(getattr(it, 'status', None) == 'RECEIVED' or (it.get('status') if isinstance(it, dict) else None) == 'RECEIVED' for it in updated_items)
         if all_received:
-            self.repository.update_transfer_status(transfer_id, "COMPLETED", user_login)
-            updated_transfer = self.repository.get_transfer_by_id(transfer_id)
+            self.repository.update_transfer_status(transfer.id, "COMPLETED", user_login)
+            updated_transfer = self.repository.get_transfer_by_id(transfer.id)
+            updated_items = self._extract_items(updated_transfer)
 
-        received_count = sum(1 for it in updated_transfer.items if it.status == 'RECEIVED')
-        total_count = len(updated_transfer.items)
+        received_count = sum(1 for it in updated_items if getattr(it, 'status', None) == 'RECEIVED' or (it.get('status') if isinstance(it, dict) else None) == 'RECEIVED')
+        total_count = len(updated_items)
 
         return {
             "success": True,
-            "message": f"Przyjęto paletę {matched_item.nr_palety} do lokalizacji {target_loc}",
-            "item_id": matched_item.id,
-            "nr_palety": matched_item.nr_palety,
+            "message": f"Przyjęto paletę {matched_nr_palety} do lokalizacji {target_loc}",
+            "item_id": matched_item_id,
+            "nr_palety": matched_nr_palety,
             "location": target_loc,
             "transfer_status": updated_transfer.status,
             "received_count": received_count,
@@ -176,7 +211,7 @@ class OsipTransferService:
             "completed": all_received
         }
 
-    def cancel_transfer(self, transfer_id: int, user_login: str) -> OsipTransferModel:
+    def cancel_transfer(self, transfer_id: Any, user_login: str) -> OsipTransferModel:
         """Anuluje transfer i przywraca palety do magazynu źródłowego."""
         transfer = self.repository.get_transfer_by_id(transfer_id)
         if not transfer:
@@ -190,63 +225,102 @@ class OsipTransferService:
             conn = get_db_connection()
             cursor = conn.cursor()
             try:
-                for item in transfer.items:
-                    if item.pallet_id:
+                for item in self._extract_items(transfer):
+                    pallet_id = getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else None)
+                    if pallet_id:
                         cursor.execute(
                             "UPDATE magazyn_surowce SET lokalizacja = %s WHERE id = %s",
-                            (transfer.source_warehouse, item.pallet_id)
+                            (transfer.source_warehouse, pallet_id)
                         )
                 conn.commit()
             finally:
                 cursor.close()
                 conn.close()
 
-        self.repository.update_transfer_status(transfer_id, "CANCELLED", user_login)
-        return self.repository.get_transfer_by_id(transfer_id)
+        self.repository.update_transfer_status(transfer.id, "CANCELLED", user_login)
+        return self.repository.get_transfer_by_id(transfer.id)
 
     @staticmethod
     def auto_receive_pallet_by_code(pallet_code: str, target_location: str, user_login: str) -> None:
         """Automatycznie oznacza pozycję transferu jako RECEIVED, jeśli paleta jest przenoszona w Głównym Skanerze."""
         if not pallet_code:
             return
+            
+        loc_upper = str(target_location or '').strip().upper()
+        if loc_upper == "W_TRANZYCIE_OSIP":
+            return
+
+        code_str = str(pallet_code).strip().upper()
+        code_digits = ''.join(c for c in code_str if c.isdigit())
+        is_digit = code_str.isdigit()
+
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute("""
+            query = """
                 SELECT ti.id, ti.transfer_id, ti.pallet_id, ti.nr_palety, t.destination_warehouse, t.status as transfer_status
                 FROM osip_transfer_items ti
                 JOIN osip_transfers t ON ti.transfer_id = t.id
-                WHERE (ti.nr_palety = %s OR (ti.pallet_id = %s AND %s != '0')) 
-                  AND t.status = 'IN_TRANSIT' AND ti.status != 'RECEIVED'
-                LIMIT 1
-            """, (pallet_code, pallet_code if str(pallet_code).isdigit() else 0, pallet_code if str(pallet_code).isdigit() else '0'))
-            item = cursor.fetchone()
-            if not item:
+                WHERE (
+                    CONVERT(ti.nr_palety USING utf8mb4) = CONVERT(%s USING utf8mb4)
+                    OR (%s != '' AND CONVERT(ti.nr_palety USING utf8mb4) LIKE CONVERT(%s USING utf8mb4))
+                    OR (%s != '' AND %s LIKE CONVERT(CONCAT('%%', ti.nr_palety, '%%') USING utf8mb4))
+                    OR (ti.pallet_id = %s AND %s != 0)
+                ) 
+                AND t.status IN ('PLANNED', 'IN_TRANSIT') 
+                AND ti.status != 'RECEIVED'
+            """
+            like_param = f"%{code_str}%" if code_str else ""
+            pallet_id_param = int(code_str) if is_digit else 0
+
+            cursor.execute(query, (code_str, like_param, like_param, code_str, code_str, pallet_id_param, pallet_id_param))
+            items = cursor.fetchall()
+            
+            if not items and len(code_digits) >= 8:
+                query_digits = """
+                    SELECT ti.id, ti.transfer_id, ti.pallet_id, ti.nr_palety, t.destination_warehouse, t.status as transfer_status
+                    FROM osip_transfer_items ti
+                    JOIN osip_transfers t ON ti.transfer_id = t.id
+                    WHERE CONVERT(ti.nr_palety USING utf8mb4) LIKE CONVERT(%s USING utf8mb4)
+                      AND t.status IN ('PLANNED', 'IN_TRANSIT') 
+                      AND ti.status != 'RECEIVED'
+                """
+                cursor.execute(query_digits, (f"%{code_digits}%",))
+                items = cursor.fetchall()
+
+            if not items:
                 return
 
-            transfer_id = item['transfer_id']
+            cur_up = conn.cursor()
+            for item in items:
+                transfer_id = item['transfer_id']
 
-            cursor.execute("""
-                UPDATE osip_transfer_items
-                SET status = 'RECEIVED'
-                WHERE id = %s
-            """, (item['id'],))
-
-            cursor.execute("""
-                SELECT COUNT(*) as unreceived
-                FROM osip_transfer_items
-                WHERE transfer_id = %s AND status != 'RECEIVED'
-            """, (transfer_id,))
-            row = cursor.fetchone()
-            
-            if row and row['unreceived'] == 0:
-                cursor.execute("""
-                    UPDATE osip_transfers
-                    SET status = 'COMPLETED', completed_by = %s, completed_at = NOW()
+                cur_up.execute("""
+                    UPDATE osip_transfer_items
+                    SET status = 'RECEIVED'
                     WHERE id = %s
-                """, (user_login, transfer_id))
+                """, (item['id'],))
+
+                cur_up.execute("""
+                    SELECT COUNT(*) as unreceived
+                    FROM osip_transfer_items
+                    WHERE transfer_id = %s AND status != 'RECEIVED'
+                """, (transfer_id,))
+                row = cur_up.fetchone()
+                
+                unreceived_count = row[0] if isinstance(row, tuple) else (row.get('unreceived') if isinstance(row, dict) else 0)
+                if unreceived_count == 0:
+                    cur_up.execute("""
+                        UPDATE osip_transfers
+                        SET status = 'COMPLETED', completed_by = %s, completed_at = NOW()
+                        WHERE id = %s
+                    """, (user_login, transfer_id))
 
             conn.commit()
+            cur_up.close()
+        except Exception as ex:
+            import logging
+            logging.error(f"[OSIP_AUTO_RECEIVE_ERROR] {ex}")
         finally:
             cursor.close()
             conn.close()

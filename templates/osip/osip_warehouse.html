@@ -10,7 +10,7 @@
             <h2 class="h3 font-weight-bold text-primary mb-1">
                 <i class="fas fa-warehouse mr-2"></i>Magazyn Zewnętrzny (OSIP)
             </h2>
-            <p class="text-muted small mb-0">Podgląd palet, surowców i wyrobów gotowych oraz obłożenia hali OS01–OS77</p>
+            <p class="text-muted small mb-0">Podgląd palet, surowców i wyrobów gotowych oraz obłożenia hali A01–A99 oraz BFOS</p>
         </div>
         <div class="d-flex items-center gap-2 mt-2 mt-md-0">
             <a href="{{ url_for('osip.transfers_view') }}" class="btn btn-primary btn-sm font-weight-bold shadow-sm">
@@ -57,7 +57,7 @@
                         <div class="input-group-prepend">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                         </div>
-                        <input type="text" id="osip-search-input" class="form-control" placeholder="Szukaj palety, nazwy produktu lub alei (np. OS05)...">
+                        <input type="text" id="osip-search-input" class="form-control" placeholder="Szukaj palety, nazwy produktu lub alei (np. A05, BFOS)...">
                     </div>
                 </div>
 
@@ -67,8 +67,8 @@
                         <button type="button" class="btn btn-outline-secondary active" id="view-list-btn" title="Widok tabeli">
                             <i class="fas fa-th-list"></i> Tabela
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" id="view-layout-btn" title="Układ alejek OS01-OS77">
-                            <i class="fas fa-border-all"></i> Plan Hali (77)
+                        <button type="button" class="btn btn-outline-secondary" id="view-layout-btn" title="Układ alejek A01-A99, BFOS">
+                            <i class="fas fa-border-all"></i> Plan Hali OSIP
                         </button>
                     </div>
                 </div>
@@ -106,7 +106,7 @@
     <!-- Container dla Widoku Układu Hali -->
     <div id="osip-layout-container" class="card shadow-sm d-none">
         <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-            <span class="font-weight-bold text-dark"><i class="fas fa-map-marked-alt mr-2 text-primary"></i>Siatka Alejek Hali OSIP (OS01 – OS77)</span>
+            <span class="font-weight-bold text-dark"><i class="fas fa-map-marked-alt mr-2 text-primary"></i>Siatka Alejek Hali OSIP (A01 – A99, BFOS)</span>
             <span class="badge badge-info p-2" id="layout-occupancy-badge">Zajętych miejsc: 0 / 1232</span>
         </div>
         <div class="card-body p-3">

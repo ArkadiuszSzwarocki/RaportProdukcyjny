@@ -54,34 +54,34 @@
     function updateDosypkiBadge(planId, delta) {
         if (!planId) return;
         debugLog('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
-        const trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
-        if (!trigger) {
+        const triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+        if (!triggers || triggers.length === 0) {
             debugWarn('[dosypki.badge] Trigger button not found for plan:', planId);
             return;
         }
-        let badge = trigger.querySelector('.action-badge');
-        const current = badge ? parseInt(badge.textContent, 10) || 0 : 0;
-        const next = Math.max(0, current + delta);
 
-        debugLog('[dosypki.badge] Current:', current, 'Next:', next);
+        triggers.forEach(trigger => {
+            let badge = trigger.querySelector('.action-badge');
+            const current = badge ? parseInt(badge.textContent, 10) || 0 : 0;
+            const next = Math.max(0, current + delta);
 
-        if (next <= 0) {
-            if (badge) {
-                badge.style.opacity = '0';
-                setTimeout(() => badge.remove(), 300);
+            if (next <= 0) {
+                if (badge) {
+                    badge.style.opacity = '0';
+                    setTimeout(() => badge.remove(), 300);
+                }
+            } else {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'action-badge';
+                    badge.style.opacity = '0';
+                    trigger.appendChild(badge);
+                    badge.offsetHeight;
+                    badge.style.opacity = '1';
+                }
+                badge.textContent = String(next);
             }
-            return;
-        }
-        if (!badge) {
-            badge = document.createElement('span');
-            badge.className = 'action-badge';
-            badge.style.opacity = '0';
-            trigger.appendChild(badge);
-            // Trigger reflow for animation
-            badge.offsetHeight;
-            badge.style.opacity = '1';
-        }
-        badge.textContent = String(next);
+        });
     }
 
     function ensureConfirmOverlay(container) {

@@ -460,7 +460,7 @@ def register_main_reporting_routes(main_bp):
     @main_bp.route('/api/auto_raport/status', methods=['GET'])
     @login_required
     def api_auto_raport_status():
-        """Zwraca aktualny status i godzinę zaplanowanego auto-raportu."""
+        """Zwraca aktualny status, konfigurację i godzinę zaplanowanego auto-raportu."""
         from datetime import date
         from app.services.auto_report_service import AutoReportService
 
@@ -470,12 +470,58 @@ def register_main_reporting_routes(main_bp):
         sched = AutoReportService.get_schedule(linia, date_str)
         is_sent = AutoReportService.is_1500_report_sent(linia, date_str)
         has_post = AutoReportService.has_activity_after_1500(linia, date_str)
+        config = AutoReportService.get_global_config()
 
         return jsonify({
             'success': True,
             'schedule': sched,
             'is_sent': is_sent,
-            'has_post_1500': has_post
+            'has_post_1500': has_post,
+            'config': config
+        })
+
+    @main_bp.route('/api/auto_raport/config', methods=['GET', 'POST'])
+    @login_required
+    def api_auto_raport_config():
+        """Pobiera lub zapisuje globalną konfigurację automatycznego raportowania (dni i linie)."""
+        from app.services.auto_report_service import AutoReportService
+
+        if request.method == 'GET':
+            return jsonify({
+                'success': True,
+                'config': AutoReportService.get_global_config()
+            })
+
+        # POST - tylko dla ról uprawnionych
+        role = session.get('rola')
+        if role not in ['lider', 'admin', 'masteradmin', 'zarzad']:
+            return jsonify({'success': False, 'message': 'Brak uprawnień do zmiany konfiguracji.'}), 403
+
+        payload = request.get_json(silent=True) or request.form
+        active_days = payload.get('active_days')
+        if active_days is None:
+            active_days = [0, 1, 2, 3, 4]
+        elif isinstance(active_days, str):
+            active_days = [int(d.strip()) for d in active_days.split(',') if d.strip().isdigit()]
+
+        enabled_lines = payload.get('enabled_lines')
+        if enabled_lines is None:
+            enabled_lines = ['AGRO', 'PSD']
+        elif isinstance(enabled_lines, str):
+            enabled_lines = [l.strip().upper() for l in enabled_lines.split(',') if l.strip()]
+
+        user_name = session.get('imie_nazwisko') or session.get('login') or 'Lider'
+
+        ok, msg = AutoReportService.save_global_config(
+            active_days=active_days,
+            enabled_lines=enabled_lines,
+            user_name=user_name
+        )
+
+        return jsonify({
+            'success': ok,
+            'message': msg,
+            'config': AutoReportService.get_global_config()
         })
 
     @main_bp.route('/api/auto_raport/odloz', methods=['POST'])

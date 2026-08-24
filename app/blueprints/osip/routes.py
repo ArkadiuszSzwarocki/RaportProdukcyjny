@@ -21,10 +21,20 @@ def warehouse_view():
 @osip_bp.route('/expedition', methods=['GET'])
 @login_required
 def expedition_view():
-    """Dedykowany widok Wydań Zewnętrznych wyłącznie z Magazynu OSIP dla magazyniera OSIP."""
-    inventory = warehouse_service.get_osip_inventory()
-    expeditions = warehouse_service.get_osip_expeditions()
-    return render_template('osip/osip_expedition.html', inventory=inventory, expeditions=expeditions)
+    """Dedykowany widok Wydań Zewnętrznych na Samochód (Załadunki ZZA/ZZL) z Magazynu OSIP."""
+    from app.services.warehouse_dispatch_service import WarehouseDispatchService
+    dispatch_service = WarehouseDispatchService()
+    linia = 'OSIP'
+    worker_login = session.get('username') or session.get('login') or 'Magazynier OSIP'
+    raw_history = dispatch_service.get_dispatches_history(limit=200, linia='OSIP')
+    history_grouped = dispatch_service.group_dispatches_by_wz(raw_history)
+    return render_template(
+        'warehouse_v2/zaladunki.html',
+        linia=linia,
+        worker_login=worker_login,
+        history=raw_history,
+        history_grouped=history_grouped
+    )
 
 
 @osip_bp.route('/api/expedition/dispatch', methods=['POST'])
@@ -52,10 +62,19 @@ def transfers_view():
     return render_template('osip/osip_transfers.html')
 
 
-@osip_bp.route('/transfers/<int:transfer_id>', methods=['GET'])
+@osip_bp.route('/transfers/nowy', methods=['GET'])
+@login_required
+def transfer_nowy_view():
+    """Widok dedykowanej pełnej strony tworzenia nowego zlecenia transferu OSIP."""
+    user_role = session.get('rola', 'magazynier')
+    user_subrole = session.get('subrole', 'OSIP')
+    return render_template('osip/osip_transfer_nowy.html', user_role=user_role, user_subrole=user_subrole)
+
+
+@osip_bp.route('/transfers/<transfer_id>', methods=['GET'])
 @login_required
 def transfer_details_view(transfer_id):
-    """Widok dedykowanej pełnej strony ze szczegółami zlecenia transferu OSIP."""
+    """Widok dedykowanej pełnej strony ze szczegółami zlecenia transferu OSIP (obsługuje ID oraz Kod)."""
     transfer = transfer_service.get_transfer_by_id(transfer_id)
     if not transfer:
         flash('Nie znaleziono zlecenia transferu.', 'danger')
@@ -134,7 +153,7 @@ def create_transfer_api():
         return jsonify({"success": False, "message": str(e)}), 400
 
 
-@osip_bp.route('/api/transfers/<int:transfer_id>/dispatch', methods=['POST'])
+@osip_bp.route('/api/transfers/<transfer_id>/dispatch', methods=['POST'])
 @login_required
 def dispatch_transfer_api(transfer_id):
     """API realizujące załadunek zlecenia."""
@@ -149,7 +168,7 @@ def dispatch_transfer_api(transfer_id):
         return jsonify({"success": False, "message": str(e)}), 400
 
 
-@osip_bp.route('/api/transfers/<int:transfer_id>/receive', methods=['POST'])
+@osip_bp.route('/api/transfers/<transfer_id>/receive', methods=['POST'])
 @login_required
 def receive_transfer_api(transfer_id):
     """API realizujące przyjęcie zlecenia (masowe lub wg mapy) w magazynie docelowym."""
@@ -170,7 +189,7 @@ def receive_transfer_api(transfer_id):
         return jsonify({"success": False, "message": str(e)}), 400
 
 
-@osip_bp.route('/api/transfers/<int:transfer_id>/scan_receive', methods=['POST'])
+@osip_bp.route('/api/transfers/<transfer_id>/scan_receive', methods=['POST'])
 @login_required
 def scan_receive_api(transfer_id):
     """API szybkiego skanowania w locie: przyjęcie pojedynczej palety do lokalizacji."""
@@ -189,7 +208,7 @@ def scan_receive_api(transfer_id):
         return jsonify({"success": False, "message": str(e)}), 400
 
 
-@osip_bp.route('/api/transfers/<int:transfer_id>/cancel', methods=['POST'])
+@osip_bp.route('/api/transfers/<transfer_id>/cancel', methods=['POST'])
 @login_required
 def cancel_transfer_api(transfer_id):
     """API anulujące zlecenie transferu ze zwrotem palet."""

@@ -71,6 +71,7 @@
                 <label for="obsada-date" class="obsada-field-label">Data</label>
                 <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
                     class="input-sm" onchange="window.zmienDateObsady(this.value)">
+                <input type="hidden" id="obsada-linia" value="{{ linia }}">
             </div>
             {% if rola in ['lider','admin', 'masteradmin'] %}
             {% if linia == 'PSD' or not linia %}
@@ -95,74 +96,107 @@
                 </select>
             </div>
             {% endif %}
-            <button type="button" id="btnSaveLiderzy" class="btn btn-primary" onclick="window.zapiszLiderowObsady(this)">{{ _('zapisz_liderow') }}</button>
+            <button type="button" class="btn btn-outline" onclick="window.openAgroStaffVisibilityModal()" title="Zarządzaj widocznością pracowników w obsadzie AGRO" style="background: #ffffff; border: 1.5px solid #0284c7; color: #0284c7; font-weight: 700; border-radius: 8px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; height: 36px; margin-left: 6px;">
+                <span style="font-size: 16px;">⚙️</span> Wybór pracowników AGRO
+            </button>
             {% endif %}
         </div>
-        <div class="obsada-sections">
-            {% if linia == 'Agro' %}
-                {% set sections = ['Zasyp','Workowanie','Hala Agro','Laboratorium','Handel'] %}
-            {% else %}
-                {% set sections = ['Zasyp','Workowanie','Magazyn','Laboratorium','Handel'] %}
-            {% endif %}
-            {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒'} %}
-            {% for s in sections %}
-            <div class="obsada-section" data-sekcja="{{ s }}">
-                {% set cnt = (obsady_map.get(s, []) if obsady_map is defined else []) | length %}
-                <div class="obsada-section-head">
-                    <span class="obsada-section-icon">{{ section_icons.get(s, '👤') }}</span>
-                    <h4>{{ s }}</h4>
-                    {% if cnt > 0 %}<span class="obsada-count-badge">{{ cnt }}</span>{% endif %}
-                </div>
-                {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
-                <div class="d-flex gap-5 align-center mb-8 obsada-worker-selector">
-                    <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
-                    <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}"
-                        aria-label="Wybierz pracownika" class="input-sm obsada-select">
-                        <option value="" disabled selected>+ Wybierz pracownika</option>
-                        {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
-                    </select>
-                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start" onclick="window.dodajPracownikaDoObsady(this, '{{ s }}', {{ loop.index0 }})">Dodaj</button>
-                </div>
-                {% endif %}
+        {% if linia|string|lower == 'agro' %}
+            {% set sections = ['Operator sterowni', 'Operator workowania', 'Operator zasypów 1', 'Operator zasypów 2', 'Operator zasypów 3', 'Operator zasypów 4', 'Technik utrzymania Ruchu'] %}
+        {% else %}
+            {% set sections = ['Zasyp','Workowanie','Magazyn','Laboratorium','Handel'] %}
+        {% endif %}
+        {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒', 'Operator sterowni': '🎛️', 'Operator workowania': '📦', 'Operator zasypów 1': '🌾', 'Operator zasypów 2': '🌾', 'Operator zasypów 3': '🌾', 'Operator zasypów 4': '🌾', 'Technik utrzymania Ruchu': '🔧'} %}
 
-                <div id="current-obsada-{{ loop.index0 }}" class="mb-8">
-                    {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
-                    {% if current %}
-                    <table class="modern-table small obsada-table">
-                        <thead>
-                            <tr>
-                                <th>{{ _('pracownik') }}</th>
-                                <th class="obsada-akcje-col">{{ _('akcje') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody id="current-obsada-tbody-{{ loop.index0 }}">
-                            {% for o in current %}
-                            <tr data-id="{{ o[0] }}" data-pracownik-id="{{ o[2] }}" data-pracownik-name="{{ o[1] }}">
-                                <td>
-                                    <div class="obsada-worker-row">
-                                        <span class="obsada-avatar">{{ o[1][0] | upper if o[1] else '?' }}</span>
-                                        <strong>{{ o[1] }}</strong>
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
-                                    <button type="button" class="delete-button"
-                                        onclick="window.usunPracownikaZObsady(this, {{ o[0] }}, '{{ o[2] }}', '{{ o[1]|e }}')"
-                                        data-pracownik-id="{{ o[2] }}"
-                                        data-pracownik-name="{{ o[1] }}"
-                                        aria-label="Usuń z obsady">🗑️</button>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>{{ _('brak_przypisanych') }}</span></div>
-                    {% endif %}
-                </div>
+        <div class="obsada-table-card" style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-top: 15px;">
+            <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: #ffffff; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;">
+                <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <span>📋</span> Tabela Stanowisk i Obsady Zmiany
+                </h4>
+                <span style="font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 3px 10px; border-radius: 20px; font-weight: 700;">Hala: {{ linia|upper }}</span>
             </div>
-            {% endfor %}
+            
+            <div style="overflow-x: auto;">
+                <table class="modern-table obsada-main-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <th style="padding: 12px 16px; width: 230px;">Stanowisko / Sekcja</th>
+                            <th style="padding: 12px 16px;">Przydzieleni Pracownicy</th>
+                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                            <th style="padding: 12px 16px; width: 300px;">Dodaj Pracownika</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in sections %}
+                        <tr class="obsada-section" data-sekcja="{{ s }}" style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;">
+                            <td style="padding: 12px 16px; vertical-align: middle; font-weight: 700; color: #1e293b; background: #fafafa;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="obsada-section-icon" style="font-size: 1.25rem;">{{ section_icons.get(s, '👤') }}</span>
+                                    <span style="font-size: 0.9rem;">{{ s }}</span>
+                                    {% set cnt = (obsady_map.get(s, []) if obsady_map is defined else []) | length %}
+                                    {% if cnt > 0 %}
+                                    <span class="obsada-count-badge" style="background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">{{ cnt }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td style="padding: 10px 16px; vertical-align: middle;">
+                                <div id="current-obsada-{{ loop.index0 }}">
+                                    {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
+                                    {% if current %}
+                                    <table class="modern-table small obsada-table" style="width: 100%; margin: 0; border: none;">
+                                        <tbody id="current-obsada-tbody-{{ loop.index0 }}">
+                                            {% for o in current %}
+                                            <tr data-id="{{ o[0] }}" data-pracownik-id="{{ o[2] }}" data-pracownik-name="{{ o[1] }}">
+                                                <td style="padding: 4px 8px; border: none;">
+                                                    <div class="obsada-worker-row" style="display: inline-flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 4px 10px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 0.85rem;">
+                                                        <span class="obsada-avatar" style="width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700;">
+                                                            {{ o[1][0] | upper if o[1] else '?' }}
+                                                        </span>
+                                                        <strong>{{ o[1] }}</strong>
+                                                    </div>
+                                                </td>
+                                                <td style="padding: 4px 8px; border: none; width: 40px; text-align: right;">
+                                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                                                    <button type="button" class="delete-button"
+                                                        onclick="window.usunPracownikaZObsady(this, {{ o[0] }}, '{{ o[2] }}', '{{ o[1]|e }}')"
+                                                        data-pracownik-id="{{ o[2] }}"
+                                                        data-pracownik-name="{{ o[1] }}"
+                                                        style="border: none; background: transparent; cursor: pointer; color: #ef4444; font-size: 0.9rem;"
+                                                        aria-label="Usuń z obsady">🗑️</button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                    {% else %}
+                                    <div class="obsada-empty" style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">
+                                        <span class="obsada-empty-icon">👤</span> {{ _('brak_przypisanych') }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                            <td style="padding: 10px 16px; vertical-align: middle;">
+                                <div class="d-flex gap-5 align-center obsada-worker-selector" style="display: flex; gap: 6px; align-items: center;">
+                                    <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
+                                    <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}"
+                                        aria-label="Wybierz pracownika" class="input-sm obsada-select" style="flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; min-width: 150px;">
+                                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                                        {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
+                                    </select>
+                                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start"
+                                        style="background: #10b981; color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap;"
+                                        onclick="window.dodajPracownikaDoObsady(this, '{{ s }}', {{ loop.index0 }})">Dodaj</button>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <script>
@@ -193,6 +227,7 @@
                     const fd = new URLSearchParams();
                     fd.append('sekcja', sekcja);
                     fd.append('pracownik_id', val);
+                    fd.append('linia', '{{ linia }}');
                     if (dateVal) fd.append('date', dateVal);
                     
                     let resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', {
@@ -276,6 +311,10 @@
                         if (typeof showToast === 'function') {
                             showToast(`✅ Dodano: ${newName}`, 'success');
                         }
+
+                        if (dateVal && typeof window.zmienDateObsady === 'function') {
+                            window.zmienDateObsady(dateVal, '{{ linia }}');
+                        }
                     } else {
                         alert('Nie udało się dodać pracownika do obsady.');
                     }
@@ -337,6 +376,12 @@
                     if (typeof showToast === 'function') {
                         showToast('Usunięto pracownika z obsady', 'success');
                     }
+
+                    const dateEl = document.getElementById('obsada-date');
+                    const dateVal = dateEl ? dateEl.value : '';
+                    if (dateVal && typeof window.zmienDateObsady === 'function') {
+                        window.zmienDateObsady(dateVal, '{{ linia }}');
+                    }
                 } catch(err) {
                     console.error('Błąd usuwania z obsady:', err);
                     alert('Błąd podczas usuwania pracownika.');
@@ -386,15 +431,17 @@
                 }
             };
 
-            window.zmienDateObsady = function(newDate) {
+            window.zmienDateObsady = function(newDate, liniaVal) {
                 if (!newDate) return;
+                const l = liniaVal || '{{ linia }}' || 'AGRO';
                 const isInPopup = !!document.querySelector('.quick-popup.open, #quickPopup.open, .quick-popup[style*="display: block"], .quick-popup[style*="display: flex"]');
-                const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&sekcja={{ sekcja|urlencode }}&linia={{ linia|urlencode }}';
+                const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&sekcja={{ sekcja|urlencode }}&linia=' + encodeURIComponent(l);
                 if (isInPopup && typeof showSlideOver === 'function') {
                     showSlideOver(fetchUrl);
                 } else {
                     const url = new URL(window.location.href);
                     url.searchParams.set('date', newDate);
+                    if (l) url.searchParams.set('linia', l);
                     window.location.href = url.toString();
                 }
             };

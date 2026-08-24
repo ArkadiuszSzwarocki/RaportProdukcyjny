@@ -44,10 +44,10 @@
 }
 #scanInput {
   width: 100%;
-  padding: 14px 16px 14px 48px;
-  font-size: 20px;
+  padding: 12px 14px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 0.5px;
   border: 2px solid #cbd5e1;
   border-radius: 10px;
   outline: none;

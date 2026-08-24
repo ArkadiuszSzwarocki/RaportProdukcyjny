@@ -1,7 +1,7 @@
 """Backward compatibility and utility routes for legacy support."""
 
 from typing import Tuple, Dict, Any, Union
-from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app, Response
+from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app, Response, request
 from app.decorators import login_required, masteradmin_required
 import os
 from datetime import datetime

@@ -980,8 +980,18 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
                     candidate_dates = [yesterday_str, today_str]
 
+                    global_cfg = AutoReportService.get_global_config()
+                    enabled_lines = global_cfg.get('enabled_lines', ['AGRO', 'PSD'])
+
                     for target_date in candidate_dates:
+                        # Automatyczna wysyłka raportu wyłącznie w aktywne dni z konfiguracji
+                        if not AutoReportService.is_report_day(target_date):
+                            continue
+
                         for linia in ['AGRO', 'PSD']:
+                            if linia not in enabled_lines:
+                                continue
+
                             if not AutoReportService.is_1500_report_sent(linia, target_date):
                                 sched = AutoReportService.get_schedule(linia, target_date)
                                 if not sched.get('is_paused'):

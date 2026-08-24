@@ -1,0 +1,234 @@
+{% extends "layout.html" %}
+
+{% block title %}Nowy Transfer Międzymagazynowy - OSIP{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/osip/osip_transfer_nowy.css') }}?v=1.1.0">
+
+<div class="trf-page-container">
+    <!-- NAGŁÓWEK / STREFA HERO -->
+    <div class="trf-header-bar">
+        <div class="trf-title-group">
+            <div class="trf-title-icon">
+                <span class="material-icons">swap_horiz</span>
+            </div>
+            <div>
+                <h2>Nowe Zlecenie Transferu Międzymagazynowego</h2>
+                <p>Formularz rejestracji i skanowania palet na transport (Centrala MS01 &harr; OSIP).</p>
+            </div>
+        </div>
+        <div>
+            <a href="{{ url_for('osip.transfers_view') }}" class="trf-back-btn">
+                <span class="material-icons">arrow_back</span> Powrót do listy transferów
+            </a>
+        </div>
+    </div>
+
+    <!-- POWIADOMIENIE O ZAPISANYM SZKICU -->
+    <div id="trf-draft-alert" class="trf-draft-alert" style="display: none;">
+        <div class="trf-draft-left">
+            <span class="material-icons text-warning">history</span>
+            <div>
+                <strong>Odnaleziono niezapisany szkic zlecenia transferu!</strong>
+                <div class="trf-draft-subtitle">Przywrócono zeskanowane palety z poprzedniej sesji.</div>
+            </div>
+        </div>
+        <div class="trf-draft-right">
+            <button type="button" class="trf-btn-sm trf-btn-outline-danger" id="btn-discard-draft">Odrzuć szkic</button>
+        </div>
+    </div>
+
+    <!-- FORMULARZ TWORZENIA ZLECENIA -->
+    <form id="form-create-transfer" onsubmit="return false;">
+        
+        <!-- KARTA 1: WYBÓR TRASY (SKĄD -> DOKĄD) -->
+        <div class="trf-card mb-4">
+            <div class="trf-card-header">
+                <h3>
+                    <span class="trf-step-badge">1</span>
+                    Wybór Trasy Przesunięcia (Skąd &rarr; Dokąd)
+                </h3>
+            </div>
+            <div class="trf-card-body">
+                <div class="trf-routes-grid">
+                    <!-- TRASA 1: MS01 -> OSIP -->
+                    <div class="trf-route-card active" id="route-card-ms01-osip" onclick="selectRouteCard('MS01_OSIP')">
+                        <input type="radio" name="trf_route" value="MS01_OSIP" id="radio-ms01-osip" checked>
+                        <div class="trf-route-content">
+                            <div class="trf-route-header">
+                                <span class="trf-route-badge badge-osip">
+                                    <span class="material-icons" style="font-size:16px;">file_download</span>
+                                    Dostawa na OSIP [O]
+                                </span>
+                                <span class="trf-route-icon-indicator material-icons" id="icon-ms01-osip">check_circle</span>
+                            </div>
+                            <div class="trf-route-path">
+                                <strong>Centrala (MS01)</strong>
+                                <span class="material-icons path-arrow">east</span>
+                                <strong>Magazyn OSIP</strong>
+                            </div>
+                            <div class="trf-route-desc">Wysyłka surowców lub opakowań z magazynu głównego na OSIP</div>
+                        </div>
+                    </div>
+
+                    <!-- TRASA 2: OSIP -> MS01 -->
+                    <div class="trf-route-card" id="route-card-osip-ms01" onclick="selectRouteCard('OSIP_MS01')">
+                        <input type="radio" name="trf_route" value="OSIP_MS01" id="radio-osip-ms01">
+                        <div class="trf-route-content">
+                            <div class="trf-route-header">
+                                <span class="trf-route-badge badge-centrala">
+                                    <span class="material-icons" style="font-size:16px;">file_upload</span>
+                                    Dostawa do Centrali [C]
+                                </span>
+                                <span class="trf-route-icon-indicator material-icons" id="icon-osip-ms01">radio_button_unchecked</span>
+                            </div>
+                            <div class="trf-route-path">
+                                <strong>Magazyn OSIP</strong>
+                                <span class="material-icons path-arrow">east</span>
+                                <strong>Centrala (MS01)</strong>
+                            </div>
+                            <div class="trf-route-desc">Przesunięcie surowców z Magazynu OSIP do Centrali</div>
+                        </div>
+                    </div>
+
+                    <!-- TRASA 3: WŁASNA / NIESTANDARDOWA -->
+                    <div class="trf-route-card" id="route-card-custom" onclick="selectRouteCard('CUSTOM')">
+                        <input type="radio" name="trf_route" value="CUSTOM" id="radio-custom">
+                        <div class="trf-route-content">
+                            <div class="trf-route-header">
+                                <span class="trf-route-badge badge-custom">
+                                    <span class="material-icons" style="font-size:16px;">tune</span>
+                                    Inny Kierunek
+                                </span>
+                                <span class="trf-route-icon-indicator material-icons" id="icon-custom">radio_button_unchecked</span>
+                            </div>
+                            <div class="trf-route-path">
+                                <strong>Inna trasa</strong>
+                                <span class="material-icons path-arrow">tune</span>
+                                <strong>Ręczny wybór</strong>
+                            </div>
+                            <div class="trf-route-desc">Wybierz dowolny magazyn źródłowy i docelowy z listy</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- POLE SELEKTORÓW DLA CUSTOM ROUTE -->
+                <div id="custom-wh-selectors" class="trf-custom-selectors" style="display: none;">
+                    <div class="trf-form-group">
+                        <label for="select-custom-source">Magazyn Źródłowy (Skąd)</label>
+                        <select id="select-custom-source" class="trf-select">
+                            <option value="MS01">Centrala (MS01)</option>
+                            <option value="OSIP" selected>Magazyn OSIP (OSIP)</option>
+                            <option value="PROD">Hala Produkcyjna (PROD)</option>
+                            <option value="INNY">Inny Magazyn</option>
+                        </select>
+                    </div>
+                    <div class="trf-form-group">
+                        <label for="select-custom-dest">Magazyn Docelowy (Dokąd)</label>
+                        <select id="select-custom-dest" class="trf-select">
+                            <option value="OSIP">Magazyn OSIP (OSIP)</option>
+                            <option value="MS01" selected>Centrala (MS01)</option>
+                            <option value="PROD">Hala Produkcyjna (PROD)</option>
+                            <option value="INNY">Inny Magazyn</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KARTA 2: SKANOWANIE I LISTA PALET -->
+        <div class="trf-card mb-4">
+            <div class="trf-card-header trf-card-header-flex">
+                <h3>
+                    <span class="trf-step-badge">2</span>
+                    Skanowanie i Dodawanie Palet na Zlecenie
+                </h3>
+                <div class="trf-stats-group">
+                    <span class="trf-stat-pill" title="Łącznie palet">
+                        <span class="material-icons" style="font-size:16px; color:#2563eb;">inventory_2</span>
+                        Liczba palet: <strong id="stat-pallets-count">0</strong>
+                    </span>
+                    <span class="trf-stat-pill" title="Łączna waga">
+                        <span class="material-icons" style="font-size:16px; color:#16a34a;">scale</span>
+                        Suma masy: <strong id="stat-total-weight">0.00 kg</strong>
+                    </span>
+                </div>
+            </div>
+            <div class="trf-card-body">
+                <!-- POLE SKANERA -->
+                <div class="trf-scanner-box">
+                    <div class="trf-scanner-input-wrap">
+                        <span class="material-icons trf-scanner-icon">qr_code_scanner</span>
+                        <input type="text" id="trf-pallet-input" class="trf-scanner-input"
+                               placeholder="Zeskanuj kod kreskowy / SSCC palety lub wpisz numer..."
+                               autocomplete="off">
+                        <button type="button" class="trf-scanner-btn" id="btn-add-scanned-pallet">
+                            <span class="material-icons">add_circle</span> DODAJ PALETĘ
+                        </button>
+                    </div>
+                    <div id="trf-scan-status-msg" class="trf-scan-status">
+                        Zeskanuj kod fizycznym skanerem Zebra lub wprowadź numer ręcznie.
+                    </div>
+                </div>
+
+                <!-- TABELA ZESKANOWANYCH PALET -->
+                <div class="trf-table-wrap">
+                    <table class="trf-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">LP</th>
+                                <th style="width: 220px;">Kod Palety / SSCC</th>
+                                <th>Nazwa Surowca / Towaru</th>
+                                <th style="width: 140px;">Typ & Linia</th>
+                                <th style="width: 150px; text-align: right;">Ilość (kg)</th>
+                                <th style="width: 80px; text-align: center;">Akcja</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trf-scanned-tbody">
+                            <tr id="trf-empty-row">
+                                <td colspan="6" class="trf-empty-state">
+                                    <span class="material-icons">inventory</span>
+                                    <div>Brak zeskanowanych palet. Zeskanuj pierwszą paletę powyżej.</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- KARTA 3: DANE TRANSPORTOWE I UWAGI -->
+        <div class="trf-card mb-4">
+            <div class="trf-card-header">
+                <h3>
+                    <span class="trf-step-badge">3</span>
+                    Dane Transportowe i Uwagi (Opcjonalnie)
+                </h3>
+            </div>
+            <div class="trf-card-body">
+                <div class="trf-form-group">
+                    <label for="trf-notes-input">Uwagi / Komentarz do zlecenia transferu</label>
+                    <textarea id="trf-notes-input" class="trf-textarea" rows="3"
+                              placeholder="Opcjonalne uwagi (np. kierowca, nr auta, nr dokumentu WZ, uwagi magazynowe)..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASEK PRZYCISKÓW AKCJI -->
+        <div class="trf-actions-bar">
+            <a href="{{ url_for('osip.transfers_view') }}" class="trf-btn-cancel">
+                <span class="material-icons">close</span> Anuluj i wróć
+            </a>
+            <button type="button" class="trf-btn-submit" id="btn-submit-transfer" disabled>
+                <span class="material-icons">send</span> UTWÓRZ ZLECENIE TRANSFERU
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="trfToastContainer" class="trf-toast-container"></div>
+
+<script src="{{ url_for('static', filename='js/osip/osip_transfer_nowy.js') }}?v=1.1.0"></script>
+{% endblock %}

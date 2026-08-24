@@ -3,6 +3,9 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    let allTransfersData = [];
+    window.allTransfersData = allTransfersData;
+
     const tbody = document.getElementById('transfers-tbody');
     const cntPlanned = document.getElementById('cnt-planned');
     const cntTransit = document.getElementById('cnt-transit');
@@ -229,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     productName = p.nazwa || p.produkt_nazwa || p.name || p.surowiec_nazwa || productName;
                     batchNo = p.nr_partii || p.batch || p.partia || '';
                     prodDate = p.data_produkcji || p.data_przydatnosci || '';
-                    qty = parseFloat(p.stan_magazynowy || p.waga_netto || p.ilosc || p.weight || 1000);
+                    qty = parseFloat(p.stan_magazynowy || p.ilosc_kg || p.amount || p.waga_netto || p.ilosc || p.weight || 1000);
                     palletId = p.id || p.pallet_id || null;
                     if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT')) {
                         alert(`Paleta ${code} bierze już udział w aktywnym zleceniu transferu ${p.transfer.transfer_code}!`);
@@ -361,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    let allTransfersData = [];
+    window.allTransfersData = allTransfersData;
     let currentStatusFilter = 'ALL';
 
     const searchInput = document.getElementById('transfers-search-input');
@@ -389,6 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const json = await res.json();
             if (json.success) {
                 allTransfersData = json.transfers || [];
+                window.allTransfersData = allTransfersData;
                 updateKpiCounters(allTransfersData);
                 applyFiltersAndRender();
             } else {
@@ -502,6 +506,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let actionsHtml = '';
             if (t.status === 'PLANNED') {
                 actionsHtml = `
+                    <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
+                        <i class="fas fa-eye mr-1"></i> Podgląd
+                    </button>
                     <button class="btn btn-sm btn-primary font-weight-bold shadow-sm action-dispatch-btn mr-1" data-id="${t.id}">
                         <i class="fas fa-truck-loading mr-1"></i> Wydaj / Załadunek
                     </button>
@@ -509,10 +516,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else if (t.status === 'IN_TRANSIT') {
                 actionsHtml = `
+                    <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
+                        <i class="fas fa-eye mr-1"></i> Podgląd
+                    </button>
+                    <button class="btn btn-sm btn-success font-weight-bold shadow-sm action-receive-btn mr-1" data-id="${t.id}">
+                        <i class="fas fa-check-circle mr-1"></i> Odbierz / Przyjmij
+                    </button>
                     <button class="btn btn-sm btn-outline-danger font-weight-bold action-cancel-btn" data-id="${t.id}">Zawróć</button>
                 `;
             } else {
-                actionsHtml = `<span class="text-muted small font-weight-bold"><i class="fas fa-lock mr-1"></i> Zamknięte</span>`;
+                actionsHtml = `
+                    <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
+                        <i class="fas fa-eye mr-1"></i> Podgląd
+                    </button>
+                    <span class="text-muted small font-weight-bold"><i class="fas fa-lock mr-1"></i> Zamknięte</span>
+                `;
             }
 
             return `
@@ -543,7 +561,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (e.target.closest('button')) return; // ignore button clicks inside the row
                 const id = row.getAttribute('data-id');
                 if (id) {
-                    window.location.href = `/osip/transfers/${id}`;
+                    openViewTransferModal(id);
+                }
+            });
+        });
+
+        document.querySelectorAll('.action-view-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-id');
+                if (id) {
+                    openViewTransferModal(id);
                 }
             });
         });
@@ -696,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '<span class="badge badge-warning px-3 py-1 font-weight-bold" style="font-size: 0.85rem;"><i class="fas fa-clock mr-1"></i> Oczekuje</span>';
 
             const rowStyle = isScanned ? 'background-color: #f0fdf4;' : '';
-            const defaultLoc = currentReceivingTransfer.destination_warehouse === 'OSIP' ? 'OS01' : 'MS01';
+            const defaultLoc = currentReceivingTransfer.destination_warehouse === 'OSIP' ? 'A01' : 'MS01';
 
             return `
                 <tr style="${rowStyle}" id="receive-row-${idx}">
@@ -800,7 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetLocs = {};
             document.querySelectorAll('.target-loc-input').forEach(inp => {
                 const c = inp.getAttribute('data-code');
-                targetLocs[c] = inp.value.trim() || 'OS01';
+                targetLocs[c] = inp.value.trim() || 'A01';
             });
 
             const res = await fetch(`/osip/api/transfers/${currentReceivingTransfer.id}/receive`, {
@@ -1037,21 +1065,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // LOGIKA MODALU PODGLĄDU
     // ═════════════════════════════════════════════════════════════════
     window.openViewTransferModal = async function(transferId) {
-        let transfer = allTransfersData.find(t => t.id == transferId || t.transfer_code == transferId);
-        try {
-            const res = await fetch('/osip/api/transfers');
-            if (res.ok) {
-                const json = await res.json();
-                if (json.success && json.transfers) {
-                    allTransfersData = json.transfers;
-                    transfer = allTransfersData.find(t => t.id == transferId || t.transfer_code == transferId) || transfer;
+        if (!transferId) return;
+        let transfersList = window.allTransfersData || allTransfersData || [];
+        let transfer = transfersList.find(t => t.id == transferId || t.transfer_code == transferId);
+
+        if (!transfer) {
+            try {
+                const res = await fetch('/osip/api/transfers');
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.transfers) {
+                        allTransfersData = json.transfers;
+                        window.allTransfersData = allTransfersData;
+                        transfer = allTransfersData.find(t => t.id == transferId || t.transfer_code == transferId);
+                    }
                 }
+            } catch(e) {
+                console.error('Błąd pobierania transferu:', e);
             }
-        } catch(e) {}
+        }
 
-        if (!transfer) return;
+        if (!transfer) {
+            alert('Nie odnaleziono szczegółów wskazanego zlecenia transferu.');
+            return;
+        }
 
-        document.getElementById('view-modal-code').textContent = transfer.transfer_code || '';
+        const codeBadge = document.getElementById('view-modal-code');
+        if (codeBadge) codeBadge.textContent = transfer.transfer_code || '';
         
         let statusBadge = '';
         if (transfer.status === 'PLANNED') statusBadge = '<span class="badge badge-warning px-3 py-1 font-weight-bold"><i class="fas fa-clock mr-1"></i> Zaplanowano</span>';
@@ -1059,46 +1099,71 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (transfer.status === 'COMPLETED') statusBadge = '<span class="badge badge-success px-3 py-1 font-weight-bold"><i class="fas fa-check-circle mr-1"></i> Zakończono</span>';
         else if (transfer.status === 'CANCELLED') statusBadge = '<span class="badge badge-danger px-3 py-1 font-weight-bold"><i class="fas fa-times-circle mr-1"></i> Anulowano</span>';
         
-        document.getElementById('view-modal-status').innerHTML = statusBadge;
-        document.getElementById('view-modal-route').textContent = `${transfer.source_warehouse} ➔ ${transfer.destination_warehouse}`;
-        document.getElementById('view-modal-creator').innerHTML = `${transfer.created_at || '-'} <br><small class="text-muted"><i class="fas fa-user mr-1"></i>${transfer.created_by}</small>`;
+        const statusDiv = document.getElementById('view-modal-status');
+        if (statusDiv) statusDiv.innerHTML = statusBadge;
+
+        const routeDiv = document.getElementById('view-modal-route');
+        if (routeDiv) routeDiv.textContent = `${transfer.source_warehouse} ➔ ${transfer.destination_warehouse}`;
+
+        const creatorDiv = document.getElementById('view-modal-creator');
+        if (creatorDiv) creatorDiv.innerHTML = `${transfer.created_at || '-'} <br><small class="text-muted"><i class="fas fa-user mr-1"></i>${transfer.created_by}</small>`;
         
         const items = transfer.items || [];
         const receivedCount = items.filter(it => it.status === 'RECEIVED').length;
-        document.getElementById('view-modal-count').textContent = `${receivedCount} z ${items.length} odebrane`;
+        const countBadge = document.getElementById('view-modal-count');
+        if (countBadge) countBadge.textContent = `${receivedCount} z ${items.length} odebrane`;
 
-        const tbody = document.getElementById('view-modal-tbody');
-        tbody.innerHTML = items.map(item => {
-            let itemStatusBadge = '';
-            let rowStyle = '';
-            if (item.status === 'RECEIVED') {
-                itemStatusBadge = '<span class="badge badge-success px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-check-circle mr-1"></i> Odebrana</span>';
-                rowStyle = 'background-color: #f0fdf4;';
-            } else if (item.status === 'LOADED' || item.status === 'PLANNED') {
-                itemStatusBadge = '<span class="badge badge-warning px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-clock mr-1"></i> Oczekuje</span>';
-            } else if (item.status === 'CANCELLED') {
-                itemStatusBadge = '<span class="badge badge-danger px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-times-circle mr-1"></i> Zwrócona</span>';
+        const tbodyView = document.getElementById('view-modal-tbody');
+        if (tbodyView) {
+            if (items.length === 0) {
+                tbodyView.innerHTML = `<tr><td colspan="4" class="text-center text-muted p-3">Brak pozycji w tym zleceniu.</td></tr>`;
+            } else {
+                tbodyView.innerHTML = items.map(item => {
+                    let itemStatusBadge = '';
+                    let rowStyle = '';
+                    if (item.status === 'RECEIVED') {
+                        itemStatusBadge = '<span class="badge badge-success px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-check-circle mr-1"></i> Odebrana</span>';
+                        rowStyle = 'background-color: #f0fdf4;';
+                    } else if (item.status === 'LOADED' || item.status === 'PLANNED') {
+                        itemStatusBadge = '<span class="badge badge-warning px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-clock mr-1"></i> Oczekuje</span>';
+                    } else if (item.status === 'CANCELLED') {
+                        itemStatusBadge = '<span class="badge badge-danger px-3 py-1 font-weight-bold" style="font-size:0.85rem;"><i class="fas fa-times-circle mr-1"></i> Zwrócona</span>';
+                    }
+
+                    return `
+                        <tr style="${rowStyle}">
+                            <td>${itemStatusBadge}</td>
+                            <td><strong>${item.nr_palety || 'Brak'}</strong></td>
+                            <td>${item.product_name || '-'}</td>
+                            <td><strong>${item.requested_qty || 0} kg</strong></td>
+                        </tr>
+                    `;
+                }).join('');
             }
+        }
 
-            return `
-                <tr>
-                    <td>${itemStatusBadge}</td>
-                    <td><strong>${item.nr_palety || 'Brak'}</strong></td>
-                    <td>${item.product_name || '-'}</td>
-                    <td><strong>${item.requested_qty || 0}</strong></td>
-                </tr>
-            `;
-        }).join('');
+        const actionBtn = document.getElementById('view-modal-action-btn');
+        if (actionBtn) {
+            actionBtn.href = `/osip/transfers/${transfer.id}`;
+            if (transfer.status === 'COMPLETED' || transfer.status === 'CANCELLED') {
+                actionBtn.className = 'btn btn-outline-primary font-weight-bold shadow-sm mr-2';
+                actionBtn.innerHTML = '<i class="fas fa-file-alt mr-1"></i> Pełna Karta Zlecenia';
+            } else {
+                actionBtn.className = 'btn btn-primary font-weight-bold shadow-sm mr-2';
+                actionBtn.innerHTML = '<i class="fas fa-barcode mr-1"></i> Formularz Przyjęcia / Skaner';
+            }
+            actionBtn.style.display = 'inline-block';
+        }
 
         const viewModalEl = document.getElementById('modal-view-transfer');
         if (viewModalEl) {
-            document.body.appendChild(viewModalEl);
-            viewModalEl.style.zIndex = '10050';
             try {
                 if (window.jQuery && typeof window.jQuery(viewModalEl).modal === 'function') {
                     window.jQuery(viewModalEl).modal('show');
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn('jQuery modal show error:', e);
+            }
             viewModalEl.classList.add('show');
             viewModalEl.style.display = 'block';
             viewModalEl.removeAttribute('aria-hidden');

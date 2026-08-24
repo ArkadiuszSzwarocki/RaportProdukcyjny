@@ -18,7 +18,9 @@ def register_admin_team_routes(admin_bp, *, load_roles):
 
         cursor.execute(
             "SELECT p.id, p.imie_nazwisko, p.grupa as prac_hall, "
-            "       u.id as user_id, u.login, u.rola, u.grupa as user_hall "
+            "       u.id as user_id, u.login, u.rola, u.grupa as user_hall, "
+            "       COALESCE(p.urlop_biezacy, 0), COALESCE(p.urlop_zalegly, 0), "
+            "       COALESCE(u.email, p.email, '') as email "
             "FROM pracownicy p "
             "LEFT JOIN uzytkownicy u ON p.id = u.pracownik_id "
             "ORDER BY p.imie_nazwisko"
@@ -40,6 +42,9 @@ def register_admin_team_routes(admin_bp, *, load_roles):
                     'rola': row[5],
                     'role_label': roles_map.get(row[5] or '', 'Pracownik'),
                     'user_hall': row[6],
+                    'urlop_biezacy': row[7],
+                    'urlop_zalegly': row[8],
+                    'email': row[9],
                 }
             )
 

@@ -49,12 +49,12 @@
                         {% if not is_readonly %}
                             {% if sekcja == 'Zasyp' %}
                             {% set role_lc = rola|string|trim|lower %}
-                            {% if role_lc != 'lider' and not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
+                            {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                             <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
-                               class="btn-action btn-blue"
+                               class="btn-action btn-blue btn-with-badge"
+                               data-plan-id="{{ p[0] }}"
                                data-slide
-                               title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
-                            {% endif %}
+                               title="Dodaj dosypkę do tego zasypu">+ DOSYPKA{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                             {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                             <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                                class="btn-action btn-outline-secondary szarza-note"

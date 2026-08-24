@@ -2130,16 +2130,331 @@ window.showConfirmModal = function(message, onConfirm) {
         }
     };
 
-    window.zmienDateObsady = function(newDate) {
+    window.zmienDateObsady = function(newDate, liniaVal) {
         if (!newDate) return;
+        const liniaEl = document.getElementById('obsada-linia');
+        let l = liniaVal || (liniaEl ? liniaEl.value : '');
+        if (!l) {
+            const urlParams = new URLSearchParams(window.location.search);
+            l = urlParams.get('linia') || (window.location.href.indexOf('/agro') !== -1 ? 'AGRO' : 'PSD');
+        }
+
         const isInPopup = !!document.querySelector('.quick-popup.open, #quickPopup.open, .quick-popup[style*="display: block"], .quick-popup[style*="display: flex"]');
-        const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate);
+        const fetchUrl = '/api/obsada_page?date=' + encodeURIComponent(newDate) + '&linia=' + encodeURIComponent(l);
         if (isInPopup && typeof showSlideOver === 'function') {
             showSlideOver(fetchUrl);
         } else {
             const url = new URL(window.location.href);
             url.searchParams.set('date', newDate);
+            url.searchParams.set('linia', l);
             window.location.href = url.toString();
+        }
+    };
+
+    /* ================= AGRO Staff Visibility & Assignment Modal Helper ================= */
+    window.openAgroStaffVisibilityModal = async function() {
+        const dateEl = document.getElementById('obsada-date');
+        const currentDate = dateEl ? dateEl.value : new Date().toISOString().slice(0, 10);
+
+        let modal = document.getElementById('agroStaffVisibilityModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'agroStaffVisibilityModal';
+            modal.className = 'agro-staff-modal';
+            modal.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 999999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); padding: 16px;';
+            modal.innerHTML = `
+                <div style="background: #ffffff; border-radius: 20px; width: 96%; max-width: 960px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; border: 1px solid #cbd5e1;">
+                    <!-- Header -->
+                    <div style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 1.4rem;">⚙️</span> Wybór i Przypisanie Pracowników AGRO
+                            </h3>
+                            <span style="font-size: 0.82rem; color: #94a3b8; font-weight: 500;">Zarządzaj składem obsady zmiany i dostępnością kadr na dzień: <strong id="agroModalDateDisplay" style="color: #38bdf8;">${currentDate}</strong></span>
+                        </div>
+                        <button type="button" onclick="window.closeAgroStaffVisibilityModal()" style="background: rgba(255,255,255,0.1); border: none; color: #cbd5e1; font-size: 1.4rem; cursor: pointer; padding: 4px 10px; border-radius: 8px; transition: background 0.2s;">✕</button>
+                    </div>
+
+                    <!-- Main 2-Column Body -->
+                    <div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 20px; padding: 20px; overflow-y: auto; flex: 1; min-height: 0; background: #f8fafc;">
+                        <!-- Left Panel: Position Assignments -->
+                        <div style="background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #38bdf8; padding-bottom: 8px;">
+                                <h4 style="margin: 0; font-size: 1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                                    <span>👤</span> 1. Przypisanie do Stanowisk AGRO
+                                </h4>
+                                <span style="font-size: 0.75rem; background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 6px; font-weight: 700;">Dla aktualnej zmiany</span>
+                            </div>
+                            
+                            <div id="agroPositionsContainer" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 480px; padding-right: 4px;">
+                                <div style="text-align: center; color: #94a3b8; padding: 30px;">Ładowanie stanowisk...</div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Staff Availability Checks -->
+                        <div style="background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
+                                <h4 style="margin: 0; font-size: 1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                                    <span>📋</span> 2. Dostępność Pracowników (AGRO)
+                                </h4>
+                                <span style="font-size: 0.75rem; color: #64748b;">Lista główna</span>
+                            </div>
+
+                            <input type="text" id="agroStaffSearchInput" placeholder="🔍 Szukaj pracownika po imieniu/nazwisku..." onkeyup="window.filterAgroStaffList()" style="width: 100%; padding: 9px 14px; border-radius: 10px; border: 1.5px solid #cbd5e1; font-size: 0.88rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;">
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #f1f5f9; padding: 6px 12px; border-radius: 8px;">
+                                <span style="font-size: 0.78rem; color: #475569; font-weight: 600;">Checkboxy widoczności w AGRO:</span>
+                                <div style="display: flex; gap: 6px;">
+                                    <button type="button" onclick="window.toggleSelectAllAgroStaff(true)" style="background: #0284c7; color: #ffffff; border: none; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">Zaznacz wszystkich</button>
+                                    <button type="button" onclick="window.toggleSelectAllAgroStaff(false)" style="background: #ef4444; color: #ffffff; border: none; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">Odznacz wszystkich</button>
+                                </div>
+                            </div>
+
+                            <div id="agroStaffCheckboxesContainer" style="padding: 6px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 6px; max-height: 400px; border: 1px solid #f1f5f9; border-radius: 10px;">
+                                <div style="text-align: center; color: #94a3b8; padding: 30px;">Ładowanie pracowników...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                        <span style="font-size: 0.82rem; color: #64748b;">ℹ️ Zapis powoduje natychmiastowe zaktualizowanie obsady i odświeżenie listy.</span>
+                        <div style="display: flex; gap: 12px;">
+                            <button type="button" onclick="window.closeAgroStaffVisibilityModal()" style="padding: 9px 18px; border-radius: 10px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; font-weight: 700; font-size: 0.9rem; cursor: pointer;">Anuluj</button>
+                            <button type="button" id="saveAgroStaffVisibilityBtn" onclick="window.saveAgroStaffVisibility()" style="padding: 9px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; font-weight: 800; font-size: 0.92rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.3); display: inline-flex; align-items: center; gap: 8px;">
+                                <span>💾</span> Zapisz Całość Obsady i Dostępności
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        } else if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+
+        modal.style.display = 'flex';
+        modal.style.zIndex = '999999';
+
+        const searchInput = modal.querySelector('#agroStaffSearchInput');
+        if (searchInput) searchInput.value = '';
+
+        const container = modal.querySelector('#agroStaffCheckboxesContainer');
+        if (container) container.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 20px;">Ładowanie pracowników...</div>';
+
+        const posContainer = modal.querySelector('#agroPositionsContainer');
+        if (posContainer) posContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 20px;">Ładowanie stanowisk...</div>';
+
+        try {
+            const res = await fetch('/api/obsada/agro_staff_visibility?date=' + encodeURIComponent(currentDate));
+            const data = await res.json();
+            if (data && data.success) {
+                window._allAgroStaffData = data.staff || [];
+                window._agroCurrentObsada = data.obsada || {};
+                
+                // Initialize internal assignment state
+                window._agroAssignmentsState = {};
+                const agroSections = [
+                    'Operator sterowni', 'Operator workowania',
+                    'Operator zasypów 1', 'Operator zasypów 2', 'Operator zasypów 3', 'Operator zasypów 4',
+                    'Technik utrzymania Ruchu'
+                ];
+                agroSections.forEach(s => {
+                    const list = window._agroCurrentObsada[s] || [];
+                    window._agroAssignmentsState[s] = list.map(item => item.pracownik_id || item.id);
+                });
+
+                window.renderAgroStaffCheckboxes();
+                window.renderAgroPositions();
+            } else {
+                if (container) container.innerHTML = '<div style="color: #ef4444; text-align: center; padding: 10px;">Błąd pobierania danych.</div>';
+            }
+        } catch(err) {
+            console.error(err);
+            if (container) container.innerHTML = '<div style="color: #ef4444; text-align: center; padding: 10px;">Błąd połączenia.</div>';
+        }
+    };
+
+    window.renderAgroPositions = function() {
+        const modal = document.getElementById('agroStaffVisibilityModal');
+        const container = modal ? modal.querySelector('#agroPositionsContainer') : document.getElementById('agroPositionsContainer');
+        if (!container || !window._agroAssignmentsState) return;
+
+        const agroSections = [
+            { name: 'Operator sterowni', icon: '🎛️' },
+            { name: 'Operator workowania', icon: '📦' },
+            { name: 'Operator zasypów 1', icon: '🌾' },
+            { name: 'Operator zasypów 2', icon: '🌾' },
+            { name: 'Operator zasypów 3', icon: '🌾' },
+            { name: 'Operator zasypów 4', icon: '🌾' },
+            { name: 'Technik utrzymania Ruchu', icon: '🔧' }
+        ];
+
+        // Active/visible workers for dropdown
+        const availableWorkers = (window._allAgroStaffData || []).filter(p => p.widoczny_agro);
+
+        container.innerHTML = '';
+        agroSections.forEach(sec => {
+            const secName = sec.name;
+            const assignedPids = window._agroAssignmentsState[secName] || [];
+
+            const card = document.createElement('div');
+            card.style.cssText = 'background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;';
+
+            // Top header + dropdown select
+            let optionsHtml = '<option value="">+ Dodaj pracownika...</option>';
+            availableWorkers.forEach(w => {
+                optionsHtml += `<option value="${w.id}">${w.imie_nazwisko}</option>`;
+            });
+
+            card.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                    <div style="font-weight: 700; font-size: 0.88rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                        <span>${sec.icon}</span> <span>${secName}</span>
+                    </div>
+                    <select onchange="window.addWorkerToAgroPosition('${secName}', this.value); this.value='';" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem; background: #ffffff; cursor: pointer; max-width: 180px;">
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div id="agroAssignedChips_${secName.replace(/\s+/g, '_')}" style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; align-items: center;">
+                </div>
+            `;
+
+            const chipsContainer = card.querySelector(`#agroAssignedChips_${secName.replace(/\s+/g, '_')}`);
+            if (assignedPids.length === 0) {
+                chipsContainer.innerHTML = '<span style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">Brak obsady</span>';
+            } else {
+                assignedPids.forEach(pid => {
+                    const worker = (window._allAgroStaffData || []).find(w => w.id === pid);
+                    const name = worker ? worker.imie_nazwisko : ('Pracownik ID: ' + pid);
+                    const chip = document.createElement('span');
+                    chip.style.cssText = 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 3px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;';
+                    chip.innerHTML = `
+                        <span>${name}</span>
+                        <button type="button" onclick="window.removeWorkerFromAgroPosition('${secName}', ${pid})" style="background: transparent; border: none; color: #0284c7; font-weight: 800; cursor: pointer; padding: 0; font-size: 0.9rem; line-height: 1;">✕</button>
+                    `;
+                    chipsContainer.appendChild(chip);
+                });
+            }
+
+            container.appendChild(card);
+        });
+    };
+
+    window.addWorkerToAgroPosition = function(secName, pidVal) {
+        if (!pidVal) return;
+        const pid = parseInt(pidVal);
+        if (!window._agroAssignmentsState[secName]) window._agroAssignmentsState[secName] = [];
+        if (!window._agroAssignmentsState[secName].includes(pid)) {
+            window._agroAssignmentsState[secName].push(pid);
+        }
+        window.renderAgroPositions();
+    };
+
+    window.removeWorkerFromAgroPosition = function(secName, pid) {
+        if (!window._agroAssignmentsState[secName]) return;
+        window._agroAssignmentsState[secName] = window._agroAssignmentsState[secName].filter(id => id !== pid);
+        window.renderAgroPositions();
+    };
+
+    window.renderAgroStaffCheckboxes = function() {
+        const modal = document.getElementById('agroStaffVisibilityModal');
+        const container = modal ? modal.querySelector('#agroStaffCheckboxesContainer') : document.getElementById('agroStaffCheckboxesContainer');
+        if (!container || !window._allAgroStaffData) return;
+        const searchInput = modal ? modal.querySelector('#agroStaffSearchInput') : document.getElementById('agroStaffSearchInput');
+        const filter = (searchInput?.value || '').toLowerCase().trim();
+
+        container.innerHTML = '';
+        window._allAgroStaffData.forEach(p => {
+            if (filter && !p.imie_nazwisko.toLowerCase().includes(filter)) return;
+
+            const item = document.createElement('label');
+            item.className = 'agro-staff-item';
+            item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; border: 1px solid #f1f5f9; background: #ffffff; cursor: pointer; transition: background 0.15s; font-size: 0.88rem; font-weight: 600; color: #1e293b;';
+            item.onmouseenter = () => item.style.background = '#f0f9ff';
+            item.onmouseleave = () => item.style.background = '#ffffff';
+
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" class="agro-staff-cb" value="${p.id}" ${p.widoczny_agro ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer; accent-color: #0284c7;">
+                    <span>${p.imie_nazwisko}</span>
+                </div>
+                <span style="font-size: 0.72rem; color: ${p.widoczny_agro ? '#10b981' : '#94a3b8'}; font-weight: 700;">${p.widoczny_agro ? 'Widoczny' : 'Ukryty'}</span>
+            `;
+            container.appendChild(item);
+        });
+    };
+
+    window.filterAgroStaffList = function() {
+        window.renderAgroStaffCheckboxes();
+    };
+
+    window.toggleSelectAllAgroStaff = function(status) {
+        const modal = document.getElementById('agroStaffVisibilityModal');
+        const container = modal ? modal.querySelector('#agroStaffCheckboxesContainer') : document.getElementById('agroStaffCheckboxesContainer');
+        if (!container) return;
+        const cbs = container.querySelectorAll('.agro-staff-cb');
+        cbs.forEach(cb => cb.checked = status);
+    };
+
+    window.closeAgroStaffVisibilityModal = function() {
+        const modal = document.getElementById('agroStaffVisibilityModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.saveAgroStaffVisibility = async function() {
+        const modal = document.getElementById('agroStaffVisibilityModal');
+        const container = modal ? modal.querySelector('#agroStaffCheckboxesContainer') : document.getElementById('agroStaffCheckboxesContainer');
+        if (!container) return;
+        const cbs = container.querySelectorAll('.agro-staff-cb');
+        const visibleIds = [];
+        cbs.forEach(cb => {
+            if (cb.checked) visibleIds.push(parseInt(cb.value));
+        });
+
+        const dateEl = document.getElementById('obsada-date');
+        const currentDate = dateEl ? dateEl.value : new Date().toISOString().slice(0, 10);
+
+        const btn = modal ? modal.querySelector('#saveAgroStaffVisibilityBtn') : document.getElementById('saveAgroStaffVisibilityBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerText = 'Zapisywanie...';
+        }
+
+        try {
+            const res = await fetch('/api/obsada/agro_staff_visibility', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({
+                    visible_ids: visibleIds,
+                    assignments: window._agroAssignmentsState || {},
+                    date: currentDate
+                })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                window.closeAgroStaffVisibilityModal();
+                if (typeof showToast === 'function') {
+                    showToast('✅ Zapisano całość obsady i widoczności AGRO', 'success');
+                }
+                const liniaEl = document.getElementById('obsada-linia');
+                const currentLinia = (liniaEl && liniaEl.value) ? liniaEl.value : 'AGRO';
+                if (dateEl && typeof window.zmienDateObsady === 'function') {
+                    window.zmienDateObsady(dateEl.value, currentLinia);
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                alert('⚠️ ' + (data.message || 'Błąd zapisu'));
+            }
+        } catch(err) {
+            console.error(err);
+            alert('Błąd połączenia podczas zapisu.');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span>💾</span> Zapisz Całość Obsady i Dostępności';
+            }
         }
     };
 
