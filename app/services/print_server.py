@@ -410,13 +410,15 @@ class PrintServer:
         nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
         product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
         data_produkcji = str(label_data.get('data') or datetime.now().strftime('%Y-%m-%d')).strip()
+        data_przydatnosci = str(label_data.get('data_przydatnosci') or '').strip()
         qty_display = self._format_qty_display(label_data.get('ilosc'))
         nr_palety_lp = label_data.get('nr_palety_lp') or ''
         linia = str(label_data.get('linia') or '').strip()
         nr_plomby = str(label_data.get('nr_plomby') or '').strip()
         nr_partii = str(label_data.get('nr_partii') or '').strip()
 
-        plomba_line = f"^FO40,950^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
+        przydatnosc_line = f"^FO40,950^A0N,45,45^FDTERMIN PRZYDATNOŚCI: {data_przydatnosci}^FS" if data_przydatnosci else ""
+        plomba_line = f"^FO40,1000^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
         partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
         
         is_surowiec = label_data.get('is_surowiec') or (product_name.lower() in ('czyszczenie', 'maka mix do lnu', 'mąka mix do lnu')) or ('czyszczenie' in product_name.lower()) or ('maka mix do lnu' in product_name.lower()) or ('mąka mix do lnu' in product_name.lower())
@@ -433,6 +435,7 @@ class PrintServer:
             "partia": nr_partii,
             "plomba": nr_plomby,
             "data_prod": data_produkcji,
+            "data_przyd": data_przydatnosci,
             "ilosc": qty_display,
             "jm": "kg",
             "typ": header_text
@@ -450,9 +453,10 @@ class PrintServer:
 ^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp}^FS
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 {partia_line}
+{przydatnosc_line}
 {plomba_line}
-^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
-^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^FO40,1050^A0N,70,70^FDWAGA NETTO:^FS
+^FO40,1150^A0N,100,100^FD{qty_display} kg^FS
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ{copies}
 ^XZ"""

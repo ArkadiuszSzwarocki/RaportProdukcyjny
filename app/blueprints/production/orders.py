@@ -148,8 +148,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     start_counter = 0
                     start_pallet_counter = 0
                     nr_partii_cleaned = None
-                    if sekcja == 'Workowanie' and linia == 'AGRO':
-                        # Validate batch number (required for AGRO Workowanie)
+                    if sekcja == 'Workowanie' and linia in ('AGRO', 'PSD'):
+                        # Validate batch number (required for Workowanie)
                         nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
                         if not is_czyszczenie and not (nr_partii_post and nr_partii_post.strip()):
                             if status_obecny == 'zawieszone' and db_nr_partii:
@@ -159,12 +159,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                 return redirect(bezpieczny_powrot())
                         nr_partii_cleaned = nr_partii_post.strip() if nr_partii_post else 'CZYSZCZENIE'
                         
-                        try:
-                            latest_d = get_latest_data()
-                            start_counter = latest_d.get('counter', 0)
-                            start_pallet_counter = latest_d.get('pallet_counter', 0)
-                        except Exception:
-                            pass
+                        if linia == 'AGRO':
+                            try:
+                                latest_d = get_latest_data()
+                                start_counter = latest_d.get('counter', 0)
+                                start_pallet_counter = latest_d.get('pallet_counter', 0)
+                            except Exception:
+                                pass
 
                     # Ensure only one active plan per section in this hall
                     cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
