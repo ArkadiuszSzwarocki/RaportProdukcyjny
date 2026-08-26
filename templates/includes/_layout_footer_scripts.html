@@ -703,7 +703,152 @@
     })();
 
     // Bug Report logic (Standalone & 100% reliable on all pages)
+    var _bugRecognition = null;
+    var _bugIsRecording = false;
+
+    function showBugMicPermissionHelp(isBlocked) {
+        var statusMsg = document.getElementById('bugVoiceStatusMsg');
+        if (!statusMsg) return;
+        var isChrome = navigator.userAgent.indexOf('Chrome') !== -1;
+        var isEdge = navigator.userAgent.indexOf('Edg') !== -1;
+        var iconUrl = isEdge ? '🔒' : '🔒';
+        var hint = '';
+        if (isBlocked) {
+            if (isChrome || isEdge) {
+                hint = '<br><strong>Jak odblokować:</strong><br>' +
+                    '1. Kliknij ikonę 🔒 / 📷 po lewej stronie paska adresu przeglądarki<br>' +
+                    '2. Znajdź "Mikrofon" i zmień na "Zezwalaj"<br>' +
+                    '3. Odśwież stronę i spróbuj ponownie<br>' +
+                    '<a href="javascript:void(0)" onclick="window.open(\'chrome://settings/content/microphone\', \'_blank\')" style="color:#1d4ed8;font-weight:800;text-decoration:underline;">→ Otwórz ustawienia przeglądarki</a>';
+            } else {
+                hint = '<br>Kliknij ikonę zamkniętej kłódki / kamery w pasku adresu przeglądarki i zezwól na dostęp do mikrofonu, a następnie odśwież stronę.';
+            }
+        }
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = '#fef2f2';
+        statusMsg.style.borderColor = '#fecaca';
+        statusMsg.style.color = '#b91c1c';
+        statusMsg.innerHTML = '<strong>⛔ Mikrofon zablokowany!</strong><br>Przeglądarka nie ma uprawnień do mikrofonu.' + hint;
+    }
+
+    function stopBugVoiceDictation() {
+        if (_bugRecognition) {
+            try { _bugRecognition.stop(); } catch(e) {}
+            _bugRecognition = null;
+        }
+        _bugIsRecording = false;
+        var btn = document.getElementById('bugVoiceDictateBtn');
+        var btnText = document.getElementById('bugVoiceDictateBtnText');
+        if (btn) {
+            btn.style.background = '#eff6ff';
+            btn.style.borderColor = '#93c5fd';
+            btn.style.color = '#1d4ed8';
+        }
+        if (btnText) btnText.textContent = 'Dyktuj';
+        // NIE ukrywamy statusMsg — może zawierać instrukcję błędu
+    }
+
+    function resetBugVoiceStatusToListening() {
+        var statusMsg = document.getElementById('bugVoiceStatusMsg');
+        if (statusMsg) {
+            statusMsg.style.background = '#fef2f2';
+            statusMsg.style.borderColor = '#fecaca';
+            statusMsg.style.color = '#dc2626';
+            statusMsg.innerHTML = '🎙️ Słucham... mów wyraźnie po polsku. Kliknij <strong>Zatrzymaj</strong>, aby zakończyć.';
+            statusMsg.style.display = 'block';
+        }
+    }
+
+    function toggleBugModalVoiceDictation() {
+        var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+            var statusMsg = document.getElementById('bugVoiceStatusMsg');
+            if (statusMsg) {
+                statusMsg.style.display = 'block';
+                statusMsg.style.background = '#fffbeb';
+                statusMsg.style.borderColor = '#fcd34d';
+                statusMsg.style.color = '#92400e';
+                statusMsg.innerHTML = '⚠️ <strong>Dyktowanie niedostępne</strong> – Twoja przeglądarka nie obsługuje Web Speech API.<br>Użyj <strong>Chrome</strong> lub <strong>Edge</strong> i odśwież stronę.';
+            }
+            return;
+        }
+
+        if (_bugIsRecording) {
+            stopBugVoiceDictation();
+            return;
+        }
+
+        var textarea = document.getElementById('bugReportOpis');
+        if (!textarea) return;
+
+        var btn = document.getElementById('bugVoiceDictateBtn');
+        var btnText = document.getElementById('bugVoiceDictateBtnText');
+        var statusMsg = document.getElementById('bugVoiceStatusMsg');
+
+        try {
+            _bugRecognition = new SpeechRec();
+            _bugRecognition.lang = 'pl-PL';
+            _bugRecognition.continuous = true;
+            _bugRecognition.interimResults = true;
+
+            var baseText = textarea.value ? textarea.value.trim() + ' ' : '';
+
+            _bugRecognition.onstart = function() {
+                _bugIsRecording = true;
+                if (btn) {
+                    btn.style.background = '#fee2e2';
+                    btn.style.borderColor = '#ef4444';
+                    btn.style.color = '#b91c1c';
+                }
+                if (btnText) btnText.textContent = 'Zatrzymaj';
+                resetBugVoiceStatusToListening();
+            };
+
+            _bugRecognition.onresult = function(event) {
+                var interimTranscript = '';
+                var finalTranscript = '';
+                for (var i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    baseText += finalTranscript + ' ';
+                }
+                textarea.value = (baseText + interimTranscript).trimStart();
+                textarea.scrollTop = textarea.scrollHeight;
+            };
+
+            _bugRecognition.onerror = function(event) {
+                console.warn('SpeechRecognition error:', event.error);
+                stopBugVoiceDictation();
+                if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    showBugMicPermissionHelp(true);
+                } else if (event.error === 'network') {
+                    var sm = document.getElementById('bugVoiceStatusMsg');
+                    if (sm) { sm.style.display = 'block'; sm.innerHTML = '⚠️ Brak połączenia – rozpoznawanie mowy wymaga internetu.'; }
+                } else if (event.error !== 'aborted') {
+                    var sm = document.getElementById('bugVoiceStatusMsg');
+                    if (sm) { sm.style.display = 'block'; sm.innerHTML = '⚠️ Błąd mikrofonu: ' + event.error + '. Spróbuj ponownie.'; }
+                }
+            };
+
+            _bugRecognition.onend = function() {
+                stopBugVoiceDictation();
+            };
+
+            _bugRecognition.start();
+        } catch(err) {
+            console.error('Failed to start SpeechRecognition:', err);
+            stopBugVoiceDictation();
+            showBugMicPermissionHelp(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+        }
+    }
+
     function closeBugReportModal() {
+        stopBugVoiceDictation();
         var overlay = document.getElementById('bugReportStandaloneOverlay');
         if (overlay) {
             overlay.style.display = 'none';
@@ -741,7 +886,16 @@
                         </div>
                         
                         <div style="margin-bottom:14px;">
-                            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#1e293b;">Opis problemu i kroki odtworzenia:</label>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                                <label style="margin-bottom:0;font-size:13px;font-weight:700;color:#1e293b;">Opis problemu i kroki odtworzenia:</label>
+                                <button type="button" id="bugVoiceDictateBtn" onclick="toggleBugModalVoiceDictation()" style="background:#eff6ff;border:1px solid #93c5fd;color:#1d4ed8;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:all 0.2s;" title="Kliknij, aby dyktować opis głosem">
+                                    <span class="material-icons" style="font-size:16px;">mic</span>
+                                    <span id="bugVoiceDictateBtnText">Dyktuj</span>
+                                </button>
+                            </div>
+                            <div id="bugVoiceStatusMsg" style="display:none;margin-bottom:6px;font-size:12px;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;padding:6px 10px;border-radius:6px;">
+                                🎙️ Słucham... mów wyraźnie po polsku. Kliknij 'Zatrzymaj', aby zakończyć.
+                            </div>
                             <textarea name="opis" id="bugReportOpis" rows="4" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;resize:vertical;outline:none;" placeholder="Np. 1. Wchodzę w ... 2. Wpisuję wagę ... 3. Po kliknięciu nic się nie dzieje ..." required></textarea>
                         </div>
                         
@@ -800,6 +954,7 @@
     }
 
     function submitBugReport() {
+        stopBugVoiceDictation();
         var form = document.getElementById('bugReportForm');
         if (!form) return;
         if (!form.checkValidity()) {

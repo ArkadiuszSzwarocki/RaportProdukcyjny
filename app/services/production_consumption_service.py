@@ -163,8 +163,11 @@ class ProductionConsumptionService:
             if not p:
                 return False, "Paleta nie została znaleziona lub została już wcześniej zużyta.", None
 
+            last_location = str(p.get('lokalizacja') or 'PRODUKCJA').strip()
+            if last_location.upper().startswith('OCZEK') or p.get('is_blocked') == 1:
+                return False, "Nie można zużyć palety ze statusem OCZEKUJĄCE. Paleta musi zostać najpierw przyjęta na magazyn docelowy.", None
+
             last_weight = float(p.get(col_qty) or 0)
-            last_location = p.get('lokalizacja') or 'PRODUKCJA'
             pallet_name = p.get('nazwa') or p.get('produkt') or 'Nieznany produkt'
             pallet_batch = p.get('nr_partii') or '-'
             pallet_sscc = p.get('nr_palety') or f"{pallet_type[:3].upper()}-{pallet_id}"

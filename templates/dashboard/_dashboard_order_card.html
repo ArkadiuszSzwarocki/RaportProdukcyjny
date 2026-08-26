@@ -75,8 +75,12 @@
                 data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
                 data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                 data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
-                style="display:inline;" data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}" onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
-                    type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
+                data-typ-opakowania="{{ (p[14] if p|length > 14 and p[14] else '')|e }}"
+                onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <button type="submit" class="btn-icon-action" title="Rozpocząć">▶</button>
+            </form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
             {% endif %}

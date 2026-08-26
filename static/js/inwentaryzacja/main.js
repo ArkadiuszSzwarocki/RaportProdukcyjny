@@ -1,6 +1,14 @@
 function handleRackScan(code) {
     if (!code) return;
     code = code.trim().toUpperCase();
+    
+    // Jeśli okno szczegółów jest otwarte, skanowanie trafia do handleDetailScan
+    const modal = document.getElementById('slotDetail');
+    if (modal && modal.style.display !== 'none') {
+        handleDetailScan(code);
+        return;
+    }
+    
     const normalized = normalizeLocationCode(code);
     const rackPrefix = currentRackPrefix ? normalizeRackPrefix(currentRackPrefix) : '';
     

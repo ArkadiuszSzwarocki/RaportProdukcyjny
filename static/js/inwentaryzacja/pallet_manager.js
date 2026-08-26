@@ -670,10 +670,10 @@ function globalSearchAndPrompt(sscc, context, targetLoc) {
 
 function movePalletToLocation(paleta, targetLoc, context) {
     let mapTyp = 'surowiec';
-    const t = (paleta.typ || '').toLowerCase();
+    const t = (paleta.typ_palety || paleta.typ || '').toLowerCase();
     if(t.includes('opakowanie')) mapTyp = 'opakowanie';
     else if(t.includes('dodatek')) mapTyp = 'dodatek';
-    else if(t.includes('gotow') || t.includes('wyrób')) mapTyp = 'wyrób gotowy';
+    else if(t.includes('got') || t.includes('wyr') || t.includes('pal')) mapTyp = 'wyrób gotowy';
     else if(t.includes('surowiec')) mapTyp = 'surowiec';
 
     safeToast('Przypisywanie palety...', 'info');

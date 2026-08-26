@@ -50,9 +50,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             opakowanie_id = None
             etykieta_id = None
             db_nr_partii = None
+            typ_opakowania = ''
             if linia == 'AGRO':
                 cursor.execute(
-                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id, nr_partii FROM {table_plan} WHERE id=%s",
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id, nr_partii, COALESCE(typ_opakowania, '') FROM {table_plan} WHERE id=%s",
                     (id,),
                 )
             else:
@@ -66,11 +67,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
             if z:
                 if linia == 'AGRO':
-                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id, db_nr_partii = z
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id, db_nr_partii, typ_opakowania = z
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
+                    typ_opakowania = ''
 
                 is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+                is_big_bag = (
+                    str(typ_opakowania or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or
+                    str(typ or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or
+                    'big bag' in str(produkt or '').lower() or
+                    'bigbag' in str(produkt or '').lower()
+                )
 
                 if is_czyszczenie and linia == 'AGRO':
                     typ_pakowania = request.form.get('typ_pakowania')
@@ -118,7 +126,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     quality_login_used = None
                     quality_role_used = None
 
-                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie:
+                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie and not is_big_bag and status_obecny != 'zawieszone':
                         if not opakowanie_id or not etykieta_id:
                             flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
                             return redirect(bezpieczny_powrot())

@@ -187,57 +187,61 @@ function renderItems() {
 
         items.forEach((item, index) => {
             const row = document.createElement('tr');
-            row.style.background = item.is_manual ? '#f0fdf4' : (index % 2 === 0 ? '#fff' : '#fcfcfc');
+            const isAccepted = Boolean(item && (item.accepted || item.lokalizacja_przyjecia));
+            const itemDisabledAttr = (READ_ONLY_MODE || isAccepted) ? 'disabled' : '';
+
+            row.style.background = isAccepted ? '#f0fdf4' : (item.is_manual ? '#f8fafc' : (index % 2 === 0 ? '#fff' : '#fcfcfc'));
             row.style.borderBottom = '2px solid #e2e8f0';
 
             const quantityValue = getItemQuantity(item);
             const unitValue = getItemUnit(item);
             const validation = getItemValidationMap(item, targetLoc);
-            const productBorderStyle = getValidationBorderStyle(validation.productName);
-            const sourceBorderStyle = getValidationBorderStyle(validation.sourceSpot);
-            const quantityBorderStyle = getValidationBorderStyle(validation.quantity);
-            const unitBorderStyle = getValidationBorderStyle(validation.unit);
+            const productBorderStyle = isAccepted ? 'border: 1px solid #86efac;' : getValidationBorderStyle(validation.productName);
+            const sourceBorderStyle = isAccepted ? 'border: 1px solid #86efac;' : getValidationBorderStyle(validation.sourceSpot);
+            const quantityBorderStyle = isAccepted ? 'border: 1px solid #86efac;' : getValidationBorderStyle(validation.quantity);
+            const unitBorderStyle = isAccepted ? 'border: 1px solid #86efac;' : getValidationBorderStyle(validation.unit);
             const batchBorderStyle = getValidationBorderStyle(validation.nr_partii);
             const prodDateBorderStyle = getValidationBorderStyle(validation.data_produkcji);
             const expiryDateBorderStyle = getValidationBorderStyle(validation.data_przydatnosci);
             const copiedFromNumber = getCopiedFromNumber(item, index);
-            const copyButtonHtml = index > 0
-                ? `<button ${disabledAttr} onclick="copyItem(${index})" title="Kopiuj dane z palety nr ${index}" style="background:none; border:none; color:#0ea5e9; cursor:pointer;">
+            const copyButtonHtml = (index > 0 && !isAccepted)
+                ? `<button ${itemDisabledAttr} onclick="copyItem(${index})" title="Kopiuj dane z palety nr ${index}" style="background:none; border:none; color:#0ea5e9; cursor:pointer;">
                         <span class="material-icons" style="font-size:20px;">content_copy</span>
                    </button>`
                 : '';
             const printButtonHtml = `<button type="button" onclick="previewItemLabel(${index})" title="Drukuj / podgląd etykiety" style="background:none; border:none; color:#10b981; cursor:pointer;">
                     <span class="material-icons" style="font-size:20px;">print</span>
                 </button>`;
-            const showWarning = (hasErr) => (hasErr && formSubmitAttempted) ? `<span class="material-icons" style="color: #dc2626; font-size: 16px; position: absolute; right: 18px; top: 17px; pointer-events: none;">warning</span>` : '';
+            const showWarning = (hasErr) => (!isAccepted && hasErr && formSubmitAttempted) ? `<span class="material-icons" style="color: #dc2626; font-size: 16px; position: absolute; right: 18px; top: 17px; pointer-events: none;">warning</span>` : '';
 
             row.innerHTML = `
                 <td style="padding: 10px 20px; font-size: 13px; color: #64748b; vertical-align: middle; font-weight: 800; white-space: nowrap;">
                     ${index + 1}
+                    ${isAccepted ? `<div style="margin-top: 4px;"><span style="display:inline-flex; align-items:center; gap:2px; font-size: 9px; font-weight: 800; color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 4px; padding: 2px 5px;"><span class="material-icons" style="font-size:10px;">check_circle</span> PRZYJĘTA (${escapeAttr(item.lokalizacja_przyjecia || item.sourceSpot || '')})</span></div>` : ''}
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${copiedFromNumber ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>` : ''}
                     ${showWarning(validation.productName)}
-                    <input type="text" ${disabledAttr} value="${escapeAttr(item.productName || '')}" onchange="updateItem(${index}, 'productName', this.value)"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.productName || '')}" onchange="updateItem(${index}, 'productName', this.value)"
                            list="productsList" placeholder="Wybierz produkt"
                            style="width: 100%; height: 34px; ${productBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${showWarning(validation.sourceSpot)}
-                      <input type="text" ${disabledAttr} value="${escapeAttr(item.sourceSpot || '')}" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
+                      <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.sourceSpot || '')}" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
                           oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" list="locationSuggestionsList" autocomplete="off"
-                           placeholder="np. BF_MS01"
-                           style="width: 100%; height: 34px; ${sourceBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; box-sizing: border-box; min-width: 0;">
+                            placeholder="np. BF_MS01"
+                            style="width: 100%; height: 34px; ${sourceBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${showWarning(validation.quantity)}
-                    <input type="number" ${disabledAttr} value="${escapeAttr(quantityValue)}"
+                    <input type="number" ${itemDisabledAttr} value="${escapeAttr(quantityValue)}"
                            onchange="updateItem(${index}, 'quantity', this.value)" placeholder=""
                            style="width: 100%; height: 34px; ${quantityBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${showWarning(validation.unit)}
-                    <select ${disabledAttr} onchange="updateItem(${index}, 'unit', this.value)"
+                    <select ${itemDisabledAttr} onchange="updateItem(${index}, 'unit', this.value)"
                             style="width: 100%; height: 34px; ${unitBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0; background: white;">
                         <option value="" ${unitValue === '' ? 'selected' : ''}>--</option>
                         <option value="kg" ${unitValue === 'kg' ? 'selected' : ''}>kg</option>
@@ -245,22 +249,22 @@ function renderItems() {
                     </select>
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPaleta ? '' : 'display:none;'}">
-                    <input type="text" ${disabledAttr} value="${escapeAttr(item.nr_palety || '')}" onchange="updateItem(${index}, 'nr_palety', this.value.toUpperCase())"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_palety || '')}" onchange="updateItem(${index}, 'nr_palety', this.value.toUpperCase())"
                            placeholder="Nr SSCC"
                            style="width: 100%; height: 34px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0; text-transform: uppercase;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPartia ? '' : 'display:none;'}">
-                    <input type="text" ${disabledAttr} value="${escapeAttr(item.nr_partii || '')}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_partii || '')}" onchange="updateItem(${index}, 'nr_partii', this.value)"
                            placeholder="Nr partii"
                            style="width: 100%; height: 34px; ${batchBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasProd ? '' : 'display:none;'}">
-                    <input type="date" ${disabledAttr} value="${escapeAttr(item.data_produkcji || '')}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_produkcji || '')}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
                            title="Data produkcji"
                            style="width: 100%; height: 34px; ${prodDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPrzyd ? '' : 'display:none;'}">
-                    <input type="date" ${disabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
                            title="Data przydatności"
                            style="width: 100%; height: 34px; ${expiryDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
@@ -268,9 +272,11 @@ function renderItems() {
                     <div style="display: inline-flex; align-items: center; gap: 6px;">
                         ${copyButtonHtml}
                         ${printButtonHtml}
-                        <button ${disabledAttr} onclick="removeItem(${index})" title="Usuń paletę nr ${index + 1}" style="background:none; border:none; color:#ef4444; cursor:pointer;">
-                            <span class="material-icons" style="font-size:20px;">delete</span>
-                        </button>
+                        ${isAccepted 
+                            ? `<span class="material-icons" style="font-size:20px; color:#16a34a;" title="Paleta przyjęta">check_circle</span>` 
+                            : `<button ${itemDisabledAttr} onclick="removeItem(${index})" title="Usuń paletę nr ${index + 1}" style="background:none; border:none; color:#ef4444; cursor:pointer;">
+                                <span class="material-icons" style="font-size:20px;">delete</span>
+                               </button>`}
                     </div>
                 </td>
             `;

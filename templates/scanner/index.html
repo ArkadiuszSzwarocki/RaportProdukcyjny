@@ -56,20 +56,43 @@
 {% block scanner_title %}Główny Skaner{% endblock %}
 {% block scanner_subtitle %}Magazyn i Produkcja ({{ linia }}){% endblock %}
 
+{% block scanner_header_actions %}
+<button type="button" onclick="resetScanner()" title="Odśwież skaner" style="display:inline-flex; align-items:center; gap:4px; padding:6px 10px; border-radius:8px; background:#fff; border:1px solid #cbd5e1; font-size:12px; font-weight:700; color:#334155; cursor:pointer;">
+    <span class="material-icons" style="font-size:16px; color:#2563eb;">refresh</span>
+    <span>Odśwież</span>
+</button>
+{% endblock %}
+
 {% block scanner_content %}
 <div class="scanner-wrap" style="padding: 0; box-shadow: none; background: transparent; min-height: auto; max-width: 700px; margin: 0 auto;">
 
   <!-- SCAN BOX -->
   <div class="scan-card" style="margin-top: 4px;">
-    <div class="scan-title" style="margin-bottom: 12px;">
-      <span class="material-icons" style="color:var(--primary-color);">barcode_reader</span>
-      Skanuj kod regału lub palety
+    <div class="scan-title" style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" id="scanTitleIcon" style="color:var(--primary-color);">barcode_reader</span>
+        <span id="scanTitleText">Skanuj kod regału lub palety</span>
+      </div>
+      <button type="button" id="btnResetScannerHeader" onclick="resetScanner()" title="Zresetuj skaner / Skanuj inną paletę"
+              style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; transition: all 0.2s;"
+              onmouseover="this.style.background='#e0f2fe'; this.style.color='#0284c7'; this.style.borderColor='#7dd3fc';"
+              onmouseout="this.style.background='#f1f5f9'; this.style.color='#334155'; this.style.borderColor='#cbd5e1';">
+        <span class="material-icons" style="font-size: 16px; color: #2563eb;">refresh</span>
+        <span>Nowy skan</span>
+      </button>
     </div>
     
-    <!-- Pole tekstowe - pełna szerokość, tekst od lewej krawędzi -->
-    <div style="width: 100%;">
+    <!-- Pole tekstowe - pełna szerokość z wbudowaną ikoną odświeżenia -->
+    <div style="position: relative; width: 100%;">
       <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
-             placeholder="Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)" autofocus>
+             placeholder="Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)" autofocus
+             style="width: 100%; padding-right: 44px; box-sizing: border-box;">
+      <button type="button" id="btnResetScannerInput" onclick="resetScanner()" title="Wyczyść i zresetuj skaner"
+              style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 6px; transition: all 0.15s;"
+              onmouseover="this.style.color='#2563eb'; this.style.background='#eff6ff'"
+              onmouseout="this.style.color='#64748b'; this.style.background='none'">
+        <span class="material-icons" style="font-size: 22px;">refresh</span>
+      </button>
     </div>
 
     <!-- Przyciski akcji pod spodem okna -->
@@ -95,16 +118,25 @@
 
   <!-- PALLET INFO -->
   <div class="scan-card">
-    <div class="scan-title">
-      <span class="material-icons" style="color:#16a34a;">inventory_2</span>
-      Znaleziona paleta
+    <div class="scan-title" style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="color:#16a34a;">inventory_2</span>
+        <span>Znaleziona paleta</span>
+      </div>
+      <button type="button" onclick="resetScanner()" title="Zeskanuj inną paletę"
+              style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; color: #475569; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;"
+              onmouseover="this.style.background='#eff6ff'; this.style.color='#2563eb'; this.style.borderColor='#93c5fd';"
+              onmouseout="this.style.background='#f8fafc'; this.style.color='#475569'; this.style.borderColor='#cbd5e1';">
+        <span class="material-icons" style="font-size: 14px;">refresh</span>
+        <span>Inna paleta</span>
+      </button>
     </div>
     <div class="pallet-card" id="palletCard">
       <div id="palletTimeoutBarContainer" style="width: 100%; height: 4px; background-color: #e2e8f0; border-radius: 2px; overflow: hidden; margin-bottom: 12px; display: none;">
         <div id="palletTimeoutBar" style="height: 100%; background-color: #3b82f6; width: 100%;"></div>
       </div>
       <div class="row justify-between items-start">
-        <div>
+        <div style="flex: 1; min-width: 0;">
           <div class="pallet-loc" id="palletLoc">R030101</div>
           <div class="pallet-name" id="palletName">Mąka Pszenna</div>
           <div class="row gap-8 mb-8 wrap">

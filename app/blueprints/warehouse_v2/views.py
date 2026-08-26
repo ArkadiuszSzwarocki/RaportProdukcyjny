@@ -118,6 +118,7 @@ def index():
         for linia_palety in palety_linie:
             table_palety = get_table_name('magazyn_palety', linia_palety)
             table_plan = get_table_name('plan_produkcji', linia_palety)
+            line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if table_palety == 'magazyn_palety' else ""
             try:
                 cursor.execute(
                     f"""
@@ -134,7 +135,7 @@ def index():
                            COALESCE(m.created_at, m.data_potwierdzenia) as created_at
                     FROM {table_palety} m
                     LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
-                    WHERE m.waga_netto > 0
+                    WHERE m.waga_netto > 0 {line_condition}
                     """
                 )
                 palety = cursor.fetchall()
@@ -302,6 +303,7 @@ def summary():
         for linia_palety in palety_linie:
             table_palety = get_table_name('magazyn_palety', linia_palety)
             table_plan = get_table_name('plan_produkcji', linia_palety)
+            line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if table_palety == 'magazyn_palety' else ""
             cursor.execute(f"""
                 SELECT m.id, m.nr_palety, 
                        COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
@@ -313,7 +315,7 @@ def summary():
                        COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci 
                 FROM {table_palety} m
                 LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
-                WHERE m.waga_netto > 0
+                WHERE m.waga_netto > 0 {line_condition}
             """)
             for row in cursor.fetchall():
                 row['unit'] = 'kg'

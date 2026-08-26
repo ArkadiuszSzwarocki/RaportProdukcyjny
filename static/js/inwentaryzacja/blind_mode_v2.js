@@ -276,11 +276,12 @@ function submitBlindWeight() {
     const targetLoc = lastLocation;
     const paleta = currentBlindPallet;
     
-    let mapTyp = 'PAL';
-    const t = (paleta.typ || '').toLowerCase();
-    if(t.includes('surowiec')) mapTyp = 'surowiec';
-    else if(t.includes('opakowanie')) mapTyp = 'opakowanie';
+    let mapTyp = 'surowiec';
+    const t = (paleta.typ_palety || paleta.typ || '').toLowerCase();
+    if(t.includes('opakowanie')) mapTyp = 'opakowanie';
     else if(t.includes('dodatek')) mapTyp = 'dodatek';
+    else if(t.includes('got') || t.includes('wyróbgotowy') || t.includes('pal')) mapTyp = 'wyrób gotowy';
+    else if(t.includes('surowiec')) mapTyp = 'surowiec';
 
     safeToast('Zapisywanie...', 'info');
     document.getElementById('blindWeightModal').style.display = 'none';

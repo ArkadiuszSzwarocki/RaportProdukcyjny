@@ -4,11 +4,11 @@ from app.core.database import get_db_connection
 class TraceabilityService:
     @staticmethod
     def get_pallet_trace(nr_palety):
-        """Trace a finished pallet bottom-up to its raw materials."""
+        """Trace a finished pallet bottom-up to its raw materials, or a raw material/package across its lifecycle."""
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            # 1. Find the pallet
+            # 1. Find the pallet across all tables
             query_pallet = """
                 SELECT id, nr_palety, plan_id, 'PSD' as linia, produkt, waga_netto, data_potwierdzenia, 'WYROB_GOTOWY' as type 
                 FROM magazyn_palety WHERE nr_palety = %s
@@ -21,20 +21,37 @@ class TraceabilityService:
                 UNION ALL
                 SELECT id, nr_palety, plan_id, 'AGRO' as linia, 'W trakcie workowania' as produkt, waga_brutto as waga_netto, data_dodania as data_potwierdzenia, 'W_WORKOWANIU' as type 
                 FROM palety_agro WHERE nr_palety = %s
+                UNION ALL
+                SELECT id, nr_palety, NULL as plan_id, linia, nazwa as produkt, stan_magazynowy as waga_netto, created_at as data_potwierdzenia, 'SUROWIEC' as type 
+                FROM magazyn_surowce WHERE nr_palety = %s
+                UNION ALL
+                SELECT id, nr_palety, NULL as plan_id, 'PSD' as linia, nazwa as produkt, stan_magazynowy as waga_netto, created_at as data_potwierdzenia, 'OPAKOWANIE' as type 
+                FROM magazyn_opakowania WHERE nr_palety = %s
+                UNION ALL
+                SELECT id, nr_palety, NULL as plan_id, linia, nazwa as produkt, stan_magazynowy as waga_netto, created_at as data_potwierdzenia, 'DODATEK' as type 
+                FROM magazyn_dodatki WHERE nr_palety = %s
+                UNION ALL
+                SELECT id, nr_palety, NULL as plan_id, linia, nazwa as produkt, waga_ostatnia as waga_netto, data_archiwizacji as data_potwierdzenia, 'ARCHIWUM' as type 
+                FROM magazyn_archiwum WHERE nr_palety = %s
             """
-            cursor.execute(query_pallet, (nr_palety, nr_palety, nr_palety, nr_palety))
+            cursor.execute(query_pallet, (nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety))
             pallet = cursor.fetchone()
             
             if not pallet:
                 return {"error": "Paleta nie została znaleziona"}
                 
+            from app.services.warehouse_history_service import WarehouseHistoryService
+            lifecycle = WarehouseHistoryService.get_unified_station_and_movement_history(linia='ALL', surowiec=nr_palety, limit=100)
+
             plan_id = pallet.get('plan_id')
             if not plan_id:
                 return {
                     "pallet": pallet,
                     "plan": None,
                     "materials": [],
-                    "message": "Paleta nie ma powiązanego zlecenia produkcyjnego (plan_id)."
+                    "receptura": [],
+                    "lifecycle": lifecycle,
+                    "message": "Paleta materiałowa / surowcowa (pełny cykl życia w historii)."
                 }
             
             # 2. Find the plan based on pallet's line
@@ -226,6 +243,7 @@ class TraceabilityService:
                 "materials": materials,
                 "receptura": receptura,
                 "nr_receptury": nr_receptury_plan,
+                "lifecycle": lifecycle,
             }
         finally:
             cursor.close()
