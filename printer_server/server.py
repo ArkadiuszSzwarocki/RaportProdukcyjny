@@ -35,12 +35,17 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Private-Network', 'true')
     return response
 
-# Stała mapa IP jako fallback / wartości domyślne (skopiowana z Node.js)
+# Stała mapa IP jako fallback / wartości domyślne
 PRINTER_IP_MAP = {
     'Biuro': '192.168.1.236',
     'Magazyn': '192.168.1.237',
+    'TSC Magazyn PSD': '192.168.1.236',
     'Handel': '192.168.1.240',
-    'OSIP': '192.168.1.160',
+    'Zebra Produkcja': '192.168.1.160',
+    'Zebra OSIP 86': '192.168.1.86',
+    'Zebra OSIP 184': '192.168.1.47',
+    'Zebra OSIP (USB)': 'USB',
+    'OSIP': '192.168.1.47',
 }
 
 def _read_float_env(name, default_value, minimum=None):
@@ -78,12 +83,15 @@ DEFAULT_PRINTER_TCP_RETRIES = _read_int_env('PRINTER_TCP_RETRIES', 3, minimum=1,
 DEFAULT_PRINTER_TCP_RETRY_DELAY = _read_float_env('PRINTER_TCP_RETRY_DELAY', 0.6, minimum=0.0)
 
 
-def wyslij_do_drukarki_win32(zpl, printer_name="ET9C934EE131D8"):
-    """Fallback: Wysyła surowy ciąg ZPL do bufora wydruku Windows (win32print)."""
+def wyslij_do_drukarki_win32(zpl, printer_name=None):
+    """Fallback / USB: Wysyła surowy ciąg ZPL do bufora wydruku Windows (win32print)."""
     try:
         import win32print
-        logger.info(f"[WIN32] Próba wysłania ZPL przez Windows Spooler do {printer_name}...")
-        hprinter = win32print.OpenPrinter(printer_name)
+        target_name = printer_name
+        if not target_name:
+            target_name = win32print.GetDefaultPrinter()
+        logger.info(f"[WIN32] Próba wysłania ZPL przez Windows Spooler do {target_name}...")
+        hprinter = win32print.OpenPrinter(target_name)
         try:
             doc_info = ("Etykieta ZPL OSIP", None, "RAW")
             job_id = win32print.StartDocPrinter(hprinter, 1, doc_info)
@@ -93,16 +101,63 @@ def wyslij_do_drukarki_win32(zpl, printer_name="ET9C934EE131D8"):
             win32print.WritePrinter(hprinter, zpl.encode('utf-8'))
             win32print.EndPagePrinter(hprinter)
             win32print.EndDocPrinter(hprinter)
-            logger.info(f"[WIN32] Sukces wysłania do bufora Windows {printer_name} (Job ID: {job_id})")
+            logger.info(f"[WIN32] Sukces wysłania do bufora Windows {target_name} (Job ID: {job_id})")
             return True
         finally:
             win32print.ClosePrinter(hprinter)
     except Exception as e:
-        logger.error(f"[WIN32] Błąd wysyłania do {printer_name}: {e}")
-        raise Exception(f"Błąd bufora Windows ({printer_name}): {e}")
+        target_desc = printer_name or 'domyślnej drukarki Windows'
+        logger.error(f"[WIN32] Błąd wysyłania do {target_desc}: {e}")
+        raise Exception(f"Błąd bufora Windows ({target_desc}): {e}")
 
-def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_delay=None):
-    """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP, z fallbackiem dla Spoolera Windows."""
+def sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5):
+    """Odpytuje drukarkę ZPL komendą ~HS (Host Status) i sprawdza fizyczne czujniki papieru/głowicy/pauzy."""
+    try:
+        tcp_socket.settimeout(timeout)
+        tcp_socket.sendall(b"~HS\r\n")
+        time.sleep(0.15)
+        raw_resp = tcp_socket.recv(1024).decode('utf-8', errors='ignore').strip()
+        if not raw_resp:
+            return True, "Brak odpowiedzi statusowej ~HS (etykieta wysłana)"
+
+        # Odpowiedź ~HS składa się z linijek oddzielonych CRLF lub STX/ETX
+        clean_resp = raw_resp.replace('\x02', '').replace('\x03', '')
+        lines = [l.strip() for l in clean_resp.split('\r\n') if l.strip()]
+        if not lines:
+            lines = [l.strip() for l in clean_resp.split('\n') if l.strip()]
+
+        if lines:
+            parts = lines[0].split(',')
+            if len(parts) >= 8:
+                paper_out = parts[1].strip() == '1'
+                paused = parts[2].strip() == '1'
+                head_open = parts[6].strip() == '1'
+                ribbon_out = parts[7].strip() == '1'
+
+                if paper_out:
+                    return False, "Fizyczny błąd drukarki: BRAK PAPIERU / ETYKIET!"
+                if head_open:
+                    return False, "Fizyczny błąd drukarki: GŁOWICA / KLAPA JEST OTWARTA!"
+                if paused:
+                    return False, "Fizyczny błąd drukarki: Drukarka jest wstrzymana (PAUSE)!"
+                if ribbon_out:
+                    return False, "Fizyczny błąd drukarki: BRAK TAŚMY BARWIĄCEJ (RIBBON OUT)!"
+
+        return True, "Fizyczne czujniki mechanizmu Zebra zweryfikowane - OK"
+    except Exception as e:
+        logger.debug(f"[~HS] Nie odczytano statusu ~HS: {e}")
+        return True, "Wysłano dane (brak zwrotnego statusu ~HS)"
+
+def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_delay=None, printer_name=None):
+    """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP, lub do bufora Windows Spooler dla USB."""
+    ip_str = str(ip or '').strip()
+    
+    # Obsługa drukarek USB oraz lokalnych sterowników Windows Spooler
+    if ip_str.upper() == 'USB' or ip_str.lower().startswith('usb'):
+        win_target = printer_name if (printer_name and printer_name.upper() != 'USB') else None
+        logger.info(f"[USB] Drukarka podłączona przez USB/Spooler. Wysłanie do {win_target or 'domyślnej drukarki Windows'}...")
+        return wyslij_do_drukarki_win32(zpl, win_target)
+
     tcp_timeout = DEFAULT_PRINTER_TCP_TIMEOUT if timeout is None else max(0.5, float(timeout))
     attempts = DEFAULT_PRINTER_TCP_RETRIES if retries is None else max(1, int(retries))
     pause_s = DEFAULT_PRINTER_TCP_RETRY_DELAY if retry_delay is None else max(0.0, float(retry_delay))
@@ -111,39 +166,55 @@ def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_del
 
     for attempt in range(1, attempts + 1):
         try:
-            logger.info(f"[TCP] Wysyłanie danych do {ip}:{port} (próba {attempt}/{attempts})...")
+            logger.info(f"[TCP] Wysyłanie danych do {ip_str}:{port} (próba {attempt}/{attempts})...")
             
             # Ensure ZPL ends with newline to prevent printer spooler hang
             if not zpl.endswith('\n'):
                 zpl += '\r\n'
                 
-            with socket.create_connection((ip, port), timeout=tcp_timeout) as tcp_socket:
+            with socket.create_connection((ip_str, port), timeout=tcp_timeout) as tcp_socket:
                 tcp_socket.sendall(zpl.encode('utf-8'))
+                
+                # Dwukierunkowa weryfikacja czujników mechanicznych Zebra (~HS)
+                ok_sensor, sensor_msg = sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5)
+                if not ok_sensor:
+                    logger.error(f"[TCP] {sensor_msg} dla {ip_str}:{port}")
+                    raise Exception(sensor_msg)
+
                 # Allow time for the printer to process before tearing down the TCP connection
                 time.sleep(0.2)
-                tcp_socket.shutdown(socket.SHUT_RDWR)
+                try:
+                    tcp_socket.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
 
             if attempt > 1:
-                logger.info(f"[TCP] Sukces po ponowieniu dla {ip}:{port} (próba {attempt}/{attempts})")
+                logger.info(f"[TCP] Sukces po ponowieniu dla {ip_str}:{port} (próba {attempt}/{attempts})")
             return True
         except socket.timeout:
             last_error_message = 'Timeout połączenia z drukarką'
-            logger.warning(f"[TCP] Timeout dla {ip}:{port} (próba {attempt}/{attempts})")
+            logger.warning(f"[TCP] Timeout dla {ip_str}:{port} (próba {attempt}/{attempts})")
         except Exception as e:
-            last_error_message = f'Błąd połączenia: {str(e)}'
-            logger.warning(f"[TCP] Błąd połączenia z {ip}:{port} (próba {attempt}/{attempts}) - {str(e)}")
+            last_error_message = str(e)
+            logger.warning(f"[TCP] Błąd połączenia z {ip_str}:{port} (próba {attempt}/{attempts}) - {str(e)}")
 
         if attempt < attempts and pause_s > 0:
             time.sleep(pause_s)
 
-    # Próba fallbacku do Windows Spooler dla drukarek zainstalowanych w Windows (np. ET9C934EE131D8 dla 192.168.1.47)
-    logger.info(f"[FALLBACK] Próba wysłania przez Windows Spooler (ET9C934EE131D8)...")
-    try:
-        return wyslij_do_drukarki_win32(zpl, "ET9C934EE131D8")
-    except Exception as win_err:
-        logger.error(f"[FALLBACK] Nieudany fallback Windows Spooler: {win_err}")
+    # Próba fallbacku do Windows Spooler TYLKO dla drukarek OSIP / Windows Spooler
+    is_osip_printer = (
+        ip_str == '192.168.1.47' or
+        (printer_name and any(token in str(printer_name).lower() for token in ('osip', 'spooler', 'win32')))
+    )
+    if is_osip_printer:
+        win_target = printer_name if (printer_name and not printer_name.startswith('192.')) else None
+        logger.info(f"[FALLBACK OSIP] Próba wysłania przez Windows Spooler ({win_target or 'domyślna drukarka Windows'})...")
+        try:
+            return wyslij_do_drukarki_win32(zpl, win_target)
+        except Exception as win_err:
+            logger.error(f"[FALLBACK OSIP] Nieudany fallback Windows Spooler: {win_err}")
 
-    logger.error(f"[TCP] Błąd końcowy dla {ip}:{port} po {attempts} próbach: {last_error_message}")
+    logger.error(f"[TCP] Błąd końcowy dla {ip_str}:{port} po {attempts} próbach: {last_error_message}")
     raise Exception(f'{last_error_message} (po {attempts} próbach)')
 
 
@@ -297,7 +368,7 @@ def drukuj_zpl():
         zpl_string += "^XZ"
 
     try:
-        wyslij_do_drukarki(zpl_string, target_ip)
+        wyslij_do_drukarki(zpl_string, target_ip, printer_name=drukarka)
         logger.info("✅ Sukces: Etykieta wysłana do drukarki.")
         return jsonify({"success": True})
     except Exception as e:
@@ -412,8 +483,14 @@ if __name__ == '__main__':
         logger.info("✅ SSL: Certyfikaty aktywne z plików lokalnych.")
         protocol = "HTTPS"
     else:
-        logger.info("⚠️ SSL: Brak lokalnych certyfikatów. Uruchamiam w trybie HTTP.")
-        protocol = "HTTP"
+        try:
+            import OpenSSL
+            ssl_context = 'adhoc'
+            logger.info("✅ SSL: Aktywowano automatyczny certyfikat SSL (adhoc) dla skanerów mobilnych.")
+            protocol = "HTTPS (adhoc)"
+        except ImportError:
+            logger.info("⚠️ SSL: Brak lokalnych certyfikatów oraz pyOpenSSL. Uruchamiam w trybie HTTP.")
+            protocol = "HTTP"
         
     logger.info(f"\n🚀 MOST DO DRUKAREK AKTYWNY (Python) na porcie {port} ({protocol})")
     app.run(host='0.0.0.0', port=port, ssl_context=ssl_context)
