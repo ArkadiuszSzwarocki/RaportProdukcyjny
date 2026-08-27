@@ -91,8 +91,11 @@
                         <label class="form-label" style="font-weight: 800; color: #1e3a8a; font-size: 0.9rem;">DODAJ SKŁADNIK (SKANUJ KOD SSCC)</label>
                         <div class="input-group">
                             <input type="text" id="splitScannerInput" class="form-control premium-input text-center" 
-                                   placeholder="Zeskanuj kod palety do dodania..." 
+                                   placeholder="Zeskanuj lub wklej kod palety..." 
                                    autocomplete="off" style="font-size: 1.1rem; letter-spacing: 1px;">
+                            <button class="btn-action btn-blue px-3 d-flex align-items-center" type="button" id="splitSearchBtn">
+                                <span class="material-icons me-1">search</span> Szukaj
+                            </button>
                         </div>
                         <div class="text-center text-muted small mt-2">Kursor musi znajdować się w tym polu podczas skanowania.</div>
                         
@@ -226,8 +229,31 @@
         }
     });
 
+    function cleanSsccInput(val) {
+        if (!val) return '';
+        let clean = String(val).trim();
+        if ((clean.includes('{') && clean.includes('}')) || clean.includes('"sscc"') || clean.includes('"nr_palety"')) {
+            try {
+                const match = clean.match(/\{[\s\S]*\}/);
+                if (match) {
+                    const parsed = JSON.parse(match[0]);
+                    const extracted = parsed.sscc || parsed.nr_palety || parsed.id;
+                    if (extracted) clean = String(extracted).trim();
+                }
+            } catch (e) {
+                const ssccMatch = clean.match(/"sscc"\s*:\s*"([^"]+)"/i) || clean.match(/"nr_palety"\s*:\s*"([^"]+)"/i);
+                if (ssccMatch) clean = ssccMatch[1].trim();
+            }
+        }
+        clean = clean.replace(/[\r\n]+/g, '').trim();
+        if (clean.startsWith('(00)')) {
+            clean = clean.substring(4).trim();
+        }
+        return clean;
+    }
+
     function handleScannerSubmit() {
-        const sscc = scannerInput.value.trim().replace(/[\r\n]+/g, '');
+        const sscc = cleanSsccInput(scannerInput.value);
         if (!sscc) return;
         
         scannerInput.disabled = true;
@@ -272,6 +298,10 @@
         });
     }
 
+    document.getElementById('splitSearchBtn').addEventListener('click', function() {
+        handleScannerSubmit();
+    });
+
     scannerInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -279,11 +309,28 @@
         }
     });
 
+    scannerInput.addEventListener('paste', function(e) {
+        setTimeout(() => {
+            scannerInput.value = cleanSsccInput(scannerInput.value);
+            if (scannerInput.value) {
+                handleScannerSubmit();
+            }
+        }, 50);
+    });
+
+    let inputDebounceTimer = null;
     scannerInput.addEventListener('input', function(e) {
-        const val = this.value.trim().replace(/[\r\n]+/g, '');
-        // Autowysyłanie przy 18 znakach (pełen SSCC) lub 6 znakach (skrócony numer)
+        const val = cleanSsccInput(this.value);
         if (val.length === 18 || val.length === 6) {
+            clearTimeout(inputDebounceTimer);
             handleScannerSubmit();
+        } else if (val.length >= 4) {
+            clearTimeout(inputDebounceTimer);
+            inputDebounceTimer = setTimeout(() => {
+                if (scannerInput.value.trim() && !scannerInput.disabled) {
+                    handleScannerSubmit();
+                }
+            }, 600);
         }
     });
 
@@ -307,8 +354,8 @@
             document.getElementById('wmInputQty').focus();
             return;
         }
-        if (val >= parseFloat(currentScannedPallet.waga)) {
-            AppDialog.alert('Waga musi być mniejsza od obecnego stanu palety!');
+        if (val > parseFloat(currentScannedPallet.waga)) {
+            AppDialog.alert('Waga nie może być większa od obecnego stanu palety!');
             document.getElementById('wmInputQty').focus();
             return;
         }

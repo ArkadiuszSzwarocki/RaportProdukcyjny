@@ -63,9 +63,6 @@ class PalletMixService:
 
                 if not mother_sscc or weight_to_take <= 0:
                     return False, f"Błędne dane komponentu (SSCC: {mother_sscc}, Waga: {weight_to_take}).", None
-                    
-                if mother_sscc.upper().startswith('SUR') or mother_sscc.upper().startswith('DOD'):
-                    return False, f"Zakaz mixowania surowców (paleta: {mother_sscc}).", None
 
                 pal = PalletSplitService.find_by_sscc(mother_sscc)
                 if not pal:
@@ -79,7 +76,7 @@ class PalletMixService:
                     return False, f"Paleta {pal.get('nr_palety')} jest zablokowana i nie może być użyta w mixie.", None
 
                 current_weight = PalletSplitService._get_weight(pal, source)
-                if weight_to_take >= current_weight:
+                if weight_to_take > current_weight:
                     return (
                         False,
                         f"Brak wystarczającej wagi na palecie {pal.get('nr_palety')} (Żądano: {weight_to_take}, Stan: {current_weight}).",
@@ -166,6 +163,9 @@ class PalletMixService:
                 elif source == 'dodatek':
                     table = 'magazyn_dodatki'
                     cursor.execute(f"UPDATE {table} SET stan_magazynowy = %s WHERE id = %s", (new_weight, mother_id))
+                elif source == 'produkcja':
+                    table = get_table_name('palety_workowanie', linia_zrodlowa)
+                    cursor.execute(f"UPDATE {table} SET waga = %s WHERE id = %s", (new_weight, mother_id))
                 else:
                     table = get_table_name('magazyn_palety', linia_zrodlowa)
                     cursor.execute(f"UPDATE {table} SET waga_netto = %s WHERE id = %s", (new_weight, mother_id))
@@ -188,6 +188,7 @@ class PalletMixService:
                     'linia': linia_zrodlowa,
                     'source': source,
                     'waga_odjeta': weight_to_take,
+                    'weight_taken': weight_to_take,
                     'produkt': product_name,
                     'nr_partii': pal.get('nr_partii'),
                     'data_produkcji': pal.get('data_produkcji'),

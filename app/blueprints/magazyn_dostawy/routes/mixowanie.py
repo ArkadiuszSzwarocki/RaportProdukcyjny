@@ -29,10 +29,6 @@ def api_mix_scan():
     if not pal:
         return jsonify({'success': False, 'error': f'Nie odnaleziono palety: {sscc}'})
 
-    # Zakaz mixowania surowców (SSCC zaczynające się od SUR lub DOD)
-    if sscc.upper().startswith('SUR') or sscc.upper().startswith('DOD'):
-        return jsonify({'success': False, 'error': 'Zakaz mixowania surowców (paleta SUR/DOD).'})
-
     # Ograniczenie by można było uzywać tylko surowców/opakowań (chociaż usługa wspiera wszystkie)
     if pal.get('is_blocked'):
         return jsonify({'success': False, 'error': 'Paleta jest zablokowana.'})
@@ -99,7 +95,11 @@ def api_mix_finalize():
         import json
         import urllib.parse
         comps_encoded = urllib.parse.quote(json.dumps([
-            {'sscc': s['mother_nr_palety'], 'produkt': s['produkt'], 'waga': s['weight_taken']} 
+            {
+                'sscc': s.get('mother_nr_palety', ''),
+                'produkt': s.get('produkt', ''),
+                'waga': s.get('waga_odjeta') or s.get('weight_taken') or s.get('weight_to_take') or 0
+            } 
             for s in result['sources']
         ]))
         components_url = f"/magazyn-dostawy/podglad-etykiety-mix?mix_sscc={result['mix_pallet']['nr_palety']}&linia={linia}&comps={comps_encoded}"

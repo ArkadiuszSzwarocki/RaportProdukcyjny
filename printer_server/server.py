@@ -78,8 +78,31 @@ DEFAULT_PRINTER_TCP_RETRIES = _read_int_env('PRINTER_TCP_RETRIES', 3, minimum=1,
 DEFAULT_PRINTER_TCP_RETRY_DELAY = _read_float_env('PRINTER_TCP_RETRY_DELAY', 0.6, minimum=0.0)
 
 
+def wyslij_do_drukarki_win32(zpl, printer_name="ET9C934EE131D8"):
+    """Fallback: Wysyła surowy ciąg ZPL do bufora wydruku Windows (win32print)."""
+    try:
+        import win32print
+        logger.info(f"[WIN32] Próba wysłania ZPL przez Windows Spooler do {printer_name}...")
+        hprinter = win32print.OpenPrinter(printer_name)
+        try:
+            doc_info = ("Etykieta ZPL OSIP", None, "RAW")
+            job_id = win32print.StartDocPrinter(hprinter, 1, doc_info)
+            win32print.StartPagePrinter(hprinter)
+            if not zpl.endswith('\n'):
+                zpl += '\r\n'
+            win32print.WritePrinter(hprinter, zpl.encode('utf-8'))
+            win32print.EndPagePrinter(hprinter)
+            win32print.EndDocPrinter(hprinter)
+            logger.info(f"[WIN32] Sukces wysłania do bufora Windows {printer_name} (Job ID: {job_id})")
+            return True
+        finally:
+            win32print.ClosePrinter(hprinter)
+    except Exception as e:
+        logger.error(f"[WIN32] Błąd wysyłania do {printer_name}: {e}")
+        raise Exception(f"Błąd bufora Windows ({printer_name}): {e}")
+
 def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_delay=None):
-    """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP."""
+    """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP, z fallbackiem dla Spoolera Windows."""
     tcp_timeout = DEFAULT_PRINTER_TCP_TIMEOUT if timeout is None else max(0.5, float(timeout))
     attempts = DEFAULT_PRINTER_TCP_RETRIES if retries is None else max(1, int(retries))
     pause_s = DEFAULT_PRINTER_TCP_RETRY_DELAY if retry_delay is None else max(0.0, float(retry_delay))
@@ -113,8 +136,16 @@ def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_del
         if attempt < attempts and pause_s > 0:
             time.sleep(pause_s)
 
+    # Próba fallbacku do Windows Spooler dla drukarek zainstalowanych w Windows (np. ET9C934EE131D8 dla 192.168.1.47)
+    logger.info(f"[FALLBACK] Próba wysłania przez Windows Spooler (ET9C934EE131D8)...")
+    try:
+        return wyslij_do_drukarki_win32(zpl, "ET9C934EE131D8")
+    except Exception as win_err:
+        logger.error(f"[FALLBACK] Nieudany fallback Windows Spooler: {win_err}")
+
     logger.error(f"[TCP] Błąd końcowy dla {ip}:{port} po {attempts} próbach: {last_error_message}")
     raise Exception(f'{last_error_message} (po {attempts} próbach)')
+
 
 @app.route('/status', methods=['GET'])
 def status():

@@ -346,7 +346,32 @@
         setTimeout(() => scannerInput.focus(), 100);
     }
 
-    async function fetchPalletInfo(sscc) {
+    function cleanSsccInput(val) {
+        if (!val) return '';
+        let clean = String(val).trim();
+        if ((clean.includes('{') && clean.includes('}')) || clean.includes('"sscc"') || clean.includes('"nr_palety"')) {
+            try {
+                const match = clean.match(/\{[\s\S]*\}/);
+                if (match) {
+                    const parsed = JSON.parse(match[0]);
+                    const extracted = parsed.sscc || parsed.nr_palety || parsed.id;
+                    if (extracted) clean = String(extracted).trim();
+                }
+            } catch (e) {
+                const ssccMatch = clean.match(/"sscc"\s*:\s*"([^"]+)"/i) || clean.match(/"nr_palety"\s*:\s*"([^"]+)"/i);
+                if (ssccMatch) clean = ssccMatch[1].trim();
+            }
+        }
+        clean = clean.replace(/[\r\n]+/g, '').trim();
+        if (clean.startsWith('(00)')) {
+            clean = clean.substring(4).trim();
+        }
+        return clean;
+    }
+
+    async function fetchPalletInfo(rawSscc) {
+        const sscc = cleanSsccInput(rawSscc);
+        if (!sscc) return;
         scannerInput.disabled = true;
         scanLoading.classList.remove('d-none');
         scanError.classList.add('d-none');
@@ -390,13 +415,20 @@
     scannerInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
             e.preventDefault();
-            const sscc = this.value.trim().replace(/[\r\n]+/g, '');
+            const sscc = cleanSsccInput(this.value);
             if (sscc) fetchPalletInfo(sscc);
         }
     });
+
+    scannerInput.addEventListener('paste', function(e) {
+        setTimeout(() => {
+            const sscc = cleanSsccInput(scannerInput.value);
+            if (sscc) fetchPalletInfo(sscc);
+        }, 50);
+    });
     
     document.getElementById('splitSearchBtn').addEventListener('click', function() {
-        const sscc = scannerInput.value.trim().replace(/[\r\n]+/g, '');
+        const sscc = cleanSsccInput(scannerInput.value);
         if (sscc) fetchPalletInfo(sscc);
     });
     

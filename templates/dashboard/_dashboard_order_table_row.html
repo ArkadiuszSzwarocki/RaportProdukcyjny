@@ -69,6 +69,7 @@
                     <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" 
                         {% if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' %}
                             data-start-checklist="1" 
+                            data-typ-produkcji="{{ (p[9] if p|length > 9 and p[9] else '')|e }}"
                             data-required-opakowanie="{{ p[20] if p|length > 20 and p[20] else '-' }}" 
                             data-required-etykieta="{{ p[21] if p|length > 21 and p[21] else '-' }}"
                         {% endif %}

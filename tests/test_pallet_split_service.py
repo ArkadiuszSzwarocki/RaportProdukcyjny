@@ -25,6 +25,19 @@ class TestFindBySscc:
         assert result['id'] == 5
         assert result['source'] == 'magazyn'
 
+    def test_parses_json_qr_code(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = {'id': 12, 'nr_palety': 'SUR007', 'source': 'surowiec'}
+
+        json_qr = '{"sscc": "SUR007", "prod": "Mąka", "partia": "123"}'
+        with patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection', return_value=mock_conn):
+            result = PalletSplitService.find_by_sscc(json_qr)
+
+        assert result['id'] == 12
+        assert result['nr_palety'] == 'SUR007'
+
 
 class TestSplitPalletValidation:
     def test_rejects_invalid_input(self):

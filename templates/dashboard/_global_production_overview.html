@@ -222,6 +222,7 @@
                   <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
                         class="d-inline start-form"
                         data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
+                        data-typ-produkcji="{{ (p[9] if p|length > 9 and p[9] else '')|e }}"
                         data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                         data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
                         onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"
@@ -241,6 +242,7 @@
                   <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0; display: inline;" 
                     {% if h.linia == 'AGRO' %}
                       data-start-checklist="1"
+                      data-typ-produkcji="{{ (p[9] if p|length > 9 and p[9] else '')|e }}"
                       data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                       data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
                     {% endif %}

@@ -237,7 +237,7 @@ def hall_restricted(f):
         }
         role = role_aliases.get(role, role)
         user_grupa = (session.get('grupa') or 'ALL').upper()
-        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant', 'masteradmin']:
+        if user_grupa == 'ALL' or (role in ['admin', 'zarzad', 'planista', 'lider', 'laborant', 'masteradmin'] and user_grupa != 'OSIP'):
             return f(*args, **kwargs)
         
         # Determine target hall from request

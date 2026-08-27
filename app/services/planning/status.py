@@ -170,18 +170,17 @@ class PlanningStatusService:
                 
             produkt = res[0]
             
-            if str(linia).upper() == 'AGRO':
+            cursor.execute(
+                f"UPDATE {table_plan} SET status='zawieszone' WHERE id=%s",
+                (plan_id,)
+            )
+            try:
                 cursor.execute(
-                    f"UPDATE {table_plan} SET status='zawieszone', "
-                    "czas_pracy_sekundy = czas_pracy_sekundy + TIMESTAMPDIFF(SECOND, COALESCE(ostatnie_wznowienie, NOW()), NOW()) "
-                    "WHERE id=%s",
+                    f"UPDATE {table_plan} SET czas_pracy_sekundy = COALESCE(czas_pracy_sekundy, 0) + TIMESTAMPDIFF(SECOND, COALESCE(ostatnie_wznowienie, NOW()), NOW()) WHERE id=%s",
                     (plan_id,)
                 )
-            else:
-                cursor.execute(
-                    f"UPDATE {table_plan} SET status='zaplanowane' WHERE id=%s",
-                    (plan_id,)
-                )
+            except Exception:
+                pass
                 
             conn.commit()
             conn.close()

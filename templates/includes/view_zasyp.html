@@ -22,11 +22,10 @@
             </div>
 
             <div>
-                {% if rola in ['lider', 'admin', 'masteradmin'] %}
-                {% if linia == 'AGRO' %}
-                <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" class="inline-block" style="display: inline-block;">
+                {% if rola in ['lider', 'admin', 'masteradmin', 'produkcja', 'pracownik'] %}
+                <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" class="inline-block" style="display: inline-block;" data-confirm="Czy na pewno chcesz zawiesić to zlecenie?">
                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                    <input type="hidden" name="linia" value="AGRO">
+                    <input type="hidden" name="linia" value="{{ linia }}">
                     <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                     <button type="submit" class="btn-action btn-warning">⏸ Zawieś (Pauza)</button>
                 </form>

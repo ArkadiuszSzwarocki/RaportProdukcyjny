@@ -88,7 +88,24 @@ class PalletSplitService:
 
     @staticmethod
     def find_by_sscc(sscc: str) -> dict[str, Any] | None:
-        sscc = str(sscc or '').strip()
+        sscc = str(sscc or '').strip().replace('\r', '').replace('\n', '')
+        
+        # Parsowanie kodu QR z danymi JSON
+        if ('{' in sscc and '}' in sscc) or ('"sscc"' in sscc) or ('"nr_palety"' in sscc):
+            try:
+                import re
+                import json
+                j_match = re.search(r'\{[\s\S]*\}', sscc)
+                if j_match:
+                    parsed = json.loads(j_match.group(0))
+                    val = parsed.get('sscc') or parsed.get('nr_palety') or parsed.get('id')
+                    if val:
+                        sscc = str(val).strip()
+            except Exception:
+                pass
+
+        if sscc.startswith('(00)'):
+            sscc = sscc[4:].strip()
         if not sscc:
             return None
 
@@ -104,6 +121,7 @@ class PalletSplitService:
                         else get_table_name(spec['table_base'], linia)
                     )
                     alias = spec.get('alias', '')
+                    col_prefix = f"{alias}." if alias else ""
                     from_clause = f"{table} {alias}".strip()
                     from_extra = spec.get('from_extra', '')
                     if from_extra:
@@ -111,19 +129,19 @@ class PalletSplitService:
                         from_extra = from_extra.format(plan_table=plan_table)
                         from_clause = f"{from_clause} {from_extra}"
 
+                    stock_col = "waga_netto" if spec['source'] == 'magazyn' else ("pw.waga" if spec['source'] == 'produkcja' else "stan_magazynowy")
+                    
+                    where_cond = f"(UPPER({col_prefix}nr_palety) = UPPER(%s) OR CAST({col_prefix}id AS CHAR) = %s OR REPLACE(UPPER(COALESCE({col_prefix}nr_palety, '')), '-', '') = UPPER(REPLACE(%s, '-', ''))) AND {stock_col} > 0"
+
                     query = (
                         f"SELECT {spec['select']} FROM {from_clause} "
-                        f"WHERE {spec['where']} LIMIT 1"
+                        f"WHERE {where_cond} LIMIT 1"
                     )
                     
-                    if spec['source'] == 'magazyn':
-                        params = (linia, linia, sscc)
-                    elif spec['source'] == 'produkcja':
-                        params = (linia, linia, sscc)
-                    elif spec['source'] != 'dodatek':
-                        params = (linia, sscc)
+                    if spec['source'] != 'dodatek':
+                        params = (linia, sscc, sscc, sscc)
                     else:
-                        params = (sscc,)
+                        params = (sscc, sscc, sscc)
                         
                     cursor.execute(query, params)
                     row = cursor.fetchone()
@@ -176,10 +194,19 @@ class PalletSplitService:
         mother_id: int = None,
         source: str = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
+        # Kompatybilność wsteczna z wywołaniami pozycyjnymi: split_pallet(mother_id, source, weight_to_take, user_login, linia)
+        if isinstance(mother_sscc, int) or (isinstance(weight_to_take, str) and not weight_to_take.replace('.', '', 1).replace('-', '', 1).isdigit()):
+            mother_id = int(mother_sscc) if (isinstance(mother_sscc, (int, float)) or (isinstance(mother_sscc, str) and mother_sscc.isdigit())) else mother_id
+            source = str(weight_to_take or '')
+            weight_to_take = float(user_login or 0)
+            user_login = str(linia) if (linia and not isinstance(linia, (int, float))) else 'System'
+            linia = None
+            mother_sscc = None
+
         weight_to_take = round(float(weight_to_take or 0), 3)
 
-        if weight_to_take <= 0:
-            return False, 'Błędne dane wejściowe (waga musi być > 0).', None
+        if weight_to_take <= 0 or (not mother_sscc and (not mother_id or mother_id <= 0)):
+            return False, 'Błędne dane wejściowe (waga i ID palety muszą być prawidłowe).', None
 
         # Szukamy po SSCC jeśli podano (priorytet)
         pal = None
@@ -361,7 +388,7 @@ class PalletSplitService:
         mother_lokalizacja = pal.get('lokalizacja')
         child_lokalizacja = mother_lokalizacja if mother_lokalizacja else 'BF_MS01'
         typ_palety = HISTORIA_TYP[source]
-        product_name = pal.get('nazwa')
+        product_name = pal.get('nazwa') or pal.get('produkt') or 'Brak nazwy'
 
         cursor.execute(
             f"UPDATE {table} SET stan_magazynowy = %s WHERE id = %s",
@@ -371,14 +398,13 @@ class PalletSplitService:
             f"""
             INSERT INTO {table} (
                 nr_palety, nazwa, stan_magazynowy, data_produkcji, data_przydatnosci,
-                nr_partii, certyfikat, lokalizacja, uzytkownik_dodajacy, data_dodania
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                nr_partii, lokalizacja, linia
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 new_sscc, product_name, weight_to_take,
                 pal.get('data_produkcji'), pal.get('termin_przydatnosci') or pal.get('data_przydatnosci'),
-                pal.get('nr_partii'), pal.get('certyfikat'),
-                child_lokalizacja, user_login, now_dt,
+                pal.get('nr_partii'), child_lokalizacja, linia,
             ),
         )
         new_pallet_id = cursor.lastrowid
@@ -467,12 +493,13 @@ class PalletSplitService:
         new_pallet_id = None
         mag_pallet_id = None
 
-        # Wstaw do palety_workowanie tylko wtedy, gdy znamy plan_id (tabela wymaga plan_id NOT NULL)
-        if plan_id is not None:
+        # Wstaw do palety_workowanie gdy source == produkcja lub plan_id nie jest None
+        if source == 'produkcja' or plan_id is not None:
             table_prod = get_table_name('palety_workowanie', linia)
+            plan_id_val = plan_id if plan_id is not None else 0
             prod_cols = "plan_id, waga, data_dodania, nr_palety, nr_plomby, status, data_potwierdzenia, dodal_login, potwierdzil_login"
             prod_vals = "(%s, %s, %s, %s, %s, 'przyjeta', %s, %s, %s)"
-            prod_params = (plan_id, weight_to_take, now_dt, new_sscc, nr_plomby, now_dt, user_login, user_login)
+            prod_params = (plan_id_val, weight_to_take, now_dt, new_sscc, nr_plomby, now_dt, user_login, user_login)
 
             cursor.execute(f"INSERT INTO {table_prod} ({prod_cols}) VALUES {prod_vals}", prod_params)
             new_prod_id = cursor.lastrowid

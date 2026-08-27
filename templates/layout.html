@@ -27,9 +27,9 @@
     {% block extra_css %}{% endblock %}
 </head>
 
-{% set role = session.get('rola', '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}
-{# {% if role in ['lider', 'admin', 'masteradmin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %} #}
-{% set user_hall = 'ALL' if role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
+{% set role = (session.get('rola') or '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}
+{% set user_group = (session.get('grupa') or '').upper().strip() %}
+{% set user_hall = user_group if user_group == 'OSIP' else ('ALL' if role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper()) %}
 {% set hall_view = session.get('selected_hall_view') %}
 {% set can_switch_halls = user_hall == 'ALL' %}
 {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}

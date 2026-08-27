@@ -30,13 +30,16 @@ register_main_reporting_routes(main_bp)
 @login_required
 def index():
     try:
+        user_grupa = session.get('grupa', 'PSD').upper()
+        if user_grupa == 'OSIP':
+            return redirect('/osip/transfers')
+
         # Default redirect to scanner if no section/args are provided
         if not request.args:
             return redirect('/agro/scanner/ui')
 
         # Detect hall view from session or query param
         sess_hall = session.get('selected_hall_view')
-        user_grupa = session.get('grupa', 'PSD').upper()
         aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'
         
         # Force hall view if user has limited access
@@ -44,7 +47,7 @@ def index():
         role_aliases = {'master admin': 'masteradmin', 'master_admin': 'masteradmin', 'master-admin': 'masteradmin', 'laboratorium': 'laborant'}
         role = role_aliases.get(role, role)
         
-        is_exempt = role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'planista', 'magazynier']
+        is_exempt = role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'planista']
         if not is_exempt and user_grupa != 'ALL' and user_grupa != 'ADMIN' and user_grupa != 'ZARZAD' and user_grupa != 'MASTERADMIN':
             if aktywna_linia != user_grupa:
                 aktywna_linia = user_grupa

@@ -342,10 +342,15 @@
     function openAgroWorkowanieChecklist(form, productName) {
         var requiredFolia = (form.getAttribute('data-required-opakowanie') || '').trim();
         var requiredEtykieta = (form.getAttribute('data-required-etykieta') || '').trim();
+        var typProdukcji = (form.getAttribute('data-typ-produkcji') || '').trim().toLowerCase();
+        var productNameLc = (productName || '').toLowerCase();
+        var isBigBag = typProdukcji.includes('big') || productNameLc.includes('bb') || (productNameLc.includes('big') && productNameLc.includes('bag'));
 
-        if (!requiredFolia || !requiredEtykieta) {
-            window.safeAlert('Błąd', '❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
-            return;
+        if (!isBigBag) {
+            if (!requiredFolia || !requiredEtykieta) {
+                window.safeAlert('Błąd', '❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
+                return;
+            }
         }
 
         var existingOverlay = document.getElementById('start-order-checklist-overlay');
@@ -361,7 +366,7 @@
         panel.style.cssText = 'width:100%;max-width:560px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;box-sizing:border-box;overflow-y:auto;max-height:calc(100vh - 40px);';
 
         var title = document.createElement('h3');
-        title.textContent = 'Checklista START Workowania AGRO';
+        title.textContent = 'Checklista START Workowania AGRO' + (isBigBag ? ' (Big Bag)' : '');
         title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;box-sizing:border-box;';
 
         var subtitle = document.createElement('p');
@@ -386,8 +391,16 @@
             return { row: label, checkbox: cb };
         }
 
-        var foliaCheck = buildChecklistRow('Potwierdzam przygotowanie folii: ' + requiredFolia);
-        var etykietaCheck = buildChecklistRow('Potwierdzam przygotowanie etykiety: ' + requiredEtykieta);
+        var foliaCheck, etykietaCheck;
+        if (isBigBag) {
+            var bigBagText = 'Potwierdzam przygotowanie opakowania Big Bag' + (requiredFolia ? ': ' + requiredFolia : '');
+            foliaCheck = buildChecklistRow(bigBagText);
+            var etykietaText = 'Potwierdzam przygotowanie etykiety' + (requiredEtykieta ? ': ' + requiredEtykieta : ' Big Bag');
+            etykietaCheck = buildChecklistRow(etykietaText);
+        } else {
+            foliaCheck = buildChecklistRow('Potwierdzam przygotowanie folii: ' + requiredFolia);
+            etykietaCheck = buildChecklistRow('Potwierdzam przygotowanie etykiety: ' + requiredEtykieta);
+        }
         checklistBox.appendChild(foliaCheck.row);
         checklistBox.appendChild(etykietaCheck.row);
 

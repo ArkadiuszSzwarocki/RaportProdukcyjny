@@ -244,6 +244,10 @@ def get_user_redirect_target(role, group):
     }
     normalized_role = role_aliases.get(normalized_role, normalized_role)
             
+    normalized_group = (group or '').upper().strip()
+    if normalized_group == 'OSIP':
+        return '/osip/transfers'
+
     if normalized_role == 'planista':
         return '/planista'
         

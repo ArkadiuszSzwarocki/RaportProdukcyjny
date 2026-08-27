@@ -1361,6 +1361,11 @@ def _seed_default_users(cursor):
     if not cursor.fetchone():
         cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123', method='pbkdf2:sha256'), 'planista'))
 
+    # Create default GontaArt account (Magazynier OSIP)
+    cursor.execute("SELECT id FROM uzytkownicy WHERE login='GontaArt'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", ('GontaArt', generate_password_hash('Artur2026', method='pbkdf2:sha256'), 'magazynier', 'OSIP'))
+
 def _table_has_column(cursor, table_name, column_name):
     try:
         cursor.execute(

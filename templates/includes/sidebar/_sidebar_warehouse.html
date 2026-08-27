@@ -1,4 +1,4 @@
-{% if role != 'pracownik' %}
+{% if role != 'pracownik' and effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = (effective_hall or 'ALL')|upper %}
@@ -82,6 +82,7 @@
         </a>
     </div>
 </div>
+{% endif %}
 
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
@@ -107,7 +108,7 @@
     </div>
 </div>
 
-{% if role_has_access('magazyn.inventory') or can_open_prod_inventory %}
+{% if (role_has_access('magazyn.inventory') or can_open_prod_inventory) and effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">INWENTARYZACJA</span>
@@ -123,5 +124,4 @@
         {% endif %}
     </div>
 </div>
-{% endif %}
 {% endif %}
