@@ -122,7 +122,7 @@ def edycja_dostawy(dostawa_id=None):
             if dostawa and dostawa.get('items'):
                 dostawa['items'] = json.loads(dostawa['items'])
 
-            if dostawa and str(dostawa.get('status') or '').upper() == 'COMPLETED':
+            if dostawa and str(dostawa.get('status') or '').upper() == 'COMPLETED' and request.args.get('view_report') == '1':
                 return redirect(url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=dostawa_id, linia=linia))
 
         # Pobierz aktywne (niezrealizowane) zamówienia magazynowe

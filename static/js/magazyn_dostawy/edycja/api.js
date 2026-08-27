@@ -200,11 +200,13 @@ async function savePrzesuniecie() {
         const data = await res.json();
         if (data.success) {
             clearDraftState();
-            resetTransferFormAfterSave();
-            showToast('Zapisano pomyślnie!', 'success');
+            showToast('Zapisano pomyślnie! Przesunięcie jest otwarte w Oczekujących.', 'success');
             if (typeof window.refreshSidebarBadges === 'function') {
                 window.refreshSidebarBadges();
             }
+            setTimeout(() => {
+                window.location.href = window.EdycjaConfig.urlOczekujace || ('/magazyn-dostawy/oczekujace?linia=' + window.EdycjaConfig.linia);
+            }, 600);
         } else {
             showToast('Błąd: ' + data.error, 'danger');
         }

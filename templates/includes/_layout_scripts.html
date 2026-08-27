@@ -833,7 +833,11 @@
         }
 
         var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
-        if (requiresChecklist) {
+        var isBigBag = (form && form.getAttribute('data-typ-opakowania') || '').toLowerCase().indexOf('bigbag') !== -1 ||
+                       (productName || '').toLowerCase().indexOf('big bag') !== -1 ||
+                       (productName || '').toLowerCase().indexOf('bigbag') !== -1;
+
+        if (requiresChecklist && !isBigBag) {
             openAgroWorkowanieChecklist(form, productName);
             return false;
         }

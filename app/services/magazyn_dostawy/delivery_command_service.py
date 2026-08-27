@@ -119,7 +119,13 @@ class DeliveryCommandService:
             if lokalizacja_do and lokalizacja_do not in known_target_locations and lokalizacja_do != 'OCZEKUJĄCE':
                 return False, f"Nieznana lokalizacja docelowa: {lokalizacja_do}."
 
-            if lokalizacja_do and any(_is_route_conflict(loc, lokalizacja_do) for loc in source_locations):
+            unaccepted_sources = sorted({
+                _norm_loc(it.get('sourceSpot'))
+                for it in items
+                if _norm_loc(it.get('sourceSpot')) and not it.get('accepted')
+            })
+
+            if lokalizacja_do and any(_is_route_conflict(loc, lokalizacja_do) for loc in unaccepted_sources):
                 return False, f"Operacja niemożliwa: Skąd i Dokąd nie mogą być takie same ({lokalizacja_do})."
 
             conn = get_db_connection()
@@ -130,16 +136,13 @@ class DeliveryCommandService:
                 old_status = old_data['status'] if old_data else None
                 old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
 
-                if old_data and old_status == 'OCZEKUJE' and old_data.get('lokalizacja_z'):
-                    return False, "Status OCZEKUJE: formularz wydania jest tylko do podglądu."
-
                 # 1. Detect removed items from pending transfer to RESTORE them
                 if old_status == 'OCZEKUJE' and items is not None:
                     table_sur = get_table_name('magazyn_surowce', linia)
                     table_opk = get_table_name('magazyn_opakowania', linia)
                     new_ids = [str(it.get('id')) for it in items]
                     for old_it in old_items:
-                        if str(old_it.get('id')) not in new_ids:
+                        if str(old_it.get('id')) not in new_ids and not old_it.get('accepted'):
                             # Item was removed! Restore it from buffer if it was buffered
                             curr_loc = _norm_loc(old_it.get('sourceSpot'))
                             orig_loc = _norm_loc(old_it.get('originalSpot'))
@@ -206,7 +209,6 @@ class DeliveryCommandService:
                             pkg_form = item.get('packageForm', 'bags')
 
                         # We do NOT accept it immediately - it stays pending
-
                         item['sourceSpot'] = 'DOSTAWA'
 
                         # DB INSERT
@@ -265,8 +267,6 @@ class DeliveryCommandService:
                                         pass
                         import threading
                         threading.Thread(target=run_print_queue, args=(print_payloads,), daemon=True).start()
-                    
-                    # Status pozostaje jako OCZEKUJE, aby zlecenie widniało na liście 'Oczekujące'
 
                 # DEDUPLICATE items before saving (by item ID)
                 if items:
@@ -278,7 +278,6 @@ class DeliveryCommandService:
                             seen_ids.add(item_id)
                             deduped_items.append(item)
                         elif not item_id:
-                            # Item without ID - keep it but it's unusual
                             deduped_items.append(item)
                     items = deduped_items
 
@@ -293,7 +292,7 @@ class DeliveryCommandService:
                         for it in item_list:
                             pid = it.get('sourcePalletId')
                             if not pid: continue
-                            src = str(it.get('source') or '').lower()
+                            src = str(it.get('source') or it.get('scannedType') or it.get('type') or '').lower()
                             tbl = table_got if src in ['magazyn', 'produkcja', 'wyrob_gotowy'] else (table_opk if src == 'opakowanie' else (table_sur if src == 'surowiec' else None))
                             if not tbl and src == 'dodatek': tbl = 'magazyn_dodatki'
                             if tbl:
@@ -310,27 +309,8 @@ class DeliveryCommandService:
                     if status not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE']:
                         toggle_block(items, 1)
 
-                if old_data:
-                    cursor.execute("""
-                        UPDATE magazyn_dostawy
-                        SET order_ref=%s, delivery_date=%s, status=%s, items=%s,
-                            lokalizacja_z=%s, lokalizacja_do=%s
-                        WHERE id=%s
-                    """, (order_ref, delivery_date, status, json.dumps(items),
-                          lokalizacja_z, lokalizacja_do, dostawa_id))
-                else:
-                    cursor.execute("""
-                        INSERT INTO magazyn_dostawy
-                            (id, order_ref, supplier, delivery_date, status, items,
-                             created_by, created_at, requires_lab, linia,
-                             lokalizacja_z, lokalizacja_do)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (dostawa_id, order_ref, supplier, delivery_date, status,
-                          json.dumps(items), login, datetime.now(), 0, linia,
-                          lokalizacja_z, lokalizacja_do))
-
-                # 2. Handle automatic buffer move for Transfers
-                if status == 'OCZEKUJE' and lokalizacja_do and source_locations:
+                # 2. Handle item resolution and keep transfer in OCZEKUJE for internal transfers
+                if not is_external_reception:
                     table_sur = get_table_name('magazyn_surowce', linia)
                     table_opk = get_table_name('magazyn_opakowania', linia)
                     updated_items = []
@@ -370,7 +350,14 @@ class DeliveryCommandService:
                             if pit_id not in (None, '') and pit_type:
                                 reserved_other_ids.add(f"{pit_type}:{pit_id}")
                     
-                    for item in items:
+                    for idx, item in enumerate(items):
+                        if item.get('id') in (None, ''):
+                            item['id'] = f"item_{idx}_{int(datetime.now().timestamp())}"
+
+                        if item.get('accepted'):
+                            updated_items.append(item)
+                            continue
+
                         source_spot = _norm_loc(item.get('sourceSpot'))
                         item_skip_lookup = bool(global_skip_warehouse_lookup)
                         if source_spot:
@@ -433,6 +420,7 @@ class DeliveryCommandService:
                                 if item_skip_lookup:
                                     item['originalSpot'] = item.get('originalSpot') or source_spot
                                     item['warehouseLookupSkipped'] = True
+                                    item['accepted'] = False
                                     updated_items.append(item)
                                     continue
                                 return False, f"Nie znaleziono palety do przesunięcia ({p_name}) ze źródła {source_spot}."
@@ -450,46 +438,51 @@ class DeliveryCommandService:
                                 return False, f"Paleta {p_nr_norm or p_id} jest już zarezerwowana w innym oczekującym przesunięciu."
                             used_request_ids.add(resolved_id_key)
 
-                            if p_type == 'surowiec': target_table = table_sur
-                            elif p_type == 'opakowanie': target_table = table_opk
-                            else: target_table = 'magazyn_dodatki'
-                            
-                            pallet_weight = float(p_res.get('stan_magazynowy') or 0)
-                            form_weight = float(item.get('netWeight') or item.get('unitsPerPallet') or 0)
-                            
-                            is_partial = form_weight < (pallet_weight - 0.001) # Tolerance for floating point
-                            
-                            if is_partial:
-                                # Subtract from source
-                                cursor.execute(f"UPDATE {target_table} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (form_weight, p_id))
-                                # Create new partial pallet at destination
-                                cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) SELECT nazwa, %s, %s, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania FROM {target_table} WHERE id = %s", (form_weight, lokalizacja_do, p_id))
-                                item['is_partial'] = True
-                            else:
-                                # Move whole pallet
-                                cursor.execute(f"UPDATE {target_table} SET lokalizacja = %s WHERE id = %s", (lokalizacja_do, p_id))
-                                item['is_partial'] = False
-
                             item['originalSpot'] = item.get('originalSpot') or source_spot
-                            item['sourceSpot'] = lokalizacja_do
-                            item.pop('warehouseLookupSkipped', None)
+                            item['sourceSpot'] = source_spot
                             item['sourcePalletId'] = p_id
+                            item['scannedType'] = p_type
                             if p_nr:
                                 item['sourcePalletNo'] = p_nr
                                 item['nr_palety'] = p_nr
-                            item['accepted'] = True
-                            item['accepted_by'] = login
-                            item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            item['lokalizacja_przyjecia'] = lokalizacja_do
+                            item['accepted'] = False
+
+                            # Block the pallet so it cannot be used elsewhere while pending
+                            tbl_blk = table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else 'magazyn_dodatki')
+                            try:
+                                cursor.execute(f"UPDATE {tbl_blk} SET is_blocked = 1 WHERE id = %s", (p_id,))
+                            except Exception:
+                                pass
 
                             cursor.execute(
-                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_COMPLETED', %s, %s, %s, %s)",
-                                (p_id, linia, p_type, source_spot, lokalizacja_do, f"Przesunięcie {order_ref}: {source_spot} -> {lokalizacja_do} (zakończone automatycznie)", login)
+                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
+                                (p_id, linia, p_type, source_spot, lokalizacja_do, f"Zlecenie przesunięcia {order_ref}: {source_spot} -> {lokalizacja_do}", login)
                             )
                         updated_items.append(item)
                     
-                    # Update items and mark as COMPLETED
-                    cursor.execute("UPDATE magazyn_dostawy SET items=%s, status='COMPLETED', potwierdzone_przez=%s, potwierdzone_at=%s WHERE id=%s", (json.dumps(updated_items), login, datetime.now(), dostawa_id))
+                    items = updated_items
+
+                has_pending = any(not it.get('accepted') for it in items)
+                final_status = 'OCZEKUJE' if has_pending else 'COMPLETED'
+
+                if old_data:
+                    cursor.execute("""
+                        UPDATE magazyn_dostawy
+                        SET order_ref=%s, delivery_date=%s, status=%s, items=%s,
+                            lokalizacja_z=%s, lokalizacja_do=%s
+                        WHERE id=%s
+                    """, (order_ref, delivery_date, final_status, json.dumps(items),
+                          lokalizacja_z, lokalizacja_do, dostawa_id))
+                else:
+                    cursor.execute("""
+                        INSERT INTO magazyn_dostawy
+                            (id, order_ref, supplier, delivery_date, status, items,
+                             created_by, created_at, requires_lab, linia,
+                             lokalizacja_z, lokalizacja_do)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (dostawa_id, order_ref, supplier, delivery_date, final_status,
+                          json.dumps(items), login, datetime.now(), 0, linia,
+                          lokalizacja_z, lokalizacja_do))
 
                 conn.commit()
                 return True, dostawa_id

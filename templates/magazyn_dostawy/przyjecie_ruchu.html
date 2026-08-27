@@ -570,8 +570,8 @@
                     <span class="material-icons">edit</span> Formularz dostawy
                 </a>
                 {% else %}
-                <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=dostawa.id, linia=linia) }}" class="btn-premium-outline">
-                    <span class="material-icons">edit</span> Formularz wydania
+                <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=dostawa.id, linia=linia) }}" class="btn-premium-outline" style="background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; font-weight:800;" title="Otwórz formularz wydania i dopisz kolejne palety do tego przesunięcia">
+                    <span class="material-icons" style="color:#2563eb;">add_circle</span> Dopisz kolejne palety
                 </a>
                 {% endif %}
                 {% if dostawa.status == 'OCZEKUJE' %}
@@ -736,6 +736,35 @@
 
             {% else %}
             <!-- Editable pending state view -->
+            {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
+            {% set can_manual_accept = user_role in ['masteradmin', 'admin', 'zarzad'] %}
+
+            {% if not is_external and not can_manual_accept %}
+            <!-- Magazynier / Standardowy użytkownik - Tylko skanowanie (wpisywanie ręczne ukryte) -->
+            <div style="padding: 16px 20px; background: #f8fafc; border-radius: 12px; border: 1.5px dashed #cbd5e1; margin: 10px 14px 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(37,99,235,0.1);">
+                        <span class="material-icons" style="font-size: 24px;">qr_code_scanner</span>
+                    </div>
+                    <div>
+                        <div style="font-weight: 800; color: #1e293b; font-size: 0.95rem;">Wymagane zeskanowanie palety skanerem</div>
+                        <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">
+                            Skąd: <strong>{{ item.sourceSpot or (dostawa.lokalizacja_z if dostawa.lokalizacja_z and dostawa.lokalizacja_z != 'WIELE' else '---') }}</strong>
+                            | SSCC: <strong style="font-family: monospace; color: #1e40af;">{{ item.nr_palety or item.sourcePalletNo or '---' }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.78rem; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; padding: 6px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                        <span class="material-icons" style="font-size: 16px;">lock</span> Wpisywanie ręczne zablokowane
+                    </span>
+                    <a href="{{ url_for('scanner.index', linia=linia) }}" class="btn-premium" style="font-size: 0.82rem; padding: 6px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="Otwórz skaner">
+                        <span class="material-icons" style="font-size: 16px;">photo_camera</span> Otwórz skaner
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <!-- Masteradmin / Admin / Zarząd LUB dostawa zewnętrzna - Formularz edycyjny z przyciskami -->
             <div class="top-row-grid{% if is_external %} external{% endif %}">
                 {% if not is_external %}
                 <div class="field-box source">
@@ -790,6 +819,7 @@
                     </button>
                 </div>
             </div>
+            {% endif %}
             {% endif %}
         </div>
         {% endfor %}

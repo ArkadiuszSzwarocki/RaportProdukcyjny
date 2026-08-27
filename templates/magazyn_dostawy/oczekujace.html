@@ -126,8 +126,22 @@
                         <td data-label="Suma kg" class="font-bold">{{ '%.2f'|format(ns.kg) }} kg</td>
                         <td data-label="Data">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at and d.created_at.strftime else d.created_at }}</td>
                         <td data-label="Akcja" class="text-right">
-                            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-                                <button class="btn-premium-outline waiting-open-btn" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')">ANULUJ</button>
+                            <div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; align-items:center;">
+                                <a class="btn-premium btn-xs" href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Potwierdź przyjęcie palet na magazyn">
+                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">task_alt</span> PRZYJMIJ
+                                </a>
+                                {% if d.lokalizacja_z %}
+                                <a class="btn-premium-outline btn-xs" href="{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Otwórz przesunięcie i dopisz kolejne palety">
+                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">add</span> DOPISZ PALETY
+                                </a>
+                                {% else %}
+                                <a class="btn-premium-outline btn-xs" href="{{ url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Edytuj dostawę zewnętrzną">
+                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">edit</span> EDYTUJ
+                                </a>
+                                {% endif %}
+                                <button class="btn-premium-outline btn-xs text-danger" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')" title="Anuluj to zlecenie">
+                                    ANULUJ
+                                </button>
                             </div>
                         </td>
                     </tr>

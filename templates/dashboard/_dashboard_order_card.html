@@ -76,8 +76,12 @@
                 data-typ-produkcji="{{ (p[9] if p|length > 9 and p[9] else '')|e }}"
                 data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
                 data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
-                onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
-                    type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
+                data-typ-opakowania="{{ (p[14] if p|length > 14 and p[14] else '')|e }}"
+                onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <button type="submit" class="btn-icon-action" title="Rozpocząć">▶</button>
+            </form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
             {% endif %}

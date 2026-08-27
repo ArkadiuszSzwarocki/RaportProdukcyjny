@@ -66,6 +66,19 @@ def przyjmij_pozycje(dostawa_id):
         finally:
             conn.close()
 
+    # Sprawdź uprawnienia do ręcznego zatwierdzania w przesunięciu wewnętrznym
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT lokalizacja_z, items FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+        chk_d = cursor.fetchone()
+        if chk_d and chk_d.get('lokalizacja_z'): # to jest przesunięcie wewnętrzne
+            user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
+            if user_role not in ['masteradmin', 'admin', 'zarzad']:
+                return jsonify({'success': False, 'error': 'Brak uprawnień. W przesunięciu magazynowym przyjęcie jest możliwe wyłącznie poprzez zeskanowanie palety skanerem.'}), 403
+    finally:
+        conn.close()
+
     success, error, result = AcceptanceService.accept_item(
         dostawa_id, 
         data.get('item_id'), 

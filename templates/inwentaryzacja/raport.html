@@ -64,12 +64,11 @@
     </div>
 
     <!-- SUMMARY CARDS -->
-    {% set total_system = entries | selectattr('paleta_id') | list | length %}
+    {% set total_system = entries | selectattr('waga_systemowa', 'gt', 0) | list | length %}
     {% set total_actual = entries | selectattr('waga_faktyczna', 'gt', 0) | list | length %}
     {% set missing = entries | selectattr('roznica', 'lt', -0.01) | list | length %}
     {% set found = entries | selectattr('roznica', 'gt', 0.01) | list | length %}
     {% set roznice = entries | selectattr('alert') | list | length %}
-
 
     {% set grouped = entries | groupby('nazwa') %}
 
@@ -203,8 +202,11 @@
                 {% for item in group.list %}
                     {% set ns.sys = ns.sys + (item.waga_systemowa or 0) %}
                     {% set ns.act = ns.act + (item.waga_faktyczna or 0) %}
-                    {% set ns.count = ns.count + 1 %}
+                    {% if (item.waga_faktyczna or 0) > 0 or (item.waga_systemowa or 0) > 0 %}
+                        {% set ns.count = ns.count + 1 %}
+                    {% endif %}
                 {% endfor %}
+                {% if name != 'PUSTE GNIAZDO' and (ns.sys > 0 or ns.act > 0) %}
                 {% set diff_sum = ns.act - ns.sys %}
                 <tr style="border-top: 1px solid #ddd;">
                     <td style="padding: 6px 8px; font-weight: 700;">{{ name }}</td>
@@ -214,6 +216,7 @@
                     <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(diff_sum) }}</td>
                     <td style="padding: 6px 8px;">{{ group.list[0].jednostka or 'kg' }}</td>
                 </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>

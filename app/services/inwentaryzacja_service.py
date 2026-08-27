@@ -550,6 +550,18 @@ class InwentaryzacjaService:
         try:
             cursor = conn.cursor()
             
+            # Normalizuj typ_palety do dozwolonych wartości ENUM
+            _ALLOWED_TYPES = {'surowiec', 'opakowanie', 'wyrób gotowy', 'dodatek'}
+            _t = str(typ_palety or '').strip().lower()
+            if 'got' in _t or 'wyr' in _t or 'pal' in _t:
+                typ_palety = 'wyrób gotowy'
+            elif 'opak' in _t:
+                typ_palety = 'opakowanie'
+            elif 'dodat' in _t:
+                typ_palety = 'dodatek'
+            elif _t not in _ALLOWED_TYPES:
+                typ_palety = 'surowiec'
+            
             d_prod = InwentaryzacjaService._clean_date(data_produkcji)
             d_przyd = InwentaryzacjaService._clean_date(data_przydatnosci)
 

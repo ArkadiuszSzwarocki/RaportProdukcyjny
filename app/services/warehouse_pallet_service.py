@@ -169,8 +169,6 @@ class WarehousePalletService:
                 current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
     
             # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
-            app_obj = app_obj
-            
             user_printer_ip = str(printer_ip or '').strip()
             user_printer_name = str(printer_name or '').strip()
     
@@ -203,10 +201,44 @@ class WarehousePalletService:
                             from app.services.print_server import get_printer
                             printer_local = get_printer()
                             
-                            if usr_ip or usr_name:
-                                override_ip = usr_ip or None
-                                override_name = usr_name or None
-                            else:
+                            override_ip = None
+                            override_name = usr_name or None
+                            
+                            if usr_ip:
+                                clean_ip = usr_ip.strip()
+                                if clean_ip.startswith('net:'):
+                                    clean_ip = clean_ip.replace('net:', '').strip()
+                                elif clean_ip.startswith('db:'):
+                                    try:
+                                        db_id = int(clean_ip.replace('db:', ''))
+                                        cur2.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s AND aktywna = 1", (db_id,))
+                                        p_row = cur2.fetchone()
+                                        if p_row:
+                                            clean_ip = p_row[0]
+                                            override_name = override_name or p_row[1]
+                                    except Exception:
+                                        clean_ip = None
+                                elif clean_ip.isdigit():
+                                    try:
+                                        cur2.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s AND aktywna = 1", (int(clean_ip),))
+                                        p_row = cur2.fetchone()
+                                        if p_row:
+                                            clean_ip = p_row[0]
+                                            override_name = override_name or p_row[1]
+                                    except Exception:
+                                        pass
+                                override_ip = clean_ip or None
+
+                            if not override_ip and override_name:
+                                try:
+                                    cur2.execute("SELECT ip FROM drukarki WHERE nazwa = %s AND aktywna = 1 LIMIT 1", (override_name,))
+                                    p_row = cur2.fetchone()
+                                    if p_row and p_row[0]:
+                                        override_ip = p_row[0]
+                                except Exception:
+                                    pass
+
+                            if not override_ip and not override_name:
                                 override_name, override_ip = _select_preferred_printer(cur2)
                                 
                             for copy_num in range(1, 3):

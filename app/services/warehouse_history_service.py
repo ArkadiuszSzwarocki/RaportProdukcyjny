@@ -118,10 +118,19 @@ class WarehouseHistoryService:
             sur_cond_legacy = ""
             sur_params_legacy = []
             if surowiec:
-                sur_cond_ph = " AND (sur.nazwa LIKE %s OR sur.nr_palety LIKE %s OR ph.komentarz LIKE %s)"
-                sur_params_ph = [f"%{surowiec}%", f"%{surowiec}%", f"%{surowiec}%"]
+                sur_pattern = f"%{surowiec}%"
+                sur_cond_ph = """ AND (
+                    sur.nazwa LIKE %s OR sur.nr_palety LIKE %s OR
+                    opk.nazwa LIKE %s OR opk.nr_palety LIKE %s OR
+                    dod.nazwa LIKE %s OR dod.nr_palety LIKE %s OR
+                    pal.produkt LIKE %s OR pal.nr_palety LIKE %s OR
+                    pal_agro.produkt LIKE %s OR pal_agro.nr_palety LIKE %s OR
+                    arch.nazwa LIKE %s OR arch.nr_palety LIKE %s OR
+                    ph.komentarz LIKE %s
+                )"""
+                sur_params_ph = [sur_pattern] * 13
                 sur_cond_legacy = " AND (r.surowiec_nazwa LIKE %s OR pal.nazwa LIKE %s OR pal.nr_palety LIKE %s OR r.komentarz LIKE %s)"
-                sur_params_legacy = [f"%{surowiec}%", f"%{surowiec}%", f"%{surowiec}%", f"%{surowiec}%"]
+                sur_params_legacy = [sur_pattern, sur_pattern, sur_pattern, sur_pattern]
 
             # 1. Pobierz z palety_historia
             query_ph = f"""
@@ -136,10 +145,16 @@ class WarehouseHistoryService:
                     ph.komentarz,
                     ph.user_login as autor_login,
                     ph.data_ruchu as created_at,
-                    COALESCE(sur.nazwa, '') as surowiec_nazwa,
-                    COALESCE(sur.nr_palety, '') as nr_palety
+                    COALESCE(NULLIF(sur.nazwa, ''), NULLIF(opk.nazwa, ''), NULLIF(dod.nazwa, ''), NULLIF(pal.produkt, ''), NULLIF(pal_agro.produkt, ''), NULLIF(arch.nazwa, ''), '') as surowiec_nazwa,
+                    COALESCE(NULLIF(sur.nr_palety, ''), NULLIF(opk.nr_palety, ''), NULLIF(dod.nr_palety, ''), NULLIF(pal.nr_palety, ''), NULLIF(pal_agro.nr_palety, ''), NULLIF(arch.nr_palety, ''), '') as nr_palety,
+                    COALESCE(sur.stan_magazynowy, opk.stan_magazynowy, dod.stan_magazynowy, pal.waga_netto, pal_agro.waga_netto, arch.waga_ostatnia, 0) as waga_ref
                 FROM palety_historia ph
                 LEFT JOIN magazyn_surowce sur ON ph.paleta_id = sur.id
+                LEFT JOIN magazyn_opakowania opk ON ph.paleta_id = opk.id
+                LEFT JOIN magazyn_dodatki dod ON ph.paleta_id = dod.id
+                LEFT JOIN magazyn_palety pal ON ph.paleta_id = pal.id
+                LEFT JOIN magazyn_palety_agro pal_agro ON ph.paleta_id = pal_agro.id
+                LEFT JOIN magazyn_archiwum arch ON (ph.paleta_id = arch.original_id OR ph.paleta_id = arch.id)
                 WHERE 1=1
                   {line_cond_ph}
                   {date_cond_ph}
@@ -166,7 +181,8 @@ class WarehouseHistoryService:
                         r.autor_login, 
                         r.created_at as created_at,
                         COALESCE(NULLIF(r.surowiec_nazwa, ''), pal.nazwa, 'Surowiec') as surowiec_nazwa,
-                        COALESCE(pal.nr_palety, '') as nr_palety
+                        COALESCE(pal.nr_palety, '') as nr_palety,
+                        ABS(COALESCE(r.ilosc, r.ilosc_po, 0)) as waga_ref
                     FROM magazyn_ruch r
                     LEFT JOIN magazyn_surowce pal ON r.surowiec_id = pal.id
                     WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA')
@@ -194,7 +210,8 @@ class WarehouseHistoryService:
                         r.autor_login, 
                         r.autor_data as created_at,
                         COALESCE(NULLIF(r.surowiec_nazwa, ''), pal.nazwa, 'Surowiec') as surowiec_nazwa,
-                        COALESCE(pal.nr_palety, '') as nr_palety
+                        COALESCE(pal.nr_palety, '') as nr_palety,
+                        ABS(COALESCE(r.ilosc, r.ilosc_po, 0)) as waga_ref
                     FROM magazyn_agro_ruch r
                     LEFT JOIN magazyn_surowce pal ON r.surowiec_id = pal.id
                     WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA')
@@ -232,18 +249,39 @@ class WarehouseHistoryService:
 
                 stacja_val = r.get('lokalizacja_docelowa') or r.get('lokalizacja_zrodlowa') or '-'
                 nazwa_val = r.get('surowiec_nazwa') or '-'
+                koment = str(r.get('komentarz') or '')
+
                 if not nazwa_val or nazwa_val == '-':
-                    if r.get('komentarz') and ':' in r['komentarz']:
-                        nazwa_val = r['komentarz'].split(':')[1].split('->')[0].strip()
+                    if ':' in koment:
+                        nazwa_val = koment.split(':')[1].split('->')[0].split(',')[0].strip()
                 
-                # Wyciągnij ilość jeśli jest w komentarzu
-                ilosc_val = 0.0
-                if r.get('komentarz') and 'ilość:' in str(r.get('komentarz')):
-                    try:
+                # Wyciągnij ilość z komentarza lub waga_ref
+                ilosc_val = float(r.get('waga_ref') or 0.0)
+                if koment:
+                    import re
+                    # Szukanie wag w różnych wzorcach
+                    m_kw = re.search(r'(?:ilość|ilosc|waga ost\.?|waga|stan|przeniesiono|odjęto|odjeto):\s*([\d\.]+)', koment, re.IGNORECASE)
+                    if m_kw:
+                        try: ilosc_val = float(m_kw.group(1))
+                        except Exception: pass
+                    else:
+                        m_arrow = re.search(r'->\s*([\d\.]+)', koment)
+                        if m_arrow:
+                            try: ilosc_val = float(m_arrow.group(1))
+                            except Exception: pass
+                        else:
+                            m_kg = re.search(r'([\d\.]+)\s*kg', koment, re.IGNORECASE)
+                            if m_kg and ilosc_val == 0.0:
+                                try: ilosc_val = float(m_kg.group(1))
+                                except Exception: pass
+
+                nr_p_val = r.get('nr_palety') or ''
+                if not nr_p_val or nr_p_val == '-':
+                    if koment:
                         import re
-                        m = re.search(r'ilość:\s*([\d\.]+)', str(r['komentarz']))
-                        if m: ilosc_val = float(m.group(1))
-                    except Exception: pass
+                        m_sscc = re.search(r'\b(SUR\d{15,20}|AGR\d{15,20}|PSD\d{15,20}|\d{18,20})\b', koment)
+                        if m_sscc:
+                            nr_p_val = m_sscc.group(1)
 
                 deduped.append({
                     'id': r['id'],
@@ -251,11 +289,11 @@ class WarehouseHistoryService:
                     'linia': r.get('linia_ruch') or 'PSD',
                     'stacja': stacja_val,
                     'nazwa': nazwa_val or '-',
-                    'nr_palety': r.get('nr_palety') or '-',
+                    'nr_palety': nr_p_val or '-',
                     'ilosc': ilosc_val,
                     'typ': r.get('typ_ruchu') or '-',
                     'user': r.get('autor_login') or '-',
-                    'komentarz': r.get('komentarz') or '-'
+                    'komentarz': koment or '-'
                 })
 
             return deduped[:limit]

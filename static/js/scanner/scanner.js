@@ -90,6 +90,48 @@ function extractSSCCFromScan(value) {
   return s;
 }
 
+function isPalletCode(code) {
+  if (!code) return false;
+  const s = String(code).trim().toUpperCase();
+  const palletPrefixes = ['SUR', 'OPA', 'DOD', 'AGR', 'PSD', 'QA', 'PAL', 'SSCC', 'WYR'];
+  if (palletPrefixes.some(p => s.startsWith(p))) return true;
+  // Numerical SSCC format (e.g. 10-24 digits)
+  if (/^\d{10,24}$/.test(s)) return true;
+  // Specific pallet formats
+  if (/^PAL-?\d+/i.test(s) || /^SUR-?\d+/i.test(s) || /^OPA-?\d+/i.test(s) || /^DOD-?\d+/i.test(s)) return true;
+  
+  // Locations regex - if matched, it is a target warehouse/station location
+  const isLocation = /^(R0[1-7]\d{4}|BB\d{2}|MZ\d{2}|WZ\d{2}|CZ\d{2}|KO\d{2}|OS\d{2}|MS\d{2}|MP\d{2}|MD\d{2}|MOP\d{2}|MDM\d{2}|PSD\d{0,2}|AGR\d{0,2}|RAMPA|MIX\d{0,2}|BF_)/i.test(s);
+  if (isLocation) return false;
+  // 6-digit rack code like 020701
+  if (/^0[1-7]\d{4}$/.test(s)) return false;
+
+  if (s.length >= 8) return true;
+  return false;
+}
+
+function resetScanner() {
+  hidePallet();
+  hideStation();
+  scanInput.value = '';
+  scanInput.style.borderColor = '';
+  scanInput.style.borderWidth = '';
+  scanInput.placeholder = 'Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)';
+  
+  const mainTitle = document.getElementById('scanTitleText');
+  if (mainTitle) mainTitle.textContent = 'Skanuj kod regału lub palety';
+  const titleIcon = document.getElementById('scanTitleIcon');
+  if (titleIcon) {
+    titleIcon.textContent = 'barcode_reader';
+    titleIcon.style.color = 'var(--primary-color, #3b82f6)';
+  }
+  const iconEl = document.querySelector('.input-icon');
+  if (iconEl) iconEl.style.color = '';
+  
+  scanInput.focus();
+  showToast('🔄 Skaner zresetowany — gotowy do nowego skanu', 'info');
+}
+
 function triggerScan() {
   const rawCode = scanInput.value.trim();
   const code = extractSSCCFromScan(rawCode);
@@ -98,8 +140,8 @@ function triggerScan() {
   }
   if (code) {
     if (currentPallet) {
-      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-') || code.startsWith('PAL-') || code.startsWith('AGR') || code.startsWith('PSD');
-      if (code.length > 10 || isPalletPrefix) {
+      if (isPalletCode(code)) {
+        // Użytkownik skanuje kolejną paletę – przełącz na jej podgląd
         lookupPallet(code);
       } else {
         doMoveFromMainInput(code);
@@ -121,6 +163,13 @@ let pendingProductionLoc = null;
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
+
+  if (currentPallet && (currentPallet.is_used_up || currentPallet.stan_magazynowy <= 0)) {
+    showToast('❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść ani wydać.', 'danger');
+    scanInput.value = '';
+    scanInput.focus();
+    return;
+  }
 
   if (currentPallet && currentPallet.is_bucket) {
     const cleanLoc = (loc || '').trim().toUpperCase().replace(/[\s\-_]/g, '');
@@ -230,6 +279,10 @@ async function doMoveFromMainInput(loc) {
           }).catch(() => {});
           
       } else {
+        if (loc && loc.length >= 6) {
+          lookupPallet(loc);
+          return;
+        }
         scanInput.value = '';
         scanInput.focus();
       }
@@ -394,34 +447,48 @@ function showPallet(p) {
   }
   
   // Badge typu palety
+  const isUsedUp = p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0;
+  const isPending = p.is_transfer || p.is_blocked || (p.lokalizacja && p.lokalizacja.toUpperCase().includes('OCZEK'));
   const typePill = document.getElementById('palletTypePill');
   if (typePill) {
     const invType = p.inventory_type || 'Surowiec';
-    typePill.textContent = p.status_pl || invType;
-    typePill.style.display = 'inline-block';
-    
-    // Kolory w zależności od typu
-    if (p.is_bucket) {
+    if (isUsedUp) {
+      typePill.textContent = 'Zużyta / Rozchodowana';
+      typePill.className = 'pill';
+      typePill.style.background = '#ef4444';
+      typePill.style.color = '#fff';
+    } else if (isPending) {
+      typePill.className = 'pill';
+      typePill.style.background = '#f59e0b';
+      typePill.style.color = '#fff';
+      typePill.textContent = p.status_info ? `⏳ ${p.status_pl || 'Oczekuje na przyjęcie'} (${p.status_info})` : `⏳ ${p.status_pl || 'Oczekuje na przyjęcie'}`;
+    } else if (p.is_bucket) {
       typePill.className = 'pill';
       typePill.style.background = '#8b5cf6';
       typePill.style.color = '#fff';
+      typePill.textContent = p.status_pl || invType;
     } else if (invType === 'Wyrób Gotowy') {
       typePill.className = 'pill';
       typePill.style.background = '#10b981';
       typePill.style.color = '#fff';
+      typePill.textContent = p.status_pl || invType;
     } else if (invType === 'Surowiec') {
       typePill.className = 'pill';
       typePill.style.background = '#3b82f6';
       typePill.style.color = '#fff';
+      typePill.textContent = p.status_pl || invType;
     } else if (invType === 'Opakowanie') {
       typePill.className = 'pill';
       typePill.style.background = '#f59e0b';
       typePill.style.color = '#fff';
+      typePill.textContent = p.status_pl || invType;
     } else {
       typePill.className = 'pill';
       typePill.style.background = '#6b7280';
       typePill.style.color = '#fff';
+      typePill.textContent = p.status_pl || invType;
     }
+    typePill.style.display = 'inline-block';
   }
   
   // Extra details
@@ -432,7 +499,7 @@ function showPallet(p) {
 
   // Check if pallet is on a production station
   const locUpper = (p.lokalizacja || '').toUpperCase();
-  const isProductionStation = locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX') || locUpper.startsWith('BF_');
+  const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX') || locUpper.startsWith('BF_'));
   
   const returnBtn = document.getElementById('scannerReturnBtnContainer');
   if (returnBtn) {
@@ -442,21 +509,36 @@ function showPallet(p) {
   document.getElementById('palletCard').classList.add('visible');
   document.getElementById('nopalletMsg').style.display = 'none';
 
-  // Zmień główny input skanera na tryb lokalizacji
-  const titleEl = document.querySelector('.scan-title');
-  if(titleEl) titleEl.innerHTML = '<span class="material-icons" style="color:#2563eb;">place</span> Zeskanuj lokalizację docelową';
-  scanInput.placeholder = 'np. R040101 lub BB01';
-  scanInput.style.borderColor = '#2563eb';
-  scanInput.style.borderWidth = '2px';
+  // Zmień główny input skanera na tryb lokalizacji lub tryb nowej palety jeśli zużyta
+  const mainTitle = document.getElementById('scanTitleText');
+  const titleIcon = document.getElementById('scanTitleIcon');
   const iconEl = document.querySelector('.input-icon');
-  if(iconEl) iconEl.style.color = '#2563eb';
+
+  if (isUsedUp) {
+    if (mainTitle) mainTitle.textContent = 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
+    if (titleIcon) {
+      titleIcon.textContent = 'block';
+      titleIcon.style.color = '#ef4444';
+    }
+    scanInput.placeholder = 'Paleta zużyta (0 kg) — zeskanuj inny kod...';
+    scanInput.style.borderColor = '#ef4444';
+    scanInput.style.borderWidth = '2px';
+    if (iconEl) iconEl.style.color = '#ef4444';
+  } else {
+    if (mainTitle) mainTitle.textContent = 'Zeskanuj lokalizację docelową';
+    if (titleIcon) {
+      titleIcon.textContent = 'place';
+      titleIcon.style.color = '#2563eb';
+    }
+    scanInput.placeholder = 'np. R040101 lub BB01 (lub zeskanuj inną paletę)';
+    scanInput.style.borderColor = '#2563eb';
+    scanInput.style.borderWidth = '2px';
+    if (iconEl) iconEl.style.color = '#2563eb';
+  }
 
   scanInput.value = '';
   scanInput.focus();
   pendingProductionLoc = null;
-
-  scanInput.value = '';
-  scanInput.focus();
 
   if (window.hidePalletTimeout) {
     clearTimeout(window.hidePalletTimeout);
@@ -500,9 +582,14 @@ function hidePallet() {
   const barContainer = document.getElementById('palletTimeoutBarContainer');
   if (barContainer) barContainer.style.display = 'none';
 
-  const titleEl = document.querySelector('.scan-title');
-  if(titleEl) titleEl.innerHTML = '<span class="material-icons" style="color:var(--primary-color);">barcode_reader</span> Skanuj kod regału lub palety';
-  scanInput.placeholder = 'R030101, SUR-42, PAL-15';
+  const mainTitle = document.getElementById('scanTitleText');
+  if (mainTitle) mainTitle.textContent = 'Skanuj kod regału lub palety';
+  const titleIcon = document.getElementById('scanTitleIcon');
+  if (titleIcon) {
+    titleIcon.textContent = 'barcode_reader';
+    titleIcon.style.color = 'var(--primary-color, #3b82f6)';
+  }
+  scanInput.placeholder = 'Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)';
   scanInput.style.borderColor = '';
   scanInput.style.borderWidth = '';
   const iconEl = document.querySelector('.input-icon');

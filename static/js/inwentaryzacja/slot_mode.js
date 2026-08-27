@@ -75,6 +75,21 @@ function openSlotDetail(locId) {
             `;
             document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
         } else {
+            // Sprawdź czy wszystkie palety są już policzne (re-skan korekcyjny)
+            const allCounted = visibleItems.length > 0 && visibleItems.every(p => p.counted);
+            if (allCounted) {
+                // Baner informacyjny o re-skanie
+                const reScanBanner = document.createElement('div');
+                reScanBanner.style.cssText = 'background:#fffbeb; border:2px solid #f59e0b; border-radius:10px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px;';
+                reScanBanner.innerHTML = `
+                    <span class="material-icons" style="color:#d97706; font-size:20px; flex-shrink:0;">edit</span>
+                    <div>
+                        <div style="font-size:12px; font-weight:800; color:#92400e;">KOREKTA / RE-SKAN GNIAZDA</div>
+                        <div style="font-size:11px; color:#78350f; margin-top:2px;">Gniazdo już zinwentaryzowane. Zmień wagę i kliknij <strong>Zapisz</strong>, aby zaktualizować.</div>
+                    </div>`;
+                content.appendChild(reScanBanner);
+            }
+            
             visibleItems.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
@@ -104,7 +119,7 @@ function openSlotDetail(locId) {
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <div style="display: flex; flex-1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                        <input type="number" step="0.1" inputmode="none" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                        <input type="number" step="0.1" inputmode="decimal" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
                         <select class="slot-unit-select" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
                             <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
@@ -253,7 +268,7 @@ function openSlotDetail(locId) {
         });
         
         // Also add options to add/clear
-        const isOccupied = realItems.some(p => {
+        const isOccupied = visibleItems.some(p => {
             if (p.counted) return parseFloat(p.waga_faktyczna) > 0;
             return parseFloat(p.stan_magazynowy) > 0;
         });
@@ -275,11 +290,18 @@ function openSlotDetail(locId) {
         footerDiv.innerHTML = footerHtml;
         content.appendChild(footerDiv);
         document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
-        } // zamyka blok: if (realItems.length === 0)
+        } // zamyka blok: if (visibleItems.length === 0)
     }
     detail.style.display = 'flex';
     
-    // Autofocus weight input if pallet exists, or SSCC verifier if empty
+    // Schowaj główny skaner regałowy pod overlay — nie jest potrzebny gdy mamy detail
+    const rackScanRow = document.getElementById('ssccVerifierInputRack');
+    if (rackScanRow) {
+        rackScanRow.blur();
+        rackScanRow.value = '';
+    }
+    
+    // Autofocus weight input if pallet exists, or detail scanner if empty
     setTimeout(() => {
         if (typeof initInventoryScannerListeners === 'function') initInventoryScannerListeners();
         const weightInput = content.querySelector('.slot-weight-input');

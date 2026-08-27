@@ -8,8 +8,13 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 class LocationService:
 
+    OPEN_LOCATIONS_PREFIXES = [
+        'MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01',
+        'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD'
+    ]
+
     def check_location(lokalizacja, linia='PSD'):
-            if any(str(lokalizacja or '').upper().startswith(ol) for ol in MagazynDostawyService.OPEN_LOCATIONS_PREFIXES):
+            if any(str(lokalizacja or '').upper().startswith(ol) for ol in LocationService.OPEN_LOCATIONS_PREFIXES):
                 return False, "", [] # Always free for open locations
 
             conn = get_db_connection()
@@ -158,7 +163,7 @@ class LocationService:
             if not normalized:
                 return ''
 
-            for prefix in sorted(MagazynDostawyService.OPEN_LOCATIONS_PREFIXES, key=len, reverse=True):
+            for prefix in sorted(LocationService.OPEN_LOCATIONS_PREFIXES, key=len, reverse=True):
                 if normalized.startswith(prefix):
                     return prefix
 

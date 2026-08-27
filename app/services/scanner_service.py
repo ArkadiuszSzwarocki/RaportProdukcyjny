@@ -255,7 +255,7 @@ class ScannerService:
                 pass
 
         normalized_location = str(location_code or '').strip().upper()
-        if normalized_location not in {'MGW01', 'MGW02'}:
+        if not normalized_location:
             return None
 
         try:
@@ -319,18 +319,20 @@ class ScannerService:
                 is_prod = is_production_tank_code(loc)
                 qty = float(item.get('stan_magazynowy') or item.get('ilosc') or 0)
                 item_id = int(item.get('id') or 0)
+                is_used_up = bool(item.get('is_used_up', False))
                 
                 # Priority:
-                # 1. Has quantity > 0
-                # 2. Not 'OCZEKUJĄCE' (physical location / station over pending receiving queue)
-                # 3. Warehouse over production if both have stock > 0
-                # 4. Quantity
-                # 5. Newer ID
-                has_qty = qty > 0
+                # 1. Not used up (active pallets over 0 kg)
+                # 2. Has quantity > 0
+                # 3. Not 'OCZEKUJĄCE' (physical location / station over pending receiving queue)
+                # 4. Warehouse over production if both have stock > 0
+                # 5. Quantity
+                # 6. Newer ID
+                has_qty = (qty > 0) and not is_used_up
                 not_oczek = not is_oczek
                 is_warehouse = (not is_prod) and not_oczek
                 
-                return (has_qty, not_oczek, is_warehouse, qty, item_id)
+                return (not is_used_up, has_qty, not_oczek, is_warehouse, qty, item_id)
                 
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]
@@ -340,17 +342,29 @@ class ScannerService:
             if transfer_info:
                 final_res['is_transfer'] = True
                 final_res['transfer'] = transfer_info
+                final_res['is_blocked'] = 1
+                final_res['can_dispatch'] = False
+                final_res['status_pl'] = 'Oczekuje na przyjęcie'
                 db_loc = final_res.get('lokalizacja') or ''
                 if db_loc == 'W_TRANZYCIE_OSIP':
                     code_tr = transfer_info.get('transfer_code', '')
                     final_res['lokalizacja'] = f"W TRANZYCIE ({code_tr})"
+                elif transfer_info.get('is_magazyn_dostawy'):
+                    src = transfer_info.get('source_warehouse', '')
+                    dst = transfer_info.get('destination_warehouse', '')
+                    final_res['lokalizacja'] = 'OCZEKUJĄCE'
+                    final_res['source_location'] = src
+                    final_res['destination_location'] = dst
+                    final_res['status_info'] = f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}"
             return final_res
         elif transfer_info:
             return {
                 "is_transfer": True,
                 "transfer": transfer_info,
                 "nazwa": f"Transfer {transfer_info['transfer_code']}",
-                "lokalizacja": transfer_info['source_warehouse'],
+                "lokalizacja": "OCZEKUJĄCE",
+                "source_location": transfer_info.get('source_warehouse'),
+                "destination_location": transfer_info.get('destination_warehouse'),
                 "typ": "TRANSFER"
             }
 
@@ -408,7 +422,7 @@ class ScannerService:
 
     @staticmethod
     def _check_active_transfer_for_code(code: str):
-        """Sprawdza czy kod/paleta należy do aktywnego transferu międzymagazynowego."""
+        """Sprawdza czy kod/paleta należy do aktywnego transferu międzymagazynowego lub zlecenia przesunięcia."""
         if not code:
             return None
         code_clean = str(code).strip()
@@ -448,6 +462,52 @@ class ScannerService:
                 elif transfer.get('created_at'):
                     transfer['created_at'] = str(transfer['created_at'])
                 return transfer
+
+            # Sprawdź również magazyn_dostawy (oczekujące przesunięcia wewnętrzne i dostawy)
+            import json
+            cursor.execute("""
+                SELECT id, supplier, lokalizacja_z, lokalizacja_do, status, created_at, items, linia
+                FROM magazyn_dostawy
+                WHERE status IN ('OCZEKUJE', 'OPEN')
+                ORDER BY id DESC
+            """)
+            dostawy = cursor.fetchall()
+            code_clean_upper = code_clean.upper()
+            for d in dostawy:
+                raw_items = d.get('items')
+                if not raw_items:
+                    continue
+                try:
+                    d_items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                except Exception:
+                    continue
+                if not isinstance(d_items, list):
+                    continue
+
+                for it in d_items:
+                    if not isinstance(it, dict):
+                        continue
+                    if it.get('accepted') or it.get('rejected'):
+                        continue
+                    
+                    it_nr = str(it.get('nr_palety') or it.get('sourcePalletNo') or '').strip().upper()
+                    it_id = str(it.get('sourcePalletId') or it.get('id') or '')
+                    
+                    if (it_nr and it_nr == code_clean_upper) or (it_id and it_id == code_clean):
+                        created_str = d['created_at'].strftime('%Y-%m-%d %H:%M') if hasattr(d.get('created_at'), 'strftime') else str(d.get('created_at') or '')
+                        src_spot = it.get('sourceSpot') or d.get('lokalizacja_z') or 'MAGAZYN'
+                        dst_spot = it.get('lokalizacja_przyjecia') or d.get('lokalizacja_do') or 'OCZEKUJĄCE'
+                        return {
+                            'id': d['id'],
+                            'transfer_code': d.get('supplier') or f"Zlecenie #{d['id'][:8] if isinstance(d['id'], str) else d['id']}",
+                            'source_warehouse': src_spot,
+                            'destination_warehouse': dst_spot,
+                            'status': 'OCZEKUJE',
+                            'created_at': created_str,
+                            'linia': d.get('linia', 'PSD'),
+                            'is_magazyn_dostawy': True,
+                            'item_details': it
+                        }
             return None
         except Exception as e:
             print(f"Error checking active transfer for code {code}: {e}")
@@ -891,9 +951,92 @@ class ScannerService:
                         can_print_label=False,
                         location_fallback='MGW01',
                     )
-                    results.append(val)
-                    if not is_sscc:
+            # 4) Sprawdzenie w magazyn_archiwum (dla zużytych/zarchiwizowanych palet)
+            if not results and (is_sscc or is_partial_sscc or prefixed_type or numeric_id):
+                try:
+                    where_arch = ["UPPER(COALESCE(nr_palety, '')) = %s"]
+                    params_arch = [normalized_for_lookup]
+                    if is_partial_sscc:
+                        where_arch.append("UPPER(COALESCE(nr_palety, '')) LIKE %s")
+                        params_arch.append(f"%{normalized_for_lookup}%")
+                    if numeric_id is not None:
+                        where_arch.append("original_id = %s OR id = %s")
+                        params_arch.extend([numeric_id, numeric_id])
+
+                    sql_arch = f"""
+                        SELECT id, original_id, nr_palety, nazwa, typ_palety, linia, nr_partii, 
+                               waga_ostatnia, lokalizacja_ostatnia, data_archiwizacji, user_login, komentarz
+                        FROM magazyn_archiwum
+                        WHERE {' OR '.join(where_arch)}
+                        ORDER BY data_archiwizacji DESC LIMIT 1
+                    """
+                    cur.execute(sql_arch, tuple(params_arch))
+                    arch_row = cur.fetchone()
+                    if arch_row:
+                        dt_arch = arch_row.get('data_archiwizacji')
+                        dt_str = dt_arch.strftime('%Y-%m-%d %H:%M') if hasattr(dt_arch, 'strftime') else (str(dt_arch) if dt_arch else '')
+                        last_loc = arch_row.get('lokalizacja_ostatnia') or 'PRODUKCJA'
+                        arch_typ = arch_row.get('typ_palety') or 'Surowiec'
+                        arch_code_prefix = 'PAL' if arch_typ == 'Wyrób Gotowy' else ('OPK' if arch_typ == 'Opakowanie' else ('DOD' if arch_typ == 'Dodatek' else 'SUR'))
+                        results.append({
+                            'id': arch_row.get('original_id') or arch_row['id'],
+                            'nazwa': arch_row.get('nazwa') or 'Zużyty materiał',
+                            'stan_magazynowy': 0.0,
+                            'lokalizacja': f"ZUZYTA ({last_loc})",
+                            'nr_palety': arch_row.get('nr_palety') or location_code,
+                            'nr_partii': arch_row.get('nr_partii') or '',
+                            'data_produkcji': '',
+                            'data_przydatnosci': '',
+                            'inventory_type': arch_typ,
+                            'inventory_key': arch_code_prefix,
+                            'inventory_code': arch_row.get('nr_palety') or location_code,
+                            'is_used_up': True,
+                            'status_pl': 'Zużyta / Rozchodowana',
+                            'used_up_info': f"Zużyto do 0 kg (waga ost.: {arch_row.get('waga_ostatnia', 0)} kg, {dt_str} na {last_loc}, {arch_row.get('user_login', '')})",
+                            'can_dispatch': False,
+                            'can_split': False,
+                            'can_print_label': False,
+                            'unit': 'kg',
+                        })
+                except Exception:
+                    pass
+
+            # 5) Jeśli podano 6 cyfr bez prefiksu R (np. 020701), sprawdź czy istnieje taki regał R020701
+            if not results and re.match(r'^\d{6}$', location_code):
+                rack_with_r = f"R{location_code}"
+                for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+                    row = ScannerService._lookup_inventory_row(
+                        cur,
+                        base_table,
+                        linia,
+                        qty_col=qty_col,
+                        location_code=rack_with_r,
+                    )
+                    if row:
+                        results.append(_normalize_lookup_item(
+                            row,
+                            inventory_type=inv_type,
+                            inventory_key=code_prefix,
+                            code_prefix=code_prefix,
+                            can_dispatch=can_dispatch,
+                            can_split=can_split,
+                            can_print_label=can_print,
+                        ))
                         return results
+
+                row = ScannerService._lookup_finished_goods(cur, linia, location_code=rack_with_r)
+                if row:
+                    results.append(_normalize_lookup_item(
+                        row,
+                        inventory_type='Wyrób Gotowy',
+                        inventory_key='WYROB_GOTOWY',
+                        code_prefix='PAL',
+                        can_dispatch=False,
+                        can_split=False,
+                        can_print_label=False,
+                        location_fallback=rack_with_r,
+                    ))
+                    return results
 
             return results
         finally:
@@ -940,8 +1083,8 @@ class ScannerService:
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje", None
 
-            if pallet.get('is_blocked'):
-                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może zostać wydana na produkcję!", None
+            if pallet.get('is_blocked') or str(pallet.get('lokalizacja') or '').upper().startswith('OCZEK'):
+                return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Nie można jej wydać na produkcję dopóki nie zostanie przyjęta na magazyn docelowy!", None
 
             stan = float(pallet['stan_magazynowy'] or 0)
             if ilosc > stan:
@@ -1074,10 +1217,10 @@ class ScannerService:
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje"
 
-            if pallet.get('is_blocked'):
-                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może być przenoszona!"
-
             stara_lokalizacja = (pallet.get('lokalizacja') or '').strip().upper()
+            if stara_lokalizacja.startswith('OCZEK') or pallet.get('is_blocked'):
+                return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Aby ją przenieść na regał, użyj modułu Magazyn Dostawy (lub skanera przyjęć)!"
+
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
 
@@ -1256,7 +1399,9 @@ def _normalize_lookup_item(
     location_fallback: str = '',
 ) -> dict:
     qty = float(row.get('ilosc', row.get('stan_magazynowy', 0)) or 0)
-    location = str(row.get('lokalizacja') or location_fallback or '').strip().upper()
+    is_used_up = qty <= 0
+    raw_location = str(row.get('lokalizacja') or location_fallback or '').strip().upper()
+    location = f"ZUZYTA (ostatnio: {raw_location})" if (is_used_up and raw_location and not raw_location.startswith('ZUZY')) else raw_location
 
     dp = row.get('data_produkcji')
     dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
@@ -1289,8 +1434,11 @@ def _normalize_lookup_item(
         'inventory_type': inventory_type,
         'inventory_key': inventory_key,
         'inventory_code': f"{code_prefix}-{row['id']}",
-        'can_dispatch': bool(can_dispatch),
-        'can_split': bool(can_split),
+        'is_used_up': is_used_up,
+        'status_pl': 'Zużyta / Rozchodowana' if is_used_up else inventory_type,
+        'used_up_info': f"Paleta posiada stan 0.0 kg (ostatnia znana lokalizacja: {raw_location})" if is_used_up else '',
+        'can_dispatch': bool(can_dispatch) and not is_used_up,
+        'can_split': bool(can_split) and not is_used_up,
         'can_print_label': bool(can_print_label),
         'unit': 'kg',
     }
