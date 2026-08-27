@@ -175,22 +175,8 @@ class AcceptanceService:
                 conn.commit()
                 
                 if new_status == 'COMPLETED':
-                    try:
-                        from flask import url_for
-                        from app.services.office_print_service import trigger_office_print_url
-                        # Using request.host_url inside try block to be safe if no request context
-                        from flask import current_app, request
-                        if request:
-                            report_url = url_for(
-                                'magazyn_dostawy.raport_przesuniecia',
-                                dostawa_id=dostawa_id,
-                                linia=linia,
-                                internal_print=1,
-                                _external=True
-                            )
-                            trigger_office_print_url(report_url, 'raport_dostawy_zewnetrznej', prefix="dostawa_zewn_")
-                    except Exception as print_e:
-                        print("Błąd automatycznego druku raportu A4 po kompletacji dostawy zewnetrznej:", print_e)
+                    # Auto-print raportu A4 wyłączone - raport dostępny ręcznie w module Magazyn Dostaw
+                    pass
                 
                 # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
                 if printer_ip and printer_name:

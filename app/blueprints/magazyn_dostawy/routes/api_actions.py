@@ -25,22 +25,7 @@ def zapisz_dostawe():
         
         # Drukujemy od razu po etapie 1 TYLKO dla dostaw zewnętrznych.
         # Przesunięcia wewnętrzne drukują się dopiero po etapie 2 (przyjęciu).
-        if is_external:
-            try:
-                from app.services.office_print_service import trigger_office_print_url
-                linia = request.json.get('linia', 'PSD')
-                report_url = url_for(
-                    'magazyn_dostawy.raport_przesuniecia',
-                    dostawa_id=dostawa_id,
-                    linia=linia,
-                    internal_print=1,
-                    _external=True
-                )
-                report_type = 'raport_dostawy_zewnetrznej'
-                prefix = "dostawa_zewn_"
-                trigger_office_print_url(report_url, report_type, prefix=prefix)
-            except Exception as e:
-                print(f"Error triggering print in zapisz_dostawe: {e}")
+        # Auto-print disabled - report available in delivery list for manual viewing
 
         return jsonify({"success": True, "id": result})
     return jsonify({"success": False, "error": result}), 500
@@ -93,39 +78,8 @@ def przyjmij_pozycje(dostawa_id):
     if success:
         report_url = None
         if result.get('all_accepted'):
+            # Auto-print disabled - report is still available via report_url for manual viewing
             try:
-                # Trigger background print
-                from app.services.office_print_service import trigger_office_print_url
-                
-                # Determine if it's external delivery or internal transfer
-                conn = get_db_connection()
-                try:
-                    cursor = conn.cursor(dictionary=True)
-                    cursor.execute("SELECT typ_operacji FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
-                    d_row = cursor.fetchone()
-                    typ_operacji = d_row['typ_operacji'] if d_row else 'przesuniecie'
-                except:
-                    typ_operacji = 'przesuniecie'
-                finally:
-                    conn.close()
-                    
-                report_type_str = 'raport_dostawy_zewnetrznej' if typ_operacji == 'dostawa_zewnetrzna' else 'raport_przesuniecia'
-                
-                # This is the exact URL that the frontend would open, but we use internal_print=1
-                print_url = url_for(
-                    'magazyn_dostawy.raport_przesuniecia',
-                    dostawa_id=result.get('dostawa_id') or dostawa_id,
-                    linia=result.get('linia', 'PSD'),
-                    internal_print=1,
-                    _external=True
-                )
-                trigger_office_print_url(print_url, typ_raportu=report_type_str)
-            except Exception as e:
-                print(f"Error triggering background report print: {e}")
-                traceback.print_exc()
-
-            try:
-                # Still provide report_url to frontend so it can navigate back to list or show the report without autoprint
                 report_url = url_for(
                     'magazyn_dostawy.raport_przesuniecia',
                     dostawa_id=result.get('dostawa_id') or dostawa_id,
@@ -158,35 +112,15 @@ def odrzuc_pozycje(dostawa_id):
     if success:
         report_url = None
         if result.get('all_processed'):
-            # Determine if it's external delivery or internal transfer
-            conn = get_db_connection()
+            # Auto-print disabled - generate report_url for manual viewing only
             try:
-                cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT typ_operacji FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
-                d_row = cursor.fetchone()
-                typ_operacji = d_row['typ_operacji'] if d_row else 'przesuniecie'
-            except:
-                typ_operacji = 'przesuniecie'
-            finally:
-                conn.close()
-                
-            report_type_str = 'raport_dostawy_zewnetrznej' if typ_operacji == 'dostawa_zewnetrzna' else 'raport_przesuniecia'
-            
-            from app.services.office_print_service import trigger_office_print_url
-            print_url = url_for(
-                'magazyn_dostawy.raport_przesuniecia',
-                dostawa_id=result.get('dostawa_id') or dostawa_id,
-                linia=result.get('linia', 'PSD'),
-                internal_print=1,
-                _external=True
-            )
-            trigger_office_print_url(print_url, typ_raportu=report_type_str)
-            
-            report_url = url_for(
-                'magazyn_dostawy.raport_przesuniecia',
-                dostawa_id=result.get('dostawa_id') or dostawa_id,
-                linia=result.get('linia', 'PSD')
-            )
+                report_url = url_for(
+                    'magazyn_dostawy.raport_przesuniecia',
+                    dostawa_id=result.get('dostawa_id') or dostawa_id,
+                    linia=result.get('linia', 'PSD')
+                )
+            except Exception as e:
+                print(f"Error generating report url in odrzuc_pozycje: {e}")
 
         return jsonify({
             "success": True,
