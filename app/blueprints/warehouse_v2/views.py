@@ -474,82 +474,93 @@ def raport_palet():
            data_planu = data_od
        report_data = []
        for p in plans:
-           cursor.execute('''
-               SELECT s.id, 
-                      s.waga as waga, 
-                      s.data_dodania 
-               FROM szarze s
-               WHERE s.plan_id = %s 
-               ORDER BY s.data_dodania ASC
-           ''', (p['zasyp_id'],))
-           batches_raw = cursor.fetchall()
-           cursor.execute('''
-               SELECT id, waga, COALESCE(data_dodania, created_at) as data_dodania, kategoria 
-               FROM psd_mix_rozliczenie 
-               WHERE plan_id = %s 
-               ORDER BY data_dodania ASC
-           ''', (p['zasyp_id'],))
-           mixes_raw = cursor.fetchall() or []
-           cursor.execute('''
-               SELECT id, nazwa, kg, data_zlecenia 
-               FROM dosypki 
-               WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
-               ORDER BY data_zlecenia ASC
-           ''', (p['zasyp_id'],))
-           solo_dosypki = cursor.fetchall()
-           all_inputs = []
-           for b_raw in batches_raw:
-               all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
-           for d_raw in solo_dosypki:
-               all_inputs.append({'label': f"Dosypka {d_raw['nazwa']} #{d_raw['id']}", 'waga': d_raw['kg'] or 0, 'time': d_raw['data_zlecenia']})
-           for m_raw in mixes_raw:
-               cat = m_raw.get('kategoria', 'MIX').replace('_', ' ') if m_raw.get('kategoria') else 'MIX'
-               all_inputs.append({'label': f"MIX {cat} #{m_raw['id']}", 'waga': m_raw['waga'] or 0, 'time': m_raw.get('data_dodania')})
-           all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
-           current_in_kg = 0
-           input_ranges = []
-           for inp in all_inputs:
-               start = current_in_kg
-               end = current_in_kg + inp['waga']
-               input_ranges.append({'label': inp['label'], 'start': start, 'end': end})
-               current_in_kg = end
-           cursor.execute("""
-               SELECT 
-                   p.id, p.waga, p.status, p.data_dodania, 
-                   p.dodal_login,
-                   NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
-                   COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
-                   COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
-                   COALESCE(m.nr_palety, p.nr_palety) as nr_palety
-               FROM palety_workowanie p
-               LEFT JOIN magazyn_palety m ON p.id = m.paleta_workowanie_id
-               WHERE p.plan_id = %s
-               ORDER BY p.data_dodania ASC
-           """, (p['work_id'],))
-           pallets_raw = cursor.fetchall()
-           current_out_kg = 0
-           processed_pallets = []
-           for pal_raw in pallets_raw:
-               p_start = current_out_kg
-               p_end = current_out_kg + (pal_raw['waga'] or 0)
-               shares = []
-               for ir in input_ranges:
-                   overlap_start = max(p_start, ir['start'])
-                   overlap_end = min(p_end, ir['end'])
-                   if overlap_end > overlap_start:
-                       overlap_kg = overlap_end - overlap_start
-                       waga_palety = float(pal_raw['waga'] or 0)
-                       percent = overlap_kg / waga_palety * 100 if waga_palety > 0 else 0
-                       if percent >= 0.5:
-                           shares.append(f"{ir['label']} ({round(percent)}%)")
-               pal_raw['sklad'] = ', '.join(shares) if shares else 'Nieznany skład'
-               processed_pallets.append(pal_raw)
-               current_out_kg = p_end
-           report_data.append({
-               'plan': p,
-               'pallets': processed_pallets,
-               'input_summary': ', '.join([f"{inp['label']} ({inp['waga']:.1f}kg)" for inp in all_inputs])
-           })
+            target_zasyp_id = p['zasyp_id'] if p.get('zasyp_id') else p['work_id']
+            cursor.execute('''
+                SELECT s.id, 
+                       s.waga as waga, 
+                       s.data_dodania 
+                FROM szarze s
+                WHERE s.plan_id = %s 
+                ORDER BY s.data_dodania ASC
+            ''', (target_zasyp_id,))
+            batches_raw = cursor.fetchall()
+            cursor.execute('''
+                SELECT id, waga, COALESCE(data_dodania, created_at) as data_dodania, kategoria 
+                FROM psd_mix_rozliczenie 
+                WHERE plan_id = %s 
+                ORDER BY data_dodania ASC
+            ''', (target_zasyp_id,))
+            mixes_raw = cursor.fetchall() or []
+            cursor.execute('''
+                SELECT id, nazwa, kg, data_zlecenia 
+                FROM dosypki 
+                WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
+                ORDER BY data_zlecenia ASC
+            ''', (target_zasyp_id,))
+            solo_dosypki = cursor.fetchall()
+            all_inputs = []
+            for b_raw in batches_raw:
+                all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
+            for d_raw in solo_dosypki:
+                all_inputs.append({'label': f"Dosypka {d_raw['nazwa']} #{d_raw['id']}", 'waga': d_raw['kg'] or 0, 'time': d_raw['data_zlecenia']})
+            for m_raw in mixes_raw:
+                cat = m_raw.get('kategoria', 'MIX').replace('_', ' ') if m_raw.get('kategoria') else 'MIX'
+                all_inputs.append({'label': f"MIX {cat} #{m_raw['id']}", 'waga': m_raw.get('waga') or m_raw.get('waga_kg') or 0, 'time': m_raw.get('data_dodania')})
+            all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
+            current_in_kg = 0
+            input_ranges = []
+            for inp in all_inputs:
+                start = current_in_kg
+                end = current_in_kg + inp['waga']
+                input_ranges.append({'label': inp['label'], 'start': start, 'end': end})
+                current_in_kg = end
+            cursor.execute("""
+                SELECT 
+                    p.id, p.waga, p.status, p.data_dodania, 
+                    p.dodal_login,
+                    NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
+                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
+                    COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
+                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety
+                FROM palety_workowanie p
+                LEFT JOIN magazyn_palety m ON p.id = m.paleta_workowanie_id
+                WHERE p.plan_id = %s OR (%s IS NOT NULL AND p.plan_id = %s)
+                ORDER BY p.data_dodania ASC
+            """, (p['work_id'], target_zasyp_id, target_zasyp_id))
+            pallets_raw = cursor.fetchall()
+            current_out_kg = 0
+            processed_pallets = []
+            for pal_raw in pallets_raw:
+                p_start = current_out_kg
+                p_end = current_out_kg + (pal_raw['waga'] or 0)
+                shares = []
+                for ir in input_ranges:
+                    overlap_start = max(p_start, ir['start'])
+                    overlap_end = min(p_end, ir['end'])
+                    if overlap_end > overlap_start:
+                        overlap_kg = overlap_end - overlap_start
+                        waga_palety = float(pal_raw['waga'] or 0)
+                        percent = overlap_kg / waga_palety * 100 if waga_palety > 0 else 0
+                        if percent >= 0.5:
+                            shares.append(f"{ir['label']} ({round(percent)}%)")
+                pal_raw['sklad'] = ', '.join(shares) if shares else 'Nieznany skład'
+                processed_pallets.append(pal_raw)
+                current_out_kg = p_end
+
+            total_pallet_kg = sum(float(pal['waga'] or 0) for pal in pallets_raw)
+            total_mix_kg = sum(float(m.get('waga') or m.get('waga_kg') or 0) for m in mixes_raw)
+
+            report_data.append({
+                'plan': p,
+                'palety': processed_pallets,
+                'pallets': processed_pallets,
+                'mixes': mixes_raw,
+                'opakowania': [],
+                'aktywne_opakowania': [],
+                'total_pallet_kg': total_pallet_kg,
+                'total_mix_kg': total_mix_kg,
+                'input_summary': ', '.join([f"{inp['label']} ({inp['waga']:.1f}kg)" for inp in all_inputs])
+            })
        return render_template('warehouse_v2/raport_palet.html', report_data=report_data, data_planu=data_planu, single_view=bool(plan_id), is_ajax=is_ajax, print_date=datetime.now().strftime('%d.%m.%Y %H:%M'))
     except Exception as e:
        current_app.logger.error(f'Error generating raport_palet: {e}')
