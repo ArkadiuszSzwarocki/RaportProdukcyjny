@@ -67,7 +67,6 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
             if z:
                 if linia == 'AGRO':
-                if linia == 'AGRO':
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id, db_nr_partii, typ_opakowania = z
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
