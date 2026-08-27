@@ -14,11 +14,14 @@ ROLES_PAGES = [
     'jakosc',
     'planista',
     'plan',
-    'zasyp',
-    'workowanie',
-    'magazyn',
-    'agro_magazyn',
-    'bufor',
+    'psd.zasyp',
+    'psd.workowanie',
+    'psd.bufor',
+    'psd.magazyn',
+    'agro.zasyp',
+    'agro.workowanie',
+    'agro.bufor',
+    'agro.magazyn',
     'moje_godziny',
     'awarie',
     'wyniki',
@@ -33,9 +36,14 @@ ROLES_PAGES = [
 
 ROLES_PAGE_ALIASES = {
     'podsumowanie_zasypow': 'podsumowanie_szarz',
+    # Legacy aliases: generic keys -> prefixed keys (backward compat)
+    'workowanie': 'psd.workowanie',
+    'zasyp': 'psd.zasyp',
+    'bufor': 'psd.bufor',
+    'magazyn': 'psd.magazyn',
 }
 
-ROLES_USERS_PAGES = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'zasyp', 'workowanie', 'magazyn', 'bufor', 'moje_godziny', 'awarie', 'wyniki']
+ROLES_USERS_PAGES = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'psd.zasyp', 'psd.workowanie', 'agro.zasyp', 'agro.workowanie', 'psd.magazyn', 'agro.magazyn', 'psd.bufor', 'agro.bufor', 'moje_godziny', 'awarie', 'wyniki']
 
 ROLE_NAME_MAPPING = {
     'laborant': 'laborant',
