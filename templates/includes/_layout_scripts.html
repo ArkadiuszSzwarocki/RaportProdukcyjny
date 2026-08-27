@@ -719,23 +719,28 @@
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
         var panel = document.createElement('div');
-        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+        panel.style.cssText = 'width:100%;max-width:450px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
 
         var title = document.createElement('h3');
-        title.textContent = 'Rozpoczęcie zlecenia AGRO';
+        title.textContent = 'Rozpoczęcie zlecenia - Workowanie';
         title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
 
         var subtitle = document.createElement('p');
         subtitle.textContent = 'Zlecenie: ' + productName;
-        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+        subtitle.style.cssText = 'margin:0 0 16px 0;color:#334e68;font-size:0.92rem;';
 
-        var msg = document.createElement('p');
-        msg.textContent = 'Wpisz datę produkcji, jeśli chcesz ją zmienić/ustawić. Pozostaw domślną, aby użyć dzisiejszej:';
-        msg.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.9rem;';
+        // Sekcja dla daty produkcji
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;font-size:0.9rem;font-weight:600;color:#334e68;margin-bottom:4px;';
+
+        var dateMsg = document.createElement('p');
+        dateMsg.textContent = 'Pozostaw domślną, aby użyć dzisiejszej:';
+        dateMsg.style.cssText = 'margin:0 0 6px 0;color:#64748b;font-size:0.85rem;';
 
         var dateInput = document.createElement('input');
         dateInput.type = 'date';
-        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:16px;font-size:1rem;box-sizing:border-box;';
         
         var today = new Date();
         var yyyy = today.getFullYear();
@@ -743,8 +748,18 @@
         var dd = String(today.getDate()).padStart(2, '0');
         dateInput.value = yyyy + '-' + mm + '-' + dd;
 
+        // Sekcja dla Nr Partii
+        var batchLabel = document.createElement('label');
+        batchLabel.textContent = '📦 Nr Partii (obowiązkowe):';
+        batchLabel.style.cssText = 'display:block;font-size:0.9rem;font-weight:600;color:#334e68;margin-bottom:4px;';
+
+        var batchInput = document.createElement('input');
+        batchInput.type = 'text';
+        batchInput.placeholder = 'np. BATCH-20260826-001 lub 2026-08-26-01';
+        batchInput.style.cssText = 'width:100%;padding:10px 10px;border:2px solid #fbbf24;border-radius:8px;margin-bottom:12px;font-size:0.95rem;box-sizing:border-box;font-weight:600;';
+
         var errorBox = document.createElement('div');
-        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;';
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:12px;';
 
         var actions = document.createElement('div');
         actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
@@ -756,7 +771,7 @@
 
         var confirmBtn = document.createElement('button');
         confirmBtn.type = 'button';
-        confirmBtn.textContent = 'Uruchom';
+        confirmBtn.textContent = 'Uruchom zlecenie';
         confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
 
         cancelBtn.addEventListener('click', function() {
@@ -764,15 +779,27 @@
         });
 
         confirmBtn.addEventListener('click', function() {
+            errorBox.textContent = '';
+            
             var dateValue = (dateInput.value || '').trim();
             if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                errorBox.textContent = '❌ Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            var batchValue = (batchInput.value || '').trim();
+            if (!batchValue) {
+                errorBox.textContent = '❌ Nr Partii jest obowiązkowy! Wpisz numer lub kod partii.';
+                batchInput.focus();
+                batchInput.style.borderColor = '#dc2626';
                 return;
             }
 
             if (dateValue) {
                 setHiddenFormValue(form, 'data_produkcji', dateValue);
             }
+            
+            setHiddenFormValue(form, 'nr_partii', batchValue);
 
             overlay.remove();
             form.submit();
@@ -784,13 +811,20 @@
             }
         });
 
+        batchInput.addEventListener('input', function() {
+            batchInput.style.borderColor = '#fbbf24';
+        });
+
         actions.appendChild(cancelBtn);
         actions.appendChild(confirmBtn);
 
         panel.appendChild(title);
         panel.appendChild(subtitle);
-        panel.appendChild(msg);
+        panel.appendChild(dateLabel);
+        panel.appendChild(dateMsg);
         panel.appendChild(dateInput);
+        panel.appendChild(batchLabel);
+        panel.appendChild(batchInput);
         panel.appendChild(errorBox);
         panel.appendChild(actions);
         overlay.appendChild(panel);
@@ -798,10 +832,8 @@
 
         setTimeout(function() {
             try {
-                dateInput.showPicker();
-            } catch(e) {
-                dateInput.focus();
-            }
+                batchInput.focus();
+            } catch(e) {}
         }, 50);
     }
 
@@ -842,7 +874,7 @@
             return false;
         }
         
-        if (sekcja === 'Workowanie' && linia === 'AGRO') {
+        if (sekcja === 'Workowanie' && (linia === 'AGRO' || linia === 'PSD')) {
             openAgroProductionDateModal(form, productName);
             return false;
         } else {

@@ -44,6 +44,22 @@ async function printCurrentPallet(triggerBtn) {
             return;
         }
 
+        // Dla wyrób gotowego - pokaż najpierw podgląd
+        if (currentPallet.type === 'Wyrób Gotowy') {
+            const linia = currentPallet.linia || 'PSD';
+            const previewUrl = `/warehouse-v2/podglad-etykiety/${currentPallet.id}?linia=${encodeURIComponent(linia)}`;
+            
+            // Otwórz podgląd w nowym oknie (user może go zamknąć)
+            const previewWindow = window.open(previewUrl, 'label_preview_psd', 'width=1000,height=1200,resizable=yes,scrollbars=yes');
+            
+            if (previewWindow) {
+                if (typeof showToast === 'function') {
+                    showToast('Podgląd etykiety otwarty w nowym oknie. Sprawdź dane i wróć aby wydrukować.', 'info');
+                }
+            }
+            return;
+        }
+
         const printerSelect = document.getElementById('printerSelect');
         if (!printerSelect) {
             AppDialog.alert('Błąd UI: nie znaleziono listy drukarek. Odśwież stronę (Ctrl+F5).');

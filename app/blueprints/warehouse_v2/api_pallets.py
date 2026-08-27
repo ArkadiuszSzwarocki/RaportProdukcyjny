@@ -240,7 +240,7 @@ def print_pallet_label():
         # Determine correct table
         if pallet_type == 'Wyrób Gotowy':
             table_mag = 'magazyn_palety'
-            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Surowiec':
             table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
             cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
@@ -263,6 +263,8 @@ def print_pallet_label():
             'nazwa': row['productName'],
             'ilosc': row['amount'],
             'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
+            'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else None,
+            'nr_partii': row.get('batch') or '',
             'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
             'linia': linia,
             'nr_plomby': row.get('nr_plomby') if pallet_type == 'Wyrób Gotowy' else None

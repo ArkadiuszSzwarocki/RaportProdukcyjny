@@ -137,6 +137,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             mp.paleta_workowanie_id,
             pp.data_produkcji,
             mp.nr_plomby,
+            mp.data_przydatnosci,
             {partia_select}
         FROM {table_mag} mp
         LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
@@ -155,7 +156,8 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         pw_id_from_mag = _get_val(row, 'paleta_workowanie_id', 5)
         custom_data_prod = _get_val(row, 'data_produkcji', 6)
         nr_plomby = _get_val(row, 'nr_plomby', 7)
-        nr_partii_db = _get_val(row, 'nr_partii', 8)
+        data_przydatnosci = _get_val(row, 'data_przydatnosci', 8)
+        nr_partii_db = _get_val(row, 'nr_partii', 9)
         
         # Decide production date
         if custom_data_prod:
@@ -239,6 +241,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             'nazwa': produkt,
             'ilosc': float(waga),
             'data': data_str,
+            'data_przydatnosci': _format_date(data_przydatnosci) if data_przydatnosci else None,
             'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}",
             'nr_palety_lp': nr_palety_lp,
             'nr_plomby': nr_plomby,
@@ -252,9 +255,10 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
 
     partia_select_pw = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
     cursor.execute(f"""
-        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}
+        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, pp.data_przydatnosci) AS data_przydatnosci
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
+        LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id
         WHERE pw.id = %s
     """, (paleta_id,))
     pw_row = cursor.fetchone()
@@ -271,6 +275,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     stored_nr_palety_lp = _get_val(pw_row, 'nr_palety_lp', 6)
     nr_plomby = _get_val(pw_row, 'nr_plomby', 7)
     nr_partii_db = _get_val(pw_row, 'nr_partii', 8)
+    data_przydatnosci = _get_val(pw_row, 'data_przydatnosci', 9)
     
     # Decide production date
     if custom_data_prod:
@@ -335,6 +340,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         'nazwa': produkt,
         'ilosc': float(waga),
         'data': data_str,
+        'data_przydatnosci': _format_date(data_przydatnosci) if data_przydatnosci else None,
         'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})",
         'nr_palety_lp': nr_palety_lp,
         'nr_plomby': nr_plomby,

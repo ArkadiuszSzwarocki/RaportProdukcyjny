@@ -56,6 +56,11 @@
               class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% elif request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
             Raport Zasypów i Dosypek
         </a>
+
+        <a href="/warehouse-v2/psd/raport_palet" 
+           class="nav-sub-item {% if request.path == '/warehouse-v2/psd/raport_palet' %}active{% endif %}">
+          📊 Raport Palet
+        </a>
     </div>
 </div>
 {% endif %}

@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, jsonify, render_template, request, session, current_app
 from app.db import get_db_connection, get_table_name
 from .blueprint import warehouse_v2_bp
 
@@ -432,3 +432,226 @@ def archiwum():
             conn.close()
             
     return render_template('warehouse_v2/archiwum.html', linia=linia, items=archive_items)
+
+@warehouse_v2_bp.route('/psd/raport_palet', methods=['GET'])
+def raport_palet():
+    """Generates a printable pallet report for PSD line."""
+    from datetime import date
+    today = date.today()
+    
+    # Accept date parameters, but default to today
+    data_od = request.args.get('data_od') or str(today)
+    data_do = request.args.get('data_do') or str(today)
+    plan_id = request.args.get('plan_id')
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+       query = """
+           SELECT w.id as work_id, w.produkt, w.waga_rzeczywista as w_kg, 
+                  z.id as zasyp_id, z.waga as z_kg,
+                  w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania, w.nr_partii,
+                  z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,
+                  w.status,
+                  0 as odrzuty_przesiewacz
+           FROM plan_produkcji w
+           LEFT JOIN szarze z ON w.zasyp_id = z.id
+           WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+       """
+       params = []
+       if plan_id:
+           query += ' AND w.id = %s'
+           params.append(plan_id)
+       else:
+           query += ' AND w.data_planu BETWEEN %s AND %s'
+           params.extend([data_od, data_do])
+           query += ' ORDER BY w.data_planu DESC, w.id DESC'
+       cursor.execute(query, tuple(params))
+       plans = cursor.fetchall()
+       if plan_id and plans:
+           data_planu = str(plans[0]['data_planu'])
+       else:
+           data_planu = data_od
+       report_data = []
+       for p in plans:
+           cursor.execute('''
+               SELECT s.id, 
+                      s.waga as waga, 
+                      s.data_dodania 
+               FROM szarze s
+               WHERE s.plan_id = %s 
+               ORDER BY s.data_dodania ASC
+           ''', (p['zasyp_id'],))
+           batches_raw = cursor.fetchall()
+           cursor.execute('''
+               SELECT id, waga, COALESCE(data_dodania, created_at) as data_dodania, kategoria 
+               FROM psd_mix_rozliczenie 
+               WHERE plan_id = %s 
+               ORDER BY data_dodania ASC
+           ''', (p['zasyp_id'],))
+           mixes_raw = cursor.fetchall() or []
+           cursor.execute('''
+               SELECT id, nazwa, kg, data_zlecenia 
+               FROM dosypki 
+               WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
+               ORDER BY data_zlecenia ASC
+           ''', (p['zasyp_id'],))
+           solo_dosypki = cursor.fetchall()
+           all_inputs = []
+           for b_raw in batches_raw:
+               all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
+           for d_raw in solo_dosypki:
+               all_inputs.append({'label': f"Dosypka {d_raw['nazwa']} #{d_raw['id']}", 'waga': d_raw['kg'] or 0, 'time': d_raw['data_zlecenia']})
+           for m_raw in mixes_raw:
+               cat = m_raw.get('kategoria', 'MIX').replace('_', ' ') if m_raw.get('kategoria') else 'MIX'
+               all_inputs.append({'label': f"MIX {cat} #{m_raw['id']}", 'waga': m_raw['waga'] or 0, 'time': m_raw.get('data_dodania')})
+           all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
+           current_in_kg = 0
+           input_ranges = []
+           for inp in all_inputs:
+               start = current_in_kg
+               end = current_in_kg + inp['waga']
+               input_ranges.append({'label': inp['label'], 'start': start, 'end': end})
+               current_in_kg = end
+           cursor.execute("""
+               SELECT 
+                   p.id, p.waga, p.status, p.data_dodania, 
+                   p.dodal_login,
+                   NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
+                   COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
+                   COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
+                   COALESCE(m.nr_palety, p.nr_palety) as nr_palety
+               FROM palety_workowanie p
+               LEFT JOIN magazyn_palety m ON p.id = m.paleta_workowanie_id
+               WHERE p.plan_id = %s
+               ORDER BY p.data_dodania ASC
+           """, (p['work_id'],))
+           pallets_raw = cursor.fetchall()
+           current_out_kg = 0
+           processed_pallets = []
+           for pal_raw in pallets_raw:
+               p_start = current_out_kg
+               p_end = current_out_kg + (pal_raw['waga'] or 0)
+               shares = []
+               for ir in input_ranges:
+                   overlap_start = max(p_start, ir['start'])
+                   overlap_end = min(p_end, ir['end'])
+                   if overlap_end > overlap_start:
+                       overlap_kg = overlap_end - overlap_start
+                       waga_palety = float(pal_raw['waga'] or 0)
+                       percent = overlap_kg / waga_palety * 100 if waga_palety > 0 else 0
+                       if percent >= 0.5:
+                           shares.append(f"{ir['label']} ({round(percent)}%)")
+               pal_raw['sklad'] = ', '.join(shares) if shares else 'Nieznany skład'
+               processed_pallets.append(pal_raw)
+               current_out_kg = p_end
+           report_data.append({
+               'plan': p,
+               'pallets': processed_pallets,
+               'input_summary': ', '.join([f"{inp['label']} ({inp['waga']:.1f}kg)" for inp in all_inputs])
+           })
+       return render_template('warehouse_v2/raport_palet.html', report_data=report_data, data_planu=data_planu, single_view=bool(plan_id), is_ajax=is_ajax, print_date=datetime.now().strftime('%d.%m.%Y %H:%M'))
+    except Exception as e:
+       current_app.logger.error(f'Error generating raport_palet: {e}')
+       return jsonify({'success': False, 'error': str(e)}) if is_ajax else render_template('warehouse_v2/raport_palet.html', report_data=[], data_planu='', error=str(e))
+    finally:
+       cursor.close()
+       conn.close()
+
+@warehouse_v2_bp.route('/podglad-etykiety/<int:paleta_id>', methods=['GET'])
+@warehouse_v2_bp.route('/psd/podglad-etykiety/<int:paleta_id>', methods=['GET'])
+def podglad_etykiety_psd(paleta_id):
+    """Generates HTML preview of a pallet label for PSD line using Labelary API."""
+    from app.utils.pallet_label import prepare_pallet_label_data
+    import json
+    
+    linia = request.args.get('linia', 'PSD').strip().upper()
+    
+    conn = get_db_connection()
+    try:
+       cursor = conn.cursor(dictionary=True)
+       label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table='magazyn')
+    finally:
+       conn.close()
+    
+    if not label_data:
+       return 'Nie znaleziono danych etykiety dla tej palety.', 404
+    
+    nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or paleta_id).strip() or str(paleta_id)
+    product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip() or 'Brak nazwy'
+    nr_partii = str(label_data.get('partia') or '---').strip() or '---'
+    data_produkcji = str(label_data.get('data') or '---').strip() or '---'
+    data_przydatnosci = str(label_data.get('termin') or '---').strip() or '---'
+    qty_display = label_data.get('ilosc') or 0
+    nr_palety_lp = label_data.get('nr_palety_lp')
+    nr_plomby = label_data.get('nr_plomby') or None
+    
+    try:
+       if nr_palety_lp not in (None, ''):
+           nr_palety_lp = int(nr_palety_lp)
+    except Exception:
+       nr_palety_lp = None
+    
+    nr_upper = nr_palety.upper()
+    prod_lower = product_name.lower()
+    is_surowiec = label_data.get('is_surowiec') or 'czyszczenie' in prod_lower or 'maka mix do lnu' in prod_lower or 'mąka mix do lnu' in prod_lower
+    
+    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or is_surowiec:
+       typ_label = 'SUROWIEC'
+    elif nr_upper.startswith('OPA'):
+       typ_label = 'OPAKOWANIE'
+    else:
+       typ_label = 'WYRÓB GOTOWY'
+    
+    qr_details = {
+       "sscc": nr_palety,
+       "prod": product_name,
+       "lp": str(nr_palety_lp or ''),
+       "partia": nr_partii,
+       "plomba": str(nr_plomby or ''),
+       "data_prod": data_produkcji,
+       "data_przyd": data_przydatnosci,
+       "ilosc": f"{qty_display:.2f}",
+       "jm": "kg",
+       "typ": f"{typ_label} - {linia}"
+    }
+    qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
+    
+    partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != '---' else ""
+    przydatnosc_line = f"^FO40,950^A0N,45,45^FDTERMIN PRZYDATNOŚCI: {data_przydatnosci}^FS" if data_przydatnosci and data_przydatnosci != '---' else ""
+    plomba_line = f"^FO40,1000^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
+    
+    zpl_string = f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FD{typ_label} - {linia}^FS
+^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
+^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
+^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
+^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp or '---'}^FS
+^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
+{partia_line}
+{przydatnosc_line}
+{plomba_line}
+^FO40,1050^A0N,70,70^FDWAGA NETTO:^FS
+^FO40,1150^A0N,100,100^FD{qty_display:.2f} kg^FS
+^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
+^PQ1
+^XZ"""
+    
+    return render_template(
+       'magazyn_dostawy/etykieta_podglad.html',
+       nr_palety=nr_palety,
+       product_name=product_name,
+       nr_partii=nr_partii,
+       data_produkcji=data_produkcji,
+       data_przydatnosci=data_przydatnosci,
+       qty=qty_display,
+       typ_label=typ_label,
+       linia=linia,
+       qr_details_json=json.dumps(qr_details),
+       zpl_string=zpl_string,
+       generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+

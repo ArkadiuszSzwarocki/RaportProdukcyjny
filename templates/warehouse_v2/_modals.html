@@ -176,6 +176,9 @@
                 <button onclick="printInventorySheet(allWarehouseItems, '{{ linia }}')" class="btn-report-action">
                     <span class="material-icons" style="color: #3b82f6;">print</span> Arkusz Inwentaryzacyjny (Druk)
                 </button>
+                <a href="/warehouse-v2/psd/raport_palet" class="btn-report-action" style="text-decoration: none;">
+                    <span class="material-icons" style="color: #10b981;">summarize</span> Raport Palet
+                </a>
                 <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-report-action" style="text-decoration: none;">
                     <span class="material-icons" style="color: #10b981;">history</span> Raport Przesunięć i Ruchów
                 </a>
