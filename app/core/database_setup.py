@@ -706,6 +706,17 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS zgloszenia_bledow_odpowiedzi (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            zgloszenie_id BIGINT NOT NULL,
+            autor_login VARCHAR(50) NOT NULL,
+            tresc TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_zgloszenie_id (zgloszenie_id)
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS drukarki (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nazwa VARCHAR(100) NOT NULL,
@@ -1322,11 +1333,20 @@ def _migrate_columns(cursor):
 
 
 
-    # Allow NULL for paleta_id in history
+    # Allow NULL for paleta_id in history and ensure nr_palety column exists
     try:
         cursor.execute("ALTER TABLE palety_historia MODIFY paleta_id INT NULL")
     except Exception:
         pass
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM palety_historia LIKE 'nr_palety'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE palety_historia ADD COLUMN nr_palety VARCHAR(100) NULL AFTER paleta_id")
+            cursor.execute("ALTER TABLE palety_historia ADD INDEX idx_palety_historia_nr_palety (nr_palety)")
+            print("[OK] Added column nr_palety and index to palety_historia")
+    except Exception as e:
+        print(f"[WARN] Failed to add column nr_palety to palety_historia: {e}")
 
 def _seed_default_users(cursor):
     """Create default users if they don't exist."""

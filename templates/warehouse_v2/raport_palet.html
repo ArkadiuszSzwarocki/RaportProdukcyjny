@@ -155,12 +155,13 @@
             <div class="no-print" style="margin-top:8px; display:flex; gap:8px; align-items:center;">
                 <label for="reportDatePicker" style="font-size:0.9em; color:#666; margin-right:6px;">Zmień datę:</label>
                 <input type="date" id="reportDatePicker" value="{{ data_planu }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
-                <button type="button" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;">Pokaż</button>
-                {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
-                    <a href="/set_hall_view?hall=PSD&sekcja=Magazyn" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
-                {% else %}
-                    <a href="javascript:history.back()" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
-                {% endif %}
+                <button type="button" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;font-weight:bold;">Pokaż</button>
+                <button type="button" onclick="closeOrReturnReport()" style="padding:8px 14px;background:#475569;color:#fff;border-radius:6px;border:none;cursor:pointer;margin-left:12px;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Zamknij raport i wróć do pulpitu">
+                    ⬅️ Wróć / Zamknij
+                </button>
+                <a href="{{ url_for('main.index', linia='PSD', sekcja='Workowanie') }}" style="padding:8px 14px;background:#0f172a;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Powrót do pulpitu PSD">
+                    🏠 Pulpit PSD
+                </a>
             </div>
         </div>
         <div class="header-meta">
@@ -403,7 +404,7 @@
         </div>
 
         {% set niski_stan = namespace(items=[]) %}
-        {% for name, stock in item.packaging_stocks.items() %}
+        {% for name, stock in (item.packaging_stocks|default({}, true)).items() %}
             {% if stock < 4200 %}
                 {% set _ = niski_stan.items.append({'name': name, 'stock': stock}) %}
             {% endif %}
@@ -426,31 +427,45 @@
     </div>
     {% endfor %}
 
+    {% if not report_data %}
+    <div class="empty-state" style="text-align: center; padding: 50px 20px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; margin: 30px 0;">
+        <div style="font-size: 40px; margin-bottom: 10px;">📦</div>
+        <h3 style="color: #475569; margin-bottom: 8px;">Brak wyprodukowanych palet w dniu {{ data_planu }}</h3>
+        <p style="color: #94a3b8; margin: 0;">W wybranym dniu nie zarejestrowano żadnych zleceń ani palet dla linii PSD. Wybierz inną datę powyżej.</p>
+    </div>
+    {% endif %}
+
     <div class="footer">
         Raport wygenerowany automatycznie przez System Zarządzania Produkcją.
     </div>
 
     <div class="report-actions no-print">
-        {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
-        <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
-            ⬅️ Wróć
+        <button type="button" onclick="closeOrReturnReport()" class="btn-print" style="background-color: #475569; border: none; margin-right: 10px; cursor: pointer; display: inline-block;">
+            ⬅️ Wróć / Zamknij
+        </button>
+        <a href="{{ url_for('main.index', linia='PSD', sekcja='Workowanie') }}" class="btn-print" style="background-color: #0f172a; text-decoration: none; margin-right: 15px; display: inline-block;">
+            🏠 Pulpit PSD
         </a>
-        {% else %}
-        <a href="javascript:history.back()" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
-            ⬅️ Wróć
-        </a>
-        {% endif %}
         <button class="btn-print" onclick="window.print()">
             🖨️ Drukuj Raport
         </button>
     </div>
     <script>
+        function closeOrReturnReport(){
+            // 1. Spróbuj zamknąć kartę raportu
+            window.close();
+            // 2. Jeśli karta nie może zostać zamknięta przez przeglądarkę, wróć na pulpit
+            setTimeout(function(){
+                window.location.href = "{{ url_for('main.index', linia='PSD', sekcja='Workowanie') }}";
+            }, 120);
+        }
+
         function changeReportDate(){
             try{
                 var d = document.getElementById('reportDatePicker').value || '';
                 if(!d) return;
                 var url = '/warehouse-v2/psd/raport_palet?data_od=' + encodeURIComponent(d) + '&data_do=' + encodeURIComponent(d);
-                window.location.href = url;
+                window.location.replace(url);
             }catch(e){ console.error('changeReportDate error', e); }
         }
     </script>

@@ -288,10 +288,16 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
 
             s_str = "-"
             e_str = "-"
-            if r_start:
-                s_str = r_start.strftime('%H:%M') if hasattr(r_start, 'strftime') else str(r_start)[:5]
-            if r_stop:
-                e_str = r_stop.strftime('%H:%M') if hasattr(r_stop, 'strftime') else str(r_stop)[:5]
+            if r_start and str(r_start) not in ('NaT', 'None', 'nan', ''):
+                try:
+                    s_str = r_start.strftime('%H:%M')
+                except Exception:
+                    s_str = str(r_start)[:5] if str(r_start) != 'NaT' else "-"
+            if r_stop and str(r_stop) not in ('NaT', 'None', 'nan', ''):
+                try:
+                    e_str = r_stop.strftime('%H:%M')
+                except Exception:
+                    e_str = str(r_stop)[:5] if str(r_stop) != 'NaT' else "-"
 
             row_color = (250, 250, 250) if fill else (255, 255, 255)
             _rysuj_wiersz_multicell(
@@ -377,8 +383,25 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
 
         pdf.ln(5)
 
-    _rysuj_tabele_sekcji('ZASYP', ['Zasyp'])
-    _rysuj_tabele_sekcji('WORKOWANIE', ['Workowanie', 'Czyszczenie'])
+    has_zasyp_data = any('Zasyp' in prod_map.get(prod, {}) for prod in products)
+    has_work_data = any(('Workowanie' in prod_map.get(prod, {}) or 'Czyszczenie' in prod_map.get(prod, {})) for prod in products)
+
+    if not has_zasyp_data and not has_work_data:
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_text_color(51, 65, 85)
+        pdf.cell(0, 7, polskie_znaki_pdf("REALIZACJA PRODUKCJI"), ln=1, fill=True)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(254, 242, 242)
+        pdf.set_text_color(185, 28, 28)
+        pdf.cell(0, 8, polskie_znaki_pdf("W DANYM DNIU NIE REJESTROWANO PRODUKCJI (BRAK ZAPLANOWANYCH / WYKONANYCH ZLECEŃ)"), 1, 1, 'C', True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
+    else:
+        if has_zasyp_data:
+            _rysuj_tabele_sekcji('ZASYP', ['Zasyp'])
+        if has_work_data:
+            _rysuj_tabele_sekcji('WORKOWANIE', ['Workowanie', 'Czyszczenie'])
 
     # --- SEKCJA: WYPRODUKOWANE PALETY ---
     palety_rows = palety_rows or []

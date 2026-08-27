@@ -1,52 +1,168 @@
 {% extends 'layout.html' %}
+{% block title %}Zgłoszenie Awarii / Problemu{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>⚠️ {{ _('zgloszenie_problem') }}</h1>
-</div>
+<div style="padding: 24px 30px; max-width: 950px; margin: 0 auto; box-sizing: border-box;">
 
-<div class="section-box p-20">
-    <form id="reportForm" class="d-flex flex-column gap-15 max-width-700" enctype="multipart/form-data">
-        <label for="sekcja">{{ _('sekcja_label') }}</label>
-        <select id="sekcja" name="sekcja" required class="input-sm">
-            <option value="Zasyp">{{ _('zasyp') }}</option>
-            <option value="Workowanie">{{ _('workowanie') }}</option>
-            <option value="Magazyn">{{ _('magazyn') }}</option>
-            <option value="Inne">Inne</option>
-        </select>
-
-        <label for="kategoria">{{ _('typ_zdarzenia') }}</label>
-        <select id="kategoria" name="kategoria" required class="input-sm">
-            <option value="">-- Wybierz --</option>
-            <option value="Przezbrojenie">{{ _('przezbrojenie') }}</option>
-            <option value="Awaria">{{ _('awaria_maszyny') }}</option>
-            <option value="Brak Surowca">{{ _('brak_surowca') }}</option>
-            <option value="Przerwa">{{ _('przerwa') }}</option>
-            <option value="Inne">Inne</option>
-        </select>
-
-        <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-10">
-            <label for="opis" class="mb-0">Opis problemu (wymagany):</label>
-            <button type="button" id="bugPageVoiceBtn" onclick="togglePageVoiceDictation()" style="background:#eff6ff;border:1px solid #93c5fd;color:#1d4ed8;padding:5px 12px;border-radius:8px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;cursor:pointer;transition:all 0.2s;" title="Kliknij, aby dyktować opis problemu głosem">
-                <span class="material-icons" style="font-size:18px;">mic</span>
-                <span id="bugPageVoiceBtnText">Dyktuj głosem</span>
-            </button>
+    <!-- Header Bar -->
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px;">
+        <div>
+            <h2 style="margin: 0; color: #0f172a; display: flex; align-items: center; gap: 12px; font-size: 1.6rem; font-weight: 800;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; background: rgba(245, 158, 11, 0.15); color: #d97706; border-radius: 12px; font-size: 24px; flex-shrink: 0;">
+                    ⚠️
+                </span>
+                Zgłoszenie Awarii / Problemu
+            </h2>
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.95rem;">
+                Zarejestruj awarię maszynową, przestój produkcyjny lub usterkę techniczną w systemie.
+            </p>
         </div>
-        <div id="bugPageVoiceStatusMsg" style="display:none;margin-bottom:6px;font-size:12px;font-weight:700;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;padding:8px 12px;border-radius:8px;">
-            🎙️ Słucham... mów wyraźnie po polsku. Kliknij 'Zatrzymaj', aby zakończyć.
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <a href="/moje_zgloszenia_bledow"
+               style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #334155; font-weight: 700; font-size: 0.9rem; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: all 0.15s ease;">
+                <span class="material-icons" style="font-size: 18px; color: #2563eb;">history</span> Moje Zgłoszenia
+            </a>
+            <a href="/"
+               style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; color: #64748b; font-weight: 600; font-size: 0.9rem; text-decoration: none;">
+                ✕ Zamknij
+            </a>
         </div>
-        <textarea id="opis" name="opis" rows="6" class="input-sm" required placeholder="{{ _('opisz_problem') }}"></textarea>
+    </div>
 
-        <label for="bugPageScreenshots">Zrzuty ekranu / Zdjęcia (maksymalnie 3):</label>
-        <input type="file" id="bugPageScreenshots" name="zalaczniki" accept="image/*" multiple class="input-sm">
-        <div id="bugPageImagePreviews" class="d-flex gap-10 flex-wrap mt-5"></div>
-
-        <div class="d-flex gap-10 mt-10">
-            <button type="submit" class="btn-action btn-warning" id="submitBtn">{{ _('zglosz_btn') }}</button>
-            <a href="/" class="btn-action btn-cancel">ANULUJ</a>
-            <a href="/moje_zgloszenia_bledow" class="btn-action btn-outline">Moje zgłoszenia</a>
+    <!-- Main Form Card -->
+    <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05); overflow: hidden;">
+        
+        <!-- Card Header -->
+        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: #ffffff; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;">
+            <h4 style="margin: 0; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: 0.02em;">
+                <span>📋</span> Formularz Rejestracji Awarii
+            </h4>
+            <span style="font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 3px 10px; border-radius: 20px; font-weight: 600;">Wszystkie pola czyste</span>
         </div>
-    </form>
+
+        <div style="padding: 24px 28px;">
+            <form id="reportForm" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 20px; margin: 0;">
+                
+                <!-- Row 1: Hala + Sekcja -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <label for="hala" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 6px;">
+                            <span>🏢</span> Hala / Lokalizacja: <span style="color: #ef4444;">*</span>
+                        </label>
+                        <select id="hala" name="hala" required class="input-sm"
+                                style="width: 100%; height: 42px; font-weight: 600; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 0.95rem; color: #0f172a; background: #ffffff; outline: none; box-sizing: border-box; transition: border-color 0.2s;">
+                            <option value="" disabled selected>-- Wybierz halę / lokalizację --</option>
+                            <option value="PSD">🏢 PSD (Produkcja PSD)</option>
+                            <option value="AGRO">🌱 AGRO (Produkcja AGRO)</option>
+                            <option value="BIURO">💼 BIURO (Biuro / Administracja / IT)</option>
+                        </select>
+                        <small style="color: #64748b; font-size: 0.8rem; display: block; margin-top: 5px;">
+                            Zgłoszenia AGRO trafiają do raportu AGRO, PSD do raportu PSD.
+                        </small>
+                    </div>
+
+                    <div>
+                        <label for="sekcja" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 6px;">
+                            <span>📑</span> Sekcja / Stanowisko: <span style="color: #ef4444;">*</span>
+                        </label>
+                        <select id="sekcja" name="sekcja" required class="input-sm"
+                                style="width: 100%; height: 42px; font-weight: 600; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 0.95rem; color: #0f172a; background: #ffffff; outline: none; box-sizing: border-box; transition: border-color 0.2s;">
+                            <option value="" disabled selected>-- Wybierz sekcję --</option>
+                            <option value="Workowanie">📦 Workowanie</option>
+                            <option value="Zasyp">🌾 Zasyp</option>
+                            <option value="Magazyn">🏭 Magazyn</option>
+                            <option value="Laboratorium">🔬 Laboratorium</option>
+                            <option value="Handel">🛒 Handel</option>
+                            <option value="Biuro">💼 Biuro</option>
+                            <option value="Inne">❓ Inne</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Row 2: Kategoria + Godziny przestoju -->
+                <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <label for="kategoria" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 6px;">
+                            <span>⚠️</span> Typ zdarzenia: <span style="color: #ef4444;">*</span>
+                        </label>
+                        <select id="kategoria" name="kategoria" required class="input-sm"
+                                style="width: 100%; height: 42px; font-weight: 600; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 0.95rem; color: #0f172a; background: #ffffff; outline: none; box-sizing: border-box; transition: border-color 0.2s;">
+                            <option value="" disabled selected>-- Wybierz typ zdarzenia --</option>
+                            <option value="Awaria">⚠️ Awaria Maszyny</option>
+                            <option value="Przezbrojenie">🔧 Przezbrojenie</option>
+                            <option value="Brak Surowca">📦 Brak Surowca</option>
+                            <option value="Przerwa">☕ Przerwa</option>
+                            <option value="Błąd systemu / IT">💻 Błąd systemu / IT</option>
+                            <option value="Inne">❓ Inne</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="godzina_start" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 6px;">
+                            <span>🕒</span> Godzina od:
+                        </label>
+                        <input type="time" id="godzina_start" name="godzina_start" value="" class="input-sm"
+                               style="width: 100%; height: 42px; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 0.95rem; color: #0f172a; background: #ffffff; outline: none; box-sizing: border-box;">
+                    </div>
+
+                    <div>
+                        <label for="godzina_stop" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 6px;">
+                            <span>🕒</span> Godzina do:
+                        </label>
+                        <input type="time" id="godzina_stop" name="godzina_stop" value="" class="input-sm"
+                               style="width: 100%; height: 42px; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; font-size: 0.95rem; color: #0f172a; background: #ffffff; outline: none; box-sizing: border-box;">
+                    </div>
+                </div>
+
+                <!-- Row 3: Opis + Dyktowanie głosem -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
+                        <label for="opis" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin: 0;">
+                            <span>📝</span> Opis awarii / problemu: <span style="color: #ef4444;">*</span>
+                        </label>
+                        <button type="button" id="bugPageVoiceBtn" onclick="togglePageVoiceDictation()"
+                                style="background: #eff6ff; border: 1.5px solid #93c5fd; color: #1d4ed8; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;"
+                                title="Kliknij, aby dyktować opis problemu głosem">
+                            <span class="material-icons" style="font-size: 18px;">mic</span>
+                            <span id="bugPageVoiceBtnText">Dyktuj głosem</span>
+                        </button>
+                    </div>
+                    
+                    <div id="bugPageVoiceStatusMsg" style="display: none; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 10px 14px; border-radius: 8px;">
+                        🎙️ Słucham... mów wyraźnie po polsku. Kliknij 'Zatrzymaj', aby zakończyć.
+                    </div>
+
+                    <textarea id="opis" name="opis" rows="5" class="input-sm" required
+                              placeholder="Opisz dokładnie wystąpienie awarii, uszkodzony element, objawy lub powód przestoju..."
+                              style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; color: #0f172a; line-height: 1.5; outline: none; box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <!-- Row 4: Zdjęcia / Załączniki -->
+                <div>
+                    <label for="bugPageScreenshots" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #0f172a; font-size: 0.9rem; margin-bottom: 8px;">
+                        <span>📷</span> Zrzuty ekranu / Zdjęcia awarii (maksymalnie 3):
+                    </label>
+                    <div style="border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 16px; background: #f8fafc; text-align: center;">
+                        <input type="file" id="bugPageScreenshots" name="zalaczniki" accept="image/*" multiple
+                               style="font-size: 0.9rem; color: #475569; cursor: pointer;">
+                        <div id="bugPageImagePreviews" style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; justify-content: center;"></div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                    <button type="submit" id="submitBtn"
+                            style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #ffffff; border: none; padding: 12px 26px; border-radius: 10px; font-weight: 800; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25); transition: transform 0.15s ease;">
+                        <span>🚀</span> Wyślij Zgłoszenie
+                    </button>
+                    <a href="/"
+                       style="background: #ffffff; color: #64748b; border: 1.5px solid #cbd5e1; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 0.92rem; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">
+                        Anuluj
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -90,7 +206,6 @@ function stopPageVoiceDictation() {
         btn.style.color = '#1d4ed8';
     }
     if (btnText) btnText.textContent = 'Dyktuj głosem';
-    // NIE ukrywamy statusMsg — może zawierać instrukcję błędu
 }
 
 function togglePageVoiceDictation() {
@@ -186,6 +301,7 @@ function togglePageVoiceDictation() {
         showPageMicPermissionHelp(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
     }
 }
+
 const pageFileInput = document.getElementById('bugPageScreenshots');
 const pagePreviewBox = document.getElementById('bugPageImagePreviews');
 if (pageFileInput) {
@@ -220,11 +336,11 @@ const _reportForm = document.getElementById('reportForm');
 if (_reportForm) _reportForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
-    const originalText = submitBtn.textContent;
+    const originalText = submitBtn.innerHTML;
     
     try {
         submitBtn.disabled = true;
-        submitBtn.textContent = '⏳ Wysyłanie...';
+        submitBtn.innerHTML = '⏳ Wysyłanie...';
         
         const formData = new FormData(this);
         formData.append('sciezka', window.location.pathname);
@@ -235,8 +351,8 @@ if (_reportForm) _reportForm.addEventListener('submit', async function(e) {
         const resData = await response.json();
         
         if (response.ok && resData.success) {
-            if (typeof showToast === 'function') showToast('✓ Zgłoszenie zapisano pomyślnie', 'success');
-            else alert('✓ Zgłoszenie zapisano pomyślnie');
+            if (typeof showToast === 'function') showToast('✅ Zgłoszenie awarii zapisano pomyślnie', 'success');
+            else alert('✅ Zgłoszenie awarii zapisano pomyślnie');
             this.reset();
             if (pagePreviewBox) pagePreviewBox.innerHTML = '';
             window.location.href = '/moje_zgloszenia_bledow';
@@ -244,17 +360,16 @@ if (_reportForm) _reportForm.addEventListener('submit', async function(e) {
             const msg = (resData && resData.message) || response.statusText;
             if (typeof showToast === 'function') showToast('❌ Błąd: ' + msg, 'error');
             else alert('❌ Błąd: ' + msg);
-            submitBtn.textContent = originalText;
+            submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
         }
     } catch (error) {
         console.error('Error:', error);
         if (typeof showToast === 'function') showToast('❌ Błąd połączenia: ' + error.message, 'error');
         else alert('❌ Błąd połączenia: ' + error.message);
-        submitBtn.textContent = originalText;
+        submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
     }
 });
 </script>
-
 {% endblock %}

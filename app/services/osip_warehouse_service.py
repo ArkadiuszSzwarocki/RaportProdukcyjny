@@ -57,6 +57,61 @@ class OsipWarehouseService:
             cursor.close()
             conn.close()
 
+    def get_osip_grouped_inventory(self, search_term: str = "") -> List[Dict[str, Any]]:
+        """Pobiera surowce z lokalizacji OSIP zgrupowane według nazwy surowca."""
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            query = """
+                SELECT id, nr_palety, nazwa, stan_magazynowy, nr_partii, lokalizacja, typ_opakowania, data_przydatnosci, created_at
+                FROM magazyn_surowce
+                WHERE stan_magazynowy > 0 AND (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
+                ORDER BY nazwa ASC, id ASC
+            """
+            cursor.execute(query)
+            items = cursor.fetchall()
+            
+            # Grupowanie według nazwy
+            grouped: Dict[str, Dict[str, Any]] = {}
+            for it in items:
+                name = it.get('nazwa') or 'Nieznany surowiec'
+                if search_term:
+                    term = search_term.lower()
+                    if term not in name.lower() and term not in str(it.get('nr_palety', '')).lower() and term not in str(it.get('nr_partii', '')).lower() and term not in str(it.get('lokalizacja', '')).lower():
+                        continue
+                if name not in grouped:
+                    grouped[name] = {
+                        'nazwa': name,
+                        'total_kg': 0.0,
+                        'pallet_count': 0,
+                        'pallets': [],
+                        'batches': set(),
+                        'locations': set()
+                    }
+                qty = float(it.get('stan_magazynowy') or 0)
+                grouped[name]['total_kg'] += qty
+                grouped[name]['pallet_count'] += 1
+                grouped[name]['pallets'].append(it)
+                if it.get('nr_partii'):
+                    grouped[name]['batches'].add(str(it['nr_partii']))
+                if it.get('lokalizacja'):
+                    grouped[name]['locations'].add(str(it['lokalizacja']))
+            
+            result = []
+            for name, g in sorted(grouped.items(), key=lambda x: x[0]):
+                result.append({
+                    'nazwa': g['nazwa'],
+                    'total_kg': round(g['total_kg'], 2),
+                    'pallet_count': g['pallet_count'],
+                    'pallets': g['pallets'],
+                    'batches': sorted(list(g['batches'])),
+                    'locations': sorted(list(g['locations']))
+                })
+            return result
+        finally:
+            cursor.close()
+            conn.close()
+
     def get_osip_layout_stats(self) -> Dict[str, Any]:
         """Pobiera strukturę alejek OSIP (A01-A99 oraz BFOS, oraz kompatybilne OS01-OS77) wraz ze statystykami obłożenia."""
         inventory = self.get_osip_inventory()

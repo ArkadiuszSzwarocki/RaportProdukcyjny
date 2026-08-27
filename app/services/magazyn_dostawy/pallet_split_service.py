@@ -9,7 +9,7 @@ from typing import Any
 from app.db import get_db_connection, get_table_name
 from app.utils.pallet_id import generate_pallet_id
 
-LINIE = ('AGRO', 'PSD')
+LINIE = ('AGRO', 'PSD', 'OSIP')
 INVENTORY_SOURCES = frozenset({'surowiec', 'opakowanie', 'dodatek'})
 FINISHED_SOURCES = frozenset({'magazyn', 'produkcja'})
 

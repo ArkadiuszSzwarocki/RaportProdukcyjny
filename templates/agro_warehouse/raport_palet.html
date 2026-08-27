@@ -156,11 +156,12 @@
                 <label for="reportDatePicker" style="font-size:0.9em; color:#666; margin-right:6px;">Zmień datę:</label>
                 <input type="date" id="reportDatePicker" value="{{ data_planu }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
                 <button type="button" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;">Pokaż</button>
-                {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
-                    <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
-                {% else %}
-                    <a href="javascript:history.back()" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
-                {% endif %}
+                <button type="button" onclick="closeOrReturnReport()" style="padding:8px 14px;background:#475569;color:#fff;border-radius:6px;border:none;cursor:pointer;margin-left:12px;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Zamknij raport i wróć do pulpitu">
+                    ⬅️ Wróć / Zamknij
+                </button>
+                <a href="{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}" style="padding:8px 14px;background:#0f172a;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Powrót do pulpitu AGRO">
+                    🏠 Pulpit AGRO
+                </a>
             </div>
         </div>
         <div class="header-meta">
@@ -431,20 +432,24 @@
     </div>
 
     <div class="report-actions no-print">
-        {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
-        <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
-            ⬅️ Wróć
+        <button type="button" onclick="closeOrReturnReport()" class="btn-print" style="background-color: #475569; border: none; margin-right: 10px; cursor: pointer; display: inline-block;">
+            ⬅️ Wróć / Zamknij
+        </button>
+        <a href="{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}" class="btn-print" style="background-color: #0f172a; text-decoration: none; margin-right: 15px; display: inline-block;">
+            🏠 Pulpit AGRO
         </a>
-        {% else %}
-        <a href="javascript:history.back()" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
-            ⬅️ Wróć
-        </a>
-        {% endif %}
         <button class="btn-print" onclick="window.print()">
             🖨️ Drukuj Raport
         </button>
     </div>
     <script>
+        function closeOrReturnReport(){
+            window.close();
+            setTimeout(function(){
+                window.location.href = "{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}";
+            }, 120);
+        }
+
         function changeReportDate(){
             try{
                 var d = document.getElementById('reportDatePicker').value || '';
@@ -456,7 +461,7 @@
                     showSlideOver(url, { backdrop: true });
                     return;
                 }
-                window.location.href = url;
+                window.location.replace(url);
             }catch(e){ console.error('changeReportDate error', e); }
         }
     </script>

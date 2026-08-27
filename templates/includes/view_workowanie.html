@@ -110,6 +110,10 @@
                     {% endif %}
 
                     <div class="d-flex gap-10">
+                        <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja='Workowanie') }}"
+                           class="btn-action" style="background: #dc2626; color: #fff; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 12px; font-weight: 700; border-radius: 6px;"
+                           title="Zgłoś przestój workowania">⚠️ Przestój</a>
+
                         <form action="/cofnij_palete/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _("cofnac_palete") }}">
                             <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
@@ -119,7 +123,7 @@
                             <input type="hidden" name="linia" value="{{ linia }}">
                             <input type="hidden" name="sekcja" value="Workowanie">
                             <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                            <button type="submit" class="btn-action btn-warning" title="Zawieś produkcję (np. koniec zmiany)">⏸ Zawieś (Pauza)</button>
+                            <button type="submit" class="btn-action btn-warning" title="Zawieś produkcję (np. koniec zmiany)">⏸ Zawieś</button>
                         </form>
 
                         <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _('zakonczyc_zlecenie') }}">

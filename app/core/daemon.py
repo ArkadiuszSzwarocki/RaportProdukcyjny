@@ -175,24 +175,22 @@ def _release_named_lock(conn, lock_name):
             pass
 
 
-def _select_preferred_printer(cursor):
-    """Pick production printer first, then fallback to any active printer."""
-    cursor.execute(
-        """
-        SELECT id, nazwa, ip, lokalizacja
-        FROM drukarki
-        WHERE aktywna = 1
-        ORDER BY
-            CASE
-                WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
-                WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
-                ELSE 2
-            END,
-            id ASC
-        LIMIT 1
-        """
-    )
-    return cursor.fetchone()
+def _select_preferred_printer(cursor, linia='AGRO'):
+    """Pobiera preferowaną aktywną drukarkę z bazy danych dla danej linii."""
+    try:
+        from app.repositories.settings_repository import SettingsRepository
+        return SettingsRepository.get_default_printer_for_line(linia)
+    except Exception:
+        cursor.execute(
+            """
+            SELECT id, nazwa, ip, lokalizacja
+            FROM drukarki
+            WHERE aktywna = 1
+            ORDER BY id ASC
+            LIMIT 1
+            """
+        )
+        return cursor.fetchone()
 
 
 def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AGRO'):
@@ -561,7 +559,24 @@ def _print_spooler_loop(interval_seconds: int = 5):
                             success, msg = printer._send_to_bridge(payload)
                             
                             if success:
-                                cursor.execute("UPDATE print_jobs SET status='DONE', updated_at=NOW() WHERE id=%s", (job_id,))
+                                curr_cnt = 0
+                                new_cnt = 1
+                                try:
+                                    cursor.execute("SELECT id, licznik_wydrukow FROM drukarki WHERE ip = %s OR nazwa = %s LIMIT 1", (ip, name))
+                                    pr_row = cursor.fetchone()
+                                    if pr_row:
+                                        curr_cnt = int(pr_row.get('licznik_wydrukow') or 0)
+                                        new_cnt = curr_cnt + 1
+                                        cursor.execute("UPDATE drukarki SET licznik_wydrukow = %s WHERE id = %s", (new_cnt, pr_row['id']))
+                                except Exception:
+                                    try:
+                                        cursor.execute("ALTER TABLE drukarki ADD COLUMN licznik_wydrukow INT DEFAULT 0")
+                                        new_cnt = 1
+                                    except Exception:
+                                        pass
+
+                                log_note = f"Czujniki ~HS OK | Licznik drukarki: {curr_cnt} ➔ {new_cnt}"
+                                cursor.execute("UPDATE print_jobs SET status='DONE', error_message=%s, updated_at=NOW() WHERE id=%s", (log_note, job_id))
                             else:
                                 cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
                                                (msg, retry + 1, job_id))
@@ -584,6 +599,34 @@ def _print_spooler_loop(interval_seconds: int = 5):
             time.sleep(interval_seconds)
     except Exception:
         _safe_log_exception('Print Spooler monitor terminating unexpectedly')
+
+def _cleanup_old_print_jobs(max_age_days: int = 14, interval_seconds: int = 86400):
+    """Background thread: removes completed (DONE) print jobs older than max_age_days."""
+    try:
+        from app.db import get_db_connection
+        _safe_log_info(f'Started Print Jobs Cleanup daemon thread (retention: {max_age_days}d)')
+        while True:
+            try:
+                conn = get_db_connection()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        DELETE FROM print_jobs 
+                        WHERE status = 'DONE' 
+                          AND updated_at < NOW() - INTERVAL %s DAY
+                    """, (max_age_days,))
+                    deleted_count = cursor.rowcount
+                    conn.commit()
+                    if deleted_count > 0:
+                        _safe_log_info('Cleanup [print_jobs]: Usunięto %d zakończonych zleceń druku starszych niż %dd', deleted_count, max_age_days)
+                finally:
+                    conn.close()
+            except Exception as error:
+                if not _is_transient_db_connectivity_error(error):
+                    _safe_log_exception('Error in Print Jobs cleanup loop')
+            time.sleep(interval_seconds)
+    except Exception:
+        _safe_log_exception('Print Jobs cleanup thread terminating unexpectedly')
 
 
 def start_daemon_threads(app, cleanup_enabled=False):
@@ -611,7 +654,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
                 
             reports_thread = threading.Thread(
                 target=_cleanup_old_files,
-                kwargs={'folder': reports_folder, 'max_age_hours': 24, 'interval_seconds': 3600},
+                kwargs={'folder': reports_folder, 'max_age_hours': 24 * 90, 'interval_seconds': 3600},
                 daemon=True
             )
             reports_thread.start()
@@ -668,6 +711,18 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_info('Started Print Spooler daemon thread')
     except Exception:
         _safe_log_exception('Failed to start Print Spooler thread')
+
+    # Start Print Jobs Cleanup thread
+    try:
+        cleanup_jobs_thread = threading.Thread(
+            target=_cleanup_old_print_jobs,
+            kwargs={'max_age_days': 14, 'interval_seconds': 86400},
+            daemon=True
+        )
+        cleanup_jobs_thread.start()
+        _safe_log_info('Started Print Jobs Cleanup daemon thread')
+    except Exception:
+        _safe_log_exception('Failed to start Print Jobs cleanup thread')
 
     # Start MQTT Cloud Bridge (Server-side proxy)
     try:

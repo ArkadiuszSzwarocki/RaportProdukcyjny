@@ -252,8 +252,6 @@ def raporty_okresowe():
             lin = h.get('linia') or 'AGRO'
             pdf_name = f"Raport_{lin}_{d_str}.pdf"
             xls_name = f"Raport_{lin}_{d_str}.xlsx"
-            pdf_exists = os.path.exists(os.path.join(raporty_dir, pdf_name))
-            xls_exists = os.path.exists(os.path.join(raporty_dir, xls_name))
             
             created_dt = h.get('created_at')
             created_str = created_dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(created_dt, 'strftime') else str(created_dt)
@@ -265,8 +263,8 @@ def raporty_okresowe():
                 'typ_raportu': h.get('typ_raportu') or 'Zmianowy',
                 'odbiorcy': h.get('odbiorcy') or '-',
                 'created_at': created_str,
-                'pdf_filename': pdf_name if pdf_exists else None,
-                'xls_filename': xls_name if xls_exists else None
+                'pdf_filename': pdf_name,
+                'xls_filename': xls_name
             })
     except Exception:
         pass
@@ -290,13 +288,29 @@ def raporty_okresowe():
 @zarzad_bp.route('/raporty/plik/<filename>')
 @dynamic_role_required('wyniki')
 def pobierz_plik_raportu(filename):
-    """Pobiera wygenerowany plik raportu PDF lub Excel z folderu raporty/."""
+    """Pobiera wygenerowany plik raportu PDF lub Excel z folderu raporty/. Jeśli plik nie istnieje na dysku, generuje go w locie (nawet zerowy)."""
     import os
-    from flask import send_from_directory, abort
+    import re
+    from flask import send_from_directory, abort, current_app
+    from scripts.generator_raportow import generuj_paczke_raportow
+
     safe_name = os.path.basename(filename)
     raporty_dir = os.path.abspath('raporty')
+    os.makedirs(raporty_dir, exist_ok=True)
     file_path = os.path.join(raporty_dir, safe_name)
+
     if not os.path.exists(file_path):
-        abort(404, description="Nie znaleziono pliku raportu.")
+        m = re.match(r'^Raport_([A-Za-z0-9]+)_(\d{4}-\d{2}-\d{2})\.(pdf|xlsx)$', safe_name, re.IGNORECASE)
+        if m:
+            linia_req = m.group(1).upper()
+            data_req = m.group(2)
+            try:
+                generuj_paczke_raportow(data_req, '', '', linia=linia_req)
+            except Exception as e:
+                current_app.logger.error(f"[POBIERZ_RAPORT] Błąd generowania w locie dla {safe_name}: {e}")
+
+    if not os.path.exists(file_path):
+        abort(404, description="Nie znaleziono pliku raportu i nie udało się go wygenerować.")
+
     return send_from_directory(raporty_dir, safe_name, as_attachment=True)
 

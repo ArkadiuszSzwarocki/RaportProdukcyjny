@@ -10,8 +10,7 @@ from app.services.magazyn_dostawy.pallet_mix_service import PalletMixService
 @roles_required('lider', 'masteradmin', 'admin', 'magazynier', 'zarzad')
 def mixowanie():
     """Renderuje główny widok mixowania palet."""
-    # Podobnie jak podział, użytkownik wybiera linię (AGRO/PSD) - używamy sesji.
-    linia = session.get('wybrana_linia_magazyn', 'AGRO')
+    linia = (request.args.get('linia') or session.get('wybrana_linia_magazyn', 'AGRO')).strip().upper()
     return render_template('magazyn_dostawy/mixowanie.html', linia=linia)
 
 
@@ -51,7 +50,7 @@ def api_mix_finalize():
     data = request.get_json() or {}
     components = data.get('components', [])
     mix_name = str(data.get('mix_name', 'MIX')).strip()
-    linia = session.get('wybrana_linia_magazyn', 'AGRO')
+    linia = (data.get('linia') or request.args.get('linia') or session.get('wybrana_linia_magazyn', 'AGRO')).strip().upper()
     user_login = session.get('user', 'System')
 
     if not components:

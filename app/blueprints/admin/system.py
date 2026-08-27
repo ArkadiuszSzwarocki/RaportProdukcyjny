@@ -441,15 +441,139 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @dynamic_role_required('ustawienia')
     def admin_ustawienia_drukarki():
         from app.db import get_db_connection
+        import socket
         conn = get_db_connection()
         printers = []
+        jobs_stats = {'pending': 0, 'error': 0, 'done': 0, 'total_48h': 0}
+        recent_jobs_48h = []
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT * FROM drukarki ORDER BY id ASC")
-            printers = cursor.fetchall()
+            printers = cursor.fetchall() or []
+            
+            # Szybkie sprawdzenie dostępności IP (TCP 9100) dla drukarek etykiet
+            for p in printers:
+                ip_str = str(p.get('ip') or '').strip()
+                if ip_str and ip_str.upper() != 'USB' and not ip_str.lower().startswith('usb'):
+                    try:
+                        s = socket.create_connection((ip_str, 9100), timeout=0.4)
+                        s.close()
+                        p['tcp_online'] = True
+                    except Exception:
+                        p['tcp_online'] = False
+                else:
+                    p['tcp_online'] = True
+
+            cursor.execute("""
+                SELECT 
+                    SUM(CASE WHEN status = 'PENDING' OR status = 'PRINTING' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) AS error,
+                    SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) AS done,
+                    COUNT(*) AS total_48h
+                FROM print_jobs
+                WHERE created_at >= NOW() - INTERVAL 2 DAY
+            """)
+            st_row = cursor.fetchone()
+            if st_row:
+                jobs_stats['pending'] = int(st_row.get('pending') or 0)
+                jobs_stats['error'] = int(st_row.get('error') or 0)
+                jobs_stats['done'] = int(st_row.get('done') or 0)
+                jobs_stats['total_48h'] = int(st_row.get('total_48h') or 0)
+                
+            cursor.execute("""
+                SELECT id, printer_name, printer_ip, status, retry_count, error_message, created_at, updated_at 
+                FROM print_jobs 
+                WHERE created_at >= NOW() - INTERVAL 2 DAY 
+                ORDER BY id DESC 
+                LIMIT 200
+            """)
+            recent_jobs_48h = cursor.fetchall() or []
         except Exception as e:
-            flash(f"Błąd pobierania drukarek: {e}", "error")
-        return render_template('ustawienia_drukarki.html', printers=printers)
+            flash(f"Błąd pobierania danych drukarek/kolejki: {e}", "error")
+        finally:
+            conn.close()
+        return render_template('ustawienia_drukarki.html', printers=printers, jobs_stats=jobs_stats, recent_jobs_48h=recent_jobs_48h, recent_jobs=recent_jobs_48h)
+
+    @admin_bp.route('/admin/ustawienia/logi-drukowania')
+    @admin_bp.route('/admin/logi-drukowania')
+    @dynamic_role_required('ustawienia')
+    def admin_ustawienia_logi_drukowania():
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        jobs_stats = {'pending': 0, 'error': 0, 'done': 0, 'total_48h': 0}
+        recent_jobs_48h = []
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT 
+                    SUM(CASE WHEN status = 'PENDING' OR status = 'PRINTING' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) AS error,
+                    SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) AS done,
+                    COUNT(*) AS total_48h
+                FROM print_jobs
+                WHERE created_at >= NOW() - INTERVAL 2 DAY
+            """)
+            st_row = cursor.fetchone()
+            if st_row:
+                jobs_stats['pending'] = int(st_row.get('pending') or 0)
+                jobs_stats['error'] = int(st_row.get('error') or 0)
+                jobs_stats['done'] = int(st_row.get('done') or 0)
+                jobs_stats['total_48h'] = int(st_row.get('total_48h') or 0)
+                
+            cursor.execute("""
+                SELECT id, printer_name, printer_ip, status, retry_count, error_message, created_at, updated_at 
+                FROM print_jobs 
+                WHERE created_at >= NOW() - INTERVAL 2 DAY 
+                ORDER BY id DESC 
+                LIMIT 300
+            """)
+            recent_jobs_48h = cursor.fetchall() or []
+        except Exception as e:
+            flash(f"Błąd pobierania logów drukowania: {e}", "error")
+        finally:
+            conn.close()
+        return render_template('ustawienia_logi_drukowania.html', jobs_stats=jobs_stats, recent_jobs_48h=recent_jobs_48h)
+
+    @admin_bp.route('/admin/api/print-jobs/retry-all', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_print_jobs_retry_all():
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE print_jobs 
+                SET status = 'PENDING', retry_count = 0, error_message = NULL, updated_at = NOW() 
+                WHERE status = 'ERROR'
+            """)
+            count = cursor.rowcount
+            conn.commit()
+            return jsonify({'success': True, 'message': f'Zresetowano status {count} błędnych zleceń druku. Trafiły ponownie do kolejki.'})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'message': f'Błąd ponawiania: {str(e)}'}), 500
+        finally:
+            conn.close()
+
+    @admin_bp.route('/admin/api/print-jobs/retry/<int:job_id>', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_print_jobs_retry_single(job_id):
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE print_jobs 
+                SET status = 'PENDING', retry_count = 0, error_message = NULL, updated_at = NOW() 
+                WHERE id = %s
+            """, (job_id,))
+            conn.commit()
+            return jsonify({'success': True, 'message': f'Zlecenie druku #{job_id} zostało ponownie zakolejkowane.'})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'message': f'Błąd ponawiania zlecenia: {str(e)}'}), 500
+        finally:
+            conn.close()
 
     @admin_bp.route('/admin/ustawienia/email')
     @admin_bp.route('/moje_konto_email')

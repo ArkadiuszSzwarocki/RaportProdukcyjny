@@ -533,16 +533,17 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             inventory_sources = [
-                ('magazyn_surowce', 'stan_magazynowy', 'Surowiec', 'SUR', True, True, True),
-                ('magazyn_opakowania', 'stan_magazynowy', 'Opakowanie', 'OPK', False, False, False),
-                ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
+                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
+                ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
+                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
+                ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
             ]
             
-            for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+            for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                 table_name = get_table_name(base_table, linia)
                 try:
                     sql = (
-                        f"SELECT id, {qty_col} AS ilosc, nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
+                        f"SELECT id, {qty_col} AS ilosc, {name_col} AS nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
                         f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
                         f"data_produkcji, data_przydatnosci "
                         f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} DESC, id DESC"
@@ -1219,7 +1220,24 @@ class ScannerService:
 
             stara_lokalizacja = (pallet.get('lokalizacja') or '').strip().upper()
             if stara_lokalizacja.startswith('OCZEK') or pallet.get('is_blocked'):
-                return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Aby ją przenieść na regał, użyj modułu Magazyn Dostawy (lub skanera przyjęć)!"
+                # Sprawdź czy blokada pochodzi z aktywnego zlecenia przesunięcia
+                # Jeśli tak → ZEZWÓL na przenoszenie (blokada dotyczy tylko zużycia/wydania na produkcję)
+                block_from_transfer = False
+                if pallet.get('is_blocked') and not stara_lokalizacja.startswith('OCZEK'):
+                    try:
+                        pallet_id_str = str(surowiec_id)
+                        cur.execute(
+                            """SELECT id FROM magazyn_dostawy
+                               WHERE status = 'OCZEKUJE'
+                               AND (items LIKE %s OR items LIKE %s)
+                               LIMIT 1""",
+                            (f'%"sourcePalletId": {pallet_id_str}%', f'%"sourcePalletId":{pallet_id_str}%')
+                        )
+                        block_from_transfer = cur.fetchone() is not None
+                    except Exception:
+                        pass
+                if not block_from_transfer:
+                    return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Aby ją przenieść na regał, użyj modułu Magazyn Dostawy (lub skanera przyjęć)!"
 
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
@@ -1284,58 +1302,28 @@ class ScannerService:
     # ─────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_label_data(surowiec_id: int, linia: str = 'Agro') -> dict | None:
-        """Zwraca słownik danych potrzebnych do wydruku etykiety ZPL."""
+    def get_label_data(identifier: str | int, linia: str = 'Agro', pallet_type: str | None = None) -> dict | None:
+        """Zwraca słownik danych potrzebnych do wydruku etykiety ZPL.
+        Zgodnie z wymogami systemu ZAWSZE szuka w pierwszej kolejności po unikalnym numerze SSCC (nr_palety).
+        """
+        if not identifier:
+            return None
+
+        clean_id_str = str(identifier).strip()
+        sscc_code = ScannerService._normalize_scanned_code(clean_id_str)
+        is_numeric = clean_id_str.isdigit() and len(clean_id_str) < 10
+        numeric_id = int(clean_id_str) if is_numeric else None
 
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
-            tables = [
-                (get_table_name('magazyn_surowce', linia), 'SUR'),
-                (get_table_name('magazyn_opakowania', linia), 'OPK'),
-                ('magazyn_dodatki', 'DOD'),
-                (get_table_name('magazyn_palety', linia), 'PAL'),
-                # Fallbacks for other lines
-                ('magazyn_surowce', 'SUR'),
-                ('magazyn_surowce_agro', 'SUR'),
-                ('magazyn_opakowania', 'OPK'),
-                ('magazyn_opakowania_agro', 'OPK'),
-                ('magazyn_palety', 'PAL'),
-                ('magazyn_palety_agro', 'PAL')
-            ]
-            seen_tables = set()
-            for table_name, prefix in tables:
-                if table_name in seen_tables:
-                    continue
-                seen_tables.add(table_name)
-                try:
-                    qty_col = 'waga_netto' if 'palety' in table_name and 'dodatki' not in table_name and 'surowce' not in table_name and 'opakowania' not in table_name else 'stan_magazynowy'
-                    name_col = 'produkt' if 'palety' in table_name and 'dodatki' not in table_name and 'surowce' not in table_name and 'opakowania' not in table_name else 'nazwa'
-                    cur.execute(
-                        f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, lokalizacja FROM {table_name} WHERE id=%s",
-                        (surowiec_id,)
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        nr_palety = (row.get('nr_palety') or '').strip()
-                        return {
-                            'id': row['id'],
-                            'nr_palety': nr_palety,
-                            'nazwa': row['nazwa'],
-                            'ilosc': float(row['stan_magazynowy'] or 0),
-                            'lokalizacja': row.get('lokalizacja') or '',
-                            'qr_data': f"{nr_palety}|{row.get('lokalizacja') or ''}|{row['nazwa']}" if nr_palety else f"{prefix}-{row['id']}|{row.get('lokalizacja') or ''}|{row['nazwa']}",
-                            'data': datetime.now().strftime('%d.%m.%Y %H:%M'),
-                        }
-                except Exception:
-                    pass
-
-
-            # Check wiaderka_maluchy
+            
+            # 1. Sprawdź czy to Wiadro Maluchy
             try:
                 cur.execute(
-                    "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at FROM wiaderka_maluchy WHERE id=%s",
-                    (surowiec_id,)
+                    "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at "
+                    "FROM wiaderka_maluchy WHERE UPPER(COALESCE(nr_sscc, '')) = %s OR id = %s LIMIT 1",
+                    (sscc_code.upper(), numeric_id or 0)
                 )
                 b_row = cur.fetchone()
                 if b_row:
@@ -1344,7 +1332,6 @@ class ScannerService:
                     pozycje = BucketMaluchRepository.get_items_for_bucket(b_row['id'])
                     pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Puste wiadro"
                     sscc = b_row.get('nr_sscc') or BucketMaluchService.generate_bucket_sscc(b_row['kod_wiadra'], b_row.get('plan_id', 0), b_row.get('created_at'))
-                    
                     data_prod = b_row.get('data_produkcji') or b_row.get('created_at') or datetime.now()
                     data_przyd = b_row.get('data_przydatnosci') or (data_prod + relativedelta(hours=24))
 
@@ -1361,14 +1348,117 @@ class ScannerService:
                         'data_przydatnosci': data_przyd.strftime('%d.%m.%Y %H:%M'),
                         'termin': data_przyd.strftime('%d.%m.%Y %H:%M'),
                         'data': data_prod.strftime('%d.%m.%Y %H:%M'),
-                        'is_bucket': True
+                        'is_bucket': True,
+                        'typ': 'WIADERKO'
                     }
             except Exception:
                 pass
 
+            # 2. Definicja tabel i priorytetów wyszukiwania
+            tables = [
+                # Linia bieżąca
+                (get_table_name('magazyn_palety', linia), 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
+                (get_table_name('magazyn_surowce', linia), 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
+                (get_table_name('magazyn_opakowania', linia), 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
+                ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'DODATEK', 'DOD', False),
+                # Alternatywne linie i tabele produkcyjne
+                ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
+                ('magazyn_palety_agro', 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
+                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
+                ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
+                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
+                ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
+                ('palety_agro', 'waga', 'produkt', 'WYRÓB GOTOWY', 'PAL', True),
+                ('palety_workowanie', 'waga', 'produkt', 'WYRÓB GOTOWY', 'PAL', True)
+            ]
+
+            seen_tables = set()
+
+            # KROK A: Szukaj BEZWZGLĘDNIE po SSCC / nr_palety (jeśli podano SSCC)
+            if sscc_code:
+                for table_name, qty_col, name_col, typ_name, prefix, is_fg in tables:
+                    if table_name in seen_tables:
+                        continue
+                    seen_tables.add(table_name)
+                    try:
+                        sql = (
+                            f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, "
+                            f"COALESCE(lokalizacja, '') as lokalizacja, COALESCE(nr_partii, '') as nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY id DESC LIMIT 1"
+                        )
+                        cur.execute(sql, (sscc_code.upper(),))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, linia, prefix, typ_name, is_fg)
+                    except Exception:
+                        pass
+
+            # KROK B: Jeśli nie znaleziono po SSCC, sprawdź po ID w tabeli wskazanej przez pallet_type lub domyślnej
+            if numeric_id is not None:
+                seen_tables.clear()
+                for table_name, qty_col, name_col, typ_name, prefix, is_fg in tables:
+                    if table_name in seen_tables:
+                        continue
+                    seen_tables.add(table_name)
+                    try:
+                        sql = (
+                            f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, "
+                            f"COALESCE(lokalizacja, '') as lokalizacja, COALESCE(nr_partii, '') as nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {table_name} WHERE id = %s LIMIT 1"
+                        )
+                        cur.execute(sql, (numeric_id,))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, linia, prefix, typ_name, is_fg)
+                    except Exception:
+                        pass
+
             return None
         finally:
             conn.close()
+
+    @staticmethod
+    def _build_label_dict(cur, row: dict, linia: str, prefix: str, typ_name: str, is_fg: bool) -> dict:
+        nr_palety = (row.get('nr_palety') or '').strip() or f"{prefix}-{row['id']}"
+        qty = float(row.get('stan_magazynowy') or 0)
+        
+        # Jeśli surowiec jest na stacji produkcyjnej, sprawdź aktualny stan ze stacji
+        if not is_fg and qty <= 0:
+            prod_qty, prod_tank = ScannerService._get_active_production_qty(cur, row['id'], linia)
+            if prod_qty > 0:
+                qty = prod_qty
+                if prod_tank:
+                    row['lokalizacja'] = prod_tank
+
+        dp = row.get('data_produkcji')
+        dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))
+
+        dz = row.get('data_przydatnosci')
+        dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '---')
+
+        jednostka = 'szt.' if typ_name == 'OPAKOWANIE' else 'kg'
+
+        return {
+            'id': row['id'],
+            'nr_palety': nr_palety,
+            'sscc': nr_palety,
+            'nazwa': row.get('nazwa') or 'Brak nazwy',
+            'ilosc': qty,
+            'lokalizacja': row.get('lokalizacja') or '',
+            'partia': row.get('nr_partii') or '---',
+            'nr_partii': row.get('nr_partii') or '---',
+            'data_produkcji': dp_str,
+            'data': dp_str,
+            'data_przydatnosci': dz_str,
+            'termin': dz_str,
+            'jednostka': jednostka,
+            'typ': typ_name,
+            'inventory_type': typ_name,
+            'is_finished_product': is_fg,
+            'qr_data': f"{nr_palety}|{row.get('lokalizacja') or ''}|{row.get('nazwa') or ''}"
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

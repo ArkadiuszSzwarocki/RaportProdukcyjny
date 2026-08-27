@@ -148,3 +148,78 @@ def check_rack_location_availability(location_code, current_nr_palety=None):
         return False, f"Błąd podczas sprawdzania dostępności lokalizacji: {e}"
     finally:
         conn.close()
+
+
+def is_osip_location(location_code):
+    """Sprawdza czy lokalizacja należy do Magazynu OSIP (A01..A99, BFOS, OS01..OS77, OSIP, W_TRANZYCIE_OSIP)."""
+    if not location_code:
+        return False
+    loc = str(location_code).strip().upper()
+    if loc in ('OSIP', 'BFOS', 'W_TRANZYCIE_OSIP'):
+        return True
+    if re.match(r'^A\d{2}$', loc) or re.match(r'^OS\d{2}$', loc):
+        return True
+    return False
+
+
+def is_centrala_location(location_code):
+    """Sprawdza czy lokalizacja należy do Centrali (MS01, MP01, MGW*, Regały R*, itp.)."""
+    if not location_code:
+        return False
+    loc = str(location_code).strip().upper()
+    if loc in ('EXPEDITION', 'ARCHIWUM', 'W_TRANZYCIE_OSIP', 'OCZEKUJĄCE', 'OCZEKUJE'):
+        return False
+    return not is_osip_location(loc)
+
+
+def validate_centrala_osip_move(source_location, target_location, pallet_id=None, nr_palety=None):
+    """
+    Sprawdza czy ruch palety nie przekracza granicy Centrala <-> OSIP bez aktywnego transferu.
+    Zwraca (is_valid: bool, error_msg: str | None).
+    """
+    if not source_location or not target_location:
+        return True, None
+        
+    src_osip = is_osip_location(source_location)
+    tgt_osip = is_osip_location(target_location)
+    
+    # Ruch wewnątrz Centrali lub wewnątrz OSIP jest dozwolony
+    if src_osip == tgt_osip:
+        return True, None
+        
+    # Wyjątki dla statusów specjalnych / tranzytowych
+    tgt_upper = str(target_location).strip().upper()
+    src_upper = str(source_location).strip().upper()
+    if tgt_upper in ('EXPEDITION', 'ARCHIWUM') or src_upper in ('EXPEDITION', 'ARCHIWUM'):
+        return True, None
+    if tgt_upper == 'W_TRANZYCIE_OSIP' or src_upper == 'W_TRANZYCIE_OSIP':
+        return True, None
+
+    # Sprawdzenie czy paleta jest w aktywnym zleceniu transferu (PLANNED / IN_TRANSIT)
+    from app.core.database import get_db_connection
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT t.id, t.transfer_code, t.status, ti.status as item_status
+            FROM osip_transfers t
+            JOIN osip_transfer_items ti ON t.id = ti.transfer_id
+            WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
+              AND ti.status != 'RECEIVED'
+              AND (ti.pallet_id = %s OR (ti.nr_palety IS NOT NULL AND ti.nr_palety != '' AND UPPER(ti.nr_palety) = UPPER(%s)))
+            LIMIT 1
+        """, (pallet_id, str(nr_palety or '').strip()))
+        row = cur.fetchone()
+        if row:
+            return True, None
+    except Exception as e:
+        print(f"Błąd sprawdzania transferu OSIP: {e}")
+    finally:
+        conn.close()
+
+    direction = "z Centrali do Magazynu OSIP" if tgt_osip else "z Magazynu OSIP do Centrali"
+    return False, (
+        f"BŁĄD: Bezpośrednie przenoszenie palet {direction} ({source_location} -> {target_location}) "
+        "jest zablokowane! Przenoszenie między Centralą a OSIP jest możliwe wyłącznie poprzez Zlecenie Transferu OSIP."
+    )
+

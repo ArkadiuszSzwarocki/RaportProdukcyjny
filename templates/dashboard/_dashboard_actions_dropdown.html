@@ -1,29 +1,41 @@
 {# Reusable Hamburger Dropdown Menu for Dashboard Quick Actions with Gray Backdrop #}
-<div id="dashboardActionsDropdownContainer" class="position-relative d-inline-block" style="z-index: 999995;">
+<div id="dashboardActionsDropdownContainer" class="position-relative d-inline-block" style="z-index: 30;">
     <!-- Button AKCJE -->
     <button class="btn btn-dark px-3 py-2 fw-bold" 
             type="button" 
             id="dashboardActionsDropdownBtn" 
             onclick="window.toggleDashboardActionsDropdown(event)"
-            style="border-radius: 10px; background: #1e293b; border: 1px solid #334155; color: #ffffff; display: inline-flex; align-items: center; justify-content: flex-start; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2); font-size: 0.92rem; cursor: pointer; outline: none; position: relative; z-index: 999998;">
+            style="border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #ffffff; display: inline-flex; align-items: center; justify-content: flex-start; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); font-size: 0.92rem; font-weight: 800; cursor: pointer; outline: none;">
         <span style="pointer-events: none; font-weight: 800; text-align: left;">AKCJE</span>
     </button>
     
     <!-- Fullscreen Gray Backdrop Overlay -->
     <div id="dashboardActionsBackdrop" 
          onclick="window.closeDashboardActionsDropdown(event)"
-         style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); z-index: 999990; cursor: pointer;">
+         style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); z-index: 1040; cursor: pointer;">
     </div>
 
     <!-- Actions Window (Positioned directly under the button) -->
     <div id="dashboardActionsDropdownMenu"
-         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; min-width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 999999 !important; text-align: left;">
+         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; min-width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 1045; text-align: left;">
         
         <!-- Header with Close Button -->
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 10px 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 6px; text-align: left;">
             <span style="font-size: 0.8rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Szybkie Akcje</span>
             <button type="button" onclick="window.closeDashboardActionsDropdown(event)" style="border: none; background: transparent; font-size: 18px; color: #94a3b8; cursor: pointer; line-height: 1; padding: 0 4px;">&times;</button>
         </div>
+
+        {% if (sekcja|string|lower == 'workowanie' and linia|string|upper == 'PSD') or (request.args.get('sekcja', '')|lower == 'workowanie' and request.args.get('linia', '')|upper == 'PSD') %}
+        <!-- Raport Palet PSD -->
+        <div style="margin: 0; padding: 0;">
+            <a href="{{ url_for('warehouse_v2.raport_palet', linia='PSD', data_od=dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '') }}"
+               target="_blank"
+               style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #2563eb; font-weight: 700; box-sizing: border-box;"
+               onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='transparent'">
+                📋 Raport Palet PSD
+            </a>
+        </div>
+        {% endif %}
 
         <!-- Receptura -->
         <div style="margin: 0; padding: 0;">

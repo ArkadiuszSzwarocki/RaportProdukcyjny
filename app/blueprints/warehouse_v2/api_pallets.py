@@ -240,15 +240,15 @@ def print_pallet_label():
         # Determine correct table
         if pallet_type == 'Wyrób Gotowy':
             table_mag = 'magazyn_palety'
-            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT id, produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
         elif pallet_type == 'Surowiec':
             table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
         elif pallet_type == 'Opakowanie':
             table = 'magazyn_opakowania' if linia == 'PSD' else 'magazyn_opakowania_agro'
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
         elif pallet_type == 'Dodatek':
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM magazyn_dodatki WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM magazyn_dodatki WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
         else:
             return jsonify({'success': False, 'error': 'Nieznany typ palety'}), 400
             
@@ -257,18 +257,29 @@ def print_pallet_label():
             return jsonify({'success': False, 'error': 'Nie znaleziono palety w bazie'}), 404
             
         from app.services.print_server import get_printer
-        label_data = {
-            'id': pallet_id,
-            'nr_palety': row.get('nr_palety') or '',
-            'nazwa': row['productName'],
-            'ilosc': row['amount'],
-            'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
-            'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else None,
-            'nr_partii': row.get('batch') or '',
-            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
-            'linia': linia,
-            'nr_plomby': row.get('nr_plomby') if pallet_type == 'Wyrób Gotowy' else None
-        }
+        from app.utils.pallet_label import prepare_pallet_label_data
+
+        if pallet_type == 'Wyrób Gotowy':
+            try:
+                label_data = prepare_pallet_label_data(row.get('nr_palety') or row.get('id') or pallet_id, linia=linia, printer_name=printer_name)
+            except Exception:
+                label_data = None
+        else:
+            label_data = None
+
+        if not label_data:
+            label_data = {
+                'id': row.get('id') or pallet_id,
+                'nr_palety': row.get('nr_palety') or '',
+                'nazwa': row.get('productName') or row.get('nazwa') or '',
+                'ilosc': row.get('amount') or 0,
+                'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
+                'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else None,
+                'nr_partii': row.get('batch') or '',
+                'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
+                'linia': linia,
+                'nr_plomby': row.get('nr_plomby') if pallet_type == 'Wyrób Gotowy' else None
+            }
 
         printer_service = get_printer()
 

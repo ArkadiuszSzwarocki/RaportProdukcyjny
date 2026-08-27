@@ -58,7 +58,7 @@ def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict, 
     uwagi = _load_shift_notes(date_str, linia=linia)
 
     # 2. Lider
-    lider_name, uwagi_extra = _get_leader_name(session_data, form_data)
+    lider_name, uwagi_extra = _get_leader_name(session_data, form_data, linia=linia, date_str=date_str)
     uwagi = uwagi + uwagi_extra
 
     # 3. Generuj pliki (XLS, TXT, PDF)
@@ -106,11 +106,90 @@ def _load_shift_notes(date_str: str, linia: str = 'PSD') -> str:
     return "\n\n".join(uwagi_lines)
 
 
-def _get_leader_name(session_data: dict, form_data: dict):
-    lider_name = session_data.get('imie_nazwisko') or session_data.get('login', 'Nieznany')
+def _get_leader_name(session_data: dict, form_data: dict, linia: str = 'PSD', date_str: str = None):
+    linia = str(linia or 'PSD').strip().upper()
+    lider_name = None
     uwagi_extra = ""
+    col_lider = 'lider_psd_id' if linia == 'PSD' else 'lider_agro_id'
+
+    # 1. Sprawdź lidera w obsada_liderzy dla danej linii i daty
+    if date_str:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT p.imie_nazwisko FROM obsada_liderzy ol JOIN pracownicy p ON ol.{col_lider} = p.id WHERE ol.data_wpisu = %s", (date_str,))
+            row_l = cursor.fetchone()
+            if row_l and row_l[0] and row_l[0].strip().lower() not in ('workowanie', 'zasyp', 'admin', 'nieznany'):
+                lider_name = row_l[0]
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.warning("[SHIFT_CLOSE] Nie można pobrać lidera z obsada_liderzy: %s", e)
+
+    # 2. Jeśli brak na dany dzień, pobierz ostatnio zapisanego lidera dla danej hali
+    if not lider_name:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT p.imie_nazwisko FROM obsada_liderzy ol "
+                f"JOIN pracownicy p ON ol.{col_lider} = p.id "
+                f"WHERE ol.{col_lider} IS NOT NULL AND LOWER(p.imie_nazwisko) NOT IN ('workowanie', 'zasyp', 'admin', 'nieznany') "
+                f"ORDER BY ol.data_wpisu DESC LIMIT 1"
+            )
+            row_l = cursor.fetchone()
+            if row_l and row_l[0]:
+                lider_name = row_l[0]
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.warning("[SHIFT_CLOSE] Nie można pobrać ostatniego lidera z obsada_liderzy: %s", e)
+
+    # 3. Jeśli form_data podaje jawnie lider_id (wybrany w formularzu)
+    if not lider_name and form_data and form_data.get('lider_id'):
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (form_data['lider_id'],))
+            row_l = cursor.fetchone()
+            if row_l and row_l[0] and row_l[0].strip().lower() not in ('workowanie', 'zasyp', 'admin', 'nieznany'):
+                lider_name = row_l[0]
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+    # 4. Jeśli użytkownik w sesji to faktyczny lider
+    if not lider_name and session_data:
+        imie = session_data.get('imie_nazwisko')
+        rola = session_data.get('rola')
+        if rola == 'lider' and imie and imie.strip().lower() not in ('workowanie', 'zasyp', 'admin', 'nieznany'):
+            lider_name = imie
+
+    # 5. Domyślny fallback do pierwszego aktywnego lidera w systemie
+    if not lider_name:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT p.imie_nazwisko FROM pracownicy p "
+                "JOIN uzytkownicy u ON p.id = u.pracownik_id "
+                "WHERE u.rola = 'lider' AND LOWER(p.imie_nazwisko) NOT IN ('workowanie', 'zasyp', 'admin') "
+                "ORDER BY p.id ASC LIMIT 1"
+            )
+            row_l = cursor.fetchone()
+            if row_l and row_l[0]:
+                lider_name = row_l[0]
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+    if not lider_name:
+        lider_name = f"Lider {linia}"
+
     try:
-        prowadzacy_id = form_data.get('lider_prowadzacy_id')
+        prowadzacy_id = (form_data or {}).get('lider_prowadzacy_id')
         if prowadzacy_id:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -122,8 +201,8 @@ def _get_leader_name(session_data: dict, form_data: dict):
             conn.close()
     except Exception as exc:
         logger.warning("[SHIFT_CLOSE] Nie mozna pobrac lidera prowadzacego: %s", exc)
-    
-    logger.info("[SHIFT_CLOSE] Lider: %s", lider_name)
+
+    logger.info("[SHIFT_CLOSE] Wykryty Lider (%s): %s", linia, lider_name)
     return lider_name, uwagi_extra
 
 
@@ -192,7 +271,7 @@ def _build_zip(xls_path, txt_path, pdf_path, date_str: str, linia: str = 'PSD'):
     added = 0
     missing = []
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for path, label in [(xls_path, 'XLS'), (txt_path, 'TXT'), (pdf_path, 'PDF')]:
+        for path, label in [(xls_path, 'XLS'), (pdf_path, 'PDF')]:
             if path and Path(path).exists():
                 zf.write(str(path), arcname=Path(path).name)
                 added += 1
@@ -204,7 +283,7 @@ def _build_zip(xls_path, txt_path, pdf_path, date_str: str, linia: str = 'PSD'):
         raise RuntimeError(
             f"Zaden plik raportu nie zostal znaleziony. "
             f"Brakujace: {', '.join(missing)}. "
-            f"XLS={xls_path}, TXT={txt_path}, PDF={pdf_path}"
+            f"XLS={xls_path}, PDF={pdf_path}"
         )
     if missing:
         logger.warning("[SHIFT_CLOSE] ZIP niekompletny — brakuje: %s", missing)

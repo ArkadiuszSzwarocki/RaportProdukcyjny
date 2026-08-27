@@ -128,6 +128,21 @@ class DeliveryCommandService:
             if lokalizacja_do and any(_is_route_conflict(loc, lokalizacja_do) for loc in unaccepted_sources):
                 return False, f"Operacja niemożliwa: Skąd i Dokąd nie mogą być takie same ({lokalizacja_do})."
 
+            # Walidacja blokady przesunięć Centrala <-> OSIP (wymagany transfer)
+            if not is_external and lokalizacja_do and lokalizacja_do != 'OCZEKUJĄCE':
+                from app.utils.location_validator import validate_centrala_osip_move
+                for it in items:
+                    src_spot = _norm_loc(it.get('sourceSpot'))
+                    pal_no = it.get('palletNo') or it.get('nr_palety')
+                    if src_spot and src_spot != lokalizacja_do:
+                        is_trf_valid, trf_err = validate_centrala_osip_move(
+                            source_location=src_spot,
+                            target_location=lokalizacja_do,
+                            nr_palety=pal_no
+                        )
+                        if not is_trf_valid:
+                            return False, trf_err
+
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)

@@ -354,6 +354,7 @@ class PrintServer:
         # FETCH SYMBOL AND TYPE FROM slownik_surowcow
         symbol = ''
         jednostka = 'kg'
+        db_typ = ''
         try:
             from app.db import get_db_connection
             conn = get_db_connection()
@@ -363,13 +364,25 @@ class PrintServer:
             if row:
                 if row['symbol']:
                     symbol = str(row['symbol']).strip()
-                if row['typ'] == 'opakowanie':
-                    jednostka = 'szt.'
+                if row['typ']:
+                    db_typ = str(row['typ']).strip()
             cur.close()
             conn.close()
         except Exception:
             pass
+
+        from app.utils.pallet_label import is_packaging_item
+        is_pkg = is_packaging_item(
+            product_name,
+            unit=label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm'),
+            typ=label_data.get('typ') or db_typ,
+            pallet_nr=nr_palety
+        )
+        if is_pkg:
+            jednostka = 'szt.'
+
         display_name = f"{symbol} - {product_name}" if symbol else product_name
+        header_text = (f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE") if is_pkg else (f"SUROWIEC - {linia}" if linia else "SUROWIEC")
 
         if jednostka == 'kg':
             waga_line = f"^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} kg^FS"
@@ -385,7 +398,7 @@ class PrintServer:
             "data_przyd": data_przydatnosci,
             "ilosc": qty_display,
             "jm": jednostka,
-            "typ": "SUROWIEC"
+            "typ": header_text
         }
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
 
@@ -393,7 +406,7 @@ class PrintServer:
 ^CI28
 ^PW812^LL1214
 ^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FDSUROWIEC^FS
+^FO40,60^A0N,50,50^FD{header_text}^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{display_name}^FS
 ^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
@@ -409,23 +422,49 @@ class PrintServer:
         """Buduje ZPL dla etykiety wyrobu gotowego."""
         nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
         product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
-        data_produkcji = str(label_data.get('data') or datetime.now().strftime('%Y-%m-%d')).strip()
-        data_przydatnosci = str(label_data.get('data_przydatnosci') or '').strip()
+        data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()
+        data_przydatnosci = str(label_data.get('data_przydatnosci') or label_data.get('termin_przydatnosci') or label_data.get('termin') or '').strip()
         qty_display = self._format_qty_display(label_data.get('ilosc'))
         nr_palety_lp = label_data.get('nr_palety_lp') or ''
         linia = str(label_data.get('linia') or '').strip()
         nr_plomby = str(label_data.get('nr_plomby') or '').strip()
-        nr_partii = str(label_data.get('nr_partii') or '').strip()
+        nr_partii = str(label_data.get('nr_partii') or label_data.get('partia') or f"ZLE-{label_data.get('plan_id', '')}").strip()
 
+        if not data_przydatnosci:
+            try:
+                dt_p = datetime.strptime(data_produkcji[:10], '%Y-%m-%d')
+                data_przydatnosci = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
+            except Exception:
+                pass
+
+        partia_line = f"^FO40,890^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
         przydatnosc_line = f"^FO40,950^A0N,45,45^FDTERMIN PRZYDATNOŚCI: {data_przydatnosci}^FS" if data_przydatnosci else ""
-        plomba_line = f"^FO40,1000^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
-        partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
+        plomba_line = f"^FO40,1010^A0N,40,40^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
         
+        from app.utils.pallet_label import is_packaging_item
+        is_pkg = is_packaging_item(
+            product_name,
+            unit=label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm'),
+            typ=label_data.get('typ'),
+            pallet_nr=nr_palety
+        )
+
         is_surowiec = label_data.get('is_surowiec') or (product_name.lower() in ('czyszczenie', 'maka mix do lnu', 'mąka mix do lnu')) or ('czyszczenie' in product_name.lower()) or ('maka mix do lnu' in product_name.lower()) or ('mąka mix do lnu' in product_name.lower())
         if 'czyszczenie' in product_name.lower():
             product_name = "Mąka mix do Lnu"
 
-        header_text = f"SUROWIEC - {linia}" if (is_surowiec and linia) else ("SUROWIEC" if is_surowiec else (f"WYROB GOTOWY - {linia}" if linia else "WYROB GOTOWY"))
+        if is_pkg:
+            header_text = f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE"
+            qty_unit = "szt."
+            qty_header = "ILOSC:"
+        elif is_surowiec:
+            header_text = f"SUROWIEC - {linia}" if linia else "SUROWIEC"
+            qty_unit = "kg"
+            qty_header = "WAGA NETTO:"
+        else:
+            header_text = f"WYROB GOTOWY - {linia}" if linia else "WYROB GOTOWY"
+            qty_unit = "kg"
+            qty_header = "WAGA NETTO:"
 
         import json
         qr_details = {
@@ -437,7 +476,7 @@ class PrintServer:
             "data_prod": data_produkcji,
             "data_przyd": data_przydatnosci,
             "ilosc": qty_display,
-            "jm": "kg",
+            "jm": qty_unit,
             "typ": header_text
         }
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
@@ -450,13 +489,13 @@ class PrintServer:
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
 ^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
-^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp}^FS
-^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
+^FO40,750^A0N,45,45^FDNR PALETY: {nr_palety_lp}^FS
+^FO40,825^A0N,45,45^FDPRODUKCJA: {data_produkcji}^FS
 {partia_line}
 {przydatnosc_line}
 {plomba_line}
-^FO40,1050^A0N,70,70^FDWAGA NETTO:^FS
-^FO40,1150^A0N,100,100^FD{qty_display} kg^FS
+^FO40,1070^A0N,60,60^FD{qty_header}^FS
+^FO40,1140^A0N,85,85^FD{qty_display} {qty_unit}^FS
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ{copies}
 ^XZ"""
@@ -478,8 +517,19 @@ class PrintServer:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor()
-                target_ip = override_ip or self.printer_ip
-                target_name = override_name or self.printer_name
+                target_ip = override_ip
+                target_name = override_name
+                if not target_ip:
+                    try:
+                        from app.repositories.settings_repository import SettingsRepository
+                        p_row = SettingsRepository.get_default_printer_for_line('AGRO')
+                        if p_row:
+                            target_ip = p_row.get('ip')
+                            target_name = p_row.get('nazwa')
+                    except Exception:
+                        pass
+                target_ip = target_ip or self.printer_ip
+                target_name = target_name or self.printer_name
                 
                 cursor.execute("""
                     INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)

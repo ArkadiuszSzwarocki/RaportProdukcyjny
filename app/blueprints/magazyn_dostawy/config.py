@@ -33,9 +33,9 @@ LOKALIZACJE_SZCZEGOLOWE = {
 }
 
 # Płaska lista na potrzeby selecta źródło/cel
-LOKALIZACJE = sorted(list(set(LOKALIZACJE_ZRODLO + _ko + ['R04', 'R05', 'R06', 'R07', 'PSD01'])))
-LOKALIZACJE_CEL = ['BF_MS01', 'BF_MP01', 'MS01', 'MP01', 'PSD01']
-BUFORY = ['BF_MS01', 'BF_MP01']
+LOKALIZACJE = sorted(list(set(LOKALIZACJE_ZRODLO + _ko + ['R04', 'R05', 'R06', 'R07', 'PSD01', 'BFOS'])))
+LOKALIZACJE_CEL = ['BF_MS01', 'BF_MP01', 'BFOS', 'MS01', 'MP01', 'PSD01']
+BUFORY = ['BF_MS01', 'BF_MP01', 'BFOS']
 
 
 def _safe_float(value):

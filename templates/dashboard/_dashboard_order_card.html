@@ -56,7 +56,7 @@
 
         <div class="header-actions" style="display: flex; align-items: center; gap: 8px; margin: 0;">
             {% set role_lc = rola|string|trim|lower %}
-            {% if sekcja in ['Workowanie', 'Zasyp'] and linia == 'AGRO' %}
+            {% if sekcja in ['Workowanie', 'Zasyp'] %}
             <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja=sekcja) }}"
                style="background: #dc2626; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border: none; box-shadow: 0 2px 5px rgba(220,38,38,0.25); white-space: nowrap; line-height: 1.2;"
                title="Zgłoś przestój maszyny / {{ sekcja|lower }}">⚠️ Przestój</a>

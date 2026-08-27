@@ -260,13 +260,32 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
         return true;
     }
 
-    // 1. Jeśli wybrano konkretny regał/podlokalizację (R01, R02, OS01, A itp.) - to jest priorytet
+    // 1. Jeśli wybrano konkretny regał/podlokalizację lub bufor - to jest priorytet
     if (currentSubWarehouseId && currentSubWarehouseId !== 'all') {
-        if (currentSubWarehouseId === 'OS01') {
-            return upLoc.includes('OS01');
+        const subUpper = currentSubWarehouseId.toUpperCase();
+        if (subUpper === 'BUFORY' || subUpper === 'BUFOR') {
+            return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || !locText || upLoc.trim() === '';
         }
-        if (currentSubWarehouseId === 'A') {
+        if (subUpper === 'BFOS') {
+            return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP');
+        }
+        if (subUpper === 'MGW01') {
+            return upLoc.includes('MGW01') || upLoc.startsWith('MGW01');
+        }
+        if (subUpper === 'MGW02') {
+            return upLoc.includes('MGW02') || upLoc.startsWith('MGW02');
+        }
+        if (subUpper === 'MP01') {
+            return upLoc.includes('MP01') || upLoc.startsWith('MP01');
+        }
+        if (subUpper === 'MS01') {
+            return upLoc.includes('MS01') || upLoc.startsWith('MS01');
+        }
+        if (subUpper === 'A' || subUpper === 'A01-A99') {
             return upLoc.startsWith('A');
+        }
+        if (subUpper === 'OS01' || subUpper === 'OS01-77') {
+            return upLoc.includes('OS01') || upLoc.startsWith('OS');
         }
         const selectedRack = normalizeLocationCode(currentSubWarehouseId);
         if (!selectedRack) return true;

@@ -515,16 +515,14 @@ def api_logout():
 @auth_bp.route('/zglos')
 @login_required
 def report_issue():
-    """Report an issue with optional section filter."""
-    sekcja = request.args.get('sekcja', 'Zasyp')
-    now_time = datetime.now().strftime('%H:%M')
-    return render_template('report_issue.html', sekcja=sekcja, now_time=now_time)
+    """Report an issue form - all fields start clean/empty."""
+    return render_template('report_issue.html')
 
 
 @auth_bp.route('/moje_zgloszenia_bledow')
 @login_required
 def my_bug_reports():
-    """Show bug reports submitted by the currently logged user."""
+    """Show bug reports submitted by the currently logged user with full conversation thread."""
     login_value = (session.get('login') or '').strip()
     if not login_value:
         flash('Brak danych użytkownika.', 'warning')
@@ -544,6 +542,28 @@ def my_bug_reports():
     cursor = conn.cursor(dictionary=True)
     reports = []
     try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS zgloszenia_bledow_odpowiedzi (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                zgloszenie_id BIGINT NOT NULL,
+                autor_login VARCHAR(50) NOT NULL,
+                tresc TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_zgloszenie_id (zgloszenie_id)
+            )
+        """)
+        try:
+            cursor.execute("""
+                INSERT INTO zgloszenia_bledow_odpowiedzi (zgloszenie_id, autor_login, tresc, created_at)
+                SELECT b.id, COALESCE(b.odpowiedz_by_login, 'admin'), b.odpowiedz_admina, COALESCE(b.odpowiedz_timestamp, b.timestamp)
+                FROM zgloszenia_bledow b
+                WHERE b.odpowiedz_admina IS NOT NULL AND TRIM(b.odpowiedz_admina) <> ''
+                  AND NOT EXISTS (
+                      SELECT 1 FROM zgloszenia_bledow_odpowiedzi r WHERE r.zgloszenie_id = b.id AND r.tresc = b.odpowiedz_admina
+                  )
+            """)
+        except Exception:
+            pass
         cursor.execute(
             f"""
             SELECT id, timestamp, opis, sciezka, status, zalaczniki, odpowiedz_admina, odpowiedz_timestamp, odpowiedz_by_login
@@ -556,22 +576,86 @@ def my_bug_reports():
         )
         reports = cursor.fetchall() or []
 
-        import json
-        for report in reports:
-            attachments = report.get('zalaczniki')
-            if isinstance(attachments, str):
-                try:
-                    report['zalaczniki'] = json.loads(attachments)
-                except Exception:
+        if reports:
+            report_ids = [r['id'] for r in reports]
+            format_strings = ','.join(['%s'] * len(report_ids))
+            cursor.execute(
+                f"SELECT * FROM zgloszenia_bledow_odpowiedzi WHERE zgloszenie_id IN ({format_strings}) ORDER BY created_at ASC, id ASC",
+                tuple(report_ids)
+            )
+            all_replies = cursor.fetchall() or []
+            replies_by_bug = {}
+            for rep in all_replies:
+                b_id = rep['zgloszenie_id']
+                if b_id not in replies_by_bug:
+                    replies_by_bug[b_id] = []
+                replies_by_bug[b_id].append(rep)
+
+            import json
+            for report in reports:
+                attachments = report.get('zalaczniki')
+                if isinstance(attachments, str):
+                    try:
+                        report['zalaczniki'] = json.loads(attachments)
+                    except Exception:
+                        report['zalaczniki'] = []
+                elif not attachments:
                     report['zalaczniki'] = []
-            elif not attachments:
-                report['zalaczniki'] = []
+
+                bug_replies = replies_by_bug.get(report['id'], [])
+                if not bug_replies and report.get('odpowiedz_admina'):
+                    bug_replies = [{
+                        'id': 0,
+                        'zgloszenie_id': report['id'],
+                        'autor_login': report.get('odpowiedz_by_login') or 'admin',
+                        'tresc': report.get('odpowiedz_admina'),
+                        'created_at': report.get('odpowiedz_timestamp') or report.get('timestamp')
+                    }]
+                report['odpowiedzi'] = bug_replies
     except Exception:
         flash('Nie udało się pobrać Twoich zgłoszeń.', 'error')
     finally:
         conn.close()
 
     return render_template('my_bug_reports.html', reports=reports, current_sort=sort_by)
+
+
+@auth_bp.route('/moje_zgloszenia_bledow/odpowiedz/<int:bug_id>', methods=['POST'])
+@login_required
+def user_reply_bug_report(bug_id):
+    """Allow reporting user to add a follow-up reply/clarification to their report."""
+    login_value = (session.get('login') or '').strip()
+    tresc = (request.form.get('odpowiedz_uzytkownika') or '').strip()
+    if not tresc:
+        flash('Treść wiadomości nie może być pusta.', 'error')
+        return redirect(url_for('auth.my_bug_reports'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute('SELECT id, login FROM zgloszenia_bledow WHERE id = %s', (bug_id,))
+        bug = cursor.fetchone()
+        if not bug or bug['login'].lower() != login_value.lower():
+            flash('Nie masz uprawnień do tego zgłoszenia.', 'error')
+            return redirect(url_for('auth.my_bug_reports'))
+
+        cursor.execute(
+            """
+            INSERT INTO zgloszenia_bledow_odpowiedzi (zgloszenie_id, autor_login, tresc, created_at)
+            VALUES (%s, %s, %s, NOW())
+            """,
+            (bug_id, login_value, tresc)
+        )
+        cursor.execute("UPDATE zgloszenia_bledow SET status = 'odpowiedz_uzytkownika' WHERE id = %s", (bug_id,))
+        conn.commit()
+        flash('Twoja odpowiedź została dodana do zgłoszenia.', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Błąd dodawania odpowiedzi: {e}', 'error')
+    finally:
+        conn.close()
+
+    return redirect(url_for('auth.my_bug_reports'))
 
 
 @auth_bp.route('/api/ack_bug_icon_intro', methods=['POST'])

@@ -1,59 +1,395 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="section-box">
-    <div class="row items-center space-between mb-20">
-        <h2>Zarządzanie Drukarkami Etykiet</h2>
-        <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-outline">Powrót do ustawień</a>
+<style>
+    .printer-view {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .printer-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        padding: 24px 28px;
+        border-radius: 20px;
+        border: 1px solid rgba(44, 62, 80, 0.08);
+        background: linear-gradient(135deg, #ffffff 0%, #f4f8fc 55%, #eef6ff 100%);
+        box-shadow: 0 12px 30px rgba(25, 40, 56, 0.06);
+    }
+
+    .printer-eyebrow {
+        margin-bottom: 6px;
+        color: #2f7dd1;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
+
+    .printer-title {
+        margin: 0;
+        color: #1e293b;
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .printer-description {
+        max-width: 760px;
+        margin: 8px 0 0;
+        color: #64748b;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .printer-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Control Toolbar / Stats Bar */
+    .printer-controls-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+    }
+
+    .stats-group {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .stat-item strong {
+        font-size: 1.05rem;
+    }
+
+    /* Cards & Containers */
+    .printer-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        box-shadow: 0 8px 24px rgba(28, 44, 60, 0.04);
+        padding: 22px;
+        box-sizing: border-box;
+    }
+
+    .printer-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .printer-card-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* Table Styling */
+    .printer-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .printer-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    .printer-table th {
+        background: #f8fafc;
+        padding: 12px 16px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    .printer-table td {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: #1e293b;
+        vertical-align: middle;
+    }
+
+    .printer-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .printer-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Form Fields */
+    .form-group-unified {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+
+    .form-label-unified {
+        font-weight: 700;
+        font-size: 0.88rem;
+        color: #334155;
+    }
+
+    .input-unified {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        font-size: 0.92rem;
+        color: #0f172a;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+    }
+
+    .input-unified:focus {
+        outline: none;
+        border-color: #2f7dd1;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(47, 125, 209, 0.15);
+    }
+
+    .form-hint {
+        font-size: 0.78rem;
+        color: #64748b;
+    }
+
+    /* Badges */
+    .badge-unified {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.76rem;
+        white-space: nowrap;
+    }
+
+    .badge-zpl { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-a4 { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-online { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-offline { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+    .badge-pending { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
+
+    /* Filter Pills */
+    .filter-pills {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .filter-pill {
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .filter-pill.active {
+        background: #2f7dd1;
+        border-color: #2f7dd1;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(47, 125, 209, 0.3);
+    }
+
+    /* Action Buttons */
+    .btn-action-danger {
+        background: #fff1f2;
+        color: #dc2626;
+        border: 1px solid #fecdd3;
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.78rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-action-danger:hover {
+        background: #dc2626;
+        color: #ffffff;
+    }
+
+    .btn-submit-unified {
+        background: linear-gradient(135deg, #2f7dd1 0%, #1e5fad 100%);
+        color: white;
+        padding: 11px 20px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.9rem;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(47, 125, 209, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .btn-submit-unified:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(47, 125, 209, 0.4);
+    }
+
+    @media (max-width: 900px) {
+        .printer-hero {
+            flex-direction: column;
+            padding: 20px;
+        }
+        .printer-grid-main {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
+
+<div class="printer-view">
+    
+    <!-- Hero Header (Tożsamy z Ustawienia Zespołu / Ustawienia) -->
+    <div class="printer-hero">
+        <div>
+            <div class="printer-eyebrow">Administracja</div>
+            <h2 class="printer-title">Zarządzanie Drukarkami (Zebra)</h2>
+            <p class="printer-description">Jedna wspólna lista wszystkich drukarek w sieci LAN. Konfiguruj adresy IP, badaj czujniki fizyczne ~HS oraz sprawdzaj podgląd zleceń z 48 godzin.</p>
+        </div>
+        <div class="printer-hero-actions">
+            <a href="/admin/ustawienia" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1;">
+                <span class="material-icons" style="font-size: 18px;">arrow_back</span> Powrót
+            </a>
+        </div>
     </div>
 
-    <div class="grid-2 gap-20">
-        <!-- Lista drukarek -->
-        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <h3 class="mb-15" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">Dostępne drukarki</h3>
-            <div style="max-height: 400px; overflow-y: auto;">
-                <table class="modern-table">
+    <!-- Control / Stats Bar -->
+    {% if jobs_stats %}
+    <div class="printer-controls-bar">
+        <div class="stats-group">
+            <div class="stat-item">
+                <span class="material-icons" style="color: #64748b;">history</span>
+                <span>Zlecenia 48h: <strong style="color: #0f172a;">{{ jobs_stats.total_48h }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #10b981;">check_circle</span>
+                <span>Wydrukowano (OK): <strong style="color: #047857;">{{ jobs_stats.done }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #ef4444;">error</span>
+                <span>Błędy / Czujniki: <strong style="color: #dc2626;">{{ jobs_stats.error }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #3b82f6;">hourglass_top</span>
+                <span>W kolejce: <strong style="color: #1e40af;">{{ jobs_stats.pending }}</strong></span>
+            </div>
+        </div>
+        {% if jobs_stats.error > 0 %}
+        <button type="button" class="btn-popup-primary" onclick="retryAllFailedJobs()" style="background: linear-gradient(135deg, #f59e0b, #d97706); font-size: 0.82rem; padding: 8px 16px;">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">autorenew</span> Ponów nieudane wydruki ({{ jobs_stats.error }})
+        </button>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Main Grid 2 Columns: Printer List & Add Form -->
+    <div class="printer-grid-main" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px;">
+        
+        <!-- Column 1: Printer List Card -->
+        <div class="printer-card">
+            <div class="printer-card-header">
+                <h3 class="printer-card-title">
+                    <span class="material-icons" style="color: #2f7dd1;">print</span> Aktywne Drukarki w Sieci LAN
+                </h3>
+            </div>
+
+            <div class="printer-table-wrapper" style="max-height: 380px; overflow-y: auto;">
+                <table class="printer-table">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Nazwa</th>
                             <th>Typ</th>
                             <th>Adres IP</th>
-                            <th>Lokalizacja</th>
-                            <th>Status</th>
-                            <th>Akcje</th>
+                            <th>Licznik</th>
+                            <th>Dostępność</th>
+                            <th style="text-align: right;">Akcja</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for printer in printers %}
                         <tr>
-                            <td>{{ printer.id }}</td>
-                            <td class="font-bold">{{ printer.nazwa }}</td>
+                            <td style="font-family: monospace; font-weight: 600; color: #64748b;">#{{ printer.id }}</td>
+                            <td style="font-weight: 800; color: #0f172a;">{{ printer.nazwa }}</td>
                             <td>
                                 {% if printer.typ_drukarki == 'biurowa' %}
-                                <span class="badge" style="background:#e0f2fe; color:#0369a1;">Biurowa (A4)</span>
+                                <span class="badge-unified badge-a4">📄 Dokumenty A4</span>
                                 {% else %}
-                                <span class="badge" style="background:#f1f5f9; color:#475569;">Etykiet (Zebra)</span>
+                                <span class="badge-unified badge-zpl">🏷️ Etykiety ZPL (9100)</span>
                                 {% endif %}
                             </td>
-                            <td style="font-family: monospace;">{{ printer.ip }}</td>
-                            <td>{{ printer.lokalizacja or '-' }}</td>
+                            <td style="font-family: monospace; font-weight: 700; color: #334155;">{{ printer.ip }}</td>
                             <td>
-                                {% if printer.aktywna %}
-                                <span class="badge badge-success">Aktywna</span>
-                                {% else %}
-                                <span class="badge badge-danger">Nieaktywna</span>
-                                {% endif %}
+                                <span class="badge-unified badge-hall" style="font-family: monospace; font-weight: 800;">🔢 {{ printer.licznik_wydrukow or 0 }} szt.</span>
                             </td>
                             <td>
+                                {% if printer.tcp_online %}
+                                <span class="badge-unified badge-online">● Połączona</span>
+                                {% else %}
+                                <span class="badge-unified badge-offline">○ Niedostępna</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
                                 <form action="{{ url_for('admin.admin_delete_printer', printer_id=printer.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć tę drukarkę?');">
-                                    <button type="submit" class="btn-action btn-red" style="padding: 4px 8px; font-size: 11px;">Usuń</button>
+                                    <button type="submit" class="btn-action-danger">Usuń</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center text-muted p-20">Brak skonfigurowanych drukarek.</td>
+                            <td colspan="6" style="text-align: center; color: #64748b; padding: 24px;">Brak zdefiniowanych drukarek.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -61,49 +397,200 @@
             </div>
         </div>
 
-        <!-- Formularz dodawania nowej drukarki -->
-        <div style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px;">
-            <h3 class="mb-15" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #2563eb;">Dodaj nową drukarkę</h3>
+        <!-- Column 2: Add Printer Form Card -->
+        <div class="printer-card" style="background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+            <div class="printer-card-header">
+                <h3 class="printer-card-title" style="color: #2f7dd1;">
+                    <span class="material-icons">add_circle_outline</span> Dodaj Nową Drukarkę
+                </h3>
+            </div>
+
             <form action="{{ url_for('admin.admin_add_printer') }}" method="POST">
-                <div class="mb-15">
-                    <label class="form-label font-bold">Nazwa drukarki <span class="text-danger">*</span></label>
-                    <input type="text" name="nazwa" class="form-control" required placeholder="np. Zebra Magazyn 1">
-                    <small class="text-muted">Rozpoznawalna nazwa dla magazynierów</small>
+                <div class="form-group-unified">
+                    <label class="form-label-unified">Nazwa drukarki <span style="color: #dc2626;">*</span></label>
+                    <input type="text" name="nazwa" class="input-unified" required placeholder="np. Zebra Produkcja lub TSC Magazyn">
+                    <span class="form-hint">Nazwa rozpoznawalna dla pracowników hali</span>
                 </div>
                 
-                <div class="mb-15">
-                    <label class="form-label font-bold">Adres IP maszyny (lub nazwa drukarki) <span class="text-danger">*</span></label>
-                    <input type="text" name="ip" class="form-control" required placeholder="np. 192.168.1.200 lub 'Brother MFC'">
-                    <small class="text-muted">Dla drukarek etykiet: adres IPv4. Dla biurowych: dokładna nazwa drukarki w systemie Windows.</small>
+                <div class="form-group-unified">
+                    <label class="form-label-unified">Adres IP maszyny (lub 'USB') <span style="color: #dc2626;">*</span></label>
+                    <input type="text" name="ip" class="input-unified" required placeholder="np. 192.168.1.160 lub 'USB'">
+                    <span class="form-hint">Dla drukarek etykiet: IPv4. Dla USB: wpisz 'USB'</span>
                 </div>
                 
-                <div class="mb-15">
-                    <label class="form-label font-bold">Typ drukarki <span class="text-danger">*</span></label>
-                    <select name="typ_drukarki" class="form-control" required>
-                        <option value="etykiet">Drukarka Etykiet (Zebra / ZPL)</option>
-                        <option value="biurowa">Drukarka Biurowa (Format A4 - Raporty)</option>
+                <div class="form-group-unified">
+                    <label class="form-label-unified">Typ drukarki <span style="color: #dc2626;">*</span></label>
+                    <select name="typ_drukarki" class="input-unified" required>
+                        <option value="etykiet">🏷️ Drukarka Etykiet (Zebra / TSC - Port 9100)</option>
+                        <option value="biurowa">📄 Drukarka Biurowa (Format A4 - Raporty)</option>
                     </select>
                 </div>
                 
-                <div class="mb-15">
-                    <label class="form-label font-bold">Lokalizacja / Opis</label>
-                    <input type="text" name="lokalizacja" class="form-control" placeholder="np. Biuro Magazyniera">
-                </div>
-                
-                <div class="mb-15">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" name="aktywna" value="1" checked style="width: 18px; height: 18px; accent-color: #2563eb;">
-                        <span class="font-bold text-dark">Drukarka aktywna w systemie</span>
-                    </label>
+                <div class="form-group-unified">
+                    <label class="form-label-unified">Lokalizacja / Hala</label>
+                    <input type="text" name="lokalizacja" class="input-unified" placeholder="np. Hala produkcyjna Agro">
                 </div>
 
-                <div class="mt-20">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        <span class="material-icons" style="font-size: 18px; margin-right: 5px;">add_circle</span> DODAJ DRUKARKĘ
+                <div style="margin-top: 20px;">
+                    <button type="submit" class="btn-submit-unified">
+                        <span class="material-icons" style="font-size: 18px;">add</span> DODAJ DRUKARKĘ
                     </button>
                 </div>
             </form>
         </div>
+
     </div>
+
+    <!-- Section 3: 48-Hour Printing Log & Czujniki ~HS Table -->
+    <div class="printer-card" id="sec-print-logs">
+        <div class="printer-card-header" style="flex-wrap: wrap; gap: 12px;">
+            <h3 class="printer-card-title">
+                <span class="material-icons" style="color: #2f7dd1;">assignment</span> Dziennik Drukowania (Ostatnie 48 godzin)
+            </h3>
+            <div class="filter-pills">
+                <button type="button" onclick="filterLogs('all')" class="filter-pill active" id="btn-filter-all">Wszyscy (48h)</button>
+                <button type="button" onclick="filterLogs('error')" class="filter-pill" id="btn-filter-error" style="color: #dc2626;">Tylko Błędy / Czujniki</button>
+            </div>
+        </div>
+
+        <div class="printer-table-wrapper" style="max-height: 480px; overflow-y: auto;">
+            <table class="printer-table" id="table-print-logs">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data i Czas</th>
+                        <th>Drukarka</th>
+                        <th>Adres IP</th>
+                        <th>Status Wydruku</th>
+                        <th>Czujniki (~HS) / Szczegóły Błędu</th>
+                        <th style="text-align: right;">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs_48h %}
+                    <tr class="log-row {% if job.status == 'ERROR' %}row-error{% else %}row-ok{% endif %}">
+                        <td style="font-family: monospace; font-size: 0.8rem; color: #64748b;">#{{ job.id }}</td>
+                        <td style="white-space: nowrap; font-size: 0.85rem; font-weight: 700; color: #334155;">{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') if job.created_at else '-' }}</td>
+                        <td style="font-weight: 800; color: #0f172a;">{{ job.printer_name or 'Drukarka' }}</td>
+                        <td style="font-family: monospace; font-weight: 700;">{{ job.printer_ip }}</td>
+                        <td>
+                            {% if job.status == 'DONE' %}
+                            <span class="badge-unified badge-online">● SUKCES</span>
+                            {% elif job.status == 'ERROR' %}
+                            <span class="badge-unified badge-offline">○ BŁĄD</span>
+                            {% else %}
+                            <span class="badge-unified badge-pending">⌛ OCZEKUJE</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            {% if job.status == 'ERROR' %}
+                                <div style="color: #dc2626; font-weight: 700; word-break: break-word;">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">warning</span>
+                                    {{ job.error_message }}
+                                </div>
+                            {% else %}
+                                <div style="color: #16a34a; font-weight: 600;">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">verified</span>
+                                    {{ job.error_message or 'Czujniki ~HS OK - Fizyczny wydruk zakończony' }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            {% if job.status == 'ERROR' %}
+                            <button type="button" class="btn-action-danger" onclick="retrySingleJob({{ job.id }})" title="Ponów to zlecenie">
+                                Ponów
+                            </button>
+                            {% else %}
+                            <span style="font-size: 0.8rem; color: #94a3b8;">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: #64748b; padding: 24px;">Brak zleceń drukowania z ostatnich 48 godzin.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
+
+<script>
+function retryAllFailedJobs() {
+    if (!confirm('Czy na pewno chcesz zakolejkować ponowne wysłanie wszystkich błędnych zleceń druku?')) return;
+    
+    fetch('/admin/api/print-jobs/retry-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + res.message);
+        }
+    })
+    .catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function retrySingleJob(jobId) {
+    fetch('/admin/api/print-jobs/retry/' + jobId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + res.message);
+        }
+    })
+    .catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function filterLogs(mode) {
+    const rows = document.querySelectorAll('#table-print-logs tbody tr.log-row');
+    const btnAll = document.getElementById('btn-filter-all');
+    const btnErr = document.getElementById('btn-filter-error');
+    
+    if (mode === 'error') {
+        btnErr.classList.add('active');
+        btnAll.classList.remove('active');
+        rows.forEach(r => {
+            if (r.classList.contains('row-error')) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    } else {
+        btnAll.classList.add('active');
+        btnErr.classList.remove('active');
+        rows.forEach(r => r.style.display = '');
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.pathname.includes('logi-drukowania') || window.location.hash === '#sec-print-logs') {
+        const sec = document.getElementById('sec-print-logs');
+        if (sec) {
+            sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+});
+</script>
+
+<style>
+.row-error {
+    background-color: #fff1f2 !important;
+}
+.row-error:hover {
+    background-color: #ffe4e6 !important;
+}
+</style>
 {% endblock %}

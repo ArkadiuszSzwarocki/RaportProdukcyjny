@@ -96,6 +96,8 @@
         {% if role_has_access('ustawienia.zespol') %}
         <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if '/admin/ustawienia/zespol' in request.path %}active{% endif %}">Zespół i Konta</a>
         {% endif %}
+        <a href="/admin/ustawienia/drukarki" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
+        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukarek (48h)</a>
     </div>
 </div>
 {% endif %}
@@ -111,7 +113,7 @@
         <span>{% if master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path %}open{% endif %}">
+    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path %}open{% endif %}">
         {% if master_access %}
         <a href="/admin/master/permissions" class="nav-sub-item {% if '/admin/master/permissions' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
@@ -142,6 +144,10 @@
         {% if master_access or role_has_access('ustawienia.errors') %}
         <a href="/admin/ustawienia/errors" class="nav-sub-item {% if '/admin/ustawienia/errors' in request.path %}active{% endif %}">Logi Błędów</a>
         {% endif %}
+        
+        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">print</span> Logi Drukarek (48h)
+        </a>
         
         {% if master_access or role_has_access('centrum') %}
         <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum Sterowania</a>

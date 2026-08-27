@@ -194,6 +194,65 @@
         }
     };
 
+    window.autoZapiszLideraObsady = async function(selectEl, hall) {
+        const container = selectEl.closest('.obsada-toolbar') || selectEl.closest('.quick-popup') || document;
+        const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
+        const dateVal = dateEl ? dateEl.value : '';
+        const lpsdWrap = container.querySelector('#lider_psd') || document.getElementById('lider_psd');
+        const lpsd = lpsdWrap ? lpsdWrap.value : '';
+        const lagroWrap = container.querySelector('#lider_agro') || document.getElementById('lider_agro');
+        const lagro = lagroWrap ? lagroWrap.value : '';
+
+        const origBorder = selectEl.style.borderColor;
+        selectEl.style.borderColor = '#3b82f6';
+        const statusIcon = container.querySelector(hall === 'AGRO' ? '#lider_agro_status' : '#lider_psd_status');
+
+        try {
+            const fd = new URLSearchParams();
+            if (dateVal) fd.append('date', dateVal);
+            if (lpsd !== undefined && lpsd !== null) fd.append('lider_psd', lpsd);
+            if (lagro !== undefined && lagro !== null) fd.append('lider_agro', lagro);
+
+            let resp = await fetch('/zapisz_liderow_obsady', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (!resp.ok) {
+                resp = await fetch('/api/zapisz_liderow_obsady', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            }
+
+            if (resp.ok) {
+                selectEl.style.borderColor = '#22c55e';
+                if (statusIcon) {
+                    statusIcon.style.display = 'inline-block';
+                    statusIcon.innerText = '✅';
+                    setTimeout(() => { statusIcon.style.display = 'none'; }, 2500);
+                }
+                setTimeout(() => { selectEl.style.borderColor = origBorder; }, 1500);
+                if (typeof showToast === 'function') {
+                    showToast('✅ Zapisano lidera zmiany', 'success');
+                }
+            } else {
+                selectEl.style.borderColor = '#ef4444';
+                if (statusIcon) {
+                    statusIcon.style.display = 'inline-block';
+                    statusIcon.innerText = '❌';
+                }
+            }
+        } catch(e) {
+            console.error('Błąd automatycznego zapisu lidera:', e);
+            selectEl.style.borderColor = '#ef4444';
+        }
+    };
+
     window.zapiszLiderowObsady = async function(btn) {
         const container = btn.closest('.obsada-toolbar') || btn.closest('.quick-popup') || document;
         const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');

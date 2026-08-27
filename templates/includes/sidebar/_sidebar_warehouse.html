@@ -85,16 +85,20 @@
 {% endif %}
 
 <div class="nav-item-group">
+    {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
+    {% set pending_osip = pending_map.get('OSIP', 0)|int %}
+    {% set pallet_map = pending_pallets if pending_pallets is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
+    {% set pending_pallets_osip = pallet_map.get('OSIP', 0)|int %}
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
             MAGAZYN OSIP
-            {% if osip_transfers_count and osip_transfers_count > 0 %}
+            {% if (osip_transfers_count and osip_transfers_count > 0) or pending_osip > 0 %}
             <span class="nav-main-dot" aria-hidden="true"></span>
             {% endif %}
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="osip-sub" class="nav-sub {% if request.blueprint == 'osip' %}open{% endif %}">
+    <div id="osip-sub" class="nav-sub {% if request.blueprint == 'osip' or (request.blueprint == 'magazyn_dostawy' and request.args.get('linia') == 'OSIP') %}open{% endif %}">
         <a href="{{ url_for('osip.warehouse_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.warehouse_view' %}active{% endif %}"><i class="fas fa-warehouse mr-1" style="font-size:12px;"></i> Stan i Układ Hali</a>
         <a href="{{ url_for('osip.transfers_view') }}" class="nav-sub-item {% if request.endpoint in ['osip.transfers_view', 'osip.transfer_details_view'] %}active{% endif %}">
             <span class="nav-sub-label">
@@ -104,6 +108,19 @@
                 {% endif %}
             </span>
         </a>
+        <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-arrow-down mr-1" style="font-size:12px;"></i> Przyjęcie dostawy</a>
+        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-dolly mr-1" style="font-size:12px;"></i> Przesunięcia Palet</a>
+        <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text"><i class="fas fa-clock mr-1" style="font-size:12px;"></i> Oczekujące Przyjęcia</span>
+                {% if pending_osip > 0 %}
+                <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_osip > 99 else pending_osip }}/{{ '99+' if pending_pallets_osip > 99 else pending_pallets_osip }}</span>
+                {% endif %}
+            </span>
+        </a>
+        <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}"><i class="fas fa-cubes mr-1" style="font-size:12px;"></i> Suma surowców</a>
+        <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-cut mr-1" style="font-size:12px;"></i> Podział Palety</a>
+        <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-mortar-pestle mr-1" style="font-size:12px;"></i> Mixowanie Palet</a>
         <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}"><i class="fas fa-truck-loading mr-1" style="font-size:12px;"></i> Wydania Zewnętrzne</a>
     </div>
 </div>

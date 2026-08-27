@@ -47,14 +47,29 @@
             </div>
             {% endif %}
 
-            {% if r.odpowiedz_admina %}
-            <div class="mt-10 p-10" style="border:1px solid #d1fae5; background:#ecfdf5; border-radius:8px;">
-                <div class="small text-muted">Odpowiedział: {{ r.odpowiedz_by_login or 'admin' }} • {{ (r.odpowiedz_timestamp|string)|replace('T', ' ')|truncate(19, True, '') }}</div>
-                <div style="white-space:pre-wrap; margin-top:6px;"><strong>Odpowiedź:</strong> {{ r.odpowiedz_admina }}</div>
+            <!-- Wątek odpowiedzi -->
+            {% if r.odpowiedzi %}
+            <div class="mt-15 d-flex flex-column gap-10">
+                <div style="font-size: 13px; font-weight: 700; color: #475569;">💬 Historia odpowiedzi ({{ r.odpowiedzi|length }}):</div>
+                {% for rep in r.odpowiedzi %}
+                <div class="p-10" style="border:1px solid #cbd5e1; background:{% if rep.autor_login == session.get('login') %}#f0fdf4; border-left:4px solid #22c55e;{% else %}#eff6ff; border-left:4px solid #3b82f6;{% endif %} border-radius:8px;">
+                    <div class="small text-muted d-flex justify-between">
+                        <span><strong>{{ rep.autor_login }}</strong> {% if rep.autor_login == session.get('login') %}(Ty){% else %}(Wsparcie / Admin){% endif %}</span>
+                        <span>🕒 {{ (rep.created_at|string)|replace('T', ' ')|truncate(19, True, '') }}</span>
+                    </div>
+                    <div style="white-space:pre-wrap; margin-top:6px; font-size:13.5px; color:#1e293b;">{{ rep.tresc }}</div>
+                </div>
+                {% endfor %}
             </div>
             {% else %}
             <div class="mt-10 small text-muted">Status: {{ r.status or 'nowe' }}. Odpowiedź jeszcze nie została udzielona.</div>
             {% endif %}
+
+            <!-- Formularz dopisania kolejnej wiadomości / doprecyzowania -->
+            <form action="{{ url_for('auth.user_reply_bug_report', bug_id=r.id) }}" method="POST" class="mt-10 d-flex gap-10 align-items-center flex-wrap">
+                <input type="text" name="odpowiedz_uzytkownika" class="input-sm" style="flex:1; min-width:240px;" required placeholder="Dopisz wiadomość lub szczegóły do tego zgłoszenia...">
+                <button type="submit" class="btn btn-sm btn-secondary">Odpowiedz</button>
+            </form>
         </div>
         {% endfor %}
     </div>

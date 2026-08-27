@@ -74,28 +74,37 @@
                 <input type="hidden" id="obsada-linia" value="{{ linia }}">
             </div>
             {% if rola in ['lider','admin', 'masteradmin'] %}
-            {% if linia == 'PSD' or not linia %}
+            {% if linia|string|upper == 'PSD' or not linia %}
             <div class="obsada-field-group">
                 <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
-                <select id="lider_psd" class="input-sm">
-                    <option value="">- brak -</option>
-                    {% for p in all_pracownicy %}
-                    <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
-                    {% endfor %}
-                </select>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <select id="lider_psd" class="input-sm" onchange="window.autoZapiszLideraObsady(this, 'PSD')" style="transition: all 0.2s ease;">
+                        <option value="">- brak -</option>
+                        {% for p in all_pracownicy %}
+                        <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                        {% endfor %}
+                    </select>
+                    <span id="lider_psd_status" style="font-size: 14px; display: none;">✅</span>
+                </div>
             </div>
             {% endif %}
-            {% if linia == 'Agro' %}
+            {% if linia|string|upper == 'AGRO' %}
             <div class="obsada-field-group">
                 <label for="lider_agro" class="obsada-field-label">{{ _('lider_agro_label') }}</label>
-                <select id="lider_agro" class="input-sm">
-                    <option value="">- brak -</option>
-                    {% for p in all_pracownicy %}
-                    <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
-                    {% endfor %}
-                </select>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <select id="lider_agro" class="input-sm" onchange="window.autoZapiszLideraObsady(this, 'AGRO')" style="transition: all 0.2s ease;">
+                        <option value="">- brak -</option>
+                        {% for p in all_pracownicy %}
+                        <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                        {% endfor %}
+                    </select>
+                    <span id="lider_agro_status" style="font-size: 14px; display: none;">✅</span>
+                </div>
             </div>
             {% endif %}
+            <button type="button" class="btn btn-primary" onclick="window.zapiszLiderowObsady(this)" title="Zapisz liderów zmiany" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700; border-radius: 8px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; height: 36px;">
+                <span>💾</span> Zapisz Lidera
+            </button>
             <button type="button" class="btn btn-outline" onclick="window.openAgroStaffVisibilityModal()" title="Zarządzaj widocznością pracowników w obsadzie AGRO" style="background: #ffffff; border: 1.5px solid #0284c7; color: #0284c7; font-weight: 700; border-radius: 8px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; height: 36px; margin-left: 6px;">
                 <span style="font-size: 16px;">⚙️</span> Wybór pracowników AGRO
             </button>
@@ -388,6 +397,65 @@
                 }
             };
 
+            window.autoZapiszLideraObsady = async function(selectEl, hall) {
+                const container = selectEl.closest('.obsada-toolbar') || selectEl.closest('.quick-popup') || document;
+                const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
+                const dateVal = dateEl ? dateEl.value : '';
+                const lpsdWrap = container.querySelector('#lider_psd') || document.getElementById('lider_psd');
+                const lpsd = lpsdWrap ? lpsdWrap.value : '';
+                const lagroWrap = container.querySelector('#lider_agro') || document.getElementById('lider_agro');
+                const lagro = lagroWrap ? lagroWrap.value : '';
+
+                const origBorder = selectEl.style.borderColor;
+                selectEl.style.borderColor = '#3b82f6';
+                const statusIcon = container.querySelector(hall === 'AGRO' ? '#lider_agro_status' : '#lider_psd_status');
+
+                try {
+                    const fd = new URLSearchParams();
+                    if (dateVal) fd.append('date', dateVal);
+                    if (lpsd !== undefined && lpsd !== null) fd.append('lider_psd', lpsd);
+                    if (lagro !== undefined && lagro !== null) fd.append('lider_agro', lagro);
+
+                    let resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', {
+                        method: 'POST',
+                        body: fd,
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    if (!resp.ok) {
+                        resp = await fetch('/zapisz_liderow_obsady', {
+                            method: 'POST',
+                            body: fd,
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                    }
+
+                    if (resp.ok) {
+                        selectEl.style.borderColor = '#22c55e';
+                        if (statusIcon) {
+                            statusIcon.style.display = 'inline-block';
+                            statusIcon.innerText = '✅';
+                            setTimeout(() => { statusIcon.style.display = 'none'; }, 2500);
+                        }
+                        setTimeout(() => { selectEl.style.borderColor = origBorder; }, 1500);
+                        if (typeof showToast === 'function') {
+                            showToast('✅ Zapisano lidera zmiany', 'success');
+                        }
+                    } else {
+                        selectEl.style.borderColor = '#ef4444';
+                        if (statusIcon) {
+                            statusIcon.style.display = 'inline-block';
+                            statusIcon.innerText = '❌';
+                        }
+                    }
+                } catch(e) {
+                    console.error('Błąd automatycznego zapisu lidera:', e);
+                    selectEl.style.borderColor = '#ef4444';
+                }
+            };
+
             window.zapiszLiderowObsady = async function(btn) {
                 const container = btn.closest('.obsada-toolbar') || btn.closest('.quick-popup') || document;
                 const dateEl = container.querySelector('#obsada-date') || document.getElementById('obsada-date');
@@ -403,16 +471,25 @@
                 try {
                     const fd = new URLSearchParams();
                     if (dateVal) fd.append('date', dateVal);
-                    if (lpsd) fd.append('lider_psd', lpsd);
-                    if (lagro) fd.append('lider_agro', lagro);
+                    if (lpsd !== undefined && lpsd !== null) fd.append('lider_psd', lpsd);
+                    if (lagro !== undefined && lagro !== null) fd.append('lider_agro', lagro);
                     
-                    const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', {
+                    let resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', {
                         method: 'POST',
                         body: fd,
                         credentials: 'same-origin',
                         headers: { 'X-Requested-With': 'XMLHttpRequest' }
                     });
                     
+                    if (!resp.ok) {
+                        resp = await fetch('/zapisz_liderow_obsady', {
+                            method: 'POST',
+                            body: fd,
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                    }
+
                     if (resp.ok) {
                         if (typeof showToast === 'function') {
                             showToast('✅ Zapisano liderów zmiany', 'success');

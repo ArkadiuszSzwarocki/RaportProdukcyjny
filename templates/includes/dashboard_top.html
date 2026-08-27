@@ -77,6 +77,31 @@
             </div>
             {% endif %}
 
+            {% if (sekcja|string|lower == 'workowanie' and linia|string|upper == 'PSD') or (request.args.get('sekcja', '')|lower == 'workowanie' and request.args.get('linia', '')|upper == 'PSD') %}
+            <a href="{{ url_for('warehouse_v2.raport_palet', linia='PSD', data_od=dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '') }}" 
+               class="btn btn-primary px-3 py-2 fw-bold" 
+               target="_blank"
+               title="Raport palet PSD dla wybranego dnia"
+               style="border-radius: 8px; background: #2563eb; border: 1px solid #1d4ed8; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2); white-space: nowrap;">
+                <span class="material-icons" style="font-size: 18px;">description</span> <span>Raport Palet</span>
+            </a>
+            {% endif %}
+
+            {% if sekcja in ['Workowanie', 'Zasyp'] %}
+            <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
+               class="btn btn-danger px-3 py-2 fw-bold"
+               title="Zgłoś przestój maszyny / linii dla sekcji {{ sekcja }} ({{ linia }})"
+               style="border-radius: 8px; background: #dc2626; border: 1px solid #b91c1c; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25); white-space: nowrap;">
+                <span class="material-icons" style="font-size: 18px;">warning</span> <span>Zgłoś Przestój</span>
+            </a>
+            <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+               class="btn btn-outline-secondary px-3 py-2 fw-bold"
+               title="Rejestr przestojów sekcji {{ sekcja }} ({{ linia }})"
+               style="border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; color: #334155; display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; font-weight: 700; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); white-space: nowrap;">
+                <span class="material-icons" style="font-size: 18px; color: #ef4444;">timer</span> <span>Rejestr Przestojów</span>
+            </a>
+            {% endif %}
+
             {% include 'dashboard/_dashboard_actions_dropdown.html' %}
         </div>
 

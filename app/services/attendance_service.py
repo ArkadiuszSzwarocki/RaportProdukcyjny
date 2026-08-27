@@ -1,6 +1,7 @@
 """Attendance and schedule management service."""
 
 from datetime import date, datetime, timedelta
+from typing import Optional, Any, Union, Dict, List, Tuple
 from app.db import get_db_connection
 from flask import current_app, render_template
 import logging
@@ -192,8 +193,8 @@ class AttendanceService:
             return False
 
     @staticmethod
-    def save_shift_leaders(date_str: str, lider_psd_id: int = None, 
-                          lider_agro_id: int = None) -> bool:
+    def save_shift_leaders(date_str: str, lider_psd_id: Any = 'NO_CHANGE', 
+                          lider_agro_id: Any = 'NO_CHANGE') -> bool:
         """
         Save shift leaders for a specific date (upsert operation).
         
@@ -217,9 +218,16 @@ class AttendanceService:
                 return False
 
             conn = get_db_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
 
             try:
+                # Fetch existing row to avoid overriding unchanged hall
+                cursor.execute("SELECT lider_psd_id, lider_agro_id FROM obsada_liderzy WHERE data_wpisu = %s", (qdate,))
+                existing = cursor.fetchone()
+
+                final_psd = existing['lider_psd_id'] if (lider_psd_id == 'NO_CHANGE' and existing) else (None if (lider_psd_id in (None, '', 'NO_CHANGE')) else int(lider_psd_id))
+                final_agro = existing['lider_agro_id'] if (lider_agro_id == 'NO_CHANGE' and existing) else (None if (lider_agro_id in (None, '', 'NO_CHANGE')) else int(lider_agro_id))
+
                 # Upsert leaders for that date
                 cursor.execute(
                     """INSERT INTO obsada_liderzy (data_wpisu, lider_psd_id, lider_agro_id) 
@@ -227,7 +235,7 @@ class AttendanceService:
                        ON DUPLICATE KEY UPDATE 
                        lider_psd_id=VALUES(lider_psd_id), 
                        lider_agro_id=VALUES(lider_agro_id)""",
-                    (qdate, lider_psd_id, lider_agro_id)
+                    (qdate, final_psd, final_agro)
                 )
                 conn.commit()
                 return True

@@ -342,8 +342,8 @@ def inject_delivery_counters():
         from app.db import get_db_connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
-        pallet_counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
+        counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         total_pending = 0
         total_pallets = 0
 
@@ -362,6 +362,8 @@ def inject_delivery_counters():
             total_pending += qty
             if l in counts:
                 counts[l] += qty
+            else:
+                counts[l] = qty
                 
             items_json = row[1]
             pallets_in_order = 0
@@ -375,13 +377,15 @@ def inject_delivery_counters():
             total_pallets += pallets_in_order
             if l in pallet_counts:
                 pallet_counts[l] += pallets_in_order
+            else:
+                pallet_counts[l] = pallets_in_order
 
         counts['ALL'] = total_pending
         pallet_counts['ALL'] = total_pallets
 
         return dict(pending_deliveries=counts, pending_pallets=pallet_counts)
     except Exception:
-        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0}, pending_pallets={'PSD': 0, 'AGRO': 0, 'ALL': 0})
+        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}, pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0})
     finally:
         try:
             if conn:

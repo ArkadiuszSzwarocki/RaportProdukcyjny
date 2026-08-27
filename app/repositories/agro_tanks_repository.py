@@ -733,13 +733,11 @@ class AgroTanksRepository:
                                 source_instance,
                             )
                         else:
+                            from app.repositories.settings_repository import SettingsRepository
                             printer = get_printer()
-                            printer_row = _select_preferred_printer(cursor)
-                            override_name = None
-                            override_ip = None
-                            if printer_row:
-                                override_name = printer_row[1] if len(printer_row) > 1 else None
-                                override_ip = printer_row[2] if len(printer_row) > 2 else None
+                            printer_row = SettingsRepository.get_default_printer_for_line(linia)
+                            override_name = printer_row.get('nazwa') if printer_row else None
+                            override_ip = printer_row.get('ip') if printer_row else None
 
                             ok, print_msg = printer.print_finished_product_label(
                                 label_data,

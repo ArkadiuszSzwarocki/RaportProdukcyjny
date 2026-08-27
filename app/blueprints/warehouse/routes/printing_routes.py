@@ -82,146 +82,36 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
     @login_required
     def drukuj_etykiete(paleta_id):
         """Generates a 100x150 mm printable label for a palette in Magazyn."""
+        from app.utils.pallet_label import prepare_pallet_label_data
         linia = str(resolve_request_linia()).upper()
-        table_plan = get_table_name('plan_produkcji', linia)
-        table_pal = get_table_name('palety_workowanie', linia)
-        table_zasypy = get_table_name('szarze', linia)
-        table_mag = get_table_name('magazyn_palety', linia)
+        source = request.args.get('source')
+        req_plan_id = request.args.get('plan_id')
     
         conn = get_db_connection()
         cursor = conn.cursor()
     
         try:
-            cursor.execute(
-                f'''
-                SELECT 
-                    COALESCE(mp.plan_id, pw.plan_id) AS plan_id,
-                    mp.waga_netto, 
-                    COALESCE(p.produkt, pw_p.produkt, mp.produkt) AS produkt,
-                    mp.paleta_workowanie_id,
-                    pw.data_dodania
-                FROM {table_mag} mp
-                LEFT JOIN {table_plan} p ON mp.plan_id = p.id
-                LEFT JOIN {table_pal} pw ON mp.paleta_workowanie_id = pw.id
-                LEFT JOIN {table_plan} pw_p ON pw.plan_id = pw_p.id
-                WHERE mp.id = %s
-                ''',
-                (paleta_id,),
-            )
-            row = cursor.fetchone()
-    
-            data_workowanie = None
-    
-            if row:
-                plan_id, paleta_waga, produkt, workowanie_id, pw_data = row
-                if pw_data:
-                    data_workowanie = pw_data.strftime('%Y-%m-%d %H:%M:%S') if hasattr(pw_data, 'strftime') else str(pw_data)
-                if plan_id:
-                    if workowanie_id:
-                        cursor.execute(
-                            f'''
-                            SELECT COALESCE(SUM(waga), 0) 
-                            FROM {table_pal}
-                            WHERE plan_id = %s AND id <= %s
-                            ''',
-                            (plan_id, workowanie_id),
-                        )
-                        cumulative_paleta_waga = cursor.fetchone()[0]
-                    else:
-                        cursor.execute(
-                            f'''
-                            SELECT COALESCE(SUM(waga_netto), 0) 
-                            FROM {table_mag} 
-                            WHERE plan_id = %s AND id <= %s
-                            ''',
-                            (plan_id, paleta_id),
-                        )
-                        cumulative_paleta_waga = cursor.fetchone()[0]
-                else:
-                    cumulative_paleta_waga = paleta_waga
-            else:
-                cursor.execute(
-                    f'''
-                    SELECT pw.plan_id, pw.waga, p.produkt, pw.data_dodania, pw.id
-                    FROM {table_pal} pw
-                    JOIN {table_plan} p ON pw.plan_id = p.id
-                    WHERE pw.id = %s
-                    ''',
-                    (paleta_id,),
-                )
-                row = cursor.fetchone()
-                if not row:
-                    abort(404, description='Paleta nie znaleziona')
-    
-                work_plan_id, paleta_waga, produkt, pw_data, wk_id = row
-                if pw_data:
-                    data_workowanie = pw_data.strftime('%Y-%m-%d %H:%M:%S') if hasattr(pw_data, 'strftime') else str(pw_data)
-    
-                plan_id = work_plan_id
-                workowanie_id = wk_id
-    
-                cursor.execute(
-                    f'''
-                    SELECT COALESCE(SUM(waga), 0) 
-                    FROM {table_pal}
-                    WHERE plan_id = %s AND id <= %s
-                    ''',
-                    (plan_id, paleta_id),
-                )
-                cumulative_paleta_waga = cursor.fetchone()[0]
-    
-            zasyp_nr = '?'
-            zasyp_plan_id = None
-    
-            if plan_id:
-                cursor.execute(f'SELECT zasyp_id FROM {table_plan} WHERE id = %s', (plan_id,))
-                zasyp_check = cursor.fetchone()
-                if zasyp_check and zasyp_check[0]:
-                    zasyp_plan_id = zasyp_check[0]
-                else:
-                    zasyp_plan_id = plan_id
-    
-                cursor.execute(
-                    f'''
-                    SELECT id, waga, nr_szarzy
-                    FROM {table_zasypy}
-                    WHERE plan_id = %s 
-                    ORDER BY data_dodania ASC, id ASC
-                    ''',
-                    (zasyp_plan_id,),
-                )
-                zasypy_rows = cursor.fetchall()
-    
-                cumulative_zasyp = 0
-                for index, s_row in enumerate(zasypy_rows):
-                    cumulative_zasyp += s_row[1]
-                    zasyp_nr = s_row[2] if s_row[2] is not None else (index + 1)
-                    if cumulative_zasyp >= cumulative_paleta_waga:
-                        break
-    
-            # Obliczanie numeru Lp. palety w zleceniu
-            nr_palety_lp = 'Brak'
-            if plan_id:
-                if workowanie_id:
-                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, workowanie_id))
-                else:
-                    cursor.execute(f"SELECT COUNT(*) FROM {table_mag} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
-                res_lp = cursor.fetchone()
-                nr_palety_lp = res_lp[0] if res_lp else 1
+            label_data = prepare_pallet_label_data(cursor, paleta_id, linia, requested_plan_id=req_plan_id, source_table=source)
+            if not label_data:
+                abort(404, description='Paleta nie znaleziona')
     
             data_wydruku = datetime.now().strftime('%Y-%m-%d %H:%M')
-            termin_przydatnosci = request.args.get('termin') or None
+            termin_przydatnosci = request.args.get('termin') or label_data.get('data_przydatnosci') or label_data.get('termin_przydatnosci')
     
             return render_template(
                 'warehouse/label.html',
-                plan_id=zasyp_plan_id or 'Brak',
-                produkt=produkt or 'Nieznany',
-                nr_szarzy=zasyp_nr,
-                waga=paleta_waga,
-                nr_palety=nr_palety_lp,
-                data_workowanie=data_workowanie or 'Ręczna paleta',
+                plan_id=label_data.get('plan_id') or 'Brak',
+                produkt=label_data.get('nazwa') or 'Nieznany',
+                nr_szarzy=label_data.get('nr_szarzy') or '1',
+                waga=label_data.get('ilosc') or 0,
+                nr_palety=label_data.get('nr_palety_lp') or label_data.get('nrPalety') or paleta_id,
+                nr_palety_sscc=label_data.get('nrPalety') or str(paleta_id),
+                nr_partii=label_data.get('nr_partii') or label_data.get('partia') or 'Brak',
+                data_workowanie=label_data.get('data') or label_data.get('data_produkcji') or 'Ręczna paleta',
+                data_produkcji=label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d'),
                 data_wydruku=data_wydruku,
                 termin_przydatnosci=termin_przydatnosci,
+                linia=linia
             )
         except HTTPException:
             raise

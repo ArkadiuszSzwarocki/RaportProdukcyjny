@@ -50,7 +50,7 @@ class PalletMixService:
 
         min_termin_przydatnosci = None
         min_data_produkcji = None
-        child_lokalizacja = 'BF_MS01'
+        child_lokalizacja = 'BFOS' if str(linia).upper() == 'OSIP' else 'BF_MS01'
 
         conn = get_db_connection()
         try:

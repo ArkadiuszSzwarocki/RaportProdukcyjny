@@ -294,8 +294,12 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
     def zapisz_liderow_obsady_alias():
         """Save shift leaders (root alias)."""
         date_str = request.form.get('date') or request.args.get('date')
-        lider_psd = request.form.get('lider_psd') or None
-        lider_agro = request.form.get('lider_agro') or None
+        
+        raw_psd = request.form.get('lider_psd') if 'lider_psd' in request.form else 'NO_CHANGE'
+        raw_agro = request.form.get('lider_agro') if 'lider_agro' in request.form else 'NO_CHANGE'
+        
+        lider_psd = 'NO_CHANGE' if raw_psd == 'NO_CHANGE' else (None if raw_psd in (None, '', '-1') else int(raw_psd))
+        lider_agro = 'NO_CHANGE' if raw_agro == 'NO_CHANGE' else (None if raw_agro in (None, '', '-1') else int(raw_agro))
         
         success = AttendanceService.save_shift_leaders(date_str, lider_psd, lider_agro)
         

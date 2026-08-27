@@ -440,31 +440,32 @@ def raport_palet():
     today = date.today()
     
     # Accept date parameters, but default to today
-    data_od = request.args.get('data_od') or str(today)
-    data_do = request.args.get('data_do') or str(today)
+    data_od = request.args.get('data_od') or request.args.get('data') or str(today)
+    data_do = request.args.get('data_do') or request.args.get('data') or data_od
     plan_id = request.args.get('plan_id')
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
        query = """
-           SELECT w.id as work_id, w.produkt, w.waga_rzeczywista as w_kg, 
-                  z.id as zasyp_id, z.waga as z_kg,
+           SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
+                  z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania, w.nr_partii,
                   z.typ_produkcji as zasyp_typ_produkcji, w.data_planu,
                   w.status,
                   0 as odrzuty_przesiewacz
            FROM plan_produkcji w
-           LEFT JOIN szarze z ON w.zasyp_id = z.id
-           WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+           LEFT JOIN plan_produkcji z ON w.zasyp_id = z.id
+           WHERE (w.sekcja IN ('Workowanie', 'Czyszczenie') OR LOWER(w.produkt) LIKE '%czyszczenie%') 
+             AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
        """
        params = []
        if plan_id:
            query += ' AND w.id = %s'
            params.append(plan_id)
        else:
-           query += ' AND w.data_planu BETWEEN %s AND %s'
-           params.extend([data_od, data_do])
+           query += ' AND ((w.data_planu BETWEEN %s AND %s) OR w.id IN (SELECT plan_id FROM palety_workowanie WHERE DATE(data_dodania) BETWEEN %s AND %s))'
+           params.extend([data_od, data_do, data_od, data_do])
            query += ' ORDER BY w.data_planu DESC, w.id DESC'
        cursor.execute(query, tuple(params))
        plans = cursor.fetchall()
@@ -484,20 +485,30 @@ def raport_palet():
                 ORDER BY s.data_dodania ASC
             ''', (target_zasyp_id,))
             batches_raw = cursor.fetchall()
-            cursor.execute('''
-                SELECT id, waga, COALESCE(data_dodania, created_at) as data_dodania, kategoria 
-                FROM psd_mix_rozliczenie 
-                WHERE plan_id = %s 
-                ORDER BY data_dodania ASC
-            ''', (target_zasyp_id,))
-            mixes_raw = cursor.fetchall() or []
-            cursor.execute('''
-                SELECT id, nazwa, kg, data_zlecenia 
-                FROM dosypki 
-                WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
-                ORDER BY data_zlecenia ASC
-            ''', (target_zasyp_id,))
-            solo_dosypki = cursor.fetchall()
+            mixes_raw = []
+            try:
+                cursor.execute('''
+                    SELECT id, waga, COALESCE(data_dodania, created_at) as data_dodania, kategoria 
+                    FROM psd_mix_rozliczenie 
+                    WHERE plan_id = %s 
+                    ORDER BY data_dodania ASC
+                ''', (target_zasyp_id,))
+                mixes_raw = cursor.fetchall() or []
+            except Exception:
+                mixes_raw = []
+
+            solo_dosypki = []
+            try:
+                cursor.execute('''
+                    SELECT id, nazwa, kg, data_zlecenia 
+                    FROM dosypki 
+                    WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
+                    ORDER BY data_zlecenia ASC
+                ''', (target_zasyp_id,))
+                solo_dosypki = cursor.fetchall() or []
+            except Exception:
+                solo_dosypki = []
+
             all_inputs = []
             for b_raw in batches_raw:
                 all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
@@ -557,6 +568,7 @@ def raport_palet():
                 'mixes': mixes_raw,
                 'opakowania': [],
                 'aktywne_opakowania': [],
+                'packaging_stocks': {},
                 'total_pallet_kg': total_pallet_kg,
                 'total_mix_kg': total_mix_kg,
                 'input_summary': ', '.join([f"{inp['label']} ({inp['waga']:.1f}kg)" for inp in all_inputs])
@@ -605,14 +617,26 @@ def podglad_etykiety_psd(paleta_id):
     
     nr_upper = nr_palety.upper()
     prod_lower = product_name.lower()
-    is_surowiec = label_data.get('is_surowiec') or 'czyszczenie' in prod_lower or 'maka mix do lnu' in prod_lower or 'mąka mix do lnu' in prod_lower
-    
-    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or is_surowiec:
-       typ_label = 'SUROWIEC'
-    elif nr_upper.startswith('OPA'):
+    from app.utils.pallet_label import is_packaging_item
+    is_pkg = is_packaging_item(
+        product_name,
+        unit=label_data.get('jednostka') or label_data.get('unit'),
+        typ=label_data.get('typ'),
+        pallet_nr=nr_palety
+    )
+
+    if is_pkg:
        typ_label = 'OPAKOWANIE'
+       unit_str = 'szt.'
+       qty_header = 'ILOSC:'
+    elif nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or is_surowiec:
+       typ_label = 'SUROWIEC'
+       unit_str = 'kg'
+       qty_header = 'WAGA NETTO:'
     else:
        typ_label = 'WYRÓB GOTOWY'
+       unit_str = 'kg'
+       qty_header = 'WAGA NETTO:'
     
     qr_details = {
        "sscc": nr_palety,
@@ -623,7 +647,7 @@ def podglad_etykiety_psd(paleta_id):
        "data_prod": data_produkcji,
        "data_przyd": data_przydatnosci,
        "ilosc": f"{qty_display:.2f}",
-       "jm": "kg",
+       "jm": unit_str,
        "typ": f"{typ_label} - {linia}"
     }
     qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
@@ -645,8 +669,8 @@ def podglad_etykiety_psd(paleta_id):
 {partia_line}
 {przydatnosc_line}
 {plomba_line}
-^FO40,1050^A0N,70,70^FDWAGA NETTO:^FS
-^FO40,1150^A0N,100,100^FD{qty_display:.2f} kg^FS
+^FO40,1050^A0N,70,70^FD{qty_header}^FS
+^FO40,1150^A0N,100,100^FD{qty_display:.2f} {unit_str}^FS
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ1
 ^XZ"""

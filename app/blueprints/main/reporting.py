@@ -27,32 +27,32 @@ def register_main_reporting_routes(main_bp):
         import pandas as pd
         from flask import render_template
 
-        linia = (request.args.get('linia') or 'AGRO').strip().upper()
+        linia = (request.args.get('linia') or session.get('selected_hall_view') or 'PSD').strip().upper()
         date_str = request.args.get('data') or str(date.today())
         
         session_data = {
             'pracownik_id': session.get('pracownik_id'),
             'login': session.get('login', 'nieznany'),
-            'imie_nazwisko': session.get('imie_nazwisko')
+            'imie_nazwisko': session.get('imie_nazwisko'),
+            'rola': session.get('rola')
         }
         form_data = {
-            'lider_id': session.get('pracownik_id'),
+            'lider_id': request.args.get('lider_id') or None,
             'lider_prowadzacy_id': None
         }
 
         # 1. Notatki i lider
         uwagi = _load_shift_notes(date_str, linia=linia)
-        lider_name, uwagi_extra = _get_leader_name(session_data, form_data)
+        lider_name, uwagi_extra = _get_leader_name(session_data, form_data, linia=linia, date_str=date_str)
         
-        # 2. Wygeneruj pliki raportu (XLS, TXT, PDF)
-        xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
+        # 2. Wygeneruj pliki raportu (XLS, PDF)
+        xls_path, _, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
 
         # 3. Lista załączników z metadanymi
         attachments_info = []
         for p, label, icon in [
             (pdf_path, f"Raport_{linia}_{date_str}.pdf", "📄"),
             (xls_path, f"Raport_{linia}_{date_str}.xlsx", "📊"),
-            (txt_path, f"Podsumowanie_{linia}_{date_str}.txt", "📝")
         ]:
             if p and os.path.exists(p):
                 size_kb = round(os.path.getsize(p) / 1024, 1)
@@ -68,18 +68,44 @@ def register_main_reporting_routes(main_bp):
         # 4. Pobierz szczegóły produkcji (Zasyp, Workowanie)
         suma_zasyp = 0
         suma_workowanie = 0
+        palety_count = 0
         suma_laczna = 0
         try:
             conn = get_db_connection()
             table_plan = get_table_name('plan_produkcji', linia)
-            df_p = pd.read_sql(f"SELECT sekcja, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s OR DATE(real_start) = %s OR DATE(real_stop) = %s", conn, params=(date_str, date_str, date_str))
+            table_palety = get_table_name('palety_workowanie', linia)
+            table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+            c_prod = conn.cursor(dictionary=True)
+
+            # 1. Zasyp wykonany w danym dniu
+            try:
+                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_z = c_prod.fetchone()
+                suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
+            except Exception:
+                suma_zasyp = 0
+
+            if suma_zasyp == 0:
+                try:
+                    c_prod.execute(f"SELECT COALESCE(SUM(tonaz_rzeczywisty), 0) as s FROM {table_plan} WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp'", (date_str,))
+                    r_z2 = c_prod.fetchone()
+                    suma_zasyp = int(r_z2['s']) if r_z2 and r_z2['s'] else 0
+                except Exception:
+                    pass
+
+            # 2. Workowanie - bezpośrednio z palet spakowanych w danym dniu!
+            try:
+                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_w = c_prod.fetchone()
+                if r_w:
+                    palety_count = int(r_w['cnt'] or 0)
+                    suma_workowanie = int(r_w['s'] or 0)
+            except Exception as w_err:
+                current_app.logger.warning("Błąd pobierania palet workowania: %s", w_err)
+
+            suma_laczna = suma_zasyp + suma_workowanie
+            c_prod.close()
             conn.close()
-            if not df_p.empty:
-                z_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
-                w_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
-                suma_zasyp = int(df_p[z_mask]['tonaz_rzeczywisty'].sum())
-                suma_workowanie = int(df_p[w_mask]['tonaz_rzeczywisty'].sum())
-                suma_laczna = int(df_p['tonaz_rzeczywisty'].sum())
         except Exception as e:
             current_app.logger.warning("Błąd wyliczania tonazu w reporting: %s", e)
 
@@ -119,7 +145,8 @@ def register_main_reporting_routes(main_bp):
             downtimes=downtimes,
             total_downtime_min=total_downtime_min,
             notes_text=initial_notes_text,
-            attachments_names=att_filenames
+            attachments_names=att_filenames,
+            palety_count=palety_count
         )
 
         # 8. Konfiguracja konta SMTP nadawcy i odbiorców
@@ -185,7 +212,7 @@ def register_main_reporting_routes(main_bp):
         import pandas as pd
 
         data = request.form
-        linia = (data.get('linia') or 'AGRO').strip().upper()
+        linia = (data.get('linia') or request.args.get('linia') or session.get('selected_hall_view') or 'PSD').strip().upper()
         date_str = data.get('date_str') or str(date.today())
         raw_to = data.get('to_emails') or ''
         subject = (data.get('subject') or f"Raport Produkcyjny {linia} - {date_str}").strip()
@@ -203,19 +230,42 @@ def register_main_reporting_routes(main_bp):
         valid_attachments = [p for p in selected_attachments if os.path.exists(p)]
         att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-        # Pobierz aktualne dane produkcji i przestojów
+        # Pobierz aktualne dane produkcji (zasyp i workowanie) wykonane dokładnie w danym dniu
         suma_zasyp = 0
         suma_workowanie = 0
+        palety_count = 0
         try:
             conn = get_db_connection()
             table_plan = get_table_name('plan_produkcji', linia)
-            df_p = pd.read_sql(f"SELECT sekcja, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s OR DATE(real_start) = %s OR DATE(real_stop) = %s", conn, params=(date_str, date_str, date_str))
+            table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+            table_palety = get_table_name('palety_workowanie', linia)
+            c_prod = conn.cursor(dictionary=True)
+            try:
+                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_z = c_prod.fetchone()
+                suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
+            except Exception:
+                suma_zasyp = 0
+
+            if suma_zasyp == 0:
+                try:
+                    c_prod.execute(f"SELECT COALESCE(SUM(tonaz_rzeczywisty), 0) as s FROM {table_plan} WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp'", (date_str,))
+                    r_z2 = c_prod.fetchone()
+                    suma_zasyp = int(r_z2['s']) if r_z2 and r_z2['s'] else 0
+                except Exception:
+                    pass
+
+            try:
+                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_w = c_prod.fetchone()
+                if r_w:
+                    palety_count = int(r_w['cnt'] or 0)
+                    suma_workowanie = int(r_w['s'] or 0)
+            except Exception as w_err:
+                current_app.logger.warning("Błąd pobierania palet workowania w email: %s", w_err)
+
+            c_prod.close()
             conn.close()
-            if not df_p.empty:
-                z_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
-                w_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
-                suma_zasyp = int(df_p[z_mask]['tonaz_rzeczywisty'].sum())
-                suma_workowanie = int(df_p[w_mask]['tonaz_rzeczywisty'].sum())
         except Exception:
             pass
 
@@ -240,7 +290,14 @@ def register_main_reporting_routes(main_bp):
         except Exception:
             pass
 
-        lider_name = session.get('imie_nazwisko') or session.get('login') or 'Lider'
+        from app.services.shift_close_service import _get_leader_name
+        session_data = {
+            'pracownik_id': session.get('pracownik_id'),
+            'login': session.get('login', 'nieznany'),
+            'imie_nazwisko': session.get('imie_nazwisko'),
+            'rola': session.get('rola')
+        }
+        lider_name, _ = _get_leader_name(session_data, {}, linia=linia, date_str=date_str)
 
         # Zbuduj bogaty graficzny szablon HTML
         body_html = EmailReportBuilder.build_shift_report_html(
@@ -252,7 +309,8 @@ def register_main_reporting_routes(main_bp):
             downtimes=downtimes,
             total_downtime_min=total_downtime_min,
             notes_text=notes_text,
-            attachments_names=att_filenames
+            attachments_names=att_filenames,
+            palety_count=palety_count
         )
 
         user_id = session.get('user_id')
@@ -312,8 +370,31 @@ def register_main_reporting_routes(main_bp):
         if not opis:
             return jsonify({'success': False, 'message': 'Opis problemu jest wymagany.'}), 400
 
+        hala = (request.form.get('hala') or request.form.get('linia') or 'PSD').strip().upper()
+        sekcja = (request.form.get('sekcja') or 'Workowanie').strip()
+        kategoria = (request.form.get('kategoria') or 'Awaria').strip()
+        godzina_start = (request.form.get('godzina_start') or datetime.now().strftime('%H:%M')).strip()
+        godzina_stop = (request.form.get('godzina_stop') or '').strip() or None
+
+        czas_trwania_min = None
+        if godzina_start and godzina_stop:
+            try:
+                t1 = datetime.strptime(godzina_start[:5], '%H:%M')
+                t2 = datetime.strptime(godzina_stop[:5], '%H:%M')
+                diff = int((t2 - t1).total_seconds() / 60)
+                if diff < 0:
+                    diff += 1440
+                czas_trwania_min = diff
+            except Exception:
+                czas_trwania_min = None
+
+        header_prefix = f"[{hala} | {sekcja} | {kategoria}]"
+        if godzina_start:
+            header_prefix += f" ({godzina_start}" + (f" - {godzina_stop}" if godzina_stop else "") + ")"
+        
+        full_opis = f"{header_prefix}\n{opis}"
         if gdzie:
-            opis = f'[Miejsce występowania] {gdzie}\n\n{opis}'
+            full_opis = f"[Miejsce] {gdzie}\n{full_opis}"
 
         upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
         os.makedirs(upload_dir, exist_ok=True)
@@ -335,6 +416,7 @@ def register_main_reporting_routes(main_bp):
             except Exception as error:
                 current_app.logger.warning('Błąd zapisu pliku: %s', error)
 
+        # 1. Zapis do zgłoszeń błędów / DUR
         conn = db.get_db_connection()
         cursor = conn.cursor()
         try:
@@ -343,7 +425,7 @@ def register_main_reporting_routes(main_bp):
                 INSERT INTO zgloszenia_bledow (id, timestamp, login, opis, sciezka, zalaczniki, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                (report_id, datetime.now(), login, opis, sciezka, json.dumps(saved_files), 'nowy'),
+                (report_id, datetime.now(), login, full_opis, sciezka, json.dumps(saved_files), 'nowy'),
             )
             conn.commit()
         except Exception as error:
@@ -352,7 +434,34 @@ def register_main_reporting_routes(main_bp):
         finally:
             conn.close()
 
-        return jsonify({'success': True, 'message': 'Zgłoszenie zostało przyjęte.'})
+        # 2. Jeśli zgłoszenie dotyczy hali produkcyjnej (AGRO lub PSD) i jest to awaria/przestój -> dodaj do raportu produkcyjnego danej hali
+        if hala in ('AGRO', 'PSD'):
+            try:
+                from app.repositories.downtime_repository import DowntimeRepository
+                downtime_repo = DowntimeRepository()
+                target_sekcja = 'Zasyp' if 'zasyp' in sekcja.lower() else 'Workowanie'
+                zdjecie_url = f"/static/uploads/bugs/{saved_files[0]}" if saved_files else None
+                data_przestoju = datetime.now().strftime('%Y-%m-%d')
+
+                downtime_repo.insert_downtime(
+                    linia=hala,
+                    sekcja=target_sekcja,
+                    plan_id=None,
+                    produkt=None,
+                    data_przestoju=data_przestoju,
+                    godzina_start=godzina_start,
+                    godzina_stop=godzina_stop,
+                    czas_trwania_min=czas_trwania_min,
+                    kategoria=kategoria,
+                    opis=opis,
+                    zglaszajacy=login,
+                    zdjecie_url=zdjecie_url
+                )
+                current_app.logger.info("Pomyślnie dodano awarię do rejestru przestojów hali %s (%s)", hala, target_sekcja)
+            except Exception as dt_err:
+                current_app.logger.warning("Błąd zapisu awarii do tabel przestojów: %s", dt_err)
+
+        return jsonify({'success': True, 'message': f'Zgłoszenie awarii dla hali {hala} zostało zapisane.'})
 
     @main_bp.route('/raport/podglad_pdf')
     @login_required

@@ -27,18 +27,41 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] Fetching production data for {data_raportu}")
     print(f"[GENERATOR] Fetching production data...")
     table_plan = get_table_name('plan_produkcji', linia)
-    table_palety = get_table_name('palety_workowanie', linia)
+    table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+    table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+
     sql_plan = f"""
-        SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, real_start, real_stop, nazwa_zlecenia 
-        FROM {table_plan} 
-        WHERE data_planu = %s 
-           OR DATE(real_start) = %s 
-           OR DATE(real_stop) = %s 
-           OR id IN (
-               SELECT plan_id FROM {table_palety} WHERE DATE(data_dodania) = %s
+        SELECT 
+            p.id, 
+            p.sekcja, 
+            p.produkt, 
+            p.tonaz, 
+            CASE 
+                WHEN LOWER(TRIM(p.sekcja)) = 'zasyp' THEN (
+                    SELECT COALESCE(SUM(sz.waga), 0) 
+                    FROM {table_szarze} sz 
+                    WHERE sz.plan_id = p.id AND DATE(sz.data_dodania) = %s
+                )
+                ELSE (
+                    SELECT COALESCE(SUM(pal.waga), 0) 
+                    FROM {table_palety} pal 
+                    WHERE pal.plan_id = p.id AND (DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s)
+                )
+            END as tonaz_rzeczywisty,
+            p.real_start, 
+            p.real_stop, 
+            p.nazwa_zlecenia 
+        FROM {table_plan} p
+        WHERE p.data_planu = %s 
+           OR p.id IN (
+               SELECT sz.plan_id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s
            )
+           OR p.id IN (
+               SELECT pal.plan_id FROM {table_palety} pal WHERE DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s
+           )
+        ORDER BY p.kolejnosc, p.id
     """
-    df_plan = pd.read_sql(sql_plan, conn, params=(data_raportu, data_raportu, data_raportu, data_raportu))
+    df_plan = pd.read_sql(sql_plan, conn, params=(data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu))
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
     print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
     
@@ -87,41 +110,91 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")
     print(f"[GENERATOR] OK Issues data: {len(df_awarie)} rows")
     
-    # HR / obecności — wszyscy wpisani (w tym nieobecni)
-    df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
+    # Lider Zmiany — jeśli nie podano lub nieznany, pobierz z obsada_liderzy dla danej linii
+    if not lider_name or str(lider_name).strip().lower() in ('nieznany', 'none', ''):
+        try:
+            cursor_lider = conn.cursor()
+            col_lider = 'lider_psd_id' if str(linia).strip().upper() == 'PSD' else 'lider_agro_id'
+            cursor_lider.execute(f"SELECT p.imie_nazwisko FROM obsada_liderzy ol JOIN pracownicy p ON ol.{col_lider} = p.id WHERE ol.data_wpisu = %s", (data_raportu,))
+            row_l = cursor_lider.fetchone()
+            if row_l and row_l[0]:
+                lider_name = row_l[0]
+            cursor_lider.close()
+        except Exception as _el:
+            logger.warning(f"[GENERATOR] Nie można pobrać lidera z obsada_liderzy: {_el}")
+
+    # HR / obecności — filtrowane po linii (PSD / AGRO)
+    try:
+        df_hr = pd.read_sql("""
+            SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin 
+            FROM obecnosc o 
+            JOIN pracownicy p ON o.pracownik_id = p.id 
+            WHERE o.data_wpisu = %s 
+              AND (
+                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
+                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
+                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
+              )
+            ORDER BY p.imie_nazwisko
+        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
+    except Exception:
+        df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
     logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
     print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
 
-    # Obsada — kto był przydzielony do jakiej sekcji przez lidera
+    # Obsada — kto był przydzielony do jakiej sekcji przez lidera na danej linii
     try:
         df_obsada = pd.read_sql("""
             SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa
             FROM obsada_zmiany oz
             JOIN pracownicy p ON oz.pracownik_id = p.id
-            WHERE oz.data_wpisu = %s
+            WHERE oz.data_wpisu = %s 
+              AND (oz.linia = %s OR (oz.linia IS NULL AND %s = 'PSD'))
             ORDER BY oz.sekcja, p.imie_nazwisko
-        """, conn, params=(data_raportu,))
+        """, conn, params=(data_raportu, linia, linia))
     except Exception as _e:
-        logger.warning(f"[GENERATOR] Nie mozna pobrac obsady: {_e}")
-        df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik', 'grupa'])
+        try:
+            df_obsada = pd.read_sql("""
+                SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa
+                FROM obsada_zmiany oz
+                JOIN pracownicy p ON oz.pracownik_id = p.id
+                WHERE oz.data_wpisu = %s
+                ORDER BY oz.sekcja, p.imie_nazwisko
+            """, conn, params=(data_raportu,))
+        except Exception:
+            df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik', 'grupa'])
     logger.info(f"[GENERATOR] Obsada data: {len(df_obsada)} rows")
 
-    # Nieobecni — typ inny niż 'obecny'
+    # Nieobecni — typ inny niż 'obecny' dla pracowników danej linii
     try:
-        # Normalizujemy pole `typ` po stronie bazy (trim + lower),
-        # by uniknąć dopasowań z powodu wielkości liter lub nadmiarowych spacji.
         df_nieobecni = pd.read_sql("""
             SELECT p.imie_nazwisko AS pracownik,
                    COALESCE(TRIM(LOWER(o.typ)), '') AS typ,
                    COALESCE(o.komentarz, '') AS komentarz
             FROM obecnosc o
             JOIN pracownicy p ON o.pracownik_id = p.id
-            WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
+            WHERE o.data_wpisu = %s 
+              AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
+              AND (
+                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
+                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
+                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
+              )
             ORDER BY typ, p.imie_nazwisko
-        """, conn, params=(data_raportu,))
+        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
     except Exception as _e:
-        logger.warning(f"[GENERATOR] Nie mozna pobrac nieobecnych: {_e}")
-        df_nieobecni = pd.DataFrame(columns=['pracownik', 'typ', 'komentarz'])
+        try:
+            df_nieobecni = pd.read_sql("""
+                SELECT p.imie_nazwisko AS pracownik,
+                       COALESCE(TRIM(LOWER(o.typ)), '') AS typ,
+                       COALESCE(o.komentarz, '') AS komentarz
+                FROM obecnosc o
+                JOIN pracownicy p ON o.pracownik_id = p.id
+                WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
+                ORDER BY typ, p.imie_nazwisko
+            """, conn, params=(data_raportu,))
+        except Exception:
+            df_nieobecni = pd.DataFrame(columns=['pracownik', 'typ', 'komentarz'])
     logger.info(f"[GENERATOR] Nieobecni data: {len(df_nieobecni)} rows")
 
     # Bufor — co zostało do spakowania
@@ -140,7 +213,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         df_bufor = pd.DataFrame(columns=['produkt', 'nazwa_zlecenia', 'tonaz_rzeczywisty', 'spakowano', 'pozostalo'])
     logger.info(f"[GENERATOR] Bufor data: {len(df_bufor)} rows")
 
-    # Nadgodziny — kto zostawał po zmianie i dlaczego
+    # Nadgodziny — kto zostawał po zmianie i dlaczego (filtrowane po linii)
     try:
         df_nadgodziny = pd.read_sql("""
             SELECT p.imie_nazwisko AS pracownik, n.ilosc_nadgodzin,
@@ -148,11 +221,25 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             FROM nadgodziny n
             JOIN pracownicy p ON n.pracownik_id = p.id
             WHERE n.data = %s
+              AND (
+                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
+                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
+                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
+              )
             ORDER BY p.imie_nazwisko
-        """, conn, params=(data_raportu,))
+        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
     except Exception as _e:
-        logger.warning(f"[GENERATOR] Nie mozna pobrac nadgodzin: {_e}")
-        df_nadgodziny = pd.DataFrame(columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
+        try:
+            df_nadgodziny = pd.read_sql("""
+                SELECT p.imie_nazwisko AS pracownik, n.ilosc_nadgodzin,
+                       COALESCE(n.powod, '') AS powod, n.status
+                FROM nadgodziny n
+                JOIN pracownicy p ON n.pracownik_id = p.id
+                WHERE n.data = %s
+                ORDER BY p.imie_nazwisko
+            """, conn, params=(data_raportu,))
+        except Exception:
+            df_nadgodziny = pd.DataFrame(columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
     logger.info(f"[GENERATOR] Nadgodziny data: {len(df_nadgodziny)} rows")
 
     folder = 'raporty_temp'
@@ -179,112 +266,9 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
     print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
 
-    # 2. Notatnik (Treść do maila)
-    txt_path = os.path.join(folder, f"Do_Maila_{linia}_{data_raportu}.txt")
-    logger.info(f"[GENERATOR] Creating TXT file: {txt_path}")
-    print(f"[GENERATOR] Creating TXT: {os.path.abspath(txt_path)}")
+    txt_path = None
 
-    # Rozbicie produkcji na Zasyp i Workowanie
-    try:
-        zasyp_mask = df_plan['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
-        suma_zasyp = int(df_plan[zasyp_mask]['tonaz_rzeczywisty'].sum())
-    except Exception:
-        suma_zasyp = 0
-
-    try:
-        workowanie_mask = df_plan['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
-        suma_workowanie = int(df_plan[workowanie_mask]['tonaz_rzeczywisty'].sum())
-    except Exception:
-        suma_workowanie = 0
-
-    suma_laczna = int(df_plan['tonaz_rzeczywisty'].sum()) if not df_plan.empty else (suma_zasyp + suma_workowanie)
-
-    # Pobranie zarejestrowanych przestojów z tabel przestoje_produkcyjne i przestoje_zasyp
-    downtimes = []
-    total_downtime_min = 0
-    try:
-        from app.repositories.downtime_repository import DowntimeRepository
-        downtimes = DowntimeRepository().get_downtimes(linia, data_raportu, data_raportu)
-        for dt in downtimes:
-            dur = dt.get('czas_trwania_min')
-            if dur is None and dt.get('godzina_start') and dt.get('godzina_stop'):
-                try:
-                    t1 = datetime.strptime(str(dt['godzina_start'])[:5], '%H:%M')
-                    t2 = datetime.strptime(str(dt['godzina_stop'])[:5], '%H:%M')
-                    diff = int((t2 - t1).total_seconds() / 60)
-                    if diff < 0:
-                        diff += 1440
-                    dur = diff
-                except Exception:
-                    dur = 0
-            dur_val = int(dur or 0)
-            total_downtime_min += dur_val
-    except Exception as _e:
-        logger.warning(f"[GENERATOR] Nie mozna pobrac przestojow do maila: {_e}")
-
-    dt_hours = total_downtime_min // 60
-    dt_mins = total_downtime_min % 60
-    if dt_hours > 0:
-        dt_sum_str = f"{dt_hours}h {dt_mins} min ({total_downtime_min} min)"
-    else:
-        dt_sum_str = f"{dt_mins} min"
-
-    # Obliczenie wydajności Zasypu
-    from app.services.shift_time_service import ShiftTimeService
-    zasyp_dt_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in (downtimes or []) if (dt.get('sekcja') or '').strip().lower() == 'zasyp')
-    prod_metrics = ShiftTimeService.calculate_productivity(
-        mass_kg=suma_zasyp,
-        awarie_min=zasyp_dt_min,
-        date_str=data_raportu
-    )
-    zasyp_brutto_min = prod_metrics['brutto_min']
-    zasyp_netto_min = prod_metrics['netto_min']
-    wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna']
-    wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista']
-    start_str = prod_metrics['start_str']
-    end_str = prod_metrics['end_str']
-
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(f"RAPORT PRODUKCYJNY — {linia} — {data_raportu}\n")
-        f.write("=" * 50 + "\n\n")
-        
-        f.write("PRODUKCJA NA ZMIANIE:\n")
-        f.write(f"  * Zasyp (wytworzono): {suma_zasyp} kg\n")
-        if suma_zasyp > 0:
-            f.write(f"    - Wydajnosc efektywna (netto): {wydajnosc_efektywna:.1f} kg/h (wykonane w {zasyp_netto_min} min produkcyjnych [{zasyp_brutto_min} min - {zasyp_dt_min} min awarie])\n")
-            f.write(f"    - Wydajnosc rzeczywista (brutto / {start_str}-{end_str}): {wydajnosc_rzeczywista:.1f} kg/h ({suma_zasyp} kg / {zasyp_brutto_min} min * 60)\n")
-        f.write(f"  * Workowanie (spakowano): {suma_workowanie} kg\n\n")
-
-        f.write("PRZESTOJE I AWARIE:\n")
-        f.write(f"  * Laczny czas przestojow: {dt_sum_str}\n")
-        f.write(f"  * Liczba zarejestrowanych przestojow: {len(downtimes)}\n")
-        if downtimes:
-            for idx, dt in enumerate(downtimes, 1):
-                sek = dt.get('sekcja') or 'Produkcja'
-                kat = dt.get('kategoria') or 'Inne'
-                op = dt.get('opis') or ''
-                g_start = str(dt.get('godzina_start') or '')[:5]
-                g_stop = str(dt.get('godzina_stop') or '')[:5] if dt.get('godzina_stop') else 'w toku'
-                dur = dt.get('czas_trwania_min')
-                dur_txt = f"{dur} min" if dur is not None else "w trakcie"
-                prod = f" [{dt.get('produkt')}]" if dt.get('produkt') else ""
-                f.write(f"    {idx}. [{sek}] {g_start} - {g_stop} ({dur_txt}) — {kat}: {op}{prod}\n")
-        else:
-            f.write("    (Brak zarejestrowanych przestojow)\n")
-        f.write("\n")
-
-        if uwagi_lidera and uwagi_lidera.strip():
-            f.write(f"NOTATKI ZMIANOWE / UWAGI:\n{uwagi_lidera.strip()}\n\n")
-        else:
-            f.write("NOTATKI ZMIANOWE / UWAGI:\n(Brak uwag lidera)\n\n")
-
-        f.write("Informacja: Wiecej szczegolowych informacji (m.in. zestawienie zuzycia surowcow, czasy cykli, obsada pracownicza) znajduje sie w szczegolowym raporcie w zalacznikach (PDF / Excel).\n")
-
-    txt_exists = os.path.exists(txt_path)
-    logger.info(f"[GENERATOR] TXT file created: {txt_exists}")
-    print(f"[GENERATOR] OK TXT created: {txt_exists} | Path: {os.path.abspath(txt_path)}")
-
-    # 3. PDF (używamy helpera z raporty.py)
+    # 2. PDF (używamy helpera z raporty.py)
     try:
         from scripts.raporty import generuj_pdf
         # Przygotuj struktury wymagane przez generuj_pdf (listy krotek)
@@ -433,11 +417,6 @@ def generuj_excel_zmiany(data_raportu, linia='PSD'):
             shutil.move(xls, new_xls)
         except Exception:
             new_xls = xls
-        try:
-            new_txt = os.path.join(raporty_dir, os.path.basename(txt))
-            shutil.move(txt, new_txt)
-        except Exception:
-            new_txt = txt
         # PDF is already generated in 'raporty' by generuj_pdf (if available)
         new_pdf = None
         try:

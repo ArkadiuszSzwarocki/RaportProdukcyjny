@@ -147,25 +147,30 @@ def move():
 # Print label
 # ─────────────────────────────────────────────────────────────────────────────
 
-@scanner_bp.route('/label/<int:surowiec_id>')
-def label(surowiec_id):
-    """Renderuje etykietę ZPL dla surowca (podgląd i druk przez przeglądarkę)."""
+@scanner_bp.route('/label/<path:identifier>')
+def label(identifier):
+    """Renderuje etykietę ZPL dla palety/surowca/wyrobu gotowego (podgląd i druk przez przeglądarkę)."""
     linia = request.args.get('linia', 'AGRO')
     autoprint = request.args.get('autoprint', '0') == '1'
-    label_data = ScannerService.get_label_data(surowiec_id, linia=linia)
+    pallet_type = request.args.get('pallet_type')
+    
+    label_data = ScannerService.get_label_data(identifier, linia=linia, pallet_type=pallet_type)
     if not label_data:
-        return f"Paleta #{surowiec_id} nie istnieje lub stan=0", 404
+        return f"Paleta {identifier} nie istnieje lub stan=0", 404
 
     from app.services.print_server import get_printer
     from datetime import datetime
 
     printer = get_printer()
-    zpl_string = printer.build_pallet_label_zpl(label_data)
+    if label_data.get('is_finished_product') or label_data.get('typ') == 'WYRÓB GOTOWY':
+        zpl_string = printer.build_finished_product_label_zpl(label_data)
+    else:
+        zpl_string = printer.build_pallet_label_zpl(label_data)
 
     return render_template(
         'magazyn_dostawy/etykieta_podglad_system.html',
         zpl_string=zpl_string,
-        nr_palety=label_data.get('nr_palety') or f"SUR-{surowiec_id}",
+        nr_palety=label_data.get('nr_palety') or str(identifier),
         linia=linia,
         generated_at=datetime.now().strftime('%d.%m.%Y %H:%M'),
         autoprint=autoprint
@@ -203,19 +208,22 @@ def print_location_direct():
 @scanner_bp.route('/print', methods=['POST'])
 def print_label():
     data = request.get_json(silent=True) or {}
+    sscc         = data.get('sscc') or data.get('nr_palety')
     surowiec_id  = data.get('surowiec_id')
+    pallet_type  = data.get('pallet_type')
     label_type   = data.get('type', 'pallet')   # 'pallet' | 'location'
     linia        = data.get('linia', 'AGRO')
     printer_ip   = data.get('printer_ip') or data.get('override_ip')
     printer_name = data.get('printer_name') or data.get('override_name')
     copies       = int(data.get('copies') or 2)
 
-    if not surowiec_id:
-        return jsonify({'success': False, 'error': 'Brak surowiec_id'}), 400
+    identifier = sscc or surowiec_id
+    if not identifier:
+        return jsonify({'success': False, 'error': 'Brak identyfikatora palety (SSCC/ID)'}), 400
 
-    label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
+    label_data = ScannerService.get_label_data(identifier, linia=linia, pallet_type=pallet_type)
     if not label_data:
-        return jsonify({'success': False, 'error': 'Nie znaleziono palety'}), 404
+        return jsonify({'success': False, 'error': f'Nie znaleziono palety: {identifier}'}), 404
 
     # Try TCP printer first
     printer = get_printer()
@@ -223,6 +231,13 @@ def print_label():
     try:
         if label_type == 'location':
             ok, msg = printer.print_location_label(label_data)
+        elif label_data.get('is_finished_product') or label_data.get('typ') == 'WYRÓB GOTOWY':
+            ok, msg = printer.print_finished_product_label(
+                label_data,
+                override_ip=printer_ip,
+                override_name=printer_name,
+                copies=copies
+            )
         else:
             ok, msg = printer.print_pallet_label(
                 label_data, 
@@ -233,9 +248,9 @@ def print_label():
     except Exception as e:
         ok, msg = False, str(e)
 
-
     # Always return label URL so frontend can open it
-    label_url = f"/agro/scanner/label/{surowiec_id}?linia={linia}&autoprint=1"
+    safe_id = label_data.get('nr_palety') or label_data.get('id') or identifier
+    label_url = f"/agro/scanner/label/{safe_id}?linia={linia}&autoprint=1"
     return jsonify({'success': ok, 'message': msg, 'label_url': label_url})
 
 

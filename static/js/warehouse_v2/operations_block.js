@@ -37,26 +37,20 @@ function togglePalletBlock() {
     });
 }
 
+function previewCurrentPallet() {
+    if (!currentPallet || !currentPallet.id) {
+        AppDialog.alert('Brak aktywnej palety do podglądu.');
+        return;
+    }
+    const linia = currentPallet.linia || 'PSD';
+    const previewUrl = `/warehouse-v2/podglad-etykiety/${currentPallet.id}?linia=${encodeURIComponent(linia)}`;
+    window.open(previewUrl, 'label_preview_psd', 'width=1000,height=1200,resizable=yes,scrollbars=yes');
+}
+
 async function printCurrentPallet(triggerBtn) {
     try {
         if (!currentPallet || !currentPallet.id) {
             AppDialog.alert('Brak aktywnej palety do wydruku.');
-            return;
-        }
-
-        // Dla wyrób gotowego - pokaż najpierw podgląd
-        if (currentPallet.type === 'Wyrób Gotowy') {
-            const linia = currentPallet.linia || 'PSD';
-            const previewUrl = `/warehouse-v2/podglad-etykiety/${currentPallet.id}?linia=${encodeURIComponent(linia)}`;
-            
-            // Otwórz podgląd w nowym oknie (user może go zamknąć)
-            const previewWindow = window.open(previewUrl, 'label_preview_psd', 'width=1000,height=1200,resizable=yes,scrollbars=yes');
-            
-            if (previewWindow) {
-                if (typeof showToast === 'function') {
-                    showToast('Podgląd etykiety otwarty w nowym oknie. Sprawdź dane i wróć aby wydrukować.', 'info');
-                }
-            }
             return;
         }
 

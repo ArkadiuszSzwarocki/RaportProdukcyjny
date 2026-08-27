@@ -655,9 +655,12 @@ function closePrinterModal() {
 
 function sendPrintRequest(overrideIp = null, overrideName = null) {
   const payload = {
+    sscc: currentPallet.nr_palety || currentPallet.sscc || '',
+    nr_palety: currentPallet.nr_palety || currentPallet.sscc || '',
     surowiec_id: currentPallet.id,
+    pallet_type: currentPallet.inventory_type || currentPallet.typ || '',
     type: currentPrintType,
-    linia: LINIA
+    linia: currentPallet.linia || LINIA
   };
   if (overrideIp) payload.override_ip = overrideIp;
   if (overrideName) payload.override_name = overrideName;

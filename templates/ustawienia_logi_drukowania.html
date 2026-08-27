@@ -1,0 +1,403 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .logi-view {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .logi-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        padding: 24px 28px;
+        border-radius: 20px;
+        border: 1px solid rgba(44, 62, 80, 0.08);
+        background: linear-gradient(135deg, #ffffff 0%, #f4f8fc 55%, #eef6ff 100%);
+        box-shadow: 0 12px 30px rgba(25, 40, 56, 0.06);
+    }
+
+    .logi-eyebrow {
+        margin-bottom: 6px;
+        color: #2f7dd1;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
+
+    .logi-title {
+        margin: 0;
+        color: #1e293b;
+        font-size: 1.85rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .logi-description {
+        max-width: 760px;
+        margin: 8px 0 0;
+        color: #64748b;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .logi-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .logi-controls-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+    }
+
+    .stats-group {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .stat-item strong {
+        font-size: 1.1rem;
+    }
+
+    .logi-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        box-shadow: 0 8px 24px rgba(28, 44, 60, 0.04);
+        padding: 22px;
+        box-sizing: border-box;
+    }
+
+    .logi-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .logi-card-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .logi-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .logi-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    .logi-table th {
+        background: #f8fafc;
+        padding: 12px 16px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    .logi-table td {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: #1e293b;
+        vertical-align: middle;
+    }
+
+    .logi-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .logi-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .badge-unified {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.76rem;
+        white-space: nowrap;
+    }
+
+    .badge-online { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-offline { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+    .badge-pending { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
+
+    .filter-pills {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .filter-pill {
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .filter-pill.active {
+        background: #2f7dd1;
+        border-color: #2f7dd1;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(47, 125, 209, 0.3);
+    }
+
+    .btn-action-danger {
+        background: #fff1f2;
+        color: #dc2626;
+        border: 1px solid #fecdd3;
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.78rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-action-danger:hover {
+        background: #dc2626;
+        color: #ffffff;
+    }
+
+    .row-error {
+        background-color: #fff1f2 !important;
+    }
+    .row-error:hover {
+        background-color: #ffe4e6 !important;
+    }
+</style>
+
+<div class="logi-view">
+    <!-- Hero Header -->
+    <div class="logi-hero">
+        <div>
+            <div class="logi-eyebrow">Diagnostyka Systemu</div>
+            <h2 class="logi-title">Dziennik & Logi Drukarek (48h)</h2>
+            <p class="logi-description">Pełna historia prób drukowania z ostatnich 48 godzin. Monitoruj status połączenia TCP, odczyty czujników fizycznych Zebra (~HS) oraz przyczyny nieudanych wydruków.</p>
+        </div>
+        <div class="logi-hero-actions">
+            <a href="/admin/ustawienia/drukarki" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; background: #2f7dd1; color: white;">
+                <span class="material-icons" style="font-size: 18px;">print</span> Drukarki LAN
+            </a>
+            <a href="/admin/ustawienia" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1;">
+                <span class="material-icons" style="font-size: 18px;">arrow_back</span> Powrót
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats & Control Bar -->
+    {% if jobs_stats %}
+    <div class="logi-controls-bar">
+        <div class="stats-group">
+            <div class="stat-item">
+                <span class="material-icons" style="color: #64748b;">history</span>
+                <span>Wszystkie zlecenia 48h: <strong style="color: #0f172a;">{{ jobs_stats.total_48h }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #10b981;">check_circle</span>
+                <span>Wydrukowano (OK): <strong style="color: #047857;">{{ jobs_stats.done }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #ef4444;">error</span>
+                <span>Błędy / Czujniki: <strong style="color: #dc2626;">{{ jobs_stats.error }}</strong></span>
+            </div>
+            <div class="stat-item">
+                <span class="material-icons" style="color: #3b82f6;">hourglass_top</span>
+                <span>W kolejce: <strong style="color: #1e40af;">{{ jobs_stats.pending }}</strong></span>
+            </div>
+        </div>
+        {% if jobs_stats.error > 0 %}
+        <button type="button" class="btn-popup-primary" onclick="retryAllFailedJobs()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; font-weight: 800; padding: 9px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);">
+            <span class="material-icons" style="font-size: 18px;">autorenew</span> Ponów nieudane wydruki ({{ jobs_stats.error }})
+        </button>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Log Table Card -->
+    <div class="logi-card">
+        <div class="logi-card-header">
+            <h3 class="logi-card-title">
+                <span class="material-icons" style="color: #2f7dd1;">assignment</span> Dziennik Zleceń Drukowania
+            </h3>
+            <div class="filter-pills">
+                <button type="button" onclick="filterLogs('all')" class="filter-pill active" id="btn-filter-all">Wszystkie (48h)</button>
+                <button type="button" onclick="filterLogs('error')" class="filter-pill" id="btn-filter-error" style="color: #dc2626;">Tylko Błędy / Czujniki</button>
+            </div>
+        </div>
+
+        <div class="logi-table-wrapper" style="max-height: 600px; overflow-y: auto;">
+            <table class="logi-table" id="table-print-logs">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data i Czas</th>
+                        <th>Drukarka</th>
+                        <th>Adres IP</th>
+                        <th>Status Wydruku</th>
+                        <th>Wynik Czujników (~HS) / Opis Błędu</th>
+                        <th style="text-align: right;">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs_48h %}
+                    <tr class="log-row {% if job.status == 'ERROR' %}row-error{% else %}row-ok{% endif %}">
+                        <td style="font-family: monospace; font-size: 0.82rem; color: #64748b;">#{{ job.id }}</td>
+                        <td style="white-space: nowrap; font-size: 0.88rem; font-weight: 700; color: #334155;">{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') if job.created_at else '-' }}</td>
+                        <td style="font-weight: 800; color: #0f172a;">{{ job.printer_name or 'Drukarka' }}</td>
+                        <td style="font-family: monospace; font-weight: 700;">{{ job.printer_ip }}</td>
+                        <td>
+                            {% if job.status == 'DONE' %}
+                            <span class="badge-unified badge-online">● SUKCES</span>
+                            {% elif job.status == 'ERROR' %}
+                            <span class="badge-unified badge-offline">○ BŁĄD</span>
+                            {% else %}
+                            <span class="badge-unified badge-pending">⌛ OCZEKUJE</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.88rem;">
+                            {% if job.status == 'ERROR' %}
+                                <div style="color: #dc2626; font-weight: 700; word-break: break-word;">
+                                    <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px;">warning</span>
+                                    {{ job.error_message }}
+                                </div>
+                            {% else %}
+                                <div style="color: #16a34a; font-weight: 600;">
+                                    <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px;">verified</span>
+                                    {{ job.error_message or 'Czujniki ~HS OK - Fizyczny wydruk zakończony' }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            {% if job.status == 'ERROR' %}
+                            <button type="button" class="btn-action-danger" onclick="retrySingleJob({{ job.id }})" title="Ponów to zlecenie">
+                                Ponów
+                            </button>
+                            {% else %}
+                            <span style="font-size: 0.8rem; color: #94a3b8;">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: #64748b; padding: 32px;">Brak zarejestrowanych zleceń drukowania z ostatnich 48 godzin.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function retryAllFailedJobs() {
+    if (!confirm('Czy na pewno chcesz zakolejkować ponowne wysłanie wszystkich błędnych zleceń druku?')) return;
+    
+    fetch('/admin/api/print-jobs/retry-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + res.message);
+        }
+    })
+    .catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function retrySingleJob(jobId) {
+    fetch('/admin/api/print-jobs/retry/' + jobId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(res.message);
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + res.message);
+        }
+    })
+    .catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function filterLogs(mode) {
+    const rows = document.querySelectorAll('#table-print-logs tbody tr.log-row');
+    const btnAll = document.getElementById('btn-filter-all');
+    const btnErr = document.getElementById('btn-filter-error');
+    
+    if (mode === 'error') {
+        btnErr.classList.add('active');
+        btnAll.classList.remove('active');
+        rows.forEach(r => {
+            if (r.classList.contains('row-error')) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    } else {
+        btnAll.classList.add('active');
+        btnErr.classList.remove('active');
+        rows.forEach(r => r.style.display = '');
+    }
+}
+</script>
+{% endblock %}

@@ -28,20 +28,20 @@ def podglad_etykiety():
     linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
     qty = _safe_float(request.args.get('qty', 0))
 
-    nr_upper = nr_palety.upper()
-    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD'):
-        typ_label = 'SUROWIEC'
-    elif nr_upper.startswith('AGR') or nr_upper.startswith('PSD') or nr_upper.startswith('MIX'):
-        typ_label = 'WYRÓB GOTOWY'
-    elif nr_upper.startswith('OPA'):
+    from app.utils.pallet_label import is_packaging_item
+    is_pkg = is_packaging_item(product_name, unit=typ_surowca, typ=typ_surowca, pallet_nr=nr_palety)
+    if is_pkg:
         typ_label = 'OPAKOWANIE'
+        unit_str = 'szt.'
+    elif nr_upper.startswith('AGR') or nr_upper.startswith('PSD') or nr_upper.startswith('MIX') or nr_upper.startswith('WYR') or typ_surowca in {'wyrob_gotowy', 'finished', 'gotowy'}:
+        typ_label = 'WYRÓB GOTOWY'
+        unit_str = 'kg'
+    elif nr_upper.startswith('SUR') or nr_upper.startswith('DOD'):
+        typ_label = 'SUROWIEC'
+        unit_str = 'kg'
     else:
-        if typ_surowca == 'packaging':
-            typ_label = 'OPAKOWANIE'
-        elif typ_surowca in {'wyrob_gotowy', 'finished', 'gotowy'}:
-            typ_label = 'WYRÓB GOTOWY'
-        else:
-            typ_label = 'SUROWIEC'
+        typ_label = 'SUROWIEC'
+        unit_str = 'kg'
 
     qr_details = {
         "sscc": nr_palety,
@@ -50,7 +50,7 @@ def podglad_etykiety():
         "data_prod": data_produkcji,
         "data_przyd": data_przydatnosci,
         "ilosc": f"{qty:.2f}",
-        "jm": "szt" if typ_label == "OPAKOWANIE" else "kg",
+        "jm": unit_str,
         "typ": typ_label
     }
     qr_details_json = json.dumps(qr_details, ensure_ascii=False)
@@ -68,7 +68,7 @@ def podglad_etykiety():
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
 ^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
 ^FO40,1000^A0N,70,70^FD{'ILOSC:' if typ_label == 'OPAKOWANIE' else 'WAGA NETTO:'}^FS
-^FO40,1100^A0N,100,100^FD{qty:.2f} {'szt' if typ_label == 'OPAKOWANIE' else 'kg'}^FS
+^FO40,1100^A0N,100,100^FD{qty:.2f} {unit_str}^FS
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^XZ"""
 
@@ -117,12 +117,27 @@ def podglad_etykiety_system(paleta_id):
 
     nr_upper = nr_palety.upper()
     prod_lower = product_name.lower()
-    if nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or label_data.get('is_surowiec') or 'czyszczenie' in prod_lower or 'maka mix do lnu' in prod_lower or 'mąka mix do lnu' in prod_lower:
-        typ_label_sys = 'SUROWIEC'
-    elif nr_upper.startswith('OPA'):
+
+    from app.utils.pallet_label import is_packaging_item
+    is_pkg = is_packaging_item(
+        product_name,
+        unit=label_data.get('jednostka') or label_data.get('unit'),
+        typ=label_data.get('typ'),
+        pallet_nr=nr_palety
+    )
+
+    if is_pkg:
         typ_label_sys = 'OPAKOWANIE'
+        unit_str_sys = 'szt.'
+        qty_header_sys = 'ILOSC:'
+    elif nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or label_data.get('is_surowiec') or 'czyszczenie' in prod_lower or 'maka mix do lnu' in prod_lower or 'mąka mix do lnu' in prod_lower:
+        typ_label_sys = 'SUROWIEC'
+        unit_str_sys = 'kg'
+        qty_header_sys = 'WAGA NETTO:'
     else:
         typ_label_sys = 'WYROB GOTOWY'
+        unit_str_sys = 'kg'
+        qty_header_sys = 'WAGA NETTO:'
 
     qr_details = {
         "sscc": nr_palety,
@@ -132,7 +147,7 @@ def podglad_etykiety_system(paleta_id):
         "data_prod": data_produkcji,
         "data_przyd": data_przydatnosci,
         "ilosc": qty_display,
-        "jm": "kg",
+        "jm": unit_str_sys,
         "typ": f"{typ_label_sys} - {linia}"
     }
     qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
@@ -159,8 +174,8 @@ def podglad_etykiety_system(paleta_id):
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
 ^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp or ''}^FS
 ^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
-^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
-^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^FO40,1000^A0N,70,70^FD{qty_header_sys}^FS
+^FO40,1100^A0N,100,100^FD{qty_display} {unit_str_sys}^FS
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^XZ"""
     )
@@ -834,7 +849,8 @@ def get_available_pallets():
 @magazyn_dostawy_bp.route('/podzial-palety')
 @login_required
 def podzial_palety_view():
-    return render_template('magazyn_dostawy/podzial_palety.html')
+    linia = (request.args.get('linia') or session.get('wybrana_linia_magazyn', 'AGRO')).strip().upper()
+    return render_template('magazyn_dostawy/podzial_palety.html', linia=linia)
 
 @magazyn_dostawy_bp.route('/api/info-paleta', methods=['GET'])
 @login_required

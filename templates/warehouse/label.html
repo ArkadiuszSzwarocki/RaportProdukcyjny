@@ -118,35 +118,52 @@
                 <span class="data-value large">{{ produkt }}</span>
             </div>
             
-            <div class="data-row">
-                <span class="data-label">Numer zasypu</span>
-                <span class="data-value large">ZASYP NR {{ nr_szarzy }}</span>
+            <div class="data-row" style="display:flex; flex-direction:row; justify-content:space-between; width:100%; gap:10px;">
+                <div style="flex:1; text-align:left;">
+                    <span class="data-label">Numer partii</span>
+                    <div class="data-value" style="font-size:18px;">{{ nr_partii }}</div>
+                </div>
+                <div style="flex:1; text-align:right;">
+                    <span class="data-label">Zasyp / Szarża</span>
+                    <div class="data-value" style="font-size:18px;">ZASYP NR {{ nr_szarzy }}</div>
+                </div>
+            </div>
+
+            <div class="data-row" style="display:flex; flex-direction:row; justify-content:space-between; width:100%; gap:10px; margin-top:2mm;">
+                <div style="flex:1; text-align:left;">
+                    <span class="data-label">Data produkcji</span>
+                    <div class="data-value" style="font-size:18px;">{{ data_produkcji }}</div>
+                </div>
+                <div style="flex:1; text-align:right;">
+                    <span class="data-label">SSCC / Kod</span>
+                    <div class="data-value" style="font-size:15px; word-break:break-all;">{{ nr_palety_sscc }}</div>
+                </div>
             </div>
             
-            <div class="data-row" style="margin-block-start: auto; padding-block-start: 5mm;">
-                <span class="data-label">Ilość na palecie (kg)</span>
-                <span class="data-value" style="font-size: 48px; text-align: center;">{{ waga|int }} kg</span>
+            {% set p_low = (produkt|default('')|string)|lower %}
+            {% set is_pkg = ('kalk' in p_low or 'włók' in p_low or 'wlok' in p_low or 'etyk' in p_low or 'worek' in p_low or 'karton' in p_low or 'taśm' in p_low or 'tasm' in p_low or 'foli' in p_low or 'opak' in p_low or (unit|default('') in ['szt', 'szt.', 'sztuk'])) %}
+            <div class="data-row" style="margin-block-start: auto; padding-block-start: 4mm;">
+                <span class="data-label">{{ 'Ilość na palecie (szt.)' if is_pkg else 'Ilość na palecie (kg)' }}</span>
+                <span class="data-value" style="font-size: 44px; text-align: center;">{{ waga|int if waga == waga|int else waga }} {{ 'szt.' if is_pkg else 'kg' }}</span>
             </div>
         </div>
-            <div class="expiry">
+            <div class="expiry" style="margin-block-start: 3mm;">
                 {% if termin_przydatnosci %}
-                <span id="expiryDisplay">Termin przydatności: {{ termin_przydatnosci }}</span>
+                <span id="expiryDisplay" style="font-size: 20px;">Termin przydatności: <strong>{{ termin_przydatnosci }}</strong></span>
                 {% else %}
                 <div>
-                    <div id="expiryDisplay">Termin przydatności: —</div>
-                    <div style="text-align:center; margin-block-start:6px;">
-                        <input id="termin" name="termin" type="date" style="font-size:14px; padding:6px;" />
+                    <div id="expiryDisplay" style="font-size: 18px;">Termin przydatności: —</div>
+                    <div style="text-align:center; margin-block-start:4px;">
+                        <input id="termin" name="termin" type="date" style="font-size:14px; padding:4px;" />
                     </div>
                 </div>
                 {% endif %}
             </div>
 
             <div class="footer">
-                <div style="display: flex; flex-direction: column; gap:4px;">
-                </div>
-                <div style="display: flex; flex-direction: column; text-align: end; justify-content: flex-end;">
-                    <span>Wydruk z Systemu P.R.</span>
-                    <button id="printBtn" style="margin-block-start:6px; padding:6px 10px; font-size:12px;">Wydrukuj</button>
+                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                    <span>System RaportProdukcyjny ({{ linia or 'PSD' }})</span>
+                    <button id="printBtn" style="padding:6px 14px; font-size:13px; font-weight:bold; cursor:pointer;">🖨️ Wydrukuj</button>
                 </div>
             </div>
     </div>

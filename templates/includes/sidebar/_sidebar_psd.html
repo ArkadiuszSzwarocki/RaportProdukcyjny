@@ -35,6 +35,10 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'PSD' %}active{% endif %}">
             Workowanie PSD
         </a>
+        <a href="{{ url_for('production.przestoje_list', linia='PSD') }}"
+            class="nav-sub-item {% if 'przestoje' in request.path and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
+            ⚠️ Przestoje PSD
+        </a>
         {% endif %}
 
         {% if role_has_access('psd.magazyn') %}

@@ -33,12 +33,12 @@
           📦 Widok Workowanie
         </a>
       </div>
-      <span class="material-icons chevron-icon" id="chevron-hall-{{ h_id }}">expand_more</span>
+      <span class="material-icons chevron-icon rotated" id="chevron-hall-{{ h_id }}">expand_more</span>
     </div>
   </div>
 
-  <!-- Hall Content Container (Closed by default) -->
-  <div id="hall-content-{{ h_id }}" style="display: none; padding: 20px; flex-direction: column; gap: 20px;">
+  <!-- Hall Content Container (Open by default with ability to close) -->
+  <div id="hall-content-{{ h_id }}" style="display: flex; padding: 20px; flex-direction: column; gap: 20px;">
     
     <!-- SEKCJA ZASYP -->
     <div>
@@ -50,11 +50,11 @@
             {{ h.plans_zasyp|length }} planów
           </span>
         </h4>
-        <span class="material-icons chevron-icon" id="chevron-zasyp-content-{{ h_id }}">expand_more</span>
+        <span class="material-icons chevron-icon rotated" id="chevron-zasyp-content-{{ h_id }}">expand_more</span>
       </div>
 
-      <!-- Zasyp Table Container (Closed by default) -->
-      <div id="zasyp-content-{{ h_id }}" style="display: none; margin-top: 12px;">
+      <!-- Zasyp Table Container (Open by default) -->
+      <div id="zasyp-content-{{ h_id }}" style="display: block; margin-top: 12px;">
         {% if h.plans_zasyp %}
         <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;">
@@ -155,11 +155,11 @@
             {{ h.plans_workowanie|length }} planów
           </span>
         </h4>
-        <span class="material-icons chevron-icon" id="chevron-workowanie-content-{{ h_id }}">expand_more</span>
+        <span class="material-icons chevron-icon rotated" id="chevron-workowanie-content-{{ h_id }}">expand_more</span>
       </div>
 
-      <!-- Workowanie Table Container (Closed by default) -->
-      <div id="workowanie-content-{{ h_id }}" style="display: none; margin-top: 12px;">
+      <!-- Workowanie Table Container (Open by default) -->
+      <div id="workowanie-content-{{ h_id }}" style="display: block; margin-top: 12px;">
         {% if h.plans_workowanie %}
         <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;">

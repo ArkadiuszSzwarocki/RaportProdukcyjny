@@ -23,6 +23,9 @@
 
             <div>
                 {% if rola in ['lider', 'admin', 'masteradmin', 'produkcja', 'pracownik'] %}
+                <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja='Zasyp') }}"
+                   class="btn-action" style="background: #dc2626; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; font-weight: 700; border-radius: 6px;"
+                   title="Zgłoś przestój zasypu">⚠️ Zgłoś Przestój</a>
                 <form action="/zawies_zlecenie/{{ p[0] }}" method="POST" class="inline-block" style="display: inline-block;" data-confirm="Czy na pewno chcesz zawiesić to zlecenie?">
                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
                     <input type="hidden" name="linia" value="{{ linia }}">

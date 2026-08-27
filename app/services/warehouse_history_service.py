@@ -18,7 +18,8 @@ class WarehouseHistoryService:
         lokalizacja_zrodlowa: str | None,
         lokalizacja_docelowa: str | None,
         komentarz: str | None,
-        user_login: str | None = 'System'
+        user_login: str | None = 'System',
+        nr_palety: str | None = None
     ) -> bool:
         """
         Zapisuje ruch palety/surowca w centralnej tabeli `palety_historia`.
@@ -28,12 +29,13 @@ class WarehouseHistoryService:
             cur = conn.cursor()
             cur.execute("""
                 INSERT INTO palety_historia (
-                    paleta_id, linia, typ_palety, akcja, 
+                    paleta_id, nr_palety, linia, typ_palety, akcja, 
                     lokalizacja_zrodlowa, lokalizacja_docelowa, 
                     komentarz, user_login, data_ruchu
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 paleta_id,
+                nr_palety,
                 (linia or 'PSD').upper(),
                 (typ_palety or 'surowiec').lower(),
                 (akcja or 'PRZESUNIECIE').upper(),
@@ -146,7 +148,7 @@ class WarehouseHistoryService:
                     ph.user_login as autor_login,
                     ph.data_ruchu as created_at,
                     COALESCE(NULLIF(sur.nazwa, ''), NULLIF(opk.nazwa, ''), NULLIF(dod.nazwa, ''), NULLIF(pal.produkt, ''), NULLIF(pal_agro.produkt, ''), NULLIF(arch.nazwa, ''), '') as surowiec_nazwa,
-                    COALESCE(NULLIF(sur.nr_palety, ''), NULLIF(opk.nr_palety, ''), NULLIF(dod.nr_palety, ''), NULLIF(pal.nr_palety, ''), NULLIF(pal_agro.nr_palety, ''), NULLIF(arch.nr_palety, ''), '') as nr_palety,
+                    COALESCE(NULLIF(ph.nr_palety, ''), NULLIF(sur.nr_palety, ''), NULLIF(opk.nr_palety, ''), NULLIF(dod.nr_palety, ''), NULLIF(pal.nr_palety, ''), NULLIF(pal_agro.nr_palety, ''), NULLIF(arch.nr_palety, ''), '') as nr_palety,
                     COALESCE(sur.stan_magazynowy, opk.stan_magazynowy, dod.stan_magazynowy, pal.waga_netto, pal_agro.waga_netto, arch.waga_ostatnia, 0) as waga_ref
                 FROM palety_historia ph
                 LEFT JOIN magazyn_surowce sur ON ph.paleta_id = sur.id

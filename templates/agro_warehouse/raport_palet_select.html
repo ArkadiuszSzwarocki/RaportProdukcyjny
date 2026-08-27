@@ -44,20 +44,24 @@
             {% endfor %}
         </div>
 
-        <div style="margin-top: 30px; text-align: center;">
-            {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
-            <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
-                Powrót
+        <div style="margin-top: 30px; text-align: center; display: flex; justify-content: center; gap: 12px;">
+            <button type="button" onclick="closeOrReturnReport()" class="btn-action" style="background: #475569; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 6px; font-weight: bold;">
+                ⬅️ Wróć / Zamknij
+            </button>
+            <a href="{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}" class="btn-action" style="background: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                🏠 Pulpit AGRO
             </a>
-            {% else %}
-            <a href="javascript:history.back()" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
-                Powrót
-            </a>
-            {% endif %}
         </div>
     </div>
 </div>
 <script>
+    function closeOrReturnReport(){
+        window.close();
+        setTimeout(function(){
+            window.location.href = "{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}";
+        }, 120);
+    }
+
     function changeReportDate(){
         try{
             var d_od = document.getElementById('reportDateOd').value || '';
@@ -66,7 +70,7 @@
             if(!d_od) d_od = d_do;
             if(!d_do) d_do = d_od;
             var url = '/agro/raport_palet?data_od=' + encodeURIComponent(d_od) + '&data_do=' + encodeURIComponent(d_do) + '&select=1';
-            window.location.href = url;
+            window.location.replace(url);
         }catch(e){ console.error('changeReportDate error', e); }
     }
 </script>

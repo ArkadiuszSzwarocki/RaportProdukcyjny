@@ -283,21 +283,22 @@ def drukuj_zpl():
         # Generowanie ZPL z obiektu JSON (identycznie jak w Mlecznej Drodze)
         p = dane.get('palletData') if isinstance(dane, dict) and 'palletData' in dane else dane
         
-        id_palety = p.get('nrPalety') or p.get('nr_palety') or p.get('displayId') or p.get('id') or 'Brak ID'
+        id_palety = p.get('sscc') or p.get('nr_palety') or p.get('nrPalety') or p.get('displayId') or p.get('id') or 'Brak ID'
         nazwa = p.get('nazwa') or p.get('product_name') or p.get('productName') or 'Brak Nazwy'
-        partia = p.get('batchNumber') or p.get('nr_partii') or p.get('batchId') or '---'
+        partia = p.get('batchNumber') or p.get('nr_partii') or p.get('batchId') or p.get('partia') or '---'
         uwagi = p.get('labAnalysisNotes') or p.get('labNotes') or ''
         
-        d_prod_raw = p.get('dataProdukcji') or p.get('data_produkcji') or p.get('productionDate') or '---'
+        d_prod_raw = p.get('dataProdukcji') or p.get('data_produkcji') or p.get('productionDate') or p.get('data') or '---'
         d_prod = d_prod_raw.split('T')[0] if 'T' in d_prod_raw else d_prod_raw
         
-        d_wazn_raw = p.get('dataPrzydatnosci') or p.get('data_przydatnosci') or p.get('expiryDate') or '---'
+        d_wazn_raw = p.get('dataPrzydatnosci') or p.get('data_przydatnosci') or p.get('expiryDate') or p.get('termin') or '---'
         d_wazn = d_wazn_raw.split('T')[0] if 'T' in d_wazn_raw else d_wazn_raw
 
-        waga_value = p.get('currentWeight') or p.get('qty') or p.get('quantityKg') or p.get('producedWeight') or p.get('waga') or p.get('ilosc') or 0
+        waga_value = p.get('currentWeight') or p.get('qty') or p.get('quantityKg') or p.get('producedWeight') or p.get('waga_netto') or p.get('waga') or p.get('ilosc') or 0
         try:
-            waga = f"{float(waga_value):.0f}"
-        except:
+            val_f = float(waga_value)
+            waga = f"{val_f:.0f}" if val_f.is_integer() else f"{val_f:.2f}".rstrip('0').rstrip('.')
+        except Exception:
             waga = str(waga_value)
             
         unit_raw = p.get('unit') or p.get('jednostka') or 'kg'
@@ -344,7 +345,7 @@ def drukuj_zpl():
         # Dane produkcyjne
         zpl_string += f"^FO60,560^A0N,35,35^FDPARTIA: {partia}^FS\n"
         zpl_string += f"^FO60,610^A0N,35,35^FDPRODUKCJA: {d_prod}^FS\n"
-        if tytul != 'WYRÓB GOTOWY':
+        if d_wazn and str(d_wazn).strip() not in ('None', ''):
             zpl_string += f"^FO60,660^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
             
         # Waga (w 2 liniach: naglowek + wartosc)

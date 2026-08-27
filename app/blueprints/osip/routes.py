@@ -218,3 +218,20 @@ def cancel_transfer_api(transfer_id):
         return jsonify({"success": True, "message": f"Anulowano transfer {transfer.transfer_code}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 400
+
+
+@osip_bp.route('/suma-surowcow', methods=['GET'])
+@login_required
+def suma_surowcow_view():
+    """Widok sumy surowców znajdujących się w Magazynie OSIP."""
+    search_term = request.args.get('q', '').strip()
+    inventory_grouped = warehouse_service.get_osip_grouped_inventory(search_term)
+    total_kg_all = sum(item['total_kg'] for item in inventory_grouped)
+    total_pallets_all = sum(item['pallet_count'] for item in inventory_grouped)
+    return render_template(
+        'osip/osip_suma_surowcow.html',
+        inventory_grouped=inventory_grouped,
+        total_kg_all=total_kg_all,
+        total_pallets_all=total_pallets_all,
+        search_term=search_term
+    )

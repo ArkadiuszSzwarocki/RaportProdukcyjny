@@ -19,9 +19,12 @@ class EmailReportBuilder:
         total_downtime_min: int,
         notes_text: str,
         attachments_names: Optional[List[str]] = None,
+        palety_count: int = 0,
         **kwargs
     ) -> str:
         """Generuje pełny graficzny szablon HTML wiadomości e-mail z kartami KPI i tabelą."""
+        if 'palety_count' in kwargs and not palety_count:
+            palety_count = int(kwargs['palety_count'] or 0)
         
         dt_hours = total_downtime_min // 60
         dt_mins = total_downtime_min % 60
@@ -238,6 +241,9 @@ class EmailReportBuilder:
                                 <td width="48%" style="background-color: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 12px; padding: 18px; text-align: center;">
                                     <div style="font-size: 12px; font-weight: 800; color: #16a34a; text-transform: uppercase; letter-spacing: 0.04em;">📦 Workowanie (Spakowano)</div>
                                     <div style="font-size: 24px; font-weight: 800; color: #15803d; margin-top: 6px;">{suma_workowanie:,} <span style="font-size: 13px; font-weight: 600;">kg</span></div>
+                                    <div style="margin-top: 6px; font-size: 12px; font-weight: 700; color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; padding: 3px 10px; border-radius: 6px; display: inline-block;">
+                                        📦 Spakowano: <strong>{palety_count}</strong> {'palet' if palety_count != 1 else 'paletę'}
+                                    </div>
                                 </td>
                             </tr>
                         </table>

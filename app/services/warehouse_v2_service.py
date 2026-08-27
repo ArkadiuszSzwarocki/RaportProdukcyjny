@@ -5,25 +5,67 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 class WarehouseV2Service:
     @staticmethod
     def get_pallet_history(pallet_id, pallet_type, linia='PSD'):
-        """Zwraca historię ruchów palety."""
+        """Zwraca historię ruchów palety ściśle odseparowaną wg typu (Wyrób Gotowy / Surowiec / Opakowanie)."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Pobieramy pełną historię z nowej tabeli palety_historia
-            cursor.execute("""
-                SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
-                FROM palety_historia
-                WHERE paleta_id = %s
-                ORDER BY data_ruchu DESC
-            """, (pallet_id,))
-            historia_nowa = cursor.fetchall()
+            p_type_norm = str(pallet_type or '').strip().lower()
+            if 'surow' in p_type_norm:
+                allowed_types = ('surowiec', 'surowce')
+                is_finished_good = False
+                source_tbl = get_table_name('magazyn_surowce', linia)
+            elif 'opakow' in p_type_norm:
+                allowed_types = ('opakowanie', 'opakowania')
+                is_finished_good = False
+                source_tbl = get_table_name('magazyn_opakowania', linia)
+            elif 'dodat' in p_type_norm:
+                allowed_types = ('dodatek', 'dodatki')
+                is_finished_good = False
+                source_tbl = 'magazyn_dodatki'
+            else:
+                allowed_types = ('wyrob_gotowy', 'wyroby_gotowe', 'gotowy', 'wyrób gotowy')
+                is_finished_good = True
+                source_tbl = get_table_name('magazyn_palety', linia)
+
+            real_id = None
+            nr_pal_sscc = None
+            try:
+                cursor.execute(f"SELECT id, nr_palety FROM {source_tbl} WHERE id = %s OR nr_palety = %s LIMIT 1", (pallet_id, str(pallet_id)))
+                row_found = cursor.fetchone()
+                if row_found:
+                    real_id = row_found.get('id')
+                    nr_pal_sscc = row_found.get('nr_palety')
+            except Exception:
+                pass
+
+            target_id = real_id if real_id is not None else pallet_id
+            target_sscc = nr_pal_sscc if nr_pal_sscc else str(pallet_id)
+
+            # 1. Pobieramy historię z palety_historia - priorytet dla unikalnego numeru SSCC (nr_palety)
+            placeholders = ', '.join(['%s'] * len(allowed_types))
+            if nr_pal_sscc:
+                query_params = [nr_pal_sscc, target_id] + list(allowed_types)
+                cursor.execute(f"""
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
+                    FROM palety_historia
+                    WHERE (nr_palety = %s OR (nr_palety IS NULL AND paleta_id = %s AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})))
+                    ORDER BY data_ruchu DESC
+                """, tuple(query_params))
+            else:
+                query_params = [target_id, target_sscc] + list(allowed_types)
+                cursor.execute(f"""
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
+                    FROM palety_historia
+                    WHERE (paleta_id = %s OR nr_palety = %s)
+                      AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})
+                    ORDER BY data_ruchu DESC
+                """, tuple(query_params))
+            historia_nowa = cursor.fetchall() or []
             
-            # Pobieramy historię wsteczną z tabel legacy
-            table_ruch = get_table_name('magazyn_ruch', linia)
+            # 2. Pobieramy historię wsteczną ze starych tabel
             historia_stara = []
-            
-            if pallet_type in ['Surowiec', 'Opakowanie']:
+            if not is_finished_good:
                 for t_ruch in ['magazyn_ruch', 'magazyn_agro_ruch']:
                     try:
                         cursor.execute(f"""
@@ -31,15 +73,18 @@ class WarehouseV2Service:
                             FROM {t_ruch} 
                             WHERE surowiec_id = %s 
                             ORDER BY id DESC
-                        """, (pallet_id,))
-                        historia_stara.extend(cursor.fetchall())
+                        """, (target_id,))
+                        historia_stara.extend(cursor.fetchall() or [])
                     except Exception:
                         pass
             else:
-                cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz FROM {get_table_name('magazyn_palety', linia)} WHERE id = %s", (pallet_id,))
-                row = cursor.fetchone()
-                if row:
-                    historia_stara.append(row)
+                try:
+                    cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz FROM {source_tbl} WHERE id = %s OR nr_palety = %s", (target_id, target_sscc))
+                    row = cursor.fetchone()
+                    if row and row.get('autor_data'):
+                        historia_stara.append(row)
+                except Exception:
+                    pass
                     
             # Combine
             combined = historia_nowa + historia_stara
@@ -57,16 +102,14 @@ class WarehouseV2Service:
                 
             combined.sort(key=get_dt, reverse=True)
             
-            # Deduplikacja by nie wyświetlać tego samego ruchu dwa razy jeśli został zapisany w obu tabelach
+            # Deduplikacja by nie wyświetlać tego samego ruchu dwa razy
             seen = set()
             deduped = []
             for h in combined:
-                # prosty klucz deduplikacyjny na podstawie daty (co do minuty) i typu ruchu
                 dt = get_dt(h)
                 key = f"{dt.strftime('%Y-%m-%d %H:%M')}_{h.get('typ_ruchu')}_{h.get('autor_login')}"
                 if key not in seen:
                     seen.add(key)
-                    # Format date to string for JSON serialization
                     h['autor_data'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
                     deduped.append(h)
                     
@@ -171,7 +214,24 @@ class WarehouseV2Service:
                 return False, "Paleta nie znaleziona."
                 
             if row.get('is_blocked'):
-                return False, f"BŁĄD: Paleta #{pallet_id} jest ZABLOKOWANA i nie może być przenoszona!"
+                # Pałeta zablokowana – sprawdź czy blokada pochodzi z aktywnego zlecenia przesunięcia
+                # Jeśli tak → ZEZWÓL na przenoszenie między lokalizacjami (blokada dotyczy tylko zużycia)
+                pallet_id_str = str(pallet_id)
+                try:
+                    cursor.execute(
+                        """SELECT id, order_ref FROM magazyn_dostawy
+                           WHERE status = 'OCZEKUJE'
+                           AND (items LIKE %s OR items LIKE %s)
+                           ORDER BY created_at DESC LIMIT 1""",
+                        (f'%"sourcePalletId": {pallet_id_str}%', f'%"sourcePalletId":{pallet_id_str}%')
+                    )
+                    active_order = cursor.fetchone()
+                except Exception:
+                    active_order = None
+
+                if not active_order:
+                    # Blokada NIE pochodzi ze zlecenia przesunięcia – nie pozwalaj na przenoszenie
+                    return False, f"BŁĄD: Paleta #{pallet_id} jest ZABLOKOWANA i nie może być przenoszona!"
                 
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
@@ -179,7 +239,18 @@ class WarehouseV2Service:
             
             # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
             if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
-                from app.utils.location_validator import check_rack_location_availability
+                from app.utils.location_validator import check_rack_location_availability, validate_centrala_osip_move
+                
+                # Blokada bezpośrednich przesunięć Centrala <-> OSIP (wymagany transfer)
+                is_trf_valid, trf_err_msg = validate_centrala_osip_move(
+                    source_location=old_loc,
+                    target_location=new_location,
+                    pallet_id=pallet_id,
+                    nr_palety=nr_palety
+                )
+                if not is_trf_valid:
+                    return False, trf_err_msg
+
                 is_loc_available, loc_error_msg = check_rack_location_availability(new_location, current_nr_palety=nr_palety)
                 if not is_loc_available:
                     return False, loc_error_msg
@@ -228,15 +299,15 @@ class WarehouseV2Service:
 
                 # Log to palety_historia dla palety przenoszonej/nowej
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (new_pallet_id, linia, pallet_type.lower(), 'PRZESUNIECIE_PODZIAL' if amount_to_move < qty else 'PRZESUNIECIE', old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}" + (f" (Podział: przeniesiono {amount_to_move})" if amount_to_move < qty else ""), worker_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (new_pallet_id, nr_palety, linia, pallet_type.lower(), 'PRZESUNIECIE_PODZIAL' if amount_to_move < qty else 'PRZESUNIECIE', old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}" + (f" (Podział: przeniesiono {amount_to_move})" if amount_to_move < qty else ""), worker_login)
                 )
                 
                 # Dodatkowy log dla starej palety jeśli był podział
                 if amount_to_move < qty:
                     cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s)",
-                        (pallet_id, linia, pallet_type.lower(), old_loc, old_loc, f"Odjęto {amount_to_move} podczas podziału palety", worker_login)
+                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s)",
+                        (pallet_id, nr_palety, linia, pallet_type.lower(), old_loc, old_loc, f"Odjęto {amount_to_move} podczas podziału palety", worker_login)
                     )
             except Exception as e:
                 print("Błąd zapisu ruchu:", e)
@@ -310,7 +381,7 @@ class WarehouseV2Service:
         """Przełącza status blokady palety."""
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
             if pallet_type == 'Surowiec':
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
@@ -320,19 +391,20 @@ class WarehouseV2Service:
             else:
                 table = get_table_name('magazyn_palety', linia)
 
-            cursor.execute(f"SELECT is_blocked FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT is_blocked, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
             row = cursor.fetchone()
             if not row:
                 return False, "Paleta nie znaleziona."
                 
-            new_status = 0 if row[0] else 1
+            new_status = 0 if row.get('is_blocked') else 1
+            nr_p = row.get('nr_palety')
             cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s", (new_status, pallet_id))
             
             # Log to history
             action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
             cursor.execute(
-                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s)",
-                (pallet_id, linia, pallet_type.lower(), action, f"{action} palety przez użytkownika", worker_login)
+                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (pallet_id, nr_p, linia, pallet_type.lower(), action, f"{action} palety przez użytkownika", worker_login)
             )
             
             conn.commit()
@@ -381,8 +453,8 @@ class WarehouseV2Service:
             # Zapisz ruch do historii
             try:
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE', %s, 'EXPEDITION', %s, %s)",
-                    (pallet_id, linia, pallet_type.lower(), p.get('lokalizacja'), f"Wydanie palety z {p.get('lokalizacja')}", worker_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'WYDANIE', %s, 'EXPEDITION', %s, %s)",
+                    (pallet_id, p.get('nr_palety'), linia, pallet_type.lower(), p.get('lokalizacja'), f"Wydanie palety z {p.get('lokalizacja')}", worker_login)
                 )
             except Exception as e:
                 print("Błąd zapisu historii:", e)
@@ -430,8 +502,8 @@ class WarehouseV2Service:
             # Log to palety_historia
             try:
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'ARCHIWIZACJA', %s, %s)",
-                    (pallet_id, linia, pallet_type.lower(), "Archiwizacja palety (przeniesienie do archiwum)", worker_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, 'ARCHIWIZACJA', %s, %s)",
+                    (pallet_id, p.get('nr_palety'), linia, pallet_type.lower(), "Archiwizacja palety (przeniesienie do archiwum)", worker_login)
                 )
             except Exception as e:
                 print("Błąd zapisu historii:", e)

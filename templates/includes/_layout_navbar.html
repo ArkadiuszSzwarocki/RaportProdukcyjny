@@ -79,8 +79,9 @@
 
         <div class="top-icons-group">
             {% if session.get('zalogowany') %}
-            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon d-none d-md-flex" title="{{ _('zgnlosz_problem') }}">
-                <span class="material-icons">report_problem</span>
+            <!-- Zgłoś Awarię / Problem -->
+            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="Zgłoś awarię / problem maszynowy" aria-label="Zgłoś awarię" style="color: #f59e0b; display: inline-flex; align-items: center; justify-content: center;">
+                <span class="material-icons" style="color: #f59e0b; font-size: 20px;">report_problem</span>
             </a>
             <button type="button" id="bugReportTopButton" class="btn-icon text-warning {% if session.get('show_bug_icon_intro') %}bug-icon-onboarding-highlight{% endif %}" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
                 <span class="material-icons">bug_report</span>

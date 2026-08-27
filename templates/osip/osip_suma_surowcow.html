@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Suma Surowców – Magazyn OSIP{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 font-weight-bold text-primary mb-1">
+                <i class="fas fa-cubes mr-2"></i>Suma Surowców – Magazyn OSIP
+            </h2>
+            <p class="text-muted small mb-0">Zestawienie stanów magazynowych, partii oraz lokalizacji w alejkach A01–A99 i strefie BFOS</p>
+        </div>
+        <div class="d-flex items-center gap-2 mt-2 mt-md-0">
+            <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="btn btn-outline-primary btn-sm font-weight-bold shadow-sm">
+                <i class="fas fa-arrow-down mr-1"></i> Przyjęcie dostawy
+            </a>
+            <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="btn btn-outline-secondary btn-sm font-weight-bold shadow-sm">
+                <i class="fas fa-cut mr-1"></i> Podział Palety
+            </a>
+            <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="btn btn-outline-success btn-sm font-weight-bold shadow-sm">
+                <i class="fas fa-mortar-pestle mr-1"></i> Mixowanie
+            </a>
+            <a href="{{ url_for('osip.warehouse_view') }}" class="btn btn-secondary btn-sm font-weight-bold shadow-sm">
+                <i class="fas fa-warehouse mr-1"></i> Układ Hali
+            </a>
+        </div>
+    </div>
+
+    <!-- Statystyki górne -->
+    <div class="row mb-3">
+        <div class="col-md-4 mb-2 mb-md-0">
+            <div class="card shadow-sm border-left-primary h-100" style="border-left: 5px solid #2563eb; border-radius: 10px;">
+                <div class="card-body py-3">
+                    <div class="text-muted small font-weight-bold text-uppercase mb-1">Łączna masa surowców</div>
+                    <div class="h4 font-weight-bold text-primary mb-0">{{ '{:,.2f}'.format(total_kg_all).replace(',', ' ') }} kg</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-2 mb-md-0">
+            <div class="card shadow-sm border-left-success h-100" style="border-left: 5px solid #10b981; border-radius: 10px;">
+                <div class="card-body py-3">
+                    <div class="text-muted small font-weight-bold text-uppercase mb-1">Łączna liczba palet</div>
+                    <div class="h4 font-weight-bold text-success mb-0">{{ total_pallets_all }} szt.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-left-info h-100" style="border-left: 5px solid #06b6d4; border-radius: 10px;">
+                <div class="card-body py-3">
+                    <div class="text-muted small font-weight-bold text-uppercase mb-1">Pozycje asortymentowe</div>
+                    <div class="h4 font-weight-bold text-info mb-0">{{ inventory_grouped|length }} surowców</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wyszukiwarka i filtry -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-8 mb-2 mb-md-0">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-white border-right-0"><i class="fas fa-search text-muted"></i></span>
+                        </div>
+                        <input type="text" id="osip-filter-input" class="form-control border-left-0" placeholder="Filtruj po nazwie surowca, partii, lokalizacji (np. A05, BFOS) lub SSCC..." value="{{ search_term }}">
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-right">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="expandAllGroups(true)">
+                        <i class="fas fa-expand-alt mr-1"></i> Rozwiń wszystkie
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm ml-1" onclick="expandAllGroups(false)">
+                        <i class="fas fa-compress-alt mr-1"></i> Zwiń wszystkie
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela surowców -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            {% if inventory_grouped %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="osip-materials-table">
+                    <thead class="bg-light text-secondary font-weight-bold">
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th>Nazwa Surowca</th>
+                            <th class="text-center" style="width: 140px;">Liczba palet</th>
+                            <th class="text-right" style="width: 160px;">Łączna waga</th>
+                            <th>Partie</th>
+                            <th>Lokalizacje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in inventory_grouped %}
+                        <tr class="material-row" data-name="{{ group.nazwa|lower }}" data-batches="{{ group.batches|join(' ')|lower }}" data-locations="{{ group.locations|join(' ')|lower }}" style="cursor: pointer;" onclick="toggleMaterialDetails('group-{{ loop.index }}')">
+                            <td class="text-center text-muted">
+                                <i class="fas fa-chevron-right chevron-icon" id="icon-group-{{ loop.index }}"></i>
+                            </td>
+                            <td>
+                                <span class="font-weight-bold text-dark" style="font-size: 1.05rem;">{{ group.nazwa }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge badge-pill badge-secondary px-3 py-1 font-weight-bold" style="font-size: 0.9rem;">
+                                    {{ group.pallet_count }}
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                <strong class="text-primary font-weight-bold" style="font-size: 1.05rem;">
+                                    {{ '{:,.2f}'.format(group.total_kg).replace(',', ' ') }} kg
+                                </strong>
+                            </td>
+                            <td>
+                                {% for b in group.batches %}
+                                <span class="badge badge-light border text-muted mr-1 mb-1">{{ b }}</span>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% for loc in group.locations %}
+                                <span class="badge badge-info mr-1 mb-1">{{ loc }}</span>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        <tr id="details-group-{{ loop.index }}" class="material-details-row d-none" style="background-color: #f8fafc;">
+                            <td colspan="6" class="p-3">
+                                <div class="card border shadow-sm">
+                                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+                                        <span class="font-weight-bold small text-muted text-uppercase">Szczegóły palet dla: {{ group.nazwa }}</span>
+                                        <span class="badge badge-primary">{{ group.pallet_count }} palet(y)</span>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped mb-0">
+                                            <thead>
+                                                <tr class="text-muted small">
+                                                    <th>Nr Palety (SSCC)</th>
+                                                    <th>Waga (kg)</th>
+                                                    <th>Nr Partii</th>
+                                                    <th>Lokalizacja</th>
+                                                    <th>Opakowanie</th>
+                                                    <th>Data Przydatności</th>
+                                                    <th class="text-right">Akcje</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for p in group.pallets %}
+                                                <tr>
+                                                    <td>
+                                                        <strong class="text-dark">{{ p.nr_palety or ('#' ~ p.id) }}</strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong class="text-primary">{{ '{:,.2f}'.format(p.stan_magazynowy or 0).replace(',', ' ') }} kg</strong>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-light border">{{ p.nr_partii or '—' }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-info">{{ p.lokalizacja or 'OSIP' }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-muted small">{{ p.typ_opakowania or 'Worek' }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="small text-muted">{{ p.data_przydatnosci or '—' }}</span>
+                                                    </td>
+                                                    <td class="text-right">
+                                                        <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="btn btn-outline-secondary btn-xs py-0 px-2" title="Podziel paletę">
+                                                            <i class="fas fa-cut"></i> Podziel
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-box-open fa-3x mb-3 text-secondary"></i>
+                <h5>Brak surowców w Magazynie OSIP</h5>
+                <p class="small text-muted">W wyznaczonych lokalizacjach hali OSIP nie odnaleziono aktywnych surowców o stanie > 0 kg.</p>
+                <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="btn btn-primary btn-sm font-weight-bold mt-2">
+                    <i class="fas fa-plus mr-1"></i> Przyjmij nową dostawę
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMaterialDetails(groupId) {
+    const detailsRow = document.getElementById('details-' + groupId);
+    const icon = document.getElementById('icon-' + groupId);
+    if (!detailsRow) return;
+    
+    if (detailsRow.classList.contains('d-none')) {
+        detailsRow.classList.remove('d-none');
+        if (icon) {
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+            icon.classList.add('text-primary');
+        }
+    } else {
+        detailsRow.classList.add('d-none');
+        if (icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+            icon.classList.remove('text-primary');
+        }
+    }
+}
+
+function expandAllGroups(expand) {
+    document.querySelectorAll('.material-details-row').forEach(row => {
+        if (expand) {
+            row.classList.remove('d-none');
+        } else {
+            row.classList.add('d-none');
+        }
+    });
+    document.querySelectorAll('.chevron-icon').forEach(icon => {
+        if (expand) {
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+            icon.classList.add('text-primary');
+        } else {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+            icon.classList.remove('text-primary');
+        }
+    });
+}
+
+document.getElementById('osip-filter-input')?.addEventListener('input', function(e) {
+    const term = (e.target.value || '').trim().toLowerCase();
+    document.querySelectorAll('.material-row').forEach(row => {
+        const name = row.getAttribute('data-name') || '';
+        const batches = row.getAttribute('data-batches') || '';
+        const locations = row.getAttribute('data-locations') || '';
+        
+        if (!term || name.includes(term) || batches.includes(term) || locations.includes(term)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+            const detailsId = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if (detailsId) {
+                const detailsRow = document.getElementById('details-' + detailsId);
+                if (detailsRow) detailsRow.classList.add('d-none');
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

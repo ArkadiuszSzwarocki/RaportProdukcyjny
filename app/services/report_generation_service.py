@@ -167,11 +167,8 @@ class ReportGenerationService:
         
         try:
             with ZipFile(zip_path, 'w') as z:
-                # Add each file if it exists
                 if xls_path and os.path.exists(xls_path):
                     z.write(xls_path, arcname=os.path.basename(xls_path))
-                if txt_path and os.path.exists(txt_path):
-                    z.write(txt_path, arcname=os.path.basename(txt_path))
                 if pdf_path and os.path.exists(pdf_path):
                     z.write(pdf_path, arcname=os.path.basename(pdf_path))
             

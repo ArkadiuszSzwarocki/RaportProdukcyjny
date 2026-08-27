@@ -235,16 +235,20 @@ def dodaj_do_obsady():
 def zapisz_liderow_obsady():
     """Save shift leaders - delegated to AttendanceService."""
     date_str = request.form.get('date') or request.args.get('date')
-    lider_psd = request.form.get('lider_psd') or None
-    lider_agro = request.form.get('lider_agro') or None
+    
+    raw_psd = request.form.get('lider_psd') if 'lider_psd' in request.form else 'NO_CHANGE'
+    raw_agro = request.form.get('lider_agro') if 'lider_agro' in request.form else 'NO_CHANGE'
+    
+    lider_psd = 'NO_CHANGE' if raw_psd == 'NO_CHANGE' else (None if raw_psd in (None, '', '-1') else int(raw_psd))
+    lider_agro = 'NO_CHANGE' if raw_agro == 'NO_CHANGE' else (None if raw_agro in (None, '', '-1') else int(raw_agro))
     
     success = AttendanceService.save_shift_leaders(date_str, lider_psd, lider_agro)
     
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
         return jsonify({'success': success})
     
     if success:
-        flash('Liderzy zmianki zapisani.', 'success')
+        flash('Liderzy zmiany zapisani.', 'success')
     else:
         flash('Błąd przy zapisywaniu liderów.', 'warning')
     

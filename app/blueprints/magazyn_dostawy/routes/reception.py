@@ -70,7 +70,7 @@ def reception_edit(dostawa_id=None):
         'magazyn_dostawy/reception_form.html',
         dostawa=dostawa, linia=linia,
         wszystkie_produkty=wszystkie_produkty,
-        lokalizacje=BUFORY,
+        lokalizacje=['BFOS'] + [f'A{str(i+1).zfill(2)}' for i in range(99)] if linia == 'OSIP' else BUFORY,
         printers=printers,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )

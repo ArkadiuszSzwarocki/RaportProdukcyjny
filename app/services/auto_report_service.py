@@ -558,24 +558,31 @@ class AutoReportService:
             lider_name = "System Auto-Raport (I Zmiana)"
             xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi, lider_name, linia=linia)
 
-            valid_attachments = [p for p in [pdf_path, xls_path, txt_path] if p and os.path.exists(p)]
+            valid_attachments = [p for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-            # Pobierz aktualne tonaze
+            # Pobierz aktualne tonaze z rzeczywistych szarz i palet
             suma_zasyp = 0
             suma_workowanie = 0
-            conn = get_db_connection()
-            table_plan = get_table_name('plan_produkcji', linia)
-            df_p = pd.read_sql(
-                f"SELECT sekcja, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s OR DATE(real_start) = %s OR DATE(real_stop) = %s",
-                conn, params=(date_str, date_str, date_str)
-            )
-            conn.close()
-            if not df_p.empty:
-                z_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
-                w_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
-                suma_zasyp = int(df_p[z_mask]['tonaz_rzeczywisty'].sum())
-                suma_workowanie = int(df_p[w_mask]['tonaz_rzeczywisty'].sum())
+            palety_count = 0
+            try:
+                conn = get_db_connection()
+                table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+                table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+                c_prod = conn.cursor(dictionary=True)
+                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_z = c_prod.fetchone()
+                suma_zasyp = int(r_z['s']) if r_z else 0
+
+                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_w = c_prod.fetchone()
+                if r_w:
+                    palety_count = int(r_w['cnt'] or 0)
+                    suma_workowanie = int(r_w['s'] or 0)
+                c_prod.close()
+                conn.close()
+            except Exception:
+                pass
 
             downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
             total_downtime_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in downtimes)
@@ -592,7 +599,8 @@ class AutoReportService:
                 downtimes=downtimes,
                 total_downtime_min=total_downtime_min,
                 notes_text=uwagi,
-                attachments_names=att_filenames
+                attachments_names=att_filenames,
+                palety_count=palety_count
             )
 
             subject = f"📊 Raport Produkcyjny {linia} — I Zmiana ({sched_time_display}) — {date_str}"
@@ -641,28 +649,35 @@ class AutoReportService:
             xls_path, txt_path, pdf_path = generuj_paczke_raportow(
                 data_raportu=date_str,
                 uwagi_lidera=uwagi,
-                lider_imie_nazwisko=lider_name,
+                lider_name=lider_name,
                 linia=linia
             )
 
-            valid_attachments = [p for p in [pdf_path, xls_path, txt_path] if p and os.path.exists(p)]
+            valid_attachments = [p for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-            # Pobierz aktualne tonaze
+            # Pobierz aktualne tonaze z rzeczywistych szarz i palet
             suma_zasyp = 0
             suma_workowanie = 0
-            conn = get_db_connection()
-            table_plan = get_table_name('plan_produkcji', linia)
-            df_p = pd.read_sql(
-                f"SELECT sekcja, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s OR DATE(real_start) = %s OR DATE(real_stop) = %s",
-                conn, params=(date_str, date_str, date_str)
-            )
-            conn.close()
-            if not df_p.empty:
-                z_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'zasyp'
-                w_mask = df_p['sekcja'].astype(str).str.strip().str.lower() == 'workowanie'
-                suma_zasyp = int(df_p[z_mask]['tonaz_rzeczywisty'].sum())
-                suma_workowanie = int(df_p[w_mask]['tonaz_rzeczywisty'].sum())
+            palety_count = 0
+            try:
+                conn = get_db_connection()
+                table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+                table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+                c_prod = conn.cursor(dictionary=True)
+                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_z = c_prod.fetchone()
+                suma_zasyp = int(r_z['s']) if r_z else 0
+
+                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
+                r_w = c_prod.fetchone()
+                if r_w:
+                    palety_count = int(r_w['cnt'] or 0)
+                    suma_workowanie = int(r_w['s'] or 0)
+                c_prod.close()
+                conn.close()
+            except Exception:
+                pass
 
             downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
             total_downtime_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in downtimes)
@@ -676,7 +691,8 @@ class AutoReportService:
                 downtimes=downtimes,
                 total_downtime_min=total_downtime_min,
                 notes_text=uwagi,
-                attachments_names=att_filenames
+                attachments_names=att_filenames,
+                palety_count=palety_count
             )
 
             subject = f"📊 Raport Produkcyjny {linia} — Praca po 15:00 / II Zmiana — {date_str}"

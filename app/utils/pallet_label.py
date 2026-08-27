@@ -24,6 +24,39 @@ def _format_date(date_val):
         return date_val.strftime('%Y-%m-%d')
     return str(date_val)
 
+def is_packaging_item(name: str | None, unit: str | None = None, typ: str | None = None, pallet_nr: str | None = None) -> bool:
+    """
+    Sprawdza, czy towar to materiał opakowaniowy / pomocniczy (kalka, włóknina, etykiety, worki, kartony itp.),
+    który na etykietach i wydrukach powinien mieć jednostkę 'szt.' zamiast 'kg'.
+    """
+    name_norm = str(name or '').lower()
+    unit_norm = str(unit or '').lower().strip()
+    typ_norm = str(typ or '').lower().strip()
+    nr_norm = str(pallet_nr or '').upper().strip()
+
+    if unit_norm in {'szt', 'szt.', 'sztuk', 'sztuki', 'pcs', 'pc'}:
+        return True
+    if typ_norm in {'opakowanie', 'packaging', 'opak', 'material_opakowaniowy', 'opakowania'}:
+        return True
+    if nr_norm.startswith('OPK') or nr_norm.startswith('OPA'):
+        return True
+
+    pkg_keywords = [
+        'kalk',      # kalka, kalki, kalkę, kalka termiczna
+        'włók',      # włóknina, włókninę, włókniny
+        'wlok',      # wloknina, wloknine
+        'etyk',      # etykieta, etykiety, etykietę
+        'worek',     # worek, worki, worków
+        'worki',
+        'karton',    # karton, kartony, kartonów
+        'taśm',      # taśma, taśmy
+        'tasm',      # tasma, tasmy
+        'foli',      # folia, folie, folii, stretch
+        'opakow',    # opakowanie, opakowania
+        'rolk',      # rolka, rolki
+    ]
+    return any(kw in name_norm for kw in pkg_keywords)
+
 def lookup_raw_material_details_by_sscc(cursor, sscc_code):
     """
     Given an SSCC code (e.g. from skan_sscc or nr_palety), searches warehouse/production tables
@@ -236,16 +269,30 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
                 if orig_meta.get('data_produkcji'):
                     data_str = _format_date(orig_meta.get('data_produkcji'))
 
+        partia_resolved = nr_partii_db if (nr_partii_db and str(nr_partii_db) not in ('None', '')) else (f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}")
+        
+        przydatnosc_str = _format_date(data_przydatnosci) if data_przydatnosci else None
+        if not przydatnosc_str and data_str:
+            try:
+                dt_p = datetime.strptime(str(data_str)[:10], '%Y-%m-%d')
+                przydatnosc_str = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
+            except Exception:
+                pass
+
         return {
             'nrPalety': nr_palety or str(paleta_id),
             'nazwa': produkt,
             'ilosc': float(waga),
             'data': data_str,
-            'data_przydatnosci': _format_date(data_przydatnosci) if data_przydatnosci else None,
-            'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}",
+            'data_produkcji': data_str,
+            'data_przydatnosci': przydatnosc_str,
+            'termin_przydatnosci': przydatnosc_str,
+            'partia': partia_resolved,
+            'nr_partii': partia_resolved,
+            'nr_szarzy': zasyp_nr,
+            'plan_id': plan_id,
             'nr_palety_lp': nr_palety_lp,
             'nr_plomby': nr_plomby,
-            'nr_partii': nr_partii_db,
             'is_surowiec': is_surowiec,
             'linia': linia
         }
@@ -335,16 +382,30 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             if orig_meta.get('data_produkcji'):
                 data_str = _format_date(orig_meta.get('data_produkcji'))
 
+    partia_resolved = nr_partii_db if (nr_partii_db and str(nr_partii_db) not in ('None', '')) else (f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}")
+    
+    przydatnosc_str = _format_date(data_przydatnosci) if data_przydatnosci else None
+    if not przydatnosc_str and data_str:
+        try:
+            dt_p = datetime.strptime(str(data_str)[:10], '%Y-%m-%d')
+            przydatnosc_str = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
+        except Exception:
+            pass
+
     return {
         'nrPalety': nr_palety or str(paleta_id),
         'nazwa': produkt,
         'ilosc': float(waga),
         'data': data_str,
-        'data_przydatnosci': _format_date(data_przydatnosci) if data_przydatnosci else None,
-        'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})",
+        'data_produkcji': data_str,
+        'data_przydatnosci': przydatnosc_str,
+        'termin_przydatnosci': przydatnosc_str,
+        'partia': partia_resolved,
+        'nr_partii': partia_resolved,
+        'nr_szarzy': zasyp_nr,
+        'plan_id': plan_id,
         'nr_palety_lp': nr_palety_lp,
         'nr_plomby': nr_plomby,
-        'nr_partii': nr_partii_db,
         'is_surowiec': is_surowiec,
         'linia': linia
     }
