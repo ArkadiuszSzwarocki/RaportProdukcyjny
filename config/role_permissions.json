@@ -52,7 +52,7 @@
     },
     "planista": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "laborant": {
       "access": false,
@@ -280,7 +280,7 @@
     },
     "planista": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "laborant": {
       "access": false,
@@ -374,10 +374,6 @@
       "access": true,
       "readonly": false
     },
-    "masteradmin": {
-      "access": true,
-      "readonly": false
-    },
     "widz": {
       "access": false,
       "readonly": false
@@ -402,7 +398,7 @@
     },
     "laborant": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "magazynier": {
       "access": false,
