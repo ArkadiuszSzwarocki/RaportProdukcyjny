@@ -551,6 +551,11 @@
                 </div>
             </div>
             <div class="hero-actions">
+                {% if 'OS' in (transfer.destination_warehouse|string|upper) or 'OSIP' in (transfer.destination_warehouse|string|upper) or 'OS' in (transfer.source_warehouse|string|upper) or 'OSIP' in (transfer.source_warehouse|string|upper) %}
+                <button type="button" class="hero-back-btn" id="btnSendOsipTransferEmail" onclick="sendOsipTransferReportEmail({{ transfer.id }})" style="background: #2563eb; color: #ffffff; border-color: #1d4ed8;">
+                    <i class="fas fa-paper-plane"></i> Wyślij raport E-mail
+                </button>
+                {% endif %}
                 <a href="{{ url_for('osip.transfers_view') }}" class="hero-back-btn">
                     <i class="fas fa-arrow-left"></i> Rejestr Transferów
                 </a>
@@ -930,6 +935,32 @@ function playSuccessSound() {
         osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
         osc.stop(ctx.currentTime + 0.25);
     } catch(e) {}
+}
+
+async function sendOsipTransferReportEmail(transferId) {
+    const btn = document.getElementById('btnSendOsipTransferEmail');
+    if (!btn) return;
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wysyłanie e-mail...';
+
+    try {
+        const resp = await fetch(`/osip/api/transfers/${transferId}/send_email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await resp.json();
+        if (data.success) {
+            alert('✅ ' + (data.message || 'Raport został wysłany na e-mail odbiorców OSIP.'));
+        } else {
+            alert('❌ Błąd: ' + (data.error || data.message || 'Nie udało się wysłać raportu'));
+        }
+    } catch (e) {
+        alert('❌ Błąd sieci / serwera podczas wysyłania e-mail.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
 }
 </script>
 {% endblock %}

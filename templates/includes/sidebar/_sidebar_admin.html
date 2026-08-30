@@ -96,6 +96,7 @@
         {% if role_has_access('ustawienia.zespol') %}
         <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if '/admin/ustawienia/zespol' in request.path %}active{% endif %}">Zespół i Konta</a>
         {% endif %}
+        <a href="/admin/ustawienia/email-magazyn" class="nav-sub-item {% if '/email-magazyn' in request.path %}active{% endif %}">E-mail Dostaw i Przesunięć</a>
         <a href="/admin/ustawienia/drukarki" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukarek (48h)</a>
     </div>

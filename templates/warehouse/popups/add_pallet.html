@@ -130,6 +130,9 @@
       var submitBtn = document.getElementById('addPaletaSubmit');
       form.addEventListener('submit', function(ev){
         ev.preventDefault();
+        if (typeof window.workowaniePopulatePrinter === 'function') {
+            try { window.workowaniePopulatePrinter(form); } catch(e){}
+        }
         if (!submitBtn) return;
         submitBtn.disabled = true;
         var originalText = submitBtn.textContent;

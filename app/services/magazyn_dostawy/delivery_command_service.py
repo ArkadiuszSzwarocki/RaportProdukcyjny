@@ -251,6 +251,7 @@ class DeliveryCommandService:
                                     "drukarka": printer_name,
                                     "ip": printer_ip,
                                     "typ": pallet_type,
+                                    "copies": 2,
                                     "dane": {
                                         "palletData": {
                                             "nrPalety": nr_palety,
@@ -259,7 +260,8 @@ class DeliveryCommandService:
                                             "productionDate": str(data_produkcji) if data_produkcji else '---',
                                             "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
                                             "currentWeight": qty,
-                                            "labNotes": "Przyjęta"
+                                            "labNotes": "Przyjęta",
+                                            "copies": 2
                                         }
                                     }
                                 }
@@ -270,16 +272,17 @@ class DeliveryCommandService:
                     # Start ONE thread to print all collected payloads sequentially
                     if print_payloads:
                         def run_print_queue(payloads):
+                            import time
                             import requests
                             import urllib3
                             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                             url = "http://127.0.0.1:3001/drukuj-zpl"
                             for p in payloads:
-                                for _ in range(2):
-                                    try:
-                                        requests.post(url, json=p, verify=False, timeout=3)
-                                    except Exception:
-                                        pass
+                                try:
+                                    requests.post(url, json=p, verify=False, timeout=5)
+                                except Exception:
+                                    pass
+                                time.sleep(0.08)
                         import threading
                         threading.Thread(target=run_print_queue, args=(print_payloads,), daemon=True).start()
 
@@ -500,6 +503,14 @@ class DeliveryCommandService:
                           lokalizacja_z, lokalizacja_do))
 
                 conn.commit()
+
+                if final_status == 'COMPLETED':
+                    try:
+                        from app.services.osip_report_email_service import OsipReportEmailService
+                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
+                    except Exception as mail_err:
+                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail w save_dostawa: {mail_err}")
+
                 return True, dostawa_id
             except Exception as e:
                 return False, str(e)

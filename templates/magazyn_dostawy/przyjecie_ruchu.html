@@ -1276,17 +1276,14 @@ async function printAllPendingLabels() {
     }
 
     const wantsPdfPreview = printerId === pdfPreviewPrinterId;
-    let printed = 0;
-    let skipped = 0;
+    const validItems = [];
 
     for (const item of pendingPrintItems) {
         const nrPalety = String(item.nr_palety || '').trim();
         if (!nrPalety || nrPalety === '---') {
-            skipped += 1;
             continue;
         }
-
-        const payload = {
+        validItems.push({
             nr_palety: nrPalety,
             product_name: String(item.product_name || 'Brak nazwy'),
             nr_partii: String(item.nr_partii || '---'),
@@ -1294,56 +1291,52 @@ async function printAllPendingLabels() {
             data_przydatnosci: String(item.data_przydatnosci || '---'),
             qty: Number(item.qty || 0),
             p_type: item.p_type || 'surowiec',
-        };
-
-        if (wantsPdfPreview) {
-            openLabelPreview(payload);
-            printed += 1;
-            continue;
-        }
-
-        try {
-            const resp = await fetch(reprintEndpointUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nr_palety: payload.nr_palety,
-                    printer_id: printerId,
-                    product_name: payload.product_name,
-                    nr_partii: payload.nr_partii,
-                    data_produkcji: payload.data_produkcji,
-                    data_przydatnosci: payload.data_przydatnosci,
-                    qty: payload.qty,
-                    p_type: payload.p_type
-                })
-            });
-
-            const data = await resp.json();
-            if (resp.ok && data.success) {
-                printed += 1;
-            } else {
-                skipped += 1;
-            }
-        } catch (e) {
-            skipped += 1;
-        }
+        });
     }
 
-    if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = oldHtml;
-    }
-
-    if (wantsPdfPreview) {
-        safeToast(`Otwarto podglad etykiet: ${printed}.`, 'info');
+    if (validItems.length === 0) {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
+        safeToast('Brak poprawnych pozycji do druku.', 'warning');
         return;
     }
 
-    if (printed > 0) {
-        const skippedMsg = skipped ? ` Pominięto: ${skipped}.` : '';
-        safeToast(`Wysłano ${printed} etykiet do drukarki.${skippedMsg}`, 'success');
-    } else {
-        safeToast('Nie wydrukowano żadnej etykiety.', 'warning');
+    if (wantsPdfPreview) {
+        validItems.forEach(payload => openLabelPreview(payload));
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
+        safeToast(`Otwarto podglad etykiet: ${validItems.length}.`, 'info');
+        return;
+    }
+
+    try {
+        const resp = await fetch(reprintEndpointUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                printer_id: printerId,
+                copies: 2,
+                items: validItems
+            })
+        });
+
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            safeToast(data.message || `Wysłano ${validItems.length * 2} etykiet do drukarki.`, 'success');
+        } else {
+            safeToast('Błąd: ' + (data.error || 'Nieznany błąd'), 'danger');
+        }
+    } catch (e) {
+        safeToast('Błąd komunikacji z serwerem.', 'danger');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
     }
 }
 

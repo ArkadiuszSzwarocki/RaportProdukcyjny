@@ -69,7 +69,7 @@ class LocationService:
             return str(value or '').strip().upper().replace('_', '').replace('-', '').replace(' ', '')
 
     def _is_rack_location_code(value):
-            return bool(re.match(r'^R0[1-7]\d{4}$', LocationService._normalize_location_code(value)))
+            return bool(re.match(r'^R0[1-9]\d{4}$', LocationService._normalize_location_code(value)))
 
     def _rack_sort_key(location_code):
             normalized = LocationService._normalize_location_code(location_code)
@@ -83,16 +83,21 @@ class LocationService:
                 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
                 'OSIP', 'BF_MS01', 'BF_MP01', 'PSD', 'PSD01',
                 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
-                'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07',
+                'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R09',
                 'MDO01', 'MD01',
             }
 
-            # Rack map used in inventory scanner: 3 rows x 10 places per rack.
+            # Standard rack map: R01-R07 (3 rows x 10 places)
             for rack_no in range(1, 8):
                 rack_prefix = f"R{rack_no:02d}"
                 for place in range(1, 11):
                     for row in range(1, 4):
                         candidates.add(f"{rack_prefix}{place:02d}{row:02d}")
+
+            # Regał półkowy R09: 4 kolumny/rzędy x 6 poziomów/półek (R090101 - R090406)
+            for place in range(1, 5):
+                for row in range(1, 7):
+                    candidates.add(f"R09{place:02d}{row:02d}")
 
             for idx in range(1, 78):
                 candidates.add(f"OS{idx:02d}")

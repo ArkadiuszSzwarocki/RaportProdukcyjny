@@ -122,6 +122,10 @@
         <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-cut mr-1" style="font-size:12px;"></i> Podział Palety</a>
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-mortar-pestle mr-1" style="font-size:12px;"></i> Mixowanie Palet</a>
         <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}"><i class="fas fa-truck-loading mr-1" style="font-size:12px;"></i> Wydania Zewnętrzne</a>
+        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
+        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}"><i class="fas fa-qrcode mr-1" style="font-size:12px;"></i> Skaner & Drukarka</a>
+        <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}"><i class="fas fa-print mr-1" style="font-size:12px;"></i> Drukarki ZPL</a>
+        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}"><i class="fas fa-file-invoice mr-1" style="font-size:12px;"></i> Logi Drukowania (48h)</a>
     </div>
 </div>
 

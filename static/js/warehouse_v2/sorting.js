@@ -38,25 +38,31 @@ function sortWarehouseItems(items, colIndex, dir) {
     const isAsc = (dir === 'asc');
 
     return items.sort((a, b) => {
-        if (colIndex === 1) { // ID Palety
+        if (colIndex === 1) { // ID Rekordu
+            const idA = parseInt(a.id || 0, 10) || 0;
+            const idB = parseInt(b.id || 0, 10) || 0;
+            return isAsc ? idA - idB : idB - idA;
+        }
+
+        if (colIndex === 2) { // ID Palety / SSCC
             const idA = String(a.displayId || a.id || '').toUpperCase();
             const idB = String(b.displayId || b.id || '').toUpperCase();
             return isAsc ? idA.localeCompare(idB) : idB.localeCompare(idA);
         }
 
-        if (colIndex === 2) { // Produkt
+        if (colIndex === 3) { // Produkt
             const nameA = String(a.productName || '').toUpperCase();
             const nameB = String(b.productName || '').toUpperCase();
             return isAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
         }
 
-        if (colIndex === 3) { // Ilość
+        if (colIndex === 4) { // Ilość
             const numA = parseFloat(a.amount) || 0;
             const numB = parseFloat(b.amount) || 0;
             return isAsc ? numA - numB : numB - numA;
         }
 
-        if (colIndex === 4) { // Lokalizacja
+        if (colIndex === 5) { // Lokalizacja
             const locA = (typeof parseLocationCode === 'function') ? parseLocationCode(a.location) : null;
             const locB = (typeof parseLocationCode === 'function') ? parseLocationCode(b.location) : null;
 
@@ -80,19 +86,19 @@ function sortWarehouseItems(items, colIndex, dir) {
             return isAsc ? strA.localeCompare(strB) : strB.localeCompare(strA);
         }
 
-        if (colIndex === 5) { // Typ
+        if (colIndex === 6) { // Typ
             const typA = String(a.type || '').toUpperCase();
             const typB = String(b.type || '').toUpperCase();
             return isAsc ? typA.localeCompare(typB) : typB.localeCompare(typA);
         }
 
-        if (colIndex === 6) { // Produkcja
+        if (colIndex === 7) { // Produkcja
             const dateA = String(a.date_prod || '');
             const dateB = String(b.date_prod || '');
             return isAsc ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
         }
 
-        if (colIndex === 7) { // Ważność
+        if (colIndex === 8) { // Ważność
             const expA = (a.date_exp && a.date_exp !== '-') ? a.date_exp : '9999-99-99';
             const expB = (b.date_exp && b.date_exp !== '-') ? b.date_exp : '9999-99-99';
             return isAsc ? expA.localeCompare(expB) : expB.localeCompare(expA);

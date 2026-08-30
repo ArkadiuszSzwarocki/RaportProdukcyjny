@@ -42,10 +42,20 @@ class AutoReportService:
                     linia VARCHAR(20) NOT NULL,
                     typ_raportu VARCHAR(50) NOT NULL,
                     odbiorcy TEXT,
+                    status VARCHAR(20) NOT NULL DEFAULT 'SENT',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY idx_unique_report (data_raportu, linia, typ_raportu),
                     INDEX idx_rep (data_raportu, linia, typ_raportu)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
+            try:
+                cursor.execute("ALTER TABLE auto_report_history ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'SENT'")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE auto_report_history ADD UNIQUE KEY idx_unique_report (data_raportu, linia, typ_raportu)")
+            except Exception:
+                pass
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS auto_report_schedule (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -174,13 +184,6 @@ class AutoReportService:
                 (date_str, linia, formatted_time, 1 if is_paused else 0, user_name)
             )
 
-            # Gdy ustawiono nową godzinę wysyłki (i nie wstrzymano automatu), usuwamy flagę wcześniejszego wysłania
-            if not is_paused:
-                cursor.execute(
-                    "DELETE FROM auto_report_history WHERE data_raportu = %s AND linia = %s AND typ_raportu = '15:00'",
-                    (date_str, linia)
-                )
-
             conn.commit()
             cursor.close()
 
@@ -284,7 +287,7 @@ class AutoReportService:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
                 """
-                SELECT id FROM auto_report_history 
+                SELECT id, status FROM auto_report_history 
                 WHERE data_raportu = %s AND linia = %s AND typ_raportu = '15:00'
                 LIMIT 1
                 """,
@@ -292,7 +295,10 @@ class AutoReportService:
             )
             row = cursor.fetchone()
             cursor.close()
-            return row is not None
+            if not row:
+                return False
+            status = str(row.get('status') or 'SENT').upper()
+            return status == 'SENT'
         except Exception as e:
             logger.error("[AUTO_REPORT] Blad sprawdzania historii wysylek: %s", e)
             return False
@@ -301,8 +307,79 @@ class AutoReportService:
                 conn.close()
 
     @classmethod
+    def claim_report_execution(cls, linia: str, date_str: str, typ_raportu: str = '15:00') -> bool:
+        """
+        Atomowo rezerwuje prawo do wykonania i wysyłki raportu.
+        Zabezpiecza przed współbieżnym wysyłaniem przez wiele procesów/workerów/wątków.
+        Zwraca True jeśli udało się zablokować zadanie do realizacji, False jeśli raport
+        jest już wysłany, w trakcie wysyłania lub w oknie cooldownu błędu.
+        """
+        conn = None
+        try:
+            conn = get_db_connection()
+            cls._ensure_history_table(conn)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT id, status, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
+                FROM auto_report_history
+                WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (date_str, linia, typ_raportu)
+            )
+            row = cursor.fetchone()
+
+            if row:
+                st = str(row.get('status') or 'SENT').upper()
+                age_min = int(row.get('age_min') or 0)
+                if st == 'SENT':
+                    cursor.close()
+                    return False
+                if st == 'IN_PROGRESS' and age_min < 10:
+                    cursor.close()
+                    return False
+                if st == 'FAILED' and age_min < 5:
+                    cursor.close()
+                    return False
+
+                cursor.execute(
+                    """
+                    UPDATE auto_report_history
+                    SET status = 'IN_PROGRESS', created_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (row['id'],)
+                )
+                conn.commit()
+                cursor.close()
+                return True
+            else:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy, status, created_at)
+                        VALUES (%s, %s, %s, '', 'IN_PROGRESS', NOW())
+                        """,
+                        (date_str, linia, typ_raportu)
+                    )
+                    conn.commit()
+                    cursor.close()
+                    return True
+                except Exception:
+                    cursor.close()
+                    return False
+        except Exception as e:
+            logger.error("[AUTO_REPORT] Błąd rezerwacji wysyłki raportu: %s", e)
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    @classmethod
     def mark_report_sent(cls, linia: str, date_str: str, typ_raportu: str, recipients_str: str):
-        """Rejestruje wysłanie raportu w historii."""
+        """Rejestruje udane wysłanie raportu w historii (status SENT)."""
         conn = None
         try:
             conn = get_db_connection()
@@ -310,8 +387,12 @@ class AutoReportService:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy, status, created_at)
+                VALUES (%s, %s, %s, %s, 'SENT', NOW())
+                ON DUPLICATE KEY UPDATE
+                    odbiorcy = VALUES(odbiorcy),
+                    status = 'SENT',
+                    created_at = NOW()
                 """,
                 (date_str, linia, typ_raportu, recipients_str)
             )
@@ -319,6 +400,33 @@ class AutoReportService:
             cursor.close()
         except Exception as e:
             logger.error("[AUTO_REPORT] Blad zapisu do auto_report_history: %s", e)
+        finally:
+            if conn:
+                conn.close()
+
+    @classmethod
+    def mark_report_failed(cls, linia: str, date_str: str, typ_raportu: str, error_msg: str):
+        """Oznacza próbę wysłania raportu jako nieudaną z zachowaniem cooldownu (status FAILED)."""
+        conn = None
+        try:
+            conn = get_db_connection()
+            cls._ensure_history_table(conn)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy, status, created_at)
+                VALUES (%s, %s, %s, %s, 'FAILED', NOW())
+                ON DUPLICATE KEY UPDATE
+                    odbiorcy = VALUES(odbiorcy),
+                    status = 'FAILED',
+                    created_at = NOW()
+                """,
+                (date_str, linia, typ_raportu, str(error_msg)[:255])
+            )
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            logger.error("[AUTO_REPORT] Błąd zapisu błędu do auto_report_history: %s", e)
         finally:
             if conn:
                 conn.close()
@@ -547,7 +655,15 @@ class AutoReportService:
         if not to_emails:
             msg = f"Brak skonfigurowanych odbiorcow e-mail dla linii {linia}. Anulowano wysylke o 15:00."
             logger.warning("[AUTO_REPORT] %s", msg)
+            if not force:
+                cls.mark_report_failed(linia, date_str, '15:00', msg)
             return False, msg
+
+        # Atomowa rezerwacja wykonania zadania – zabezpiecza przed równoległym generowaniem/wysyłką
+        if not force and not cls.claim_report_execution(linia, date_str, '15:00'):
+            msg = f"Raport o 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
+            logger.info("[AUTO_REPORT] %s", msg)
+            return True, msg
 
         logger.info("[AUTO_REPORT] Rozpoczynam generowanie raportu o 15:00 dla linii %s (odbiorcy: %s)", linia, to_emails)
 
@@ -622,9 +738,11 @@ class AutoReportService:
                 logger.info("[AUTO_REPORT] Raport o 15:00 wyslany pomyslnie na %s", to_emails)
                 return True, f"Raport o 15:00 wysłany pomyślnie do {len(to_emails)} odbiorców."
             else:
+                cls.mark_report_failed(linia, date_str, '15:00', message)
                 logger.error("[AUTO_REPORT] Blad wysylki email o 15:00: %s", message)
                 return False, message
         except Exception as e:
+            cls.mark_report_failed(linia, date_str, '15:00', str(e))
             logger.exception("[AUTO_REPORT] Wyjatek podczas generowania raportu o 15:00: %s", e)
             return False, str(e)
 
@@ -639,6 +757,9 @@ class AutoReportService:
 
         if not to_emails:
             return False, "Brak odbiorców e-mail dla raportu po 15:00."
+
+        if not cls.claim_report_execution(linia, date_str, 'po_15:00'):
+            return True, f"Raport po 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
 
         try:
             from app.services.shift_close_service import _load_shift_notes
@@ -714,7 +835,9 @@ class AutoReportService:
                 logger.info("[AUTO_REPORT] Raport po 15:00 wyslany pomyslnie na %s", to_emails)
                 return True, "Raport popołudniowy (po 15:00) został pomyślnie wygenerowany i wysłany."
             else:
+                cls.mark_report_failed(linia, date_str, 'po_15:00', message)
                 return False, message
         except Exception as e:
+            cls.mark_report_failed(linia, date_str, 'po_15:00', str(e))
             logger.exception("[AUTO_REPORT] Blad generowania raportu po 15:00: %s", e)
             return False, str(e)

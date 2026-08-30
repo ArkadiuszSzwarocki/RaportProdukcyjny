@@ -40,16 +40,33 @@ def test_gontaart_index_redirect(client):
 
 
 def test_gontaart_sidebar_renders_only_osip(client):
-    """Test that OSIP user sidebar renders ONLY Magazyn OSIP."""
+    """Test that OSIP user sidebar renders Magazyn OSIP with Skaner and Drukarki."""
     client.post('/login', data={'login': 'GontaArt', 'haslo': 'Artur2026'})
     
     response = client.get('/osip/transfers')
     assert response.status_code == 200
     html = response.get_data(as_text=True)
 
-    # Magazyn OSIP section must be present
+    # Magazyn OSIP section and Scanner / Printer tabs must be present
     assert 'MAGAZYN OSIP' in html
+    assert 'Skaner & Drukarka' in html
+    assert 'Drukarki ZPL' in html
 
     # Non-OSIP sections must NOT be present in navigation
     assert 'PRODUKCJA PSD' not in html
     assert 'PRODUKCJA AGRO' not in html
+
+
+def test_gontaart_access_scanner_and_printers(client):
+    """Test that GontaArt can access scanner UI and printer settings."""
+    client.post('/login', data={'login': 'GontaArt', 'haslo': 'Artur2026'})
+
+    resp_scanner = client.get('/agro/scanner/ui?linia=OSIP')
+    assert resp_scanner.status_code == 200
+
+    resp_printers = client.get('/admin/ustawienia/drukarki')
+    assert resp_printers.status_code == 200
+
+    resp_logs = client.get('/admin/ustawienia/logi-drukowania')
+    assert resp_logs.status_code == 200
+

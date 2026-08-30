@@ -39,6 +39,7 @@ function generateTableRow(item, index) {
                 data-blocked="${item.is_blocked}"
                 data-date-added="${item.date_added}">
         <td style="text-align: center; color: #94a3b8; font-weight: 700; background: ${isFirstFifo ? '#fef3c7' : '#f8fafc'}; font-size: 11px;">${index}</td>
+        <td style="text-align: center; color: #64748b; font-weight: 700; font-family: monospace; font-size: 11px;">#${item.id || '-'}</td>
         <td class="font-bold">
             <div style="display: flex; align-items: center; gap: 6px;">
                 ${icon}
@@ -304,10 +305,9 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
     }
     
     if (currentWarehouseId === 'MS01') {
-        // MS01 shows its floor and racks R04-R07
-        // Only match specific MS01 to avoid false positives with MP01-PODŁOGA
-        return locText.includes('MS01') || 
-               ['R04', 'R05', 'R06', 'R07'].some(r => (locParts ? locParts.rack === r : locText.includes(r)));
+        // MS01 shows its floor, surowce and racks R04-R07, R09
+        return locText.includes('MS01') || allText.includes('SUROWIEC') ||
+               ['R04', 'R05', 'R06', 'R07', 'R09'].some(r => (locParts ? locParts.rack === r : locText.includes(r)));
     }
     
     if (currentWarehouseId === 'MP01') {
@@ -318,7 +318,14 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
 
     // Inne magazyny (MGW, PSD, MDO, MOP)
     const searchPart = currentWarehouseId.toUpperCase().replace('BF_', '');
-    return locText.includes(searchPart);
+    if (locText.includes(searchPart)) return true;
+
+    // Obsługa magazynów rodzajowych dla asortymentów na regałach (np. R09)
+    if (currentWarehouseId === 'MOP01' && allText.includes('OPAKOWANIE')) return true;
+    if (currentWarehouseId === 'MDO01' && allText.includes('DODATEK')) return true;
+    if ((currentWarehouseId === 'MGW01' || currentWarehouseId === 'MGW02') && allText.includes('WYRÓB GOTOWY')) return true;
+    if (currentWarehouseId === 'MS01' && allText.includes('SUROWIEC')) return true;
+    return false;
 }
 
 console.log("[warehouse_v2] Logika filtrowania zainicjowana.");

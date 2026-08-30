@@ -580,7 +580,7 @@ def _create_tables(cursor):
     cursor.execute("SELECT COUNT(*) as count FROM magazyn_dozwolone_lokalizacje")
     if cursor.fetchone()[0] == 0:
         default_locs = [
-            'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07',
+            'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R09',
             'MP01', 'MS01', 'BF_MS01', 'BF_MP01', 
             'MGW01', 'MGW02', 'MOP01', 'MDO01'
         ]
@@ -590,6 +590,8 @@ def _create_tables(cursor):
             
         for loc in default_locs:
             cursor.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa) VALUES (%s)", (loc,))
+    else:
+        cursor.execute("INSERT IGNORE INTO magazyn_dozwolone_lokalizacje (nazwa, opis) VALUES ('R09', 'Regał Półkowy R09')")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS mom_pozycje (

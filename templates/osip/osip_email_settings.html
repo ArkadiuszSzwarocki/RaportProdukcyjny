@@ -1,0 +1,473 @@
+{% extends 'layout.html' %}
+{% block title %}Ustawienia E-mail Raportów OSIP | AgroMES{% endblock %}
+
+{% block content %}
+<style>
+    .osip-email-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 20px 60px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .hero-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        padding: 24px 30px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 60%, #eff6ff 100%);
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+    .hero-eyebrow {
+        font-size: 0.8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #2563eb;
+        margin-bottom: 6px;
+    }
+    .hero-title {
+        font-size: 1.75rem;
+        font-weight: 900;
+        color: #0f172a;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .hero-icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: rgba(37, 99, 235, 0.1);
+        color: #2563eb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+    .hero-subtitle {
+        color: #64748b;
+        font-size: 0.95rem;
+        margin: 6px 0 0;
+    }
+
+    .app-card {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+        overflow: hidden;
+    }
+    .app-card-header {
+        padding: 20px 26px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #ffffff;
+    }
+    .app-card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .app-card-body {
+        padding: 26px;
+    }
+
+    .preset-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+    .preset-pill {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1.5px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .preset-pill:hover {
+        border-color: #2563eb;
+        color: #2563eb;
+        background: #eff6ff;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #334155;
+    }
+    .form-input, .form-select, .form-textarea {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1.5px solid #cbd5e1;
+        font-size: 0.95rem;
+        color: #0f172a;
+        outline: none;
+        transition: border-color 0.2s ease;
+        background: #ffffff;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .form-help {
+        font-size: 0.78rem;
+        color: #64748b;
+    }
+
+    .btn-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .btn-primary-custom {
+        padding: 12px 24px;
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.2s ease;
+    }
+    .btn-primary-custom:hover {
+        background: #1d4ed8;
+    }
+
+    .btn-secondary-custom {
+        padding: 12px 20px;
+        background: #f8fafc;
+        color: #334155;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+    .btn-secondary-custom:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .notice-box {
+        padding: 14px 18px;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    .notice-info {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+    }
+    .notice-warning {
+        background: #fefce8;
+        border: 1px solid #fef08a;
+        color: #854d0e;
+    }
+
+    .test-result-box {
+        margin-top: 16px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: none;
+    }
+</style>
+
+<div class="osip-email-container">
+    <!-- Header -->
+    <div class="hero-header">
+        <div>
+            <div class="hero-eyebrow">Moduł Magazyn OSIP & Centrala</div>
+            <h1 class="hero-title">
+                <span class="hero-icon-box"><i class="fas fa-paper-plane"></i></span>
+                Konfiguracja E-mail dla Raportów OSIP
+            </h1>
+            <p class="hero-subtitle">
+                Zdefiniuj dedykowane konto pocztowe nadawcy oraz listę odbiorców. Raporty będą wysyłane automatycznie <strong>po przyjęciu towaru (ruch do OSIP oraz z OSIP)</strong>.
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('osip.transfers_view') }}" class="btn-secondary-custom">
+                <i class="fas fa-arrow-left"></i> Powrót do Transferów
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert informacyjny -->
+    <div class="notice-box notice-info">
+        <i class="fas fa-info-circle fa-lg" style="margin-top: 2px;"></i>
+        <div>
+            <strong>Niezależna skrzynka pocztowa:</strong> Moduł wysyłki raportów OSIP nie korzysta z głównego konta systemowego. Wprowadź poniżej dane konta, z którego mają wychodzić powiadomienia o załadunkach i dostawach kierowanych na OSIP.
+        </div>
+    </div>
+
+    <form id="osipEmailForm" onsubmit="saveOsipSettings(event)">
+        <!-- Karta 1: Konto Nadawcy -->
+        <div class="app-card" style="margin-bottom: 24px;">
+            <div class="app-card-header">
+                <h2 class="app-card-title">
+                    <i class="fas fa-user-cog" style="color: #2563eb;"></i>
+                    Dane Konta Nadawcy (SMTP)
+                </h2>
+                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 8px;">
+                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if settings.is_active %}checked{% endif %}>
+                    <label class="form-check-label form-label" for="is_active" style="margin: 0;">Wysyłka aktywna</label>
+                </div>
+            </div>
+            <div class="app-card-body">
+                <!-- Szybkie szablony -->
+                <div style="margin-bottom: 14px;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Wybierz dostawcę poczty:</span>
+                </div>
+                <div class="preset-pills">
+                    <button type="button" class="preset-pill" onclick="applyPreset('gmail')"><i class="fab fa-google"></i> Gmail</button>
+                    <button type="button" class="preset-pill" onclick="applyPreset('wp')"><i class="fas fa-envelope"></i> Wirtualna Polska (WP)</button>
+                    <button type="button" class="preset-pill" onclick="applyPreset('onet')"><i class="fas fa-envelope"></i> Onet</button>
+                    <button type="button" class="preset-pill" onclick="applyPreset('o2')"><i class="fas fa-envelope"></i> O2 / Tlen</button>
+                    <button type="button" class="preset-pill" onclick="applyPreset('office')"><i class="fab fa-microsoft"></i> Office 365 / Outlook</button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_username">Adres E-mail Nadawcy (Login) *</label>
+                        <input type="email" class="form-input" id="smtp_username" name="smtp_username" value="{{ settings.smtp_username }}" placeholder="np. wysylki.osip@firma.pl" required>
+                        <span class="form-help">Adres skrzynki, z której będzie wychodzić poczta.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_password">Hasło konta / Hasło aplikacji *</label>
+                        <input type="password" class="form-input" id="smtp_password" name="smtp_password" placeholder="{% if settings.smtp_password %}••••••••••••{% else %}Wpisz hasło konta{% endif %}">
+                        <span class="form-help">Dla kont Gmail/WP zalecane jest wygenerowane Hasło Aplikacji.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="sender_name">Wyświetlana nazwa nadawcy</label>
+                        <input type="text" class="form-input" id="sender_name" name="sender_name" value="{{ settings.sender_name }}" placeholder="np. Magazyn Centralny -> OSIP">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_server">Serwer SMTP *</label>
+                        <input type="text" class="form-input" id="smtp_server" name="smtp_server" value="{{ settings.smtp_server }}" placeholder="np. smtp.gmail.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_port">Port SMTP *</label>
+                        <input type="number" class="form-input" id="smtp_port" name="smtp_port" value="{{ settings.smtp_port }}" placeholder="465" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_security">Protokół szyfrowania *</label>
+                        <select class="form-select" id="smtp_security" name="smtp_security">
+                            <option value="SSL" {% if settings.smtp_security == 'SSL' %}selected{% endif %}>SSL (zwykle port 465)</option>
+                            <option value="TLS" {% if settings.smtp_security == 'TLS' %}selected{% endif %}>TLS / STARTTLS (zwykle port 587)</option>
+                            <option value="NONE" {% if settings.smtp_security == 'NONE' %}selected{% endif %}>Brak szyfrowania (port 25)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="testResultBox" class="test-result-box"></div>
+
+                <div style="margin-top: 18px;">
+                    <button type="button" class="btn-secondary-custom" id="btnTestSmtp" onclick="testSmtpConnection()">
+                        <i class="fas fa-vial"></i> Testuj połączenie ze skrzynką SMTP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 2: Odbiorcy Raportów -->
+        <div class="app-card">
+            <div class="app-card-header">
+                <h2 class="app-card-title">
+                    <i class="fas fa-users" style="color: #10b981;"></i>
+                    Lista Odbiorców Raportów OSIP
+                </h2>
+                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 8px;">
+                    <input class="form-check-input" type="checkbox" id="auto_send_on_dispatch" name="auto_send_on_dispatch" {% if settings.auto_send_on_dispatch %}checked{% endif %}>
+                    <label class="form-check-label form-label" for="auto_send_on_dispatch" style="margin: 0;">Automatyczna wysyłka po przyjęciu (Z i DO OSIP)</label>
+                </div>
+            </div>
+            <div class="app-card-body">
+                <div class="form-group">
+                    <label class="form-label" for="odbiorcy">Adresy e-mail odbiorców (rozdzielone przecinkami lub nową linią) *</label>
+                    <textarea class="form-textarea" id="odbiorcy" name="odbiorcy" rows="4" placeholder="magazyn.osip@firma.pl, logistyka@firma.pl, kierownik@firma.pl">{{ settings.odbiorcy }}</textarea>
+                    <span class="form-help">Wprowadź adresy osób, które mają otrzymywać zestawienie towaru przyjętego w relacji z magazynem OSIP.</span>
+                </div>
+
+                <div class="notice-box notice-warning" style="margin-top: 18px;">
+                    <i class="fas fa-shield-alt fa-lg" style="margin-top: 2px;"></i>
+                    <div>
+                        <strong>Reguła powiadomień:</strong> System wysyła raport po zakończeniu przyjęcia towaru, gdy transfer lub przesunięcie dotyczy magazynu <strong>OSIP</strong> (ruch z lub do OSIP). Towary transportowane wyłącznie między innymi halami nie wywołują wysyłki.
+                    </div>
+                </div>
+
+                <div class="btn-actions">
+                    <button type="submit" class="btn-primary-custom" id="btnSaveSettings">
+                        <i class="fas fa-save"></i> Zapisz konfigurację E-mail OSIP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+const PRESETS = {
+    gmail: { server: 'smtp.gmail.com', port: 465, security: 'SSL' },
+    wp: { server: 'smtp.wp.pl', port: 465, security: 'SSL' },
+    onet: { server: 'smtp.poczta.onet.pl', port: 465, security: 'SSL' },
+    o2: { server: 'poczta.o2.pl', port: 465, security: 'SSL' },
+    office: { server: 'smtp.office365.com', port: 587, security: 'TLS' }
+};
+
+function applyPreset(provider) {
+    const p = PRESETS[provider];
+    if (!p) return;
+    document.getElementById('smtp_server').value = p.server;
+    document.getElementById('smtp_port').value = p.port;
+    document.getElementById('smtp_security').value = p.security;
+}
+
+async function testSmtpConnection() {
+    const btn = document.getElementById('btnTestSmtp');
+    const resultBox = document.getElementById('testResultBox');
+    const oldHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testowanie połączenia SMTP...';
+    resultBox.style.display = 'none';
+
+    const payload = {
+        smtp_server: document.getElementById('smtp_server').value.trim(),
+        smtp_port: document.getElementById('smtp_port').value.trim(),
+        smtp_security: document.getElementById('smtp_security').value.trim(),
+        smtp_username: document.getElementById('smtp_username').value.trim(),
+        smtp_password: document.getElementById('smtp_password').value.trim()
+    };
+
+    try {
+        const resp = await fetch('{{ url_for("osip.api_test_email_settings") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+
+        resultBox.style.display = 'block';
+        if (data.success) {
+            resultBox.style.background = '#dcfce7';
+            resultBox.style.color = '#15803d';
+            resultBox.style.border = '1px solid #86efac';
+            resultBox.innerHTML = '<i class="fas fa-check-circle mr-1"></i> ' + data.message;
+        } else {
+            resultBox.style.background = '#fee2e2';
+            resultBox.style.color = '#b91c1c';
+            resultBox.style.border = '1px solid #fca5a5';
+            resultBox.innerHTML = '<i class="fas fa-times-circle mr-1"></i> ' + (data.error || data.message || 'Błąd połączenia');
+        }
+    } catch (e) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fee2e2';
+        resultBox.style.color = '#b91c1c';
+        resultBox.style.border = '1px solid #fca5a5';
+        resultBox.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Błąd sieci / serwera podczas testu.';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function saveOsipSettings(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btnSaveSettings');
+    const oldHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zapisywanie...';
+
+    const payload = {
+        smtp_server: document.getElementById('smtp_server').value.trim(),
+        smtp_port: parseInt(document.getElementById('smtp_port').value.trim() || '465'),
+        smtp_security: document.getElementById('smtp_security').value.trim(),
+        smtp_username: document.getElementById('smtp_username').value.trim(),
+        smtp_password: document.getElementById('smtp_password').value.trim(),
+        sender_name: document.getElementById('sender_name').value.trim(),
+        odbiorcy: document.getElementById('odbiorcy').value.trim(),
+        is_active: document.getElementById('is_active').checked,
+        auto_send_on_dispatch: document.getElementById('auto_send_on_dispatch').checked
+    };
+
+    try {
+        const resp = await fetch('{{ url_for("osip.api_save_email_settings") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            alert('✅ Konfiguracja E-mail OSIP została pomyślnie zapisana.');
+            location.reload();
+        } else {
+            alert('❌ Błąd zapisu: ' + (data.error || data.message || 'Nieznany błąd'));
+        }
+    } catch (e) {
+        alert('❌ Wystąpił błąd podczas komunikacji z serwerem.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+</script>
+{% endblock %}

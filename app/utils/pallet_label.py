@@ -1,5 +1,81 @@
-from datetime import datetime
+import re
+from datetime import datetime, date, timedelta
 from app.db import get_table_name
+
+def calculate_expiry_date(exp_val, prod_date_val=None, fmt='%Y-%m-%d') -> str:
+    """
+    Wyznacza sformatowaną datę przydatności (YYYY-MM-DD).
+    Obsługuje:
+      - Obiekty datetime/date oraz stringi ISO (np. '2027-08-28')
+      - Wartości tekstowe interwałów (np. '12 miesięcy', '6 miesięcy', '24 miesiące', '180 dni', '1 rok', '12')
+      - Domyślny fallback: data_produkcji + 1 rok (lub dziś + 1 rok).
+    """
+    if exp_val is not None and hasattr(exp_val, 'strftime'):
+        try:
+            return exp_val.strftime(fmt)
+        except Exception:
+            return str(exp_val)
+
+    base_dt = None
+    if prod_date_val is not None:
+        if hasattr(prod_date_val, 'strftime'):
+            base_dt = prod_date_val
+        elif isinstance(prod_date_val, str) and prod_date_val.strip():
+            for p_fmt in ('%Y-%m-%d', '%d.%m.%Y', '%Y/%m/%d', '%Y-%m-%d %H:%M:%S'):
+                try:
+                    base_dt = datetime.strptime(prod_date_val.strip()[:10], p_fmt).date()
+                    break
+                except Exception:
+                    pass
+
+    if base_dt is None:
+        base_dt = date.today()
+    elif isinstance(base_dt, datetime):
+        base_dt = base_dt.date()
+
+    exp_str = str(exp_val or '').strip()
+    if exp_str and exp_str.lower() not in ('-', 'none', 'null', 'brak', '---'):
+        for p_fmt in ('%Y-%m-%d', '%d.%m.%Y', '%Y/%m/%d'):
+            try:
+                parsed = datetime.strptime(exp_str[:10], p_fmt).date()
+                return parsed.strftime(fmt)
+            except Exception:
+                pass
+
+        match_months = re.search(r'(\d+)\s*(?:miesi|m-c|m\b|mies)', exp_str, re.IGNORECASE)
+        if match_months:
+            months = int(match_months.group(1))
+            total_m = base_dt.month - 1 + months
+            y = base_dt.year + total_m // 12
+            m = total_m % 12 + 1
+            d = min(base_dt.day, 28 if m == 2 else 30 if m in (4, 6, 9, 11) else 31)
+            return date(y, m, d).strftime(fmt)
+
+        match_days = re.search(r'(\d+)\s*(?:dni|d\b|dzień)', exp_str, re.IGNORECASE)
+        if match_days:
+            days = int(match_days.group(1))
+            return (base_dt + timedelta(days=days)).strftime(fmt)
+
+        match_years = re.search(r'(\d+)\s*(?:rok|lat|lata)', exp_str, re.IGNORECASE)
+        if match_years:
+            years = int(match_years.group(1))
+            try:
+                return base_dt.replace(year=base_dt.year + years).strftime(fmt)
+            except Exception:
+                return base_dt.replace(year=base_dt.year + years, day=28).strftime(fmt)
+
+        if exp_str.isdigit():
+            months = int(exp_str)
+            total_m = base_dt.month - 1 + months
+            y = base_dt.year + total_m // 12
+            m = total_m % 12 + 1
+            d = min(base_dt.day, 28 if m == 2 else 30 if m in (4, 6, 9, 11) else 31)
+            return date(y, m, d).strftime(fmt)
+
+    try:
+        return base_dt.replace(year=base_dt.year + 1).strftime(fmt)
+    except Exception:
+        return base_dt.replace(year=base_dt.year + 1, day=28).strftime(fmt)
 
 def _get_val(row, key, index):
     if row is None:
@@ -131,6 +207,13 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         has_nr_partii = bool(cursor.fetchone())
     except Exception:
         has_nr_partii = False
+
+    has_termin_przydatnosci = False
+    try:
+        cursor.execute(f"SHOW COLUMNS FROM {table_plan} LIKE 'termin_przydatnosci'")
+        has_termin_przydatnosci = bool(cursor.fetchone())
+    except Exception:
+        has_termin_przydatnosci = False
     
     # 1. First attempt: Find in confirmed warehouse table
     params = []
@@ -160,20 +243,22 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     final_params = tuple(params + order_params)
 
     partia_select = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
+    przyd_plan_select = "pp.termin_przydatnosci" if has_termin_przydatnosci else "NULL"
     cursor.execute(f"""
         SELECT
-            mp.produkt,
-            mp.waga_netto,
-            COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
-            COALESCE(pp.id, mp.plan_id) AS plan_id,
-            mp.nr_palety,
+            COALESCE(mp.produkt, pp.produkt) AS produkt,
+            CASE WHEN mp.waga_netto > 0 THEN mp.waga_netto ELSE COALESCE(pw.waga, mp.waga_netto) END AS waga_netto,
+            COALESCE(pp.data_planu, mp.data_planu, pw.data_dodania) AS data_planu,
+            COALESCE(pp.id, mp.plan_id, pw.plan_id) AS plan_id,
+            COALESCE(mp.nr_palety, pw.nr_palety) AS nr_palety,
             mp.paleta_workowanie_id,
-            pp.data_produkcji,
-            mp.nr_plomby,
-            mp.data_przydatnosci,
+            COALESCE(pp.data_produkcji, mp.data_produkcji, pw.data_dodania) AS data_produkcji,
+            COALESCE(mp.nr_plomby, pw.nr_plomby) AS nr_plomby,
+            COALESCE(mp.data_przydatnosci, {przyd_plan_select}) AS data_przydatnosci,
             {partia_select}
         FROM {table_mag} mp
-        LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
+        LEFT JOIN {table_pal} pw ON mp.paleta_workowanie_id = pw.id
+        LEFT JOIN {table_plan} pp ON (mp.plan_id = pp.id OR pw.plan_id = pp.id)
         {where_clause}
         {order_clause}
         LIMIT 1
@@ -271,13 +356,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
 
         partia_resolved = nr_partii_db if (nr_partii_db and str(nr_partii_db) not in ('None', '')) else (f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}")
         
-        przydatnosc_str = _format_date(data_przydatnosci) if data_przydatnosci else None
-        if not przydatnosc_str and data_str:
-            try:
-                dt_p = datetime.strptime(str(data_str)[:10], '%Y-%m-%d')
-                przydatnosc_str = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
-            except Exception:
-                pass
+        przydatnosc_str = calculate_expiry_date(data_przydatnosci, data_str)
 
         return {
             'nrPalety': nr_palety or str(paleta_id),
@@ -302,7 +381,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
 
     partia_select_pw = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
     cursor.execute(f"""
-        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, pp.data_przydatnosci) AS data_przydatnosci
+        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, {przyd_plan_select}) AS data_przydatnosci
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id
@@ -384,13 +463,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
 
     partia_resolved = nr_partii_db if (nr_partii_db and str(nr_partii_db) not in ('None', '')) else (f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}")
     
-    przydatnosc_str = _format_date(data_przydatnosci) if data_przydatnosci else None
-    if not przydatnosc_str and data_str:
-        try:
-            dt_p = datetime.strptime(str(data_str)[:10], '%Y-%m-%d')
-            przydatnosc_str = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
-        except Exception:
-            pass
+    przydatnosc_str = calculate_expiry_date(data_przydatnosci, data_str)
 
     return {
         'nrPalety': nr_palety or str(paleta_id),

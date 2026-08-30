@@ -16,24 +16,60 @@ from app.utils.pallet_id import generate_pallet_id
 from .palety_helpers import _resolve_plan_id_for_paleta
 from .misc_routes import _parse_data_produkcji_input
 
-def _select_preferred_printer(cursor):
-    """Pick production printer first, then fallback to any active printer."""
+def _select_preferred_printer(cursor, linia='AGRO'):
+    """Pick preferred printer based on production line (PSD -> 236, AGRO -> 160, OSIP -> 47/86)."""
     try:
-        cursor.execute(
-            """
-            SELECT nazwa, ip
-            FROM drukarki
-            WHERE aktywna = 1
-            ORDER BY
-                CASE
-                    WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
-                    WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
-                    ELSE 2
-                END,
-                id ASC
-            LIMIT 1
-            """
-        )
+        linia_clean = str(linia or '').strip().upper()
+        if linia_clean == 'PSD':
+            cursor.execute(
+                """
+                SELECT nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%psd%' THEN 0
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%magazyn%' THEN 1
+                        ELSE 2
+                    END,
+                    id ASC
+                LIMIT 1
+                """
+            )
+        elif linia_clean == 'OSIP':
+            cursor.execute(
+                """
+                SELECT nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%osip%' THEN 0
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%osip%' THEN 1
+                        ELSE 2
+                    END,
+                    id ASC
+                LIMIT 1
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%agro%' THEN 0
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%agro%' THEN 1
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 2
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 3
+                        ELSE 4
+                    END,
+                    id ASC
+                LIMIT 1
+                """
+            )
         row = cursor.fetchone()
         if not row:
             return None, None
@@ -254,143 +290,89 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
                 override_ip = requested_printer_ip
                 override_name = requested_printer_name or requested_printer_ip
             else:
-                override_name, override_ip = _select_preferred_printer(cursor)
-    
-            candidate_printers = []
-            seen_targets = set()
-    
-            def _append_candidate(name, ip):
-                key = ((name or '').strip().lower(), (ip or '').strip().lower())
-                if key in seen_targets:
-                    return
-                seen_targets.add(key)
-                candidate_printers.append((name, ip))
-    
-            _append_candidate(override_name, override_ip)
-    
-            # Niezależnie od wyboru ręcznego warto próbować kolejne aktywne drukarki,
-            # bo timeout pojedynczej drukarki jest częsty i chwilowy.
-            for printer_row in _list_active_printers(cursor):
-                cand_name = printer_row[1] if len(printer_row) > 1 else None
-                cand_ip = printer_row[2] if len(printer_row) > 2 else None
-                _append_candidate(cand_name, cand_ip)
-    
-            # Last resort: fallback to configured default in PrintServer.
-            _append_candidate(None, None)
-    
-            local_bridge_fallback = None
-            try:
-                fallback_printers = []
-                fallback_seen = set()
-                for cand_name, cand_ip in candidate_printers:
-                    final_name = cand_name or printer.printer_name
-                    final_ip = cand_ip or printer.printer_ip
-                    if not final_ip:
-                        continue
-                    fallback_key = (str(final_name).strip().lower(), str(final_ip).strip().lower())
-                    if fallback_key in fallback_seen:
-                        continue
-                    fallback_seen.add(fallback_key)
-                    fallback_printers.append({'name': final_name, 'ip': final_ip})
-    
-                if fallback_printers:
-                    endpoint_entries = []
-                    endpoint_seen = set()
-    
-                    def _append_bridge_endpoints(base_name, raw_base):
-                        base_value = str(raw_base or '').strip().rstrip('/')
-                        if not base_value:
-                            return
-    
-                        lowered = base_value.lower()
-                        if lowered.endswith('/drukuj-zpl'):
-                            base_value = base_value[:-11]
-                        elif lowered.endswith('/status'):
-                            base_value = base_value[:-7]
-    
-                        if '://' not in base_value:
-                            base_value = f'https://{base_value}'
-    
-                        variants = [base_value]
-                        if base_value.lower().startswith('https://'):
-                            variants.append('http://' + base_value[8:])
-                        elif base_value.lower().startswith('http://'):
-                            variants.append('https://' + base_value[7:])
-    
-                        for variant_index, variant_base in enumerate(variants, start=1):
-                            normalized_variant = variant_base.strip().rstrip('/')
-                            if not normalized_variant:
-                                continue
-                            dedupe_key = normalized_variant.lower()
-                            if dedupe_key in endpoint_seen:
-                                continue
-                            endpoint_seen.add(dedupe_key)
-                            suffix = '' if variant_index == 1 else '_alt'
-                            endpoint_entries.append(
-                                {
-                                    'name': f'{base_name}{suffix}',
-                                    'endpoint': normalized_variant + '/drukuj-zpl',
-                                    'status_endpoint': normalized_variant + '/status',
-                                }
-                            )
-    
-                    shared_bridge_base = str(os.getenv('PRINTER_CLIENT_BRIDGE_URL', '') or '').strip().rstrip('/')
-                    if not shared_bridge_base:
-                        shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
-    
-                    _append_bridge_endpoints('shared_bridge', shared_bridge_base)
-                    _append_bridge_endpoints('localhost_bridge', 'http://127.0.0.1:3001')
-    
-                    primary_endpoint = endpoint_entries[0] if endpoint_entries else None
-                    local_bridge_fallback = {
-                        'endpoint': (primary_endpoint or {}).get('endpoint'),
-                        'status_endpoint': (primary_endpoint or {}).get('status_endpoint'),
-                        'endpoints': endpoint_entries,
-                        'copies': 2,
-                        'zpl': printer.build_finished_product_label_zpl(label_data),
-                        'printers': fallback_printers,
-                        'reason': 'server_printer_timeout',
-                    }
-            except Exception as fallback_err:
-                current_app.logger.warning('Nie udało się przygotować fallbacku lokalnego wydruku: %s', fallback_err)
-    
-            ok = False
-            msg = 'Błąd druku'
+                override_name, override_ip = _select_preferred_printer(cursor, linia=linia)
+
             target_name = override_name or printer.printer_name
             target_ip = override_ip or printer.printer_ip
-    
-            for candidate_index, (cand_name, cand_ip) in enumerate(candidate_printers, start=1):
-                candidate_target_name = cand_name or printer.printer_name
-                candidate_target_ip = cand_ip or printer.printer_ip
-                candidate_ok = True
-    
-                print_ok, print_msg = printer.print_finished_product_label(
-                    label_data,
-                    override_ip=cand_ip,
-                    override_name=cand_name,
-                    copies=2
+
+            local_bridge_fallback = None
+            try:
+                endpoint_entries = []
+                endpoint_seen = set()
+
+                def _append_bridge_endpoints(base_name, raw_base):
+                    base_value = str(raw_base or '').strip().rstrip('/')
+                    if not base_value:
+                        return
+
+                    lowered = base_value.lower()
+                    if lowered.endswith('/drukuj-zpl'):
+                        base_value = base_value[:-11]
+                    elif lowered.endswith('/status'):
+                        base_value = base_value[:-7]
+
+                    if '://' not in base_value:
+                        base_value = f'https://{base_value}'
+
+                    variants = [base_value]
+                    if base_value.lower().startswith('https://'):
+                        variants.append('http://' + base_value[8:])
+                    elif base_value.lower().startswith('http://'):
+                        variants.append('https://' + base_value[7:])
+
+                    for variant_index, variant_base in enumerate(variants, start=1):
+                        normalized_variant = variant_base.strip().rstrip('/')
+                        if not normalized_variant:
+                            continue
+                        dedupe_key = normalized_variant.lower()
+                        if dedupe_key in endpoint_seen:
+                            continue
+                        endpoint_seen.add(dedupe_key)
+                        suffix = '' if variant_index == 1 else '_alt'
+                        endpoint_entries.append(
+                            {
+                                'name': f'{base_name}{suffix}',
+                                'endpoint': normalized_variant + '/drukuj-zpl',
+                                'status_endpoint': normalized_variant + '/status',
+                            }
+                        )
+
+                shared_bridge_base = str(os.getenv('PRINTER_CLIENT_BRIDGE_URL', '') or '').strip().rstrip('/')
+                if not shared_bridge_base:
+                    shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
+
+                _append_bridge_endpoints('shared_bridge', shared_bridge_base)
+                _append_bridge_endpoints('localhost_bridge', 'http://127.0.0.1:3001')
+
+                primary_endpoint = endpoint_entries[0] if endpoint_entries else None
+                local_bridge_fallback = {
+                    'endpoint': (primary_endpoint or {}).get('endpoint'),
+                    'status_endpoint': (primary_endpoint or {}).get('status_endpoint'),
+                    'endpoints': endpoint_entries,
+                    'copies': 2,
+                    'zpl': printer.build_finished_product_label_zpl(label_data),
+                    'printers': [{'name': target_name, 'ip': target_ip}],
+                    'reason': 'server_printer_timeout',
+                }
+            except Exception as fallback_err:
+                current_app.logger.warning('Nie udało się przygotować fallbacku lokalnego wydruku: %s', fallback_err)
+
+            ok, msg = printer.print_finished_product_label(
+                label_data,
+                override_ip=target_ip,
+                override_name=target_name,
+                copies=2
+            )
+            if ok:
+                msg = f"Wysłano do drukarki {target_name} ({target_ip})"
+            else:
+                current_app.logger.warning(
+                    'Ręczny wydruk paleta_id=%s nieudany (drukarka=%s, ip=%s): %s',
+                    paleta_id,
+                    target_name,
+                    target_ip,
+                    msg,
                 )
-                if not print_ok:
-                    candidate_ok = False
-                    msg = print_msg
-                    current_app.logger.warning(
-                        'Ręczny wydruk paleta_id=%s nieudany (drukarka=%s, ip=%s, próba=%s): %s',
-                        paleta_id,
-                        candidate_target_name,
-                        candidate_target_ip,
-                        candidate_index,
-                        print_msg,
-                    )
-    
-                if candidate_ok:
-                    ok = True
-                    target_name = candidate_target_name
-                    target_ip = candidate_target_ip
-                    if candidate_index > 1:
-                        msg = f"Wysłano do drukarki {target_name} ({target_ip}) po fallbacku"
-                    else:
-                        msg = f"Wysłano do drukarki {target_name} ({target_ip})"
-                    break
             
             if ok:
                 audit_log('Wydruk etykiety ZPL (ręczny)', f'paleta_id={paleta_id}, produkt={label_data["nazwa"]}, nr_palety={label_data["nrPalety"]}, kopie=2')

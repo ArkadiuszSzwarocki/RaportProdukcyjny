@@ -93,8 +93,7 @@ def dispatch():
             # 1. Drukowanie zaktualizowanej palety matki (2 sztuki)
             label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
             if label_data:
-                printer.print_pallet_label(label_data)
-                printer.print_pallet_label(label_data)
+                printer.print_pallet_label(label_data, copies=2)
                 
             # 2. Drukowanie etykiety dla zasypanego worka (1 sztuka)
             worek_label_data = {

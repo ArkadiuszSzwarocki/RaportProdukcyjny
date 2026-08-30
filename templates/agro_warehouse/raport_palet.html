@@ -206,6 +206,7 @@
             <thead>
                 <tr>
                     <th style="width:50px;">Lp.</th>
+                    <th style="width:60px;">ID</th>
                     <th>Nr palety SSCC</th>
                     <th>Waga (kg)</th>
                     <th>Nr plomby</th>
@@ -225,6 +226,7 @@
                 {% set has_confirm_meta = pal.potwierdzil_login or pal.data_potwierdzenia %}
                 <tr>
                     <td>{{ lp.value }}</td>
+                    <td style="font-family: monospace; font-size: 0.85em; font-weight: 700; color: #64748b;">#{{ pal.id or '-' }}</td>
                     <td style="font-family: monospace; font-size: 0.85em;">{{ pal.nr_palety if pal.nr_palety else '-' }}</td>
                     <td><strong>{{ pal.waga }}</strong></td>
                     <td>{{ pal.nr_plomby if pal.nr_plomby else '' }}</td>

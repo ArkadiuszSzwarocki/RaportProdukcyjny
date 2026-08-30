@@ -527,6 +527,70 @@ class ScannerService:
         if not location_code:
             return []
 
+        is_sscc_flag = ScannerService._is_sscc_code(location_code)
+
+        # Nowa obsługa dla półek regału półkowego R09 (wieloasortymentowość na półce)
+        if not is_sscc_flag and location_code.startswith('R09'):
+            conn = get_db_connection()
+            try:
+                cur = conn.cursor(dictionary=True)
+                items = []
+                inventory_sources_shelf = [
+                    ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
+                    ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
+                    ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
+                    ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
+                ]
+                for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources_shelf:
+                    table_name = get_table_name(base_table, linia)
+                    try:
+                        sql = (
+                            f"SELECT id, {qty_col} AS ilosc, {name_col} AS nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
+                            f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {table_name} WHERE UPPER(COALESCE(lokalizacja, '')) = %s AND COALESCE({qty_col}, 0) > 0 "
+                            f"ORDER BY id ASC"
+                        )
+                        cur.execute(sql, (location_code,))
+                        rows = cur.fetchall()
+                        for row in rows:
+                            items.append(_normalize_lookup_item(
+                                row,
+                                inventory_type=inv_type,
+                                inventory_key=code_prefix,
+                                code_prefix=code_prefix,
+                                can_dispatch=can_dispatch,
+                                can_split=can_split,
+                                can_print_label=can_print,
+                            ))
+                    except Exception:
+                        pass
+                
+                return [{
+                    'is_station': True,
+                    'is_shelf': True,
+                    'station_code': location_code,
+                    'id': None,
+                    'nazwa': f"Półka {location_code} (Regał R09)",
+                    'stan_magazynowy': len(items),
+                    'lokalizacja': location_code,
+                    'nr_palety': '',
+                    'nr_partii': '',
+                    'data_produkcji': '',
+                    'data_przydatnosci': '',
+                    'inventory_type': 'Półka Magazynowa (R09)',
+                    'inventory_key': 'POLKA',
+                    'inventory_code': location_code,
+                    'can_dispatch': False,
+                    'can_split': False,
+                    'can_print_label': False,
+                    'items': items,
+                    'skladniki': items,
+                    'unit': 'poz.'
+                }]
+            finally:
+                conn.close()
+
         results = []
         normalized_for_lookup = str(location_code).upper()
         conn = get_db_connection()
@@ -551,7 +615,7 @@ class ScannerService:
                     cur.execute(sql, (normalized_for_lookup,))
                     rows = cur.fetchall()
                     for row in rows:
-                        if float(row.get('ilosc') or 0) <= 0:
+                        if base_table == 'magazyn_surowce' and float(row.get('ilosc') or 0) <= 0:
                             prod_qty, prod_tank = ScannerService._get_active_production_qty(cur, row['id'], linia)
                             if prod_qty > 0:
                                 row['ilosc'] = prod_qty
@@ -569,8 +633,9 @@ class ScannerService:
                 except Exception:
                     pass
             
-            # ========== PRIORYTET 2: Jeśli nie znaleziono w magazynach, szukaj w historii ruchów (produkcja) ==========
-            if not results:
+            # ========== PRIORYTET 2: Jeśli nie znaleziono w magazynach, szukaj w historii ruchów (produkcja) dla SSCC lub surowców ==========
+            is_raw_pallet_check = ScannerService._is_sscc_code(location_code) or bool(re.match(r'^SUR-?\d+$', location_code, re.I))
+            if not results and is_raw_pallet_check:
                 try:
                     table_ruch = get_table_name('magazyn_ruch', linia)
                     sql = (
@@ -611,8 +676,6 @@ class ScannerService:
 
         if results:
             return results
-
-        is_sscc_flag = ScannerService._is_sscc_code(location_code)
 
         # Nowa obsługa dla stacji zasypowych - zwraca listę
         if not is_sscc_flag and location_code.startswith(('OS', 'BB', 'MZ', 'KO', 'PSD', 'MIX', 'BF_')):
@@ -1512,6 +1575,15 @@ def _normalize_lookup_item(
                 except Exception:
                     pass
 
+    from app.utils.pallet_label import is_packaging_item
+    is_pkg = (inventory_type == 'Opakowanie') or is_packaging_item(
+        row.get('nazwa'),
+        unit=row.get('jednostka') or row.get('unit'),
+        typ=row.get('typ') or row.get('typ_opakowania'),
+        pallet_nr=row.get('nr_palety'),
+    )
+    unit_str = 'szt.' if is_pkg else (row.get('jednostka') or row.get('unit') or 'kg')
+
     return {
         'id': row['id'],
         'nazwa': row.get('nazwa') or '',
@@ -1526,9 +1598,11 @@ def _normalize_lookup_item(
         'inventory_code': f"{code_prefix}-{row['id']}",
         'is_used_up': is_used_up,
         'status_pl': 'Zużyta / Rozchodowana' if is_used_up else inventory_type,
-        'used_up_info': f"Paleta posiada stan 0.0 kg (ostatnia znana lokalizacja: {raw_location})" if is_used_up else '',
+        'used_up_info': f"Pozycja posiada stan 0 {unit_str} (ostatnia znana lokalizacja: {raw_location})" if is_used_up else '',
         'can_dispatch': bool(can_dispatch) and not is_used_up,
         'can_split': bool(can_split) and not is_used_up,
         'can_print_label': bool(can_print_label),
-        'unit': 'kg',
+        'unit': unit_str,
+        'jednostka': unit_str,
+        'is_pkg': is_pkg,
     }

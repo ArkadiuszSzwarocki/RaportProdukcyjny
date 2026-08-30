@@ -98,9 +98,11 @@ class OsipTransferRepository:
                 dispatched_by=t_row['dispatched_by'],
                 completed_by=t_row['completed_by'],
                 notes=t_row['notes'],
-                created_at=t_row['created_at'],
-                dispatched_at=t_row['dispatched_at'],
-                completed_at=t_row['completed_at'],
+                created_at=t_row.get('created_at'),
+                dispatched_at=t_row.get('dispatched_at'),
+                completed_at=t_row.get('completed_at'),
+                email_sent_at=t_row.get('email_sent_at'),
+                email_sent_to=t_row.get('email_sent_to'),
                 items=items
             )
         finally:

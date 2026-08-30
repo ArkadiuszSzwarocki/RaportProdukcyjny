@@ -1022,8 +1022,33 @@ def start_daemon_threads(app, cleanup_enabled=False):
     try:
         def _auto_report_scheduler_loop():
             _safe_log_info('Auto-report daemon loop started (target: dynamic shift 1 scheduled time)')
+            leader_lock_name = 'auto_report_daemon_leader'
+            leader_lock_conn = None
+            next_lock_retry_at = 0.0
+
             while True:
                 try:
+                    # Zapewnij, że tylko jedna instancja/worker wykonuje harmonogram auto-raportów
+                    if not leader_lock_conn:
+                        now_ts = time.time()
+                        if now_ts >= next_lock_retry_at:
+                            leader_lock_conn = _acquire_named_lock(leader_lock_name, timeout_seconds=0)
+                            next_lock_retry_at = now_ts + 5.0
+                            if leader_lock_conn:
+                                _safe_log_info('Auto-report daemon became lock leader (instance=%s)', _INSTANCE_ID)
+
+                    if not leader_lock_conn:
+                        time.sleep(5.0)
+                        continue
+                    else:
+                        try:
+                            leader_lock_conn.ping(reconnect=False, attempts=1, delay=0)
+                        except Exception:
+                            _release_named_lock(leader_lock_conn, leader_lock_name)
+                            leader_lock_conn = None
+                            time.sleep(2.0)
+                            continue
+
                     now = datetime.now()
                     today_str = now.strftime('%Y-%m-%d')
                     now_time_str = now.strftime('%H:%M:%S')
@@ -1031,43 +1056,43 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     from app.services.auto_report_service import AutoReportService
                     from datetime import timedelta
 
-                    # Sprawdzamy dzisiejszą datę oraz wczorajszą (w przypadku pracy po północy lub niewysłanego raportu)
-                    yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-                    candidate_dates = [yesterday_str, today_str]
-
                     global_cfg = AutoReportService.get_global_config()
                     enabled_lines = global_cfg.get('enabled_lines', ['AGRO', 'PSD'])
 
-                    for target_date in candidate_dates:
-                        # Automatyczna wysyłka raportu wyłącznie w aktywne dni z konfiguracji
-                        if not AutoReportService.is_report_day(target_date):
-                            continue
-
+                    # 1. Sprawdzanie bieżącego dnia (podstawowe okno wysyłki o 15:00 lub wg harmonogramu)
+                    if AutoReportService.is_report_day(today_str):
                         for linia in ['AGRO', 'PSD']:
                             if linia not in enabled_lines:
                                 continue
 
-                            if not AutoReportService.is_1500_report_sent(linia, target_date):
-                                sched = AutoReportService.get_schedule(linia, target_date)
+                            if not AutoReportService.is_1500_report_sent(linia, today_str):
+                                sched = AutoReportService.get_schedule(linia, today_str)
                                 if not sched.get('is_paused'):
                                     sched_time = sched.get('scheduled_time_full') or '15:00:00'
-                                    should_trigger = False
-                                    
-                                    if target_date == today_str:
-                                        if now_time_str >= sched_time:
-                                            should_trigger = True
-                                    elif target_date == yesterday_str:
-                                        # Dla wczorajszej daty: wyślij jeśli ustawiono custom czas (np. po północy 00:xx) i minął ten czas,
-                                        # lub jeśli raport z wczoraj nie został wysłany
-                                        if sched.get('is_custom'):
-                                            if now_time_str >= sched_time or now_time_str >= '00:00:00':
-                                                should_trigger = True
-
-                                    if should_trigger:
-                                        _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {target_date} (sched: {sched_time}, now: {now_time_str})')
+                                    if now_time_str >= sched_time:
+                                        _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {today_str} (sched: {sched_time}, now: {now_time_str})')
                                         with app.app_context():
-                                            success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=target_date)
-                                            _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {target_date}: success={success}, msg={msg}')
+                                            success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=today_str)
+                                            _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {today_str}: success={success}, msg={msg}')
+
+                    # 2. Opcjonalne sprawdzenie wczorajszego dnia (wyłącznie we wczesnych godzinach nocnych 00:00 - 05:59, jeśli lider ustawił custom czas po północy)
+                    if now.hour < 6:
+                        yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+                        if AutoReportService.is_report_day(yesterday_str):
+                            for linia in ['AGRO', 'PSD']:
+                                if linia not in enabled_lines:
+                                    continue
+
+                                if not AutoReportService.is_1500_report_sent(linia, yesterday_str):
+                                    sched = AutoReportService.get_schedule(linia, yesterday_str)
+                                    if not sched.get('is_paused') and sched.get('is_custom'):
+                                        sched_time = sched.get('scheduled_time_full') or '15:00:00'
+                                        if sched_time < '06:00:00' and now_time_str >= sched_time:
+                                            _safe_log_info(f'[AUTO_REPORT] Triggering night custom report for {linia} on {yesterday_str} (sched: {sched_time}, now: {now_time_str})')
+                                            with app.app_context():
+                                                success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=yesterday_str)
+                                                _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {yesterday_str}: success={success}, msg={msg}')
+
                 except Exception as _e:
                     _safe_log_exception(f'Error in auto-report scheduler loop: {_e}')
                 

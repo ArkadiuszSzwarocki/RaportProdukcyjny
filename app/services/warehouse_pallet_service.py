@@ -239,21 +239,21 @@ class WarehousePalletService:
                                     pass
 
                             if not override_ip and not override_name:
-                                override_name, override_ip = _select_preferred_printer(cur2)
+                                override_name, override_ip = _select_preferred_printer(cur2, linia=linia)
                                 
-                            for copy_num in range(1, 3):
-                                try:
-                                    ok, print_msg = printer_local.print_finished_product_label(
-                                        label_data_local,
-                                        override_ip=override_ip,
-                                        override_name=override_name,
-                                    )
-                                    app.logger.info(
-                                        'Async print copy %s/2 for paleta %s: ok=%s printer=%s ip=%s msg=%s',
-                                        copy_num, nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
-                                    )
-                                except Exception as single_err:
-                                    app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
+                            try:
+                                ok, print_msg = printer_local.print_finished_product_label(
+                                    label_data_local,
+                                    override_ip=override_ip,
+                                    override_name=override_name,
+                                    copies=2
+                                )
+                                app.logger.info(
+                                    'Async print (2 copies) for paleta %s: ok=%s printer=%s ip=%s msg=%s',
+                                    nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
+                                )
+                            except Exception as single_err:
+                                app.logger.error('Print attempt failed for paleta %s: %s', paleta_id_local, single_err)
                                 
                             if 'conn2' in locals() and conn2:
                                 try:

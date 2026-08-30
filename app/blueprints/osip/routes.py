@@ -235,3 +235,97 @@ def suma_surowcow_view():
         total_pallets_all=total_pallets_all,
         search_term=search_term
     )
+
+
+@osip_bp.route('/ustawienia-email', methods=['GET'])
+@login_required
+def email_settings_view():
+    """Przekierowanie do panelu konfiguracji e-mail w Ustawieniach."""
+    return redirect(url_for('admin.admin_ustawienia_email_magazyn'))
+
+
+@osip_bp.route('/api/ustawienia-email', methods=['POST'])
+@login_required
+def api_save_email_settings():
+    """API do zapisu konfiguracji dedykowanego konta SMTP i listy odbiorców OSIP."""
+    from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+    repo = OsipEmailSettingsRepository()
+    payload = request.get_json() or {}
+
+    smtp_server = str(payload.get('smtp_server') or '').strip()
+    smtp_port = int(payload.get('smtp_port') or 465)
+    smtp_security = str(payload.get('smtp_security') or 'SSL').strip().upper()
+    smtp_username = str(payload.get('smtp_username') or '').strip()
+    smtp_password = str(payload.get('smtp_password') or '').strip()
+    sender_name = str(payload.get('sender_name') or 'Magazyn Centralny -> OSIP').strip()
+    odbiorcy = str(payload.get('odbiorcy') or '').strip()
+    is_active = bool(payload.get('is_active', True))
+    auto_send_on_dispatch = bool(payload.get('auto_send_on_dispatch', True))
+    updated_by = session.get('login') or session.get('username') or 'Użytkownik'
+
+    if not smtp_server or not smtp_username:
+        return jsonify({'success': False, 'error': 'Wypełnij wymagane pola: Serwer SMTP oraz Adres e-mail nadawcy.'}), 400
+
+    try:
+        saved = repo.save_settings(
+            smtp_server=smtp_server,
+            smtp_port=smtp_port,
+            smtp_security=smtp_security,
+            smtp_username=smtp_username,
+            smtp_password=smtp_password,
+            sender_name=sender_name,
+            odbiorcy=odbiorcy,
+            auto_send_on_dispatch=auto_send_on_dispatch,
+            is_active=is_active,
+            updated_by=updated_by
+        )
+        return jsonify({'success': True, 'message': 'Ustawienia e-mail OSIP zostały pomyślnie zapisane.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Błąd podczas zapisu: {str(e)}'}), 500
+
+
+@osip_bp.route('/api/ustawienia-email/test', methods=['POST'])
+@login_required
+def api_test_email_settings():
+    """API do testowania połączenia z podaną skrzynką pocztową SMTP."""
+    from app.services.osip_report_email_service import OsipReportEmailService
+    from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+
+    email_service = OsipReportEmailService()
+    payload = request.get_json() or {}
+
+    smtp_server = str(payload.get('smtp_server') or '').strip()
+    smtp_port = int(payload.get('smtp_port') or 465)
+    smtp_security = str(payload.get('smtp_security') or 'SSL').strip().upper()
+    smtp_username = str(payload.get('smtp_username') or '').strip()
+    smtp_password = str(payload.get('smtp_password') or '').strip()
+
+    # Jeśli nie podano hasła w formularzu, pobierz aktualnie zapisane z bazy
+    if not smtp_password:
+        repo = OsipEmailSettingsRepository()
+        current_cfg = repo.get_settings()
+        smtp_password = current_cfg.smtp_password
+
+    success, msg = email_service.test_smtp_connection(
+        smtp_server=smtp_server,
+        smtp_port=smtp_port,
+        smtp_security=smtp_security,
+        smtp_username=smtp_username,
+        smtp_password=smtp_password
+    )
+
+    return jsonify({'success': success, 'message': msg})
+
+
+@osip_bp.route('/api/transfers/<transfer_id>/send_email', methods=['POST'])
+@login_required
+def api_send_transfer_email(transfer_id):
+    """API do ręcznego wywołania wysyłki raportu transferu na OSIP."""
+    from app.services.osip_report_email_service import OsipReportEmailService
+    email_service = OsipReportEmailService()
+
+    success, msg = email_service.send_osip_transfer_report(transfer_id)
+    if success:
+        return jsonify({'success': True, 'message': msg})
+    return jsonify({'success': False, 'error': msg}), 400
+

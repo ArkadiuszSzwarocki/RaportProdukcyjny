@@ -80,7 +80,7 @@ class AcceptanceService:
                 nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'))
                 pkg_form = target.get('packageForm', 'bags') # bags or big_bag
 
-                open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD']
+                open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD', 'R09']
                 is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)
 
                 if not is_open:
@@ -175,8 +175,12 @@ class AcceptanceService:
                 conn.commit()
                 
                 if new_status == 'COMPLETED':
-                    # Auto-print raportu A4 wyłączone - raport dostępny ręcznie w module Magazyn Dostaw
-                    pass
+                    # Auto wysyłka e-mail raportu po przyjęciu każdego zarejestrowanego przesunięcia / dostawy
+                    try:
+                        from app.services.osip_report_email_service import OsipReportEmailService
+                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
+                    except Exception as mail_err:
+                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail po przyjęciu: {mail_err}")
                 
                 # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
                 if printer_ip and printer_name:
@@ -189,6 +193,7 @@ class AcceptanceService:
                             "drukarka": printer_name,
                             "ip": printer_ip,
                             "typ": p_type,
+                            "copies": 2,
                             "dane": {
                                 "palletData": {
                                     "nrPalety": nr_palety,
@@ -197,17 +202,17 @@ class AcceptanceService:
                                     "productionDate": str(data_produkcji) if data_produkcji else '---',
                                     "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
                                     "currentWeight": qty,
-                                    "labNotes": "Dostawa Przyjęta"
+                                    "labNotes": "Dostawa Przyjęta",
+                                    "copies": 2
                                 }
                             }
                         }
                         def run_print():
                             url = "http://127.0.0.1:3001/drukuj-zpl"
-                            for _ in range(2):
-                                try:
-                                    requests.post(url, json=payload, verify=False, timeout=3)
-                                except Exception:
-                                    pass
+                            try:
+                                requests.post(url, json=payload, verify=False, timeout=5)
+                            except Exception:
+                                pass
                         threading.Thread(target=run_print, daemon=True).start()
                     except Exception as e:
                         print(f"Błąd uruchomienia wątku drukowania: {e}")
@@ -359,6 +364,13 @@ class AcceptanceService:
                     )
                 )
                 conn.commit()
+
+                if new_status == 'COMPLETED':
+                    try:
+                        from app.services.osip_report_email_service import OsipReportEmailService
+                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
+                    except Exception as mail_err:
+                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail po odrzuceniu: {mail_err}")
 
                 return True, "", {
                     "all_accepted": all_processed,

@@ -1,0 +1,513 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .magazyn-email-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 16px 60px;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .hero-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 28px;
+        padding: 24px 28px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 18px;
+        color: #ffffff;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+    }
+
+    .hero-eyebrow {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #38bdf8;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .hero-title {
+        font-size: 1.65rem;
+        font-weight: 800;
+        margin: 0 0 6px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .hero-icon-box {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        background: rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 12px;
+        color: #38bdf8;
+    }
+
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 0.95rem;
+        margin: 0;
+        max-width: 680px;
+        line-height: 1.5;
+    }
+
+    .app-card {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+
+    .app-card-header {
+        padding: 18px 24px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .app-card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .app-card-body {
+        padding: 24px;
+    }
+
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .form-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 18px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 6px;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        color: #0f172a;
+        background: #f8fafc;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #0284c7;
+        background: #ffffff;
+        box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.12);
+    }
+
+    .form-help {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 4px;
+        display: block;
+    }
+
+    .preset-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+
+    .btn-preset {
+        padding: 6px 12px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-preset:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+        border-color: #94a3b8;
+    }
+
+    .btn-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .btn-primary-custom {
+        padding: 12px 24px;
+        background: #0284c7;
+        color: #ffffff;
+        border: none;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.2s ease;
+    }
+    .btn-primary-custom:hover {
+        background: #0369a1;
+    }
+
+    .btn-secondary-custom {
+        padding: 12px 20px;
+        background: #f8fafc;
+        color: #334155;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+    .btn-secondary-custom:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .notice-box {
+        padding: 14px 18px;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    .notice-info {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+    }
+    .notice-warning {
+        background: #fefce8;
+        border: 1px solid #fef08a;
+        color: #854d0e;
+    }
+
+    .test-result-box {
+        margin-top: 16px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: none;
+    }
+</style>
+
+<div class="magazyn-email-container">
+    <!-- Header -->
+    <div class="hero-header">
+        <div>
+            <div class="hero-eyebrow">Administracja & Magazyn</div>
+            <h1 class="hero-title">
+                <span class="hero-icon-box"><i class="fas fa-paper-plane"></i></span>
+                E-mail dla Raportów Dostaw i Przesunięć
+            </h1>
+            <p class="hero-subtitle">
+                Zdefiniuj dedykowane konto pocztowe nadawcy oraz listę odbiorców. Raporty są wysyłane automatycznie <strong>po przyjęciu każdego zarejestrowanego przesunięcia lub dostawy</strong>.
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn-secondary-custom">
+                <i class="fas fa-arrow-left"></i> Powrót do Ustawień
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert informacyjny -->
+    <div class="notice-box notice-info">
+        <i class="fas fa-info-circle fa-lg" style="margin-top: 2px;"></i>
+        <div>
+            <strong>Dedykowana skrzynka pocztowa:</strong> Ta konfiguracja używa wyłącznie podanego poniżej konta SMTP. Poczta systemowa nie jest wykorzystywana do wysyłki raportów dostaw i przesunięć magazynowych.
+        </div>
+    </div>
+
+    <form id="emailSettingsForm" onsubmit="saveEmailSettings(event)">
+        <!-- Karta 1: Dedykowane Konto Nadawcy (SMTP) -->
+        <div class="app-card">
+            <div class="app-card-header">
+                <h2 class="app-card-title">
+                    <i class="fas fa-server" style="color: #0284c7;"></i>
+                    Dedykowane Konto E-mail Nadawcy (SMTP)
+                </h2>
+                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 8px;">
+                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if settings.is_active %}checked{% endif %}>
+                    <label class="form-check-label form-label" for="is_active" style="margin: 0;">Moduł aktywny</label>
+                </div>
+            </div>
+            <div class="app-card-body">
+                <!-- Szybkie presety serwerów -->
+                <div class="preset-buttons">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; align-self: center; margin-right: 4px;">Szybkie szablony:</span>
+                    <button type="button" class="btn-preset" onclick="applyPreset('gmail')">Gmail (SSL 465)</button>
+                    <button type="button" class="btn-preset" onclick="applyPreset('wp')">WP.pl (SSL 465)</button>
+                    <button type="button" class="btn-preset" onclick="applyPreset('onet')">Onet.pl (SSL 465)</button>
+                    <button type="button" class="btn-preset" onclick="applyPreset('o2')">O2.pl (SSL 465)</button>
+                    <button type="button" class="btn-preset" onclick="applyPreset('office365')">Office 365 (TLS 587)</button>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_username">Adres e-mail nadawcy (Login SMTP) *</label>
+                        <input type="email" class="form-input" id="smtp_username" name="smtp_username" value="{{ settings.smtp_username }}" placeholder="np. magazyn.raporty@twojadomena.pl" required>
+                        <span class="form-help">Adres, z którego będą wychodzić maile z raportami.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_password">Hasło konta pocztowego / Hasło aplikacji *</label>
+                        <input type="password" class="form-input" id="smtp_password" name="smtp_password" value="{{ settings.smtp_password }}" placeholder="••••••••••••" required>
+                        <span class="form-help">Dla Gmail/WP/Onet zalecane jest wygenerowanie dedykowanego 'Hasła aplikacji'.</span>
+                    </div>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="sender_name">Nazwa wyświetlana nadawcy</label>
+                        <input type="text" class="form-input" id="sender_name" name="sender_name" value="{{ settings.sender_name }}" placeholder="np. Magazyn Centralny - Raporty">
+                    </div>
+
+                    <div class="form-group"></div>
+                </div>
+
+                <div class="form-grid-3">
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_server">Serwer SMTP *</label>
+                        <input type="text" class="form-input" id="smtp_server" name="smtp_server" value="{{ settings.smtp_server }}" placeholder="np. smtp.gmail.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_port">Port SMTP *</label>
+                        <input type="number" class="form-input" id="smtp_port" name="smtp_port" value="{{ settings.smtp_port }}" placeholder="465" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="smtp_security">Protokół szyfrowania *</label>
+                        <select class="form-select" id="smtp_security" name="smtp_security">
+                            <option value="SSL" {% if settings.smtp_security == 'SSL' %}selected{% endif %}>SSL (zwykle port 465)</option>
+                            <option value="TLS" {% if settings.smtp_security == 'TLS' %}selected{% endif %}>TLS / STARTTLS (zwykle port 587)</option>
+                            <option value="NONE" {% if settings.smtp_security == 'NONE' %}selected{% endif %}>Brak szyfrowania (port 25)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="testResultBox" class="test-result-box"></div>
+
+                <div style="margin-top: 18px;">
+                    <button type="button" class="btn-secondary-custom" id="btnTestSmtp" onclick="testSmtpConnection()">
+                        <i class="fas fa-vial"></i> Testuj połączenie ze skrzynką SMTP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Karta 2: Odbiorcy Raportów -->
+        <div class="app-card">
+            <div class="app-card-header">
+                <h2 class="app-card-title">
+                    <i class="fas fa-users" style="color: #10b981;"></i>
+                    Lista Odbiorców Raportów Magazynowych
+                </h2>
+                <div class="form-check form-switch" style="display: flex; align-items: center; gap: 8px;">
+                    <input class="form-check-input" type="checkbox" id="auto_send_on_dispatch" name="auto_send_on_dispatch" {% if settings.auto_send_on_dispatch %}checked{% endif %}>
+                    <label class="form-check-label form-label" for="auto_send_on_dispatch" style="margin: 0;">Automatyczna wysyłka po przyjęciu</label>
+                </div>
+            </div>
+            <div class="app-card-body">
+                <div class="form-group">
+                    <label class="form-label" for="odbiorcy">Adresy e-mail odbiorców (rozdzielone przecinkami lub nową linią) *</label>
+                    <textarea class="form-textarea" id="odbiorcy" name="odbiorcy" rows="4" placeholder="magazyn@firma.pl, logistyka@firma.pl, kierownik@firma.pl">{{ settings.odbiorcy }}</textarea>
+                    <span class="form-help">Wprowadź adresy osób, które mają otrzymywać zestawienie przyjętego towaru dla każdego zarejestrowanego przesunięcia lub dostawy.</span>
+                </div>
+
+                <div class="notice-box notice-warning" style="margin-top: 18px;">
+                    <i class="fas fa-shield-alt fa-lg" style="margin-top: 2px;"></i>
+                    <div>
+                        <strong>Reguła powiadomień:</strong> System wysyła raport natychmiast po przyjęciu towaru (zatwierdzeniu kompletu pozycji do statusu <em>COMPLETED</em>).
+                    </div>
+                </div>
+
+                <div class="btn-actions">
+                    <button type="submit" class="btn-primary-custom" id="btnSaveSettings">
+                        <i class="fas fa-save"></i> Zapisz konfigurację E-mail
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+const PRESETS = {
+    gmail: { server: 'smtp.gmail.com', port: 465, security: 'SSL' },
+    wp: { server: 'smtp.wp.pl', port: 465, security: 'SSL' },
+    onet: { server: 'poczta.onet.pl', port: 465, security: 'SSL' },
+    o2: { server: 'poczta.o2.pl', port: 465, security: 'SSL' },
+    office365: { server: 'smtp.office365.com', port: 587, security: 'TLS' }
+};
+
+function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    document.getElementById('smtp_server').value = p.server;
+    document.getElementById('smtp_port').value = p.port;
+    document.getElementById('smtp_security').value = p.security;
+}
+
+function getFormData() {
+    return {
+        smtp_server: document.getElementById('smtp_server').value.trim(),
+        smtp_port: parseInt(document.getElementById('smtp_port').value) || 465,
+        smtp_security: document.getElementById('smtp_security').value,
+        smtp_username: document.getElementById('smtp_username').value.trim(),
+        smtp_password: document.getElementById('smtp_password').value.trim(),
+        sender_name: document.getElementById('sender_name').value.trim(),
+        odbiorcy: document.getElementById('odbiorcy').value.trim(),
+        is_active: document.getElementById('is_active').checked,
+        auto_send_on_dispatch: document.getElementById('auto_send_on_dispatch').checked
+    };
+}
+
+async function testSmtpConnection() {
+    const btn = document.getElementById('btnTestSmtp');
+    const resultBox = document.getElementById('testResultBox');
+    const data = getFormData();
+
+    if (!data.smtp_server || !data.smtp_username || !data.smtp_password) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fef2f2';
+        resultBox.style.color = '#991b1b';
+        resultBox.style.border = '1px solid #fecaca';
+        resultBox.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Podaj serwer SMTP, login/e-mail oraz hasło konta nadawcy.';
+        return;
+    }
+
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testowanie połączenia SMTP...';
+    btn.disabled = true;
+    resultBox.style.display = 'none';
+
+    try {
+        const resp = await fetch('/admin/api/ustawienia-email-magazyn/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const res = await resp.json();
+
+        resultBox.style.display = 'block';
+        if (res.success) {
+            resultBox.style.background = '#f0fdf4';
+            resultBox.style.color = '#166534';
+            resultBox.style.border = '1px solid #bbf7d0';
+            resultBox.innerHTML = '<i class="fas fa-check-circle mr-2"></i> ' + res.message;
+        } else {
+            resultBox.style.background = '#fef2f2';
+            resultBox.style.color = '#991b1b';
+            resultBox.style.border = '1px solid #fecaca';
+            resultBox.innerHTML = '<i class="fas fa-times-circle mr-2"></i> ' + res.message;
+        }
+    } catch (e) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fef2f2';
+        resultBox.style.color = '#991b1b';
+        resultBox.style.border = '1px solid #fecaca';
+        resultBox.innerHTML = '<i class="fas fa-times-circle mr-2"></i> Błąd sieci podczas testowania SMTP: ' + e.message;
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function saveEmailSettings(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btnSaveSettings');
+    const data = getFormData();
+
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zapisywanie...';
+    btn.disabled = true;
+
+    try {
+        const resp = await fetch('/admin/api/ustawienia-email-magazyn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+            if (typeof showToast === 'function') {
+                showToast(res.message, 'success');
+            } else {
+                alert(res.message);
+            }
+        } else {
+            if (typeof showToast === 'function') {
+                showToast(res.message || 'Błąd zapisu', 'error');
+            } else {
+                alert('Błąd: ' + res.message);
+            }
+        }
+    } catch (e) {
+        alert('Błąd sieci podczas zapisu: ' + e.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

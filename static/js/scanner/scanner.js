@@ -440,10 +440,18 @@ function showPallet(p) {
   currentPallet = p;
   document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
   document.getElementById('palletName').textContent = p.nazwa;
+  const idVal = document.getElementById('palletIdVal');
+  if (idVal) {
+    idVal.textContent = p.id ? `#${p.id}` : '—';
+  }
   if (p.is_bucket) {
     document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${p.jednostka || 'składniki'}`;
+  } else if (p.unit === 'szt.' || p.unit === 'szt' || p.inventory_type === 'Opakowanie' || p.is_pkg) {
+    const rawVal = parseFloat(p.stan_magazynowy || 0);
+    const qtyFormatted = Number.isInteger(rawVal) ? String(parseInt(rawVal, 10)) : rawVal.toFixed(1);
+    document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${qtyFormatted}</span> ${p.unit || 'szt.'}`;
   } else {
-    document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy).toFixed(1)}</span> kg`;
+    document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${p.unit || 'kg'}`;
   }
   
   // Badge typu palety
@@ -576,6 +584,9 @@ function hidePallet() {
   document.getElementById('palletCard').classList.remove('visible');
   document.getElementById('nopalletMsg').style.display = '';
   
+  const idVal = document.getElementById('palletIdVal');
+  if (idVal) idVal.textContent = '—';
+
   const typePill = document.getElementById('palletTypePill');
   if (typePill) typePill.style.display = 'none';
   

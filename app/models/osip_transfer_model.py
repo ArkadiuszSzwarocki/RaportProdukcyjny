@@ -21,6 +21,8 @@ class OsipTransferModel:
     created_at: Optional[datetime] = None
     dispatched_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    email_sent_at: Optional[datetime] = None
+    email_sent_to: Optional[str] = None
     items: List[OsipTransferItemModel] = field(default_factory=list)
 
     def is_planned(self) -> bool:

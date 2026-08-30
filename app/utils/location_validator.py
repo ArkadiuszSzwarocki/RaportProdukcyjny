@@ -118,8 +118,13 @@ def check_rack_location_availability(location_code, current_nr_palety=None):
     """
     Sprawdza czy miejsce paletowe na regale jest wolne (nie zajęte przez inną paletę).
     Zwraca (is_valid, error_msg).
+    Dla regału półkowego R09 (R090101 - R090406) dozwolone jest przechowywanie wielu asortymentów / palet na jednej półce!
     """
     if not location_code or not is_rack_location(location_code):
+        return True, None
+        
+    normalized = str(location_code).strip().upper()
+    if normalized.startswith('R09'):
         return True, None
         
     from app.core.database import get_db_connection

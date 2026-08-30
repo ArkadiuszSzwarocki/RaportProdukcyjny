@@ -761,6 +761,9 @@
 
         <div class="footer-actions">
             <button onclick="window.print()" class="btn primary">🖨️ Drukuj raport (A4)</button>
+            <button onclick="sendOsipDeliveryReportEmail({{ dostawa.id }})" id="btnSendOsipEmail" class="btn" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700;">
+                📧 Wyślij raport E-mail
+            </button>
             <a href="{{ url_for('magazyn_dostawy.reception_view', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
         </div>
     </div>
@@ -768,6 +771,32 @@
     <div id="reportToast" class="report-toast"></div>
 
     <script>
+    async function sendOsipDeliveryReportEmail(dostawaId) {
+        const btn = document.getElementById('btnSendOsipEmail');
+        if (!btn) return;
+        const oldText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Wysyłanie e-mail...';
+
+        try {
+            const resp = await fetch(`/magazyn-dostawy/api/send-osip-report/${dostawaId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showReportToast(data.message || 'Raport wysłany na e-mail OSIP.', 'success');
+            } else {
+                showReportToast('Błąd: ' + (data.error || 'Nie udało się wysłać raportu'), 'danger');
+            }
+        } catch (e) {
+            showReportToast('Błąd komunikacji z serwerem.', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+        }
+    }
+
     const labelPreviewBaseUrl = {{ url_for('magazyn_dostawy.podglad_etykiety')|tojson }};
     const reprintEndpointUrl = {{ url_for('magazyn_dostawy.dodruk_etykiet')|tojson }};
     const reportRows = {{ rows|tojson }};
@@ -879,68 +908,50 @@
         }
 
         const wantsPdfPreview = printerId === pdfPreviewPrinterId;
-        let printed = 0;
-        let skipped = 0;
-
-        for (const row of validRows) {
-            const payload = {
-                nr_palety: row.nr_palety,
-                product_name: row.product_name || 'Brak nazwy',
-                nr_partii: row.nr_partii || '---',
-                data_produkcji: row.data_produkcji || '---',
-                data_przydatnosci: row.data_przydatnosci || '---',
-                qty: Number(row.qty || 0),
-                p_type: row.unit === 'szt' ? 'packaging' : 'surowiec',
-            };
-
-            if (wantsPdfPreview) {
-                openLabelPreview(payload);
-                printed += 1;
-                continue;
-            }
-
-            try {
-                const resp = await fetch(reprintEndpointUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        nr_palety: payload.nr_palety,
-                        printer_id: printerId,
-                        product_name: payload.product_name,
-                        nr_partii: payload.nr_partii,
-                        data_produkcji: payload.data_produkcji,
-                        data_przydatnosci: payload.data_przydatnosci,
-                        qty: payload.qty,
-                        p_type: payload.p_type
-                    })
-                });
-
-                const data = await resp.json();
-                if (resp.ok && data.success) {
-                    printed += 1;
-                } else {
-                    skipped += 1;
-                }
-            } catch (e) {
-                skipped += 1;
-            }
-        }
-
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = oldHtml;
-        }
+        const validItems = validRows.map(row => ({
+            nr_palety: row.nr_palety,
+            product_name: row.product_name || 'Brak nazwy',
+            nr_partii: row.nr_partii || '---',
+            data_produkcji: row.data_produkcji || '---',
+            data_przydatnosci: row.data_przydatnosci || '---',
+            qty: Number(row.qty || 0),
+            p_type: row.unit === 'szt' ? 'packaging' : 'surowiec',
+        }));
 
         if (wantsPdfPreview) {
-            showReportToast(`Otwarto podgląd dla ${printed} etykiet.`, 'info');
+            validItems.forEach(payload => openLabelPreview(payload));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = oldHtml;
+            }
+            showReportToast(`Otwarto podgląd dla ${validItems.length} etykiet.`, 'info');
             return;
         }
 
-        if (printed > 0) {
-            const skippedMsg = skipped ? ` Pominięto: ${skipped}.` : '';
-            showReportToast(`Wysłano ${printed} etykiet do drukarki.${skippedMsg}`, 'success');
-        } else {
-            showReportToast('Nie wydrukowano żadnej etykiety.', 'warning');
+        try {
+            const resp = await fetch(reprintEndpointUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    printer_id: printerId,
+                    copies: 2,
+                    items: validItems
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                showReportToast(data.message || `Wysłano ${validItems.length * 2} etykiet do drukarki.`, 'success');
+            } else {
+                showReportToast('Błąd: ' + (data.error || 'Nieznany błąd'), 'danger');
+            }
+        } catch (e) {
+            showReportToast('Błąd komunikacji z serwerem.', 'danger');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = oldHtml;
+            }
         }
     }
     </script>

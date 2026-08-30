@@ -66,3 +66,28 @@ def test_dodruk_etykiet_success(mock_thread, mock_db, app_client):
     assert data['success'] is True
     assert 'Wysłano 2 etykiety do drukarki' in data['message']
     assert mock_thread.called
+
+@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('threading.Thread')
+def test_dodruk_etykiet_batch_success(mock_thread, mock_db, app_client):
+    """Test successful batch dodruk_etykiet dispatch."""
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = {'id': 1, 'ip': '192.168.1.100', 'nazwa': 'Zebra_Magazyn'}
+    mock_conn.cursor.return_value = mock_cursor
+    mock_db.return_value = mock_conn
+
+    res = app_client.post('/magazyn-dostawy/api/dodruk-etykiet', json={
+        'printer_id': 1,
+        'copies': 2,
+        'items': [
+            {'nr_palety': 'SUR001', 'product_name': 'Cukier', 'qty': 1000, 'p_type': 'surowiec'},
+            {'nr_palety': 'SUR002', 'product_name': 'Sól', 'qty': 500, 'p_type': 'surowiec'}
+        ]
+    })
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data['success'] is True
+    assert data['count'] == 2
+    assert 'Wysłano 4 etykiet (2 palet po 2 szt)' in data['message']
+    assert mock_thread.called

@@ -486,12 +486,21 @@
                             {% if job.status == 'ERROR' %}
                                 <div style="color: #dc2626; font-weight: 700; word-break: break-word;">
                                     <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">warning</span>
-                                    {{ job.error_message }}
+                                    {{ job.error_message or 'Błąd podczas komunikacji z drukarką' }}
                                 </div>
-                            {% else %}
+                            {% elif job.status == 'DONE' %}
                                 <div style="color: #16a34a; font-weight: 600;">
                                     <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">verified</span>
-                                    {{ job.error_message or 'Czujniki ~HS OK - Fizyczny wydruk zakończony' }}
+                                    {% if job.error_message and ('Czujniki' in job.error_message or 'Licznik' in job.error_message) and 'Błąd' not in job.error_message %}
+                                        {{ job.error_message }}
+                                    {% else %}
+                                        Czujniki ~HS OK - Fizyczny wydruk zakończony
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div style="color: #854d0e; font-weight: 600;">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">hourglass_top</span>
+                                    Oczekuje w kolejce bufora druku...
                                 </div>
                             {% endif %}
                         </td>

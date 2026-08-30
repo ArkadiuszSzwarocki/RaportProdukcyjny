@@ -390,6 +390,11 @@ def raport_przesuniecia(dostawa_id):
                     dostawa['status'] = 'COMPLETED'
                     cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))
                     conn.commit()
+                    try:
+                        from app.services.osip_report_email_service import OsipReportEmailService
+                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
+                    except Exception as mail_err:
+                        logging.warning(f"Error triggering email report in raport_przesuniecia: {mail_err}")
             except Exception as e:
                 import logging
                 logging.warning(f"Error checking physical pallet locations for delivery {dostawa_id}: {e}")
@@ -501,6 +506,13 @@ def raport_przesuniecia(dostawa_id):
         except Exception as pe:
             print(f"Error fetching printers in raport_przesuniecia: {pe}")
 
+        from app.services.osip_report_email_service import OsipReportEmailService
+        is_osip_destination = OsipReportEmailService.is_osip_involved(
+            dostawa.get('lokalizacja_z'),
+            dostawa.get('lokalizacja_do') or lokalizacja_do_str,
+            items
+        )
+
         return render_template(
             template_name,
             dostawa=dostawa,
@@ -515,6 +527,7 @@ def raport_przesuniecia(dostawa_id):
             rejected_count=rejected_count,
             pending_count=pending_count,
             lokalizacja_do_str=lokalizacja_do_str,
+            is_osip_destination=is_osip_destination,
             printers=printers,
             created_at_str=_safe_datetime_str(dostawa.get('created_at')),
             confirmed_at_str=_safe_datetime_str(dostawa.get('potwierdzone_at')),
@@ -523,4 +536,17 @@ def raport_przesuniecia(dostawa_id):
         )
     finally:
         conn.close()
+
+
+@magazyn_dostawy_bp.route('/api/send-osip-report/<dostawa_id>', methods=['POST'])
+@login_required
+def api_send_osip_report(dostawa_id):
+    """API do wysyłki raportu przesunięcia / dostawy na adres e-mail OSIP (tylko jeśli cel to OSIP)."""
+    from app.services.osip_report_email_service import OsipReportEmailService
+    service = OsipReportEmailService()
+    success, message = service.send_central_delivery_osip_report(dostawa_id)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    return jsonify({'success': False, 'error': message}), 400
+
 

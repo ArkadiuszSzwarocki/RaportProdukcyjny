@@ -3,6 +3,7 @@ import json
 import socket
 import logging
 import time
+import threading
 from datetime import datetime
 from flask import Flask, request, jsonify
 try:
@@ -148,74 +149,94 @@ def sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5):
         logger.debug(f"[~HS] Nie odczytano statusu ~HS: {e}")
         return True, "Wysłano dane (brak zwrotnego statusu ~HS)"
 
+_printer_lock = threading.Lock()
+
 def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_delay=None, printer_name=None):
     """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP, lub do bufora Windows Spooler dla USB."""
-    ip_str = str(ip or '').strip()
-    
-    # Obsługa drukarek USB oraz lokalnych sterowników Windows Spooler
-    if ip_str.upper() == 'USB' or ip_str.lower().startswith('usb'):
-        win_target = printer_name if (printer_name and printer_name.upper() != 'USB') else None
-        logger.info(f"[USB] Drukarka podłączona przez USB/Spooler. Wysłanie do {win_target or 'domyślnej drukarki Windows'}...")
-        return wyslij_do_drukarki_win32(zpl, win_target)
-
-    tcp_timeout = DEFAULT_PRINTER_TCP_TIMEOUT if timeout is None else max(0.5, float(timeout))
-    attempts = DEFAULT_PRINTER_TCP_RETRIES if retries is None else max(1, int(retries))
-    pause_s = DEFAULT_PRINTER_TCP_RETRY_DELAY if retry_delay is None else max(0.0, float(retry_delay))
-
-    last_error_message = 'Błąd połączenia z drukarką'
-
-    for attempt in range(1, attempts + 1):
-        try:
-            logger.info(f"[TCP] Wysyłanie danych do {ip_str}:{port} (próba {attempt}/{attempts})...")
-            
-            # Ensure ZPL ends with newline to prevent printer spooler hang
-            if not zpl.endswith('\n'):
-                zpl += '\r\n'
-                
-            with socket.create_connection((ip_str, port), timeout=tcp_timeout) as tcp_socket:
-                tcp_socket.sendall(zpl.encode('utf-8'))
-                
-                # Dwukierunkowa weryfikacja czujników mechanicznych Zebra (~HS)
-                ok_sensor, sensor_msg = sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5)
-                if not ok_sensor:
-                    logger.error(f"[TCP] {sensor_msg} dla {ip_str}:{port}")
-                    raise Exception(sensor_msg)
-
-                # Allow time for the printer to process before tearing down the TCP connection
-                time.sleep(0.2)
-                try:
-                    tcp_socket.shutdown(socket.SHUT_RDWR)
-                except Exception:
-                    pass
-
-            if attempt > 1:
-                logger.info(f"[TCP] Sukces po ponowieniu dla {ip_str}:{port} (próba {attempt}/{attempts})")
-            return True
-        except socket.timeout:
-            last_error_message = 'Timeout połączenia z drukarką'
-            logger.warning(f"[TCP] Timeout dla {ip_str}:{port} (próba {attempt}/{attempts})")
-        except Exception as e:
-            last_error_message = str(e)
-            logger.warning(f"[TCP] Błąd połączenia z {ip_str}:{port} (próba {attempt}/{attempts}) - {str(e)}")
-
-        if attempt < attempts and pause_s > 0:
-            time.sleep(pause_s)
-
-    # Próba fallbacku do Windows Spooler TYLKO dla drukarek OSIP / Windows Spooler
-    is_osip_printer = (
-        ip_str == '192.168.1.47' or
-        (printer_name and any(token in str(printer_name).lower() for token in ('osip', 'spooler', 'win32')))
-    )
-    if is_osip_printer:
-        win_target = printer_name if (printer_name and not printer_name.startswith('192.')) else None
-        logger.info(f"[FALLBACK OSIP] Próba wysłania przez Windows Spooler ({win_target or 'domyślna drukarka Windows'})...")
-        try:
+    with _printer_lock:
+        ip_str = str(ip or '').strip()
+        target_port = port
+        if ':' in ip_str:
+            parts = ip_str.split(':', 1)
+            ip_str = parts[0].strip()
+            try:
+                target_port = int(parts[1].strip())
+            except Exception:
+                target_port = port
+        
+        # Obsługa drukarek USB oraz lokalnych sterowników Windows Spooler
+        if ip_str.upper() == 'USB' or ip_str.lower().startswith('usb'):
+            win_target = printer_name if (printer_name and printer_name.upper() != 'USB') else None
+            logger.info(f"[USB] Drukarka podłączona przez USB/Spooler. Wysłanie do {win_target or 'domyślnej drukarki Windows'}...")
             return wyslij_do_drukarki_win32(zpl, win_target)
-        except Exception as win_err:
-            logger.error(f"[FALLBACK OSIP] Nieudany fallback Windows Spooler: {win_err}")
 
-    logger.error(f"[TCP] Błąd końcowy dla {ip_str}:{port} po {attempts} próbach: {last_error_message}")
-    raise Exception(f'{last_error_message} (po {attempts} próbach)')
+        tcp_timeout = DEFAULT_PRINTER_TCP_TIMEOUT if timeout is None else max(0.5, float(timeout))
+        attempts = DEFAULT_PRINTER_TCP_RETRIES if retries is None else max(1, int(retries))
+        pause_s = DEFAULT_PRINTER_TCP_RETRY_DELAY if retry_delay is None else max(0.0, float(retry_delay))
+
+        last_error_message = 'Błąd połączenia z drukarką'
+
+        # Lista portów do wypróbowania (dla drukarki OSIP .47 uwzględniamy port 9143 i 9100)
+        candidate_ports = [target_port]
+        if ip_str == '192.168.1.47':
+            if 9143 not in candidate_ports:
+                candidate_ports.append(9143)
+            if 9100 not in candidate_ports:
+                candidate_ports.append(9100)
+
+        for p_port in candidate_ports:
+            for attempt in range(1, attempts + 1):
+                try:
+                    logger.info(f"[TCP] Wysyłanie danych do {ip_str}:{p_port} (próba {attempt}/{attempts})...")
+                    
+                    # Ensure ZPL ends with newline to prevent printer spooler hang
+                    if not zpl.endswith('\n'):
+                        zpl += '\r\n'
+                        
+                    with socket.create_connection((ip_str, p_port), timeout=tcp_timeout) as tcp_socket:
+                        tcp_socket.sendall(zpl.encode('utf-8'))
+                        
+                        # Dwukierunkowa weryfikacja czujników mechanicznych Zebra (~HS)
+                        ok_sensor, sensor_msg = sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5)
+                        if not ok_sensor:
+                            logger.error(f"[TCP] {sensor_msg} dla {ip_str}:{p_port}")
+                            raise Exception(sensor_msg)
+
+                        # Allow time for the printer to process before tearing down the TCP connection
+                        time.sleep(0.2)
+                        try:
+                            tcp_socket.shutdown(socket.SHUT_RDWR)
+                        except Exception:
+                            pass
+
+                    if attempt > 1 or p_port != target_port:
+                        logger.info(f"[TCP] Sukces dla {ip_str}:{p_port} (próba {attempt}/{attempts})")
+                    return True
+                except socket.timeout:
+                    last_error_message = f'Timeout połączenia z drukarką {ip_str}:{p_port}'
+                    logger.warning(f"[TCP] Timeout dla {ip_str}:{p_port} (próba {attempt}/{attempts})")
+                except Exception as e:
+                    last_error_message = str(e)
+                    logger.warning(f"[TCP] Błąd połączenia z {ip_str}:{p_port} (próba {attempt}/{attempts}) - {str(e)}")
+
+                if attempt < attempts and pause_s > 0:
+                    time.sleep(pause_s)
+
+        # Próba fallbacku do Windows Spooler TYLKO dla drukarek OSIP / Windows Spooler
+        is_osip_printer = (
+            ip_str == '192.168.1.47' or
+            (printer_name and any(token in str(printer_name).lower() for token in ('osip', 'spooler', 'win32')))
+        )
+        if is_osip_printer:
+            win_target = printer_name if (printer_name and not printer_name.startswith('192.')) else None
+            logger.info(f"[FALLBACK OSIP] Próba wysłania przez Windows Spooler ({win_target or 'domyślna drukarka Windows'})...")
+            try:
+                return wyslij_do_drukarki_win32(zpl, win_target)
+            except Exception as win_err:
+                logger.error(f"[FALLBACK OSIP] Nieudany fallback Windows Spooler: {win_err}")
+
+        logger.error(f"[TCP] Błąd końcowy dla {ip_str} po próbach: {last_error_message}")
+        raise Exception(f'{last_error_message} (po próbach TCP)')
 
 
 @app.route('/status', methods=['GET'])
@@ -266,10 +287,19 @@ def drukuj_zpl():
     # Ustalanie docelowego IP: priorytet ma pole 'ip', potem mapa nazw
     target_ip = ip or PRINTER_IP_MAP.get(drukarka)
 
+    raw_copies = data.get('copies') or (dane.get('copies') if isinstance(dane, dict) else None)
+    if raw_copies is None and isinstance(dane, dict) and isinstance(dane.get('palletData'), dict):
+        raw_copies = dane['palletData'].get('copies')
+    try:
+        copies = max(1, int(raw_copies or 1))
+    except Exception:
+        copies = 1
+
     logger.info(f"\n--- NOWE ZLECENIE ---")
     logger.info(f"- Typ: {typ}")
     logger.info(f"- Drukarka (nazwa): {drukarka or 'dynamiczna'}")
     logger.info(f"- IP: {target_ip}")
+    logger.info(f"- Liczba kopii: {copies}")
 
     if not target_ip:
         logger.error("❌ BŁĄD: Nie określono adresu IP drukarki.")
@@ -279,6 +309,9 @@ def drukuj_zpl():
 
     if isinstance(dane, str):
         zpl_string = dane
+        if copies > 1 and '^PQ' not in zpl_string:
+            if '^XZ' in zpl_string:
+                zpl_string = zpl_string.rsplit('^XZ', 1)[0] + f"^PQ{copies}\n^XZ"
     else:
         # Generowanie ZPL z obiektu JSON (identycznie jak w Mlecznej Drodze)
         p = dane.get('palletData') if isinstance(dane, dict) and 'palletData' in dane else dane
@@ -365,6 +398,9 @@ def drukuj_zpl():
         }
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
         zpl_string += f"^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS\n"
+
+        if copies > 1:
+            zpl_string += f"^PQ{copies}\n"
 
         zpl_string += "^XZ"
 

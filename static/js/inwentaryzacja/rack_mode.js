@@ -52,6 +52,9 @@ function renderRackGrid(prefix) {
     } else if (normPrefix === 'R06') {
         maxCols = 5;
         maxRows = 5;
+    } else if (normPrefix === 'R09') {
+        maxCols = 4;
+        maxRows = 6;
     }
     
     grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;
@@ -83,12 +86,15 @@ function renderRackGrid(prefix) {
             
             // Determine if there is a pallet in the slot currently (systemic or actual)
             let hasPallet = false;
+            let activeItemCount = 0;
             if (items.length > 0) {
                 const countedItems = items.filter(i => i.counted);
                 if (countedItems.length > 0) {
-                    hasPallet = countedItems.some(i => i.waga_faktyczna > 0);
+                    hasPallet = countedItems.some(i => parseFloat(i.waga_faktyczna || 0) > 0);
+                    activeItemCount = countedItems.filter(i => parseFloat(i.waga_faktyczna || 0) > 0 && i.nazwa !== 'PUSTE GNIAZDO').length;
                 } else {
                     hasPallet = true; // system has it, not counted yet
+                    activeItemCount = items.filter(i => parseFloat(i.stan_magazynowy || 0) > 0 && i.nazwa !== 'PUSTE GNIAZDO').length;
                 }
             }
 
@@ -105,7 +111,10 @@ function renderRackGrid(prefix) {
                 }
             }
 
-            const indicatorNum = hasPallet ? '1' : '0';
+            let indicatorNum = hasPallet ? '1' : '0';
+            if (normPrefix === 'R09' && hasPallet) {
+                indicatorNum = String(activeItemCount > 0 ? activeItemCount : 1);
+            }
             const numColor = hasPallet ? (hasCounted ? '#166534' : '#2563eb') : '#94a3b8';
             
             cell.innerHTML = `
@@ -217,7 +226,13 @@ function markCellDone(locId, isEmpty) {
         const col = locId.slice(-4, -2);
         const row = locId.slice(-2);
         
-        const val = isEmpty ? '0' : '1';
+        const items = rackData[locId] || [];
+        const isR09 = locId.startsWith('R09');
+        let val = isEmpty ? '0' : '1';
+        if (isR09 && !isEmpty) {
+            const countedActive = items.filter(i => i.nazwa !== 'PUSTE GNIAZDO' && i.counted && parseFloat(i.waga_faktyczna || 0) > 0).length;
+            val = String(countedActive > 0 ? countedActive : 1);
+        }
         const numColor = isEmpty ? '#94a3b8' : '#166534';
         
         cell.innerHTML = `

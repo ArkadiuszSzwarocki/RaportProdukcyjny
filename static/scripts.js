@@ -3098,9 +3098,9 @@ window.openPrinterSettingsModal = function() {
 };
 
 window.getPreferredZplPrinter = function() {
-    let val = localStorage.getItem('agromes_preferred_zpl_printer') || '';
-    let ip = localStorage.getItem('agromes_preferred_zpl_printer_ip') || '';
-    let name = localStorage.getItem('agromes_preferred_zpl_printer_name') || '';
+    let val = localStorage.getItem('agromes_preferred_zpl_printer') || localStorage.getItem('selected_printer') || '';
+    let ip = localStorage.getItem('agromes_preferred_zpl_printer_ip') || localStorage.getItem('preferred_printer_ip') || '';
+    let name = localStorage.getItem('agromes_preferred_zpl_printer_name') || localStorage.getItem('preferred_printer_name') || '';
     if (!ip && val) {
         if (val.startsWith('net:')) {
             ip = val.replace('net:', '').trim();

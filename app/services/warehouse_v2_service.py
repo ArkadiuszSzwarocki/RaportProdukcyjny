@@ -335,9 +335,24 @@ class WarehouseV2Service:
                             if changed:
                                 all_processed = all(i.get('accepted') or i.get('rejected') for i in d_items)
                                 new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
-                                cur_dict.execute("UPDATE magazyn_dostawy SET items = %s, status = %s WHERE id = %s", (json.dumps(d_items), new_status, d['id']))
+                                cur_dict.execute(
+                                    """
+                                    UPDATE magazyn_dostawy 
+                                    SET items = %s, status = %s, 
+                                        potwierdzone_przez = IF(%s, COALESCE(potwierdzone_przez, %s), potwierdzone_przez), 
+                                        potwierdzone_at = IF(%s, COALESCE(potwierdzone_at, NOW()), potwierdzone_at) 
+                                    WHERE id = %s
+                                    """,
+                                    (json.dumps(d_items), new_status, 1 if all_processed else 0, worker_login, 1 if all_processed else 0, d['id'])
+                                )
                                 
                                 if new_status == 'COMPLETED':
+                                    try:
+                                        from app.services.osip_report_email_service import OsipReportEmailService
+                                        OsipReportEmailService.trigger_async_delivery_report(d['id'])
+                                    except Exception as mail_err:
+                                        print("[WAREHOUSE_EMAIL] Błąd wysyłki e-mail ze skanera:", mail_err)
+
                                     try:
                                         from flask import url_for
                                         from app.services.office_print_service import trigger_office_print_url

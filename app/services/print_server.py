@@ -438,7 +438,7 @@ class PrintServer:
                 pass
 
         partia_line = f"^FO40,890^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
-        przydatnosc_line = f"^FO40,950^A0N,45,45^FDTERMIN PRZYDATNOŚCI: {data_przydatnosci}^FS" if data_przydatnosci else ""
+        przydatnosc_line = f"^FO40,950^A0N,45,45^FDPRZYDATNOSC: {data_przydatnosci}^FS" if data_przydatnosci else ""
         plomba_line = f"^FO40,1010^A0N,40,40^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
         
         from app.utils.pallet_label import is_packaging_item

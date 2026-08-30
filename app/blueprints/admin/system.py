@@ -1,7 +1,27 @@
+from functools import wraps
 from flask import flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.db import get_active_database_name, get_runtime_switchable_databases, set_active_database_name, get_db_connection
 from app.decorators import admin_required, dynamic_role_required, masteradmin_required, login_required
+
+def printer_access_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'zalogowany' not in session:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        from app.core.contexts import inject_role_permissions
+        role_checker = inject_role_permissions().get('role_has_access')
+        user_group = str(session.get('grupa') or '').upper().strip()
+        user_role = str(session.get('rola') or '').lower().strip()
+        if (role_checker and (role_checker('ustawienia') or role_checker('magazyn.card'))) or user_group == 'OSIP' or user_role in ['admin', 'masteradmin', 'magazynier', 'zarzad']:
+            return f(*args, **kwargs)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': 'forbidden'}), 403
+        flash("Brak uprawnień do modułu drukarek.", "error")
+        return redirect('/')
+    return decorated
 
 
 
@@ -438,7 +458,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             return jsonify({'success': False, 'message': f'Błąd startu: {str(e)}'}), 500
 
     @admin_bp.route('/admin/ustawienia/drukarki')
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_ustawienia_drukarki():
         from app.db import get_db_connection
         import socket
@@ -451,16 +471,52 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             cursor.execute("SELECT * FROM drukarki ORDER BY id ASC")
             printers = cursor.fetchall() or []
             
-            # Szybkie sprawdzenie dostępności IP (TCP 9100) dla drukarek etykiet
+            # Szybkie sprawdzenie dostępności IP (TCP 9100 / 9143) dla drukarek etykiet
             for p in printers:
                 ip_str = str(p.get('ip') or '').strip()
                 if ip_str and ip_str.upper() != 'USB' and not ip_str.lower().startswith('usb'):
-                    try:
-                        s = socket.create_connection((ip_str, 9100), timeout=0.4)
-                        s.close()
-                        p['tcp_online'] = True
-                    except Exception:
-                        p['tcp_online'] = False
+                    clean_ip = ip_str
+                    target_port = 9100
+                    if ':' in ip_str:
+                        parts = ip_str.split(':', 1)
+                        clean_ip = parts[0].strip()
+                        try:
+                            target_port = int(parts[1].strip())
+                        except Exception:
+                            target_port = 9100
+
+                    candidate_ports = [target_port]
+                    if clean_ip == '192.168.1.47':
+                        if 9143 not in candidate_ports:
+                            candidate_ports.append(9143)
+                        if 9100 not in candidate_ports:
+                            candidate_ports.append(9100)
+
+                    is_online = False
+                    for chk_port in candidate_ports:
+                        try:
+                            s = socket.create_connection((clean_ip, chk_port), timeout=0.35)
+                            s.close()
+                            is_online = True
+                            break
+                        except Exception:
+                            pass
+
+                    # Jeśli serwer WWW działa zdalnie (np. z danych mobilnych/kontenera),
+                    # sprawdź czy lokalny spooler w Sochaczewie aktywnie realizuje wydruki dla tej drukarki
+                    if not is_online:
+                        try:
+                            cursor.execute("""
+                                SELECT id FROM print_jobs 
+                                WHERE (printer_ip = %s OR printer_name = %s) AND status = 'DONE' AND updated_at >= NOW() - INTERVAL 12 HOUR
+                                LIMIT 1
+                            """, (p.get('ip'), p.get('nazwa')))
+                            if cursor.fetchone():
+                                is_online = True
+                        except Exception:
+                            pass
+
+                    p['tcp_online'] = is_online
                 else:
                     p['tcp_online'] = True
 
@@ -496,7 +552,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
 
     @admin_bp.route('/admin/ustawienia/logi-drukowania')
     @admin_bp.route('/admin/logi-drukowania')
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_ustawienia_logi_drukowania():
         from app.db import get_db_connection
         conn = get_db_connection()
@@ -535,7 +591,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return render_template('ustawienia_logi_drukowania.html', jobs_stats=jobs_stats, recent_jobs_48h=recent_jobs_48h)
 
     @admin_bp.route('/admin/api/print-jobs/retry-all', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_print_jobs_retry_all():
         from app.db import get_db_connection
         conn = get_db_connection()
@@ -556,7 +612,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             conn.close()
 
     @admin_bp.route('/admin/api/print-jobs/retry/<int:job_id>', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_print_jobs_retry_single(job_id):
         from app.db import get_db_connection
         conn = get_db_connection()
@@ -791,6 +847,55 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             return jsonify({'success': True, 'message': 'Odbiorca został usunięty.', 'recipients': repo.get_all_recipients()})
         return jsonify({'success': False, 'message': 'Nie udało się usunąć odbiorcy.'}), 500
 
+    @admin_bp.route('/admin/ustawienia/email-magazyn')
+    @admin_bp.route('/ustawienia-email-magazyn')
+    @dynamic_role_required('ustawienia')
+    def admin_ustawienia_email_magazyn():
+        """Strona konfiguracji dedykowanego e-mail dla raportów z dostaw i przesunięć magazynowych."""
+        from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+        repo = OsipEmailSettingsRepository()
+        settings = repo.get_settings()
+        return render_template('admin/magazyn_email_settings.html', settings=settings)
+
+    @admin_bp.route('/admin/api/ustawienia-email-magazyn', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_save_email_settings_magazyn():
+        """Zapisuje dedykowane konto SMTP i odbiorców raportów dostaw i przesunięć."""
+        payload = request.get_json() or {}
+        from app.models.osip_email_settings_model import OsipEmailSettingsModel
+        from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+        updated_by = session.get('login') or session.get('username') or 'Administrator'
+        model = OsipEmailSettingsModel(
+            smtp_server=payload.get('smtp_server', ''),
+            smtp_port=int(payload.get('smtp_port') or 465),
+            smtp_security=payload.get('smtp_security', 'SSL'),
+            smtp_username=payload.get('smtp_username', ''),
+            smtp_password=payload.get('smtp_password', ''),
+            sender_name=payload.get('sender_name', 'Magazyn - Raporty'),
+            odbiorcy=payload.get('odbiorcy', ''),
+            is_active=bool(payload.get('is_active', True)),
+            auto_send_on_dispatch=bool(payload.get('auto_send_on_dispatch', True)),
+            updated_by=updated_by
+        )
+        saved = OsipEmailSettingsRepository().save_settings(model)
+        return jsonify({"success": True, "message": "Zapisano konfigurację e-mail dla dostaw i przesunięć!", "settings": saved.to_dict()})
+
+    @admin_bp.route('/admin/api/ustawienia-email-magazyn/test', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_test_email_settings_magazyn():
+        """Testuje połączenie SMTP dla dedykowanej skrzynki magazynowej."""
+        payload = request.get_json() or {}
+        from app.services.osip_report_email_service import OsipReportEmailService
+        service = OsipReportEmailService()
+        ok, msg = service.test_smtp_connection(
+            smtp_server=payload.get('smtp_server', ''),
+            smtp_port=int(payload.get('smtp_port') or 465),
+            smtp_security=payload.get('smtp_security', 'SSL'),
+            smtp_username=payload.get('smtp_username', ''),
+            smtp_password=payload.get('smtp_password', '')
+        )
+        return jsonify({"success": ok, "message": msg}), (200 if ok else 400)
+
     @admin_bp.route('/admin/ustawienia/drukarki-biurowe')
     @dynamic_role_required('ustawienia')
     def admin_ustawienia_drukarki_biurowe():
@@ -867,7 +972,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return redirect(url_for('admin.admin_ustawienia_drukarki_biurowe'))
 
     @admin_bp.route('/admin/ustawienia/drukarki/add', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_add_printer():
         nazwa = request.form.get('nazwa', '').strip()
         ip = request.form.get('ip', '').strip()
@@ -897,7 +1002,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return redirect(url_for('admin.admin_ustawienia_drukarki'))
 
     @admin_bp.route('/admin/ustawienia/drukarki/delete/<int:printer_id>', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @printer_access_required
     def admin_delete_printer(printer_id):
         from app.db import get_db_connection
         conn = get_db_connection()

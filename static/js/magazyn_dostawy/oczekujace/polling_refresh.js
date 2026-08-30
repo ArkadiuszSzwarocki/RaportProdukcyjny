@@ -2,15 +2,26 @@ function performSilentRefresh() {
     // Nie odświeżaj, jeśli otwarty jest jakikolwiek modal
     if (document.body.classList.contains('modal-open') ||
         document.querySelector('.modal.show') ||
-        document.querySelector('.modal[style*="display: block"]')) {
+        document.querySelector('.modal[style*="display: block"]') ||
+        document.querySelector('dialog[open]')) {
         return;
     }
-    // Nie odświeżaj, jeśli użytkownik wpisuje kod z palca w skaner
+    // Nie odświeżaj, jeśli użytkownik wpisuje kod ze skanera/ręcznie
     const activeElement = document.activeElement;
     if (activeElement && activeElement.id === 'globalScannerInput' && activeElement.value !== '') {
         return;
     }
-    // Ciche odświeżanie przez AJAX
+    // Nie odświeżaj, jeśli trwa aktywny proces skanowania lokalizacji
+    if (typeof activeTransferItem !== 'undefined' && activeTransferItem) {
+        return;
+    }
+    // Nie przerywaj wpisywania w wyszukiwarkę
+    const searchInput = document.getElementById('tableSearchInput');
+    if (searchInput && searchInput.value.trim() !== '' && document.activeElement === searchInput) {
+        return;
+    }
+
+    // Ciche pobranie aktualnego stanu przez AJAX
     const url = new URL(window.location.href);
     url.searchParams.set('_t', new Date().getTime()); // Bypassing browser cache
     return fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }, cache: 'no-store' })
@@ -19,42 +30,78 @@ function performSilentRefresh() {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
 
+            const newConfigEl = doc.getElementById('magazyn-config-data');
+            const oldConfigEl = document.getElementById('magazyn-config-data');
+            const newPendingItemsStr = newConfigEl ? (newConfigEl.dataset.pendingItems || '[]') : '[]';
+            const oldPendingItemsStr = oldConfigEl ? (oldConfigEl.dataset.pendingItems || '[]') : '[]';
+
+            const newWgTbody = doc.querySelector('#tab-wg tbody');
+            const oldWgTbody = document.querySelector('#tab-wg tbody');
+            const newWgHtml = newWgTbody ? newWgTbody.innerHTML.trim() : (doc.getElementById('tab-wg')?.innerHTML || '');
+            const oldWgHtml = oldWgTbody ? oldWgTbody.innerHTML.trim() : (document.getElementById('tab-wg')?.innerHTML || '');
+
+            // Jeśli dane w bazie nie uległy zmianie, NIC nie ruszaj w DOM
+            if (newPendingItemsStr === oldPendingItemsStr && newWgHtml === oldWgHtml) {
+                return;
+            }
+
+            // Ustalamy, która zakładka jest aktualnie aktywna na ekranie użytkownika
+            const tabWg = document.getElementById('tab-wg');
+            const isWgActive = tabWg && (tabWg.style.display === 'block' || (!tabWg.style.display.includes('none') && tabWg.offsetParent !== null));
+            const activeTabId = isWgActive ? 'tab-wg' : 'tab-dostawy';
+
+            // Cicha podmiana zawartości tabeli Dostawy
             const newDostawy = doc.getElementById('tab-dostawy');
             const oldDostawy = document.getElementById('tab-dostawy');
-            if (newDostawy && oldDostawy && newDostawy.innerHTML !== oldDostawy.innerHTML) {
+            if (newDostawy && oldDostawy) {
                 oldDostawy.innerHTML = newDostawy.innerHTML;
+                oldDostawy.style.display = (activeTabId === 'tab-dostawy') ? 'block' : 'none';
             }
 
+            // Cicha podmiana zawartości tabeli Wyroby Gotowe (WG)
             const newWg = doc.getElementById('tab-wg');
             const oldWg = document.getElementById('tab-wg');
-            if (newWg && oldWg && newWg.innerHTML !== oldWg.innerHTML) {
+            if (newWg && oldWg) {
                 oldWg.innerHTML = newWg.innerHTML;
+                oldWg.style.display = (activeTabId === 'tab-wg') ? 'block' : 'none';
             }
 
-            const newTabs = doc.querySelector('.waiting-tabs');
-            const oldTabs = document.querySelector('.waiting-tabs');
-            if (newTabs && oldTabs && newTabs.innerHTML !== oldTabs.innerHTML) {
-                oldTabs.innerHTML = newTabs.innerHTML;
+            // Aktualizacja samych etykiet z liczbami na przyciskach zakładek (bez ruszania klasy active)
+            const newTabBtns = doc.querySelectorAll('.waiting-tab');
+            const oldTabBtns = document.querySelectorAll('.waiting-tab');
+            if (newTabBtns.length === oldTabBtns.length) {
+                newTabBtns.forEach((newBtn, idx) => {
+                    const oldBtn = oldTabBtns[idx];
+                    oldBtn.textContent = newBtn.textContent;
+                });
             }
 
+            // Aktualizacja badge'a w nawigacji
             const newBadge = doc.querySelector('.nav-pending-badge');
             const oldBadge = document.querySelector('.nav-pending-badge');
-            if (newBadge && oldBadge && newBadge.innerHTML !== oldBadge.innerHTML) {
+            if (newBadge && oldBadge) {
                 oldBadge.innerHTML = newBadge.innerHTML;
             } else if (!newBadge && oldBadge) {
                 oldBadge.remove();
             }
 
-            const newConfigEl = doc.getElementById('magazyn-config-data');
-            if (newConfigEl) {
+            // Aktualizacja dataset i listy palet dla skanera w pamięci JS
+            if (newConfigEl && oldConfigEl) {
+                oldConfigEl.dataset.pendingItems = newPendingItemsStr;
                 try {
-                    pendingTransferItems = JSON.parse(newConfigEl.dataset.pendingItems || '[]');
-                    window.MAGAZYN_CONFIG.pendingTransferItems = pendingTransferItems;
+                    pendingTransferItems = JSON.parse(newPendingItemsStr);
+                    if (window.MAGAZYN_CONFIG) {
+                        window.MAGAZYN_CONFIG.pendingTransferItems = pendingTransferItems;
+                    }
                 } catch (e) {
                     console.error("Failed to parse pendingItems", e);
                 }
             }
-        })
-        .catch(e => console.log('Silent refresh failed', e));
-}
 
+            // Jeśli filtr wyszukiwania był wpisany, aplikujemy go do nowo wstawionych wierszy
+            if (typeof filterTableRows === 'function') {
+                filterTableRows();
+            }
+        })
+        .catch(e => console.log('Silent refresh error', e));
+}

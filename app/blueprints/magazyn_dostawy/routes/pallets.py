@@ -524,17 +524,42 @@ def preprint_labels_view():
 
 @magazyn_dostawy_bp.route('/api/dodruk-etykiet', methods=['POST'])
 def dodruk_etykiet():
-    data = request.json
-    nr_palety = data.get('nr_palety')
+    data = request.get_json(silent=True) or {}
     printer_id = data.get('printer_id')
-    product_name = data.get('product_name')
-    nr_partii = data.get('nr_partii') or '---'
-    data_produkcji = data.get('data_produkcji') or '---'
-    data_przydatnosci = data.get('data_przydatnosci') or '---'
-    qty = data.get('qty') or 0.0
-    p_type = data.get('p_type') or 'surowiec'
+    copies = max(1, int(data.get('copies') or 2))
     
-    if not nr_palety or not printer_id:
+    # Obsługa zarówno pojedynczej pozycji, jak i listy (batch)
+    raw_items = data.get('items')
+    items_to_print = []
+    if isinstance(raw_items, list) and raw_items:
+        for it in raw_items:
+            if not isinstance(it, dict):
+                continue
+            nr_p = it.get('nr_palety') or it.get('nrPalety') or it.get('sscc')
+            if nr_p and str(nr_p).strip() not in ('', '-', '---'):
+                items_to_print.append({
+                    'nr_palety': str(nr_p).strip(),
+                    'product_name': str(it.get('product_name') or it.get('productName') or 'Brak nazwy').strip(),
+                    'nr_partii': str(it.get('nr_partii') or it.get('batchNumber') or it.get('batch') or '---').strip(),
+                    'data_produkcji': str(it.get('data_produkcji') or it.get('productionDate') or '---').strip(),
+                    'data_przydatnosci': str(it.get('data_przydatnosci') or it.get('expiryDate') or '---').strip(),
+                    'qty': float(it.get('qty') or it.get('currentWeight') or 0.0),
+                    'p_type': str(it.get('p_type') or 'surowiec').strip()
+                })
+    else:
+        nr_palety = data.get('nr_palety')
+        if nr_palety and str(nr_palety).strip() not in ('', '-', '---'):
+            items_to_print.append({
+                'nr_palety': str(nr_palety).strip(),
+                'product_name': str(data.get('product_name') or 'Brak nazwy').strip(),
+                'nr_partii': str(data.get('nr_partii') or '---').strip(),
+                'data_produkcji': str(data.get('data_produkcji') or '---').strip(),
+                'data_przydatnosci': str(data.get('data_przydatnosci') or '---').strip(),
+                'qty': float(data.get('qty') or 0.0),
+                'p_type': str(data.get('p_type') or 'surowiec').strip()
+            })
+
+    if not items_to_print or not printer_id:
         return jsonify({"success": False, "error": "Brak nr_palety lub drukarki"}), 400
         
     conn = get_db_connection()
@@ -550,37 +575,52 @@ def dodruk_etykiet():
     finally:
         conn.close()
         
-    # Print 2 labels
+    # Budowa payloadów z natywną liczbą kopii (copies=2 -> ^PQ2)
     try:
         import threading
+        import time
         import requests
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        payload = {
-            "drukarka": printer_name,
-            "ip": printer_ip,
-            "typ": p_type,
-            "dane": {
-                "palletData": {
-                    "nrPalety": nr_palety,
-                    "productName": product_name,
-                    "batchNumber": nr_partii,
-                    "productionDate": str(data_produkcji),
-                    "expiryDate": str(data_przydatnosci),
-                    "currentWeight": float(qty),
-                    "labNotes": "Dodruk etykiety"
+        
+        payloads = []
+        for it in items_to_print:
+            payloads.append({
+                "drukarka": printer_name,
+                "ip": printer_ip,
+                "typ": it['p_type'],
+                "copies": copies,
+                "dane": {
+                    "palletData": {
+                        "nrPalety": it['nr_palety'],
+                        "productName": it['product_name'],
+                        "batchNumber": it['nr_partii'],
+                        "productionDate": it['data_produkcji'],
+                        "expiryDate": it['data_przydatnosci'],
+                        "currentWeight": it['qty'],
+                        "labNotes": "Dodruk etykiety",
+                        "copies": copies
+                    }
                 }
-            }
-        }
-        def run_print():
+            })
+
+        def run_sequential_print(payload_list):
             url = "http://127.0.0.1:3001/drukuj-zpl"
-            for _ in range(2):
+            for p in payload_list:
                 try:
-                    requests.post(url, json=payload, verify=False, timeout=3)
+                    requests.post(url, json=p, verify=False, timeout=5)
                 except Exception:
                     pass
-        threading.Thread(target=run_print, daemon=True).start()
-        return jsonify({"success": True, "message": f"Wysłano 2 etykiety do drukarki {printer_name}."})
+                time.sleep(0.08)
+
+        threading.Thread(target=run_sequential_print, args=(payloads,), daemon=True).start()
+        
+        if len(items_to_print) > 1:
+            msg = f"Wysłano {len(items_to_print) * copies} etykiet ({len(items_to_print)} palet po {copies} szt) do drukarki {printer_name}."
+        else:
+            msg = f"Wysłano {copies} etykiety do drukarki {printer_name}."
+            
+        return jsonify({"success": True, "count": len(items_to_print), "message": msg})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

@@ -62,7 +62,8 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px; text-align: center;">Lp.</th>
-                                <th>ID Palety</th>
+                                <th style="width: 60px; text-align: center;">ID</th>
+                                <th>ID Palety / SSCC</th>
                                 <th>Lokalizacja</th>
                                 <th style="text-align: right;">Ilość</th>
                                 <th>Nr Partii</th>
@@ -75,6 +76,7 @@
                             {% for p in data.pallets %}
                             <tr style="{% if p.is_first_fifo %}background: #fffbeb; border-left: 4px solid #f59e0b;{% endif %}">
                                 <td style="text-align: center; color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                                <td style="text-align: center; color: #64748b; font-weight: 700; font-family: monospace; font-size: 11px;">#{{ p.id }}</td>
                                 <td class="font-bold">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data={{ p.displayId }}" alt="QR" width="40" height="40" style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white;">
