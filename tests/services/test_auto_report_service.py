@@ -129,25 +129,42 @@ class TestAutoReportServiceLockingAndHistory:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
-        # Przypadek 1: status = 'SENT' -> True
-        mock_cursor.fetchone.return_value = {'id': 1, 'status': 'SENT'}
+        # Przypadek 1: znaleziono wiersz o statusie SENT -> True
+        mock_cursor.fetchone.return_value = {'id': 1}
         with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is True
 
-        # Przypadek 2: status = 'FAILED' -> False
-        mock_cursor.fetchone.return_value = {'id': 1, 'status': 'FAILED'}
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
-            assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is False
-
-        # Przypadek 3: status = 'IN_PROGRESS' -> False
-        mock_cursor.fetchone.return_value = {'id': 1, 'status': 'IN_PROGRESS'}
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
-            assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is False
-
-        # Przypadek 4: brak wpisu -> False
+        # Przypadek 2: brak wiersza o statusie SENT -> False
         mock_cursor.fetchone.return_value = None
         with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is False
+
+    def test_claim_report_execution_returns_false_if_already_sent(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cursor.fetchone.return_value = {'id': 1, 'status': 'SENT', 'age_min': 50}
+        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+            assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is False
+
+    def test_claim_report_execution_returns_false_if_in_progress_recently(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cursor.fetchone.return_value = {'id': 1, 'status': 'IN_PROGRESS', 'age_min': 3}
+        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+            assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is False
+
+    def test_claim_report_execution_returns_true_if_no_record(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cursor.fetchone.return_value = None
+        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+            assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is True
 
     def test_set_schedule_does_not_delete_history(self):
         mock_conn = MagicMock()
@@ -163,3 +180,4 @@ class TestAutoReportServiceLockingAndHistory:
             # Sprawdź wykonane zapytania SQL - nie powinno być DELETE FROM auto_report_history
             executed_queries = [call[0][0] for call in mock_cursor.execute.call_args_list]
             assert not any("DELETE FROM auto_report_history" in q for q in executed_queries)
+

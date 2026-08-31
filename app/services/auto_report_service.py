@@ -14,7 +14,7 @@ from typing import Tuple, List, Optional, Dict, Any, Union
 
 import pandas as pd
 
-from app.db import get_db_connection, get_table_name
+from app.core.database import get_db_connection, get_table_name
 from app.services.email_service import EmailService
 from app.services.email_report_builder import EmailReportBuilder
 from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
@@ -278,8 +278,8 @@ class AutoReportService:
         return []
 
     @classmethod
-    def is_1500_report_sent(cls, linia: str, date_str: str) -> bool:
-        """Sprawdza czy raport o 15:00 został już dzisiaj wysłany."""
+    def is_report_sent(cls, linia: str, date_str: str, typ_raportu: str = '15:00') -> bool:
+        """Bezwzględnie sprawdza, czy raport danego typu został już wysłany w danym dniu."""
         conn = None
         try:
             conn = get_db_connection()
@@ -287,32 +287,36 @@ class AutoReportService:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
                 """
-                SELECT id, status FROM auto_report_history 
-                WHERE data_raportu = %s AND linia = %s AND typ_raportu = '15:00'
+                SELECT id FROM auto_report_history 
+                WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s AND status = 'SENT'
                 LIMIT 1
                 """,
-                (date_str, linia)
+                (date_str, linia, typ_raportu)
             )
             row = cursor.fetchone()
             cursor.close()
-            if not row:
-                return False
-            status = str(row.get('status') or 'SENT').upper()
-            return status == 'SENT'
+            return bool(row)
         except Exception as e:
-            logger.error("[AUTO_REPORT] Blad sprawdzania historii wysylek: %s", e)
+            logger.error("[AUTO_REPORT] Blad sprawdzania statusu wysylki: %s", e)
             return False
         finally:
             if conn:
                 conn.close()
 
     @classmethod
+    def is_1500_report_sent(cls, linia: str, date_str: str) -> bool:
+        """Sprawdza czy raport o 15:00 został już dzisiaj wysłany."""
+        return cls.is_report_sent(linia, date_str, '15:00')
+
+    @classmethod
     def claim_report_execution(cls, linia: str, date_str: str, typ_raportu: str = '15:00') -> bool:
         """
         Atomowo rezerwuje prawo do wykonania i wysyłki raportu.
-        Zabezpiecza przed współbieżnym wysyłaniem przez wiele procesów/workerów/wątków.
-        Zwraca True jeśli udało się zablokować zadanie do realizacji, False jeśli raport
-        jest już wysłany, w trakcie wysyłania lub w oknie cooldownu błędu.
+        Zabezpiecza przed współbieżnym lub wielokrotnym wysyłaniem przez wiele procesów/workerów/wątków.
+        Gwarantuje bezwzględnie jednorazową wysyłkę:
+        - Jeśli status to 'SENT', ZAWSZE zwraca False.
+        - Jeśli status to 'IN_PROGRESS', blokuje na 15 minut (ochrona przed równoległymi wysyłkami).
+        - Jeśli status to 'FAILED', blokuje na 10 minut (cooldown przed kolejną próbą).
         """
         conn = None
         try:
@@ -324,7 +328,6 @@ class AutoReportService:
                 SELECT id, status, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
                 FROM auto_report_history
                 WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s
-                LIMIT 1
                 FOR UPDATE
                 """,
                 (date_str, linia, typ_raportu)
@@ -332,15 +335,15 @@ class AutoReportService:
             row = cursor.fetchone()
 
             if row:
-                st = str(row.get('status') or 'SENT').upper()
+                st = str(row.get('status') or '').upper()
                 age_min = int(row.get('age_min') or 0)
                 if st == 'SENT':
                     cursor.close()
                     return False
-                if st == 'IN_PROGRESS' and age_min < 10:
+                if st == 'IN_PROGRESS' and age_min < 15:
                     cursor.close()
                     return False
-                if st == 'FAILED' and age_min < 5:
+                if st == 'FAILED' and age_min < 10:
                     cursor.close()
                     return False
 
@@ -348,7 +351,7 @@ class AutoReportService:
                     """
                     UPDATE auto_report_history
                     SET status = 'IN_PROGRESS', created_at = NOW()
-                    WHERE id = %s
+                    WHERE id = %s AND status != 'SENT'
                     """,
                     (row['id'],)
                 )
@@ -406,7 +409,7 @@ class AutoReportService:
 
     @classmethod
     def mark_report_failed(cls, linia: str, date_str: str, typ_raportu: str, error_msg: str):
-        """Oznacza próbę wysłania raportu jako nieudaną z zachowaniem cooldownu (status FAILED)."""
+        """Oznacza próbę wysłania raportu jako nieudaną z zachowaniem cooldownu (status FAILED, tylko jeśli wcześniej nie było SENT)."""
         conn = None
         try:
             conn = get_db_connection()
@@ -417,9 +420,9 @@ class AutoReportService:
                 INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy, status, created_at)
                 VALUES (%s, %s, %s, %s, 'FAILED', NOW())
                 ON DUPLICATE KEY UPDATE
-                    odbiorcy = VALUES(odbiorcy),
-                    status = 'FAILED',
-                    created_at = NOW()
+                    odbiorcy = IF(status = 'SENT', odbiorcy, VALUES(odbiorcy)),
+                    status = IF(status = 'SENT', 'SENT', 'FAILED'),
+                    created_at = IF(status = 'SENT', created_at, NOW())
                 """,
                 (date_str, linia, typ_raportu, str(error_msg)[:255])
             )
