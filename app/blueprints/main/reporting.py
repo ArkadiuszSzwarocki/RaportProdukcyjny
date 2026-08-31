@@ -157,10 +157,21 @@ def register_main_reporting_routes(main_bp):
         domyslni_odbiorcy = ""
         try:
             email_repo = UserEmailSettingsRepository()
-            all_recipients = email_repo.get_all_recipients()
+            # Pobieraj wyłącznie aktywnych odbiorców ze słownika
+            all_recipients = email_repo.get_all_recipients(only_active=True)
+            active_emails = [r['email'].strip().lower() for r in all_recipients if r.get('email')]
+
             user_settings = email_repo.get_by_user_id(user_id) if user_id else None
             if user_settings and user_settings.domyslni_odbiorcy:
-                domyslni_odbiorcy = user_settings.domyslni_odbiorcy
+                # Odfiltruj odbiorców, którzy zostali wyłączeni/wstrzymani w słowniku
+                saved_emails = [e.strip() for e in user_settings.domyslni_odbiorcy.replace(';', ',').split(',') if e.strip()]
+                if active_emails:
+                    filtered_saved = [e for e in saved_emails if e.lower() in active_emails]
+                    domyslni_odbiorcy = ", ".join(filtered_saved) if filtered_saved else ", ".join([r['email'] for r in all_recipients])
+                else:
+                    domyslni_odbiorcy = ", ".join(saved_emails)
+            else:
+                domyslni_odbiorcy = ", ".join([r['email'] for r in all_recipients])
         except Exception as e:
             current_app.logger.warning("Błąd pobierania odbiorców: %s", e)
 
