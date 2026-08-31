@@ -16,6 +16,7 @@
 <script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/ui_dialogs.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/common/date-switcher.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/common/print-toast.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/sidebar.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
 {% if role not in ['laborant', 'laboratorium'] %}
@@ -377,9 +378,9 @@
         try {
             // Pobierz publiczny klucz VAPID z serwera
             const keyResp = await fetch('/api/push/vapid-public-key');
+            if (!keyResp.ok) return false;
             const keyData = await keyResp.json();
             if (!keyData.success || !keyData.publicKey) {
-                console.warn('[PUSH] Brak klucza VAPID na serwerze.');
                 return false;
             }
             const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);

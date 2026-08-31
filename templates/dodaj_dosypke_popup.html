@@ -1,5 +1,6 @@
 <div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę" data-plan-id="{{ plan_id }}" data-szarza-id="{{ szarza_id or '' }}">
     <style>
+        /* === FULL-SCREEN MODAL CONTAINER === */
         .quick-popup:has(.dosypka-popup-container),
         .quick-popup.open:has(.dosypka-popup-container),
         .quick-popup.qp-dosypka-full,
@@ -11,431 +12,102 @@
             top: 50% !important;
             left: 50% !important;
             transform: translate(-50%, -50%) !important;
-            border-radius: 18px !important;
+            border-radius: 20px !important;
             display: flex !important;
             flex-direction: column !important;
-            box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35) !important;
+            box-shadow: 0 25px 70px -15px rgba(15, 23, 42, 0.4) !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+
+        .quick-popup:has(.dosypka-popup-container) .qp-header,
+        .quick-popup.qp-dosypka-full .qp-header {
+            display: none !important;
         }
 
         .quick-popup:has(.dosypka-popup-container) .qp-body,
         .quick-popup.qp-dosypka-full .qp-body {
             flex: 1 1 auto !important;
-            height: calc(94vh - 75px) !important;
-            max-height: calc(94vh - 75px) !important;
-            overflow-y: auto !important;
-            padding: 16px 24px 20px !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            background: #ffffff !important;
         }
 
+        /* === DOSYPKA CONTAINER & HEADER === */
         .dosypka-popup-container {
-            padding: 0 4px 12px;
-            color: #1f3347;
-            width: 100%;
-            height: 100%;
-        }
-
-        .dosypka-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.9fr);
-            gap: 20px;
-            align-items: start;
-        }
-
-        @media (max-width: 1024px) {
-            .dosypka-layout {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .dosypka-layout.dosypka-layout-single {
-            grid-template-columns: 1fr;
-        }
-
-        .dosypka-panel {
-            border: 1px solid #dfe8f1;
-            border-radius: 14px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-            box-shadow: 0 8px 20px rgba(21, 52, 78, 0.05);
-            overflow: hidden;
-        }
-
-        .dosypka-panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #e4ebf2;
-            background: linear-gradient(135deg, #f9fcff 0%, #f1f7fc 100%);
-        }
-
-        .dosypka-panel-title {
-            margin: 0;
-            font-size: 0.9rem;
-            font-weight: 800;
-            letter-spacing: 0.01em;
-            color: #24415d;
-        }
-
-        .dosypka-panel-subtitle {
-            font-size: 0.74rem;
-            color: #678198;
-            font-weight: 600;
-        }
-
-        .dosypka-panel-body {
-            padding: 12px;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: #1e293b;
+            width: 100% !important;
+            height: 100% !important;
+            flex: 1 1 auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         .dosypka-header {
+            flex-shrink: 0;
+            width: 100%;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            padding: 20px 28px;
-            border-bottom: none;
-            border-radius: 20px 20px 0 0;
-            background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%);
+            gap: 16px;
+            padding: 20px 32px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            color: #ffffff;
+            border-radius: 19px 19px 0 0;
+            box-sizing: border-box;
         }
 
         .dosypka-header-content {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
         }
 
         .dosypka-header-icon {
-            font-size: 1.8rem;
+            font-size: 2rem;
             line-height: 1;
-        }
-
-        .dosypka-header-subtitle {
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.7);
-            margin-top: 2px;
         }
 
         .dosypka-title {
             margin: 0;
-            font-size: 1.2rem;
+            font-size: 1.35rem;
             font-weight: 800;
             color: #ffffff;
             letter-spacing: -0.02em;
         }
 
-        .dosypka-form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .dosypka-info {
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #f7fbff 0%, #eef5fb 100%);
-            border: 1px solid #dce8f2;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-        }
-
-        .info-item {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: baseline;
-            margin-bottom: 6px;
-        }
-
-        .info-label {
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: #5f778c;
-        }
-
-        .info-value {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #1e3a56;
-        }
-
-        .info-product {
-            margin-left: 6px;
-        }
-
-        .info-type {
-            color: #627a90;
-            font-weight: 600;
-        }
-
-        .dosypka-description {
-            margin: 0;
-            font-size: 0.88rem;
-            line-height: 1.4;
-            color: #496075;
-        }
-
-        .dosypka-fields {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 10px;
-            border-radius: 12px;
-            background: #fbfdff;
-            border: 1px solid #e3ebf3;
-        }
-
-        .dosypka-field-group {
-            padding: 10px;
-            border-radius: 10px;
-            background: #ffffff;
-            border: 1px solid #e6edf4;
-            box-shadow: 0 3px 10px rgba(26, 56, 84, 0.04);
-        }
-
-        .dosypka-label {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 8px;
-            font-size: 0.88rem;
-            font-weight: 700;
-            color: #24415d;
-        }
-
-        .field-number {
-            color: #2873b8;
-        }
-
-        .dosypka-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        
-        .dosypka-input-nazwa {
-            flex: 1 1 200px;
-        }
-        
-        .dosypka-input-kg {
-            flex: 0 0 110px;
-        }
-
-        /* Wide screen 2-column field grid */
-        .dosypka-fields-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-
-        .dosypka-input {
-            width: 100%;
-            min-height: 38px;
-            border: 1px solid #ccd8e4;
-            border-radius: 10px;
-            padding: 0 12px;
-            font-size: 0.9rem;
-            color: #1f3347;
-            background: #fff;
-            transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-            box-sizing: border-box;
-        }
-
-        .dosypka-input:focus {
-            outline: none;
-            border-color: #3a8ad3;
-            box-shadow: 0 0 0 4px rgba(58, 138, 211, 0.16);
-        }
-
-        .dosypka-input::placeholder {
-            color: #8a9caf;
-        }
-
-        .dosypka-add-field {
-            display: flex;
-            justify-content: flex-start;
-        }
-
-        .dosypka-btn,
-        .dosypka-btn-add {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            min-height: 38px;
-            border: 1px solid transparent;
-            border-radius: 10px;
-            padding: 0 14px;
-            font-size: 0.88rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, background 0.16s ease;
-            text-decoration: none;
-            box-sizing: border-box;
-        }
-
-        .dosypka-btn:hover,
-        .dosypka-btn-add:hover {
-            transform: translateY(-1px);
-        }
-
-        .dosypka-btn-add {
-            background: #eff5fb;
-            color: #1f4568;
-            border-color: #d6e2ee;
-            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.05);
-        }
-
-        .dosypka-btn-add .btn-icon {
-            font-size: 1rem;
-            font-weight: 800;
-        }
-
-        .dosypka-btn-remove {
-            border: none;
-            background: transparent;
-            color: #8da1b4;
-            font-size: 1rem;
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 8px;
-        }
-
-        .dosypka-btn-remove:hover {
-            color: #a12b2b;
-            background: rgba(161, 43, 43, 0.08);
-        }
-
-        .dosypka-existing {
-            height: 100%;
-        }
-
-        .dosypka-existing-title {
-            font-size: 0.9rem;
-            font-weight: 800;
-            color: #284560;
-            margin-bottom: 8px;
-        }
-
-        .dosypka-existing-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: 180px;
-            overflow-y: auto;
-            padding-right: 4px;
-        }
-
-        .dosypka-existing-item {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 10px 12px;
-            border: 1px solid #dbe4ec;
-            border-radius: 10px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.04);
-        }
-
-        .dosypka-existing-item.is-cancelled {
-            opacity: 0.75;
-            background: linear-gradient(180deg, #fff8f8 0%, #faf4f4 100%);
-            border-color: #ead2d2;
-        }
-
-        .dosypka-existing-item.is-cancelled .dosypka-existing-main {
-            text-decoration: line-through;
-        }
-
-        .dosypka-existing-main {
-            font-weight: 600;
-            color: #29445c;
-            line-height: 1.45;
-            font-size: 0.9rem;
-        }
-
-        .dosypka-existing-meta {
-            margin-top: 4px;
-            font-size: 0.78em;
-            color: #5d7286;
-        }
-
-        .dosypka-existing-cancel-meta {
-            margin-top: 4px;
-            font-size: 0.78em;
-            color: #8b1e1e;
-        }
-
-        .dosypka-existing-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-
-        .dosypka-existing-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: rgba(139, 30, 30, 0.12);
-            color: #8b1e1e;
-            font-size: 0.72em;
-            font-weight: 700;
-        }
-
-        .dosypka-btn-confirm {
-            background: linear-gradient(135deg, #2d8cd3 0%, #1f78be 100%);
-            color: #fff;
-            box-shadow: 0 10px 22px rgba(45, 140, 211, 0.24);
-        }
-
-        .dosypka-btn-none {
-            background: #f4f7fa;
-            color: #29445c;
-            border-color: #dbe4ec;
-        }
-
-        .dosypka-btn-cancel {
-            background: #fff;
-            color: #273c52;
-            border-color: #d6e0ea;
-        }
-
-        .dosypka-actions {
-            position: sticky;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 10px 0 2px;
+        .dosypka-header-subtitle {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.82);
             margin-top: 2px;
-            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.92) 22%, #fff 100%);
-            -webkit-backdrop-filter: blur(4px);
-            backdrop-filter: blur(4px);
-        }
-
-        .dosypka-actions-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-weight: 500;
         }
 
         .dosypka-close-btn {
-            display: none;
-            width: 36px;
-            height: 36px;
+            width: 38px;
+            height: 38px;
+            display: grid;
             place-items: center;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.15);
             color: #ffffff;
             border: 1px solid rgba(255, 255, 255, 0.3);
             cursor: pointer;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             font-weight: 700;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
         }
 
         .dosypka-close-btn:hover {
@@ -443,344 +115,410 @@
             transform: scale(1.08) rotate(90deg);
         }
 
-        @media (min-width: 820px) {
-            .dosypka-close-btn {
-                display: grid !important;
-            }
-
-            .quick-popup:has(.dosypka-popup-container) .qp-header,
-            .quick-popup.qp-dosypka-full .qp-header {
-                display: none !important;
-            }
-
-            .quick-popup:has(.dosypka-popup-container),
-            .quick-popup.qp-dosypka-full {
-                max-width: min(1720px, 98vw) !important;
-                width: min(1720px, 98vw) !important;
-                height: min(95vh, 1000px) !important;
-                max-height: min(95vh, 1000px) !important;
-                top: 50% !important;
-                left: 50% !important;
-                transform: translate(-50%, -50%) !important;
-                border-radius: 20px !important;
-                display: flex !important;
-                flex-direction: column !important;
-                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4) !important;
-            }
-
-            .quick-popup:has(.dosypka-popup-container) .qp-body,
-            .quick-popup.qp-dosypka-full .qp-body {
-                max-height: none !important;
-                flex: 1 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-                padding: 0 !important;
-            }
-
-            .dosypka-popup-container {
-                height: 100% !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-                padding: 0 !important;
-            }
-
-            .dosypka-header {
-                flex-shrink: 0 !important;
-                border-radius: 20px 20px 0 0 !important;
-                padding: 26px 44px !important;
-                background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%) !important;
-                border-bottom: none !important;
-            }
-
-            .dosypka-title {
-                font-size: 1.4rem !important;
-                color: #ffffff !important;
-            }
-
-            .dosypka-form {
-                flex: 1 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-                padding: 22px 44px 26px !important;
-                gap: 18px !important;
-            }
-
-            .dosypka-info {
-                flex-shrink: 0 !important;
-                margin-bottom: 0 !important;
-                padding: 16px 24px !important;
-                display: grid !important;
-                grid-template-columns: 1fr 1fr !important;
-                gap: 12px 32px !important;
-                align-items: start !important;
-                border-radius: 14px !important;
-            }
-
-            .dosypka-info .dosypka-description {
-                grid-column: 1 / -1 !important;
-                font-size: 0.92rem !important;
-            }
-
-            .dosypka-info .info-item {
-                margin-bottom: 0 !important;
-            }
-
-            /* === MAIN LAYOUT: rownomierne 50/50 === */
-            .dosypka-layout {
-                flex: 1 !important;
-                display: grid !important;
-                grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) !important;
-                gap: 24px !important;
-                overflow: hidden !important;
-                min-height: 0 !important;
-                align-items: stretch !important;
-            }
-
-            .dosypka-layout.dosypka-layout-single {
-                grid-template-columns: 1fr !important;
-            }
-
-            .dosypka-panel {
-                height: 100% !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-                border: 1px solid #c8d7e6 !important;
-                background: #ffffff !important;
-                border-radius: 16px !important;
-            }
-
-            .dosypka-panel-header {
-                flex-shrink: 0 !important;
-                padding: 16px 22px !important;
-            }
-
-            .dosypka-panel-title {
-                font-size: 1.05rem !important;
-            }
-
-            .dosypka-panel-subtitle {
-                font-size: 0.82rem !important;
-            }
-
-            .dosypka-panel-body {
-                flex: 1 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-                padding: 20px 22px !important;
-                min-height: 0 !important;
-            }
-
-            .dosypka-fields {
-                flex: 1 !important;
-                overflow-y: auto !important;
-                min-height: 0 !important;
-                padding: 16px !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 14px !important;
-                align-content: start !important;
-                border: 1px solid #d0dfed !important;
-                background: #f4f8fc !important;
-                border-radius: 12px !important;
-            }
-
-            .dosypka-field-group {
-                padding: 16px 18px !important;
-                border-radius: 12px !important;
-            }
-
-            .dosypka-label {
-                font-size: 0.95rem !important;
-                margin-bottom: 10px !important;
-            }
-
-            .dosypka-input {
-                min-height: 48px !important;
-                font-size: 1rem !important;
-                border-radius: 12px !important;
-                padding: 0 16px !important;
-            }
-
-            .dosypka-input-kg {
-                flex: 0 0 140px !important;
-            }
-
-            .dosypka-add-field {
-                margin-top: 14px !important;
-                flex-shrink: 0 !important;
-            }
-
-            .dosypka-btn-add {
-                min-height: 44px !important;
-                font-size: 0.95rem !important;
-                padding: 0 20px !important;
-            }
-
-            /* === HISTORIA DOSYPEK (prawa strona) === */
-            .dosypka-existing {
-                height: 100% !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-            }
-
-            .dosypka-existing-list {
-                flex: 1 !important;
-                overflow-y: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 10px !important;
-                padding: 4px 4px 4px 0 !important;
-            }
-
-            .dosypka-existing-item {
-                padding: 14px 18px !important;
-                border-radius: 12px !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: space-between !important;
-                gap: 14px !important;
-            }
-
-            .dosypka-existing-main {
-                font-size: 1rem !important;
-                font-weight: 700 !important;
-                color: #1a3a5c !important;
-            }
-
-            .dosypka-existing-meta {
-                font-size: 0.8rem !important;
-                margin-top: 3px !important;
-            }
-
-            .dosypka-existing-actions {
-                flex-shrink: 0 !important;
-            }
-
-            .dosypka-actions {
-                margin-top: 0 !important;
-                padding: 18px 0 2px !important;
-                border-top: 1px solid #e2eaf0 !important;
-                background: #fff !important;
-                flex-shrink: 0 !important;
-                position: static !important;
-                -webkit-backdrop-filter: none !important;
-                backdrop-filter: none !important;
-            }
-
-            .dosypka-btn {
-                min-height: 46px !important;
-                font-size: 0.95rem !important;
-                padding: 0 22px !important;
-                border-radius: 12px !important;
-            }
+        /* === MAIN FORM BODY === */
+        .dosypka-form {
+            flex: 1 1 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 22px 32px 24px;
+            gap: 18px;
+            overflow-y: auto;
+            box-sizing: border-box;
+            background: #ffffff;
         }
 
-        /* Extra wide screens: bigger inputs, even more padding */
-        @media (min-width: 1400px) {
-            .quick-popup:has(.dosypka-popup-container),
-            .quick-popup.qp-dosypka-full {
-                max-width: min(1840px, 98vw) !important;
-                width: min(1840px, 98vw) !important;
-            }
-
-            .dosypka-header {
-                padding: 30px 56px !important;
-            }
-
-            .dosypka-form {
-                padding: 26px 56px 30px !important;
-            }
-
-            .dosypka-layout {
-                grid-template-columns: 1fr 1fr !important;
-                gap: 32px !important;
-            }
-
-            .dosypka-panel-body {
-                padding: 24px 26px !important;
-            }
-
-            .dosypka-panel-header {
-                padding: 18px 26px !important;
-            }
-
-            .dosypka-input {
-                min-height: 52px !important;
-                font-size: 1.05rem !important;
-            }
-
-            .dosypka-input-kg {
-                flex: 0 0 150px !important;
-            }
-
-            .dosypka-field-group {
-                padding: 18px 20px !important;
-            }
-
-            .dosypka-label {
-                font-size: 1.02rem !important;
-            }
-
-            .dosypka-btn {
-                min-height: 50px !important;
-                font-size: 1rem !important;
-            }
-
-            .dosypka-btn-add {
-                min-height: 48px !important;
-                font-size: 1rem !important;
-            }
-
-            .dosypka-existing-main {
-                font-size: 1.05rem !important;
-            }
-
-            .dosypka-existing-item {
-                padding: 16px 20px !important;
-            }
+        /* === INFO BANNER === */
+        .dosypka-info {
+            flex-shrink: 0;
+            width: 100%;
+            padding: 16px 24px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1.5px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-sizing: border-box;
         }
 
-        @media (max-width: 760px) {
-            .dosypka-popup-container {
-                padding: 2px 2px 10px;
-            }
+        .dosypka-info-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
 
+        .info-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-label {
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .info-value {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .info-product {
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        .info-type {
+            color: #64748b;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .dosypka-description {
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: #475569;
+        }
+
+        /* === TWO-COLUMN GRID LAYOUT === */
+        .dosypka-layout {
+            flex: 1 1 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+            gap: 24px;
+            align-items: stretch;
+            min-height: 380px;
+        }
+
+        .dosypka-layout.dosypka-layout-single {
+            grid-template-columns: 1fr;
+        }
+
+        @media (max-width: 992px) {
             .dosypka-layout {
                 grid-template-columns: 1fr;
             }
+        }
 
-            .dosypka-title {
-                font-size: 1.06rem;
-            }
+        /* === PANELS === */
+        .dosypka-panel {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+            overflow: hidden;
+        }
 
-            .info-value {
-                font-size: 0.94rem;
-            }
+        .dosypka-panel-header {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1.5px solid #e2e8f0;
+            background: #f8fafc;
+        }
 
-            .dosypka-existing-item {
-                flex-direction: column;
-                align-items: stretch;
-            }
+        .dosypka-panel-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 800;
+            color: #1e293b;
+        }
 
-            .dosypka-existing-actions,
-            .dosypka-actions,
-            .dosypka-actions-group {
-                flex-direction: column;
-                align-items: stretch;
-            }
+        .dosypka-panel-subtitle {
+            font-size: 0.78rem;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 2px;
+        }
 
-            .dosypka-btn,
-            .dosypka-btn-add {
-                width: 100%;
-            }
+        .dosypka-panel-body {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            padding: 18px 20px;
+            overflow-y: auto;
+            background: #ffffff;
+        }
+
+        /* === FORM FIELDS === */
+        .dosypka-fields {
+            flex: 1 1 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            margin-bottom: 14px;
+        }
+
+        .dosypka-field-group {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        .dosypka-field-group:focus-within {
+            border-color: #3b82f6;
+            background: #ffffff;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.08);
+        }
+
+        .dosypka-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        .field-number {
+            color: #2563eb;
+            font-weight: 800;
+        }
+
+        .dosypka-row {
+            width: 100%;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .dosypka-input-nazwa {
+            flex: 1 1 auto;
+        }
+
+        .dosypka-input-kg {
+            flex: 0 0 140px;
+        }
+
+        .dosypka-input {
+            width: 100%;
+            min-height: 46px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 0 14px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0f172a;
+            background: #ffffff;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .dosypka-input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .dosypka-btn-remove {
+            border: none;
+            background: #fee2e2;
+            color: #b91c1c;
+            width: 32px;
+            height: 32px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 800;
+            transition: all 0.15s ease;
+        }
+
+        .dosypka-btn-remove:hover {
+            background: #ef4444;
+            color: #ffffff;
+        }
+
+        .dosypka-add-field {
+            width: 100%;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .dosypka-btn-add {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+            padding: 0 20px;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1.5px dashed #93c5fd;
+            font-size: 0.92rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .dosypka-btn-add:hover {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            transform: translateY(-1px);
+        }
+
+        /* === HISTORIA DOSYPEK (PRAWA STRONA) === */
+        .dosypka-existing-list {
+            flex: 1 1 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .dosypka-existing-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            box-sizing: border-box;
+        }
+
+        .dosypka-existing-item.is-cancelled {
+            opacity: 0.65;
+            background: #fff1f2;
+            border-color: #fecdd3;
+        }
+
+        .dosypka-existing-item.is-cancelled .dosypka-existing-main {
+            text-decoration: line-through;
+            color: #9f1239;
+        }
+
+        .dosypka-existing-main {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #0f172a;
+        }
+
+        .dosypka-existing-meta {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .dosypka-existing-cancel-meta {
+            font-size: 0.78rem;
+            color: #b91c1c;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+
+        .dosypka-existing-badge {
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: #fee2e2;
+            color: #991b1b;
+            font-size: 0.75rem;
+            font-weight: 800;
+        }
+
+        /* === ACTION BUTTONS (DOLNY PASEK) === */
+        .dosypka-actions {
+            flex-shrink: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding-top: 14px;
+            border-top: 1.5px solid #e2e8f0;
+            margin-top: auto;
+            box-sizing: border-box;
+        }
+
+        .dosypka-actions-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dosypka-btn {
+            min-height: 48px;
+            padding: 0 26px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+            box-sizing: border-box;
+            border: none;
+        }
+
+        .dosypka-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .dosypka-btn-none {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1.5px solid #cbd5e1;
+        }
+
+        .dosypka-btn-none:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .dosypka-btn-confirm {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+        }
+
+        .dosypka-btn-confirm:hover {
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+        }
+
+        .dosypka-btn-cancel {
+            background: #ffffff;
+            color: #64748b;
+            border: 1.5px solid #cbd5e1;
+        }
+
+        .dosypka-btn-cancel:hover {
+            background: #f8fafc;
+            color: #0f172a;
         }
     </style>
 
@@ -810,19 +548,21 @@
         {% endif %}
 
         <div class="dosypka-info">
-            <div class="info-item">
-                <span class="info-label">Zlecenie:</span>
-                <span class="info-value">
-                    #{{ plan_id }}
-                    {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
-                    {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
-                </span>
+            <div class="dosypka-info-row">
+                <div class="info-item">
+                    <span class="info-label">Zlecenie:</span>
+                    <span class="info-value">
+                        #{{ plan_id }}
+                        {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
+                        {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Zasyp (szarża):</span>
+                    <span class="info-value">{{ szarza_id or '—' }}</span>
+                </div>
             </div>
-            <div class="info-item">
-                <span class="info-label">Zasyp (szarża):</span>
-                <span class="info-value">{{ szarza_id or '—' }}</span>
-            </div>
-            <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji.<br>Wybieraj tylko surowce dostępne na liście magazynu.</p>
+            <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji. Wybieraj tylko surowce dostępne na liście magazynu.</p>
         </div>
 
         <div class="dosypka-layout{% if not existing_dosypki %} dosypka-layout-single{% endif %}">
@@ -945,11 +685,19 @@ function initDosypkaPopup() {
         popup.style.setProperty('width', '96vw', 'important');
         popup.style.setProperty('height', '94vh', 'important');
         popup.style.setProperty('max-height', '94vh', 'important');
+        popup.style.setProperty('padding', '0', 'important');
+        popup.style.setProperty('overflow', 'hidden', 'important');
+        const qpHeader = popup.querySelector('.qp-header');
+        if (qpHeader) {
+            qpHeader.style.setProperty('display', 'none', 'important');
+        }
         const qpBody = popup.querySelector('.qp-body');
         if (qpBody) {
-            qpBody.style.setProperty('max-height', 'calc(94vh - 70px)', 'important');
-            qpBody.style.setProperty('height', 'calc(94vh - 70px)', 'important');
-            qpBody.style.setProperty('overflow-y', 'auto', 'important');
+            qpBody.style.setProperty('max-height', '100%', 'important');
+            qpBody.style.setProperty('height', '100%', 'important');
+            qpBody.style.setProperty('padding', '0', 'important');
+            qpBody.style.setProperty('margin', '0', 'important');
+            qpBody.style.setProperty('overflow', 'hidden', 'important');
         }
     }
 

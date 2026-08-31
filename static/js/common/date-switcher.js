@@ -154,9 +154,37 @@
         pickerEl._dateSwitcherInitialized = true;
 
         const inputEl = pickerEl.querySelector('input.unified-date-input, [data-date-input]');
+        const tileEl = pickerEl.querySelector('.unified-date-tile');
+
+        function openPicker() {
+            if (!inputEl) return;
+            if (typeof inputEl.showPicker === 'function') {
+                try {
+                    inputEl.showPicker();
+                    return;
+                } catch (err) {
+                    console.warn('[DateSwitcher] showPicker error:', err);
+                }
+            }
+            try {
+                inputEl.focus();
+            } catch (err) {}
+        }
+
+        if (tileEl) {
+            tileEl.addEventListener('click', function (e) {
+                openPicker();
+            });
+        }
+
         if (inputEl) {
             inputEl.addEventListener('change', function () {
                 if (this.value) {
+                    applyDateChange(pickerEl, this.value);
+                }
+            });
+            inputEl.addEventListener('input', function () {
+                if (this.value && this.value.length === 10) {
                     applyDateChange(pickerEl, this.value);
                 }
             });
@@ -188,6 +216,43 @@
         const pickers = document.querySelectorAll('.unified-date-picker, [data-unified-date-picker]');
         pickers.forEach(initPicker);
     }
+
+    // Global document-level click delegation as fallback
+    document.addEventListener('click', function (e) {
+        const prevBtn = e.target.closest('[data-date-action="prev"], .unified-date-prev');
+        if (prevBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const picker = prevBtn.closest('.unified-date-picker, [data-unified-date-picker]');
+            if (picker) shiftDate(picker, -1);
+            return;
+        }
+
+        const nextBtn = e.target.closest('[data-date-action="next"], .unified-date-next');
+        if (nextBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const picker = nextBtn.closest('.unified-date-picker, [data-unified-date-picker]');
+            if (picker) shiftDate(picker, 1);
+            return;
+        }
+
+        const tileEl = e.target.closest('.unified-date-tile');
+        if (tileEl) {
+            const input = tileEl.querySelector('input.unified-date-input, [data-date-input]');
+            if (input) {
+                if (typeof input.showPicker === 'function') {
+                    try {
+                        input.showPicker();
+                    } catch (err) {
+                        input.focus();
+                    }
+                } else {
+                    input.focus();
+                }
+            }
+        }
+    });
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAll);

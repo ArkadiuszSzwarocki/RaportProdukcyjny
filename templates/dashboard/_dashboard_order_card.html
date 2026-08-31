@@ -10,7 +10,7 @@
      data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
      data-sekcja="{{ sekcja }}"
      data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
-    style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower not in ['w toku', 'zawieszone'] %}display: none !important;{% endif %}">
+    style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
     <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 12px;">
             <strong class="card-title" style="margin: 0; white-space: nowrap; {% if rola == 'laborant' %}font-size: 1.4em;{% endif %}">
@@ -231,6 +231,16 @@
                 {% if sekcja == 'Workowanie' %}
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                     
+                    {% if linia == 'PSD' %}
+                        <button type="button"
+                                class="btn-action btn-dark"
+                                style="background: #0f172a; color: #fff; display: inline-flex; align-items: center; gap: 4px; font-weight: 700;"
+                                onclick="openPreprintModalForPlan('{{ p[0] }}', 'PSD', 1, '{{ (p[1]|default(''))|replace('\'', '\\\'') }}', {{ p[2]|int if p[2] else 0 }})"
+                                title="Drukuj etykiety dla zaplanowanej produkcji">
+                            <span class="material-icons" style="font-size: 14px;">print</span> DRUKUJ ETYKIETY
+                        </button>
+                    {% endif %}
+
                     <button type="button"
                             class="btn-action btn-blue"
                             data-action="edit-workowanie-production-date"
@@ -261,11 +271,17 @@
                     </button>
                 {% endif %}
                 
-                {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja in ['Workowanie', 'Czyszczenie'] and linia == 'AGRO' %}
+                {% if p[3] in ['zakonczone', 'zawieszone'] and sekcja in ['Workowanie', 'Czyszczenie'] %}
                     {% if rola not in ['laborant', 'laboratorium'] %}
-                    <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
-                        <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
-                    </a>
+                        {% if linia == 'AGRO' %}
+                        <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
+                            <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('warehouse_v2.raport_palet', linia='PSD', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
+                            <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
+                        </a>
+                        {% endif %}
                     {% endif %}
                 {% endif %}
             {% endif %}

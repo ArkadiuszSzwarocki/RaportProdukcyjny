@@ -1054,8 +1054,8 @@
             const section = String(cfg.getAttribute('data-sekcja') || '').trim().toUpperCase();
             const linia = String(cfg.getAttribute('data-linia') || '').trim().toUpperCase();
             const role = String(cfg.getAttribute('data-current-role') || '').trim().toLowerCase();
-            const allowedRoles = ['magazynier', 'lider', 'admin', 'masteradmin', 'zarzad'];
-            return section === 'MAGAZYN' && (linia === 'PSD' || linia === 'AGRO') && allowedRoles.includes(role);
+            const allowedRoles = ['magazynier', 'lider', 'admin', 'masteradmin', 'zarzad', 'operator', 'pracownik', 'produkcja'];
+            return (section === 'MAGAZYN' || section === 'WORKOWANIE') && (linia === 'PSD') && allowedRoles.includes(role);
         }
 
         function bindPreprintButton(btn) {
@@ -1116,8 +1116,12 @@
         async function loadPreprintPrinters(selectEl, liniaValue) {
             if (!selectEl) return;
 
-            const current = (selectEl.value || 'auto').trim();
-            selectEl.innerHTML = '<option value="auto">Automatycznie (domyslna)</option>';
+            const savedPrefValue = localStorage.getItem('agromes_preferred_zpl_printer') || localStorage.getItem('agromes_preprint_printer_' + liniaValue) || '';
+            const savedPrefName = localStorage.getItem('agromes_preferred_zpl_printer_name') || '';
+            const savedPrefIp = localStorage.getItem('agromes_preferred_zpl_printer_ip') || '';
+
+            // NIE CZYŚĆ selectEl.innerHTML przed zakończeniem fetch, aby nie niszczyć widoku wybranej drukarki!
+            const currentSelectedValue = selectEl.value || savedPrefValue || 'auto';
 
             try {
                 const linia = String(liniaValue || 'PSD').toUpperCase();
@@ -1134,96 +1138,226 @@
                 try { j = await resp.json(); } catch (e) { j = null; }
                 const printers = (j && j.success && Array.isArray(j.printers)) ? j.printers : [];
 
-                for (const p of printers) {
-                    const option = document.createElement('option');
-                    const selectionValue = String(
-                        p.selection_value ||
-                        ((p.id !== null && p.id !== undefined) ? ('db:' + p.id) : (p.ip ? ('net:' + p.ip) : 'auto'))
-                    );
-                    option.value = selectionValue;
-                    if (p.id !== null && p.id !== undefined) {
-                        option.dataset.printerId = String(p.id);
+                if (printers.length > 0) {
+                    try {
+                        localStorage.setItem('agromes_cached_printers_list', JSON.stringify(printers));
+                    } catch (e) {}
+
+                    const frag = document.createDocumentFragment();
+                    let matchedOption = null;
+
+                    for (const p of printers) {
+                        const option = document.createElement('option');
+                        const selectionValue = String(
+                            p.selection_value ||
+                            ((p.id !== null && p.id !== undefined) ? ('db:' + p.id) : (p.ip ? ('net:' + p.ip) : 'auto'))
+                        );
+                        option.value = selectionValue;
+                        if (p.id !== null && p.id !== undefined) option.dataset.printerId = String(p.id);
+                        if (p.ip) option.dataset.printerIp = String(p.ip);
+                        if (p.nazwa) option.dataset.printerName = String(p.nazwa);
+
+                        const ipTxt = p.ip ? ` (${p.ip})` : '';
+                        const locTxt = p.lokalizacja ? ` - ${p.lokalizacja}` : '';
+                        const sourceTxt = (p.source === 'network') ? ' [sieć]' : '';
+
+                        const isSavedPref = (savedPrefValue && (selectionValue === savedPrefValue || (p.ip && savedPrefValue.includes(p.ip)))) ||
+                                            (savedPrefName && p.nazwa && p.nazwa.toLowerCase() === savedPrefName.toLowerCase()) ||
+                                            (savedPrefIp && p.ip && p.ip === savedPrefIp);
+
+                        if (isSavedPref) {
+                            option.textContent = `★ ${p.nazwa || 'Drukarka'}${ipTxt} [DOMYŚLNA]`;
+                            option.style.fontWeight = 'bold';
+                            option.selected = true;
+                            matchedOption = option;
+                            // Zapisana drukarka zawsze na samej górze
+                            frag.insertBefore(option, frag.firstChild);
+                        } else {
+                            option.textContent = `${p.nazwa || 'Drukarka'}${ipTxt}${locTxt}${sourceTxt}`;
+                            frag.appendChild(option);
+                        }
                     }
-                    if (p.ip) {
-                        option.dataset.printerIp = String(p.ip);
+
+                    const autoOption = document.createElement('option');
+                    autoOption.value = 'auto';
+                    autoOption.textContent = 'Automatycznie (domyślna dla ' + linia + ')';
+                    frag.appendChild(autoOption);
+
+                    selectEl.innerHTML = '';
+                    selectEl.appendChild(frag);
+
+                    if (matchedOption) {
+                        selectEl.value = matchedOption.value;
+                        const savedBadge = document.getElementById('preprint_saved_printer_badge');
+                        if (savedBadge) savedBadge.textContent = '★ Domyślna: ' + (matchedOption.dataset.printerName || matchedOption.value);
+                    } else if (currentSelectedValue) {
+                        selectEl.value = currentSelectedValue;
                     }
-                    if (p.nazwa) {
-                        option.dataset.printerName = String(p.nazwa);
-                    }
-                    const ipTxt = p.ip ? ` (${p.ip})` : '';
-                    const locTxt = p.lokalizacja ? ` - ${p.lokalizacja}` : '';
-                    const sourceTxt = (p.source === 'network') ? ' [siec]' : '';
-                    option.textContent = `${p.nazwa || 'Drukarka'}${ipTxt}${locTxt}${sourceTxt}`;
-                    selectEl.appendChild(option);
                 }
 
-                const hasCurrent = Array.from(selectEl.options || []).some(opt => opt.value === current);
-                if (current && (current === 'auto' || hasCurrent)) {
-                    selectEl.value = current;
-                }
+                selectEl.onchange = function() {
+                    const selOpt = selectEl.options[selectEl.selectedIndex];
+                    if (selOpt && selOpt.value && selOpt.value !== 'auto') {
+                        const selVal = selOpt.value;
+                        const selName = selOpt.dataset.printerName || selOpt.text.replace(/^★\s*/, '').replace(/\s*\[DOMYŚLNA\]$/, '');
+                        const selIp = selOpt.dataset.printerIp || (selVal.startsWith('net:') ? selVal.slice(4) : '');
+
+                        localStorage.setItem('agromes_preferred_zpl_printer', selVal);
+                        localStorage.setItem('agromes_preferred_zpl_printer_name', selName);
+                        if (selIp) localStorage.setItem('agromes_preferred_zpl_printer_ip', selIp);
+                        localStorage.setItem('agromes_preprint_printer_' + linia, selVal);
+
+                        const savedBadge = document.getElementById('preprint_saved_printer_badge');
+                        if (savedBadge) {
+                            savedBadge.textContent = '★ Domyślna: ' + selName;
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast('Zapisano na stałe drukarkę: ' + selName, 'success');
+                        }
+                    } else if (selOpt && selOpt.value === 'auto') {
+                        localStorage.removeItem('agromes_preferred_zpl_printer');
+                        localStorage.removeItem('agromes_preferred_zpl_printer_name');
+                        localStorage.removeItem('agromes_preferred_zpl_printer_ip');
+                        localStorage.removeItem('agromes_preprint_printer_' + linia);
+                        const savedBadge = document.getElementById('preprint_saved_printer_badge');
+                        if (savedBadge) {
+                            savedBadge.textContent = 'Ustawiono wybór automatyczny';
+                        }
+                    }
+                };
             } catch (e) {
                 console.warn('loadPreprintPrinters failed', e);
             }
         }
 
-        function openPreprintModal() {
+        function openPreprintModal(opts) {
+            opts = opts || {};
+            const initialCount = opts.count || 1;
+            const initialLinia = (opts.linia || 'PSD').toUpperCase();
+            const targetPlanId = opts.planId || '';
+            const modalTitle = opts.orderName ? `Drukuj etykiety – ${opts.orderName}` : 'Drukuj etykiety (zaplanowana produkcja)';
+
+            // Natychmiast odczytaj zapisaną drukarkę synchronicznie z pamięci podręcznej przeglądarki
+            const savedPrefValue = localStorage.getItem('agromes_preferred_zpl_printer') || localStorage.getItem('agromes_preprint_printer_' + initialLinia) || '';
+            const savedPrefName = localStorage.getItem('agromes_preferred_zpl_printer_name') || '';
+            const savedPrefIp = localStorage.getItem('agromes_preferred_zpl_printer_ip') || '';
+
+            let cachedPrinters = [];
+            try {
+                const rawCached = localStorage.getItem('agromes_cached_printers_list');
+                if (rawCached) cachedPrinters = JSON.parse(rawCached);
+            } catch (e) {}
+
+            let initialPrinterOptionHtml = '';
+            let initialBadgeText = '';
+            let hasPreSelected = false;
+
+            if (Array.isArray(cachedPrinters) && cachedPrinters.length > 0) {
+                let savedOptHtml = '';
+                let otherOptsHtml = '';
+                for (const p of cachedPrinters) {
+                    const selVal = String(p.selection_value || (p.id ? 'db:' + p.id : (p.ip ? 'net:' + p.ip : 'auto')));
+                    const ipTxt = p.ip ? ` (${p.ip})` : '';
+                    const isSaved = (savedPrefValue && (selVal === savedPrefValue || (p.ip && savedPrefValue.includes(p.ip)))) ||
+                                    (savedPrefName && p.nazwa && p.nazwa.toLowerCase() === savedPrefName.toLowerCase()) ||
+                                    (savedPrefIp && p.ip && p.ip === savedPrefIp);
+                    if (isSaved) {
+                        savedOptHtml = `<option value="${selVal}" selected style="font-weight:bold;">★ ${p.nazwa || 'Drukarka'}${ipTxt} [DOMYŚLNA]</option>`;
+                        hasPreSelected = true;
+                    } else {
+                        otherOptsHtml += `<option value="${selVal}">${p.nazwa || 'Drukarka'}${ipTxt}</option>`;
+                    }
+                }
+                initialPrinterOptionHtml = savedOptHtml + otherOptsHtml + `<option value="auto"${!hasPreSelected ? ' selected' : ''}>Automatycznie (domyślna)</option>`;
+                if (hasPreSelected && (savedPrefName || savedOptHtml)) {
+                    initialBadgeText = '★ Domyślna: ' + (savedPrefName || 'Zapisana');
+                }
+            } else if (savedPrefName || savedPrefValue) {
+                const displayName = savedPrefName || 'Zapisana drukarka';
+                const ipTxt = savedPrefIp ? ` (${savedPrefIp})` : '';
+                initialPrinterOptionHtml = `<option value="${savedPrefValue}" selected style="font-weight:bold;">★ ${displayName}${ipTxt} [DOMYŚLNA]</option><option value="auto">Automatycznie (domyślna)</option>`;
+                initialBadgeText = '★ Domyślna: ' + displayName;
+            } else {
+                initialPrinterOptionHtml = `<option value="auto" selected>Automatycznie (domyślna dla linii ${initialLinia})</option>`;
+            }
+
             const html = `
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                  <label>Liczba etykiet:</label>
-                  <input id="preprint_count" type="number" min="1" value="1" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;">
-                  <label>Linia:</label>
-                  <select id="preprint_linia" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;"><option value="PSD">PSD</option><option value="AGRO">AGRO</option></select>
-                  <label>Drukarka:</label>
-                  <select id="preprint_printer" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;"><option value="auto">Automatycznie (domyslna)</option></select>
-                  <div style="font-size:12px;color:#475569;line-height:1.35;">Wybierz drukarke sieciowa lub pozostaw automatyczna.</div>
-                  <label style="display:flex;gap:8px;align-items:flex-start;">
-                    <input id="preprint_existing_only" type="checkbox" style="margin-top:2px;">
-                                        <span>Drukuj dla już istniejących palet (bez rezerwacji nowych)</span>
-                  </label>
-                  <label style="display:flex;gap:8px;align-items:flex-start;">
-                    <input id="preprint_only_pending" type="checkbox" checked style="margin-top:2px;">
-                    <span>Tylko palety oczekujące (do zatwierdzenia)</span>
-                  </label>
-                                    <div style="font-size:12px;color:#475569;line-height:1.35;">Gdy opcja powyzej jest odznaczona, system rezerwuje etykiety dla przyszlych palet.</div>
-                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-                    <button class="btn-action" id="preprint_cancel" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;">Anuluj</button>
-                    <button class="btn-action" id="preprint_confirm" style="background:#10b981;color:#fff;">Przygotuj etykiety</button>
+                <div style="display:flex;flex-direction:column;gap:12px;" data-target-plan-id="${targetPlanId}">
+                  <div style="font-size:13px; font-weight:bold; color:#1e293b; background:#f1f5f9; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; display:flex; align-items:center; gap:8px;">
+                    <span class="material-icons" style="font-size:20px; color:#3b82f6;">inventory_2</span>
+                    <div style="flex:1;">
+                        <div id="preprint_product_name">${opts.orderName || 'Wczytywanie zlecenia...'}</div>
+                        <div id="preprint_plan_info" style="font-size:11px; color:#475569; font-weight:normal; margin-top:2px;">
+                            ${opts.planTonnage ? `Plan: <strong>${opts.planTonnage} kg</strong> &rarr; Wyliczono: <strong>${initialCount} szt.</strong> (1 paleta = 1000 kg)` : 'Sprawdzanie planu produkcyjnego...'}
+                        </div>
+                    </div>
+                  </div>
+                  <div>
+                      <label style="font-weight:700; font-size:13px; color:#334155; margin-bottom:4px; display:block;">Liczba etykiet do wydrukowania (palet):</label>
+                      <input id="preprint_count" type="number" min="1" value="${initialCount}" style="width:100%;padding:10px 12px;border:1.5px solid #94a3b8;border-radius:8px;font-size:16px;font-weight:700;box-sizing:border-box;">
+                      <small style="color:#64748b; font-size:11px; margin-top:3px; display:block;">Liczba wyliczona z planu produkcyjnego (możesz ją zmienić przed wydrukiem).</small>
+                  </div>
+                  <div>
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                          <label style="font-weight:700; font-size:13px; color:#334155; margin:0;">Drukarka Zebra (ZPL):</label>
+                          <small id="preprint_saved_printer_badge" style="color:#059669; font-size:11px; font-weight:700;">${initialBadgeText}</small>
+                      </div>
+                      <select id="preprint_printer" style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;box-sizing:border-box;font-weight:600;">
+                          ${initialPrinterOptionHtml}
+                      </select>
+                      <small style="color:#64748b; font-size:11px; margin-top:3px; display:block;">Wybrana drukarka zostanie automatycznie przypisana na stałe na tym stanowisku.</small>
+                  </div>
+                  <input type="hidden" id="preprint_linia" value="${initialLinia}">
+                  <input id="preprint_existing_only" type="checkbox" style="display:none;">
+                  <input id="preprint_only_pending" type="checkbox" style="display:none;">
+                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+                    <button class="btn-action" id="preprint_cancel" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:8px 14px;">Anuluj</button>
+                    <button class="btn-action" id="preprint_confirm" style="background:#10b981;color:#fff;font-weight:700;padding:8px 18px;display:inline-flex;align-items:center;gap:6px;">
+                        <span class="material-icons" style="font-size:16px;">print</span> Drukuj etykiety
+                    </button>
                   </div>
                   <div id="preprint_result" style="margin-top:8px;max-height:40vh;overflow:auto;"></div>
                 </div>`;
 
-            const inst = createQuickPopup('Predruk etykiet', html);
+            const inst = createQuickPopup(modalTitle, html);
             setTimeout(() => {
                 const cancel = document.getElementById('preprint_cancel');
                 const confirm = document.getElementById('preprint_confirm');
-                const liniaSelect = document.getElementById('preprint_linia');
                 const printerSelect = document.getElementById('preprint_printer');
-                const existingOnly = document.getElementById('preprint_existing_only');
-                const onlyPending = document.getElementById('preprint_only_pending');
-
-                const refreshModeUI = function() {
-                    const existingMode = !!(existingOnly && existingOnly.checked);
-                    if (confirm) confirm.textContent = existingMode ? 'Pobierz etykiety' : 'Zarezerwuj etykiety';
-                    if (onlyPending) onlyPending.disabled = !existingMode;
-                };
+                const countInput = document.getElementById('preprint_count');
+                const infoDiv = document.getElementById('preprint_plan_info');
+                const prodDiv = document.getElementById('preprint_product_name');
 
                 if (cancel) cancel.addEventListener('click', () => inst.close());
-                if (confirm) confirm.addEventListener('click', () => doPreprint(inst));
-                if (existingOnly) existingOnly.addEventListener('change', refreshModeUI);
+                if (confirm) confirm.addEventListener('click', () => doPreprint(inst, targetPlanId));
 
-                if (liniaSelect && printerSelect) {
-                    const loadForSelectedLine = function() {
-                        loadPreprintPrinters(printerSelect, liniaSelect.value);
-                    };
-                    liniaSelect.addEventListener('change', loadForSelectedLine);
-                    loadForSelectedLine();
+                if (printerSelect) {
+                    loadPreprintPrinters(printerSelect, initialLinia);
                 }
 
-                refreshModeUI();
+                // Odpytaj backend o dokładny plan produkcyjny z bazy danych
+                if (targetPlanId) {
+                    fetch('/api/plan_preprint_info/' + encodeURIComponent(targetPlanId))
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                if (countInput) {
+                                    countInput.value = data.suggested_pallets || 1;
+                                }
+                                if (prodDiv && data.produkt) {
+                                    prodDiv.textContent = data.produkt + (data.nazwa_zlecenia ? ' (' + data.nazwa_zlecenia + ')' : '');
+                                }
+                                if (infoDiv) {
+                                    infoDiv.innerHTML = `Plan: <strong>${data.tonaz || 0} kg</strong> &rarr; Wyliczono: <strong>${data.suggested_pallets || 1} szt.</strong> (1 paleta = 1000 kg)`;
+                                }
+                            }
+                        })
+                        .catch(err => console.warn('Błąd pobierania plan_preprint_info:', err));
+                }
             }, 50);
         }
 
-        async function doPreprint(inst) {
+        async function doPreprint(inst, explicitPlanId) {
             let confirmBtn = null;
             let confirmBtnPrevText = '';
             let existingModeForBtn = false;
@@ -1277,8 +1411,11 @@
                     ? '<div style="padding:10px 12px;border:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;border-radius:8px;font-size:13px;"><strong>Pobieram istniejące palety...</strong><div style="margin-top:4px;color:#334155;">To może potrwać kilka sekund. Proszę czekać.</div></div>'
                     : '<div style="padding:10px 12px;border:1px solid #dcfce7;background:#f0fdf4;color:#166534;border-radius:8px;font-size:13px;"><strong>Trwa rezerwacja palet...</strong><div style="margin-top:4px;color:#334155;">Proszę czekać na zakończenie operacji.</div></div>';
 
+                const modalRoot = resultEl.closest('[data-target-plan-id]');
+                const targetPlanId = explicitPlanId || (modalRoot ? modalRoot.getAttribute('data-target-plan-id') : '') || (window.currentPlanId || '');
+
                 const params = {
-                    plan_id: (window.currentPlanId || ''),
+                    plan_id: targetPlanId || '',
                     count: count,
                     linia: linia,
                     existing_only: existingOnly,
@@ -1400,6 +1537,15 @@
                             st.style.color = '#64748b';
                         }
 
+                        var pt = null;
+                        if (typeof PrintToast !== 'undefined') {
+                            pt = PrintToast.show({
+                                printerName: selectedPrinterName || selectedPrinterIp || 'Automatyczna',
+                                status: 'sending',
+                                message: 'Drukowanie etykiety #' + id + '...'
+                            });
+                        }
+
                         try {
                             const res = await printDirect(id, {
                                 id: selectedPrinterId,
@@ -1412,20 +1558,31 @@
                                     st.style.color = '#047857';
                                     if (res.message) st.title = res.message;
                                 }
+                                if (pt) {
+                                    pt.update({ status: 'success', message: 'Wydrukowano #' + id, printerName: res.printerName || selectedPrinterName || '' });
+                                }
                             } else {
                                 if (st) {
                                     st.textContent = 'blad';
                                     st.style.color = '#b91c1c';
                                     st.title = res.message || '';
                                 }
-                                showToast('Błąd druku: ' + (res.message || 'Nieznany błąd'), 'danger');
+                                if (pt) {
+                                    pt.update({ status: 'error', message: 'Błąd: ' + (res.message || 'Nieznany'), printerName: selectedPrinterName || '' });
+                                } else {
+                                    showToast('Błąd druku: ' + (res.message || 'Nieznany błąd'), 'danger');
+                                }
                             }
                         } catch (e) {
                             if (st) {
                                 st.textContent = 'blad';
                                 st.style.color = '#b91c1c';
                             }
-                            showToast('Błąd drukowania etykiety', 'danger');
+                            if (pt) {
+                                pt.update({ status: 'error', message: 'Błąd drukowania etykiety' });
+                            } else {
+                                showToast('Błąd drukowania etykiety', 'danger');
+                            }
                         }
                     }));
 
@@ -1437,9 +1594,23 @@
                             printAllBtn.dataset.busy = '1';
                             printAllBtn.disabled = true;
 
+                            var totalItems = j.created.length;
+                            var pt = null;
+                            if (typeof PrintToast !== 'undefined') {
+                                pt = PrintToast.show({
+                                    printerName: selectedPrinterName || selectedPrinterIp || 'Automatyczna',
+                                    status: 'sending',
+                                    message: 'Drukowanie 1 z ' + totalItems + '...',
+                                    attempt: 1,
+                                    totalAttempts: totalItems
+                                });
+                            }
+
                             let okCount = 0;
                             let failCount = 0;
+                            let currentIdx = 0;
                             for (const item of j.created) {
+                                currentIdx++;
                                 const itemId = item && item.id;
                                 if (!itemId) {
                                     failCount += 1;
@@ -1450,6 +1621,15 @@
                                 if (st) {
                                     st.textContent = 'drukowanie...';
                                     st.style.color = '#64748b';
+                                }
+
+                                if (pt) {
+                                    pt.update({
+                                        status: 'sending',
+                                        message: 'Drukowanie ' + currentIdx + ' z ' + totalItems + ' (#' + itemId + ')...',
+                                        attempt: currentIdx,
+                                        totalAttempts: totalItems
+                                    });
                                 }
 
                                 try {
@@ -1485,6 +1665,14 @@
                             bulkStatus.textContent = `Druk zakonczony. Sukces: ${okCount}, bledy: ${failCount}.`;
                             printAllBtn.dataset.busy = '0';
                             printAllBtn.disabled = false;
+
+                            if (pt) {
+                                if (failCount > 0) {
+                                    pt.update({ status: 'error', message: 'Wydruk: ' + okCount + ' OK, ' + failCount + ' błędów', attempt: totalItems, totalAttempts: totalItems });
+                                } else {
+                                    pt.update({ status: 'success', message: 'Wydrukowano wszystkie (' + okCount + ' szt.)', attempt: totalItems, totalAttempts: totalItems });
+                                }
+                            }
                         });
                     }
                 } else {
@@ -1502,6 +1690,17 @@
                 }
             }
         }
+
+        window.openPreprintModal = openPreprintModal;
+        window.openPreprintModalForPlan = function(planId, linia, defaultCount, orderName, planTonnage) {
+            openPreprintModal({
+                planId: planId,
+                linia: linia || 'PSD',
+                count: defaultCount || 1,
+                orderName: orderName || ('Zlecenie #' + planId),
+                planTonnage: planTonnage || 0
+            });
+        };
     })();
 
     /* ================= Global quick popup helper ================= */
@@ -1635,6 +1834,9 @@
             + '.quick-backdrop{position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:30001;opacity:0;transition:opacity .25s ease;pointer-events:none}.quick-backdrop.show{opacity:1;pointer-events:auto}'
             + '.quick-popup{position:fixed;left:50%;top:50%;transform:translate(-50%, -50%) scale(0.95);z-index:30002;max-width:600px;width:calc(100% - 48px);background:#fff;border-radius:20px;box-shadow:0 25px 50px -12px rgba(15,23,42,0.25);overflow:hidden;display:block;opacity:0;transition:transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .3s ease;border:1px solid rgba(15,23,42,0.08);pointer-events:none;font-family:\'Inter\', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}'
             + '.quick-popup.qp-wide{max-width:920px}'
+            + '.quick-popup.qp-dosypka-full{max-width:96vw !important;width:96vw !important;height:94vh !important;max-height:94vh !important;border-radius:20px !important;padding:0 !important;display:flex !important;flex-direction:column !important;}'
+            + '.quick-popup.qp-dosypka-full .qp-header{display:none !important;}'
+            + '.quick-popup.qp-dosypka-full .qp-body{padding:0 !important;margin:0 !important;flex:1 1 auto !important;height:100% !important;max-height:100% !important;display:flex !important;flex-direction:column !important;overflow:hidden !important;background:#fff !important;}'
             + '.quick-popup.open{transform:translate(-50%, -50%) scale(1);opacity:1;pointer-events:auto}'
             + '.qp-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #f1f5f9;background:#fff}'
             + '.qp-header .header-title{font-size:18px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;font-family:inherit}'
@@ -2745,24 +2947,34 @@ window.showConfirmModal = function(message, onConfirm) {
     window.drukujZPLDirect = function(paletaId, linia, planId, btn, source) {
         if (!paletaId) return;
 
-        if (typeof showToast === 'function') showToast('Wysyłanie etykiety...', 'info');
-
         const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
 
-        let url = '/api/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
+        const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
+        let requestUrl = url;
         if (source) {
-            url += '&source=' + encodeURIComponent(source);
+            requestUrl += '&source=' + encodeURIComponent(source);
         }
         if (planId) {
-            url += '&plan_id=' + encodeURIComponent(planId);
+            requestUrl += '&plan_id=' + encodeURIComponent(planId);
         }
         
         const pref = (typeof window.getPreferredZplPrinter === 'function') ? window.getPreferredZplPrinter() : {
             ip: localStorage.getItem('agromes_preferred_zpl_printer_ip') || (localStorage.getItem('agromes_preferred_zpl_printer') || '').replace('net:', ''),
             name: localStorage.getItem('agromes_preferred_zpl_printer_name') || ''
         };
-        if (pref.ip) url += '&printer_ip=' + encodeURIComponent(pref.ip);
-        if (pref.name) url += '&printer_name=' + encodeURIComponent(pref.name);
+        if (pref.ip) requestUrl += '&printer_ip=' + encodeURIComponent(pref.ip);
+        if (pref.name) requestUrl += '&printer_name=' + encodeURIComponent(pref.name);
+
+        var pt = null;
+        if (typeof PrintToast !== 'undefined') {
+            pt = PrintToast.show({
+                printerName: pref.name || pref.ip || 'Automatyczna',
+                status: 'sending',
+                message: 'Wysyłanie etykiety #' + paletaId + '...',
+                attempt: 1,
+                totalAttempts: 1
+            });
+        }
 
         const fetchOptions = {
             method: 'POST',
@@ -2770,44 +2982,43 @@ window.showConfirmModal = function(message, onConfirm) {
             credentials: 'same-origin'
         };
 
-        fetch(url, fetchOptions)
+        fetch(requestUrl, fetchOptions)
         .then(r => r.json())
         .then(async (data) => {
+            var printerLabel = data.printer_name || data.printer_ip || pref.name || pref.ip || '';
+
             if (data.success) {
-                if (typeof showToast === 'function') {
-                    const printerLabel = (data.printer_name || data.printer_ip)
-                        ? (' do: ' + (data.printer_name || data.printer_ip))
-                        : '';
-                    if (data.data_produkcji) {
-                        showToast('Wysłano etykietę' + printerLabel + ' (data produkcji: ' + data.data_produkcji + ')', 'success');
-                    } else {
-                        showToast('Wysłano etykietę' + printerLabel, 'success');
-                    }
+                if (pt) {
+                    var successMsg = 'Wydrukowano etykietę #' + paletaId;
+                    if (data.data_produkcji) successMsg += ' (data: ' + data.data_produkcji + ')';
+                    pt.update({ status: 'success', message: successMsg, printerName: printerLabel });
+                } else if (typeof showToast === 'function') {
+                    showToast('Wysłano etykietę do: ' + printerLabel, 'success');
                 }
                 applyPrintSuccessState(btn, originalHtml, paletaId);
                 return;
             }
 
-            // Awaryjny wydruk lokalny (przeglądarka -> http://127.0.0.1:3001) dla przypadku,
-            // gdy serwer pod linkiem nie ma trasy sieciowej do drukarki.
             if (data && data.local_bridge_fallback) {
-                if (typeof showToast === 'function') {
-                    showToast('Serwer nie doszedł do drukarki, próba wydruku lokalnego...', 'warning');
+                if (pt) {
+                    pt.update({ status: 'retry', message: 'Serwer nie dotarł, próba lokalna...', printerName: printerLabel, attempt: 2, totalAttempts: 2 });
                 }
 
                 const localResult = await tryLocalBridgeFallback(data.local_bridge_fallback);
                 if (localResult.ok) {
-                    if (typeof showToast === 'function') {
-                        showToast(
-                            'Wydruk fallback OK: ' + (localResult.printerName || '') + ' (' + (localResult.printerIp || '') + ') [' + (localResult.bridgeName || 'bridge') + ']',
-                            'success'
-                        );
+                    var fallbackPrinter = localResult.printerName || localResult.printerIp || printerLabel;
+                    if (pt) {
+                        pt.update({ status: 'success', message: 'Wydrukowano (fallback): #' + paletaId, printerName: fallbackPrinter, attempt: 2, totalAttempts: 2 });
+                    } else if (typeof showToast === 'function') {
+                        showToast('Wydruk fallback OK: ' + fallbackPrinter, 'success');
                     }
                     applyPrintSuccessState(btn, originalHtml, paletaId);
                     return;
                 }
 
-                if (typeof showToast === 'function') {
+                if (pt) {
+                    pt.update({ status: 'error', message: 'Błąd: ' + localResult.message, printerName: printerLabel, attempt: 2, totalAttempts: 2 });
+                } else if (typeof showToast === 'function') {
                     showToast('Błąd fallbacku lokalnego: ' + localResult.message, 'danger');
                 } else {
                     alert('Błąd fallbacku lokalnego: ' + localResult.message);
@@ -2815,13 +3026,74 @@ window.showConfirmModal = function(message, onConfirm) {
                 return;
             }
 
-            if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
-            else alert('Błąd druku: ' + data.message);
+            if (pt) {
+                pt.update({ status: 'error', message: 'Błąd: ' + (data.message || 'Nieznany'), printerName: printerLabel });
+            } else if (typeof showToast === 'function') {
+                showToast('Błąd druku: ' + data.message, 'danger');
+            } else {
+                alert('Błąd druku: ' + data.message);
+            }
         })
         .catch(err => {
             console.error('ZPL Print error:', err);
-            if (typeof showToast === 'function') showToast('Błąd połączenia z serwerem druku', 'danger');
+            if (pt) {
+                pt.update({ status: 'error', message: 'Brak połączenia z serwerem', printerName: pref.name || pref.ip || '' });
+            } else if (typeof showToast === 'function') {
+                showToast('Błąd połączenia z serwerem druku', 'danger');
+            }
         });
+    };
+
+    window.drukujWszystkiePaletyZlecenia = async function(planId, linia, btn) {
+        if (!planId) return;
+        const originalText = btn ? btn.innerHTML : '';
+        try {
+            const container = document.getElementById('details-' + planId) || (btn ? btn.closest('.active-order-szarze-panel') : null) || document;
+            let palletButtons = [];
+            if (container) {
+                palletButtons = Array.from(container.querySelectorAll('button[onclick*="drukujZPLDirect"]'));
+            }
+            if (!palletButtons.length) {
+                if (typeof showToast === 'function') showToast('Brak palet do wydruku dla tego zlecenia', 'warning');
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="material-icons" style="font-size:14px;">hourglass_top</span> Drukuję (' + palletButtons.length + ')...';
+            }
+            if (typeof showToast === 'function') showToast('Rozpoczynam drukowanie ' + palletButtons.length + ' etykiet...', 'info');
+            
+            let successCount = 0;
+            let failCount = 0;
+            for (let i = 0; i < palletButtons.length; i++) {
+                const pBtn = palletButtons[i];
+                const onclickAttr = pBtn.getAttribute('onclick') || '';
+                const match = onclickAttr.match(/drukujZPLDirect\s*\(\s*['"]?([^,'"\s]+)['"]?/);
+                if (match && match[1]) {
+                    const palId = match[1];
+                    try {
+                        await new Promise((resolve) => {
+                            window.drukujZPLDirect(palId, linia, planId, pBtn, 'workowanie');
+                            setTimeout(resolve, 400);
+                        });
+                        successCount++;
+                    } catch(err) {
+                        failCount++;
+                    }
+                }
+            }
+            if (typeof showToast === 'function') {
+                showToast('Wydrukowano etykiety zlecenia: ' + successCount + (failCount > 0 ? (', błędy: ' + failCount) : ''), successCount > 0 ? 'success' : 'danger');
+            }
+        } catch(e) {
+            console.error('drukujWszystkiePaletyZlecenia error:', e);
+            if (typeof showToast === 'function') showToast('Wystąpił błąd podczas zbiorczego druku', 'danger');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
     };
     window.restorePrintIcons = function() {
         try {

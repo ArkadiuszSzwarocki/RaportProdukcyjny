@@ -479,11 +479,47 @@ def register_api_runtime_routes(api_bp):
         try:
             from app.config import VAPID_PUBLIC_KEY
             if not VAPID_PUBLIC_KEY:
-                return jsonify({'success': False, 'message': 'VAPID not configured'}), 503
+                return jsonify({'success': False, 'message': 'VAPID not configured'}), 200
             return jsonify({'success': True, 'publicKey': VAPID_PUBLIC_KEY})
         except Exception as error:
             current_app.logger.error('[PUSH] Error getting VAPID public key: %s', error)
             return jsonify({'success': False}), 500
+
+    @api_bp.route('/print_job_status/<int:job_id>', methods=['GET'])
+    @login_required
+    def print_job_status(job_id: int):
+        """CQRS Query: Zwraca aktualny stan zadania druku z kolejki (status, próby, błędy)."""
+        try:
+            from app.db import get_db_connection
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("""
+                    SELECT id, printer_ip, printer_name, status, retry_count, error_message, created_at, updated_at
+                    FROM print_jobs
+                    WHERE id = %s
+                    LIMIT 1
+                """, (job_id,))
+                job = cursor.fetchone()
+                if not job:
+                    return jsonify({'success': False, 'message': 'Nie znaleziono zadania'}), 404
+                
+                return jsonify({
+                    'success': True,
+                    'job': {
+                        'id': job['id'],
+                        'status': job['status'],
+                        'retry_count': job.get('retry_count', 0) or 0,
+                        'error_message': job.get('error_message') or '',
+                        'printer_name': job.get('printer_name') or '',
+                        'printer_ip': job.get('printer_ip') or '',
+                    }
+                })
+            finally:
+                conn.close()
+        except Exception as error:
+            current_app.logger.exception('[PRINT_STATUS] Error fetching print job %s: %s', job_id, error)
+            return jsonify({'success': False, 'message': str(error)}), 500
 
     @api_bp.route('/push/subscribe', methods=['POST'])
     @login_required

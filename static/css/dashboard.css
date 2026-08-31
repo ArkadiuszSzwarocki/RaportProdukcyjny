@@ -387,10 +387,6 @@
     overflow-y: auto;
 }
 
-.quick-popup.open.qp-wide {
-    max-width: min(920px, 96vw);
-}
-
 .quick-popup.open.qp-dosypka-full,
 .quick-popup.open:has(.dosypka-popup-container),
 .quick-popup:has(.dosypka-popup-container) {
@@ -401,14 +397,25 @@
     border-radius: 18px !important;
     display: flex !important;
     flex-direction: column !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+.quick-popup:has(.dosypka-popup-container) .qp-header,
+.quick-popup.qp-dosypka-full .qp-header {
+    display: none !important;
 }
 
 .quick-popup:has(.dosypka-popup-container) .qp-body,
 .quick-popup.qp-dosypka-full .qp-body {
     flex: 1 1 auto !important;
-    max-height: calc(94vh - 70px) !important;
-    overflow-y: auto !important;
-    padding: 16px 24px 20px !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .agro-modal-header h2 {

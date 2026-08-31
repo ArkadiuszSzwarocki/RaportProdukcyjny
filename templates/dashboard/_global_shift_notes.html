@@ -19,7 +19,7 @@
 
     <!-- Date navigation & Chevron -->
       <div onclick="event.stopPropagation()">
-        {% with current_date=dzisiaj, mode='event', picker_id='notes-date-picker', custom_title='Data notatek' %}
+        {% with current_date=dzisiaj, mode='url', picker_id='notes-date-picker', custom_title='Data notatek' %}
             {% include 'components/_date_picker.html' %}
         {% endwith %}
       </div>

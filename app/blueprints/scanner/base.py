@@ -227,6 +227,7 @@ def print_label():
     # Try TCP printer first
     printer = get_printer()
     ok, msg = False, ''
+    job_id = None
     try:
         if label_type == 'location':
             ok, msg = printer.print_location_label(label_data)
@@ -244,13 +245,21 @@ def print_label():
                 override_name=printer_name,
                 copies=copies
             )
+        job_id = getattr(printer, 'last_job_id', None)
     except Exception as e:
         ok, msg = False, str(e)
 
     # Always return label URL so frontend can open it
     safe_id = label_data.get('nr_palety') or label_data.get('id') or identifier
     label_url = f"/agro/scanner/label/{safe_id}?linia={linia}&autoprint=1"
-    return jsonify({'success': ok, 'message': msg, 'label_url': label_url})
+    return jsonify({
+        'success': ok,
+        'message': msg,
+        'job_id': job_id,
+        'printer_name': printer_name or '',
+        'printer_ip': printer_ip or '',
+        'label_url': label_url
+    })
 
 
 @scanner_bp.route('/test-print', methods=['POST'])

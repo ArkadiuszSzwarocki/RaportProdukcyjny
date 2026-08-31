@@ -97,14 +97,17 @@ class AutoReportService:
             conn = get_db_connection()
             cls._ensure_history_table(conn)
             cursor = conn.cursor(dictionary=True)
+            
+            # Check specific line schedule as well as global 'ALL' schedule
             cursor.execute(
                 """
-                SELECT scheduled_time, is_paused, postponed_by, updated_at
+                SELECT linia, scheduled_time, is_paused, postponed_by, updated_at
                 FROM auto_report_schedule
-                WHERE data_dnia = %s AND linia = %s
+                WHERE data_dnia = %s AND linia IN (%s, 'ALL', 'WSZYSTKO')
+                ORDER BY CASE WHEN linia = %s THEN 0 ELSE 1 END
                 LIMIT 1
                 """,
-                (date_str, linia)
+                (date_str, linia, linia)
             )
             row = cursor.fetchone()
             cursor.close()
@@ -124,14 +127,22 @@ class AutoReportService:
                     except Exception:
                         st_str = str(st)[:5]
 
+                raw_paused = row.get('is_paused')
+                if isinstance(raw_paused, (bytes, bytearray)):
+                    is_paused = (raw_paused != b'\x00' and raw_paused != b'0')
+                elif isinstance(raw_paused, str):
+                    is_paused = raw_paused.strip().lower() in ('1', 'true', 'yes')
+                else:
+                    is_paused = bool(raw_paused)
+
                 return {
                     'data_dnia': date_str,
                     'linia': linia,
                     'scheduled_time': st_str,
                     'scheduled_time_full': f"{st_str}:00",
-                    'is_paused': bool(row['is_paused']),
+                    'is_paused': is_paused,
                     'postponed_by': row.get('postponed_by'),
-                    'is_custom': (st_str != '15:00' or bool(row['is_paused']))
+                    'is_custom': (st_str != '15:00' or is_paused)
                 }
             return {
                 'data_dnia': date_str,
@@ -168,28 +179,35 @@ class AutoReportService:
             m = int(parts[1]) if len(parts) > 1 else 0
             formatted_time = f"{h:02d}:{m:02d}:00"
 
+            target_lines = ['AGRO', 'PSD'] if str(linia).upper() in ('ALL', 'WSZYSTKO', 'NONE', '') else [str(linia).upper()]
+            # Also keep 'ALL' row if explicitly called with ALL
+            if str(linia).upper() in ('ALL', 'WSZYSTKO') and 'ALL' not in target_lines:
+                target_lines.append('ALL')
+
             conn = get_db_connection()
             cls._ensure_history_table(conn)
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO auto_report_schedule (data_dnia, linia, scheduled_time, is_paused, postponed_by, updated_at)
-                VALUES (%s, %s, %s, %s, %s, NOW())
-                ON DUPLICATE KEY UPDATE
-                    scheduled_time = VALUES(scheduled_time),
-                    is_paused = VALUES(is_paused),
-                    postponed_by = VALUES(postponed_by),
-                    updated_at = NOW()
-                """,
-                (date_str, linia, formatted_time, 1 if is_paused else 0, user_name)
-            )
+            
+            for t_line in target_lines:
+                cursor.execute(
+                    """
+                    INSERT INTO auto_report_schedule (data_dnia, linia, scheduled_time, is_paused, postponed_by, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        scheduled_time = VALUES(scheduled_time),
+                        is_paused = VALUES(is_paused),
+                        postponed_by = VALUES(postponed_by),
+                        updated_at = NOW()
+                    """,
+                    (date_str, t_line, formatted_time, 1 if is_paused else 0, user_name)
+                )
 
             conn.commit()
             cursor.close()
 
             audit_log(
                 'Zaktualizowano czas wysyłki auto-raportu',
-                f'Linia={linia}, Data={date_str}, Godzina={formatted_time}, Wstrzymany={is_paused}, Przez={user_name}'
+                f'Linia={linia} (target={target_lines}), Data={date_str}, Godzina={formatted_time}, Wstrzymany={is_paused}, Przez={user_name}'
             )
             return True, f"Czas wysyłki auto-raportu dla {linia} został ustawiony na {formatted_time[:5]}."
         except Exception as e:
@@ -246,7 +264,7 @@ class AutoReportService:
         emails = []
         try:
             repo = UserEmailSettingsRepository()
-            recipients = repo.get_all_recipients()
+            recipients = repo.get_all_recipients(only_active=True)
             for r in recipients:
                 em = (r.get('email') or '').strip()
                 if em and em not in emails:
@@ -312,11 +330,10 @@ class AutoReportService:
     def claim_report_execution(cls, linia: str, date_str: str, typ_raportu: str = '15:00') -> bool:
         """
         Atomowo rezerwuje prawo do wykonania i wysyłki raportu.
-        Zabezpiecza przed współbieżnym lub wielokrotnym wysyłaniem przez wiele procesów/workerów/wątków.
         Gwarantuje bezwzględnie jednorazową wysyłkę:
-        - Jeśli status to 'SENT', ZAWSZE zwraca False.
-        - Jeśli status to 'IN_PROGRESS', blokuje na 15 minut (ochrona przed równoległymi wysyłkami).
-        - Jeśli status to 'FAILED', blokuje na 10 minut (cooldown przed kolejną próbą).
+        - Jeśli status to 'SENT', ZAWSZE zwraca False (żadnych ponownych wysyłek).
+        - Jeśli status to 'IN_PROGRESS', blokuje współbieżne wykonania.
+        - Jeśli status to 'FAILED', nie ponawia automatycznie co 10 minut w pętli.
         """
         conn = None
         try:
@@ -328,6 +345,8 @@ class AutoReportService:
                 SELECT id, status, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
                 FROM auto_report_history
                 WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s
+                ORDER BY CASE WHEN status = 'SENT' THEN 0 ELSE 1 END, id DESC
+                LIMIT 1
                 FOR UPDATE
                 """,
                 (date_str, linia, typ_raportu)
@@ -340,10 +359,11 @@ class AutoReportService:
                 if st == 'SENT':
                     cursor.close()
                     return False
-                if st == 'IN_PROGRESS' and age_min < 15:
+                if st == 'IN_PROGRESS' and age_min < 30:
                     cursor.close()
                     return False
-                if st == 'FAILED' and age_min < 10:
+                # Jeśli próba zakończyła się błędem, nie zapętlaj wysyłki co 10 minut
+                if st == 'FAILED':
                     cursor.close()
                     return False
 
@@ -648,6 +668,13 @@ class AutoReportService:
             msg = f"Automatyczny raport dla {linia} w dniu {date_str} pominięty - dzień nie jest aktywny w harmonogramie wysyłek."
             logger.info("[AUTO_REPORT] %s", msg)
             return True, msg
+
+        if not force:
+            sched = cls.get_schedule(linia, date_str)
+            if sched.get('is_paused'):
+                msg = f"Automatyczny raport dla {linia} w dniu {date_str} jest wstrzymany (is_paused=True)."
+                logger.info("[AUTO_REPORT] %s", msg)
+                return True, msg
 
         if cls.is_1500_report_sent(linia, date_str):
             msg = f"Raport o 15:00 dla {linia} w dniu {date_str} zostal juz wyslany."

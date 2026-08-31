@@ -429,10 +429,12 @@ def print_pallet_label():
 
             msg = print_msg
 
-        if ok:
-            return jsonify({'success': True, 'message': msg, 'printer_name': used_name, 'printer_ip': used_ip})
+        job_id = getattr(printer_service, 'last_job_id', None)
 
-        response_payload = {'success': False, 'message': msg, 'error': msg}
+        if ok:
+            return jsonify({'success': True, 'message': msg, 'job_id': job_id, 'printer_name': used_name, 'printer_ip': used_ip})
+
+        response_payload = {'success': False, 'message': msg, 'error': msg, 'job_id': job_id, 'printer_name': used_name, 'printer_ip': used_ip}
         if local_bridge_fallback:
             response_payload['local_bridge_fallback'] = local_bridge_fallback
 

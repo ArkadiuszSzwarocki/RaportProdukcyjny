@@ -24,6 +24,9 @@
         {% if role_has_access('raporty.agro_production') %}
         <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item">Raport Połączony Agro</a>
         {% endif %}
+        <a href="/admin/historia-email" class="nav-sub-item {% if request.path.startswith('/admin/historia-email') or request.path.startswith('/historia-email') %}active{% endif %}">
+            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #3b82f6;">mail</span> Historia E-mail
+        </a>
     </div>
 </div>
 {% endif %}
@@ -97,6 +100,9 @@
         <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if '/admin/ustawienia/zespol' in request.path %}active{% endif %}">Zespół i Konta</a>
         {% endif %}
         <a href="/admin/ustawienia/email-magazyn" class="nav-sub-item {% if '/email-magazyn' in request.path %}active{% endif %}">E-mail Dostaw i Przesunięć</a>
+        <a href="/admin/historia-email" class="nav-sub-item {% if request.path.startswith('/admin/historia-email') or request.path.startswith('/historia-email') %}active{% endif %}">
+            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #3b82f6;">mail</span> Historia E-mail
+        </a>
         <a href="/admin/ustawienia/drukarki" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukarek (48h)</a>
     </div>

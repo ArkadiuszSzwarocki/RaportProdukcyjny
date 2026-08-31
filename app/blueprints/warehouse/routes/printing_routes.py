@@ -111,9 +111,44 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
             cursor.execute("SELECT id, nazwa, ip FROM drukarki WHERE aktywna = 1 ORDER BY nazwa")
             printers = cursor.fetchall()
             conn.close()
-            return jsonify({'success': True, 'printers': printers})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)})
+
+    @warehouse_bp.route('/api/plan_preprint_info/<int:plan_id>', methods=['GET'])
+    @login_required
+    def api_plan_preprint_info(plan_id):
+        try:
+            linia = str(resolve_request_linia()).upper()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor.execute(f"SELECT id, produkt, tonaz, nazwa_zlecenia, sekcja, status, zasyp_id FROM {table_plan} WHERE id = %s", (plan_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return jsonify({'success': False, 'message': 'Plan nie znaleziony'}), 404
+            
+            tonaz = float(row.get('tonaz') or 0)
+            if tonaz <= 1 and row.get('zasyp_id'):
+                cursor.execute(f"SELECT tonaz FROM {table_plan} WHERE id = %s", (row['zasyp_id'],))
+                z_row = cursor.fetchone()
+                if z_row and float(z_row.get('tonaz') or 0) > tonaz:
+                    tonaz = float(z_row['tonaz'])
+
+            conn.close()
+            calculated_pallets = max(1, int((tonaz + 999) // 1000)) if tonaz > 0 else 1
+            return jsonify({
+                'success': True,
+                'plan_id': plan_id,
+                'produkt': row.get('produkt') or 'Nieznany',
+                'nazwa_zlecenia': row.get('nazwa_zlecenia') or '',
+                'tonaz': tonaz,
+                'suggested_pallets': calculated_pallets,
+                'linia': linia
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+
     @warehouse_bp.route('/drukuj_etykiete/<int:paleta_id>', methods=['GET'])
     @login_required
     def drukuj_etykiete(paleta_id):
@@ -159,6 +194,7 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
             conn.close()
 
     @warehouse_bp.route('/api/drukuj_etykiete_zpl/<int:paleta_id>', methods=['POST'])
+    @warehouse_bp.route('/drukuj_etykiete_zpl/<int:paleta_id>', methods=['POST'])
     @login_required
     def drukuj_etykiete_zpl(paleta_id):
         """Send ZPL label via print bridge (2 copies)."""
@@ -363,6 +399,8 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
                 override_name=target_name,
                 copies=2
             )
+            job_id = getattr(printer, 'last_job_id', None)
+
             if ok:
                 msg = f"Wysłano do drukarki {target_name} ({target_ip})"
             else:
@@ -380,6 +418,7 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
             response_payload = {
                 'success': ok,
                 'message': msg,
+                'job_id': job_id,
                 'printer_name': target_name,
                 'printer_ip': target_ip,
             }

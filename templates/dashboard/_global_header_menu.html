@@ -254,11 +254,12 @@
       };
 
       window.submitPostponeReport = function(params) {
-          var dateInput = document.getElementById('raport_date_picker');
-          var d = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+          var dateInput = document.getElementById('raport_date_picker') || document.querySelector('input[name="data"]') || document.getElementById('obsada-date');
+          var urlData = new URLSearchParams(window.location.search).get('data');
+          var d = (dateInput && dateInput.value) ? dateInput.value : (urlData || new Date().toISOString().slice(0, 10));
           var curLinia = '{{ linia }}';
-          if (!curLinia || curLinia === 'None' || curLinia === 'ALL') {
-              curLinia = (window.CURRENT_LINIA && window.CURRENT_LINIA !== 'None') ? window.CURRENT_LINIA : 'AGRO';
+          if (!curLinia || curLinia === 'None') {
+              curLinia = (window.CURRENT_LINIA && window.CURRENT_LINIA !== 'None') ? window.CURRENT_LINIA : 'ALL';
           }
           params.linia = params.linia || curLinia;
           params.data = params.data || d;

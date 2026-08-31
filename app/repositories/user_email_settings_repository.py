@@ -67,6 +67,7 @@ class UserEmailSettingsRepository:
         )
 
     def get_by_user_id(self, user_id: int) -> Optional[UserEmailSettingsModel]:
+        from app.core.crypto_utils import decrypt_secret
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -74,6 +75,8 @@ class UserEmailSettingsRepository:
             cursor.execute(query, (user_id,))
             row = cursor.fetchone()
             if row:
+                raw_pwd = row.get('smtp_password')
+                decrypted_pwd = decrypt_secret(raw_pwd) if raw_pwd else ''
                 return UserEmailSettingsModel(
                     id=row['id'],
                     user_id=row['user_id'],
@@ -81,7 +84,7 @@ class UserEmailSettingsRepository:
                     smtp_port=row['smtp_port'],
                     smtp_security=row['smtp_security'],
                     smtp_username=row['smtp_username'],
-                    smtp_password=row['smtp_password'],
+                    smtp_password=decrypted_pwd,
                     sender_name=row.get('sender_name'),
                     domyslni_odbiorcy=row.get('domyslni_odbiorcy'),
                     is_active=bool(row['is_active']),
@@ -103,6 +106,17 @@ class UserEmailSettingsRepository:
         sender_name: Optional[str] = None,
         domyslni_odbiorcy: Optional[str] = None
     ) -> UserEmailSettingsModel:
+        from app.core.crypto_utils import encrypt_secret
+        
+        # Jeśli hasło to maska lub puste, a użytkownik istnieje, zachowaj dotychczasowe hasło
+        clean_pwd = smtp_password.strip() if smtp_password else ''
+        if not clean_pwd or clean_pwd.startswith('•') or clean_pwd == '********' or clean_pwd == '__SAVED_PASSWORD__':
+            existing = self.get_by_user_id(user_id)
+            if existing and existing.smtp_password:
+                clean_pwd = existing.smtp_password
+
+        encrypted_pwd = encrypt_secret(clean_pwd) if clean_pwd else ''
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -127,7 +141,7 @@ class UserEmailSettingsRepository:
                 int(smtp_port),
                 smtp_security.strip().upper(),
                 smtp_username.strip(),
-                smtp_password.strip(),
+                encrypted_pwd,
                 sender_name.strip() if sender_name else None,
                 domyslni_odbiorcy.strip() if domyslni_odbiorcy else None
             ))
@@ -136,15 +150,30 @@ class UserEmailSettingsRepository:
         finally:
             conn.close()
 
-    def get_all_recipients(self) -> list:
+    def get_all_recipients(self, only_active: bool = False) -> list:
         """Pobiera listę odbiorców ze słownika slownik_odbiorcy_email."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM slownik_odbiorcy_email WHERE aktywny = 1 ORDER BY grupa, nazwa")
+            where_sql = "WHERE aktywny = 1" if only_active else ""
+            cursor.execute(f"SELECT * FROM slownik_odbiorcy_email {where_sql} ORDER BY grupa, nazwa")
             return cursor.fetchall() or []
         except Exception:
             return []
+        finally:
+            conn.close()
+
+    def toggle_recipient_active(self, recipient_id: int, is_active: bool) -> bool:
+        """Włącza lub wyłącza odbiorcę ze słownika bez jego usuwania."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            val = 1 if is_active else 0
+            cursor.execute("UPDATE slownik_odbiorcy_email SET aktywny = %s WHERE id = %s", (val, recipient_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception:
+            return False
         finally:
             conn.close()
 

@@ -33,9 +33,7 @@
             data-date-action="prev"
             data-step="-1"
             title="Poprzedni dzień (-1 dzień)"
-            style="background: transparent; border: none; font-weight: 800; font-size: 1.1rem; color: #475569; padding: 2px 8px; cursor: pointer; line-height: 1; border-radius: 6px; transition: background 0.15s, color 0.15s;"
-            onmouseover="this.style.background='#f1f5f9'; this.style.color='#0f172a';"
-            onmouseout="this.style.background='transparent'; this.style.color='#475569';">
+            style="background: transparent; border: none; font-weight: 800; font-size: 1.1rem; color: #475569; padding: 2px 8px; cursor: pointer; line-height: 1; border-radius: 6px;">
         &#9664;
     </button>
 
@@ -43,10 +41,10 @@
     <div class="unified-date-tile"
          style="position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px 10px; cursor: pointer;"
          title="Kliknij, aby wybrać datę z kalendarza">
-        <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; line-height: 1; margin-bottom: 2px;">
+        <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; line-height: 1; margin-bottom: 2px; pointer-events: none;">
             {{ custom_title|default('WIDOK DLA') }}
         </span>
-        <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px; pointer-events: none;">
             <span style="font-size: 0.95rem; line-height: 1;">📅</span>
             <span class="unified-date-label" data-date-label="true" style="font-size: 0.95rem; font-weight: 900; color: #0f172a; letter-spacing: 0.02em; line-height: 1.1;">
                 {{ _disp_date }}
@@ -57,7 +55,7 @@
                class="unified-date-input" 
                data-date-input="true"
                value="{{ _iso_date }}"
-               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2;"
+               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 2; pointer-events: none;"
                title="Wybierz datę z kalendarza">
     </div>
 
@@ -67,9 +65,7 @@
             data-date-action="next"
             data-step="1"
             title="Następny dzień (+1 dzień)"
-            style="background: transparent; border: none; font-weight: 800; font-size: 1.1rem; color: #475569; padding: 2px 8px; cursor: pointer; line-height: 1; border-radius: 6px; transition: background 0.15s, color 0.15s;"
-            onmouseover="this.style.background='#f1f5f9'; this.style.color='#0f172a';"
-            onmouseout="this.style.background='transparent'; this.style.color='#475569';">
+            style="background: transparent; border: none; font-weight: 800; font-size: 1.1rem; color: #475569; padding: 2px 8px; cursor: pointer; line-height: 1; border-radius: 6px;">
         &#9654;
     </button>
 </div>

@@ -156,6 +156,43 @@ class EmailService:
             server.quit()
 
             sender_info = f"konto własne ({config.get('username')})" if config.get('is_custom') else f"konto systemowe ({config.get('username')})"
-            return True, f"✅ E-mail wysłany pomyślnie do {len(to_emails)} odbiorcy/odbiorców ({sender_info})."
+            msg_res = f"✅ E-mail wysłany pomyślnie do {len(to_emails)} odbiorcy/odbiorców ({sender_info})."
+
+            try:
+                from app.services.email_log_service import EmailLogService
+                source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
+                linia_val = 'AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None)
+                EmailLogService.log_email_attempt(
+                    sender=sender_str,
+                    recipients=to_emails,
+                    subject=subject,
+                    source=source_label,
+                    linia=linia_val,
+                    success=True,
+                    error_message=None,
+                    attachments=attachments
+                )
+            except Exception:
+                pass
+
+            return True, msg_res
         except Exception as e:
-            return False, f"❌ Błąd wysyłania e-maila: {str(e)}"
+            err_msg = f"❌ Błąd wysyłania e-maila: {str(e)}"
+            try:
+                from app.services.email_log_service import EmailLogService
+                source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
+                linia_val = 'AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None)
+                EmailLogService.log_email_attempt(
+                    sender=config.get('username', 'system') if config else 'system',
+                    recipients=to_emails,
+                    subject=subject,
+                    source=source_label,
+                    linia=linia_val,
+                    success=False,
+                    error_message=str(e),
+                    attachments=attachments
+                )
+            except Exception:
+                pass
+
+            return False, err_msg

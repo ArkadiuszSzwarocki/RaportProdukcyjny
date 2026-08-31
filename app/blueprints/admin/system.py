@@ -689,7 +689,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         repo = UserEmailSettingsRepository()
         user_cfg = repo.get_by_user_id(edit_user_id) if edit_user_id else None
         system_cfg = repo.get_system_config()
-        all_recipients = repo.get_all_recipients()
+        all_recipients = repo.get_all_recipients(only_active=False)
         
         # Get login of the user being edited
         edit_user_login = user_login
@@ -718,12 +718,23 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @login_required
     def api_email_test():
         from app.services.email_service import EmailService
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
         payload = request.get_json(silent=True) or request.form
         smtp_server = payload.get('smtp_server')
         smtp_port = payload.get('smtp_port')
         smtp_security = payload.get('smtp_security')
         smtp_username = payload.get('smtp_username')
         smtp_password = payload.get('smtp_password')
+        target_user_id = payload.get('target_user_id')
+
+        # Jeśli hasło jest zamaskowane, pobierz zapisane hasło z bazy
+        clean_pwd = smtp_password.strip() if smtp_password else ''
+        if not clean_pwd or clean_pwd.startswith('•') or clean_pwd == '********' or clean_pwd == '__SAVED_PASSWORD__':
+            repo = UserEmailSettingsRepository()
+            u_id = int(target_user_id) if target_user_id else (session.get('user_id') or 0)
+            existing = repo.get_by_user_id(u_id) if u_id else repo.get_system_config()
+            if existing and existing.smtp_password:
+                clean_pwd = existing.smtp_password
 
         email_svc = EmailService()
         success, msg = email_svc.test_smtp_connection(
@@ -731,7 +742,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             smtp_port=int(smtp_port) if smtp_port else 465,
             smtp_security=smtp_security or 'SSL',
             smtp_username=smtp_username,
-            smtp_password=smtp_password
+            smtp_password=clean_pwd
         )
         return jsonify({'success': success, 'message': msg})
 
@@ -815,6 +826,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return jsonify({'success': True, 'message': 'Wyczyszczono konfigurację Twojego konta.'})
 
     @admin_bp.route('/api/email/recipient/add', methods=['POST'])
+    @admin_bp.route('/api/email/recipients', methods=['POST'])
     @login_required
     def api_email_recipient_add():
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
@@ -833,19 +845,38 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return jsonify({'success': False, 'message': 'Nie udało się dodać odbiorcy.'}), 500
 
     @admin_bp.route('/api/email/recipient/delete', methods=['POST'])
+    @admin_bp.route('/api/email/recipients/<int:recipient_id>', methods=['DELETE'])
     @login_required
-    def api_email_recipient_delete():
+    def api_email_recipient_delete(recipient_id=None):
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
         payload = request.get_json(silent=True) or request.form
-        recipient_id = payload.get('id')
-        if not recipient_id:
+        rec_id = recipient_id or payload.get('id')
+        if not rec_id:
             return jsonify({'success': False, 'message': 'Brak ID odbiorcy.'}), 400
 
         repo = UserEmailSettingsRepository()
-        ok = repo.delete_recipient(int(recipient_id))
+        ok = repo.delete_recipient(int(rec_id))
         if ok:
             return jsonify({'success': True, 'message': 'Odbiorca został usunięty.', 'recipients': repo.get_all_recipients()})
         return jsonify({'success': False, 'message': 'Nie udało się usunąć odbiorcy.'}), 500
+
+    @admin_bp.route('/api/email/recipient/toggle', methods=['POST'])
+    @admin_bp.route('/api/email/recipients/<int:recipient_id>/toggle', methods=['POST'])
+    @login_required
+    def api_email_recipient_toggle(recipient_id=None):
+        from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+        payload = request.get_json(silent=True) or request.form
+        rec_id = recipient_id or payload.get('id')
+        if not rec_id:
+            return jsonify({'success': False, 'message': 'Brak ID odbiorcy.'}), 400
+
+        is_active = bool(payload.get('active', True))
+        repo = UserEmailSettingsRepository()
+        ok = repo.toggle_recipient_active(int(rec_id), is_active)
+        if ok:
+            msg = "Odbiorca został włączony do wysyłki (Aktywny)." if is_active else "Odbiorca został wstrzymany (Nie wysyłaj)."
+            return jsonify({'success': True, 'message': msg, 'active': is_active, 'recipients': repo.get_all_recipients()})
+        return jsonify({'success': False, 'message': 'Nie udało się zmienić statusu odbiorcy.'}), 500
 
     @admin_bp.route('/admin/ustawienia/email-magazyn')
     @admin_bp.route('/ustawienia-email-magazyn')

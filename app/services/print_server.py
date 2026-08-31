@@ -535,7 +535,9 @@ class PrintServer:
                     INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)
                     VALUES (%s, %s, %s, 'PENDING')
                 """, (target_ip, target_name, zpl_content))
+                job_id = cursor.lastrowid
                 conn.commit()
+                self.last_job_id = job_id
                 return True, "Dodano do kolejki druku"
             finally:
                 conn.close()
@@ -543,6 +545,7 @@ class PrintServer:
             import traceback
             error_msg = f"Błąd kolejkowania wydruku: {e}\n{traceback.format_exc()}"
             print(error_msg)
+            self.last_job_id = None
             return False, f"Błąd bazy danych: {e}"
 
     def print_zpl_label(self, zpl_string: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:

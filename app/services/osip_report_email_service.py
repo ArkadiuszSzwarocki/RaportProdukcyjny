@@ -263,8 +263,37 @@ class OsipReportEmailService:
             server.sendmail(config.smtp_username, to_emails, msg.as_string())
             server.quit()
 
+            try:
+                from app.services.email_log_service import EmailLogService
+                EmailLogService.log_email_attempt(
+                    sender=config.smtp_username,
+                    recipients=to_emails,
+                    subject=subject,
+                    source='Magazyn OSIP',
+                    linia='OSIP',
+                    success=True,
+                    attachments=attachments
+                )
+            except Exception:
+                pass
+
             return True, f"Raport przyjęcia wysłany pomyślnie na adresy: {', '.join(to_emails)} (z konta {config.smtp_username})."
         except Exception as e:
+            try:
+                from app.services.email_log_service import EmailLogService
+                EmailLogService.log_email_attempt(
+                    sender=config.smtp_username if config else 'osip_system',
+                    recipients=to_emails,
+                    subject=subject,
+                    source='Magazyn OSIP',
+                    linia='OSIP',
+                    success=False,
+                    error_message=str(e),
+                    attachments=attachments
+                )
+            except Exception:
+                pass
+
             return False, f"Błąd wysyłania e-maila: {str(e)}"
 
     def _render_html_to_temp_pdf(self, html_content: str, prefix: str = "raport_") -> Optional[str]:
