@@ -381,7 +381,7 @@
 .machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
 
 /* Modal Enhancements */
-.quick-popup.open:not(.qp-wide):not(.qp-dosypka-full) {
+.quick-popup.open:not(.qp-wide):not(.qp-dosypka-full):not(:has(.dosypka-popup-container)) {
     max-width: min(700px, 95vw);
     max-height: 90vh;
     overflow-y: auto;
@@ -391,12 +391,24 @@
     max-width: min(920px, 96vw);
 }
 
-.quick-popup.open.qp-dosypka-full {
-    max-width: min(1720px, 98vw);
-    width: min(1720px, 98vw);
-    height: min(95vh, 1000px);
-    max-height: min(95vh, 1000px);
-    overflow: hidden;
+.quick-popup.open.qp-dosypka-full,
+.quick-popup.open:has(.dosypka-popup-container),
+.quick-popup:has(.dosypka-popup-container) {
+    max-width: 96vw !important;
+    width: 96vw !important;
+    height: 94vh !important;
+    max-height: 94vh !important;
+    border-radius: 18px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.quick-popup:has(.dosypka-popup-container) .qp-body,
+.quick-popup.qp-dosypka-full .qp-body {
+    flex: 1 1 auto !important;
+    max-height: calc(94vh - 70px) !important;
+    overflow-y: auto !important;
+    padding: 16px 24px 20px !important;
 }
 
 .agro-modal-header h2 {

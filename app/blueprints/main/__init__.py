@@ -65,8 +65,11 @@ def index():
         data_od_str = request.args.get('data_od')
         data_do_str = request.args.get('data_do')
         
-        # If user is on AGRO Workowanie or Zasyp, default to week range if no data_od/data_do is provided but they didn't explicitly pick a specific single day
-        if aktywna_linia == 'AGRO' and aktywna_sekcja in ('Workowanie', 'Zasyp'):
+        # If user explicitly navigates to a specific single day (query parameter 'data'), respect that single day
+        if 'data' in request.args and not data_od_str and not data_do_str:
+            data_od_str = dzisiaj_str
+            data_do_str = dzisiaj_str
+        elif aktywna_linia == 'AGRO' and aktywna_sekcja in ('Workowanie', 'Zasyp'):
             if not data_od_str and not data_do_str:
                 # If they just navigated without params, default to current week
                 from datetime import timedelta
@@ -79,20 +82,21 @@ def index():
             elif data_do_str and not data_od_str:
                 data_od_str = data_do_str
 
-        # Enforce dashboard access restriction: only MasterAdmin, Admin, Lider, Planista can view the dashboard
+        # Enforce dashboard access restriction: check allowed roles or role_permissions.json
         if aktywna_sekcja.strip().lower() == 'dashboard':
+            from app.core.contexts import inject_role_permissions
+            role_checker = inject_role_permissions().get('role_has_access')
+            line_lower = aktywna_linia.lower().strip()
+            page_key = f"{line_lower}.dashboard"
+
             allowed_dashboard_roles = ['masteradmin', 'admin', 'lider', 'planista']
-            if role not in allowed_dashboard_roles:
+            if role not in allowed_dashboard_roles and not (role_checker and role_checker(page_key)):
                 # User cannot access Dashboard! Try to auto-route them to their first allowed production section
-                from app.core.contexts import inject_role_permissions
-                role_checker = inject_role_permissions().get('role_has_access')
-                
-                line_lower = aktywna_linia.lower().strip()
                 sections_to_check = ['Zasyp', 'Workowanie', 'Bufor', 'Magazyn']
                 found_allowed_sec = None
                 for sec in sections_to_check:
-                    page_key = f"{line_lower}.{sec.lower()}"
-                    if role_checker and role_checker(page_key):
+                    page_key_sec = f"{line_lower}.{sec.lower()}"
+                    if role_checker and role_checker(page_key_sec):
                         found_allowed_sec = sec
                         break
                 

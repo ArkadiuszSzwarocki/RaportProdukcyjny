@@ -111,7 +111,7 @@
                 </div>
                 {% endif %}
 
-                {% if sekcja == 'Zasyp' and pal|length > 7 and pal[7] and pal[7]|length > 0 %}
+                {% if sekcja == 'Zasyp' and pal|length > 7 and pal[7] and pal[7]|length > 0 and rola not in ['laborant', 'laboratorium'] %}
                 <div class="active-order-szarze-maluchy" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin-top:6px;">
                     <div style="font-size:0.85em; font-weight:800; color:#1d4ed8; margin-bottom:4px; border-bottom:1px solid #bfdbfe; padding-bottom:2px;">
                         🪣 Maluchy (Wrzucone Wiaderka):

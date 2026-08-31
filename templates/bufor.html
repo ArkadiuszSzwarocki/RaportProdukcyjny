@@ -468,15 +468,10 @@
         <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-0">
             <div class="header-title-row d-flex align-center gap-10">
                 <h2 class="header-title m-0"><strong>{% if linia == 'AGRO' %}Bufor Agro{% else %}Bufor PSD{% endif %}</strong></h2>
-                <div class="day-tile">
-                    <button type="button" class="day-nav left" onclick="changeDate(-1)" aria-label="Poprzedni dzień">◀</button>
-                    <div class="day-center">
-                        <div class="day-label">Widok dla</div>
-                        <div id="current-date-display" class="day-date">{{ wybrana_data }}</div>
-                    </div>
-                    <button type="button" class="day-nav right" onclick="changeDate(1)" aria-label="Następny dzień">▶</button>
-                    <input type="hidden" id="current-date-iso" value="{{ wybrana_data }}">
-                </div>
+                {% with current_date=wybrana_data, mode='url', param_name='data', custom_title='Widok dla' %}
+                    {% include 'components/_date_picker.html' %}
+                {% endwith %}
+                <input type="hidden" id="current-date-iso" value="{{ wybrana_data }}">
             </div>
             <div class="d-flex align-center gap-12 header-stats">
                 <div class="stat-inline stat-plan"><span class="label">Pozycje</span><strong class="value">{{ bufor_list|length }}</strong></div>
@@ -485,11 +480,6 @@
             </div>
         </div>
         <div class="bufor-actions-right mt-10">
-            <form action="/bufor" method="GET" class="bufor-jump-form">
-                <input type="hidden" name="linia" value="{{ wybrana_linia }}">
-                <label for="bufor-date-input">Skok do daty</label>
-                <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
-            </form>
             <div class="bufor-actions">
                 <button type="button" class="btn btn-sm bufor-action-btn" onclick="openBuforInfoModal()">Opis akcji</button>
             </div>
@@ -557,14 +547,23 @@
     }
 
     function navigateToDate(newDate) {
+        if (!newDate) return;
         window.location.href = '/bufor?data=' + newDate + '&linia={{ wybrana_linia }}';
     }
 
     function changeDate(days) {
-        const isoInput = document.getElementById('current-date-iso');
-        const currentDate = new Date((isoInput ? isoInput.value : document.getElementById('bufor-date-input').value) + 'T00:00:00');
-        currentDate.setDate(currentDate.getDate() + days);
-        const newDate = currentDate.toISOString().split('T')[0];
+        const isoInput = document.getElementById('current-date-iso') || document.getElementById('bufor-tile-date-picker');
+        const raw = (isoInput ? isoInput.value : '') || '';
+        let baseDate;
+        if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+            const parts = raw.trim().split('-');
+            baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+            baseDate = new Date();
+        }
+        baseDate.setDate(baseDate.getDate() + days);
+        const pad = (n) => n < 10 ? '0' + n : String(n);
+        const newDate = baseDate.getFullYear() + '-' + pad(baseDate.getMonth() + 1) + '-' + pad(baseDate.getDate());
         navigateToDate(newDate);
     }
 

@@ -18,19 +18,10 @@
     </div>
 
     <!-- Date navigation & Chevron -->
-    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-      <div onclick="event.stopPropagation()" style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; padding: 4px 8px; border: 1.5px solid #cbd5e1; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-        <button type="button" class="day-nav-btn" data-direction="prev"
-                style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; color: #334155; font-weight: 800;">
-          ◀
-        </button>
-        <span id="date-display-global" style="font-size: 0.88rem; font-weight: 800; color: #0f172a; padding: 0 8px; white-space: nowrap;">
-          {{ dzisiaj }}
-        </span>
-        <button type="button" class="day-nav-btn" data-direction="next"
-                style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; color: #334155; font-weight: 800;">
-          ▶
-        </button>
+      <div onclick="event.stopPropagation()">
+        {% with current_date=dzisiaj, mode='event', picker_id='notes-date-picker', custom_title='Data notatek' %}
+            {% include 'components/_date_picker.html' %}
+        {% endwith %}
       </div>
       <span class="material-icons chevron-icon rotated" id="chevron-shift-notes">expand_more</span>
     </div>

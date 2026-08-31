@@ -279,6 +279,14 @@
     }
 
     function shiftCurrentDay(offset, container) {
+        if (global.DateSwitcher) {
+            var picker = container || document.querySelector('.unified-date-picker') || document.querySelector('.day-tile');
+            if (picker) {
+                global.DateSwitcher.shiftDate(picker, offset);
+                return;
+            }
+        }
+
         function pad(value) {
             return value < 10 ? ('0' + value) : String(value);
         }
@@ -287,14 +295,21 @@
             return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
         }
 
-        var isoInput = document.getElementById('current-date-iso');
-        var baseIso = isoInput ? isoInput.value : null;
-        var baseDate = baseIso ? new Date(baseIso + 'T00:00:00') : new Date();
-        var target = new Date(baseDate.getTime());
-        target.setDate(target.getDate() + offset);
-
-        var iso = isoFromDate(target);
         var params = new URLSearchParams(global.location.search);
+        var isoInput = document.getElementById('current-date-iso') || document.getElementById('day-tile-date-picker');
+        var baseIso = (isoInput && isoInput.value) ? isoInput.value : params.get('data');
+
+        var baseDate;
+        if (baseIso && /^\d{4}-\d{2}-\d{2}$/.test(baseIso.trim())) {
+            var parts = baseIso.trim().split('-');
+            baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+            baseDate = new Date();
+        }
+
+        baseDate.setDate(baseDate.getDate() + offset);
+        var iso = isoFromDate(baseDate);
+
         var sekcja = (container && container.dataset ? container.dataset.sekcja : '') || params.get('sekcja');
         var config = getConfigState();
         var linia = params.get('linia') || String(config && config.linia || 'PSD');
@@ -305,6 +320,9 @@
         }
         params.set('linia', linia);
         params.set('data', iso);
+        params.delete('data_od');
+        params.delete('data_do');
+
         global.location.search = params.toString();
     }
 

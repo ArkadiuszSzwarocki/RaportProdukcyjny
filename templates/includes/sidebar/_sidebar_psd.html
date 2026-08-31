@@ -17,10 +17,12 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'PSD' %}active{% endif %}">
             Zasyp PSD
         </a>
+        {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('maluchy.index', linia='PSD') }}"
             class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
             🪣 Maluchy (Wiadra)
         </a>
+        {% endif %}
         {% endif %}
 
         {% if role_has_access('psd.bufor') %}

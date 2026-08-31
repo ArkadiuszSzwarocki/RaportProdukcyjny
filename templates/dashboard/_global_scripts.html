@@ -261,15 +261,11 @@
 
   // ========== DATE-BASED SHIFT NOTES FILTERING (AJAX) ==========
   document.addEventListener('DOMContentLoaded', function () {
-    const dateDisplay = document.getElementById('date-display-global');
     const notesContainer = document.getElementById('shift-notes-container');
-    const dayNavBtns = document.querySelectorAll('.day-nav-btn');
     const dateInput = document.querySelector('input[name="date"]');
-
-    if (!dateDisplay || !notesContainer || dayNavBtns.length === 0) return;
-
-    let currentDate = new Date(dateDisplay.textContent.trim());
     const linia = '{{ linia }}';
+
+    if (!notesContainer) return;
 
     function updateShiftNotesForDate(dateStr) {
       fetch(`/api/shift_notes_na_date?data=${dateStr}&linia=${linia}`)
@@ -329,25 +325,12 @@
         });
     }
 
-    dayNavBtns.forEach(btn => {
-      btn.addEventListener('click', function () {
-        const direction = this.getAttribute('data-direction');
-
-        if (direction === 'prev') {
-          currentDate.setDate(currentDate.getDate() - 1);
-        } else if (direction === 'next') {
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        const dateStr = currentDate.toISOString().split('T')[0];
-        dateDisplay.textContent = dateStr;
-
-        if (dateInput) {
-          dateInput.value = dateStr;
-        }
-
+    window.addEventListener('app:date-changed', function (e) {
+      if (e.detail && e.detail.pickerId === 'notes-date-picker') {
+        const dateStr = e.detail.date;
+        if (dateInput) dateInput.value = dateStr;
         updateShiftNotesForDate(dateStr);
-      });
+      }
     });
   });
 </script>

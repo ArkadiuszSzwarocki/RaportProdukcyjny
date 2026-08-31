@@ -73,7 +73,7 @@
                     class="input-sm" onchange="window.zmienDateObsady(this.value)">
                 <input type="hidden" id="obsada-linia" value="{{ linia }}">
             </div>
-            {% if rola in ['lider','admin', 'masteradmin'] %}
+            {% if rola in ['lider','admin', 'masteradmin', 'magazynier'] %}
             {% if linia|string|upper == 'PSD' or not linia %}
             <div class="obsada-field-group">
                 <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
@@ -131,7 +131,7 @@
                         <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
                             <th style="padding: 12px 16px; width: 230px;">Stanowisko / Sekcja</th>
                             <th style="padding: 12px 16px;">Przydzieleni Pracownicy</th>
-                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'magazynier'] %}
                             <th style="padding: 12px 16px; width: 300px;">Dodaj Pracownika</th>
                             {% endif %}
                         </tr>
@@ -166,7 +166,7 @@
                                                     </div>
                                                 </td>
                                                 <td style="padding: 4px 8px; border: none; width: 40px; text-align: right;">
-                                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'magazynier'] %}
                                                     <button type="button" class="delete-button"
                                                         onclick="window.usunPracownikaZObsady(this, {{ o[0] }}, '{{ o[2] }}', '{{ o[1]|e }}')"
                                                         data-pracownik-id="{{ o[2] }}"
@@ -186,7 +186,7 @@
                                     {% endif %}
                                 </div>
                             </td>
-                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
+                            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'magazynier'] %}
                             <td style="padding: 10px 16px; vertical-align: middle;">
                                 <div class="d-flex gap-5 align-center obsada-worker-selector" style="display: flex; gap: 6px; align-items: center;">
                                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">

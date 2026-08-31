@@ -44,11 +44,16 @@ def register_production_dosypki_routes(
             cursor.execute(f"SELECT produkt, typ_produkcji, status FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
             plan = cursor.fetchone()
             if not plan:
+                if is_ajax:
+                    return "<div style='padding: 24px; color: #dc2626; font-weight: 700; text-align: center;'>Plan nie został znaleziony.</div>", 404
                 flash('Plan nie znaleziony', 'error')
                 return redirect(bezpieczny_powrot())
 
             produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
-            if status != 'w toku':
+            role_lc = (session.get('rola') or '').strip().lower()
+            if status != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
+                if is_ajax:
+                    return f"<div style='padding: 24px; text-align: center; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; font-weight: 700;'>⚠️ Dosypki można dodawać tylko do aktywnego zlecenia (status \"w toku\").<br><span style='font-size: 0.88rem; font-weight: normal; color: #92400e; display: inline-block; margin-top: 6px;'>To zlecenie ma obecnie status: <strong>{status}</strong>.</span></div>"
                 flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
                 return redirect(bezpieczny_powrot())
 
@@ -187,9 +192,16 @@ def register_production_dosypki_routes(
                 (plan_id,),
             )
             r = cursor.fetchone()
-            if not r or r[3] != 'w toku':
+            if not r:
                 if is_ajax:
-                    return jsonify({'success': False, 'message': 'Dosypki można dodawać tylko do aktywnego zlecenia'}), 400
+                    return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 400
+                flash('Nie znaleziono zlecenia', 'error')
+                return redirect(bezpieczny_powrot())
+
+            role_lc = (session.get('rola') or '').strip().lower()
+            if r[3] != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
+                if is_ajax:
+                    return jsonify({'success': False, 'message': 'Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")'}), 400
                 flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
                 return redirect(bezpieczny_powrot())
             produkt = str(r[1] or '').strip() if r else ''
