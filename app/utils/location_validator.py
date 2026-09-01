@@ -74,12 +74,13 @@ def validate_warehouse_location(location_code, allow_empty=True):
             return False, "Lokalizacja jest wymagana"
     
     normalized = str(location_code).strip().upper()
+    clean_norm = normalized.replace('_', '').replace('-', '').replace(' ', '')
     
+    # Wyjątek: Magazyny, bufory (BFMS01, BFMP01, BFOS, BF_*) oraz KO są dozwolonymi lokalizacjami magazynowymi
+    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'KO', 'R0')):
+        return True, None
+
     if is_production_tank_code(normalized):
-        # Wyjątek: Zezwalamy na przesuwanie do zbiorników KO (np. częściowe worki)
-        if normalized.startswith('KO'):
-            return True, None
-            
         return False, (
             f"{normalized} to kod zbiornika produkcyjnego (BB/MZ są tylko do przypisywania surowców w produkcji). "
             "Użyj kodów regałów magazynowych (np. R021002, R030601)"

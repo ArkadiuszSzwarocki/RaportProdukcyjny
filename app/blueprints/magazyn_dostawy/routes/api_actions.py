@@ -76,24 +76,12 @@ def przyjmij_pozycje(dostawa_id):
         printer_name=printer_name
     )
     if success:
-        report_url = None
-        if result.get('all_accepted'):
-            # Auto-print disabled - report is still available via report_url for manual viewing
-            try:
-                report_url = url_for(
-                    'magazyn_dostawy.raport_przesuniecia',
-                    dostawa_id=result.get('dostawa_id') or dostawa_id,
-                    linia=result.get('linia', 'PSD')
-                )
-            except Exception as e:
-                print(f"Error generating report url: {e}")
-
         return jsonify({
             "success": True,
             "all_accepted": result["all_accepted"],
             "accepted_count": result["accepted_count"],
             "total": result["total"],
-            "report_url": report_url,
+            "report_url": None,
             "nr_palety": result.get("nr_palety"),
             "message": f"Przyjęto pomyślnie. SSCC: {result.get('nr_palety')}" if result.get("nr_palety") else "Przyjęto pomyślnie."
         })
@@ -110,18 +98,6 @@ def odrzuc_pozycje(dostawa_id):
     )
 
     if success:
-        report_url = None
-        if result.get('all_processed'):
-            # Auto-print disabled - generate report_url for manual viewing only
-            try:
-                report_url = url_for(
-                    'magazyn_dostawy.raport_przesuniecia',
-                    dostawa_id=result.get('dostawa_id') or dostawa_id,
-                    linia=result.get('linia', 'PSD')
-                )
-            except Exception as e:
-                print(f"Error generating report url in odrzuc_pozycje: {e}")
-
         return jsonify({
             "success": True,
             "all_accepted": result.get('all_accepted', False),
@@ -129,7 +105,7 @@ def odrzuc_pozycje(dostawa_id):
             "accepted_count": result.get('accepted_count', 0),
             "rejected_count": result.get('rejected_count', 0),
             "total": result.get('total', 0),
-            "report_url": report_url,
+            "report_url": None,
             "message": "Pozycja została odrzucona.",
         })
 

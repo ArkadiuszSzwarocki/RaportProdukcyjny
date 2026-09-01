@@ -88,37 +88,44 @@ class OsipReportEmailService:
         dest_loc = (dostawa.get('lokalizacja_do') or '').strip()
         ref = dostawa.get('order_ref') or f"#{dostawa.get('id')}"
 
-        is_external = bool(supplier) or not source_loc
+        has_supplier = bool(supplier) and supplier not in ('-', 'None', '')
+        is_external = has_supplier
+
+        # Dynamicznie pobierz rzeczywiste lokalizacje docelowe z przyjętych pozycji
+        actual_target_spots = sorted({
+            (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip()
+            for it in items
+            if (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip() and (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip() != 'OCZEKUJĄCE'
+        })
+        if (not dest_loc or dest_loc == 'OCZEKUJĄCE') and actual_target_spots:
+            dest_loc = ", ".join(actual_target_spots)
+
+        # Dynamicznie pobierz rzeczywiste lokalizacje źródłowe jeśli brak w nagłówku
+        if not source_loc:
+            actual_source_spots = sorted({
+                (it.get('sourceSpot') or it.get('source_location') or '').strip()
+                for it in items
+                if (it.get('sourceSpot') or it.get('source_location') or '').strip()
+            })
+            if actual_source_spots:
+                source_loc = ", ".join(actual_source_spots)
+
         is_dest_osip = cls._is_osip_location(dest_loc) or any(cls._is_osip_location(it.get('lokalizacja_przyjecia') or it.get('targetSpot')) for it in items)
         is_source_osip = cls._is_osip_location(source_loc)
 
         if is_external:
-            if is_dest_osip:
-                doc_type_code = 'DOSTAWA_OSIP'
-                doc_title = 'Dostawa OSIP'
-                header_title = '🚚 Raport Przyjęcia: Dostawa OSIP'
-                theme_color_from = '#581c87'
-                theme_color_to = '#7e22ce'
-                source_label = 'DOSTAWCA'
-                source_value = supplier or 'Dostawca zewnętrzny'
-                dest_label = 'MAGAZYN DOCELOWY (OSIP)'
-                dest_value = dest_loc or 'OSIP'
-                creator_label = 'OTWORZYŁ / WPROWADZIŁ'
-                acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-                subject_tag = 'Dostawa OSIP'
-            else:
-                doc_type_code = 'DOSTAWA_CENTRALA'
-                doc_title = 'Dostawa Centrala'
-                header_title = '🏢 Raport Przyjęcia: Dostawa Centrala'
-                theme_color_from = '#1e3a8a'
-                theme_color_to = '#2563eb'
-                source_label = 'DOSTAWCA'
-                source_value = supplier or 'Dostawca zewnętrzny'
-                dest_label = 'LOKALIZACJA DOCELOWA'
-                dest_value = dest_loc or 'Centrala / Magazyn Główny'
-                creator_label = 'OTWORZYŁ / WPROWADZIŁ'
-                acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-                subject_tag = 'Dostawa Centrala'
+            doc_type_code = 'DOSTAWA'
+            doc_title = 'Dostawa'
+            header_title = '📦 Raport Przyjęcia: Dostawa'
+            theme_color_from = '#1e3a8a'
+            theme_color_to = '#2563eb'
+            source_label = 'DOSTAWCA'
+            source_value = supplier or 'Dostawca zewnętrzny'
+            dest_label = 'LOKALIZACJA DOCELOWA'
+            dest_value = dest_loc or 'Magazyn'
+            creator_label = 'OTWORZYŁ / WPROWADZIŁ'
+            acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
+            subject_tag = f"Dostawa WZ: {ref}"
         else:
             doc_type_code = 'PRZESUNIECIE_MM'
             doc_title = 'Przesunięcie MM'
@@ -131,7 +138,7 @@ class OsipReportEmailService:
             dest_value = dest_loc or 'Magazyn'
             creator_label = 'WYDAŁ / OTWORZYŁ'
             acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-            subject_tag = 'Przesunięcie MM'
+            subject_tag = f"Przesunięcie MM nr: {ref}"
 
         created_by = dostawa.get('created_by') or 'System'
         created_at = dostawa.get('created_at')
@@ -347,6 +354,7 @@ class OsipReportEmailService:
         total_qty = 0.0
         total_pallets = len(items)
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             prod = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else 'Brak nazwy')
             nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '-')
@@ -355,6 +363,12 @@ class OsipReportEmailService:
             unit = getattr(it, 'unit', 'kg') or (it.get('unit', 'kg') if isinstance(it, dict) else 'kg')
             it_status = getattr(it, 'status', 'RECEIVED') or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
             total_qty += qty
+
+            sum_key = (prod, unit, it_status)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
@@ -370,16 +384,28 @@ class OsipReportEmailService:
         if not rows_html:
             rows_html = '<tr><td colspan="6" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w zleceniu.</td></tr>'
 
+        summary_rows_html = ""
+        for s_idx, ((pname, unit, it_status), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
+            summary_rows_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{s_idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{pname}</td>
+                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: #4338ca;">{s_data['count']} szt.</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;"><span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">{it_status}</span></td>
+            </tr>
+            """
+
         return f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"></head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
             <div style="max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
-                <div style="background: linear-gradient(135deg, #1e1b4b, #4338ca); padding: 24px; color: #ffffff;">
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.85;">Raport Przyjęcia Transferu Towaru</div>
-                    <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">🚚 Transfer: {source} ➔ {dest}</div>
-                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Kod zlecenia: <strong>{code}</strong> | Status: <strong>PRZYJĘTE ({status})</strong></div>
+                <div style="background: linear-gradient(135deg, #065f46, #059669); padding: 24px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.85;">Raport Realizacji: Przesunięcie MM</div>
+                    <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">🔄 Przesunięcie MM: {source} ➔ {dest}</div>
+                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Przesunięcie MM nr: <strong>{code}</strong> | Status: <strong>ZAKOŃCZONE ({status})</strong></div>
                 </div>
 
                 <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
@@ -412,7 +438,7 @@ class OsipReportEmailService:
                     </table>
                 </div>
 
-                <div style="padding: 24px;">
+                <div style="padding: 24px 24px 12px 24px;">
                     <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz przyjętych palet:</div>
                     <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                         <thead>
@@ -438,6 +464,24 @@ class OsipReportEmailService:
                     </table>
                 </div>
 
+                <div style="padding: 12px 24px 24px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Podsumowanie zbiorcze według produktów:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 100px;">Liczba Palet</th>
+                                <th style="padding: 10px 12px; text-align: right; width: 130px;">Łączna Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 90px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary_rows_html}
+                        </tbody>
+                    </table>
+                </div>
+
                 <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
                     Wiadomość wygenerowana automatycznie po przyjęciu towaru w systemie RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
                 </div>
@@ -455,6 +499,7 @@ class OsipReportEmailService:
         total_qty = 0.0
         total_pallets = len(items)
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             prod = it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
@@ -468,7 +513,14 @@ class OsipReportEmailService:
             target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
             accepted = bool(it.get('accepted'))
             status_badge = '<span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">PRZYJĘTA</span>' if accepted else '<span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #b91c1c;">ODRZUCONA</span>'
+            status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
             total_qty += qty
+
+            sum_key = (prod, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0, 'badge': status_badge}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
@@ -484,6 +536,18 @@ class OsipReportEmailService:
 
         if not rows_html:
             rows_html = '<tr><td colspan="7" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w dokumencie.</td></tr>'
+
+        summary_rows_html = ""
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
+            summary_rows_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{s_idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{pname}</td>
+                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: {cat['theme_color_to']};">{s_data['count']} szt.</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;">{s_data['badge']}</td>
+            </tr>
+            """
 
         return f"""
         <!DOCTYPE html>
@@ -527,7 +591,7 @@ class OsipReportEmailService:
                     </table>
                 </div>
 
-                <div style="padding: 24px;">
+                <div style="padding: 24px 24px 12px 24px;">
                     <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz przyjętych palet:</div>
                     <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                         <thead>
@@ -554,6 +618,24 @@ class OsipReportEmailService:
                     </table>
                 </div>
 
+                <div style="padding: 12px 24px 24px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Podsumowanie zbiorcze według produktów:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 100px;">Liczba Palet</th>
+                                <th style="padding: 10px 12px; text-align: right; width: 130px;">Łączna Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 90px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary_rows_html}
+                        </tbody>
+                    </table>
+                </div>
+
                 <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
                     Wiadomość wygenerowana automatycznie po przyjęciu towaru w systemie RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
                 </div>
@@ -571,6 +653,7 @@ class OsipReportEmailService:
         total_qty = 0.0
         total_pallets = len(items)
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             pname = it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
@@ -590,6 +673,12 @@ class OsipReportEmailService:
             status_color = "#166534" if accepted else "#991b1b"
             total_qty += qty
 
+            sum_key = (pname, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0, 'color': status_color}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
+
             rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
@@ -602,6 +691,18 @@ class OsipReportEmailService:
                 <td style="text-align: center;">{source_spot}</td>
                 <td style="text-align: center; font-weight: 700; color: #1e40af;">{target_spot}</td>
                 <td style="text-align: center; font-weight: 700; color: {status_color};">{status_txt}</td>
+            </tr>
+            """
+
+        summary_rows_html = ""
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
+            summary_rows_html += f"""
+            <tr>
+                <td style="text-align: center;">{s_idx}</td>
+                <td><strong>{pname}</strong></td>
+                <td style="text-align: center; font-weight: 700; color: #2563eb;">{s_data['count']} szt.</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="text-align: center; font-weight: 700; color: {s_data['color']};">{status_txt}</td>
             </tr>
             """
 
@@ -778,6 +879,32 @@ class OsipReportEmailService:
         </tbody>
     </table>
 
+    <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+        PODSUMOWANIE ZBIORCZE WEDŁUG PRODUKTÓW:
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Nazwa Produktu</th>
+                <th style="text-align: center; width: 100px;">Liczba Palet</th>
+                <th style="text-align: right; width: 130px;">Łączna Ilość</th>
+                <th style="text-align: center; width: 90px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {summary_rows_html}
+        </tbody>
+        <tfoot>
+            <tr style="background: #f1f5f9; font-weight: 800;">
+                <td colspan="2" style="text-align: right;">ŁĄCZNIE:</td>
+                <td style="text-align: center; color: #2563eb;">{total_pallets} szt.</td>
+                <td style="text-align: right; color: #166534;">{total_qty:,.2f}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+
     <div class="summary-box">
         <div>ŁĄCZNIE PRZYJĘTO PALET: <span style="color: #2563eb;">{total_pallets} szt.</span></div>
         <div>SUMA ILOŚCI TOWARU: <span style="color: #166534;">{total_qty:,.2f}</span></div>
@@ -821,6 +948,7 @@ class OsipReportEmailService:
         total_qty = 0.0
         total_pallets = len(items)
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             pname = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else '') or 'Brak nazwy'
             nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '') or '-'
@@ -837,6 +965,12 @@ class OsipReportEmailService:
             status_txt = getattr(it, 'status', None) or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
             total_qty += qty
 
+            sum_key = (pname, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
+
             rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
@@ -852,7 +986,19 @@ class OsipReportEmailService:
             </tr>
             """
 
-        doc_title = f"Transfer: {source} ➔ {dest}"
+        summary_rows_html = ""
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
+            summary_rows_html += f"""
+            <tr>
+                <td style="text-align: center;">{s_idx}</td>
+                <td><strong>{pname}</strong></td>
+                <td style="text-align: center; font-weight: 700; color: #2563eb;">{s_data['count']} szt.</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="text-align: center; font-weight: 700; color: #166534;">{status_txt}</td>
+            </tr>
+            """
+
+        doc_title = f"Przesunięcie MM: {source} ➔ {dest}"
         html_content = f"""<!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -983,7 +1129,7 @@ class OsipReportEmailService:
     <div class="header-box">
         <div class="doc-title">
             <span>{doc_title}</span>
-            <span style="color: #2563eb;">KOD: {code}</span>
+            <span style="color: #2563eb;">Nr: {code}</span>
         </div>
         <div class="doc-meta">Wygenerowano w systemie produkcyjnym: <strong>{gen_now}</strong> | Status: <strong>ZAKOŃCZONE (COMPLETED)</strong></div>
         <div class="grid-4">
@@ -1026,10 +1172,31 @@ class OsipReportEmailService:
         </tbody>
     </table>
 
-    <div class="summary-box">
-        <div>ŁĄCZNIE PRZYJĘTO PALET: <span style="color: #2563eb;">{total_pallets} szt.</span></div>
-        <div>SUMA ILOŚCI TOWARU: <span style="color: #166534;">{total_qty:,.2f}</span></div>
+    <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+        PODSUMOWANIE ZBIORCZE WEDŁUG PRODUKTÓW:
     </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Nazwa Produktu</th>
+                <th style="text-align: center; width: 100px;">Liczba Palet</th>
+                <th style="text-align: right; width: 130px;">Łączna Ilość</th>
+                <th style="text-align: center; width: 90px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {summary_rows_html}
+        </tbody>
+        <tfoot>
+            <tr style="background: #f1f5f9; font-weight: 800;">
+                <td colspan="2" style="text-align: right;">ŁĄCZNIE:</td>
+                <td style="text-align: center; color: #2563eb;">{total_pallets} szt.</td>
+                <td style="text-align: right; color: #166534;">{total_qty:,.2f}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
 
     <div class="signatures">
         <div class="sign-box">
@@ -1087,7 +1254,7 @@ class OsipReportEmailService:
             dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
             code = getattr(transfer, 'transfer_code', '') or f"TR-{transfer_id}"
             
-            subject = f"[Transfer: {source} ➔ {dest}] Zlecenie {code}"
+            subject = f"Przesunięcie MM nr: {code} ({source} ➔ {dest})"
             body_html = self.build_transfer_report_html(transfer)
 
             pdf_path = None
@@ -1169,9 +1336,12 @@ class OsipReportEmailService:
             ref = cat['ref']
             source_val = cat['source_value']
             dest_val = cat['dest_value']
-            tag = cat['subject_tag']
+            is_external = cat['is_external']
 
-            subject = f"[{tag}] WZ/Nr: {ref} ({source_val} ➔ {dest_val})"
+            if is_external:
+                subject = f"Dostawa WZ: {ref} ({source_val} ➔ {dest_val})"
+            else:
+                subject = f"Przesunięcie MM nr: {ref} ({source_val} ➔ {dest_val})"
             body_html = self.build_delivery_report_html(dostawa, items)
 
             pdf_path = None

@@ -40,7 +40,7 @@ def reception_edit(dostawa_id=None):
             cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
             dostawa = cursor.fetchone()
             if dostawa and str(dostawa.get('status') or '').upper() == 'COMPLETED':
-                return redirect(url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=dostawa_id, linia=linia))
+                return redirect(url_for('magazyn_dostawy.reception_view', linia=linia))
             if dostawa and dostawa.get('items'):
                 dostawa['items'] = json.loads(dostawa['items'])
 

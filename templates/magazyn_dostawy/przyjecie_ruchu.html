@@ -1180,10 +1180,9 @@ async function confirmAcceptWithPrinter() {
 
         if (data.all_accepted) {
             safeToast(`Wszystkie pozycje rozliczone. ${isExternalDelivery ? 'Dostawa zakończona.' : 'Ruch zakończony.'}`, 'success');
-            const finalUrl = data.report_url || postListUrl;
             setTimeout(() => {
-                window.location.href = finalUrl;
-            }, 2000);
+                window.location.href = postListUrl;
+            }, 1200);
             return;
         }
 
@@ -1455,10 +1454,9 @@ async function rejectItem(itemId, idx) {
 
         if (data.all_accepted) {
             safeToast(`Wszystkie pozycje rozliczone. ${isExternalDelivery ? 'Dostawa zakończona.' : 'Ruch zakończony.'}`, 'success');
-            const finalUrl = data.report_url || postListUrl;
             setTimeout(() => {
-                window.location.href = finalUrl;
-            }, 250);
+                window.location.href = postListUrl;
+            }, 800);
             return;
         }
 

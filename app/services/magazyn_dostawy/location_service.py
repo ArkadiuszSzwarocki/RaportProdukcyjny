@@ -9,7 +9,7 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 class LocationService:
 
     OPEN_LOCATIONS_PREFIXES = [
-        'MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01',
+        'MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01',
         'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD'
     ]
 
@@ -81,7 +81,7 @@ class LocationService:
     def _build_static_location_candidates():
             candidates = {
                 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
-                'OSIP', 'BF_MS01', 'BF_MP01', 'PSD', 'PSD01',
+                'OSIP', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'PSD', 'PSD01',
                 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
                 'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R09',
                 'MDO01', 'MD01',

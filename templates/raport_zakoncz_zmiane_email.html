@@ -243,14 +243,15 @@
 function toggleRecipient(email, btn) {
     var textarea = document.getElementById('to_emails');
     var current = textarea.value.split(',').map(function(e){ return e.trim(); }).filter(Boolean);
-    var idx = current.indexOf(email);
+    var targetEmail = (email || '').trim().toLowerCase();
+    var idx = current.findIndex(function(e){ return e.toLowerCase() === targetEmail; });
     if (idx >= 0) {
         current.splice(idx, 1);
         btn.style.background = '#f8fafc';
         btn.style.borderColor = '#cbd5e1';
         btn.style.color = '#334155';
     } else {
-        current.push(email);
+        current.push(email.trim());
         btn.style.background = '#eff6ff';
         btn.style.borderColor = '#93c5fd';
         btn.style.color = '#1d4ed8';
@@ -275,13 +276,17 @@ function handleFormSubmit(e) {
 // Highlight already selected recipients on load
 document.addEventListener('DOMContentLoaded', function() {
     var textarea = document.getElementById('to_emails');
-    var current = textarea.value.split(',').map(function(e){ return e.trim(); }).filter(Boolean);
+    var current = textarea.value.split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(Boolean);
     document.querySelectorAll('[data-email]').forEach(function(btn) {
-        var email = btn.getAttribute('data-email');
+        var email = (btn.getAttribute('data-email') || '').trim().toLowerCase();
         if (current.indexOf(email) >= 0) {
             btn.style.background = '#eff6ff';
             btn.style.borderColor = '#93c5fd';
             btn.style.color = '#1d4ed8';
+        } else {
+            btn.style.background = '#f8fafc';
+            btn.style.borderColor = '#cbd5e1';
+            btn.style.color = '#334155';
         }
     });
 });

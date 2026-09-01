@@ -155,6 +155,15 @@ function isKnownSourceLocation(value) {
             return true;
         }
 
+        const clean = loc.replace(/[\s\-_]/g, '');
+        if (['BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP'].includes(clean)) {
+            return true;
+        }
+
+        if (clean.startsWith('BF')) {
+            return true;
+        }
+
         const rackMatch = loc.match(/^R0([1-7])(\d{2})(\d{2})$/);
         if (rackMatch) {
             return true;

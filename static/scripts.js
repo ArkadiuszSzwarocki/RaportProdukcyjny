@@ -1498,6 +1498,39 @@
                     const warningInfo = j.warning ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px;">${String(j.warning)}</div>` : '';
                     resultEl.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">' + modeLabel + '</div>' + countersInfo + warningInfo + actionBar + list + '<div id="preprint_bulk_status" style="margin-top:10px;font-size:12px;color:#334155;"></div>';
 
+                    function getActivePrinterMeta() {
+                        const printerEl = document.getElementById('preprint_printer');
+                        const selectedPrinterValue = String((printerEl && printerEl.value) || 'auto').trim();
+                        const selectedPrinterOption = (printerEl && printerEl.selectedOptions && printerEl.selectedOptions.length)
+                            ? printerEl.selectedOptions[0]
+                            : null;
+                        let selectedPrinterId = selectedPrinterOption && selectedPrinterOption.dataset
+                            ? String(selectedPrinterOption.dataset.printerId || '').trim()
+                            : '';
+                        let selectedPrinterIp = selectedPrinterOption && selectedPrinterOption.dataset
+                            ? String(selectedPrinterOption.dataset.printerIp || '').trim()
+                            : '';
+                        let selectedPrinterName = selectedPrinterOption && selectedPrinterOption.dataset
+                            ? String(selectedPrinterOption.dataset.printerName || '').trim()
+                            : '';
+
+                        if (!selectedPrinterId && selectedPrinterValue.startsWith('db:')) {
+                            selectedPrinterId = selectedPrinterValue.slice(3).trim();
+                        }
+                        if (!selectedPrinterIp && selectedPrinterValue.startsWith('net:')) {
+                            selectedPrinterIp = selectedPrinterValue.slice(4).trim();
+                        }
+                        if (!selectedPrinterName && selectedPrinterOption) {
+                            selectedPrinterName = selectedPrinterOption.textContent.replace(/^★\s*/, '').replace(/\s*\[DOMYŚLNA\]$/, '').trim();
+                        }
+
+                        return {
+                            id: selectedPrinterId,
+                            ip: selectedPrinterIp,
+                            name: selectedPrinterName
+                        };
+                    }
+
                     async function printDirect(id, printerMeta) {
                         const endpoint = `/drukuj_etykiete_zpl/${encodeURIComponent(id)}?linia=${encodeURIComponent(linia)}`;
                         const payload = {};
@@ -1513,7 +1546,8 @@
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
+                            body: JSON.stringify(payload),
+                            _handledByPrintToast: true
                         });
                         if (r.status === 401) {
                             window.location.href = '/login';
@@ -1525,7 +1559,7 @@
                         return {
                             ok: ok,
                             message: (pj && pj.message) ? String(pj.message) : (ok ? 'OK' : 'Błąd druku'),
-                            printerName: (pj && pj.printer_name) ? String(pj.printer_name) : ''
+                            printerName: (pj && pj.printer_name) ? String(pj.printer_name) : (printerMeta && printerMeta.name || '')
                         };
                     }
 
@@ -1537,21 +1571,18 @@
                             st.style.color = '#64748b';
                         }
 
+                        const pMeta = getActivePrinterMeta();
                         var pt = null;
                         if (typeof PrintToast !== 'undefined') {
                             pt = PrintToast.show({
-                                printerName: selectedPrinterName || selectedPrinterIp || 'Automatyczna',
+                                printerName: pMeta.name || pMeta.ip || 'Automatyczna',
                                 status: 'sending',
                                 message: 'Drukowanie etykiety #' + id + '...'
                             });
                         }
 
                         try {
-                            const res = await printDirect(id, {
-                                id: selectedPrinterId,
-                                ip: selectedPrinterIp,
-                                name: selectedPrinterName,
-                            });
+                            const res = await printDirect(id, pMeta);
                             if (res.ok) {
                                 if (st) {
                                     st.textContent = 'wydrukowano';
@@ -1559,7 +1590,7 @@
                                     if (res.message) st.title = res.message;
                                 }
                                 if (pt) {
-                                    pt.update({ status: 'success', message: 'Wydrukowano #' + id, printerName: res.printerName || selectedPrinterName || '' });
+                                    pt.update({ status: 'success', message: 'Wydrukowano #' + id, printerName: res.printerName || pMeta.name || '' });
                                 }
                             } else {
                                 if (st) {
@@ -1568,7 +1599,7 @@
                                     st.title = res.message || '';
                                 }
                                 if (pt) {
-                                    pt.update({ status: 'error', message: 'Błąd: ' + (res.message || 'Nieznany'), printerName: selectedPrinterName || '' });
+                                    pt.update({ status: 'error', message: 'Błąd: ' + (res.message || 'Nieznany'), printerName: pMeta.name || '' });
                                 } else {
                                     showToast('Błąd druku: ' + (res.message || 'Nieznany błąd'), 'danger');
                                 }
@@ -1586,95 +1617,109 @@
                         }
                     }));
 
-                    const printAllBtn = document.getElementById('preprint_print_all');
-                    const bulkStatus = document.getElementById('preprint_bulk_status');
-                    if (printAllBtn && bulkStatus) {
-                        printAllBtn.addEventListener('click', async function () {
-                            if (printAllBtn.dataset.busy === '1') return;
+                    async function executeBulkPrint() {
+                        const printAllBtn = document.getElementById('preprint_print_all');
+                        const bulkStatus = document.getElementById('preprint_bulk_status');
+                        if (printAllBtn && printAllBtn.dataset.busy === '1') return;
+                        if (printAllBtn) {
                             printAllBtn.dataset.busy = '1';
                             printAllBtn.disabled = true;
+                        }
 
-                            var totalItems = j.created.length;
-                            var pt = null;
-                            if (typeof PrintToast !== 'undefined') {
-                                pt = PrintToast.show({
-                                    printerName: selectedPrinterName || selectedPrinterIp || 'Automatyczna',
+                        const pMeta = getActivePrinterMeta();
+                        var totalItems = j.created.length;
+                        var pt = null;
+                        if (typeof PrintToast !== 'undefined') {
+                            pt = PrintToast.show({
+                                printerName: pMeta.name || pMeta.ip || 'Automatyczna',
+                                status: 'sending',
+                                message: 'Drukowanie 1 z ' + totalItems + '...',
+                                attempt: 1,
+                                totalAttempts: totalItems
+                            });
+                        }
+
+                        let okCount = 0;
+                        let failCount = 0;
+                        let currentIdx = 0;
+                        for (const item of j.created) {
+                            currentIdx++;
+                            const itemId = item && item.id;
+                            if (!itemId) {
+                                failCount += 1;
+                                continue;
+                            }
+
+                            const st = document.getElementById('preprint-status-' + itemId);
+                            if (st) {
+                                st.textContent = 'drukowanie...';
+                                st.style.color = '#64748b';
+                            }
+
+                            if (pt) {
+                                pt.update({
                                     status: 'sending',
-                                    message: 'Drukowanie 1 z ' + totalItems + '...',
-                                    attempt: 1,
-                                    totalAttempts: totalItems
+                                    message: 'Drukowanie ' + currentIdx + ' z ' + totalItems + ' (#' + itemId + ')...',
+                                    attempt: currentIdx,
+                                    totalAttempts: totalItems,
+                                    printerName: pMeta.name || pMeta.ip || ''
                                 });
                             }
 
-                            let okCount = 0;
-                            let failCount = 0;
-                            let currentIdx = 0;
-                            for (const item of j.created) {
-                                currentIdx++;
-                                const itemId = item && item.id;
-                                if (!itemId) {
-                                    failCount += 1;
-                                    continue;
-                                }
-
-                                const st = document.getElementById('preprint-status-' + itemId);
-                                if (st) {
-                                    st.textContent = 'drukowanie...';
-                                    st.style.color = '#64748b';
-                                }
-
-                                if (pt) {
-                                    pt.update({
-                                        status: 'sending',
-                                        message: 'Drukowanie ' + currentIdx + ' z ' + totalItems + ' (#' + itemId + ')...',
-                                        attempt: currentIdx,
-                                        totalAttempts: totalItems
-                                    });
-                                }
-
-                                try {
-                                    const res = await printDirect(itemId, {
-                                        id: selectedPrinterId,
-                                        ip: selectedPrinterIp,
-                                        name: selectedPrinterName,
-                                    });
-                                    if (res.ok) {
-                                        okCount += 1;
-                                        if (st) {
-                                            st.textContent = 'wydrukowano';
-                                            st.style.color = '#047857';
-                                            if (res.message) st.title = res.message;
-                                        }
-                                    } else {
-                                        failCount += 1;
-                                        if (st) {
-                                            st.textContent = 'blad';
-                                            st.style.color = '#b91c1c';
-                                            st.title = res.message || '';
-                                        }
+                            try {
+                                const res = await printDirect(itemId, pMeta);
+                                if (res.ok) {
+                                    okCount += 1;
+                                    if (st) {
+                                        st.textContent = 'wydrukowano';
+                                        st.style.color = '#047857';
+                                        if (res.message) st.title = res.message;
                                     }
-                                } catch (e) {
+                                } else {
                                     failCount += 1;
                                     if (st) {
                                         st.textContent = 'blad';
                                         st.style.color = '#b91c1c';
+                                        st.title = res.message || '';
                                     }
                                 }
-                            }
-
-                            bulkStatus.textContent = `Druk zakonczony. Sukces: ${okCount}, bledy: ${failCount}.`;
-                            printAllBtn.dataset.busy = '0';
-                            printAllBtn.disabled = false;
-
-                            if (pt) {
-                                if (failCount > 0) {
-                                    pt.update({ status: 'error', message: 'Wydruk: ' + okCount + ' OK, ' + failCount + ' błędów', attempt: totalItems, totalAttempts: totalItems });
-                                } else {
-                                    pt.update({ status: 'success', message: 'Wydrukowano wszystkie (' + okCount + ' szt.)', attempt: totalItems, totalAttempts: totalItems });
+                            } catch (e) {
+                                failCount += 1;
+                                if (st) {
+                                    st.textContent = 'blad';
+                                    st.style.color = '#b91c1c';
                                 }
                             }
-                        });
+
+                            if (currentIdx < totalItems) {
+                                await new Promise(r => setTimeout(r, 250));
+                            }
+                        }
+
+                        if (bulkStatus) {
+                            bulkStatus.textContent = `Druk zakończony. Sukces: ${okCount}, błędy: ${failCount}.`;
+                        }
+                        if (printAllBtn) {
+                            printAllBtn.dataset.busy = '0';
+                            printAllBtn.disabled = false;
+                        }
+
+                        if (pt) {
+                            if (failCount > 0) {
+                                pt.update({ status: 'error', message: 'Wydruk: ' + okCount + ' OK, ' + failCount + ' błędów', attempt: totalItems, totalAttempts: totalItems });
+                            } else {
+                                pt.update({ status: 'success', message: 'Wydrukowano wszystkie (' + okCount + ' szt.)', attempt: totalItems, totalAttempts: totalItems });
+                            }
+                        }
                     }
+
+                    const printAllBtn = document.getElementById('preprint_print_all');
+                    if (printAllBtn) {
+                        printAllBtn.addEventListener('click', executeBulkPrint);
+                    }
+
+                    // Automatycznie rozpocznij drukowanie całej serii po wygenerowaniu
+                    executeBulkPrint();
                 } else {
                     resultEl.innerHTML = (j.mode === 'existing')
                         ? '<div>Brak palet spełniających kryteria.</div>'

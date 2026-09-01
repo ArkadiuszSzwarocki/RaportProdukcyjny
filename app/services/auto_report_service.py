@@ -179,8 +179,7 @@ class AutoReportService:
             m = int(parts[1]) if len(parts) > 1 else 0
             formatted_time = f"{h:02d}:{m:02d}:00"
 
-            target_lines = ['AGRO', 'PSD'] if str(linia).upper() in ('ALL', 'WSZYSTKO', 'NONE', '') else [str(linia).upper()]
-            # Also keep 'ALL' row if explicitly called with ALL
+            target_lines = ['AGRO', 'PSD', 'ALL'] if str(linia).upper() in ('ALL', 'WSZYSTKO', 'NONE', '') else [str(linia).upper()]
             if str(linia).upper() in ('ALL', 'WSZYSTKO') and 'ALL' not in target_lines:
                 target_lines.append('ALL')
 
@@ -267,7 +266,7 @@ class AutoReportService:
             recipients = repo.get_all_recipients(only_active=True)
             for r in recipients:
                 em = (r.get('email') or '').strip()
-                if em and em not in emails:
+                if em and em.lower() not in [x.lower() for x in emails]:
                     emails.append(em)
             if emails:
                 return emails
@@ -285,6 +284,14 @@ class AutoReportService:
             if row and row.get('domyslni_odbiorcy'):
                 raw = row['domyslni_odbiorcy']
                 parsed = [e.strip() for e in raw.replace(';', ',').split(',') if e.strip()]
+                # Odfiltruj odbiorcow wylaczonych w slowniku
+                try:
+                    all_dict = UserEmailSettingsRepository().get_all_recipients(only_active=False)
+                    inactive_emails = [r['email'].strip().lower() for r in all_dict if not (r.get('aktywny') == 1 or r.get('aktywny') is True)]
+                    if inactive_emails:
+                        parsed = [e for e in parsed if e.lower() not in inactive_emails]
+                except Exception:
+                    pass
                 if parsed:
                     return parsed
         except Exception:
