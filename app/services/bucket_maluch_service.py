@@ -332,39 +332,72 @@ class BucketMaluchService:
         if not bucket.get('pozycje'):
             return False, f"Wiadro {norm_code} jest puste (brak składników)!", None
 
-        # Resolve szarza_id if not provided
+        # Resolve and validate plan & szarza
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
             table_szarze = get_table_name('szarze', linia)
 
+            # 1. Sprawdź czy zlecenie istnieje w systemie
+            cur.execute(f"SELECT id, produkt, status, sekcja FROM {table_plan} WHERE id = %s", (plan_id,))
+            plan = cur.fetchone()
+            if not plan:
+                alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
+                alt_table_plan = get_table_name('plan_produkcji', alt_linia)
+                cur.execute(f"SELECT id, produkt, status, sekcja FROM {alt_table_plan} WHERE id = %s", (plan_id,))
+                alt_plan = cur.fetchone()
+                if alt_plan:
+                    plan = alt_plan
+                    linia = alt_linia
+                    table_szarze = get_table_name('szarze', linia)
+
+            if not plan:
+                return False, f"Zlecenie #{plan_id} nie istnieje w systemie.", None
+
+            # 2. Sprawdź czy zlecenie jest ROZPOCZĘTE (status 'w toku')
+            plan_status = str(plan.get('status') or '').strip().lower()
+            if plan_status != 'w toku':
+                return False, f"Nie można wrzucić wiadra! Zlecenie #{plan_id} ({plan.get('produkt')}) nie zostało jeszcze rozpoczęte (status: '{plan.get('status')}'). Zlecenie musi mieć status 'w toku'.", None
+
+            # 3. Sprawdź czy do zlecenia dodano zasyp (szarżę)
             if not szarza_id:
-                cur.execute(f"SELECT id FROM {table_szarze} WHERE plan_id = %s ORDER BY data_dodania DESC, id DESC LIMIT 1", (plan_id,))
+                cur.execute(f"SELECT id, nr_szarzy FROM {table_szarze} WHERE plan_id = %s ORDER BY data_dodania DESC, id DESC LIMIT 1", (plan_id,))
                 last_sz = cur.fetchone()
                 if last_sz and last_sz.get('id'):
                     szarza_id = int(last_sz['id'])
 
-            if szarza_id:
-                # Do danego zasypu (szarży) można wrzucić tylko jedno wiadro
-                cur.execute(
-                    """
-                    SELECT id, kod_wiadra, data_zasypania FROM wiaderka_maluchy 
-                    WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s
-                    LIMIT 1
-                    """,
-                    (szarza_id, bucket['id'])
-                )
-                existing_dumped = cur.fetchone()
-                if existing_dumped:
-                    czas = existing_dumped.get('data_zasypania')
-                    czas_str = f" (o {czas.strftime('%H:%M')})" if hasattr(czas, 'strftime') and czas else ""
-                    return False, f"Do tego zasypu (szarża #{szarza_id}) zostało już wrzucone wiadro {existing_dumped['kod_wiadra']}{czas_str}! Do jednego zasypu można wrzucić tylko jedno wiadro.", None
+            if not szarza_id:
+                return False, f"Nie można wrzucić wiadra! Do zlecenia #{plan_id} nie ma jeszcze dodanego żadnego zasypu. Operator musi najpierw dodać zasyp (szarżę) przed skanowaniem wiadra do MI01.", None
+
+            # 4. Sprawdź czy podana szarża istnieje i należy do tego zlecenia
+            cur.execute(f"SELECT id, nr_szarzy FROM {table_szarze} WHERE id = %s AND plan_id = %s", (szarza_id, plan_id))
+            sz_row = cur.fetchone()
+            if not sz_row:
+                return False, f"Nie znaleziono zasypu (szarża #{szarza_id}) dla zlecenia #{plan_id}.", None
+
+            # 5. Do danego zasypu (szarży) można wrzucić tylko jedno wiadro
+            cur.execute(
+                """
+                SELECT id, kod_wiadra, data_zasypania FROM wiaderka_maluchy 
+                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s
+                LIMIT 1
+                """,
+                (szarza_id, bucket['id'])
+            )
+            existing_dumped = cur.fetchone()
+            if existing_dumped:
+                czas = existing_dumped.get('data_zasypania')
+                czas_str = f" (o {czas.strftime('%H:%M')})" if hasattr(czas, 'strftime') and czas else ""
+                nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"
+                return False, f"Do tego zasypu (szarża {nr_sz_str}) zostało już wrzucone wiadro {existing_dumped['kod_wiadra']}{czas_str}! Do jednego zasypu można wrzucić tylko jedno wiadro.", None
 
             # Mark bucket dumped to mixer
             BucketMaluchRepository.dump_bucket_to_mixer(bucket['id'], szarza_id, operator_login, norm_mixer)
 
             updated = BucketMaluchRepository.find_by_id(bucket['id'])
-            return True, f"Potwierdzono: Wiadro {norm_code} wrzucone do mieszalnika {norm_mixer}!", updated
+            nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"
+            return True, f"Potwierdzono: Wiadro {norm_code} wrzucone do zasypu {nr_sz_str} w mieszalniku {norm_mixer}!", updated
         finally:
             conn.close()
 

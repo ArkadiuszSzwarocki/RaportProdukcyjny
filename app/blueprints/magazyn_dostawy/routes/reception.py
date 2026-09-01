@@ -21,8 +21,8 @@ def reception_view():
     """Widok listy przyjęć zewnętrznych."""
     linia = request.args.get('linia', 'PSD').upper()
     dostawy = DeliveryQueries.get_dostawy(linia)
-    # Filtrujemy tylko te, które nie mają lokalizacji źródłowej (zewnętrzne)
-    receptions = [d for d in dostawy if not d.get('lokalizacja_z')]
+    # Filtrujemy tylko te, które mają dostawcę zewnętrznego (dostawy zewnętrzne)
+    receptions = [d for d in dostawy if bool(str(d.get('supplier') or '').strip())]
     return render_template('magazyn_dostawy/lista_receptions.html', dostawy=receptions, linia=linia)
 
 @magazyn_dostawy_bp.route('/przyjecie/nowe')
