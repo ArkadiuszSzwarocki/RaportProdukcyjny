@@ -1165,6 +1165,16 @@ class ScannerService:
             zbiornik_val = zbiornik_normalized
             lokalizacja_val = zbiornik_val  # lokalizacja = zbiornik (move to tank)
 
+            # Walidacja zgodności surowca z przypisaniem zbiornika
+            from app.services.tank_validation_service import TankValidationService
+            is_valid_mat, err_mat = TankValidationService.validate_tank_material(
+                kod_zbiornika=zbiornik_val,
+                surowiec_nazwa=pallet.get('nazwa', ''),
+                surowiec_id=surowiec_id
+            )
+            if not is_valid_mat:
+                return False, err_mat, None
+
             is_partial = ilosc < stan
             lokalizacja_zrodlowa = (pallet.get('lokalizacja') or '').strip()
 

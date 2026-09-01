@@ -345,6 +345,16 @@ def assign_pallet_to_tank():
                     'message': f'Za mało surowca (dostępne: {stan_dostepny} kg)'
                 }), 400
             
+            # Walidacja zgodności surowca z przypisaniem zbiornika
+            from app.services.tank_validation_service import TankValidationService
+            is_valid_mat, err_mat = TankValidationService.validate_tank_material(
+                kod_zbiornika=zbiornik,
+                surowiec_nazwa=paleta.get('nazwa', ''),
+                surowiec_id=surowiec_id
+            )
+            if not is_valid_mat:
+                return jsonify({'success': False, 'message': err_mat}), 400
+            
             # Użyj istniejącej metody use_for_production
             success = AgroSurowceService.use_for_production(
                 surowiec_id=surowiec_id,

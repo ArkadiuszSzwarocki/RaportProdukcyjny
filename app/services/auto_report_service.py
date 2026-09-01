@@ -711,7 +711,7 @@ class AutoReportService:
             lider_name = "System Auto-Raport (I Zmiana)"
             xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi, lider_name, linia=linia)
 
-            valid_attachments = [p for p in [pdf_path, xls_path] if p and os.path.exists(p)]
+            valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
             # Pobierz aktualne tonaze z rzeczywistych szarz i palet
@@ -799,19 +799,19 @@ class AutoReportService:
             return True, f"Raport po 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
 
         try:
-            from app.services.shift_close_service import _load_shift_notes
+            from app.services.shift_close_service import _load_shift_notes, _generate_report_files
 
             uwagi = _load_shift_notes(date_str, linia=linia)
             lider_name = "Raport Popołudniowy / II Zmiana (po 15:00)"
 
-            xls_path, txt_path, pdf_path = generuj_paczke_raportow(
-                data_raportu=date_str,
-                uwagi_lidera=uwagi,
+            xls_path, txt_path, pdf_path = _generate_report_files(
+                date_str=date_str,
+                uwagi=uwagi,
                 lider_name=lider_name,
                 linia=linia
             )
 
-            valid_attachments = [p for p in [pdf_path, xls_path] if p and os.path.exists(p)]
+            valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
             # Pobierz aktualne tonaze z rzeczywistych szarz i palet

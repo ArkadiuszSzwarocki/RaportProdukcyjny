@@ -92,10 +92,11 @@ class DeliveryCommandService:
             source_locations = sorted({
                 _norm_loc(it.get('sourceSpot'))
                 for it in items
-                if _norm_loc(it.get('sourceSpot'))
+                if _norm_loc(it.get('sourceSpot')) and _norm_loc(it.get('sourceSpot')) != 'DOSTAWA'
             })
 
-            is_external = not bool(source_locations)
+            # Dostawa zewnętrzna jest wyłącznie wtedy, gdy podano dostawcę zewnętrznego (supplier)
+            is_external = bool(supplier)
             physical_insert_loc = 'OCZEKUJĄCE' if is_external else lokalizacja_do
 
             # Walidacja: lokalizacja_do NIE może być kodem zbiornika produkcyjnego
@@ -117,8 +118,12 @@ class DeliveryCommandService:
                 return False, f"Nieznane lokalizacje źródłowe: {preview}{suffix}."
 
             lokalizacja_z = _norm_loc(data.get('lokalizacja_z', ''))
-            if not lokalizacja_z and source_locations:
-                lokalizacja_z = source_locations[0] if len(source_locations) == 1 else 'WIELE'
+            if not lokalizacja_z:
+                if source_locations:
+                    lokalizacja_z = source_locations[0] if len(source_locations) == 1 else 'WIELE'
+                elif not is_external:
+                    # Dla przesunięć wewnętrznych bez wskazanej konkretnej półki domyślnym magazynem źródłowym jest hala wydania
+                    lokalizacja_z = 'MS01' if linia == 'PSD' else ('MGW01' if linia == 'AGRO' else linia)
 
             if lokalizacja_do and lokalizacja_do not in known_target_locations and lokalizacja_do != 'OCZEKUJĄCE':
                 return False, f"Nieznana lokalizacja docelowa: {lokalizacja_do}."
@@ -184,7 +189,7 @@ class DeliveryCommandService:
                                     )
 
                 # Process external delivery receptions
-                is_external_reception = not lokalizacja_z
+                is_external_reception = is_external
                 if is_external_reception:
                     table_sur = get_table_name('magazyn_surowce', linia)
                     table_opk = get_table_name('magazyn_opakowania', linia)

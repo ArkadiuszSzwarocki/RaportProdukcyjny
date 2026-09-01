@@ -74,11 +74,12 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
 def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
                 folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
                 bufor_rows=None, nadgodziny_rows=None, palety_rows=None):
-    """Generuje plik PDF z tabelami"""
-    nazwa_pdf = f"Raport_{dzisiaj}.pdf"
+    """Generates a PDF report with detailed tables."""
+    linia_prefix = f"_{linia}" if linia else ""
+    nazwa_pdf = f"Raport{linia_prefix}_{dzisiaj}.pdf"
     
     sciezka = os.path.join(RAPORTY_PATH, nazwa_pdf)
-    print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, sciezka={sciezka}")
+    print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, linia={linia}, sciezka={sciezka}")
     # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)
     from fpdf import FPDF
 
@@ -468,7 +469,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
                     rows_filtered.append(r)
 
         if not rows_filtered:
-            return  # Ukryj sekcję jeśli brak awarii
+            return 0  # Ukryj sekcję jeśli brak awarii
 
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(*kolor_rgb)
@@ -482,7 +483,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
             ["Godziny", "Czas", "Kategoria", "Opis / Problem / Zlecenie"],
             col_aligns=['C', 'C', 'L', 'L'],
             fill=True,
-            fill_color=(240, 240, 240),
+            fill_color=(254, 226, 226),
             font_style='B'
         )
 
@@ -502,7 +503,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
             kat_txt = str(r[1] if len(r) > 1 and r[1] else 'Inne')
             opis_txt = str(r[2] if len(r) > 2 and r[2] else '')
 
-            row_color = (250, 250, 250) if fill else (255, 255, 255)
+            row_color = (254, 242, 242) if fill else (255, 255, 255)
             _rysuj_wiersz_multicell(
                 col_dt,
                 [godz_txt, minuty_txt, kat_txt, opis_txt],
@@ -513,35 +514,52 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
             )
             fill = not fill
 
-        # Podsumowanie czasu
+        # Podsumowanie czasu dla danej sekcji
         pdf.set_font("Arial", 'B', 9)
-        pdf.set_fill_color(245, 245, 245)
+        pdf.set_fill_color(254, 226, 226)
+        pdf.set_text_color(185, 28, 28)
         dt_h = suma_minut // 60
         dt_m = suma_minut % 60
         dt_sum_str = f"{dt_h}h {dt_m} min ({suma_minut} min)" if dt_h > 0 else f"{dt_m} min"
-        pdf.cell(70, 6, polskie_znaki_pdf(f"ŁĄCZNY CZAS POSTOJU: {dt_sum_str}"), 1, 1, 'L', True)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"ŁĄCZNY CZAS POSTOJU — {nazwa_sekcji.upper()}: {dt_sum_str}"), 1, 1, 'L', True)
+        pdf.set_text_color(0, 0, 0)
         pdf.ln(4)
+        return suma_minut
 
-    _rysuj_przestoje_sekcji('zasyp', 'PRZESTOJE I AWARIE — ZASYP', (3, 105, 161))
-    _rysuj_przestoje_sekcji('workowanie', 'PRZESTOJE I AWARIE — WORKOWANIE', (21, 128, 61))
+    dt_zasyp_sum = _rysuj_przestoje_sekcji('zasyp', 'PRZESTOJE I AWARIE — ZASYP', (185, 28, 28))
+    dt_work_sum = _rysuj_przestoje_sekcji('workowanie', 'PRZESTOJE I AWARIE — WORKOWANIE', (220, 38, 38))
+
+    # Podsumowanie łączne czasu przestojów dla całej zmiany
+    total_dt_min = (dt_zasyp_sum or 0) + (dt_work_sum or 0)
+    if total_dt_min > 0:
+        tot_h = total_dt_min // 60
+        tot_m = total_dt_min % 60
+        tot_sum_str = f"{tot_h}h {tot_m} min ({total_dt_min} min)" if tot_h > 0 else f"{total_dt_min} min"
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_fill_color(254, 202, 202)
+        pdf.set_text_color(153, 27, 27)
+        pdf.cell(0, 8, polskie_znaki_pdf(f"SUMARYCZNY CZAS POSTOJU CAŁEJ ZMIANY: {tot_sum_str}"), 1, 1, 'C', True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
 
     # --- SEKCJA: OBSADA STANOWISKOWA (PRZYPISANIE PRZEZ LIDERA) ---
     obsada_rows = obsada_rows or []
     from collections import defaultdict
     sekcje_obsady = defaultdict(list)
+    total_assigned_staff = 0
     for r in obsada_rows:
         sec = (r[0] if len(r) > 0 and r[0] else 'Inne').strip()
         osoba = (r[1] if len(r) > 1 and r[1] else '').strip()
         funkcja = f" ({r[2]})" if len(r) > 2 and r[2] else ""
         if osoba:
             sekcje_obsady[sec].append(f"{osoba}{funkcja}")
+            total_assigned_staff += 1
 
-    # Jeśli są jakiekolwiek przypisania
     if any(len(osoby) > 0 for osoby in sekcje_obsady.values()):
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(30, 41, 59)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 7, polskie_znaki_pdf("OBSADA STANOWISKOWA (PRZYPISANIE PRACOWNIKÓW PRZEZ LIDERA)"), ln=1, fill=True)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"OBSADA STANOWISKOWA — LINIA {linia.upper()} (PRZYDZIAŁ DO STANOWISK: {total_assigned_staff} OS.)"), ln=1, fill=True)
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", size=9)
 
@@ -554,33 +572,115 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
             
             pdf.set_font("Arial", size=9)
             for idx, osoba in enumerate(osoby, 1):
-                pdf.set_fill_color(255, 255, 255) if idx % 2 != 0 else pdf.set_fill_color(248, 250, 252)
+                row_color = (255, 255, 255) if idx % 2 != 0 else (248, 250, 252)
+                pdf.set_fill_color(*row_color)
                 pdf.cell(0, 6, polskie_znaki_pdf(f"     {idx}. {osoba}"), 1, 1, 'L', True)
 
         pdf.ln(4)
 
-    # --- SEKCJA: NIEOBECNI ---
+    # --- SEKCJA: OBECNOŚĆ NA ZMIANIE (PRACOWNICY OBECNI) ---
+    hr_rows = hr_rows or []
+    if hr_rows:
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"OBECNOŚĆ NA ZMIANIE — PRACOWNICY OBECNI ({len(hr_rows)} OS.)"), ln=1, fill=True)
+        pdf.set_text_color(0, 0, 0)
+
+        col_hr = (12, 75, 55, 25, 23)  # Razem = 190
+        _rysuj_wiersz_multicell(
+            col_hr,
+            ["Lp.", "Pracownik", "Stanowisko / Sekcja", "Status", "Czas pracy"],
+            col_aligns=['C', 'L', 'L', 'C', 'C'],
+            fill=True,
+            fill_color=(235, 243, 255),
+            font_style='B'
+        )
+
+        pdf.set_font("Arial", size=9)
+        fill = False
+        total_hr_hours = 0.0
+        for idx, r in enumerate(hr_rows, 1):
+            prac = str(r[0] if len(r) > 0 and r[0] else '')
+            sec = str(r[1] if len(r) > 1 and r[1] else 'Brak przydziału')
+            typ_st = str(r[2] if len(r) > 2 and r[2] else 'Obecny')
+            try:
+                g_val = float(r[3]) if len(r) > 3 and r[3] is not None else 8.0
+            except Exception:
+                g_val = 8.0
+            total_hr_hours += g_val
+            godz_str = f"{g_val:.1f}h"
+
+            row_color = (250, 250, 250) if fill else (255, 255, 255)
+            _rysuj_wiersz_multicell(
+                col_hr,
+                [str(idx), prac, sec, typ_st, godz_str],
+                col_aligns=['C', 'L', 'L', 'C', 'C'],
+                fill=fill,
+                fill_color=row_color,
+                font_style=''
+            )
+            fill = not fill
+
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(240, 245, 255)
+        pdf.cell(167, 7, polskie_znaki_pdf(f"ŁĄCZNIE OBECNYCH NA ZMIANIE ({len(hr_rows)} OSÓB):"), 1, 0, 'R', True)
+        pdf.cell(23, 7, f"{total_hr_hours:.1f}h", 1, 1, 'C', True)
+        pdf.ln(4)
+
+    # --- SEKCJA: NIEOBECNOŚCI I URLOPY ---
     nieobecni_rows = nieobecni_rows or []
     if nieobecni_rows:
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(142, 68, 173)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 7, "NIEOBECNOSCI", ln=1, fill=True)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"NIEOBECNOŚCI I URLOPY ({len(nieobecni_rows)} OS.)"), ln=1, fill=True)
         pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", size=9)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(75, 7, "Pracownik", 1, 0, 'L', True)
-        pdf.cell(45, 7, "Typ nieobecnosci", 1, 0, 'C', True)
-        pdf.cell(70, 7, "Komentarz", 1, 1, 'L', True)
+
+        col_nieob = (12, 70, 48, 60)  # Razem = 190
+        _rysuj_wiersz_multicell(
+            col_nieob,
+            ["Lp.", "Pracownik", "Typ nieobecności", "Powód / Komentarz"],
+            col_aligns=['C', 'L', 'C', 'L'],
+            fill=True,
+            fill_color=(245, 235, 250),
+            font_style='B'
+        )
+
         pdf.set_font("Arial", size=9)
         fill = False
-        for r in nieobecni_rows:
-            pdf.set_fill_color(245, 245, 245) if fill else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(75, 7, polskie_znaki_pdf(str(r[0])), 1, 0, 'L', fill)
-            pdf.cell(45, 7, polskie_znaki_pdf(str(r[1])), 1, 0, 'C', fill)
-            pdf.cell(70, 7, polskie_znaki_pdf(str(r[2])[:40]), 1, 1, 'L', fill)
+        for idx, r in enumerate(nieobecni_rows, 1):
+            prac = str(r[0] if len(r) > 0 and r[0] else '')
+            typ_nieob = str(r[1] if len(r) > 1 and r[1] else 'Nieobecność').upper()
+            kom = str(r[2] if len(r) > 2 and r[2] else '-')
+
+            row_color = (250, 250, 250) if fill else (255, 255, 255)
+            _rysuj_wiersz_multicell(
+                col_nieob,
+                [str(idx), prac, typ_nieob, kom],
+                col_aligns=['C', 'L', 'C', 'L'],
+                fill=fill,
+                fill_color=row_color,
+                font_style=''
+            )
             fill = not fill
+
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(250, 240, 255)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"ŁĄCZNIE NIEOBECNYCH / NA URLOPIE: {len(nieobecni_rows)} OSÓB"), 1, 1, 'L', True)
+        pdf.ln(4)
+
+    # --- PODSUMOWANIE FREKWENCJI (KPI) ---
+    cnt_obecni = len(hr_rows) if hr_rows else 0
+    cnt_nieobecni = len(nieobecni_rows) if nieobecni_rows else 0
+    cnt_total = cnt_obecni + cnt_nieobecni
+    if cnt_total > 0:
+        frekwencja_pct = round((cnt_obecni / cnt_total) * 100, 1)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_text_color(30, 41, 59)
+        info_frekwencja = f"PODSUMOWANIE OBSADY I FREKWENCJI:  Obecni: {cnt_obecni} os.  |  Urlop / L4 / Nieobecni: {cnt_nieobecni} os.  |  Łączny stan: {cnt_total} os.  |  Frekwencja: {frekwencja_pct}%"
+        pdf.cell(0, 6, polskie_znaki_pdf(info_frekwencja), 1, 1, 'C', True)
         pdf.ln(4)
 
     # --- SEKCJA: NADGODZINY ---

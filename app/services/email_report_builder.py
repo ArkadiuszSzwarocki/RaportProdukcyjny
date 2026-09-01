@@ -71,9 +71,9 @@ class EmailReportBuilder:
 
                 bg_color = "#ffffff" if idx % 2 != 0 else "#f8fafc"
                 
-                # Kolor badge'a sekcji
-                badge_bg = "#e0f2fe" if sek.lower() == 'zasyp' else "#dcfce7"
-                badge_color = "#0369a1" if sek.lower() == 'zasyp' else "#166534"
+                # Kolor badge'a sekcji przestojów (czerwony)
+                badge_bg = "#fee2e2" if sek.lower() == 'zasyp' else "#fef2f2"
+                badge_color = "#b91c1c" if sek.lower() == 'zasyp' else "#dc2626"
 
                 downtime_rows_html += f"""
                 <tr style="background-color: {bg_color}; border-bottom: 1px solid #e2e8f0;">
