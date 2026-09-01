@@ -51,7 +51,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
         return redirect(url_for('planista.panel_planisty', data=data_planu))
 
     @planning_bp.route('/dodaj_plan', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'operator', 'pracownik', 'lider', 'stepnpio')
+    @roles_required('planista', 'admin', 'zarzad', 'operator', 'pracownik', 'lider', 'stepnpio', 'magazynier', 'produkcja', 'masteradmin')
     @hall_restricted
     def dodaj_plan():
         """Add a plan or production entry."""
@@ -79,7 +79,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
 
         role = (session.get('rola') or '').lower().strip()
         is_admin_role = role in ['admin', 'planista', 'zarzad', 'masteradmin', 'master admin', 'master_admin']
-        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio', 'magazynier', 'produkcja']
         
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania planów lub zasypów.', 'warning')

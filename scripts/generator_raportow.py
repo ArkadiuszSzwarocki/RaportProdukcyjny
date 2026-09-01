@@ -28,6 +28,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     print(f"[GENERATOR] Fetching production data...")
     table_plan = get_table_name('plan_produkcji', linia)
     table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+    table_dosypki = 'dosypki_agro' if linia == 'AGRO' else 'dosypki'
     table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
 
     sql_plan = f"""
@@ -38,9 +39,19 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             p.tonaz, 
             CASE 
                 WHEN LOWER(TRIM(p.sekcja)) = 'zasyp' THEN (
-                    SELECT COALESCE(SUM(sz.waga), 0) 
-                    FROM {table_szarze} sz 
-                    WHERE sz.plan_id = p.id AND DATE(sz.data_dodania) = %s
+                    (SELECT COALESCE(SUM(sz.waga), 0) 
+                     FROM {table_szarze} sz 
+                     WHERE sz.plan_id = p.id AND DATE(sz.data_dodania) = %s)
+                    +
+                    (SELECT COALESCE(SUM(COALESCE(d.kg_wydozowane, d.kg)), 0)
+                     FROM {table_dosypki} d
+                     WHERE d.plan_id = p.id 
+                       AND d.potwierdzone = 1 
+                       AND (d.anulowana = 0 OR d.anulowana IS NULL)
+                       AND (
+                           DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s
+                           OR d.szarza_id IN (SELECT sz.id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s)
+                       ))
                 )
                 ELSE (
                     SELECT COALESCE(SUM(pal.waga), 0) 
@@ -61,7 +72,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
            )
         ORDER BY p.kolejnosc, p.id
     """
-    df_plan = pd.read_sql(sql_plan, conn, params=(data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu))
+    df_plan = pd.read_sql(sql_plan, conn, params=(data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu))
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
     print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
     
@@ -123,78 +134,105 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         except Exception as _el:
             logger.warning(f"[GENERATOR] Nie można pobrać lidera z obsada_liderzy: {_el}")
 
-    # HR / obecności — filtrowane po linii (PSD / AGRO)
-    try:
-        df_hr = pd.read_sql("""
-            SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin 
-            FROM obecnosc o 
-            JOIN pracownicy p ON o.pracownik_id = p.id 
-            WHERE o.data_wpisu = %s 
-              AND (
-                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
-                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
-                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
-              )
-            ORDER BY p.imie_nazwisko
-        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
-    except Exception:
-        df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
-    logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
-    print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
-
-    # Obsada — kto był przydzielony do jakiej sekcji przez lidera na danej linii
+    # 1. Obsada — kto był przydzielony do jakiej sekcji przez lidera na danej linii
     try:
         df_obsada = pd.read_sql("""
-            SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa
+            SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa, oz.pracownik_id
             FROM obsada_zmiany oz
             JOIN pracownicy p ON oz.pracownik_id = p.id
             WHERE oz.data_wpisu = %s 
-              AND (oz.linia = %s OR (oz.linia IS NULL AND %s = 'PSD'))
-            ORDER BY oz.sekcja, p.imie_nazwisko
+              AND (UPPER(COALESCE(oz.linia, 'PSD')) = UPPER(%s) OR (%s = 'PSD' AND (oz.linia IS NULL OR oz.linia = '')))
+            ORDER BY 
+                CASE 
+                    WHEN oz.sekcja = 'Zasyp' THEN 1
+                    WHEN oz.sekcja = 'Workowanie' THEN 2
+                    WHEN oz.sekcja = 'Magazyn' THEN 3
+                    WHEN oz.sekcja = 'Laboratorium' THEN 4
+                    WHEN oz.sekcja = 'Handel' THEN 5
+                    WHEN INSTR(LOWER(oz.sekcja), 'sterowni') > 0 THEN 1
+                    WHEN INSTR(LOWER(oz.sekcja), 'work') > 0 THEN 2
+                    WHEN INSTR(LOWER(oz.sekcja), 'zasyp') > 0 THEN 3
+                    ELSE 10
+                END,
+                p.imie_nazwisko
         """, conn, params=(data_raportu, linia, linia))
     except Exception as _e:
-        try:
-            df_obsada = pd.read_sql("""
-                SELECT oz.sekcja, p.imie_nazwisko AS pracownik, COALESCE(p.grupa, '') AS grupa
-                FROM obsada_zmiany oz
-                JOIN pracownicy p ON oz.pracownik_id = p.id
-                WHERE oz.data_wpisu = %s
-                ORDER BY oz.sekcja, p.imie_nazwisko
-            """, conn, params=(data_raportu,))
-        except Exception:
-            df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik', 'grupa'])
+        logger.warning(f"[GENERATOR] Nie mozna pobrac obsady: {_e}")
+        df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik', 'grupa', 'pracownik_id'])
     logger.info(f"[GENERATOR] Obsada data: {len(df_obsada)} rows")
 
-    # Nieobecni — typ inny niż 'obecny' dla pracowników danej linii
+    # 2. HR / obecności — pracownicy obecni na danej linii (wraz ze stanowiskiem i godzinami)
+    try:
+        df_hr = pd.read_sql("""
+            SELECT 
+                p.imie_nazwisko AS pracownik,
+                COALESCE(
+                    (SELECT oz.sekcja FROM obsada_zmiany oz 
+                     WHERE oz.pracownik_id = p.id AND oz.data_wpisu = %s 
+                       AND (UPPER(COALESCE(oz.linia, 'PSD')) = UPPER(%s) OR (%s = 'PSD' AND (oz.linia IS NULL OR oz.linia = '')))
+                     LIMIT 1),
+                    'Brak przydziału'
+                ) AS sekcja,
+                'Obecny' AS typ,
+                COALESCE(o.ilosc_godzin, 8.0) AS ilosc_godzin,
+                COALESCE(o.komentarz, '') AS komentarz
+            FROM pracownicy p
+            JOIN obsada_zmiany oz2 ON oz2.pracownik_id = p.id AND oz2.data_wpisu = %s AND (UPPER(COALESCE(oz2.linia, 'PSD')) = UPPER(%s) OR (%s = 'PSD' AND (oz2.linia IS NULL OR oz2.linia = '')))
+            LEFT JOIN obecnosc o ON o.pracownik_id = p.id AND o.data_wpisu = %s
+            GROUP BY p.id, p.imie_nazwisko, o.ilosc_godzin, o.komentarz
+            ORDER BY sekcja, p.imie_nazwisko
+        """, conn, params=(data_raportu, linia, linia, data_raportu, linia, linia, data_raportu))
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac HR obecnosci: {_e}")
+        df_hr = pd.DataFrame(columns=['pracownik', 'sekcja', 'typ', 'ilosc_godzin', 'komentarz'])
+    logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
+    print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
+
+    # 3. Nieobecni i Urlopy — typ inny niż 'obecny' dla pracowników danej linii + zatwierdzone wnioski wolne
     try:
         df_nieobecni = pd.read_sql("""
-            SELECT p.imie_nazwisko AS pracownik,
-                   COALESCE(TRIM(LOWER(o.typ)), '') AS typ,
-                   COALESCE(o.komentarz, '') AS komentarz
+            SELECT DISTINCT
+                p.imie_nazwisko AS pracownik,
+                CASE 
+                    WHEN INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0 THEN 'Urlop'
+                    WHEN LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'zwolnienie lekarskie') THEN 'L4'
+                    WHEN INSTR(LOWER(TRIM(o.typ)), 'opiek') > 0 THEN 'Opieka'
+                    ELSE COALESCE(o.typ, 'Nieobecność')
+                END AS typ,
+                COALESCE(o.komentarz, '') AS komentarz
             FROM obecnosc o
             JOIN pracownicy p ON o.pracownik_id = p.id
-            WHERE o.data_wpisu = %s 
-              AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
+            WHERE o.data_wpisu = %s
               AND (
-                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
-                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
-                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
+                  INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0
+                  OR LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'opieka', 'nieobecnosc', 'nieobecność', 'zwolnienie', 'kwarantanna', 'inne')
               )
-            ORDER BY typ, p.imie_nazwisko
-        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
+              AND (
+                  %s = 'ALL'
+                  OR (%s = 'AGRO' AND (p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') OR COALESCE(p.widoczny_agro, 0) = 1))
+                  OR (%s = 'PSD' AND p.id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') AND COALESCE(p.widoczny_agro, 0) = 0)
+              )
+
+            UNION
+
+            SELECT DISTINCT
+                p.imie_nazwisko AS pracownik,
+                COALESCE(w.typ, 'Urlop') AS typ,
+                COALESCE(w.powod, 'Zatwierdzony wniosek') AS komentarz
+            FROM wnioski_wolne w
+            JOIN pracownicy p ON w.pracownik_id = p.id
+            WHERE w.status = 'approved'
+              AND %s BETWEEN w.data_od AND w.data_do
+              AND (
+                  %s = 'ALL'
+                  OR (%s = 'AGRO' AND (p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') OR COALESCE(p.widoczny_agro, 0) = 1))
+                  OR (%s = 'PSD' AND p.id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') AND COALESCE(p.widoczny_agro, 0) = 0)
+              )
+            ORDER BY typ, pracownik
+        """, conn, params=(data_raportu, linia, linia, data_raportu, linia, data_raportu, data_raportu, linia, linia, data_raportu, linia, data_raportu))
     except Exception as _e:
-        try:
-            df_nieobecni = pd.read_sql("""
-                SELECT p.imie_nazwisko AS pracownik,
-                       COALESCE(TRIM(LOWER(o.typ)), '') AS typ,
-                       COALESCE(o.komentarz, '') AS komentarz
-                FROM obecnosc o
-                JOIN pracownicy p ON o.pracownik_id = p.id
-                WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') NOT IN ('obecny', 'obecnosc')
-                ORDER BY typ, p.imie_nazwisko
-            """, conn, params=(data_raportu,))
-        except Exception:
-            df_nieobecni = pd.DataFrame(columns=['pracownik', 'typ', 'komentarz'])
+        logger.warning(f"[GENERATOR] Nie mozna pobrac nieobecnych: {_e}")
+        df_nieobecni = pd.DataFrame(columns=['pracownik', 'typ', 'komentarz'])
     logger.info(f"[GENERATOR] Nieobecni data: {len(df_nieobecni)} rows")
 
     # Bufor — co zostało do spakowania
@@ -257,7 +295,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         if not df_obsada.empty:
             df_obsada.to_excel(writer, sheet_name='Obsada - Sekcje', index=False)
         if not df_nieobecni.empty:
-            df_nieobecni.to_excel(writer, sheet_name='Nieobecni', index=False)
+            df_nieobecni.to_excel(writer, sheet_name='Nieobecni - Urlopy', index=False)
         if not df_bufor.empty:
             df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
         if not df_nadgodziny.empty:
@@ -311,10 +349,10 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
 
         hr_rows = []
         for _, row in df_hr.iterrows():
-            hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
+            hr_rows.append((row.get('pracownik', ''), row.get('sekcja', ''), row.get('typ', 'Obecny'), row.get('ilosc_godzin', 8.0), row.get('komentarz', '')))
 
         bufor_rows = [(r.get('produkt', ''), r.get('nazwa_zlecenia', ''), r.get('tonaz_rzeczywisty', 0), r.get('spakowano', 0), r.get('pozostalo', 0)) for _, r in df_bufor.iterrows()]
-        obsada_rows = [(r.get('sekcja', ''), r.get('pracownik', ''), r.get('funkcja', '')) for _, r in df_obsada.iterrows()]
+        obsada_rows = [(r.get('sekcja', ''), r.get('pracownik', ''), r.get('grupa', '')) for _, r in df_obsada.iterrows()]
         nieobecni_rows = [(r.get('pracownik', ''), r.get('typ', ''), r.get('komentarz', '')) for _, r in df_nieobecni.iterrows()]
         nadgodziny_rows = [(r.get('pracownik', ''), r.get('ilosc_nadgodzin', 0), r.get('powod', ''), r.get('status', '')) for _, r in df_nadgodziny.iterrows()]
 

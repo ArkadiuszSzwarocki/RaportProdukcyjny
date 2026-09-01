@@ -650,7 +650,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         linia = str(linia_input).upper()
         role = (session.get('rola') or '').lower().strip()
         is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin', 'master admin', 'master_admin']
-        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio', 'magazynier', 'produkcja']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania zasypów.', 'warning')
             return redirect('/')

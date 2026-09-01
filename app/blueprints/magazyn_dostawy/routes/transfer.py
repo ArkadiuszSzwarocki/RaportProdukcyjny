@@ -19,8 +19,8 @@ from ..base import magazyn_dostawy_bp
 @magazyn_dostawy_bp.route('/')
 def lista_dostaw():
     linia = request.args.get('linia', 'PSD').upper()
-    # Lista przesuniec ma pokazywac tylko ruchy wewnetrzne (z lokalizacja zrodlowa).
-    dostawy = [d for d in DeliveryQueries.get_dostawy(linia) if d.get('lokalizacja_z')]
+    # Lista przesuniec ma pokazywac tylko ruchy wewnetrzne (bez dostawcy zewnetrznego).
+    dostawy = [d for d in DeliveryQueries.get_dostawy(linia) if not str(d.get('supplier') or '').strip()]
     return render_template('magazyn_dostawy/lista.html', dostawy=dostawy, linia=linia)
 
 @magazyn_dostawy_bp.route('/oczekujace')
@@ -237,8 +237,7 @@ def przyjecie_ruchu(dostawa_id):
             for it in dostawa['items_parsed']
             if isinstance(it, dict)
         )
-        lokalizacja_z = str(dostawa.get('lokalizacja_z') or '').strip()
-        is_external_delivery = (not lokalizacja_z) and (not has_item_source)
+        is_external_delivery = bool(str(dostawa.get('supplier') or '').strip())
 
         printers = []
         try:
@@ -384,7 +383,7 @@ def raport_przesuniecia(dostawa_id):
                         if row['lokalizacja'] == 'OCZEKUJĄCE':
                             still_pending = True
                 
-                is_external = not dostawa.get('lokalizacja_z')
+                is_external = bool(str(dostawa.get('supplier') or '').strip())
                 if is_external and dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk):
                     # Zmieniamy tymczasowo dla raportu (lub można zupdatować w DB)
                     dostawa['status'] = 'COMPLETED'

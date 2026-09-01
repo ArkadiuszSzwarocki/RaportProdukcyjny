@@ -1,7 +1,4 @@
-"""
-Testy jednostkowe dla serwisu OsipReportEmailService, modelu OsipEmailSettingsModel i reguły 'z i do OSIP po przyjęciu'.
-"""
-import pytest
+import unittest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
 
@@ -11,7 +8,7 @@ from app.models.osip_transfer_model import OsipTransferModel
 from app.models.osip_transfer_item_model import OsipTransferItemModel
 
 
-class TestOsipEmailSettingsModel:
+class TestOsipEmailSettingsModel(unittest.TestCase):
     """Testy jednostkowe dla modelu OsipEmailSettingsModel."""
 
     def test_recipients_list_parsing(self):
@@ -75,7 +72,7 @@ class TestOsipEmailSettingsModel:
         assert d["updated_at"] == "2026-08-30 22:00:00"
 
 
-class TestOsipEmailSettingsRepository:
+class TestOsipEmailSettingsRepository(unittest.TestCase):
     """Testy repozytorium OsipEmailSettingsRepository."""
 
     @patch('app.repositories.osip_email_settings_repository.get_db_connection')
@@ -158,7 +155,7 @@ class TestOsipEmailSettingsRepository:
         mock_cursor.execute.assert_called()
 
 
-class TestOsipInvolvementValidation:
+class TestOsipInvolvementValidation(unittest.TestCase):
     """Testy reguły sprawdzającej ruchy z i do OSIP ('gdy jedzie na osip i z osip')."""
 
     def test_is_osip_involved_true_for_movements_to_osip(self):
@@ -246,11 +243,10 @@ class TestOsipInvolvementValidation:
         assert cat['accepted_by'] == 'PrzyjmujacyPawel'
 
 
-class TestOsipReportEmailServiceSending:
+class TestOsipReportEmailServiceSending(unittest.TestCase):
     """Testy logiki wysyłania e-maili po przyjęciu i izolacji od poczty systemowej."""
 
-    @pytest.fixture
-    def mock_settings_repo(self):
+    def _get_mock_settings_repo(self):
         repo = MagicMock()
         repo.get_settings.return_value = OsipEmailSettingsModel(
             smtp_server="smtp.custom-osip.pl",
@@ -266,8 +262,8 @@ class TestOsipReportEmailServiceSending:
         return repo
 
     @patch('smtplib.SMTP_SSL')
-    def test_transfer_report_sends_for_standard_transfer(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_transfer_report_sends_for_standard_transfer(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_server_instance = MagicMock()
         mock_smtp_ssl.return_value = mock_server_instance
@@ -287,8 +283,8 @@ class TestOsipReportEmailServiceSending:
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
     @patch('smtplib.SMTP_SSL')
-    def test_transfer_report_sends_when_movement_to_osip(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_transfer_report_sends_when_movement_to_osip(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_server_instance = MagicMock()
         mock_smtp_ssl.return_value = mock_server_instance
@@ -324,8 +320,8 @@ class TestOsipReportEmailServiceSending:
             mock_server_instance.sendmail.assert_called_once()
 
     @patch('smtplib.SMTP_SSL')
-    def test_transfer_report_sends_when_movement_from_osip(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_transfer_report_sends_when_movement_from_osip(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_server_instance = MagicMock()
         mock_smtp_ssl.return_value = mock_server_instance
@@ -358,8 +354,8 @@ class TestOsipReportEmailServiceSending:
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
     @patch('smtplib.SMTP_SSL')
-    def test_delivery_report_sends_for_standard_transfer(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_delivery_report_sends_for_standard_transfer(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_server_instance = MagicMock()
         mock_smtp_ssl.return_value = mock_server_instance
@@ -381,8 +377,8 @@ class TestOsipReportEmailServiceSending:
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
     @patch('smtplib.SMTP_SSL')
-    def test_delivery_report_sends_for_osip_target(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_delivery_report_sends_for_osip_target(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_server_instance = MagicMock()
         mock_smtp_ssl.return_value = mock_server_instance
@@ -408,8 +404,8 @@ class TestOsipReportEmailServiceSending:
             mock_server_instance.sendmail.assert_called_once()
 
     @patch('smtplib.SMTP_SSL')
-    def test_delivery_report_skips_when_already_sent(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_delivery_report_skips_when_already_sent(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -430,8 +426,8 @@ class TestOsipReportEmailServiceSending:
             mock_smtp_ssl.assert_not_called()
 
     @patch('smtplib.SMTP_SSL')
-    def test_transfer_report_skips_when_already_sent(self, mock_smtp_ssl, mock_settings_repo):
-        service = OsipReportEmailService(settings_repo=mock_settings_repo)
+    def test_transfer_report_skips_when_already_sent(self, mock_smtp_ssl):
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
         mock_transfer = OsipTransferModel(
             id=99,
