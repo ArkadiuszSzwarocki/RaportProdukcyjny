@@ -507,33 +507,51 @@ class AgroTanksRepository:
             finally:
                 conn.close()
 
-    def get_active_workowanie_plan(linia='Agro', target_date=None):
+    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None):
             """Helper to find specifically an active Workowanie plan."""
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
                 table_plan = get_table_name('plan_produkcji', linia)
 
+                if plan_id:
+                    cursor.execute(
+                        f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, "
+                        f"start_pallet_counter, opakowanie_id, status "
+                        f"FROM {table_plan} WHERE id = %s",
+                        (plan_id,)
+                    )
+                    return cursor.fetchone()
+
                 base_query = (
                     f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, "
-                    f"start_pallet_counter, opakowanie_id "
+                    f"start_pallet_counter, opakowanie_id, status "
                     f"FROM {table_plan} WHERE status IN ('w toku', 'zawieszone') AND sekcja IN ('Workowanie', 'Czyszczenie')"
                 )
 
                 if target_date:
-                    query = f"{base_query} AND DATE(data_planu) = %s ORDER BY real_start DESC LIMIT 1"
+                    query = f"{base_query} AND DATE(data_planu) = %s ORDER BY FIELD(status, 'w toku', 'zawieszone') ASC, real_start DESC LIMIT 1"
                     cursor.execute(query, (target_date,))
                     return cursor.fetchone()
 
-                # Prefer today's active plan, but allow rollover plans that started earlier
-                # and are still running (e.g. long shifts crossing midnight).
-                todays_query = f"{base_query} AND DATE(data_planu) = CURDATE() ORDER BY real_start DESC LIMIT 1"
+                # Prefer today's 'w toku' plan
+                todays_query = f"{base_query} AND DATE(data_planu) = CURDATE() ORDER BY FIELD(status, 'w toku', 'zawieszone') ASC, real_start DESC LIMIT 1"
                 cursor.execute(todays_query)
                 plan = cursor.fetchone()
+                if plan and plan.get('status') == 'w toku':
+                    return plan
+
+                # Check if ANY plan across all dates is 'w toku'
+                in_progress_query = f"{base_query} AND status = 'w toku' ORDER BY real_start DESC LIMIT 1"
+                cursor.execute(in_progress_query)
+                in_prog = cursor.fetchone()
+                if in_prog:
+                    return in_prog
+
                 if plan:
                     return plan
 
-                fallback_query = f"{base_query} ORDER BY real_start DESC LIMIT 1"
+                fallback_query = f"{base_query} ORDER BY FIELD(status, 'w toku', 'zawieszone') ASC, real_start DESC LIMIT 1"
                 cursor.execute(fallback_query)
                 return cursor.fetchone()
             finally:

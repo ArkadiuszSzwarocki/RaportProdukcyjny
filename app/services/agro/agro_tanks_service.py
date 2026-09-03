@@ -42,8 +42,8 @@ class AgroTanksService:
         return AgroTanksRepository.get_current_running_plan(linia=linia)
 
     @staticmethod
-    def get_active_workowanie_plan(linia='Agro', target_date=None):
-        return AgroTanksRepository.get_active_workowanie_plan(linia=linia, target_date=target_date)
+    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None):
+        return AgroTanksRepository.get_active_workowanie_plan(linia=linia, target_date=target_date, plan_id=plan_id)
 
     @staticmethod
     def get_finished_plans_of_day(linia='Agro', target_date=None):

@@ -374,7 +374,7 @@ class DashboardService:
         return res
 
     @staticmethod
-    def get_agro_packaging_context(dzisiaj: date) -> Dict[str, Any]:
+    def get_agro_packaging_context(dzisiaj: date, plan_id: Optional[int] = None) -> Dict[str, Any]:
         """Fetch packaging usage context specifically for AGRO hall."""
         default_ctx = {
             'active_plan': None,
@@ -393,7 +393,7 @@ class DashboardService:
             from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
             from app.services.agro.agro_tanks_service import AgroTanksService
-            active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=None)
+            active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=None, plan_id=plan_id)
             is_active_plan = bool(active_plan)
             if not active_plan:
                 # If no active plan, try to fetch the last finished plan of the day

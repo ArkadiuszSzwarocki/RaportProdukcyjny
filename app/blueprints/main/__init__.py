@@ -231,12 +231,14 @@ def index():
         
         # Check if there is any active order ('w toku') in the current daily plan
         has_active_order = False
+        active_plan_id = None
         plan_dnia = main_h_data.get('plan_dnia', [])
         if plan_dnia:
             for p in plan_dnia:
                 status = str(p[3]).strip().lower()
                 if len(p) > 3 and status == 'w toku':
                     has_active_order = True
+                    active_plan_id = p[0]
                     break
 
         if clean_sekcja in ['zasyp', 'workowanie'] and has_active_order:
@@ -245,7 +247,7 @@ def index():
         if clean_sekcja == 'workowanie' and aktywna_linia == 'AGRO':
             try:
                 from app.services.dashboard_service import DashboardService
-                workowanie_rozliczenie_ctx = DashboardService.get_agro_packaging_context(dzisiaj)
+                workowanie_rozliczenie_ctx = DashboardService.get_agro_packaging_context(dzisiaj, plan_id=active_plan_id)
             except Exception as e:
                 import traceback
                 app.logger.error(f"Error fetching agro packaging context: {str(e)}\n{traceback.format_exc()}")
