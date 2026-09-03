@@ -4,7 +4,7 @@ from datetime import datetime
 # Domyślne lokalizacje magazynowe RaportProdukcyjny
 LOKALIZACJE_ZRODLO = [
     'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
-    'OSIP', 'BF_MS01', 'BF_MP01', 'KO01', 'PSD', 'PSD01',
+    'OSIP', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'KO01', 'PSD', 'PSD01',
     'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
 ]
 
@@ -34,8 +34,8 @@ LOKALIZACJE_SZCZEGOLOWE = {
 
 # Płaska lista na potrzeby selecta źródło/cel
 LOKALIZACJE = sorted(list(set(LOKALIZACJE_ZRODLO + _ko + ['R04', 'R05', 'R06', 'R07', 'PSD01', 'BFOS'])))
-LOKALIZACJE_CEL = ['BF_MS01', 'BF_MP01', 'BFOS', 'MS01', 'MP01', 'PSD01']
-BUFORY = ['BF_MS01', 'BF_MP01', 'BFOS']
+LOKALIZACJE_CEL = ['BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'PSD01']
+BUFORY = ['BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS']
 
 
 def _safe_float(value):

@@ -79,11 +79,12 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
                 folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
                 bufor_rows=None, nadgodziny_rows=None, palety_rows=None,
                 bigbag_rows=None):
-    """Generuje plik PDF z tabelami"""
-    nazwa_pdf = f"Raport_{dzisiaj}.pdf"
+    """Generates a PDF report with detailed tables."""
+    linia_prefix = f"_{linia}" if linia else ""
+    nazwa_pdf = f"Raport{linia_prefix}_{dzisiaj}.pdf"
     
     sciezka = os.path.join(RAPORTY_PATH, nazwa_pdf)
-    print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, sciezka={sciezka}")
+    print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, linia={linia}, sciezka={sciezka}")
     # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)
     from fpdf import FPDF
 

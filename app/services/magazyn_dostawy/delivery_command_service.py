@@ -32,16 +32,20 @@ class DeliveryCommandService:
 
             known_source_locations = {
                 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
-                'OSIP', 'BF_MS01', 'BF_MP01', 'PSD', 'PSD01',
+                'OSIP', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'PSD', 'PSD01',
                 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
             }
             known_source_locations.update({f'KO{i:02d}' for i in range(1, 23)})
-            known_target_locations = {'BF_MS01', 'BF_MP01', 'MS01', 'MP01', 'PSD01'}
+            known_target_locations = {'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'PSD01'}
 
             def _is_known_source_location(value):
                 loc = _norm_loc(value)
                 if not loc:
                     return False
+
+                clean_loc = loc.replace('_', '').replace('-', '').replace(' ', '')
+                if clean_loc in {'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP'}:
+                    return True
 
                 if loc in known_source_locations:
                     return True
@@ -70,7 +74,7 @@ class DeliveryCommandService:
                     nr = int(ko_match.group(1))
                     return 1 <= nr <= 22
 
-                if loc.startswith('MD') or loc.startswith('MDO'):
+                if loc.startswith('MD') or loc.startswith('MDO') or loc.startswith('BF'):
                     return True
 
                 return loc in {'MZ05-01', 'MZ06-01'}

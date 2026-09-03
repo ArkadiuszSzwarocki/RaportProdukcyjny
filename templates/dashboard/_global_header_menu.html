@@ -256,12 +256,17 @@
       window.submitPostponeReport = function(params) {
           var dateInput = document.getElementById('raport_date_picker') || document.querySelector('input[name="data"]') || document.getElementById('obsada-date');
           var urlData = new URLSearchParams(window.location.search).get('data');
-          var d = (dateInput && dateInput.value) ? dateInput.value : (urlData || new Date().toISOString().slice(0, 10));
+          var localToday = new Date().toLocaleDateString('en-CA');
+          var d = (dateInput && dateInput.value) ? dateInput.value : (urlData || localToday);
           var curLinia = '{{ linia }}';
           if (!curLinia || curLinia === 'None') {
               curLinia = (window.CURRENT_LINIA && window.CURRENT_LINIA !== 'None') ? window.CURRENT_LINIA : 'ALL';
           }
-          params.linia = params.linia || curLinia;
+          if (params.pause_completely) {
+              params.linia = 'ALL';
+          } else {
+              params.linia = params.linia || curLinia;
+          }
           params.data = params.data || d;
 
           fetch('/api/auto_raport/odloz', {

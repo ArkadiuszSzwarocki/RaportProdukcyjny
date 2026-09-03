@@ -43,7 +43,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                      FROM {table_szarze} sz 
                      WHERE sz.plan_id = p.id AND DATE(sz.data_dodania) = %s)
                     +
-                    (SELECT COALESCE(SUM(COALESCE(d.kg_wydozowane, d.kg)), 0)
+                    (SELECT COALESCE(SUM(d.kg), 0)
                      FROM {table_dosypki} d
                      WHERE d.plan_id = p.id 
                        AND d.potwierdzone = 1 
@@ -437,14 +437,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             new_pdf_name = f"Raport_{linia}_{data_raportu}.pdf"
             new_pdf_abs = _raporty_abs / new_pdf_name
             if pdf_abs.exists():
-                import shutil
-                shutil.move(str(pdf_abs), str(new_pdf_abs))
+                if pdf_abs.resolve() != new_pdf_abs.resolve():
+                    import shutil
+                    shutil.move(str(pdf_abs), str(new_pdf_abs))
                 pdf_path = str(new_pdf_abs)
             elif new_pdf_abs.exists():
-                # Już istnieje pod docelową nazwą (np. po poprzednim wywołaniu)
+                # File already exists under target destination path
                 pdf_path = str(new_pdf_abs)
             else:
-                # Fallback: szukaj pod _new.pdf (plik mógł być zablokowany)
+                # Fallback: check _new.pdf if temporary lock was present during save
                 fallback = _raporty_abs / pdf_name.replace('.pdf', '_new.pdf')
                 if fallback.exists():
                     import shutil

@@ -80,7 +80,7 @@ class AcceptanceService:
                 nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'))
                 pkg_form = target.get('packageForm', 'bags') # bags or big_bag
 
-                open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD', 'R09']
+                open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD', 'R09']
                 is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)
 
                 if not is_open:
@@ -177,7 +177,20 @@ class AcceptanceService:
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
                 new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
 
-                cursor.execute("UPDATE magazyn_dostawy SET items=%s, status=%s, potwierdzone_przez=%s, potwierdzone_at=%s WHERE id=%s", (json.dumps(items), new_status, login if all_processed else dostawa.get('potwierdzone_przez'), datetime.now() if all_processed else dostawa.get('potwierdzone_at'), dostawa_id))
+                cursor.execute(
+                    """
+                    UPDATE magazyn_dostawy 
+                    SET items=%s, status=%s, potwierdzone_przez=%s, potwierdzone_at=%s 
+                    WHERE id=%s
+                    """,
+                    (
+                        json.dumps(items),
+                        new_status,
+                        login if all_processed else dostawa.get('potwierdzone_przez'),
+                        datetime.now() if all_processed else dostawa.get('potwierdzone_at'),
+                        dostawa_id
+                    )
+                )
                 conn.commit()
                 
                 if new_status == 'COMPLETED':
@@ -360,7 +373,11 @@ class AcceptanceService:
                 new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
 
                 cursor.execute(
-                    "UPDATE magazyn_dostawy SET items=%s, status=%s, potwierdzone_przez=%s, potwierdzone_at=%s WHERE id=%s",
+                    """
+                    UPDATE magazyn_dostawy 
+                    SET items=%s, status=%s, potwierdzone_przez=%s, potwierdzone_at=%s 
+                    WHERE id=%s
+                    """,
                     (
                         json.dumps(items),
                         new_status,

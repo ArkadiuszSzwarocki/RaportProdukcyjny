@@ -88,58 +88,57 @@ class OsipReportEmailService:
         dest_loc = (dostawa.get('lokalizacja_do') or '').strip()
         ref = dostawa.get('order_ref') or f"#{dostawa.get('id')}"
 
-        is_external = bool(supplier)
+        has_supplier = bool(supplier) and supplier not in ('-', 'None', '')
+        is_external = has_supplier
+
+        # Dynamicznie pobierz rzeczywiste lokalizacje docelowe z przyjętych pozycji
+        actual_target_spots = sorted({
+            (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip()
+            for it in items
+            if (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip() and (it.get('lokalizacja_przyjecia') or it.get('targetSpot') or '').strip() != 'OCZEKUJĄCE'
+        })
+        if (not dest_loc or dest_loc == 'OCZEKUJĄCE') and actual_target_spots:
+            dest_loc = ", ".join(actual_target_spots)
+
+        # Dynamicznie pobierz rzeczywiste lokalizacje źródłowe jeśli brak w nagłówku
+        if not source_loc:
+            actual_source_spots = sorted({
+                (it.get('sourceSpot') or it.get('source_location') or '').strip()
+                for it in items
+                if (it.get('sourceSpot') or it.get('source_location') or '').strip()
+            })
+            if actual_source_spots:
+                source_loc = ", ".join(actual_source_spots)
+
         is_dest_osip = cls._is_osip_location(dest_loc) or any(cls._is_osip_location(it.get('lokalizacja_przyjecia') or it.get('targetSpot')) for it in items)
-        is_source_osip = cls._is_osip_location(source_loc) or any(cls._is_osip_location(it.get('sourceSpot')) for it in items)
+        is_source_osip = cls._is_osip_location(source_loc)
 
         if is_external:
-            if is_dest_osip:
-                doc_type_code = 'DOSTAWA_OSIP'
-                doc_title = 'Dostawa OSIP'
-                header_title = '🚚 Raport Przyjęcia: Dostawa OSIP'
-                theme_color_from = '#581c87'
-                theme_color_to = '#7e22ce'
-                source_label = 'DOSTAWCA'
-                source_value = supplier or 'Dostawca zewnętrzny'
-                dest_label = 'MAGAZYN DOCELOWY (OSIP)'
-                dest_value = dest_loc or 'OSIP'
-                creator_label = 'OTWORZYŁ / WPROWADZIŁ'
-                acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-                subject_tag = 'Dostawa OSIP'
-            else:
-                doc_type_code = 'DOSTAWA_CENTRALA'
-                doc_title = 'Dostawa Centrala'
-                header_title = '🏢 Raport Przyjęcia: Dostawa Centrala'
-                theme_color_from = '#1e3a8a'
-                theme_color_to = '#2563eb'
-                source_label = 'DOSTAWCA'
-                source_value = supplier or 'Dostawca zewnętrzny'
-                dest_label = 'LOKALIZACJA DOCELOWA'
-                dest_value = dest_loc or 'Centrala / Magazyn Główny'
-                creator_label = 'OTWORZYŁ / WPROWADZIŁ'
-                acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-                subject_tag = 'Dostawa Centrala'
+            doc_type_code = 'DOSTAWA'
+            doc_title = 'Dostawa'
+            header_title = '📦 Raport Przyjęcia: Dostawa'
+            theme_color_from = '#1e3a8a'
+            theme_color_to = '#2563eb'
+            source_label = 'DOSTAWCA'
+            source_value = supplier or 'Dostawca zewnętrzny'
+            dest_label = 'LOKALIZACJA DOCELOWA'
+            dest_value = dest_loc or 'Magazyn'
+            creator_label = 'OTWORZYŁ / WPROWADZIŁ'
+            acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
+            subject_tag = f"Dostawa WZ: {ref}"
         else:
-            inferred_source = source_loc
-            if not inferred_source and items:
-                sources = [it.get('sourceSpot') for it in items if isinstance(it, dict) and it.get('sourceSpot') and it.get('sourceSpot') != 'DOSTAWA']
-                if sources:
-                    inferred_source = sources[0] if len(set(sources)) == 1 else 'WIELE'
-            if not inferred_source:
-                inferred_source = 'MS01'
-
             doc_type_code = 'PRZESUNIECIE_MM'
-            doc_title = 'RAPORT PRZESUNIĘCIA MIĘDZYMAGAZYNOWEGO (MM)'
-            header_title = '🔄 RAPORT REALIZACJI: PRZESUNIĘCIE MIĘDZYMAGAZYNOWE (MM)'
+            doc_title = 'Przesunięcie MM'
+            header_title = '🔄 Raport Realizacji: Przesunięcie MM'
             theme_color_from = '#065f46'
             theme_color_to = '#059669'
-            source_label = 'MAGAZYN WYDAJĄCY (SKĄD)'
-            source_value = inferred_source
-            dest_label = 'MAGAZYN DOCELOWY (DOKĄD)'
-            dest_value = dest_loc or 'Magazyn Docelowy'
+            source_label = 'LOKALIZACJA ŹRÓDŁOWA (SKĄD)'
+            source_value = source_loc or 'Magazyn'
+            dest_label = 'LOKALIZACJA DOCELOWA (DOKĄD)'
+            dest_value = dest_loc or 'Magazyn'
             creator_label = 'WYDAŁ / OTWORZYŁ'
             acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-            subject_tag = 'Przesunięcie MM'
+            subject_tag = f"Przesunięcie MM nr: {ref}"
 
         created_by = dostawa.get('created_by') or 'System'
         created_at = dostawa.get('created_at')
@@ -333,7 +332,7 @@ class OsipReportEmailService:
             return None
 
     def build_transfer_report_html(self, transfer: Any) -> str:
-        """Buduje raport HTML po przyjęciu Transferu Wewnętrznego OSIP (Przesunięcie MM)."""
+        """Buduje raport HTML po przyjęciu Transferu Wewnętrznego OSIP."""
         code = getattr(transfer, 'transfer_code', '') or f"TR-{getattr(transfer, 'id', '')}"
         source = getattr(transfer, 'source_warehouse', '') or 'Centrala'
         dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
@@ -345,7 +344,6 @@ class OsipReportEmailService:
         
         created_str = created_at.strftime('%Y-%m-%d %H:%M') if created_at and hasattr(created_at, 'strftime') else (str(created_at) if created_at else '-')
         completed_str = completed_at.strftime('%Y-%m-%d %H:%M') if completed_at and hasattr(completed_at, 'strftime') else (str(completed_at) if completed_at else '-')
-        gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         status = getattr(transfer, 'status', 'COMPLETED')
         notes = getattr(transfer, 'notes', '') or '-'
@@ -355,481 +353,309 @@ class OsipReportEmailService:
 
         total_qty = 0.0
         total_pallets = len(items)
-        accepted_count = 0
-        rejected_count = 0
-        summary_map = {}
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             prod = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else 'Brak nazwy')
             nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '-')
             batch = getattr(it, 'batch_number', None) or (it.get('batch_number') if isinstance(it, dict) else '-')
-            prod_date = getattr(it, 'production_date', None) or (it.get('production_date') if isinstance(it, dict) else '-') or '-'
-            exp_date = getattr(it, 'expiry_date', None) or (it.get('expiry_date') if isinstance(it, dict) else '-') or '-'
             qty = float(getattr(it, 'loaded_qty', 0.0) or getattr(it, 'requested_qty', 0.0) or (it.get('loaded_qty', 0.0) if isinstance(it, dict) else it.get('requested_qty', 0.0)) or 0.0)
             unit = getattr(it, 'unit', 'kg') or (it.get('unit', 'kg') if isinstance(it, dict) else 'kg')
             it_status = getattr(it, 'status', 'RECEIVED') or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
-            is_rej = str(it_status).upper() in ('REJECTED', 'ODRZUCONA')
-            if is_rej:
-                rejected_count += 1
-                status_label = 'ODRZUCONA'
-                badge_html = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">ODRZUCONA</span>'
-            else:
-                accepted_count += 1
-                status_label = 'PRZYJĘTA'
-                badge_html = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">PRZYJĘTA</span>'
             total_qty += qty
 
-            s_key = (prod, unit, status_label)
-            summary_map[s_key] = summary_map.get(s_key, 0.0) + qty
+            sum_key = (prod, unit, it_status)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
-            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
-                <td style="padding: 8px 10px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
-                <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{prod}</td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{unit}</td>
-                <td style="padding: 8px 10px; font-family: Consolas, monospace; font-weight: 700; color: #1e293b; text-align: center; background: #f8fafc;">{nr_pal}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{batch}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{prod_date}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{exp_date}</td>
-                <td style="padding: 8px 10px; text-align: center; font-family: monospace; color: #475569;">{source}</td>
-                <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-weight: 700; color: #1e40af;">{dest}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #334155;">{created_by}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #334155;">{completed_by}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #64748b;">{completed_str}</td>
-                <td style="padding: 8px 10px; text-align: center;">{badge_html}</td>
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{prod}</td>
+                <td style="padding: 10px 12px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{nr_pal}</td>
+                <td style="padding: 10px 12px; text-align: center; color: #475569;">{batch}</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;"><span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">{it_status}</span></td>
             </tr>
             """
 
         if not rows_html:
-            rows_html = '<tr><td colspan="14" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w zleceniu.</td></tr>'
+            rows_html = '<tr><td colspan="6" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w zleceniu.</td></tr>'
 
         summary_rows_html = ""
-        sum_idx = 1
-        for (p_name, u_name, st_label), s_qty in sorted(summary_map.items(), key=lambda x: (x[0][0].lower(), x[0][2])):
+        for s_idx, ((pname, unit, it_status), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
             summary_rows_html += f"""
-            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
-                <td style="padding: 8px 10px; text-align: center; width: 42px; color: #64748b;">{sum_idx}</td>
-                <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{p_name}</td>
-                <td style="padding: 8px 10px; text-align: center;"><span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">{st_label}</span></td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #166534;">{s_qty:,.2f}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{u_name}</td>
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{s_idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{pname}</td>
+                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: #4338ca;">{s_data['count']} szt.</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;"><span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">{it_status}</span></td>
             </tr>
             """
-            sum_idx += 1
 
-        return f"""<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="utf-8">
-    <title>Raport Przesunięcia MM - {code}</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #0f172a; background: #f8fafc;">
-    <div style="max-width: 1000px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #dbe2ea; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05);">
-        
-        <!-- NAGŁÓWEK RAPORTU -->
-        <div style="border-bottom: 1px solid #dbe2ea; padding: 20px 24px; background: #ffffff;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h1 style="margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase;">
-                        🔄 RAPORT PRZESUNIĘCIA MIĘDZYMAGAZYNOWEGO (MM)
-                    </h1>
-                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Wygenerowano: <strong>{gen_now}</strong></p>
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+            <div style="max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                <div style="background: linear-gradient(135deg, #065f46, #059669); padding: 24px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.85;">Raport Realizacji: Przesunięcie MM</div>
+                    <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">🔄 Przesunięcie MM: {source} ➔ {dest}</div>
+                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Przesunięcie MM nr: <strong>{code}</strong> | Status: <strong>ZAKOŃCZONE ({status})</strong></div>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.3px;">Referencja / Kod MM</div>
-                    <div style="font-family: Consolas, monospace; font-size: 18px; font-weight: 900; color: #1e40af;">{code}</div>
-                </div>
-            </div>
 
-            <!-- KARTY METADANYCH -->
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px;">
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Data utworzenia</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{created_str}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Data zamknięcia</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{completed_str}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Trasa (Skąd ➔ Dokąd)</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #1e40af;">{source} ➔ {dest}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f0fdf4; border-color: #bbf7d0;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #166534; font-weight: 700; margin-bottom: 4px;">Status raportu</div>
-                    <div style="font-size: 13px; font-weight: 900; color: #15803d;">ZAKOŃCZONA ({status})</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #ffffff;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px;">Wydał / Otworzył</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{created_by} ({created_str})</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #ffffff;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px;">Przyjął / Zatwierdził</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #166534;">{completed_by} ({completed_str})</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TABELA SZCZEGÓŁY POZYCJI -->
-        <div style="padding: 20px 24px;">
-            <div style="font-size: 13px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                📋 Szczegóły pozycji przesunięcia MM
-            </div>
-            <div style="overflow-x: auto; border: 1px solid #dbe2ea; border-radius: 8px;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="background: #f8fafc; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #dbe2ea;">
-                            <th style="padding: 8px 10px; text-align: center; width: 30px;">Lp.</th>
-                            <th style="padding: 8px 10px;">Produkt</th>
-                            <th style="padding: 8px 10px; text-align: right;">Ilość</th>
-                            <th style="padding: 8px 10px; text-align: center;">Jm</th>
-                            <th style="padding: 8px 10px; text-align: center;">Nr palety</th>
-                            <th style="padding: 8px 10px; text-align: center;">Partia</th>
-                            <th style="padding: 8px 10px; text-align: center;">Data prod.</th>
-                            <th style="padding: 8px 10px; text-align: center;">Data przyd.</th>
-                            <th style="padding: 8px 10px; text-align: center;">Skąd</th>
-                            <th style="padding: 8px 10px; text-align: center;">Dokąd</th>
-                            <th style="padding: 8px 10px; text-align: center;">Wydał</th>
-                            <th style="padding: 8px 10px; text-align: center;">Przyjął</th>
-                            <th style="padding: 8px 10px; text-align: center;">Czas</th>
-                            <th style="padding: 8px 10px; text-align: center;">Status</th>
+                <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0; width: 40%;">Magazyn wydający (Skąd):</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{source}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {rows_html}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- PODSUMOWANIE WEDŁUG NAZW -->
-        <div style="padding: 0 24px 20px 24px;">
-            <div style="font-size: 13px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                📦 Podsumowanie przesuniętych (przyjętych) według nazw
-            </div>
-            <div style="border: 1px solid #dbe2ea; border-radius: 8px; overflow: hidden;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="background: #f8fafc; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #dbe2ea;">
-                            <th style="padding: 8px 10px; text-align: center; width: 42px;">Lp.</th>
-                            <th style="padding: 8px 10px;">Nazwa produktu</th>
-                            <th style="padding: 8px 10px; text-align: center; width: 120px;">Status</th>
-                            <th style="padding: 8px 10px; text-align: right; width: 100px;">Suma</th>
-                            <th style="padding: 8px 10px; text-align: center; width: 60px;">Jm</th>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Magazyn docelowy (Dokąd):</td>
+                            <td style="font-weight: 800; color: #4338ca; text-align: right;">{dest}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {summary_rows_html}
-                    </tbody>
-                    <tfoot>
-                        <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
-                            <td colspan="3" style="padding: 10px; text-align: right; color: #0f172a;">RAZEM:</td>
-                            <td style="padding: 10px; text-align: right; color: #166534; font-size: 14px;">{total_qty:,.2f}</td>
-                            <td style="padding: 10px; text-align: center; color: #475569;">kg</td>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Otworzył / Wydał:</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{created_by} ({created_str})</td>
                         </tr>
-                    </tfoot>
-                </table>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Przyjął / Zatwierdził:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{completed_by} ({completed_str})</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Liczba palet:</td>
+                            <td style="font-weight: 800; color: #4338ca; text-align: right;">{total_pallets} szt.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Łączna ilość towaru:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{total_qty:,.2f} kg</td>
+                        </tr>
+                        {f'<tr><td style="color: #64748b; padding: 5px 0;">Uwagi:</td><td style="font-weight: 600; color: #334155; text-align: right;">{notes}</td></tr>' if notes and notes != '-' else ''}
+                    </table>
+                </div>
+
+                <div style="padding: 24px 24px 12px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz przyjętych palet:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center;">Nr Palety</th>
+                                <th style="padding: 10px 12px; text-align: center;">Partia</th>
+                                <th style="padding: 10px 12px; text-align: right;">Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
+                                <td colspan="4" style="padding: 12px; text-align: right; color: #0f172a;">SUMA ŁĄCZNA:</td>
+                                <td style="padding: 12px; text-align: right; color: #166534; font-size: 14px;">{total_qty:,.2f}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style="padding: 12px 24px 24px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Podsumowanie zbiorcze według produktów:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 100px;">Liczba Palet</th>
+                                <th style="padding: 10px 12px; text-align: right; width: 130px;">Łączna Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 90px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary_rows_html}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+                    Wiadomość wygenerowana automatycznie po przyjęciu towaru w systemie RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
+                </div>
             </div>
-
-            <!-- CHIPSY PODSUMOWANIA -->
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding: 10px 14px; background: #fcfdff; border: 1px solid #dbe2ea; border-radius: 8px;">
-                <div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800;">
-                    Przesunięto: {total_qty:,.2f} kg
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #334155;">
-                    Pozycji: {total_pallets}
-                </div>
-                <div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;">
-                    Przyjęte: {accepted_count}
-                </div>
-                {f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;">Odrzucone: {rejected_count}</div>' if rejected_count else ''}
-            </div>
-        </div>
-
-        <!-- INFORMACJA SYSTEMOWA -->
-        <div style="margin: 0 24px 24px 24px; border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px 12px; color: #64748b; background: #f8fafc; font-size: 11px; line-height: 1.45;">
-            <div><strong>Informacja systemowa:</strong> Ten raport został wygenerowany automatycznie przez system RaportProdukcyjny po realizacji zlecenia przesunięcia międzymagazynowego (MM).</div>
-            <div>W ramach obowiązującej procedury wewnętrznej loginy użytkowników (wydającego i przyjmującego towar) stanowią elektroniczny odpowiednik podpisu i są traktowane jako autoryzacja czynności.</div>
-        </div>
-
-        <div style="background: #f1f5f9; padding: 12px 24px; border-top: 1px solid #dbe2ea; font-size: 11px; color: #64748b; text-align: center;">
-            RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
-        </div>
-    </div>
-</body>
-</html>"""
+        </body>
+        </html>
+        """
 
     def build_delivery_report_html(self, dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
         """Buduje raport HTML z wyraźnym rozróżnieniem Dostawa Centrala / Dostawa OSIP / Przesunięcie MM."""
         cat = self.categorize_delivery_doc(dostawa, items)
         ref = cat['ref']
         notes = dostawa.get('uwagi') or '-'
-        gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        is_mm = (cat['doc_type_code'] == 'PRZESUNIECIE_MM')
-        title_text = "🔄 RAPORT PRZESUNIĘCIA MIĘDZYMAGAZYNOWEGO (MM)" if is_mm else cat['header_title']
-        ref_label = "Referencja / Kod MM" if is_mm else "Referencja / WZ"
 
         total_qty = 0.0
         total_pallets = len(items)
-        accepted_count = 0
-        rejected_count = 0
-        pending_count = 0
-        summary_map = {}
-        moved_totals_by_unit = {}
-        rejected_totals_by_unit = {}
         rows_html = ""
-
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
-            prod = (it.get('productName') or 'Brak nazwy').strip() or 'Brak nazwy'
+            prod = it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
-            prod_date = it.get('data_produkcji') or '-'
-            exp_date = it.get('data_przydatnosci') or '-'
             raw_qty = it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0
             try:
                 qty = float(raw_qty)
             except (ValueError, TypeError):
                 qty = 0.0
             unit = 'szt' if it.get('packageForm') == 'packaging' else 'kg'
-            source_spot = it.get('sourceSpot') or cat['source_value']
             target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
-            issued_by = it.get('issued_by') or cat['created_by']
-            
             accepted = bool(it.get('accepted'))
-            rejected = bool(it.get('rejected'))
-            
-            accepted_by = it.get('accepted_by') if accepted else (it.get('rejected_by') if rejected else '-')
-            accepted_at = it.get('accepted_at') if accepted else (it.get('rejected_at') if rejected else '-')
-            accepted_at_display = accepted_at.split('T')[-1][:8] if ('T' in str(accepted_at)) else (str(accepted_at).split(' ')[-1][:8] if accepted_at != '-' else '-')
-
-            if rejected:
-                rejected_count += 1
-                status_label = 'ODRZUCONA'
-                badge_html = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">ODRZUCONA</span>'
-                rejected_totals_by_unit[unit] = rejected_totals_by_unit.get(unit, 0.0) + qty
-            elif accepted:
-                accepted_count += 1
-                status_label = 'PRZYJĘTA'
-                badge_html = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">PRZYJĘTA</span>'
-                moved_totals_by_unit[unit] = moved_totals_by_unit.get(unit, 0.0) + qty
-            else:
-                pending_count += 1
-                status_label = 'OCZEKUJE'
-                badge_html = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fffbeb; color: #92400e; border: 1px solid #fde68a;">OCZEKUJE</span>'
-
+            status_badge = '<span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">PRZYJĘTA</span>' if accepted else '<span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #b91c1c;">ODRZUCONA</span>'
+            status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
             total_qty += qty
-            s_key = (prod, unit, status_label)
-            summary_map[s_key] = summary_map.get(s_key, 0.0) + qty
+
+            sum_key = (prod, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0, 'badge': status_badge}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
-            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px; {'background: #fff7f7;' if rejected else ''}">
-                <td style="padding: 8px 10px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
-                <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{prod}</td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{unit}</td>
-                <td style="padding: 8px 10px; font-family: Consolas, monospace; font-weight: 700; color: #1e293b; text-align: center; background: #f8fafc;">{nr_pal}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{nr_partii}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{prod_date}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{exp_date}</td>
-                <td style="padding: 8px 10px; text-align: center; font-family: monospace; color: #475569;">{source_spot}</td>
-                <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-weight: 700; color: #1e40af;">{target_spot}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #334155;">{issued_by}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #334155;">{accepted_by}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #64748b;">{accepted_at_display}</td>
-                <td style="padding: 8px 10px; text-align: center;">{badge_html}</td>
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{prod}</td>
+                <td style="padding: 10px 12px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{nr_pal}</td>
+                <td style="padding: 10px 12px; text-align: center; color: #475569;">{nr_partii}</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: #2563eb;">{target_spot}</td>
+                <td style="padding: 10px 12px; text-align: center;">{status_badge}</td>
             </tr>
             """
 
         if not rows_html:
-            rows_html = '<tr><td colspan="14" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w dokumencie.</td></tr>'
+            rows_html = '<tr><td colspan="7" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w dokumencie.</td></tr>'
 
         summary_rows_html = ""
-        sum_idx = 1
-        for (p_name, u_name, st_label), s_qty in sorted(summary_map.items(), key=lambda x: (x[0][0].lower(), x[0][2])):
-            badge_sum = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">' + st_label + '</span>' if st_label == 'PRZYJĘTA' else '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">' + st_label + '</span>'
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
             summary_rows_html += f"""
-            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
-                <td style="padding: 8px 10px; text-align: center; width: 42px; color: #64748b;">{sum_idx}</td>
-                <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{p_name}</td>
-                <td style="padding: 8px 10px; text-align: center;">{badge_sum}</td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #166534;">{s_qty:,.2f}</td>
-                <td style="padding: 8px 10px; text-align: center; color: #475569;">{u_name}</td>
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{s_idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{pname}</td>
+                <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: {cat['theme_color_to']};">{s_data['count']} szt.</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;">{s_data['badge']}</td>
             </tr>
             """
-            sum_idx += 1
 
-        chips_html = ""
-        for u, q in sorted(moved_totals_by_unit.items()):
-            chips_html += f'<div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800;">Przesunięto: {q:,.2f} {u}</div>'
-        for u, q in sorted(rejected_totals_by_unit.items()):
-            chips_html += f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800;">Odrzucono: {q:,.2f} {u}</div>'
-        chips_html += f'<div style="border: 1px solid #dbe2ea; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #334155;">Pozycji: {total_pallets}</div>'
-        chips_html += f'<div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;">Przyjęte: {accepted_count}</div>'
-        if rejected_count:
-            chips_html += f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;">Odrzucone: {rejected_count}</div>'
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+            <div style="max-width: 740px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                <div style="background: linear-gradient(135deg, {cat['theme_color_from']}, {cat['theme_color_to']}); padding: 24px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.85;">{cat['header_title']}</div>
+                    <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">📦 WZ / Nr: {ref}</div>
+                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Trasa: <strong>{cat['source_value']}</strong> ➔ <strong>{cat['dest_value']}</strong></div>
+                </div>
 
-        return f"""<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="utf-8">
-    <title>{cat['doc_title']} - {ref}</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #0f172a; background: #f8fafc;">
-    <div style="max-width: 1000px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #dbe2ea; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05);">
-        
-        <!-- NAGŁÓWEK RAPORTU -->
-        <div style="border-bottom: 1px solid #dbe2ea; padding: 20px 24px; background: #ffffff;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h1 style="margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase;">
-                        {title_text}
-                    </h1>
-                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Wygenerowano: <strong>{gen_now}</strong></p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.3px;">{ref_label}</div>
-                    <div style="font-family: Consolas, monospace; font-size: 18px; font-weight: 900; color: #1e40af;">{ref}</div>
-                </div>
-            </div>
-
-            <!-- KARTY METADANYCH -->
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px;">
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Data utworzenia</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{cat['created_str']}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Data zamknięcia</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{cat['accepted_str']}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f8fafc;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px;">Trasa (Skąd ➔ Dokąd)</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #1e40af;">{cat['source_value']} ➔ {cat['dest_value']}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #f0fdf4; border-color: #bbf7d0;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #166534; font-weight: 700; margin-bottom: 4px;">Status raportu</div>
-                    <div style="font-size: 13px; font-weight: 900; color: #15803d;">ZAKOŃCZONA</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #ffffff;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px;">{cat['creator_label']}</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a;">{cat['creator_value']}</div>
-                </div>
-                <div style="border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px; background: #ffffff;">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px;">{cat['acceptor_label']}</div>
-                    <div style="font-size: 13px; font-weight: 800; color: #166534;">{cat['acceptor_value']}</div>
-                </div>
-            </div>
-            {f'<div style="margin-top: 10px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #475569;"><strong>Uwagi:</strong> {notes}</div>' if notes and notes != '-' else ''}
-        </div>
-
-        <!-- TABELA SZCZEGÓŁY POZYCJI -->
-        <div style="padding: 20px 24px;">
-            <div style="font-size: 13px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                📋 Szczegóły pozycji dokumentu
-            </div>
-            <div style="overflow-x: auto; border: 1px solid #dbe2ea; border-radius: 8px;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="background: #f8fafc; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #dbe2ea;">
-                            <th style="padding: 8px 10px; text-align: center; width: 30px;">Lp.</th>
-                            <th style="padding: 8px 10px;">Produkt</th>
-                            <th style="padding: 8px 10px; text-align: right;">Ilość</th>
-                            <th style="padding: 8px 10px; text-align: center;">Jm</th>
-                            <th style="padding: 8px 10px; text-align: center;">Nr palety</th>
-                            <th style="padding: 8px 10px; text-align: center;">Partia</th>
-                            <th style="padding: 8px 10px; text-align: center;">Data prod.</th>
-                            <th style="padding: 8px 10px; text-align: center;">Data przyd.</th>
-                            <th style="padding: 8px 10px; text-align: center;">Skąd</th>
-                            <th style="padding: 8px 10px; text-align: center;">Dokąd</th>
-                            <th style="padding: 8px 10px; text-align: center;">Wydał</th>
-                            <th style="padding: 8px 10px; text-align: center;">Przyjął</th>
-                            <th style="padding: 8px 10px; text-align: center;">Czas</th>
-                            <th style="padding: 8px 10px; text-align: center;">Status</th>
+                <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0; width: 38%;">{cat['source_label']}:</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{cat['source_value']}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {rows_html}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- PODSUMOWANIE WEDŁUG NAZW -->
-        <div style="padding: 0 24px 20px 24px;">
-            <div style="font-size: 13px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                📦 Podsumowanie przesuniętych (przyjętych) według nazw
-            </div>
-            <div style="border: 1px solid #dbe2ea; border-radius: 8px; overflow: hidden;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="background: #f8fafc; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #dbe2ea;">
-                            <th style="padding: 8px 10px; text-align: center; width: 42px;">Lp.</th>
-                            <th style="padding: 8px 10px;">Nazwa produktu</th>
-                            <th style="padding: 8px 10px; text-align: center; width: 120px;">Status</th>
-                            <th style="padding: 8px 10px; text-align: right; width: 100px;">Suma</th>
-                            <th style="padding: 8px 10px; text-align: center; width: 60px;">Jm</th>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">{cat['dest_label']}:</td>
+                            <td style="font-weight: 800; color: {cat['theme_color_to']}; text-align: right;">{cat['dest_value']}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {summary_rows_html}
-                    </tbody>
-                    <tfoot>
-                        <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
-                            <td colspan="3" style="padding: 10px; text-align: right; color: #0f172a;">RAZEM:</td>
-                            <td style="padding: 10px; text-align: right; color: #166534; font-size: 14px;">{total_qty:,.2f}</td>
-                            <td></td>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">{cat['creator_label']}:</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{cat['creator_value']}</td>
                         </tr>
-                    </tfoot>
-                </table>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">{cat['acceptor_label']}:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{cat['acceptor_value']}</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Liczba palet:</td>
+                            <td style="font-weight: 800; color: {cat['theme_color_to']}; text-align: right;">{total_pallets} szt.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Łączna ilość towaru:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{total_qty:,.2f}</td>
+                        </tr>
+                        {f'<tr><td style="color: #64748b; padding: 5px 0;">Uwagi:</td><td style="font-weight: 600; color: #334155; text-align: right;">{notes}</td></tr>' if notes and notes != '-' else ''}
+                    </table>
+                </div>
+
+                <div style="padding: 24px 24px 12px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz przyjętych palet:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center;">Nr Palety</th>
+                                <th style="padding: 10px 12px; text-align: center;">Partia</th>
+                                <th style="padding: 10px 12px; text-align: right;">Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center;">Lokalizacja</th>
+                                <th style="padding: 10px 12px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
+                                <td colspan="4" style="padding: 12px; text-align: right; color: #0f172a;">SUMA:</td>
+                                <td style="padding: 12px; text-align: right; color: #166534; font-size: 14px;">{total_qty:,.2f}</td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style="padding: 12px 24px 24px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Podsumowanie zbiorcze według produktów:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 100px;">Liczba Palet</th>
+                                <th style="padding: 10px 12px; text-align: right; width: 130px;">Łączna Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center; width: 90px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary_rows_html}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+                    Wiadomość wygenerowana automatycznie po przyjęciu towaru w systemie RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
+                </div>
             </div>
-
-            <!-- CHIPSY PODSUMOWANIA -->
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding: 10px 14px; background: #fcfdff; border: 1px solid #dbe2ea; border-radius: 8px;">
-                {chips_html}
-            </div>
-        </div>
-
-        <!-- INFORMACJA SYSTEMOWA -->
-        <div style="margin: 0 24px 24px 24px; border: 1px solid #dbe2ea; border-radius: 8px; padding: 10px 12px; color: #64748b; background: #f8fafc; font-size: 11px; line-height: 1.45;">
-            <div><strong>Informacja systemowa:</strong> Ten raport został wygenerowany automatycznie przez system RaportProdukcyjny.</div>
-            <div>W ramach obowiązującej procedury wewnętrznej loginy użytkowników (np. wydającego i przyjmującego towar) stanowią elektroniczny odpowiednik podpisu i są traktowane jako autoryzacja czynności.</div>
-        </div>
-
-        <div style="background: #f1f5f9; padding: 12px 24px; border-top: 1px solid #dbe2ea; font-size: 11px; color: #64748b; text-align: center;">
-            RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Do wiadomości dołączono oficjalny dokument PDF w układzie do druku A4.
-        </div>
-    </div>
-</body>
-</html>"""
+        </body>
+        </html>
+        """
 
     def generate_delivery_pdf(self, dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> Optional[str]:
         """Generuje plik PDF gotowy do druku A4 dla przyjęcia dostawy/przesunięcia MM."""
         cat = self.categorize_delivery_doc(dostawa, items)
         ref = cat['ref']
         gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        is_mm = (cat['doc_type_code'] == 'PRZESUNIECIE_MM')
-        title_text = "RAPORT PRZESUNIĘCIA MIĘDZYMAGAZYNOWEGO (MM)" if is_mm else cat['doc_title']
-        ref_label = "Referencja / Kod MM" if is_mm else "Referencja / WZ"
 
         total_qty = 0.0
         total_pallets = len(items)
-        accepted_count = 0
-        rejected_count = 0
-        summary_map = {}
-        moved_totals_by_unit = {}
-        rejected_totals_by_unit = {}
         rows_html = ""
-
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
-            pname = (it.get('productName') or 'Brak nazwy').strip() or 'Brak nazwy'
+            pname = it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
             prod_date = it.get('data_produkcji') or '-'
@@ -842,217 +668,177 @@ class OsipReportEmailService:
             unit = 'szt' if it.get('packageForm') == 'packaging' else 'kg'
             source_spot = it.get('sourceSpot') or cat['source_value']
             target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
-            issued_by = it.get('issued_by') or cat['created_by']
-            
             accepted = bool(it.get('accepted'))
-            rejected = bool(it.get('rejected'))
-            accepted_by = it.get('accepted_by') if accepted else (it.get('rejected_by') if rejected else '-')
-            accepted_at = it.get('accepted_at') if accepted else (it.get('rejected_at') if rejected else '-')
-            accepted_at_display = accepted_at.split('T')[-1][:8] if ('T' in str(accepted_at)) else (str(accepted_at).split(' ')[-1][:8] if accepted_at != '-' else '-')
-
-            if rejected:
-                rejected_count += 1
-                status_txt = "ODRZUCONA"
-                status_color = "#991b1b"
-                rejected_totals_by_unit[unit] = rejected_totals_by_unit.get(unit, 0.0) + qty
-            elif accepted:
-                accepted_count += 1
-                status_txt = "PRZYJĘTA"
-                status_color = "#166534"
-                moved_totals_by_unit[unit] = moved_totals_by_unit.get(unit, 0.0) + qty
-            else:
-                status_txt = "OCZEKUJE"
-                status_color = "#92400e"
-
+            status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
+            status_color = "#166534" if accepted else "#991b1b"
             total_qty += qty
-            s_key = (pname, unit, status_txt)
-            summary_map[s_key] = summary_map.get(s_key, 0.0) + qty
+
+            sum_key = (pname, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0, 'color': status_color}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
-            <tr style="{'background: #fff7f7;' if rejected else ''}">
+            <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td><strong>{pname}</strong></td>
-                <td style="text-align: right; font-weight: 700;">{qty:,.2f}</td>
-                <td style="text-align: center;">{unit}</td>
                 <td style="text-align: center; font-family: monospace; font-weight: 700;">{nr_pal}</td>
                 <td style="text-align: center;">{nr_partii}</td>
                 <td style="text-align: center;">{prod_date}</td>
                 <td style="text-align: center;">{exp_date}</td>
+                <td style="text-align: right; font-weight: 700;">{qty:,.2f} {unit}</td>
                 <td style="text-align: center;">{source_spot}</td>
                 <td style="text-align: center; font-weight: 700; color: #1e40af;">{target_spot}</td>
-                <td style="text-align: center;">{issued_by}</td>
-                <td style="text-align: center;">{accepted_by}</td>
-                <td style="text-align: center; color: #64748b;">{accepted_at_display}</td>
                 <td style="text-align: center; font-weight: 700; color: {status_color};">{status_txt}</td>
             </tr>
             """
 
         summary_rows_html = ""
-        sum_idx = 1
-        for (p_name, u_name, st_label), s_qty in sorted(summary_map.items(), key=lambda x: (x[0][0].lower(), x[0][2])):
-            st_color = "#166534" if st_label == "PRZYJĘTA" else "#991b1b"
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
             summary_rows_html += f"""
             <tr>
-                <td style="text-align: center; width: 35px;">{sum_idx}</td>
-                <td><strong>{p_name}</strong></td>
-                <td style="text-align: center; font-weight: 700; color: {st_color};">{st_label}</td>
-                <td style="text-align: right; font-weight: 800; color: #166534;">{s_qty:,.2f}</td>
-                <td style="text-align: center;">{u_name}</td>
+                <td style="text-align: center;">{s_idx}</td>
+                <td><strong>{pname}</strong></td>
+                <td style="text-align: center; font-weight: 700; color: #2563eb;">{s_data['count']} szt.</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="text-align: center; font-weight: 700; color: {s_data['color']};">{status_txt}</td>
             </tr>
             """
-            sum_idx += 1
-
-        chips_html = ""
-        for u, q in sorted(moved_totals_by_unit.items()):
-            chips_html += f'<div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800;">Przesunięto: {q:,.2f} {u}</div>'
-        for u, q in sorted(rejected_totals_by_unit.items()):
-            chips_html += f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800;">Odrzucono: {q:,.2f} {u}</div>'
-        chips_html += f'<div style="border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #334155;">Pozycji: {total_pallets}</div>'
-        chips_html += f'<div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700;">Przyjęte: {accepted_count}</div>'
-        if rejected_count:
-            chips_html += f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700;">Odrzucone: {rejected_count}</div>'
 
         html_content = f"""<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="utf-8">
-    <title>{title_text} - {ref}</title>
+    <title>{cat['doc_title']} - {ref}</title>
     <style>
         @page {{
-            size: A4 landscape;
-            margin: 6mm;
+            size: A4 portrait;
+            margin: 10mm 10mm 12mm 10mm;
         }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             color: #0f172a;
             margin: 0;
             padding: 0;
-            font-size: 10px;
-            line-height: 1.25;
+            font-size: 11px;
+            line-height: 1.3;
         }}
         .header-box {{
-            border: 1.5px solid #0f172a;
+            border: 2px solid #0f172a;
             border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 10px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
             background: #f8fafc;
         }}
         .doc-title {{
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 0 0 4px 0;
+            margin: 0 0 6px 0;
             color: #0f172a;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }}
         .doc-meta {{
-            font-size: 10px;
+            font-size: 11px;
             color: #475569;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }}
         .grid-4 {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-top: 6px;
-            padding-top: 6px;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px solid #cbd5e1;
         }}
         .meta-item {{
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 5px 7px;
+            padding: 6px 8px;
         }}
         .meta-label {{
-            font-size: 8.5px;
+            font-size: 9px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 700;
             margin-bottom: 2px;
         }}
         .meta-val {{
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 800;
             color: #0f172a;
             word-break: break-word;
         }}
-        .section-title {{
-            font-size: 10.5px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            color: #334155;
-            margin-top: 10px;
-            margin-bottom: 4px;
-        }}
         table.data-table {{
             width: 100%;
             border-collapse: collapse;
-            margin-top: 4px;
-            margin-bottom: 8px;
-            font-size: 9.5px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            font-size: 10px;
         }}
         table.data-table th, table.data-table td {{
             border: 1px solid #cbd5e1;
-            padding: 4px 5px;
+            padding: 6px 6px;
         }}
         table.data-table th {{
             background: #e2e8f0;
             color: #1e293b;
             font-weight: 800;
             text-transform: uppercase;
-            font-size: 8.5px;
-            letter-spacing: 0.2px;
+            font-size: 9px;
+            letter-spacing: 0.3px;
         }}
         table.data-table tr:nth-child(even) {{
             background: #f8fafc;
+        }}
+        .summary-box {{
+            display: flex;
+            justify-content: space-between;
+            background: #f1f5f9;
+            border: 1.5px solid #94a3b8;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-weight: 800;
+            font-size: 12px;
+            margin-bottom: 20px;
         }}
         .signatures {{
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 40px;
-            margin-top: 20px;
-            padding-top: 8px;
+            margin-top: 30px;
+            padding-top: 10px;
         }}
         .sign-box {{
             border-top: 1px dashed #64748b;
             text-align: center;
-            padding-top: 4px;
-            font-size: 9.5px;
+            padding-top: 6px;
+            font-size: 10px;
             font-weight: 700;
             color: #475569;
         }}
-        .system-note {{
-            margin-top: 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 5px 8px;
-            color: #64748b;
-            background: #f8fafc;
-            font-size: 8.5px;
-            line-height: 1.35;
-        }}
         .footer {{
-            margin-top: 12px;
+            margin-top: 25px;
             font-size: 8px;
             color: #94a3b8;
             text-align: center;
             border-top: 1px solid #e2e8f0;
-            padding-top: 4px;
+            padding-top: 6px;
         }}
     </style>
 </head>
 <body>
     <div class="header-box">
         <div class="doc-title">
-            <span>{title_text}</span>
-            <span style="color: #2563eb;">{ref_label}: {ref}</span>
+            <span>{cat['doc_title']}</span>
+            <span style="color: #2563eb;">WZ: {ref}</span>
         </div>
-        <div class="doc-meta">Wygenerowano w systemie produkcyjnym: <strong>{gen_now}</strong> | Status: <strong>ZAKOŃCZONA</strong></div>
+        <div class="doc-meta">Wygenerowano w systemie produkcyjnym: <strong>{gen_now}</strong> | Status: <strong>ZAKOŃCZONE (COMPLETED)</strong></div>
         <div class="grid-4">
             <div class="meta-item">
                 <div class="meta-label">{cat['source_label']}</div>
@@ -1073,24 +859,19 @@ class OsipReportEmailService:
         </div>
     </div>
 
-    <div class="section-title">Szczegóły pozycji dokumentu</div>
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 25px; text-align: center;">Lp.</th>
+                <th style="width: 25px; text-align: center;">Lp</th>
                 <th style="text-align: left;">Produkt</th>
-                <th style="text-align: right; width: 50px;">Ilość</th>
-                <th style="text-align: center; width: 30px;">Jm</th>
-                <th style="text-align: center; width: 90px;">Nr Palety (SSCC)</th>
-                <th style="text-align: center; width: 60px;">Partia</th>
-                <th style="text-align: center; width: 55px;">Data Prod.</th>
-                <th style="text-align: center; width: 55px;">Data Przyd.</th>
-                <th style="text-align: center; width: 45px;">Skąd</th>
-                <th style="text-align: center; width: 45px;">Dokąd</th>
-                <th style="text-align: center; width: 55px;">Wydał</th>
-                <th style="text-align: center; width: 55px;">Przyjął</th>
-                <th style="text-align: center; width: 45px;">Czas</th>
-                <th style="text-align: center; width: 50px;">Status</th>
+                <th style="text-align: center;">Nr Palety (SSCC)</th>
+                <th style="text-align: center;">Partia</th>
+                <th style="text-align: center;">Data Prod.</th>
+                <th style="text-align: center;">Data Przyd.</th>
+                <th style="text-align: right;">Ilość</th>
+                <th style="text-align: center;">Skąd</th>
+                <th style="text-align: center;">Dokąd</th>
+                <th style="text-align: center;">Status</th>
             </tr>
         </thead>
         <tbody>
@@ -1098,35 +879,35 @@ class OsipReportEmailService:
         </tbody>
     </table>
 
-    <div class="section-title">Podsumowanie przesuniętych (przyjętych) według nazw</div>
-    <table class="data-table" style="max-width: 650px;">
+    <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+        PODSUMOWANIE ZBIORCZE WEDŁUG PRODUKTÓW:
+    </div>
+    <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 35px; text-align: center;">Lp.</th>
-                <th style="text-align: left;">Nazwa produktu</th>
-                <th style="text-align: center; width: 80px;">Status</th>
-                <th style="text-align: right; width: 70px;">Suma</th>
-                <th style="text-align: center; width: 40px;">Jm</th>
+                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Nazwa Produktu</th>
+                <th style="text-align: center; width: 100px;">Liczba Palet</th>
+                <th style="text-align: right; width: 130px;">Łączna Ilość</th>
+                <th style="text-align: center; width: 90px;">Status</th>
             </tr>
         </thead>
         <tbody>
             {summary_rows_html}
         </tbody>
         <tfoot>
-            <tr style="background: #f8fafc; font-weight: 800; border-top: 1.5px solid #0f172a;">
-                <td colspan="3" style="text-align: right; padding: 5px 6px;">RAZEM:</td>
-                <td style="text-align: right; color: #166534; padding: 5px 6px;">{total_qty:,.2f}</td>
+            <tr style="background: #f1f5f9; font-weight: 800;">
+                <td colspan="2" style="text-align: right;">ŁĄCZNIE:</td>
+                <td style="text-align: center; color: #2563eb;">{total_pallets} szt.</td>
+                <td style="text-align: right; color: #166534;">{total_qty:,.2f}</td>
                 <td></td>
             </tr>
         </tfoot>
     </table>
 
-    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 8px;">
-        {chips_html}
-    </div>
-
-    <div class="system-note">
-        <strong>Informacja systemowa:</strong> Ten raport został wygenerowany automatycznie przez system RaportProdukcyjny. W ramach obowiązującej procedury wewnętrznej loginy użytkowników (np. wydającego i przyjmującego towar) stanowią elektroniczny odpowiednik podpisu i są traktowane jako autoryzacja czynności.
+    <div class="summary-box">
+        <div>ŁĄCZNIE PRZYJĘTO PALET: <span style="color: #2563eb;">{total_pallets} szt.</span></div>
+        <div>SUMA ILOŚCI TOWARU: <span style="color: #166534;">{total_qty:,.2f}</span></div>
     </div>
 
     <div class="signatures">
@@ -1139,7 +920,7 @@ class OsipReportEmailService:
     </div>
 
     <div class="footer">
-        RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Dokument stanowi oficjalne potwierdzenie realizacji zlecenia.
+        RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Dokument stanowi oficjalne potwierdzenie przyjęcia towaru.
     </div>
 </body>
 </html>
@@ -1147,7 +928,7 @@ class OsipReportEmailService:
         return self._render_html_to_temp_pdf(html_content, prefix=f"raport_{cat['doc_type_code']}_{ref}_")
 
     def generate_transfer_pdf(self, transfer: Any) -> Optional[str]:
-        """Generuje plik PDF do druku A4 dla zlecenia transferu OSIP (Przesunięcie MM)."""
+        """Generuje plik PDF do druku A4 dla zlecenia transferu OSIP."""
         code = getattr(transfer, 'transfer_code', '') or f"TR-{getattr(transfer, 'id', '')}"
         source = getattr(transfer, 'source_warehouse', '') or 'Centrala'
         dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
@@ -1166,10 +947,8 @@ class OsipReportEmailService:
 
         total_qty = 0.0
         total_pallets = len(items)
-        accepted_count = 0
-        rejected_count = 0
-        summary_map = {}
         rows_html = ""
+        summary_products = {}
         for idx, it in enumerate(items, start=1):
             pname = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else '') or 'Brak nazwy'
             nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '') or '-'
@@ -1184,55 +963,42 @@ class OsipReportEmailService:
             unit = getattr(it, 'unit', None) or (it.get('unit') if isinstance(it, dict) else 'kg') or 'kg'
             loc = getattr(it, 'target_location', None) or (it.get('target_location') if isinstance(it, dict) else '') or dest
             status_txt = getattr(it, 'status', None) or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
-            is_rej = str(status_txt).upper() in ('REJECTED', 'ODRZUCONA')
-            if is_rej:
-                rejected_count += 1
-                st_label = 'ODRZUCONA'
-                st_color = '#991b1b'
-            else:
-                accepted_count += 1
-                st_label = 'PRZYJĘTA'
-                st_color = '#166534'
-
             total_qty += qty
-            s_key = (pname, unit, st_label)
-            summary_map[s_key] = summary_map.get(s_key, 0.0) + qty
+
+            sum_key = (pname, unit, status_txt)
+            if sum_key not in summary_products:
+                summary_products[sum_key] = {'count': 0, 'total_qty': 0.0}
+            summary_products[sum_key]['count'] += 1
+            summary_products[sum_key]['total_qty'] += qty
 
             rows_html += f"""
-            <tr style="{'background: #fff7f7;' if is_rej else ''}">
+            <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td><strong>{pname}</strong></td>
-                <td style="text-align: right; font-weight: 700;">{qty:,.2f}</td>
-                <td style="text-align: center;">{unit}</td>
                 <td style="text-align: center; font-family: monospace; font-weight: 700;">{nr_pal}</td>
                 <td style="text-align: center;">{batch}</td>
                 <td style="text-align: center;">{prod_date}</td>
                 <td style="text-align: center;">{exp_date}</td>
+                <td style="text-align: right; font-weight: 700;">{qty:,.2f} {unit}</td>
                 <td style="text-align: center;">{source}</td>
                 <td style="text-align: center; font-weight: 700; color: #1e40af;">{loc}</td>
-                <td style="text-align: center;">{created_by}</td>
-                <td style="text-align: center;">{completed_by}</td>
-                <td style="text-align: center; color: #64748b;">{completed_str}</td>
-                <td style="text-align: center; font-weight: 700; color: {st_color};">{st_label}</td>
+                <td style="text-align: center; font-weight: 700; color: #166534;">{status_txt}</td>
             </tr>
             """
 
         summary_rows_html = ""
-        sum_idx = 1
-        for (p_name, u_name, st_label), s_qty in sorted(summary_map.items(), key=lambda x: (x[0][0].lower(), x[0][2])):
-            st_color = "#166534" if st_label == "PRZYJĘTA" else "#991b1b"
+        for s_idx, ((pname, unit, status_txt), s_data) in enumerate(sorted(summary_products.items(), key=lambda x: (x[0][0].lower(), x[0][2])), start=1):
             summary_rows_html += f"""
             <tr>
-                <td style="text-align: center; width: 35px;">{sum_idx}</td>
-                <td><strong>{p_name}</strong></td>
-                <td style="text-align: center; font-weight: 700; color: {st_color};">{st_label}</td>
-                <td style="text-align: right; font-weight: 800; color: #166534;">{s_qty:,.2f}</td>
-                <td style="text-align: center;">{u_name}</td>
+                <td style="text-align: center;">{s_idx}</td>
+                <td><strong>{pname}</strong></td>
+                <td style="text-align: center; font-weight: 700; color: #2563eb;">{s_data['count']} szt.</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{s_data['total_qty']:,.2f} {unit}</td>
+                <td style="text-align: center; font-weight: 700; color: #166534;">{status_txt}</td>
             </tr>
             """
-            sum_idx += 1
 
-        doc_title = "RAPORT PRZESUNIĘCIA MIĘDZYMAGAZYNOWEGO (MM)"
+        doc_title = f"Przesunięcie MM: {source} ➔ {dest}"
         html_content = f"""<!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -1240,130 +1006,122 @@ class OsipReportEmailService:
     <title>{doc_title} - {code}</title>
     <style>
         @page {{
-            size: A4 landscape;
-            margin: 6mm;
+            size: A4 portrait;
+            margin: 10mm 10mm 12mm 10mm;
         }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             color: #0f172a;
             margin: 0;
             padding: 0;
-            font-size: 10px;
-            line-height: 1.25;
+            font-size: 11px;
+            line-height: 1.3;
         }}
         .header-box {{
-            border: 1.5px solid #0f172a;
+            border: 2px solid #0f172a;
             border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 10px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
             background: #f8fafc;
         }}
         .doc-title {{
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 0 0 4px 0;
+            margin: 0 0 6px 0;
             color: #0f172a;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }}
         .doc-meta {{
-            font-size: 10px;
+            font-size: 11px;
             color: #475569;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }}
         .grid-4 {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-top: 6px;
-            padding-top: 6px;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px solid #cbd5e1;
         }}
         .meta-item {{
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 5px 7px;
+            padding: 6px 8px;
         }}
         .meta-label {{
-            font-size: 8.5px;
+            font-size: 9px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 700;
             margin-bottom: 2px;
         }}
         .meta-val {{
-            font-size: 10.5px;
+            font-size: 11px;
             font-weight: 800;
             color: #0f172a;
             word-break: break-word;
         }}
-        .section-title {{
-            font-size: 10.5px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            color: #334155;
-            margin-top: 10px;
-            margin-bottom: 4px;
-        }}
         table.data-table {{
             width: 100%;
             border-collapse: collapse;
-            margin-top: 4px;
-            margin-bottom: 8px;
-            font-size: 9.5px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            font-size: 10px;
         }}
         table.data-table th, table.data-table td {{
             border: 1px solid #cbd5e1;
-            padding: 4px 5px;
+            padding: 6px 6px;
         }}
         table.data-table th {{
             background: #e2e8f0;
             color: #1e293b;
             font-weight: 800;
             text-transform: uppercase;
-            font-size: 8.5px;
-            letter-spacing: 0.2px;
+            font-size: 9px;
+            letter-spacing: 0.3px;
         }}
         table.data-table tr:nth-child(even) {{
             background: #f8fafc;
+        }}
+        .summary-box {{
+            display: flex;
+            justify-content: space-between;
+            background: #f1f5f9;
+            border: 1.5px solid #94a3b8;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-weight: 800;
+            font-size: 12px;
+            margin-bottom: 20px;
         }}
         .signatures {{
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 40px;
-            margin-top: 20px;
-            padding-top: 8px;
+            margin-top: 30px;
+            padding-top: 10px;
         }}
         .sign-box {{
             border-top: 1px dashed #64748b;
             text-align: center;
-            padding-top: 4px;
-            font-size: 9.5px;
+            padding-top: 6px;
+            font-size: 10px;
             font-weight: 700;
             color: #475569;
         }}
-        .system-note {{
-            margin-top: 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 5px 8px;
-            color: #64748b;
-            background: #f8fafc;
-            font-size: 8.5px;
-            line-height: 1.35;
-        }}
         .footer {{
-            margin-top: 12px;
+            margin-top: 25px;
             font-size: 8px;
             color: #94a3b8;
             text-align: center;
             border-top: 1px solid #e2e8f0;
-            padding-top: 4px;
+            padding-top: 6px;
         }}
     </style>
 </head>
@@ -1371,9 +1129,9 @@ class OsipReportEmailService:
     <div class="header-box">
         <div class="doc-title">
             <span>{doc_title}</span>
-            <span style="color: #2563eb;">KOD MM: {code}</span>
+            <span style="color: #2563eb;">Nr: {code}</span>
         </div>
-        <div class="doc-meta">Wygenerowano w systemie produkcyjnym: <strong>{gen_now}</strong> | Status: <strong>ZAKOŃCZONA</strong></div>
+        <div class="doc-meta">Wygenerowano w systemie produkcyjnym: <strong>{gen_now}</strong> | Status: <strong>ZAKOŃCZONE (COMPLETED)</strong></div>
         <div class="grid-4">
             <div class="meta-item">
                 <div class="meta-label">MAGAZYN WYDAJĄCY (SKĄD)</div>
@@ -1394,24 +1152,19 @@ class OsipReportEmailService:
         </div>
     </div>
 
-    <div class="section-title">Szczegóły pozycji transferu MM</div>
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 25px; text-align: center;">Lp.</th>
+                <th style="width: 25px; text-align: center;">Lp</th>
                 <th style="text-align: left;">Produkt</th>
-                <th style="text-align: right; width: 50px;">Ilość</th>
-                <th style="text-align: center; width: 30px;">Jm</th>
-                <th style="text-align: center; width: 90px;">Nr Palety (SSCC)</th>
-                <th style="text-align: center; width: 60px;">Partia</th>
-                <th style="text-align: center; width: 55px;">Data Prod.</th>
-                <th style="text-align: center; width: 55px;">Data Przyd.</th>
-                <th style="text-align: center; width: 45px;">Skąd</th>
-                <th style="text-align: center; width: 45px;">Dokąd</th>
-                <th style="text-align: center; width: 55px;">Wydał</th>
-                <th style="text-align: center; width: 55px;">Przyjął</th>
-                <th style="text-align: center; width: 45px;">Czas</th>
-                <th style="text-align: center; width: 50px;">Status</th>
+                <th style="text-align: center;">Nr Palety (SSCC)</th>
+                <th style="text-align: center;">Partia</th>
+                <th style="text-align: center;">Data Prod.</th>
+                <th style="text-align: center;">Data Przyd.</th>
+                <th style="text-align: right;">Ilość</th>
+                <th style="text-align: center;">Skąd</th>
+                <th style="text-align: center;">Dokąd</th>
+                <th style="text-align: center;">Status</th>
             </tr>
         </thead>
         <tbody>
@@ -1419,45 +1172,31 @@ class OsipReportEmailService:
         </tbody>
     </table>
 
-    <div class="section-title">Podsumowanie przesuniętych (przyjętych) według nazw</div>
-    <table class="data-table" style="max-width: 650px;">
+    <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+        PODSUMOWANIE ZBIORCZE WEDŁUG PRODUKTÓW:
+    </div>
+    <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 35px; text-align: center;">Lp.</th>
-                <th style="text-align: left;">Nazwa produktu</th>
-                <th style="text-align: center; width: 80px;">Status</th>
-                <th style="text-align: right; width: 70px;">Suma</th>
-                <th style="text-align: center; width: 40px;">Jm</th>
+                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Nazwa Produktu</th>
+                <th style="text-align: center; width: 100px;">Liczba Palet</th>
+                <th style="text-align: right; width: 130px;">Łączna Ilość</th>
+                <th style="text-align: center; width: 90px;">Status</th>
             </tr>
         </thead>
         <tbody>
             {summary_rows_html}
         </tbody>
         <tfoot>
-            <tr style="background: #f8fafc; font-weight: 800; border-top: 1.5px solid #0f172a;">
-                <td colspan="3" style="text-align: right; padding: 5px 6px;">RAZEM:</td>
-                <td style="text-align: right; color: #166534; padding: 5px 6px;">{total_qty:,.2f}</td>
-                <td style="text-align: center;">kg</td>
+            <tr style="background: #f1f5f9; font-weight: 800;">
+                <td colspan="2" style="text-align: right;">ŁĄCZNIE:</td>
+                <td style="text-align: center; color: #2563eb;">{total_pallets} szt.</td>
+                <td style="text-align: right; color: #166534;">{total_qty:,.2f}</td>
+                <td></td>
             </tr>
         </tfoot>
     </table>
-
-    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 8px;">
-        <div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800;">
-            Przesunięto: {total_qty:,.2f} kg
-        </div>
-        <div style="border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #334155;">
-            Pozycji: {total_pallets}
-        </div>
-        <div style="border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700;">
-            Przyjęte: {accepted_count}
-        </div>
-        {f'<div style="border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700;">Odrzucone: {rejected_count}</div>' if rejected_count else ''}
-    </div>
-
-    <div class="system-note">
-        <strong>Informacja systemowa:</strong> Ten raport został wygenerowany automatycznie przez system RaportProdukcyjny po realizacji zlecenia przesunięcia międzymagazynowego (MM). W ramach obowiązującej procedury wewnętrznej loginy użytkowników (wydającego i przyjmującego towar) stanowią elektroniczny odpowiednik podpisu i są traktowane jako autoryzacja czynności.
-    </div>
 
     <div class="signatures">
         <div class="sign-box">
@@ -1469,12 +1208,12 @@ class OsipReportEmailService:
     </div>
 
     <div class="footer">
-        RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Dokument stanowi oficjalne potwierdzenie realizacji zlecenia MM.
+        RaportProdukcyjny — Automatyczny wydruk z systemu magazynowego. Dokument stanowi oficjalne potwierdzenie przyjęcia transferu.
     </div>
 </body>
 </html>
 """
-        return self._render_html_to_temp_pdf(html_content, prefix=f"raport_transferu_mm_{code}_")
+        return self._render_html_to_temp_pdf(html_content, prefix=f"raport_transferu_{code}_")
 
     def send_osip_transfer_report(self, transfer_id: Any) -> Tuple[bool, str]:
         """
@@ -1515,7 +1254,7 @@ class OsipReportEmailService:
             dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
             code = getattr(transfer, 'transfer_code', '') or f"TR-{transfer_id}"
             
-            subject = f"[PRZESUNIĘCIE MM] Raport Przesunięcia Międzymagazynowego: {code} ({source} ➔ {dest})"
+            subject = f"Przesunięcie MM nr: {code} ({source} ➔ {dest})"
             body_html = self.build_transfer_report_html(transfer)
 
             pdf_path = None
@@ -1597,12 +1336,12 @@ class OsipReportEmailService:
             ref = cat['ref']
             source_val = cat['source_value']
             dest_val = cat['dest_value']
-            tag = cat['subject_tag']
+            is_external = cat['is_external']
 
-            if cat['doc_type_code'] == 'PRZESUNIECIE_MM':
-                subject = f"[PRZESUNIĘCIE MM] Raport Przesunięcia Międzymagazynowego: {ref} ({source_val} ➔ {dest_val})"
+            if is_external:
+                subject = f"Dostawa WZ: {ref} ({source_val} ➔ {dest_val})"
             else:
-                subject = f"[{tag}] WZ/Nr: {ref} ({source_val} ➔ {dest_val})"
+                subject = f"Przesunięcie MM nr: {ref} ({source_val} ➔ {dest_val})"
             body_html = self.build_delivery_report_html(dostawa, items)
 
             pdf_path = None

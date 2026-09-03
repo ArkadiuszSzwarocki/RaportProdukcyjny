@@ -348,20 +348,6 @@ class WarehouseV2Service:
                                         OsipReportEmailService.trigger_async_delivery_report(d['id'])
                                     except Exception as mail_err:
                                         print("[WAREHOUSE_EMAIL] Błąd wysyłki e-mail ze skanera:", mail_err)
-
-                                    try:
-                                        from flask import url_for
-                                        from app.services.office_print_service import trigger_office_print_url
-                                        report_url = url_for(
-                                            'magazyn_dostawy.raport_przesuniecia',
-                                            dostawa_id=d['id'],
-                                            linia=linia,
-                                            internal_print=1,
-                                            _external=True
-                                        )
-                                        trigger_office_print_url(report_url, 'raport_dostawy_zewnetrznej', prefix="dostawa_zewn_")
-                                    except Exception as print_e:
-                                        print("Błąd uruchomienia wydruku raportu po przyjęciu:", print_e)
                                         
                         except Exception as inner_e:
                             print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)

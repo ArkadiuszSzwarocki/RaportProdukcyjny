@@ -19,7 +19,7 @@ import re
 
 class ScannerService:
     SCAN_TOKEN_PATTERN = re.compile(
-        r'(R\d{6}|[A-Z]{3}\d{18,20}|SUR-?\d+|OPK-?\d+|DOD-?\d+|PAL-?\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
+        r'(R\d{6}|[A-Z]{3}\d{18,20}|SUR-?\d+|OPK-?\d+|DOD-?\d+|PAL-?\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_?MS01|BF_?MP01|BFOS|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
         re.IGNORECASE,
     )
 
@@ -1166,6 +1166,16 @@ class ScannerService:
             
             zbiornik_val = zbiornik_normalized
             lokalizacja_val = zbiornik_val  # lokalizacja = zbiornik (move to tank)
+
+            # Walidacja zgodności surowca z przypisaniem zbiornika
+            from app.services.tank_validation_service import TankValidationService
+            is_valid_mat, err_mat = TankValidationService.validate_tank_material(
+                kod_zbiornika=zbiornik_val,
+                surowiec_nazwa=pallet.get('nazwa', ''),
+                surowiec_id=surowiec_id
+            )
+            if not is_valid_mat:
+                return False, err_mat, None
 
             is_partial = ilosc < stan
             lokalizacja_zrodlowa = (pallet.get('lokalizacja') or '').strip()

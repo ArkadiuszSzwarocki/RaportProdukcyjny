@@ -1,0 +1,992 @@
+{% extends "layout.html" %}
+
+{% block title %}Konfiguracja Zbiorników & Walidacja{% endblock %}
+
+{% block content %}
+<div class="tank-settings-container">
+    <!-- Header Section -->
+    <div class="tank-header-card">
+        <div class="tank-header-main">
+            <div class="tank-header-title-box">
+                <div class="tank-header-icon">🛡️</div>
+                <div>
+                    <h1 class="tank-header-title">Walidacja Zbiorników Produkcyjnych</h1>
+                    <p class="tank-header-subtitle">Przypisywanie dedykowanych surowców do stacji (BB, MZ, KO) oraz blokada błędnych wydań</p>
+                </div>
+            </div>
+            <div class="tank-header-actions">
+                <button type="button" class="btn-app-secondary" onclick="populateFromProduction()" id="btn-populate">
+                    <span class="btn-icon">⚡</span> Pobierz stany z produkcji
+                </button>
+                <button type="button" class="btn-app-primary" onclick="saveAllChanges()" id="btn-save-all">
+                    <span class="btn-icon">💾</span> Zapisz wszystko
+                </button>
+                <a href="/admin/ustawienia" class="btn-app-outline">
+                    <span>← Powrót</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- KPI Stats -->
+        <div class="tank-stats-row">
+            <div class="stat-pill">
+                <span class="stat-label">Wszystkie stacje:</span>
+                <span class="stat-val" id="stat-total">{{ items|length }}</span>
+            </div>
+            <div class="stat-pill stat-pill-active">
+                <span class="stat-label">Z aktywną blokadą:</span>
+                <span class="stat-val" id="stat-active">0</span>
+            </div>
+            <div class="stat-pill stat-pill-muted">
+                <span class="stat-label">Bez blokady:</span>
+                <span class="stat-val" id="stat-inactive">0</span>
+            </div>
+            <div class="stat-pill stat-pill-warning" id="stat-mismatch-box" style="display: none;">
+                <span class="stat-label">⚠️ Rozbieżności z produkcją:</span>
+                <span class="stat-val" id="stat-mismatch">0</span>
+            </div>
+        </div>
+
+        <!-- Controls: Filter & Search -->
+        <div class="tank-filter-toolbar">
+            <div class="tank-search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="tank-search-input" placeholder="Szukaj po kodzie zbiornika lub nazwie surowca..." oninput="filterTankCards()">
+            </div>
+            <div class="tank-tab-buttons" id="tank-tabs">
+                <button type="button" class="tab-btn active" data-group="ALL" onclick="selectTab('ALL')">Wszystkie</button>
+                {% for group_name in grouped_tanks.keys() %}
+                <button type="button" class="tab-btn" data-group="{{ group_name }}" onclick="selectTab('{{ group_name }}')">{{ group_name }}</button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Datalist for autocomplete -->
+    <datalist id="raw-materials-list">
+        {% for mat in dictionary %}
+        <option value="{{ mat.nazwa }}">{{ mat.nazwa }}{% if mat.symbol %} ({{ mat.symbol }}){% endif %}</option>
+        {% endfor %}
+    </datalist>
+
+    <!-- Groups & Cards Grid -->
+    <div class="tank-groups-wrapper">
+        {% for group_name, group_items in grouped_tanks.items() %}
+        <div class="tank-group-section" data-group-section="{{ group_name }}">
+            <div class="tank-group-header">
+                <h3 class="tank-group-title">{{ group_name }}</h3>
+                <span class="tank-group-count">{{ group_items|length }} stacji</span>
+            </div>
+
+            <div class="tank-cards-grid">
+                {% for item in group_items %}
+                <div class="tank-card {% if item.is_mismatch %}tank-card-mismatch{% elif item.is_rule_active %}tank-card-active{% else %}tank-card-inactive{% endif %}" 
+                     data-tank-code="{{ item.kod_zbiornika }}" 
+                     data-material-assigned="{{ item.assigned_material|lower }}"
+                     data-material-current="{{ item.current_prod_material|lower }}"
+                     data-group="{{ group_name }}">
+                    
+                    <div class="tank-card-top">
+                        <div class="tank-badge tank-badge-{{ item.strefa|lower }}">{{ item.kod_zbiornika }}</div>
+                        <div class="tank-status-badges">
+                            {% if item.is_mismatch %}
+                            <span class="badge badge-warning" title="Przypisany surowiec różni się od surowca aktualnie zarejestrowanego w produkcji!">⚠️ Niezgodność</span>
+                            {% endif %}
+                            <label class="tank-switch" title="Włącz/wyłącz walidację tego zbiornika">
+                                <input type="checkbox" class="tank-active-toggle" data-tank="{{ item.kod_zbiornika }}" {% if item.is_rule_active %}checked{% endif %} onchange="onTankToggleChange('{{ item.kod_zbiornika }}')">
+                                <span class="tank-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="tank-card-body">
+                        <div class="tank-field">
+                            <label class="tank-label">Dedykowany surowiec (dozwolony):</label>
+                            <div class="tank-input-wrap">
+                                <input type="text" 
+                                       class="tank-material-input" 
+                                       list="raw-materials-list" 
+                                       data-tank="{{ item.kod_zbiornika }}"
+                                       value="{{ item.assigned_material }}" 
+                                       placeholder="Wybierz lub wpisz surowiec..."
+                                       onchange="markCardModified('{{ item.kod_zbiornika }}')">
+                                <button type="button" class="btn-clear-input" title="Wyczyść przypisanie" onclick="clearTankInput('{{ item.kod_zbiornika }}')">✕</button>
+                            </div>
+                        </div>
+
+                        <!-- Current production info (clickable to auto-fill) -->
+                        <div class="tank-current-prod-box {% if item.current_prod_material %}tank-current-prod-clickable{% endif %}" 
+                             {% if item.current_prod_material %}onclick="useCurrentMaterial('{{ item.kod_zbiornika }}')" title="Kliknij, aby użyć tego surowca jako reguły walidacyjnej"{% endif %}>
+                            <div class="current-prod-header">
+                                <span class="current-prod-label">Stan na stacji (Produkcja):</span>
+                                {% if item.current_prod_material %}
+                                <span class="btn-use-curr-pill">➕ Użyj tego</span>
+                                {% endif %}
+                            </div>
+                            {% if item.current_prod_material %}
+                            <div class="current-prod-val">
+                                <strong class="current-prod-name">{{ item.current_prod_material }}</strong>
+                                <span class="current-prod-qty badge badge-success">{{ item.current_prod_qty }} kg</span>
+                            </div>
+                            {% else %}
+                            <div class="current-prod-empty">
+                                <em>(Brak aktywnego surowca w zbiorniku)</em>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="tank-field tank-field-meta">
+                            <input type="text" 
+                                   class="tank-note-input" 
+                                   data-tank="{{ item.kod_zbiornika }}" 
+                                   value="{{ item.opis or '' }}" 
+                                   placeholder="Opcjonalna uwaga / opis..."
+                                   onchange="markCardModified('{{ item.kod_zbiornika }}')">
+                        </div>
+                    </div>
+
+                    <div class="tank-card-footer">
+                        <div class="tank-audit-info">
+                            {% if item.updated_at %}
+                            <small class="text-muted">{{ item.updated_at }}{% if item.updated_by %} ({{ item.updated_by }}){% endif %}</small>
+                            {% else %}
+                            <small class="text-muted">Brak reguły</small>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn-save-single" onclick="saveSingleTank('{{ item.kod_zbiornika }}')">
+                            Zapisz
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+/* Modern styling for tank configuration & validation */
+.tank-settings-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    color: #1e293b;
+    font-family: inherit;
+}
+
+.tank-header-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 24px;
+}
+
+.tank-header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.tank-header-title-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tank-header-icon {
+    font-size: 2.4rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+}
+
+.tank-header-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 0;
+    color: #0f172a;
+}
+
+.tank-header-subtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 4px 0 0 0;
+}
+
+.tank-header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn-app-primary {
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+.btn-app-primary:hover { background: #1d4ed8; transform: translateY(-1px); }
+
+.btn-app-secondary {
+    background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+.btn-app-secondary:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+.btn-app-outline {
+    background: transparent;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.2s;
+}
+.btn-app-outline:hover { background: #f8fafc; color: #0f172a; }
+
+/* Stats */
+.tank-stats-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.stat-pill {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.stat-val { font-weight: 800; color: #0f172a; }
+.stat-pill-active { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.stat-pill-active .stat-val { color: #15803d; }
+.stat-pill-warning { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.stat-pill-warning .stat-val { color: #b91c1c; }
+
+/* Filters & Tabs */
+.tank-filter-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.tank-search-box {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+}
+.tank-search-box .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+}
+.tank-search-box input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.tank-search-box input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.tank-tab-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.tab-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.tab-btn:hover { background: #e2e8f0; color: #0f172a; }
+.tab-btn.active {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
+
+/* Groups and Cards */
+.tank-group-section {
+    margin-bottom: 32px;
+}
+.tank-group-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.tank-group-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin: 0;
+    color: #1e293b;
+}
+.tank-group-count {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.tank-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 16px;
+}
+
+.tank-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease-in-out;
+}
+.tank-card:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+    border-color: #cbd5e1;
+}
+.tank-card-active {
+    border-left: 5px solid #22c55e;
+}
+.tank-card-inactive {
+    border-left: 5px solid #94a3b8;
+    background: #fdfdfd;
+}
+.tank-card-mismatch {
+    border-left: 5px solid #ef4444;
+    background: #fffafa;
+}
+
+.tank-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.tank-badge {
+    font-size: 1.05rem;
+    font-weight: 900;
+    padding: 4px 10px;
+    border-radius: 8px;
+    letter-spacing: 0.5px;
+}
+.tank-badge-bb { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.tank-badge-mz { background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.tank-badge-ko { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.tank-badge-inne { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+
+.tank-status-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.badge-warning {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.badge-success {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* Switch */
+.tank-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+}
+.tank-switch input { opacity: 0; width: 0; height: 0; }
+.tank-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e1;
+    transition: .3s;
+    border-radius: 22px;
+}
+.tank-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+.tank-switch input:checked + .tank-slider { background-color: #22c55e; }
+.tank-switch input:checked + .tank-slider:before { transform: translateX(18px); }
+
+.tank-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tank-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 4px;
+}
+
+.tank-input-wrap {
+    display: flex;
+    position: relative;
+}
+.tank-material-input {
+    width: 100%;
+    padding: 8px 28px 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.tank-material-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.btn-clear-input {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 2px 4px;
+}
+.btn-clear-input:hover { color: #ef4444; }
+
+.tank-current-prod-box {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+}
+.current-prod-label {
+    display: block;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.current-prod-val {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+}
+.current-prod-name {
+    color: #0f172a;
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.current-prod-empty {
+    color: #94a3b8;
+    font-size: 0.75rem;
+}
+
+.tank-current-prod-clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.tank-current-prod-clickable:hover {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    transform: translateY(-1px);
+}
+.current-prod-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+.btn-use-curr-pill {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #059669;
+    background: #d1fae5;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.tank-note-input {
+    width: 100%;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    font-size: 0.78rem;
+    color: #64748b;
+    outline: none;
+}
+.tank-note-input:focus { border-color: #94a3b8; }
+
+.tank-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+}
+.tank-audit-info {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.btn-save-single {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-save-single:hover {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+.btn-save-single.btn-modified {
+    background: #f59e0b;
+    color: #ffffff;
+    border-color: #d97706;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.app-toast {
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    animation: slideUp 0.3s ease-out;
+}
+.toast-success { background: #16a34a; }
+.toast-error { background: #dc2626; }
+.toast-info { background: #2563eb; }
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    updateStats();
+});
+
+let currentActiveTab = 'ALL';
+
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `app-toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.4s';
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
+}
+
+function selectTab(groupName) {
+    currentActiveTab = groupName;
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-group') === groupName);
+    });
+    filterTankCards();
+}
+
+function filterTankCards() {
+    const query = (document.getElementById('tank-search-input').value || '').toLowerCase().trim();
+    const sections = document.querySelectorAll('.tank-group-section');
+
+    sections.forEach(sec => {
+        const secGroup = sec.getAttribute('data-group-section');
+        const cards = sec.querySelectorAll('.tank-card');
+        let visibleInSec = 0;
+
+        cards.forEach(card => {
+            const tankCode = (card.getAttribute('data-tank-code') || '').toLowerCase();
+            const matAssigned = (card.getAttribute('data-material-assigned') || '').toLowerCase();
+            const matCurrent = (card.getAttribute('data-material-current') || '').toLowerCase();
+            
+            const matchQuery = !query || tankCode.includes(query) || matAssigned.includes(query) || matCurrent.includes(query);
+            const matchTab = (currentActiveTab === 'ALL') || (secGroup === currentActiveTab);
+
+            if (matchQuery && matchTab) {
+                card.style.display = 'flex';
+                visibleInSec++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        sec.style.display = visibleInSec > 0 ? 'block' : 'none';
+    });
+}
+
+function useCurrentMaterial(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (!card) return;
+    const currentNameEl = card.querySelector('.current-prod-name');
+    if (!currentNameEl) return;
+    const currentMat = currentNameEl.textContent.trim();
+    if (!currentMat) return;
+
+    const input = card.querySelector('.tank-material-input');
+    input.value = currentMat;
+    const toggle = card.querySelector('.tank-active-toggle');
+    toggle.checked = true;
+
+    markCardModified(tankCode);
+    updateCardClasses(tankCode);
+    updateStats();
+    showToast(`Ustawiono ${currentMat} dla ${tankCode}`, 'success');
+}
+
+function onTankToggleChange(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (card) {
+        const toggle = card.querySelector('.tank-active-toggle');
+        const input = card.querySelector('.tank-material-input');
+        
+        // If enabling toggle and input is empty, auto-fill from current production if available
+        if (toggle.checked && !input.value.trim()) {
+            const currentNameEl = card.querySelector('.current-prod-name');
+            if (currentNameEl && currentNameEl.textContent.trim()) {
+                input.value = currentNameEl.textContent.trim();
+            }
+        }
+    }
+    markCardModified(tankCode);
+    updateCardClasses(tankCode);
+    updateStats();
+}
+
+function clearTankInput(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (!card) return;
+    const input = card.querySelector('.tank-material-input');
+    input.value = '';
+    const toggle = card.querySelector('.tank-active-toggle');
+    toggle.checked = false;
+    markCardModified(tankCode);
+    updateCardClasses(tankCode);
+    updateStats();
+}
+
+function markCardModified(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (!card) return;
+    const btn = card.querySelector('.btn-save-single');
+    if (btn) btn.classList.add('btn-modified');
+    
+    // update data attributes for filter
+    const matInput = card.querySelector('.tank-material-input');
+    card.setAttribute('data-material-assigned', (matInput.value || '').toLowerCase());
+}
+
+function updateCardClasses(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (!card) return;
+    const toggle = card.querySelector('.tank-active-toggle');
+    const matInput = card.querySelector('.tank-material-input');
+    const currentNameEl = card.querySelector('.current-prod-name');
+    const currentMat = currentNameEl ? currentNameEl.textContent.trim().toLowerCase() : '';
+
+    const isActive = toggle.checked;
+    const assignedVal = (matInput.value || '').trim().toLowerCase();
+
+    card.classList.remove('tank-card-active', 'tank-card-inactive', 'tank-card-mismatch');
+
+    if (isActive && assignedVal && currentMat && assignedVal !== currentMat && !currentMat.includes(assignedVal) && !assignedVal.includes(currentMat)) {
+        card.classList.add('tank-card-mismatch');
+    } else if (isActive) {
+        card.classList.add('tank-card-active');
+    } else {
+        card.classList.add('tank-card-inactive');
+    }
+}
+
+function updateStats() {
+    let activeCount = 0;
+    let inactiveCount = 0;
+    let mismatchCount = 0;
+
+    const cards = document.querySelectorAll('.tank-card');
+    cards.forEach(card => {
+        const toggle = card.querySelector('.tank-active-toggle');
+        if (toggle && toggle.checked) {
+            activeCount++;
+        } else {
+            inactiveCount++;
+        }
+        if (card.classList.contains('tank-card-mismatch')) {
+            mismatchCount++;
+        }
+    });
+
+    document.getElementById('stat-active').textContent = activeCount;
+    document.getElementById('stat-inactive').textContent = inactiveCount;
+
+    const mismatchBox = document.getElementById('stat-mismatch-box');
+    if (mismatchCount > 0) {
+        mismatchBox.style.display = 'inline-flex';
+        document.getElementById('stat-mismatch').textContent = mismatchCount;
+    } else {
+        mismatchBox.style.display = 'none';
+    }
+}
+
+async function saveSingleTank(tankCode) {
+    const card = document.querySelector(`.tank-card[data-tank-code="${tankCode}"]`);
+    if (!card) return;
+
+    const matInput = card.querySelector('.tank-material-input');
+    const noteInput = card.querySelector('.tank-note-input');
+    const toggle = card.querySelector('.tank-active-toggle');
+    const btn = card.querySelector('.btn-save-single');
+
+    let assignedVal = (matInput.value || '').trim();
+    if (toggle.checked && !assignedVal) {
+        const currentNameEl = card.querySelector('.current-prod-name');
+        if (currentNameEl && currentNameEl.textContent.trim()) {
+            assignedVal = currentNameEl.textContent.trim();
+            matInput.value = assignedVal;
+        } else {
+            matInput.focus();
+            showToast(`Podaj nazwę surowca dla zbiornika ${tankCode} lub wyłącz przełącznik`, 'error');
+            return;
+        }
+    }
+
+    const payload = {
+        kod_zbiornika: tankCode,
+        nazwa_surowca: assignedVal,
+        opis: (noteInput.value || '').trim(),
+        is_active: toggle.checked
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Zapisywanie...';
+
+    try {
+        const res = await fetch('/admin/api/ustawienia/zbiorniki/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            btn.classList.remove('btn-modified');
+            btn.textContent = 'Zapisano ✓';
+            setTimeout(() => { btn.textContent = 'Zapisz'; btn.disabled = false; }, 2000);
+            updateCardClasses(tankCode);
+            updateStats();
+            showToast(data.message, 'success');
+        } else {
+            showToast('Błąd: ' + data.message, 'error');
+            btn.textContent = 'Zapisz';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        showToast('Błąd połączenia: ' + e, 'error');
+        btn.textContent = 'Zapisz';
+        btn.disabled = false;
+    }
+}
+
+async function saveAllChanges() {
+    const btn = document.getElementById('btn-save-all');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Zapisywanie...';
+
+    const assignments = [];
+    document.querySelectorAll('.tank-card').forEach(card => {
+        const tankCode = card.getAttribute('data-tank-code');
+        const matInput = card.querySelector('.tank-material-input');
+        const noteInput = card.querySelector('.tank-note-input');
+        const toggle = card.querySelector('.tank-active-toggle');
+
+        let assignedVal = (matInput.value || '').trim();
+        if (toggle.checked && !assignedVal) {
+            const currentNameEl = card.querySelector('.current-prod-name');
+            if (currentNameEl && currentNameEl.textContent.trim()) {
+                assignedVal = currentNameEl.textContent.trim();
+                matInput.value = assignedVal;
+            }
+        }
+
+        assignments.push({
+            kod_zbiornika: tankCode,
+            nazwa_surowca: assignedVal,
+            opis: (noteInput.value || '').trim(),
+            is_active: toggle.checked
+        });
+    });
+
+    try {
+        const res = await fetch('/admin/api/ustawienia/zbiorniki/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignments })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.querySelectorAll('.btn-save-single').forEach(b => b.classList.remove('btn-modified'));
+            showToast('✅ ' + data.message, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast('❌ Błąd zapisu: ' + data.message, 'error');
+        }
+    } catch (e) {
+        showToast('❌ Błąd sieci: ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">💾</span> Zapisz wszystko';
+    }
+}
+
+async function populateFromProduction() {
+    if (!confirm('Czy na pewno chcesz pobrać aktualne surowce ze zbiorników produkcyjnych i ustawić je jako reguły walidacji?')) {
+        return;
+    }
+    const btn = document.getElementById('btn-populate');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Pobieranie...';
+
+    try {
+        const res = await fetch('/admin/api/ustawienia/zbiorniki/populate-current', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ linia: 'Agro' })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast('❌ Błąd: ' + data.message, 'error');
+        }
+    } catch (e) {
+        showToast('❌ Błąd: ' + e, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">⚡</span> Pobierz stany z produkcji';
+    }
+}
+</script>
+{% endblock %}

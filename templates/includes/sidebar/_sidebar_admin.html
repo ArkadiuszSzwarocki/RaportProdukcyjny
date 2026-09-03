@@ -103,6 +103,9 @@
         <a href="/admin/historia-email" class="nav-sub-item {% if request.path.startswith('/admin/historia-email') or request.path.startswith('/historia-email') %}active{% endif %}">
             <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #3b82f6;">mail</span> Historia E-mail
         </a>
+        <a href="/admin/ustawienia/zbiorniki" class="nav-sub-item {% if '/admin/ustawienia/zbiorniki' in request.path %}active{% endif %}">
+            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #10b981;">shield</span> Zbiorniki & Walidacja
+        </a>
         <a href="/admin/ustawienia/drukarki" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukarek (48h)</a>
     </div>

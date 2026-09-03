@@ -495,7 +495,9 @@ def raport_przesuniecia(dostawa_id):
         if not lokalizacja_do_str:
             lokalizacja_do_str = ", ".join(sorted(all_target_locations)) if all_target_locations else '-'
 
-        is_external = bool(str(dostawa.get('supplier') or '').strip())
+        supplier_val = str(dostawa.get('supplier') or '').strip()
+        has_supplier = bool(supplier_val) and supplier_val not in ('-', 'None', '')
+        is_external = has_supplier
         template_name = 'magazyn_dostawy/raport_dostawy_zewnetrznej_print.html' if is_external else 'magazyn_dostawy/raport_przesuniecia_print.html'
         
         printers = []
