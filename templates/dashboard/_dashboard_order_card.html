@@ -141,24 +141,17 @@
             {% elif p[3] in ['wstrzymane', 'zawieszone'] %}
             {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" data-confirm="Czy na pewno chcesz kontynuować / wznowić to zlecenie?">
+                style="display:inline;" data-confirm="Czy na pewno chcesz wznowić to zlecenie?">
                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                 <input type="hidden" name="linia" value="{{ linia }}">
-                <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Kontynuuj / Wznów zadanie (po pauzie)">▶</button>
+                <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>
             </form>
-            {% if role_lc in ['lider', 'admin', 'masteradmin', 'planista'] %}
-            <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
-                data-confirm="Rozpocząć ponownie {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
-                    type="submit" class="btn-resume-icon" title="Rozpocznij ponownie / Wznowić zadanie">↻</button></form>
-            {% endif %}
-            <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
-                class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
             {% if rola in ['lider', 'admin', 'masteradmin'] and not is_readonly %}
             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
-                data-confirm="Wznowić {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
-                    type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
+                data-confirm="Ponowić zlecenie {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
+                    type="submit" class="btn-resume-icon" title="Ponów / Wznowić zadanie">↻</button></form>
             {% endif %}
             {% endif %}
         </div>
