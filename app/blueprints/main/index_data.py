@@ -68,6 +68,34 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
                 data_do=data_do
             )
 
+        bigbagi_mapa = {}
+        if linia == 'AGRO' and plan_dnia:
+            plan_ids = [p[0] for p in plan_dnia]
+            fmt_ids = ','.join(['%s'] * len(plan_ids))
+            try:
+                cursor.execute(
+                    f"""SELECT plan_id, id, nr_palety, nazwa_produktu, waga_kg, nr_partii,
+                               lokalizacja_zrodlowa, autor_login, DATE_FORMAT(created_at, '%%H:%%i:%%s')
+                        FROM agro_workowanie_bigbagi
+                        WHERE plan_id IN ({fmt_ids}) AND status = 'ZUZYTY'
+                        ORDER BY created_at ASC, id ASC""",
+                    plan_ids
+                )
+                for bb_row in cursor.fetchall():
+                    pid = bb_row[0]
+                    bigbagi_mapa.setdefault(pid, []).append({
+                        'id': bb_row[1],
+                        'nr_palety': bb_row[2],
+                        'nazwa_produktu': bb_row[3],
+                        'waga_kg': float(bb_row[4] or 0),
+                        'nr_partii': bb_row[5],
+                        'lokalizacja_zrodlowa': bb_row[6],
+                        'autor_login': bb_row[7],
+                        'godzina': bb_row[8]
+                    })
+            except Exception as _e_bb:
+                pass
+
         halls_data[linia] = {
             'linia': linia,
             'obsada': staff_data['obsada'],
@@ -79,6 +107,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
             'plans_workowanie': plans_workowanie,
             'plan_dnia': plan_dnia,
             'palety_mapa': palety_mapa,
+            'bigbagi_mapa': bigbagi_mapa,
             'suma_plan': suma_plan,
             'suma_wykonanie': suma_wykonanie,
             'magazyn_palety': magazyn_palety,

@@ -178,6 +178,7 @@ def index():
             'wpisy': main_h_data.get('wpisy'),
             'plan': main_h_data.get('plan_dnia'),
             'palety_mapa': main_h_data.get('palety_mapa'),
+            'bigbagi_mapa': main_h_data.get('bigbagi_mapa', {}),
             'magazyn_palety': main_h_data.get('magazyn_palety'),
             'unconfirmed_palety': main_h_data.get('unconfirmed_palety'),
             'pending_wg': main_h_data.get('pending_wg', []),
