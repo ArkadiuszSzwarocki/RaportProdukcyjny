@@ -234,8 +234,6 @@
                     window.showToast(msg, isOk ? 'success' : 'danger');
                 } else if (typeof window.dashboardToasts !== 'undefined' && window.dashboardToasts.notify) {
                     window.dashboardToasts.notify(msg, isOk ? 'success' : 'error');
-                } else {
-                    alert(msg);
                 }
                 if (isOk) {
                     if (typeof window.closeQuickPopup === 'function') {
@@ -245,11 +243,14 @@
                     if (closeBtn) closeBtn.click();
                     setTimeout(function() {
                         window.location.reload();
-                    }, 400);
+                    }, 300);
                 } else {
                     if (btn) {
                         btn.disabled = false;
                         btn.textContent = 'Zatwierdź';
+                    }
+                    if (typeof window.showToast !== 'function' && (!window.dashboardToasts || !window.dashboardToasts.notify)) {
+                        alert(msg);
                     }
                 }
             })
@@ -258,7 +259,7 @@
                 if (typeof window.showToast === 'function') {
                     window.showToast(errText, 'danger');
                 } else {
-                    alert(errText);
+                    console.error(errText);
                 }
                 if (btn) {
                     btn.disabled = false;
