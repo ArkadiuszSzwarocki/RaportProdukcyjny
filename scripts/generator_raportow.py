@@ -186,26 +186,38 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         logger.warning(f"[GENERATOR] Nie mozna pobrac HR obecnosci: {_e}")
         df_hr = pd.DataFrame(columns=['pracownik', 'sekcja', 'typ', 'ilosc_godzin', 'komentarz'])
     logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
-    print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
+    print(f"[GENERATOR] OK HR data: {len(df_hr)}")
 
-    # 3. Nieobecni i Urlopy — typ inny niż 'obecny' dla pracowników danej linii + zatwierdzone wnioski wolne
+    # 3. Nieobecni, Urlopy i Wyjścia prywatne — typ inny niż 'obecny' dla pracowników danej linii + zatwierdzone wnioski wolne
     try:
         df_nieobecni = pd.read_sql("""
             SELECT DISTINCT
                 p.imie_nazwisko AS pracownik,
                 CASE 
-                    WHEN INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0 THEN 'Urlop'
+                    WHEN INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0 THEN o.typ
                     WHEN LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'zwolnienie lekarskie') THEN 'L4'
                     WHEN INSTR(LOWER(TRIM(o.typ)), 'opiek') > 0 THEN 'Opieka'
+                    WHEN LOWER(TRIM(o.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%' THEN 'Wyjście prywatne'
+                    WHEN LOWER(TRIM(o.typ)) IN ('nieobecnosc', 'nieobecność') THEN 'Nieobecność'
                     ELSE COALESCE(o.typ, 'Nieobecność')
                 END AS typ,
-                COALESCE(o.komentarz, '') AS komentarz
+                CASE
+                    WHEN (LOWER(TRIM(o.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%') 
+                         AND o.wyjscie_od IS NOT NULL AND o.wyjscie_do IS NOT NULL
+                    THEN CONCAT(
+                        IF(o.komentarz IS NOT NULL AND TRIM(o.komentarz) != '', CONCAT(TRIM(o.komentarz), ' '), ''),
+                        '(', DATE_FORMAT(o.wyjscie_od, '%H:%i'), ' - ', DATE_FORMAT(o.wyjscie_do, '%H:%i'), ')'
+                    )
+                    ELSE COALESCE(o.komentarz, '')
+                END AS komentarz
             FROM obecnosc o
             JOIN pracownicy p ON o.pracownik_id = p.id
             WHERE o.data_wpisu = %s
               AND (
                   INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0
-                  OR LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'opieka', 'nieobecnosc', 'nieobecność', 'zwolnienie', 'kwarantanna', 'inne')
+                  OR LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'opieka', 'nieobecnosc', 'nieobecność', 'zwolnienie', 'kwarantanna', 'inne', 'wyjscie prywatne', 'wyjście prywatne')
+                  OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%'
+                  OR LOWER(TRIM(o.typ)) NOT IN ('obecny', 'obecność', 'obecnosc')
               )
               AND (
                   %s = 'ALL'
@@ -217,8 +229,20 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
 
             SELECT DISTINCT
                 p.imie_nazwisko AS pracownik,
-                COALESCE(w.typ, 'Urlop') AS typ,
-                COALESCE(w.powod, 'Zatwierdzony wniosek') AS komentarz
+                CASE 
+                    WHEN INSTR(LOWER(TRIM(w.typ)), 'urlop') > 0 THEN w.typ
+                    WHEN LOWER(TRIM(w.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(w.typ)) LIKE '%wyj%scie%' THEN 'Wyjście prywatne'
+                    ELSE COALESCE(w.typ, 'Urlop')
+                END AS typ,
+                CASE
+                    WHEN (LOWER(TRIM(w.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(w.typ)) LIKE '%wyj%scie%') 
+                         AND w.czas_od IS NOT NULL AND w.czas_do IS NOT NULL
+                    THEN CONCAT(
+                        IF(w.powod IS NOT NULL AND TRIM(w.powod) != '', CONCAT(TRIM(w.powod), ' '), ''),
+                        '(', DATE_FORMAT(w.czas_od, '%H:%i'), ' - ', DATE_FORMAT(w.czas_do, '%H:%i'), ')'
+                    )
+                    ELSE COALESCE(w.powod, 'Zatwierdzony wniosek')
+                END AS komentarz
             FROM wnioski_wolne w
             JOIN pracownicy p ON w.pracownik_id = p.id
             WHERE w.status = 'approved'
@@ -258,14 +282,14 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                    COALESCE(n.powod, '') AS powod, n.status
             FROM nadgodziny n
             JOIN pracownicy p ON n.pracownik_id = p.id
-            WHERE n.data = %s
+            WHERE n.data_wpisu = %s
               AND (
-                  p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND (linia = %s OR (linia IS NULL AND %s = 'PSD')))
-                  OR (%s = 'AGRO' AND COALESCE(p.widoczny_agro, 0) = 1)
-                  OR (%s = 'PSD' AND COALESCE(p.widoczny_agro, 0) = 0)
+                  %s = 'ALL'
+                  OR (%s = 'AGRO' AND (p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') OR COALESCE(p.widoczny_agro, 0) = 1))
+                  OR (%s = 'PSD' AND p.id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') AND COALESCE(p.widoczny_agro, 0) = 0)
               )
             ORDER BY p.imie_nazwisko
-        """, conn, params=(data_raportu, data_raportu, linia, linia, linia, linia))
+        """, conn, params=(data_raportu, linia, linia, data_raportu, linia, data_raportu))
     except Exception as _e:
         try:
             df_nadgodziny = pd.read_sql("""
@@ -278,23 +302,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             """, conn, params=(data_raportu,))
         except Exception:
             df_nadgodziny = pd.DataFrame(columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
-    # Big Bagi — zużyty wsad na sekcji workowania
-    try:
-        table_plan = get_table_name('plan_produkcji', linia)
-        df_bigbag = pd.read_sql(f"""
-            SELECT p.nazwa_zlecenia AS Zlecenie, p.produkt AS Produkt,
-                   bb.nr_palety AS Kod_Big_Baga, bb.nr_partii AS Nr_Partii,
-                   bb.waga_kg AS Waga_KG, bb.lokalizacja_zrodlowa AS Magazyn,
-                   bb.autor_login AS Pobral,
-                   DATE_FORMAT(bb.created_at, '%%H:%%i:%%s') AS Godzina_Pobrania
-            FROM agro_workowanie_bigbagi bb
-            JOIN {table_plan} p ON bb.plan_id = p.id
-            WHERE DATE(bb.created_at) = %s AND bb.status = 'ZUZYTY'
-            ORDER BY bb.id ASC
-        """, conn, params=(data_raportu,))
-    except Exception as _e_bb:
-        df_bigbag = pd.DataFrame()
-    logger.info(f"[GENERATOR] BigBag data: {len(df_bigbag)} rows")
+    logger.info(f"[GENERATOR] Nadgodziny data: {len(df_nadgodziny)} rows")
 
     folder = 'raporty_temp'
     if not os.path.exists(folder): os.makedirs(folder)
@@ -316,8 +324,6 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
         if not df_nadgodziny.empty:
             df_nadgodziny.to_excel(writer, sheet_name='Nadgodziny', index=False)
-        if not df_bigbag.empty:
-            df_bigbag.to_excel(writer, sheet_name='BigBagi - Wsad', index=False)
     xls_exists = os.path.exists(xls_path)
     logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
     print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")

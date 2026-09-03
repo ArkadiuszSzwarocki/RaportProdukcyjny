@@ -628,19 +628,19 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         pdf.cell(23, 7, f"{total_hr_hours:.1f}h", 1, 1, 'C', True)
         pdf.ln(4)
 
-    # --- SEKCJA: NIEOBECNOŚCI I URLOPY ---
+    # --- SEKCJA: NIEOBECNOŚCI, URLOPY I WYJŚCIA PRYWATNE ---
     nieobecni_rows = nieobecni_rows or []
     if nieobecni_rows:
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(142, 68, 173)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 7, polskie_znaki_pdf(f"NIEOBECNOŚCI I URLOPY ({len(nieobecni_rows)} OS.)"), ln=1, fill=True)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"NIEOBECNOŚCI, URLOPY I WYJŚCIA PRYWATNE ({len(nieobecni_rows)} OS.)"), ln=1, fill=True)
         pdf.set_text_color(0, 0, 0)
 
-        col_nieob = (12, 70, 48, 60)  # Razem = 190
+        col_nieob = (12, 68, 50, 60)  # Razem = 190
         _rysuj_wiersz_multicell(
             col_nieob,
-            ["Lp.", "Pracownik", "Typ nieobecności", "Powód / Komentarz"],
+            ["Lp.", "Pracownik", "Typ", "Powód / Godziny / Komentarz"],
             col_aligns=['C', 'L', 'C', 'L'],
             fill=True,
             fill_color=(245, 235, 250),
@@ -667,7 +667,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
 
         pdf.set_font("Arial", 'B', 9)
         pdf.set_fill_color(250, 240, 255)
-        pdf.cell(0, 7, polskie_znaki_pdf(f"ŁĄCZNIE NIEOBECNYCH / NA URLOPIE: {len(nieobecni_rows)} OSÓB"), 1, 1, 'L', True)
+        pdf.cell(0, 7, polskie_znaki_pdf(f"ŁĄCZNIE NIEOBECNYCH / NA URLOPIE / WYJŚCIA: {len(nieobecni_rows)} OSÓB"), 1, 1, 'L', True)
         pdf.ln(4)
 
     # --- PODSUMOWANIE FREKWENCJI (KPI) ---
