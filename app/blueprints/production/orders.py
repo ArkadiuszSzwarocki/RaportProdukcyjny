@@ -364,13 +364,28 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     current_app.logger.warning('[SYNC] Błąd synchronizacji tonaz Workowania: %s', _sync_err)
 
             if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
-                cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
-                if cursor.fetchone()[0] > 0:
-                    flash('❌ Nie można zakończyć zlecenia: najpierw zamknij aktywną folię.', 'error')
-                    return redirect(bezpieczny_powrot())
-
+                from app.services.folio_service import FolioService
                 from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
                 from app.services.mqtt_service import get_latest_data
+                
+                # Close any remaining active rolls for this plan
+                active_rolls = FolioService.get_active_rolls(id)
+                for roll in active_rolls:
+                    link_id = roll['link_id']
+                    form_pozostalo = request.form.get(f'pozostalo_szt_{link_id}')
+                    if form_pozostalo is not None and str(form_pozostalo).strip() != '':
+                        try:
+                            pozostalo_szt = float(str(form_pozostalo).replace(',', '.'))
+                        except Exception:
+                            pozostalo_szt = float(roll.get('szacowane_pozostalo', 0))
+                    else:
+                        pozostalo_szt = float(roll.get('szacowane_pozostalo', 0))
+                    
+                    FolioService.close_roll(
+                        link_id=link_id,
+                        pozostalo_szt=pozostalo_szt,
+                        user_login=session.get('login', 'System')
+                    )
                 
                 # Fetch stop counter
                 stop_counter = 0
@@ -559,6 +574,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         produkt = None
         tonaz_rzeczywisty = None
         unused_buckets = []
+        dumped_buckets_count = 0
         conn = get_db_connection()
         try:
             table_plan = get_table_name('plan_produkcji', linia)
@@ -567,14 +583,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             row = cursor.fetchone()
             if row:
                 produkt, tonaz_rzeczywisty = row[0], row[1]
-                
-            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
-                cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
-                if cursor.fetchone()[0] > 0:
-                    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, linia=linia, block_error='Nie można zakończyć zlecenia: najpierw zamknij aktywną folię. Przejdź do zakładki "Materiały pod bieżącą produkcję" i zdejmij rolkę z maszyny.')
 
-            # Check for buckets (prepared, uncompleted, or zero dumped)
-            dumped_buckets_count = 0
             if sekcja == 'Zasyp':
                 try:
                     cursor.execute(
@@ -604,10 +613,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 conn.close()
             except Exception:
                 pass
-
+                
+        active_rolls_to_close = []
         linked_packaging = []
         if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+            from app.services.folio_service import FolioService
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
+            active_rolls_to_close = FolioService.get_active_rolls(id)
             linked_packaging = AgroOpakowaniaPlanService.get_linked_packaging(id)
 
         return render_template(
@@ -617,6 +629,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             produkt=produkt,
             tonaz=tonaz_rzeczywisty,
             linked_packaging=linked_packaging,
+            active_rolls_to_close=active_rolls_to_close,
             linia=linia,
             unused_buckets=unused_buckets,
             dumped_buckets_count=dumped_buckets_count

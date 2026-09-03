@@ -172,6 +172,33 @@
             {% endif %}
         </div>
         {% endif %}
+        {% if sekcja in ('Workowanie', 'Czyszczenie') and linia|upper == 'AGRO' and active_rolls_to_close %}
+        <div class="koniec-zlecenie-warning-box" style="background: #f0fdf4; border-left-color: #10b981; border: 1px solid #bbf7d0;">
+            <label class="koniec-zlecenie-warning-label" style="color: #166534; display: flex; align-items: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 18px; color: #10b981;">inventory_2</span>
+                Rozliczenie aktywnej rolki folii
+            </label>
+            <p style="font-size: 12px; color: #15803d; margin: 0 0 10px 0;">
+                Zlecenie zostanie zakończone, a podpięta rolka automatycznie rozliczona. Zweryfikuj lub wpisz ile sztuk pozostało na rolce:
+            </p>
+            {% for roll in active_rolls_to_close %}
+            <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #dcfce7; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <strong style="font-size: 13px; color: #1e293b;">{{ roll.nazwa }}</strong>
+                    <span class="badge" style="background: #dcfce7; color: #166534; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                        Pobrano: {{ roll.stan_poczatkowy|int }} szt.
+                    </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label style="font-size: 12px; color: #475569; font-weight: 600;">Pozostało na rolce (szt.):</label>
+                    <input type="number" name="pozostalo_szt_{{ roll.link_id }}" min="0" step="1"
+                           value="{{ roll.szacowane_pozostalo|int }}"
+                           class="input-sm" style="width: 120px; padding: 6px 10px; border: 1px solid #86efac; border-radius: 4px; font-weight: bold;" required>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         <textarea name="wyjasnienie" class="input-sm koniec-zlecenie-textarea" rows="3" title="{{ _('komentarz') }}" placeholder="{{ _('opcjonalny_komentarz') }}"></textarea>
 
