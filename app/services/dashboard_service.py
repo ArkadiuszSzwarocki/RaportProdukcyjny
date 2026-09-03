@@ -597,6 +597,13 @@ class DashboardService:
             finally:
                 conn_loc.close()
             
+            bigbag_settlement = {}
+            try:
+                from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+                bigbag_settlement = AgroWorkowanieBigBagService.get_plan_bigbag_settlement(plan_id, linia='AGRO')
+            except Exception as e_bb:
+                print(f"Error fetching bigbag settlement: {e_bb}")
+
             return {
                 'active_plan': active_plan,
                 'is_active_plan': is_active_plan,
@@ -610,6 +617,7 @@ class DashboardService:
                 'estimated_bags': estimated_bags,
                 'already_logged': already_logged,
                 'all_warehouse_packaging': all_warehouse_packaging,
+                'bigbag_settlement': bigbag_settlement,
             }
         except Exception as error:
             out = dict(default_ctx)

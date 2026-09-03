@@ -20,11 +20,14 @@ class EmailReportBuilder:
         notes_text: str,
         attachments_names: Optional[List[str]] = None,
         palety_count: int = 0,
+        bigbag_rows: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ) -> str:
         """Generuje pełny graficzny szablon HTML wiadomości e-mail z kartami KPI i tabelą."""
         if 'palety_count' in kwargs and not palety_count:
             palety_count = int(kwargs['palety_count'] or 0)
+        if 'bigbag_rows' in kwargs and not bigbag_rows:
+            bigbag_rows = kwargs['bigbag_rows']
         
         dt_hours = total_downtime_min // 60
         dt_mins = total_downtime_min % 60
@@ -143,10 +146,55 @@ class EmailReportBuilder:
             </table>
             """
 
-        # Generowanie sekcji notatek (ukrywana jeśli pusta)
-        czyste_notatki = (notes_text or "").replace("NOTATKI ZMIANOWE:\n", "").replace("-" * 50 + "\n", "").lstrip('|').strip()
+        # Generowanie sekcji Big Bagów (jeśli zużyto Big Bagi na zmianie)
+        bigbag_section_html = ""
+        if bigbag_rows:
+            total_bb_kg = sum(float(b.get('waga_kg') or 0) for b in bigbag_rows)
+            total_bb_cnt = len(bigbag_rows)
+            bb_rows_html = ""
+            for idx, b in enumerate(bigbag_rows, 1):
+                kod = str(b.get('nr_palety') or '-')
+                prod = str(b.get('produkt') or '-')
+                partia = str(b.get('nr_partii') or 'BRAK')
+                wg = float(b.get('waga_kg') or 0)
+                bg = "#ffffff" if idx % 2 != 0 else "#f8fafc"
+                bb_rows_html += f"""
+                <tr style="background-color: {bg}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 6px 10px; font-weight: bold; color: #1e293b;">{kod}</td>
+                    <td style="padding: 6px 10px; color: #334155;">{prod}</td>
+                    <td style="padding: 6px 10px; color: #64748b;">{partia}</td>
+                    <td style="padding: 6px 10px; font-weight: bold; color: #1d4ed8; text-align: right;">{wg:,.1f} kg</td>
+                </tr>
+                """
+            bigbag_section_html = f"""
+            <!-- SECTION: BIG BAGI -->
+            <div style="font-size: 13px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+                📦 Wsad z Big Bagów (Rozliczenie zewnętrzne):
+            </div>
+            <div style="background-color: #eff6ff; border: 1.5px solid #bfdbfe; border-left: 5px solid #2563eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                <div style="margin-bottom: 10px; font-size: 13px; color: #1e3a8a;">
+                    Łącznie pobrano ze stanu magazynowego: <strong style="color: #1d4ed8; font-size: 14px;">{total_bb_cnt} szt. ({total_bb_kg:,.1f} kg)</strong>
+                </div>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 12px; border-collapse: collapse; background: #ffffff; border-radius: 6px; overflow: hidden; border: 1px solid #bfdbfe;">
+                    <thead>
+                        <tr style="background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: left;">
+                            <th style="padding: 7px 10px;">Kod / SSCC</th>
+                            <th style="padding: 7px 10px;">Produkt</th>
+                            <th style="padding: 7px 10px;">Partia</th>
+                            <th style="padding: 7px 10px; text-align: right;">Waga wsadu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {bb_rows_html}
+                    </tbody>
+                </table>
+            </div>
+            """
+
+        # Generowanie sekcji notatek (opcjonalna, ukrywana jeśli pusta)
+        czyste_notatki = (notes_text or "").strip()
         notes_section_html = ""
-        if czyste_notatki and czyste_notatki.lower() != "brak uwag i notatek lidera.":
+        if czyste_notatki:
             formatted_notes = czyste_notatki.replace("\n", "<br>")
             notes_section_html = f"""
             <!-- SECTION 4: NOTES -->
@@ -247,6 +295,9 @@ class EmailReportBuilder:
                                 </td>
                             </tr>
                         </table>
+
+                        <!-- SECTION: BIG BAGI (CONDITIONAL) -->
+                        {bigbag_section_html}
 
                         <!-- SECTION 2 & 3: DOWNTIMES (CONDITIONAL) -->
                         {downtime_section_html}

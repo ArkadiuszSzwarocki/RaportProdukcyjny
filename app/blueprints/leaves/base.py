@@ -256,12 +256,13 @@ def zapisz_liderow_obsady():
 
 
 @leaves_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
+@leaves_bp.route('/api/usun_z_obsady/<int:id>', methods=['POST'])
 @login_required
 def usun_z_obsady(id):
-    linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+    linia = request.form.get('linia') or request.args.get('linia') or (request.get_json(silent=True) or {}).get('linia')
     success = AttendanceService.remove_from_schedule(id, linia=linia)
     
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
         return jsonify({'success': success})
     
     if success:

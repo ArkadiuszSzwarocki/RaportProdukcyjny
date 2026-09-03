@@ -438,7 +438,11 @@ function showPallet(p) {
     return;
   }
   currentPallet = p;
-  document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
+  if (p.lokalizacja === 'OCZEKUJĄCE' && p.source_location) {
+    document.getElementById('palletLoc').innerHTML = `<span style="color: #d97706; font-weight: bold;">OCZEKUJĄCE</span> <span style="font-size: 11px; font-weight: normal; color: #64748b;">(z: ${p.source_location})</span>`;
+  } else {
+    document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
+  }
   document.getElementById('palletName').textContent = p.nazwa;
   const idVal = document.getElementById('palletIdVal');
   if (idVal) {
@@ -456,7 +460,7 @@ function showPallet(p) {
   
   // Badge typu palety
   const isUsedUp = p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0;
-  const isPending = p.is_transfer || p.is_blocked || (p.lokalizacja && p.lokalizacja.toUpperCase().includes('OCZEK'));
+  const isPending = p.is_transfer || (p.lokalizacja && (p.lokalizacja.toUpperCase().includes('OCZEK') || p.lokalizacja.toUpperCase().includes('TRANZYT')));
   const typePill = document.getElementById('palletTypePill');
   if (typePill) {
     const invType = p.inventory_type || 'Surowiec';
@@ -479,22 +483,22 @@ function showPallet(p) {
       typePill.className = 'pill';
       typePill.style.background = '#10b981';
       typePill.style.color = '#fff';
-      typePill.textContent = p.status_pl || invType;
+      typePill.textContent = invType;
     } else if (invType === 'Surowiec') {
       typePill.className = 'pill';
       typePill.style.background = '#3b82f6';
       typePill.style.color = '#fff';
-      typePill.textContent = p.status_pl || invType;
+      typePill.textContent = invType;
     } else if (invType === 'Opakowanie') {
       typePill.className = 'pill';
       typePill.style.background = '#f59e0b';
       typePill.style.color = '#fff';
-      typePill.textContent = p.status_pl || invType;
+      typePill.textContent = invType;
     } else {
       typePill.className = 'pill';
-      typePill.style.background = '#6b7280';
+      typePill.style.background = '#64748b';
       typePill.style.color = '#fff';
-      typePill.textContent = p.status_pl || invType;
+      typePill.textContent = invType;
     }
     typePill.style.display = 'inline-block';
   }

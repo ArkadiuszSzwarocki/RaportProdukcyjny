@@ -650,7 +650,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         linia = str(linia_input).upper()
         role = (session.get('rola') or '').lower().strip()
         is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin', 'master admin', 'master_admin']
-        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio', 'magazynier', 'produkcja']
+        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania zasypów.', 'warning')
             return redirect('/')
@@ -704,3 +704,73 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
             return redirect(bezpieczny_powrot())
         return render_template('wyjasnij.html', id=id)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # BIG BAG REPACK & SETTLEMENT API (Workowanie AGRO)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @production_bp.route('/agro/workowanie/bigbag/lookup', methods=['POST'])
+    @login_required
+    def api_workowanie_bigbag_lookup():
+        data = request.get_json(silent=True) or {}
+        code = str(data.get('code') or '').strip()
+        linia = str(data.get('linia') or 'AGRO').upper()
+        if not code:
+            return jsonify({'success': False, 'error': 'Brak kodu'}), 400
+
+        from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+        item = AgroWorkowanieBigBagService.lookup_bigbag(code, linia=linia)
+        if not item:
+            return jsonify({'success': False, 'error': f'Nie znaleziono Big Baga dla kodu: {code}'}), 404
+
+        return jsonify({'success': True, 'item': item})
+
+    @production_bp.route('/agro/workowanie/bigbag/add', methods=['POST'])
+    @login_required
+    def api_workowanie_bigbag_add():
+        data = request.get_json(silent=True) or {}
+        plan_id = data.get('plan_id')
+        code = str(data.get('code') or '').strip()
+        linia = str(data.get('linia') or 'AGRO').upper()
+        ilosc = data.get('ilosc')
+
+        if not plan_id or not code:
+            return jsonify({'success': False, 'error': 'Brak plan_id lub kodu Big Baga'}), 400
+
+        worker_login = session.get('login', 'Operator')
+        from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+        ok, msg, settlement = AgroWorkowanieBigBagService.add_bigbag_to_plan(
+            plan_id=int(plan_id),
+            code=code,
+            worker_login=worker_login,
+            linia=linia,
+            ilosc=float(ilosc) if ilosc is not None and str(ilosc).strip() != '' else None
+        )
+        return jsonify({'success': ok, 'message': msg, 'settlement': settlement}), (200 if ok else 400)
+
+    @production_bp.route('/agro/workowanie/bigbag/remove', methods=['POST'])
+    @login_required
+    def api_workowanie_bigbag_remove():
+        data = request.get_json(silent=True) or {}
+        entry_id = data.get('entry_id')
+        linia = str(data.get('linia') or 'AGRO').upper()
+
+        if not entry_id:
+            return jsonify({'success': False, 'error': 'Brak identyfikatora Big Baga'}), 400
+
+        worker_login = session.get('login', 'Operator')
+        from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+        ok, msg, settlement = AgroWorkowanieBigBagService.remove_bigbag_from_plan(
+            entry_id=int(entry_id),
+            worker_login=worker_login,
+            linia=linia
+        )
+        return jsonify({'success': ok, 'message': msg, 'settlement': settlement}), (200 if ok else 400)
+
+    @production_bp.route('/agro/workowanie/bigbag/settlement/<int:plan_id>', methods=['GET'])
+    @login_required
+    def api_workowanie_bigbag_settlement(plan_id):
+        linia = str(request.args.get('linia') or 'AGRO').upper()
+        from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+        settlement = AgroWorkowanieBigBagService.get_plan_bigbag_settlement(plan_id, linia=linia)
+        return jsonify({'success': True, 'settlement': settlement})

@@ -2228,10 +2228,16 @@ window.showConfirmModal = function(message, onConfirm) {
     window.usunPracownikaZObsady = async function(btn, obsadaId, pracownikId, pracownikName) {
         if (!confirm(`Czy na pewno usunąć ${pracownikName || 'pracownika'} z obsady?`)) return;
         
+        const liniaInput = document.getElementById('obsada-linia');
+        const liniaVal = liniaInput ? liniaInput.value : (new URLSearchParams(window.location.search).get('linia') || 'PSD');
+        const fd = new URLSearchParams();
+        fd.append('linia', liniaVal);
+        
         btn.disabled = true;
         try {
             let resp = await fetch('/api/usun_z_obsady/' + obsadaId, {
                 method: 'POST',
+                body: fd,
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
@@ -2239,6 +2245,7 @@ window.showConfirmModal = function(message, onConfirm) {
             if (!resp.ok) {
                 resp = await fetch('/usun_z_obsady/' + obsadaId, {
                     method: 'POST',
+                    body: fd,
                     credentials: 'same-origin',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
@@ -2274,9 +2281,17 @@ window.showConfirmModal = function(message, onConfirm) {
             if (typeof showToast === 'function') {
                 showToast('Usunięto pracownika z obsady', 'success');
             }
+
+            const dateEl = document.getElementById('obsada-date');
+            const dateVal = dateEl ? dateEl.value : '';
+            if (dateVal && typeof window.zmienDateObsady === 'function') {
+                window.zmienDateObsady(dateVal, liniaVal);
+            }
         } catch(err) {
             console.error('Błąd usuwania z obsady:', err);
             alert('Błąd podczas usuwania pracownika.');
+        } finally {
+            btn.disabled = false;
         }
     };
 

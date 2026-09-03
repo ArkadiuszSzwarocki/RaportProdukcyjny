@@ -191,6 +191,12 @@
                     <span class="stat-value" style="color: #9b59b6;">+ {{ item.total_mix_kg }} kg</span>
                 </div>
                 {% endif %}
+                {% if item.bigbags %}
+                <div class="stat-item">
+                    <span class="stat-label">Wsad Big Bag</span>
+                    <span class="stat-value" style="color: #d97706;">+ {{ item.total_bigbag_kg }} kg</span>
+                </div>
+                {% endif %}
                 <div class="stat-item">
                     <span class="stat-label">Workowanie</span>
                     <span class="stat-value">{{ item.plan.w_kg|default(0) }} kg</span>
@@ -202,6 +208,44 @@
             </div>
         </div>
 
+        {% if item.bigbags %}
+        <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.15em; color: #b45309; padding-left: 5px; border-left: 4px solid #d97706;">Zużyte Big Bagi (Wsad do produkcji)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:50px;">Lp.</th>
+                    <th>Nr Big Baga (SSCC)</th>
+                    <th>Nazwa Produktu / Surowca</th>
+                    <th>Nr Partii</th>
+                    <th>Waga (kg)</th>
+                    <th>Lokalizacja Źródłowa</th>
+                    <th>Data Zużycia</th>
+                    <th>Operator</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bb in item.bigbags %}
+                <tr style="background-color: #fffbeb;">
+                    <td>{{ loop.index }}</td>
+                    <td style="font-family: monospace; font-size: 0.9em; font-weight: 700; color: #b45309;">{{ bb.nr_palety or ('#' ~ bb.id) }}</td>
+                    <td><strong>{{ bb.nazwa_produktu }}</strong></td>
+                    <td>{{ bb.nr_partii or '---' }}</td>
+                    <td><strong>{{ '%.1f'|format(bb.waga_kg or 0) }} kg</strong></td>
+                    <td>{{ bb.lokalizacja_zrodlowa or 'Magazyn' }}</td>
+                    <td>{{ bb.created_at.strftime('%Y-%m-%d %H:%M:%S') if bb.created_at and bb.created_at.strftime else (bb.created_at or '-') }}</td>
+                    <td>{{ bb.autor_login or '---' }}</td>
+                </tr>
+                {% endfor %}
+                <tr style="background-color: #fef3c7; font-weight: bold; border-top: 2px solid #fde68a;">
+                    <td colspan="4" style="text-align: right; color: #78350f;">SUMA ZUŻYTYCH BIG BAGÓW:</td>
+                    <td style="color: #b45309; font-size: 1.05em;">{{ '%.1f'|format(item.total_bigbag_kg or 0) }} kg</td>
+                    <td colspan="3" style="color: #92400e; font-size: 0.9em;">(Łącznie: {{ item.bigbags|length }} szt.)</td>
+                </tr>
+            </tbody>
+        </table>
+        {% endif %}
+
+        <h3 style="margin-top: 25px; margin-bottom: 10px; font-size: 1.15em; color: var(--primary); padding-left: 5px; border-left: 4px solid var(--accent);">Spakowane Palety (Wyrób Gotowy)</h3>
         <table>
             <thead>
                 <tr>
@@ -215,7 +259,7 @@
                     <th>Magazynier (Przyjął)</th>
                     <th>Data Przyjęcia</th>
                     <th>Status</th>
-                    <th>Źródło (Zasypy/MIX)</th>
+                    <th>Źródło (Zasypy/Big Bagi/MIX)</th>
                 </tr>
             </thead>
             <tbody>
@@ -243,7 +287,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10" style="text-align: center; color: #999;">Brak palet dla tego zlecenia</td>
+                    <td colspan="11" style="text-align: center; color: #999;">Brak palet dla tego zlecenia</td>
                 </tr>
                 {% endfor %}
             </tbody>

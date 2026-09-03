@@ -210,28 +210,23 @@ class WarehouseV2Service:
             col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
             cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
             row = cursor.fetchone()
+            if not row and pallet_type != 'Dodatek':
+                alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
+                if pallet_type == 'Surowiec':
+                    alt_table = get_table_name('magazyn_surowce', alt_linia)
+                elif pallet_type == 'Opakowanie':
+                    alt_table = get_table_name('magazyn_opakowania', alt_linia)
+                else:
+                    alt_table = get_table_name('magazyn_palety', alt_linia)
+                cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s", (pallet_id,))
+                alt_row = cursor.fetchone()
+                if alt_row:
+                    table = alt_table
+                    linia = alt_linia
+                    row = alt_row
+
             if not row:
                 return False, "Paleta nie znaleziona."
-                
-            if row.get('is_blocked'):
-                # Pałeta zablokowana – sprawdź czy blokada pochodzi z aktywnego zlecenia przesunięcia
-                # Jeśli tak → ZEZWÓL na przenoszenie między lokalizacjami (blokada dotyczy tylko zużycia)
-                pallet_id_str = str(pallet_id)
-                try:
-                    cursor.execute(
-                        """SELECT id, order_ref FROM magazyn_dostawy
-                           WHERE status = 'OCZEKUJE'
-                           AND (items LIKE %s OR items LIKE %s)
-                           ORDER BY created_at DESC LIMIT 1""",
-                        (f'%"sourcePalletId": {pallet_id_str}%', f'%"sourcePalletId":{pallet_id_str}%')
-                    )
-                    active_order = cursor.fetchone()
-                except Exception:
-                    active_order = None
-
-                if not active_order:
-                    # Blokada NIE pochodzi ze zlecenia przesunięcia – nie pozwalaj na przenoszenie
-                    return False, f"BŁĄD: Paleta #{pallet_id} jest ZABLOKOWANA i nie może być przenoszona!"
                 
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
@@ -263,7 +258,7 @@ class WarehouseV2Service:
             if amount_to_move >= qty:
                 # Przenosimy całą paletę
                 cursor = conn.cursor()
-                cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
+                cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s", (new_location, pallet_id))
                 moved_qty = qty
                 new_pallet_id = pallet_id
             else:
@@ -277,6 +272,7 @@ class WarehouseV2Service:
                 del insert_data['id'] # Usuń ID, żeby wygenerowało nowe
                 insert_data['lokalizacja'] = new_location
                 insert_data[col_qty] = amount_to_move
+                insert_data['is_blocked'] = 0
                 # Zerujemy nr_palety by wymusić ewentualne wydrukowanie nowej etykiety
                 insert_data['nr_palety'] = None
                 

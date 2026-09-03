@@ -222,13 +222,13 @@ function renderItems() {
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${copiedFromNumber ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>` : ''}
                     ${showWarning(validation.productName)}
-                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.productName || '')}" onchange="updateItem(${index}, 'productName', this.value)"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.productName || '')}" oninput="updateItem(${index}, 'productName', this.value)" onchange="updateItem(${index}, 'productName', this.value)"
                            list="productsList" placeholder="Wybierz produkt"
                            style="width: 100%; height: 34px; ${productBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${showWarning(validation.sourceSpot)}
-                      <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.sourceSpot || '')}" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
+                      <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.sourceSpot || '')}" oninput="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
                           oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" list="locationSuggestionsList" autocomplete="off"
                             placeholder="np. BF_MS01"
                             style="width: 100%; height: 34px; ${sourceBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; box-sizing: border-box; min-width: 0;">
@@ -236,7 +236,7 @@ function renderItems() {
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${showWarning(validation.quantity)}
                     <input type="number" ${itemDisabledAttr} value="${escapeAttr(quantityValue)}"
-                           onchange="updateItem(${index}, 'quantity', this.value)" placeholder=""
+                           oninput="updateItem(${index}, 'quantity', this.value)" onchange="updateItem(${index}, 'quantity', this.value)" placeholder=""
                            style="width: 100%; height: 34px; ${quantityBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
@@ -249,22 +249,22 @@ function renderItems() {
                     </select>
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPaleta ? '' : 'display:none;'}">
-                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_palety || '')}" onchange="updateItem(${index}, 'nr_palety', this.value.toUpperCase())"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_palety || '')}" oninput="updateItem(${index}, 'nr_palety', this.value.toUpperCase())" onchange="updateItem(${index}, 'nr_palety', this.value.toUpperCase())"
                            placeholder="Nr SSCC"
                            style="width: 100%; height: 34px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0; text-transform: uppercase;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPartia ? '' : 'display:none;'}">
-                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_partii || '')}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.nr_partii || '')}" oninput="updateItem(${index}, 'nr_partii', this.value)" onchange="updateItem(${index}, 'nr_partii', this.value)"
                            placeholder="Nr partii"
                            style="width: 100%; height: 34px; ${batchBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasProd ? '' : 'display:none;'}">
-                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_produkcji || '')}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_produkcji || '')}" oninput="updateItem(${index}, 'data_produkcji', this.value)" onchange="updateItem(${index}, 'data_produkcji', this.value)"
                            title="Data produkcji"
                            style="width: 100%; height: 34px; ${prodDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; ${anyHasPrzyd ? '' : 'display:none;'}">
-                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                    <input type="date" ${itemDisabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" oninput="updateItem(${index}, 'data_przydatnosci', this.value)" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
                            title="Data przydatności"
                            style="width: 100%; height: 34px; ${expiryDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>

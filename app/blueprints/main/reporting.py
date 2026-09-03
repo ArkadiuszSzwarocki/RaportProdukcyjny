@@ -134,6 +134,26 @@ def register_main_reporting_routes(main_bp):
         # 6. Odczytaj proponowaną treść notatek
         initial_notes_text = uwagi.strip() if uwagi else ""
 
+        # 6b. Pobierz zużyte Big Bagi w danym dniu
+        bigbag_rows = []
+        try:
+            conn_bb = get_db_connection()
+            c_bb = conn_bb.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            c_bb.execute(f"""
+                SELECT p.nazwa_zlecenia, p.produkt, bb.nr_palety, bb.nr_partii, bb.waga_kg, bb.autor_login,
+                       DATE_FORMAT(bb.created_at, '%%H:%%i') as time_str
+                FROM agro_workowanie_bigbagi bb
+                JOIN {table_plan} p ON bb.plan_id = p.id
+                WHERE DATE(bb.created_at) = %s AND bb.status = 'ZUZYTY'
+                ORDER BY bb.id ASC
+            """, (date_str,))
+            bigbag_rows = c_bb.fetchall() or []
+            c_bb.close()
+            conn_bb.close()
+        except Exception as e_bb:
+            current_app.logger.warning("Błąd pobierania bigbagów w reporting: %s", e_bb)
+
         # 7. Zbuduj podgląd HTML
         att_filenames = [a['filename'] for a in attachments_info]
         email_preview_html = EmailReportBuilder.build_shift_report_html(
@@ -146,7 +166,8 @@ def register_main_reporting_routes(main_bp):
             total_downtime_min=total_downtime_min,
             notes_text=initial_notes_text,
             attachments_names=att_filenames,
-            palety_count=palety_count
+            palety_count=palety_count,
+            bigbag_rows=bigbag_rows
         )
 
         # 8. Konfiguracja konta SMTP nadawcy i odbiorców

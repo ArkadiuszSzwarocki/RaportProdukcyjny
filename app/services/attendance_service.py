@@ -109,14 +109,14 @@ class AttendanceService:
             return False, None, ""
 
     @staticmethod
-    def remove_from_schedule(obsada_id: int, linia: str = 'PSD') -> bool:
+    def remove_from_schedule(obsada_id: int, linia: str = None) -> bool:
         """
         Remove employee from schedule.
-        Deletes all schedule records for that employee/date/section combination.
+        Deletes the schedule record (and any duplicate records for that employee/date/section/hall combination).
         
         Args:
             obsada_id: Schedule record ID
-            linia: Production line
+            linia: Optional production line override (PSD or AGRO)
             
         Returns:
             success: bool
@@ -126,36 +126,70 @@ class AttendanceService:
             cursor = conn.cursor()
 
             try:
-                # Get details of the record to delete
-                cursor.execute(
-                    """SELECT pracownik_id, data_wpisu, sekcja 
-                       FROM obsada_zmiany WHERE id=%s""",
-                    (obsada_id,)
-                )
-                row = cursor.fetchone()
+                # Get details of the record to delete including its actual linia
+                try:
+                    cursor.execute(
+                        """SELECT pracownik_id, data_wpisu, sekcja, linia 
+                           FROM obsada_zmiany WHERE id=%s""",
+                        (obsada_id,)
+                    )
+                    row = cursor.fetchone()
+                except Exception:
+                    cursor.execute(
+                        """SELECT pracownik_id, data_wpisu, sekcja 
+                           FROM obsada_zmiany WHERE id=%s""",
+                        (obsada_id,)
+                    )
+                    row = cursor.fetchone()
+
                 if row:
-                    pracownik_id, data_wpisu, sekcja = row
-                    # Delete all matching records (handles duplicates)
-                    cursor.execute(
-                        """DELETE FROM obsada_zmiany 
-                           WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s AND linia=%s""",
-                        (pracownik_id, data_wpisu, sekcja, linia)
-                    )
-                    # Also remove obecnosc presence records for this worker/date
-                    # so the calendar does not show stale "Obecny" status
-                    cursor.execute(
-                        """DELETE FROM obecnosc
-                           WHERE pracownik_id=%s AND data_wpisu=%s
-                             AND LOWER(TRIM(COALESCE(typ,''))) LIKE 'obec%%'""",
-                        (pracownik_id, data_wpisu)
-                    )
+                    pracownik_id = row[0]
+                    data_wpisu = row[1]
+                    sekcja = row[2]
+                    row_linia = row[3] if len(row) > 3 else None
+                    target_linia = linia or row_linia
+
+                    # Delete matching record(s)
+                    if target_linia:
+                        cursor.execute(
+                            """DELETE FROM obsada_zmiany 
+                               WHERE id=%s OR (pracownik_id=%s AND data_wpisu=%s AND sekcja=%s AND (UPPER(COALESCE(linia, 'PSD')) = UPPER(%s) OR (UPPER(%s) = 'PSD' AND (linia IS NULL OR linia = ''))))""",
+                            (obsada_id, pracownik_id, data_wpisu, sekcja, target_linia, target_linia)
+                        )
+                    else:
+                        cursor.execute(
+                            """DELETE FROM obsada_zmiany 
+                               WHERE id=%s OR (pracownik_id=%s AND data_wpisu=%s AND sekcja=%s)""",
+                            (obsada_id, pracownik_id, data_wpisu, sekcja)
+                        )
+
+                    # Check if worker has any remaining obsada assignments on that day across all halls
+                    try:
+                        cursor.execute(
+                            """SELECT COUNT(1) FROM obsada_zmiany 
+                               WHERE pracownik_id=%s AND data_wpisu=%s""",
+                            (pracownik_id, data_wpisu)
+                        )
+                        remaining = cursor.fetchone()
+                        rem_count = int(remaining[0] or 0) if remaining else 0
+                    except Exception:
+                        rem_count = 0
+
+                    # Only remove automated attendance record if worker has no other active assignments on that date
+                    if rem_count == 0:
+                        cursor.execute(
+                            """DELETE FROM obecnosc
+                               WHERE pracownik_id=%s AND data_wpisu=%s
+                                 AND LOWER(TRIM(COALESCE(typ,''))) LIKE 'obec%%'""",
+                            (pracownik_id, data_wpisu)
+                        )
+
                     conn.commit()
                     return True
-                # Record not found - treat as idempotent success
-                try:
-                    conn.commit()
-                except Exception:
-                    pass
+
+                # Record not found by SELECT - delete by ID directly if exists or treat as idempotent success
+                cursor.execute("DELETE FROM obsada_zmiany WHERE id=%s", (obsada_id,))
+                conn.commit()
                 return True
 
             finally:

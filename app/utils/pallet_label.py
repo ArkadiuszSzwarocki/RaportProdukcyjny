@@ -105,9 +105,12 @@ def is_packaging_item(name: str | None, unit: str | None = None, typ: str | None
     Sprawdza, czy towar to materiał opakowaniowy / pomocniczy (kalka, włóknina, etykiety, worki, kartony itp.),
     który na etykietach i wydrukach powinien mieć jednostkę 'szt.' zamiast 'kg'.
     """
+    typ_norm = str(typ or '').lower().strip()
+    if typ_norm in {'surowiec', 'raw_material', 'surowce', 'dodatek', 'dodatki', 'wyrób gotowy', 'wyrob gotowy', 'fg'}:
+        return False
+
     name_norm = str(name or '').lower()
     unit_norm = str(unit or '').lower().strip()
-    typ_norm = str(typ or '').lower().strip()
     nr_norm = str(pallet_nr or '').upper().strip()
 
     if unit_norm in {'szt', 'szt.', 'sztuk', 'sztuki', 'pcs', 'pc'}:

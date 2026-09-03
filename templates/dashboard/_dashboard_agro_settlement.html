@@ -1,34 +1,146 @@
 {% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode and workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.is_active_plan %}
     {% if workowanie_rozliczenie_ctx %}
         {% set wrctx = workowanie_rozliczenie_ctx %}
-        <div class="work-settlement-inline" style="margin-top: 24px;">
+        <div class="work-settlement-inline" style="width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; margin-top: 10px;">
             <style>
+                .work-settlement-inline {
+                    width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+                .work-settlement-inline * {
+                    box-sizing: border-box;
+                }
                 .work-settlement-inline .work-form {
-                    background: #fdfefe; padding: 10px; border-radius: 12px;
-                    border: 2px solid #27ae60; margin-bottom: 20px;
-                    box-shadow: 0 4px 16px rgba(39,174,96,0.08);
+                    background: #ffffff;
+                    padding: 14px 16px;
+                    border-radius: 12px;
+                    border: 1px solid #e2e8f0;
+                    margin-bottom: 0;
+                    width: 100% !important;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
                 }
                 .work-settlement-inline .ctx-box {
-                    background: #f0fdf4; border-radius: 8px; padding: 12px;
-                    margin-bottom: 14px; border-left: 4px solid #27ae60; font-size: 0.88em;
+                    background: #f0fdf4;
+                    border-radius: 8px;
+                    padding: 10px 14px;
+                    margin-bottom: 10px;
+                    border-left: 4px solid #27ae60;
+                    font-size: 0.88em;
                 }
                 .work-settlement-inline .ctx-row {
-                    display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px;
-                }
-                .work-settlement-inline .btn-wrs {
-                    margin-top: 14px; width: 100%; border: none; border-radius: 8px;
-                    padding: 12px; background: #27ae60; color: #fff;
-                    font-weight: 700; cursor: pointer; font-size: 0.97em;
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 12px;
+                    margin-bottom: 4px;
                 }
                 .work-settlement-inline .whist {
-                    border-top: 2px solid #f0f2f5; padding-top: 14px;
-                    max-height: 240px; overflow-y: auto; margin-top: 8px;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 10px;
+                    max-height: 220px;
+                    overflow-y: auto;
+                    margin-top: 8px;
                 }
                 .work-settlement-inline .whist-row {
-                    border: 1px solid #ebedf0; border-radius: 8px;
-                    background: #fff; padding: 8px 12px; margin-bottom: 8px; font-size: 0.88em;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    background: #fff;
+                    padding: 6px 10px;
+                    margin-bottom: 6px;
+                    font-size: 0.85em;
                 }
             </style>
+
+            <!-- Sekcja: Wsad z Big Bagów (Rozliczenie zewnętrzne) -->
+            <div class="work-form" style="border-left: 4px solid #3b82f6; border-top: 1px solid #bfdbfe; border-right: 1px solid #bfdbfe; border-bottom: 1px solid #bfdbfe;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                    <h3 style="color: #1d4ed8; margin: 0; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-icons" style="color: #3b82f6; vertical-align: middle;">inventory_2</span>
+                        Wsad z Big Bagów (Rozliczenie zewnętrzne):
+                    </h3>
+                    <div id="bb-summary-badges" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        {% set bb_set = wrctx.bigbag_settlement if wrctx.bigbag_settlement else {} %}
+                        <span class="badge" style="background: #eff6ff; color: #1d4ed8; font-weight: 800; border: 1px solid #bfdbfe; padding: 5px 10px; border-radius: 6px;">
+                            Wsad: <strong id="badge-bb-in">{{ bb_set.total_bigbag_kg|default(0) }} kg</strong>
+                        </span>
+                        <span class="badge" style="background: #f0fdf4; color: #15803d; font-weight: 800; border: 1px solid #bbf7d0; padding: 5px 10px; border-radius: 6px;">
+                            Spakowano: <strong id="badge-bb-out">{{ bb_set.total_packed_kg|default(0) }} kg</strong>
+                        </span>
+                        {% set b_diff = bb_set.bilans_kg|default(0) %}
+                        <span class="badge" id="badge-bb-diff-wrap" style="background: {% if b_diff < 0 %}#fef2f2{% else %}#f8fafc{% endif %}; color: {% if b_diff < 0 %}#dc2626{% else %}#334155{% endif %}; font-weight: 800; border: 1px solid {% if b_diff < 0 %}#fecaca{% else %}#e2e8f0{% endif %}; padding: 5px 10px; border-radius: 6px;">
+                            Bilans: <strong id="badge-bb-diff">{{ b_diff }} kg</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Skaner kodów Big Bagów -->
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <div style="position: relative; flex: 1; min-width: 260px;">
+                            <span class="material-icons" style="position: absolute; left: 10px; top: 10px; color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
+                            <input type="text" id="bb-scan-input" placeholder="Zeskanuj kod QR / SSCC / kreskowy Big Baga..."
+                                   autocomplete="off"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();addScannedBigBag();}"
+                                   style="width: 100%; padding: 10px 12px 10px 38px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95em; outline: none; font-weight: 600; color: #1e293b;">
+                        </div>
+                        <button type="button" id="btn-add-bb" onclick="addScannedBigBag()"
+                                style="background: #2563eb; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 0.95em; box-shadow: 0 2px 6px rgba(37,99,235,0.2);">
+                            <span class="material-icons" style="font-size: 18px;">add_circle</span> DODAJ BIG BAG
+                        </button>
+                    </div>
+
+                    <!-- Informacja / status skanowania -->
+                    <div id="bb-scan-feedback" style="display: none; font-size: 0.88em; font-weight: 600; padding: 8px 12px; border-radius: 6px;"></div>
+
+                    <!-- Tabela zużytych Big Bagów w tym zleceniu -->
+                    <div style="overflow-x: auto; margin-top: 4px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.88em; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;" id="table-bb-list">
+                            <thead>
+                                <tr style="background: #f1f5f9; color: #475569; text-align: left;">
+                                    <th style="padding: 8px 10px;">LP</th>
+                                    <th style="padding: 8px 10px;">Kod / SSCC</th>
+                                    <th style="padding: 8px 10px;">Nazwa produktu</th>
+                                    <th style="padding: 8px 10px;">Nr Partii</th>
+                                    <th style="padding: 8px 10px;">Waga wsadu</th>
+                                    <th style="padding: 8px 10px;">Magazyn</th>
+                                    <th style="padding: 8px 10px;">Pobrał</th>
+                                    <th style="padding: 8px 10px; text-align: center;">Akcja</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-bb-items">
+                                {% if bb_set and bb_set.get('items') %}
+                                    {% for b in bb_set.get('items') %}
+                                    <tr style="border-top: 1px solid #f1f5f9;" id="row-bb-{{ b.id }}">
+                                        <td style="padding: 8px 10px; font-weight: bold; color: #64748b;">{{ loop.index }}</td>
+                                        <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;">
+                                            <span class="material-icons" style="font-size: 14px; vertical-align: middle; color: #3b82f6;">inventory_2</span>
+                                            {{ b.nr_palety }}
+                                        </td>
+                                        <td style="padding: 8px 10px; font-weight: 600;">{{ b.nazwa_produktu }}</td>
+                                        <td style="padding: 8px 10px; color: #334155;"><span class="badge" style="background:#f1f5f9; color:#475569;">{{ b.nr_partii or 'BRAK' }}</span></td>
+                                        <td style="padding: 8px 10px; font-weight: 800; color: #1d4ed8;">{{ b.waga_kg }} kg</td>
+                                        <td style="padding: 8px 10px; color: #64748b;">{{ b.lokalizacja_zrodlowa or '-' }}</td>
+                                        <td style="padding: 8px 10px; color: #64748b; font-size: 0.9em;">{{ b.autor_login }} <span style="font-size:0.85em; opacity:0.8;">({{ b.created_at_fmt }})</span></td>
+                                        <td style="padding: 8px 10px; text-align: center;">
+                                            <button type="button" onclick="removeScannedBigBag({{ b.id }}, '{{ b.nr_palety|e }}')"
+                                                    style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; font-size: 0.85em; font-weight: 700; cursor: pointer;"
+                                                    title="Wycofaj Big Bag i przywróć na stan magazynu">
+                                                <span class="material-icons" style="font-size: 14px; vertical-align: middle;">undo</span> Cofnij
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr id="row-bb-empty">
+                                        <td colspan="8" style="padding: 14px; text-align: center; color: #94a3b8; font-style: italic;">
+                                            Brak wskanowanych Big Bagów dla tego zlecenia. Zeskanuj kod Big Baga powyżej, aby rozliczyć wsad.
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
             <!-- Sekcja: Analiza strat na żywo (Pakowaczka vs Paletyzator) -->
             <div class="work-form" style="margin-top: 15px; border-color: #f39c12; box-shadow: 0 4px 16px rgba(243,156,18,0.08);">
@@ -205,5 +317,169 @@
             }
         });
         return false;
+    }
+
+    const activeBigBagPlanId = {{ (wrctx.active_plan.id if wrctx and wrctx.active_plan else 0)|int }};
+    const currentBigBagLinia = "{{ linia|default('AGRO') }}";
+
+    function showBbFeedback(msg, type) {
+        const fb = document.getElementById('bb-scan-feedback');
+        if (!fb) return;
+        fb.style.display = 'block';
+        if (type === 'success') {
+            fb.style.background = '#f0fdf4';
+            fb.style.color = '#166534';
+            fb.style.border = '1px solid #bbf7d0';
+            fb.innerHTML = '✅ ' + msg;
+        } else {
+            fb.style.background = '#fef2f2';
+            fb.style.color = '#991b1b';
+            fb.style.border = '1px solid #fecaca';
+            fb.innerHTML = '❌ ' + msg;
+        }
+        setTimeout(() => {
+            if (fb) fb.style.display = 'none';
+        }, 5000);
+    }
+
+    async function addScannedBigBag() {
+        const input = document.getElementById('bb-scan-input');
+        if (!input) return;
+        const code = input.value.trim();
+        if (!code) {
+            showBbFeedback('Wprowadź lub zeskanuj kod Big Baga.', 'error');
+            input.focus();
+            return;
+        }
+
+        const btn = document.getElementById('btn-add-bb');
+        if (btn) btn.disabled = true;
+
+        try {
+            const resp = await fetch('/agro/workowanie/bigbag/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan_id: activeBigBagPlanId,
+                    code: code,
+                    linia: currentBigBagLinia
+                })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showBbFeedback(data.message || 'Pomyślnie dodano Big Bag.', 'success');
+                input.value = '';
+                if (data.settlement) {
+                    renderBigBagSettlement(data.settlement);
+                }
+            } else {
+                showBbFeedback(data.error || data.message || 'Błąd dodawania Big Baga.', 'error');
+            }
+        } catch (e) {
+            showBbFeedback('Błąd połączenia z serwerem: ' + e, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+            input.focus();
+        }
+    }
+
+    async function removeScannedBigBag(entryId, nrPalety) {
+        AppDialog.confirm(`Czy na pewno chcesz wycofać Big Bag ${nrPalety} ze zlecenia?\nStan zostanie przywrócony do magazynu.`).then(async (ok) => {
+            if (!ok) return;
+            try {
+                const resp = await fetch('/agro/workowanie/bigbag/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        entry_id: entryId,
+                        linia: currentBigBagLinia
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showBbFeedback(data.message || 'Pomyślnie wycofano Big Bag.', 'success');
+                    if (data.settlement) {
+                        renderBigBagSettlement(data.settlement);
+                    }
+                } else {
+                    showBbFeedback(data.error || data.message || 'Błąd wycofywania Big Baga.', 'error');
+                }
+            } catch (e) {
+                showBbFeedback('Błąd połączenia: ' + e, 'error');
+            }
+        });
+    }
+
+    function renderBigBagSettlement(set) {
+        const badgeIn = document.getElementById('badge-bb-in');
+        const badgeOut = document.getElementById('badge-bb-out');
+        const badgeDiff = document.getElementById('badge-bb-diff');
+        const badgeDiffWrap = document.getElementById('badge-bb-diff-wrap');
+        const tbody = document.getElementById('tbody-bb-items');
+
+        if (badgeIn) badgeIn.textContent = (set.total_bigbag_kg || 0) + ' kg';
+        if (badgeOut) badgeOut.textContent = (set.total_packed_kg || 0) + ' kg';
+        if (badgeDiff) badgeDiff.textContent = (set.bilans_kg || 0) + ' kg';
+
+        if (badgeDiffWrap) {
+            const diff = parseFloat(set.bilans_kg || 0);
+            if (diff < 0) {
+                badgeDiffWrap.style.background = '#fef2f2';
+                badgeDiffWrap.style.color = '#dc2626';
+                badgeDiffWrap.style.borderColor = '#fecaca';
+            } else {
+                badgeDiffWrap.style.background = '#f8fafc';
+                badgeDiffWrap.style.color = '#334155';
+                badgeDiffWrap.style.borderColor = '#e2e8f0';
+            }
+        }
+
+        if (tbody) {
+            if (set.items && set.items.length > 0) {
+                let html = '';
+                set.items.forEach((b, idx) => {
+                    html += `
+                        <tr style="border-top: 1px solid #f1f5f9;" id="row-bb-${b.id}">
+                            <td style="padding: 8px 10px; font-weight: bold; color: #64748b;">${idx + 1}</td>
+                            <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;">
+                                <span class="material-icons" style="font-size: 14px; vertical-align: middle; color: #3b82f6;">inventory_2</span>
+                                ${escapeHtml(b.nr_palety)}
+                            </td>
+                            <td style="padding: 8px 10px; font-weight: 600;">${escapeHtml(b.nazwa_produktu || '')}</td>
+                            <td style="padding: 8px 10px; color: #334155;"><span class="badge" style="background:#f1f5f9; color:#475569;">${escapeHtml(b.nr_partii || 'BRAK')}</span></td>
+                            <td style="padding: 8px 10px; font-weight: 800; color: #1d4ed8;">${b.waga_kg} kg</td>
+                            <td style="padding: 8px 10px; color: #64748b;">${escapeHtml(b.lokalizacja_zrodlowa || '-')}</td>
+                            <td style="padding: 8px 10px; color: #64748b; font-size: 0.9em;">${escapeHtml(b.autor_login || '')} <span style="font-size:0.85em; opacity:0.8;">(${escapeHtml(b.created_at_fmt || '')})</span></td>
+                            <td style="padding: 8px 10px; text-align: center;">
+                                <button type="button" onclick="removeScannedBigBag(${b.id}, '${escapeHtml(b.nr_palety)}')"
+                                        style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; font-size: 0.85em; font-weight: 700; cursor: pointer;"
+                                        title="Wycofaj Big Bag i przywróć na stan magazynu">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle;">undo</span> Cofnij
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = `
+                    <tr id="row-bb-empty">
+                        <td colspan="8" style="padding: 14px; text-align: center; color: #94a3b8; font-style: italic;">
+                            Brak wskanowanych Big Bagów dla tego zlecenia. Zeskanuj kod Big Baga powyżej, aby rozliczyć wsad.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 </script>

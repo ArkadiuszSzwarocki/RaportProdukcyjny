@@ -278,7 +278,23 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             """, conn, params=(data_raportu,))
         except Exception:
             df_nadgodziny = pd.DataFrame(columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
-    logger.info(f"[GENERATOR] Nadgodziny data: {len(df_nadgodziny)} rows")
+    # Big Bagi — zużyty wsad na sekcji workowania
+    try:
+        table_plan = get_table_name('plan_produkcji', linia)
+        df_bigbag = pd.read_sql(f"""
+            SELECT p.nazwa_zlecenia AS Zlecenie, p.produkt AS Produkt,
+                   bb.nr_palety AS Kod_Big_Baga, bb.nr_partii AS Nr_Partii,
+                   bb.waga_kg AS Waga_KG, bb.lokalizacja_zrodlowa AS Magazyn,
+                   bb.autor_login AS Pobral,
+                   DATE_FORMAT(bb.created_at, '%%H:%%i:%%s') AS Godzina_Pobrania
+            FROM agro_workowanie_bigbagi bb
+            JOIN {table_plan} p ON bb.plan_id = p.id
+            WHERE DATE(bb.created_at) = %s AND bb.status = 'ZUZYTY'
+            ORDER BY bb.id ASC
+        """, conn, params=(data_raportu,))
+    except Exception as _e_bb:
+        df_bigbag = pd.DataFrame()
+    logger.info(f"[GENERATOR] BigBag data: {len(df_bigbag)} rows")
 
     folder = 'raporty_temp'
     if not os.path.exists(folder): os.makedirs(folder)
@@ -300,6 +316,8 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
         if not df_nadgodziny.empty:
             df_nadgodziny.to_excel(writer, sheet_name='Nadgodziny', index=False)
+        if not df_bigbag.empty:
+            df_bigbag.to_excel(writer, sheet_name='BigBagi - Wsad', index=False)
     xls_exists = os.path.exists(xls_path)
     logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
     print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
@@ -377,7 +395,25 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
             logger.error(f"[GENERATOR] Error fetching palety_rows: {e}")
             palety_rows = []
 
-        print(f"[GENERATOR] About to call generuj_pdf with data={data_raportu}, prod_rows count={len(prod_rows)}, awarie_rows count={len(awarie_rows)}, hr_rows count={len(hr_rows)}")
+        # Pobierz wskanowane Big Bagi dla tego dnia
+        bigbag_rows = []
+        try:
+            sql_bb = f"""
+                SELECT p.nazwa_zlecenia, p.produkt, bb.nr_palety, bb.nr_partii, bb.waga_kg, bb.autor_login
+                FROM agro_workowanie_bigbagi bb
+                JOIN {table_plan} p ON bb.plan_id = p.id
+                WHERE DATE(bb.created_at) = %s AND bb.status = 'ZUZYTY'
+                ORDER BY bb.id ASC
+            """
+            df_bb = pd.read_sql(sql_bb, conn, params=(data_raportu,))
+            for _, r in df_bb.iterrows():
+                zlec = r.get('nazwa_zlecenia') or 'Zlecenie'
+                bigbag_rows.append((zlec, r.get('produkt', ''), r.get('nr_palety', ''), r.get('nr_partii', ''), r.get('waga_kg', 0), r.get('autor_login', '')))
+        except Exception as e_bb:
+            logger.warning(f"[GENERATOR] Error fetching bigbag_rows: {e_bb}")
+            bigbag_rows = []
+
+        print(f"[GENERATOR] About to call generuj_pdf with data={data_raportu}, prod_rows count={len(prod_rows)}, awarie_rows count={len(awarie_rows)}, hr_rows count={len(hr_rows)}, bigbag_rows count={len(bigbag_rows)}")
         import sys
         sys.stdout.flush()
         sys.stderr.flush()
@@ -386,7 +422,8 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                                folder, linia,
                                obsada_rows=obsada_rows, nieobecni_rows=nieobecni_rows,
                                bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows,
-                               palety_rows=palety_rows)
+                               palety_rows=palety_rows,
+                               bigbag_rows=bigbag_rows)
         
         print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
         sys.stdout.flush()

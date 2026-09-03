@@ -189,6 +189,19 @@ class DeliveryCommandService:
                 if is_external_reception:
                     table_sur = get_table_name('magazyn_surowce', linia)
                     table_opk = get_table_name('magazyn_opakowania', linia)
+
+                    # Jeśli to edycja istniejącej dostawy — usuń usunięte pozycje z bazy surowców/opakowań
+                    if old_data and old_items:
+                        new_pallet_ids = {it.get('sourcePalletId') for it in items if it.get('sourcePalletId')}
+                        for old_it in old_items:
+                            old_pid = old_it.get('sourcePalletId')
+                            if old_pid and old_pid not in new_pallet_ids and not old_it.get('accepted'):
+                                old_src = str(old_it.get('source') or old_it.get('scannedType') or old_it.get('type') or '').lower()
+                                del_table = table_opk if old_src == 'opakowanie' or old_it.get('packageForm') == 'packaging' else table_sur
+                                try:
+                                    cursor.execute(f"DELETE FROM {del_table} WHERE id = %s", (old_pid,))
+                                except Exception:
+                                    pass
                     
                     # Fetch printer info if printer_id is passed
                     printer_id = data.get('printer_id')
@@ -230,23 +243,38 @@ class DeliveryCommandService:
 
                         # We do NOT accept it immediately - it stays pending
                         item['sourceSpot'] = 'DOSTAWA'
+                        item['productName'] = product_name
+                        item['nr_partii'] = nr_partii
+                        item['data_produkcji'] = str(data_produkcji) if data_produkcji else ''
+                        item['data_przydatnosci'] = str(data_przydatnosci) if data_przydatnosci else ''
+                        item['quantity'] = qty
+                        item['netWeight'] = qty
+                        item['unitsPerPallet'] = qty if pkg_form == 'packaging' else 0
 
-                        # DB INSERT
-                        cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
-                        pallet_id = cursor.lastrowid
-                        if not pallet_id or pallet_id == 0:
-                            cursor.execute(f"SELECT id FROM {target_table} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (physical_insert_loc,))
-                            p_row = cursor.fetchone()
-                            pallet_id = p_row['id'] if p_row else None
-
-                        item['sourcePalletId'] = pallet_id
-                        cursor.execute(
-                            "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
-                            (pallet_id, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
-                        )
+                        source_pallet_id = item.get('sourcePalletId')
+                        if source_pallet_id:
+                            # AKTUALIZACJA ISTNIEJĄCEJ PALETY PRZY EDYCJI
+                            cursor.execute(
+                                f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
+                                (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                            )
+                            pallet_id = source_pallet_id
+                        else:
+                            # DB INSERT DLA NOWEJ PALETY
+                            cursor.execute(
+                                f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                                (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form)
+                            )
+                            pallet_id = cursor.lastrowid
+                            item['sourcePalletId'] = pallet_id
+                            
+                            cursor.execute(
+                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
+                                (pallet_id, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
+                            )
                         
                         # Trigger physical printing for this pallet in the background!
-                        if printer_ip and printer_name:
+                        if printer_ip and printer_name and not source_pallet_id:
                             try:
                                 import threading
                                 import requests
@@ -336,6 +364,7 @@ class DeliveryCommandService:
                 if not is_external_reception:
                     table_sur = get_table_name('magazyn_surowce', linia)
                     table_opk = get_table_name('magazyn_opakowania', linia)
+                    table_got = get_table_name('magazyn_palety', linia)
                     updated_items = []
                     used_request_nrs = set()
                     used_request_ids = set()
@@ -412,6 +441,10 @@ class DeliveryCommandService:
                                         cursor.execute(f"SELECT id, nr_palety, stan_magazynowy FROM magazyn_dodatki WHERE id = %s AND lokalizacja = %s AND stan_magazynowy > 0", (p_id, source_spot))
                                         p_res = cursor.fetchone()
                                         if p_res: p_type = 'dodatek'
+                                        else:
+                                            cursor.execute(f"SELECT id, nr_palety, waga_netto AS stan_magazynowy FROM {table_got} WHERE id = %s AND (lokalizacja = %s OR (lokalizacja IS NULL AND %s = 'MGW01')) AND waga_netto > 0", (p_id, source_spot, source_spot))
+                                            p_res = cursor.fetchone()
+                                            if p_res: p_type = 'wyrob_gotowy'
 
                             if not p_res and p_nr:
                                 cursor.execute(f"SELECT id, nr_palety, stan_magazynowy FROM {table_sur} WHERE lokalizacja = %s AND nr_palety = %s AND stan_magazynowy > 0", (source_spot, p_nr))
@@ -425,6 +458,10 @@ class DeliveryCommandService:
                                         cursor.execute(f"SELECT id, nr_palety, stan_magazynowy FROM magazyn_dodatki WHERE lokalizacja = %s AND nr_palety = %s AND stan_magazynowy > 0", (source_spot, p_nr))
                                         p_res = cursor.fetchone()
                                         if p_res: p_type = 'dodatek'
+                                        else:
+                                            cursor.execute(f"SELECT id, nr_palety, waga_netto AS stan_magazynowy FROM {table_got} WHERE nr_palety = %s AND (lokalizacja = %s OR (lokalizacja IS NULL AND %s = 'MGW01')) AND waga_netto > 0", (p_nr, source_spot, source_spot))
+                                            p_res = cursor.fetchone()
+                                            if p_res: p_type = 'wyrob_gotowy'
 
                             if not p_res:
                                 cursor.execute(f"SELECT id, nr_palety, stan_magazynowy FROM {table_sur} WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (source_spot, p_name))
@@ -438,9 +475,13 @@ class DeliveryCommandService:
                                         cursor.execute(f"SELECT id, nr_palety, stan_magazynowy FROM magazyn_dodatki WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0", (source_spot, p_name))
                                         p_res = cursor.fetchone()
                                         if p_res: p_type = 'dodatek'
+                                        else:
+                                            cursor.execute(f"SELECT id, nr_palety, waga_netto AS stan_magazynowy FROM {table_got} WHERE produkt = %s AND (lokalizacja = %s OR (lokalizacja IS NULL AND %s = 'MGW01')) AND waga_netto > 0", (p_name, source_spot, source_spot))
+                                            p_res = cursor.fetchone()
+                                            if p_res: p_type = 'wyrob_gotowy'
 
                             if not p_res:
-                                if item_skip_lookup:
+                                if item_skip_lookup or item.get('sourcePalletId'):
                                     item['originalSpot'] = item.get('originalSpot') or source_spot
                                     item['warehouseLookupSkipped'] = True
                                     item['accepted'] = False
@@ -471,7 +512,7 @@ class DeliveryCommandService:
                             item['accepted'] = False
 
                             # Block the pallet so it cannot be used elsewhere while pending
-                            tbl_blk = table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else 'magazyn_dodatki')
+                            tbl_blk = table_got if p_type in ['wyrob_gotowy', 'magazyn', 'produkcja'] else (table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else 'magazyn_dodatki'))
                             try:
                                 cursor.execute(f"UPDATE {tbl_blk} SET is_blocked = 1 WHERE id = %s", (p_id,))
                             except Exception:
@@ -491,10 +532,10 @@ class DeliveryCommandService:
                 if old_data:
                     cursor.execute("""
                         UPDATE magazyn_dostawy
-                        SET order_ref=%s, delivery_date=%s, status=%s, items=%s,
+                        SET order_ref=%s, supplier=%s, delivery_date=%s, status=%s, items=%s,
                             lokalizacja_z=%s, lokalizacja_do=%s
                         WHERE id=%s
-                    """, (order_ref, delivery_date, final_status, json.dumps(items),
+                    """, (order_ref, supplier, delivery_date, final_status, json.dumps(items),
                           lokalizacja_z, lokalizacja_do, dostawa_id))
                 else:
                     cursor.execute("""

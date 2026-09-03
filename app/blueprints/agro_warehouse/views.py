@@ -168,6 +168,19 @@ def raport_palet():
             mixes_raw = cursor.fetchall()
             cursor.execute('\n                SELECT id, nazwa, kg, data_zlecenia \n                FROM dosypki_agro \n                WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0\n                ORDER BY data_zlecenia ASC\n            ', (p['zasyp_id'],))
             solo_dosypki = cursor.fetchall()
+            
+            # Pobierz wskanowane Big Bagi (wsad do produkcji)
+            cursor.execute("""
+                SELECT id, paleta_id, nr_palety, nazwa_produktu, waga_kg,
+                       nr_partii, data_produkcji, data_przydatnosci, typ_palety,
+                       lokalizacja_zrodlowa, autor_login, created_at, status
+                FROM agro_workowanie_bigbagi
+                WHERE plan_id = %s AND status = 'ZUZYTY'
+                ORDER BY created_at ASC, id ASC
+            """, (p['work_id'],))
+            bigbags_raw = cursor.fetchall() or []
+            total_bigbag_kg = sum(float(b['waga_kg'] or 0) for b in bigbags_raw)
+
             all_inputs = []
             for b_raw in batches_raw:
                 all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
@@ -175,6 +188,12 @@ def raport_palet():
                 all_inputs.append({'label': f"Dosypka {d_raw['nazwa']} #{d_raw['id']}", 'waga': d_raw['kg'] or 0, 'time': d_raw['data_zlecenia']})
             for m_raw in mixes_raw:
                 all_inputs.append({'label': f"MIX {m_raw['kategoria'].replace('_', ' ')} #{m_raw['id']}", 'waga': m_raw['waga'] or 0, 'time': m_raw['data_dodania']})
+            for bb in bigbags_raw:
+                all_inputs.append({
+                    'label': f"Big Bag {bb['nazwa_produktu']} #{bb['nr_palety'] or bb['id']}",
+                    'waga': float(bb['waga_kg'] or 0),
+                    'time': bb['created_at']
+                })
             all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
             current_in_kg = 0
             input_ranges = []
@@ -222,7 +241,19 @@ def raport_palet():
                 cursor.execute("\n                    SELECT COALESCE(SUM(stan_magazynowy), 0) as total_stock \n                    FROM magazyn_opakowania \n                    WHERE nazwa = %s AND (lokalizacja != 'ZUŻYTE' OR lokalizacja IS NULL)\n                ", (name,))
                 stock_row = cursor.fetchone()
                 packaging_stocks[name] = float(stock_row['total_stock']) if stock_row else 0.0
-            report_data.append({'plan': p, 'palety': processed_pallets, 'mixes': mixes_summary, 'opakowania': rozliczenia, 'aktywne_opakowania': aktywne_opakowania, 'bag_kg': bag_kg, 'packaging_stocks': packaging_stocks, 'total_pallet_kg': sum((pal['waga'] or 0 for pal in pallets_raw)), 'total_mix_kg': sum((m['waga_kg'] or 0 for m in mixes_summary))})
+            report_data.append({
+                'plan': p,
+                'palety': processed_pallets,
+                'mixes': mixes_summary,
+                'bigbags': bigbags_raw,
+                'opakowania': rozliczenia,
+                'aktywne_opakowania': aktywne_opakowania,
+                'bag_kg': bag_kg,
+                'packaging_stocks': packaging_stocks,
+                'total_pallet_kg': sum((pal['waga'] or 0 for pal in pallets_raw)),
+                'total_mix_kg': sum((m['waga_kg'] or 0 for m in mixes_summary)),
+                'total_bigbag_kg': total_bigbag_kg
+            })
         if not plan_id:
             return render_template('agro_warehouse/raport_palet_select.html', plans=plans, data_od=data_od, data_do=data_do, is_ajax=is_ajax)
         return render_template('agro_warehouse/raport_palet.html', report_data=report_data, data_planu=data_planu, single_view=bool(plan_id), is_ajax=is_ajax, print_date=datetime.now().strftime('%d.%m.%Y %H:%M'))

@@ -344,16 +344,22 @@ class PrintServer:
             nr_palety = generate_pallet_id('AGRO', type='surowiec', record_id=label_data.get('id'))
 
         product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
-        nr_partii = str(label_data.get('partia') or '---').strip()
-        data_produkcji = str(label_data.get('data') or datetime.now().strftime('%Y-%m-%d')).strip()
-        data_przydatnosci = str(label_data.get('termin') or '---').strip()
+        nr_partii = str(label_data.get('partia') or label_data.get('nr_partii') or '---').strip()
+        data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()
+        data_przydatnosci = str(label_data.get('termin') or label_data.get('data_przydatnosci') or '---').strip()
         qty_display = self._format_qty_display(label_data.get('ilosc'))
+        zbiornik = str(label_data.get('zbiornik') or label_data.get('stacja') or '').strip().upper()
+        if not zbiornik and label_data.get('lokalizacja'):
+            from app.utils.location_validator import is_production_tank_code
+            loc_val = str(label_data.get('lokalizacja')).strip().upper()
+            if is_production_tank_code(loc_val):
+                zbiornik = loc_val
 
         linia = str(label_data.get('linia') or '').strip()
 
         # FETCH SYMBOL AND TYPE FROM slownik_surowcow
         symbol = ''
-        jednostka = 'kg'
+        jednostka = label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm') or 'kg'
         db_typ = ''
         try:
             from app.db import get_db_connection
@@ -374,7 +380,7 @@ class PrintServer:
         from app.utils.pallet_label import is_packaging_item
         is_pkg = is_packaging_item(
             product_name,
-            unit=label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm'),
+            unit=jednostka,
             typ=label_data.get('typ') or db_typ,
             pallet_nr=nr_palety
         )
@@ -382,7 +388,13 @@ class PrintServer:
             jednostka = 'szt.'
 
         display_name = f"{symbol} - {product_name}" if symbol else product_name
-        header_text = (f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE") if is_pkg else (f"SUROWIEC - {linia}" if linia else "SUROWIEC")
+        
+        if is_pkg:
+            header_text = f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE"
+        elif zbiornik:
+            header_text = f"SUROWIEC -> {zbiornik}"
+        else:
+            header_text = f"SUROWIEC - {linia}" if linia else "SUROWIEC"
 
         if jednostka == 'kg':
             waga_line = f"^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} kg^FS"
@@ -400,6 +412,8 @@ class PrintServer:
             "jm": jednostka,
             "typ": header_text
         }
+        if zbiornik:
+            qr_details["zbiornik"] = zbiornik
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
 
         return f"""^XA

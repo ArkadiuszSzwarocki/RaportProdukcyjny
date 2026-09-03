@@ -155,7 +155,7 @@ class ScannerService:
         sql = (
             f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
             f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-            f"data_produkcji, data_przydatnosci "
+            f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
             f"FROM {table_name} WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT 1"
         )
         try:
@@ -184,7 +184,7 @@ class ScannerService:
                 sql_unbound = (
                     f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
                     f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci "
+                    f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
                     f"FROM {table_name} WHERE {' AND '.join(where_unbound)} ORDER BY id DESC LIMIT 1"
                 )
                 try:
@@ -219,7 +219,8 @@ class ScannerService:
         select_clause = (
             f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
             f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
-            f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
+            f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci, "
+            f"COALESCE(m.is_blocked, 0) AS is_blocked, '{linia}' AS linia "
             f"FROM {table_name} m "
             f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id "
         )
@@ -290,8 +291,6 @@ class ScannerService:
         # Najpierw spróbuj w podanej linii
         res_list = ScannerService._lookup_by_location_internal(location_code, linia)
         if res_list:
-            if not is_sscc:
-                return res_list[0]
             results.extend(res_list)
         
         # Jeśli nie znaleziono (lub zbieramy wszystkie dla SSCC) i try_all_lines=True, spróbuj w innych liniach
@@ -303,12 +302,8 @@ class ScannerService:
                     continue  # Już sprawdziliśmy tę linię
                 res_list = ScannerService._lookup_by_location_internal(location_code, other_linia)
                 if res_list:
-                    if not is_sscc:
-                        return res_list[0]
                     results.extend(res_list)
         
-        transfer_info = ScannerService._check_active_transfer_for_code(location_code)
-
         final_res = None
         if results:
             from app.utils.location_validator import is_production_tank_code
@@ -337,24 +332,31 @@ class ScannerService:
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]
 
+        transfer_info = ScannerService._check_active_transfer_for_code(location_code)
+        if not transfer_info and final_res:
+            if final_res.get('nr_palety'):
+                transfer_info = ScannerService._check_active_transfer_for_code(final_res.get('nr_palety'))
+            if not transfer_info and final_res.get('id'):
+                transfer_info = ScannerService._check_active_transfer_for_code(str(final_res.get('id')))
+
 
         if final_res:
             if transfer_info:
                 final_res['is_transfer'] = True
                 final_res['transfer'] = transfer_info
-                final_res['is_blocked'] = 1
                 final_res['can_dispatch'] = False
                 final_res['status_pl'] = 'Oczekuje na przyjęcie'
-                db_loc = final_res.get('lokalizacja') or ''
+                db_loc = str(final_res.get('lokalizacja') or '').strip()
                 if db_loc == 'W_TRANZYCIE_OSIP':
                     code_tr = transfer_info.get('transfer_code', '')
                     final_res['lokalizacja'] = f"W TRANZYCIE ({code_tr})"
+                    final_res['status_pl'] = 'W tranzycie'
                 elif transfer_info.get('is_magazyn_dostawy'):
                     src = transfer_info.get('source_warehouse', '')
                     dst = transfer_info.get('destination_warehouse', '')
-                    final_res['lokalizacja'] = 'OCZEKUJĄCE'
                     final_res['source_location'] = src
                     final_res['destination_location'] = dst
+                    final_res['lokalizacja'] = 'OCZEKUJĄCE'
                     final_res['status_info'] = f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}"
             return final_res
         elif transfer_info:
@@ -1282,26 +1284,6 @@ class ScannerService:
                 return False, f"Paleta #{surowiec_id} nie istnieje"
 
             stara_lokalizacja = (pallet.get('lokalizacja') or '').strip().upper()
-            if stara_lokalizacja.startswith('OCZEK') or pallet.get('is_blocked'):
-                # Sprawdź czy blokada pochodzi z aktywnego zlecenia przesunięcia
-                # Jeśli tak → ZEZWÓL na przenoszenie (blokada dotyczy tylko zużycia/wydania na produkcję)
-                block_from_transfer = False
-                if pallet.get('is_blocked') and not stara_lokalizacja.startswith('OCZEK'):
-                    try:
-                        pallet_id_str = str(surowiec_id)
-                        cur.execute(
-                            """SELECT id FROM magazyn_dostawy
-                               WHERE status = 'OCZEKUJE'
-                               AND (items LIKE %s OR items LIKE %s)
-                               LIMIT 1""",
-                            (f'%"sourcePalletId": {pallet_id_str}%', f'%"sourcePalletId":{pallet_id_str}%')
-                        )
-                        block_from_transfer = cur.fetchone() is not None
-                    except Exception:
-                        pass
-                if not block_from_transfer:
-                    return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Aby ją przenieść na regał, użyj modułu Magazyn Dostawy (lub skanera przyjęć)!"
-
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
 
@@ -1314,9 +1296,9 @@ class ScannerService:
             now = datetime.now()
             stan = float(pallet['stan_magazynowy'] or 0)
 
-            # Zmień lokalizację
+            # Zmień lokalizację i odblokuj paletę
             cur.execute(
-                f"UPDATE {table_surowce} SET lokalizacja = %s WHERE id = %s",
+                f"UPDATE {table_surowce} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s",
                 (nowa_lokalizacja, surowiec_id)
             )
 

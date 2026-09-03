@@ -509,6 +509,22 @@ def raport_palet():
             except Exception:
                 solo_dosypki = []
 
+            # Pobierz wskanowane Big Bagi (wsad do produkcji)
+            bigbags_raw = []
+            try:
+                cursor.execute("""
+                    SELECT id, paleta_id, nr_palety, nazwa_produktu, waga_kg,
+                           nr_partii, data_produkcji, data_przydatnosci, typ_palety,
+                           lokalizacja_zrodlowa, autor_login, created_at, status
+                    FROM agro_workowanie_bigbagi
+                    WHERE plan_id = %s AND status = 'ZUZYTY'
+                    ORDER BY created_at ASC, id ASC
+                """, (p['work_id'],))
+                bigbags_raw = cursor.fetchall() or []
+            except Exception:
+                bigbags_raw = []
+            total_bigbag_kg = sum(float(b['waga_kg'] or 0) for b in bigbags_raw)
+
             all_inputs = []
             for b_raw in batches_raw:
                 all_inputs.append({'label': f"Zasyp #{b_raw['id']}", 'waga': b_raw['waga'] or 0, 'time': b_raw['data_dodania']})
@@ -517,6 +533,12 @@ def raport_palet():
             for m_raw in mixes_raw:
                 cat = m_raw.get('kategoria', 'MIX').replace('_', ' ') if m_raw.get('kategoria') else 'MIX'
                 all_inputs.append({'label': f"MIX {cat} #{m_raw['id']}", 'waga': m_raw.get('waga') or m_raw.get('waga_kg') or 0, 'time': m_raw.get('data_dodania')})
+            for bb in bigbags_raw:
+                all_inputs.append({
+                    'label': f"Big Bag {bb['nazwa_produktu']} #{bb['nr_palety'] or bb['id']}",
+                    'waga': float(bb['waga_kg'] or 0),
+                    'time': bb['created_at']
+                })
             all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
             current_in_kg = 0
             input_ranges = []
@@ -566,11 +588,13 @@ def raport_palet():
                 'palety': processed_pallets,
                 'pallets': processed_pallets,
                 'mixes': mixes_raw,
+                'bigbags': bigbags_raw,
                 'opakowania': [],
                 'aktywne_opakowania': [],
                 'packaging_stocks': {},
                 'total_pallet_kg': total_pallet_kg,
                 'total_mix_kg': total_mix_kg,
+                'total_bigbag_kg': total_bigbag_kg,
                 'input_summary': ', '.join([f"{inp['label']} ({inp['waga']:.1f}kg)" for inp in all_inputs])
             })
        return render_template('warehouse_v2/raport_palet.html', report_data=report_data, data_planu=data_planu, single_view=bool(plan_id), is_ajax=is_ajax, print_date=datetime.now().strftime('%d.%m.%Y %H:%M'))

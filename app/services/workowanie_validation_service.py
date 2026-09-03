@@ -39,6 +39,24 @@ class WorkowanieValidationService:
 
             logger.debug(f'[KOLEJKA] start_zlecenie check id={plan_id} produkt="{produkt}" data_planu={data_planu}')
 
+            # 0. Sprawdź czy zlecenie bazuje na Big Bagach (wtedy nie wymaga bufora z Zasypu)
+            try:
+                cursor.execute(f"SELECT typ_zlecenia, typ_produkcji FROM {table_plan} WHERE id = %s", (plan_id,))
+                p_row = cursor.fetchone()
+                if p_row:
+                    t_zl = str(p_row[0] or '').lower()
+                    t_pr = str(p_row[1] or '').lower()
+                    if 'bigbag' in t_zl or 'big_bag' in t_zl or 'z_bigbagow' in t_zl or 'bigbag' in t_pr:
+                        logger.debug(f'[KOLEJKA] bypass for bigbag repack plan_id={plan_id}')
+                        return True, ""
+
+                cursor.execute("SELECT 1 FROM agro_workowanie_bigbagi WHERE plan_id = %s AND status = 'ZUZYTY' LIMIT 1", (plan_id,))
+                if cursor.fetchone():
+                    logger.debug(f'[KOLEJKA] bypass for plan with scanned bigbags plan_id={plan_id}')
+                    return True, ""
+            except Exception as e_bb:
+                logger.warning(f"Error checking bigbag status: {e_bb}")
+
             # 1. Sprawdź czy produkt w ogóle jest w buforze
             cursor.execute(
                 f"""

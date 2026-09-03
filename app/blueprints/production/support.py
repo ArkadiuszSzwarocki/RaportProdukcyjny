@@ -314,10 +314,11 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
         return redirect(request.referrer or url_for('production.obsada_page'))
 
     @production_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
+    @production_bp.route('/api/usun_z_obsady/<int:id>', methods=['POST'])
     @login_required
     def usun_z_obsady_alias(id):
         """Remove from schedule (root alias)."""
-        linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+        linia = request.form.get('linia') or request.args.get('linia') or (request.get_json(silent=True) or {}).get('linia')
         success = AttendanceService.remove_from_schedule(id, linia=linia)
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:

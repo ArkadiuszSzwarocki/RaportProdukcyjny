@@ -8,7 +8,7 @@ Odpowiedzialny za:
 
 import os
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Tuple, List, Optional, Dict, Any, Union
 
@@ -499,9 +499,27 @@ class AutoReportService:
             # 3. Sprawdź przestoje po godzinie granicznej
             downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
             cutoff_short = cutoff_time_str[:5]
+
+            def _to_hhmm(val):
+                if val is None:
+                    return None
+                if isinstance(val, timedelta):
+                    tot = int(val.total_seconds())
+                    return f"{(tot // 3600) % 24:02d}:{(tot % 3600) // 60:02d}"
+                if hasattr(val, 'strftime'):
+                    return val.strftime('%H:%M')
+                s = str(val).strip()
+                if ':' in s:
+                    parts = s.split(':')
+                    try:
+                        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+                    except Exception:
+                        return None
+                return None
+
             for dt in downtimes:
-                g_start = str(dt.get('godzina_start') or '')[:5]
-                g_stop = str(dt.get('godzina_stop') or '')[:5]
+                g_start = _to_hhmm(dt.get('godzina_start'))
+                g_stop = _to_hhmm(dt.get('godzina_stop'))
                 if (g_start and g_start >= cutoff_short) or (g_stop and g_stop >= cutoff_short):
                     cursor.close()
                     return True

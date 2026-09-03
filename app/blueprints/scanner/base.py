@@ -90,23 +90,29 @@ def dispatch():
             from datetime import datetime
             printer = get_printer()
             
-            # 1. Drukowanie zaktualizowanej palety matki (2 sztuki)
+            # 1. Drukowanie zaktualizowanej palety matki (2 sztuki z pozostałą ilością)
             label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
             if label_data:
                 printer.print_pallet_label(label_data, copies=2)
                 
-            # 2. Drukowanie etykiety dla zasypanego worka (1 sztuka)
-            worek_label_data = {
+            # 2. Drukowanie etykiety dla zasypanej ilości na zbiornik / stację KO (1 sztuka)
+            tank_code = str(extra_data.get('zbiornik') or '').strip().upper()
+            tank_label_data = dict(label_data) if label_data else {}
+            tank_label_data.update({
                 'id': str(surowiec_id),
-                'nr_palety': extra_data.get('nr_palety', ''),
-                'nazwa': f"WOREK {extra_data.get('zbiornik', '')} - {extra_data.get('pallet_name', '')}",
+                'nr_palety': extra_data.get('nr_palety') or (label_data.get('nr_palety') if label_data else ''),
+                'nazwa': extra_data.get('pallet_name') or (label_data.get('nazwa') if label_data else ''),
                 'ilosc': extra_data.get('ilosc_pobrana', 0),
-                'lokalizacja': extra_data.get('zbiornik', ''),
-                'qr_data': f"WOREK|{extra_data.get('zbiornik', '')}|{extra_data.get('pallet_name', '')}",
-                'data': datetime.now().strftime('%d.%m.%Y %H:%M'),
-            }
-            printer.print_pallet_label(worek_label_data)
-            msg += " (Wysłano etykiety do druku: 2x paleta-matka, 1x worek)"
+                'lokalizacja': tank_code,
+                'zbiornik': tank_code,
+                'stacja': tank_code,
+                'typ': label_data.get('typ') if label_data else 'SUROWIEC',
+                'inventory_type': 'Surowiec',
+                'jednostka': (label_data.get('jednostka') if label_data else 'kg') or 'kg',
+                'linia': linia,
+            })
+            printer.print_pallet_label(tank_label_data, copies=1)
+            msg += f" (Wysłano etykiety do druku: 2x paleta-matka, 1x zbiornik {tank_code})"
         except Exception as e:
             msg += f" (Błąd automatycznego druku etykiet: {e})"
 

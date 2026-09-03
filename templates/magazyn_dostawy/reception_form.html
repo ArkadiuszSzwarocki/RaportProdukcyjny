@@ -560,6 +560,12 @@
                 instance.customMonthView.style.display = "none";
                 instance.customTitle.innerText = "Wybierz rok";
             }
+        },
+        onChange: function(selectedDates, dateStr, instance) {
+            if (instance.element) {
+                instance.element.value = dateStr;
+                instance.element.dispatchEvent(new Event('change'));
+            }
         }
     };
 
@@ -584,6 +590,8 @@
         items.forEach((item, index) => {
             // Single Row Layout
             const row1 = document.createElement('tr');
+            row1.className = 'pallet-row';
+            row1.dataset.index = index;
             row1.style.background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
             row1.style.borderBottom = '1px solid #e2e8f0';
             
@@ -592,38 +600,38 @@
             row1.innerHTML = `
                 <td style="padding: 10px 10px; font-size: 13px; color: #64748b; vertical-align: middle;">${index + 1}</td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" value="${item.productName || ''}" onchange="updateItem(${index}, 'productName', this.value)"
+                    <input type="text" class="field-productName" value="${item.productName || ''}" oninput="updateItem(${index}, 'productName', this.value)" onchange="updateItem(${index}, 'productName', this.value)"
                            list="productsList" placeholder="Wybierz produkt"
                            style="${inputStyle}" required>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="number" value="${item.quantity || item.netWeight || item.unitsPerPallet || ''}" 
-                           onchange="updateItem(${index}, 'quantity', this.value)" placeholder="0"
+                    <input type="number" class="field-quantity" value="${item.quantity || item.netWeight || item.unitsPerPallet || ''}" 
+                           oninput="updateItem(${index}, 'quantity', this.value)" onchange="updateItem(${index}, 'quantity', this.value)" placeholder="0"
                            style="${inputStyle} text-align: right;" required min="0.001" step="0.001">
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <select onchange="updateItem(${index}, 'unit', this.value)" style="${inputStyle}">
+                    <select class="field-unit" onchange="updateItem(${index}, 'unit', this.value)" style="${inputStyle}">
                         <option value="kg" ${item.unit === 'kg' || (!item.unit && item.packageForm !== 'packaging') ? 'selected' : ''}>kg</option>
                         <option value="szt" ${item.unit === 'szt' || item.packageForm === 'packaging' ? 'selected' : ''}>szt</option>
                     </select>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <select onchange="updateItem(${index}, 'packageForm', this.value)" style="${inputStyle}">
+                    <select class="field-packageForm" onchange="updateItem(${index}, 'packageForm', this.value)" style="${inputStyle}">
                         <option value="bags" ${item.packageForm === 'bags' ? 'selected' : ''}>Worek</option>
                         <option value="big_bag" ${item.packageForm === 'big_bag' ? 'selected' : ''}>Big-Bag</option>
                         <option value="packaging" ${item.packageForm === 'packaging' ? 'selected' : ''}>Opakowanie</option>
                     </select>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" value="${item.nr_partii || ''}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                    <input type="text" class="field-nr_partii" value="${item.nr_partii || ''}" oninput="updateItem(${index}, 'nr_partii', this.value)" onchange="updateItem(${index}, 'nr_partii', this.value)"
                            placeholder="Nr partii" style="${inputStyle}">
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" class="flatpickr-date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                    <input type="text" class="flatpickr-date field-data_produkcji" value="${item.data_produkcji || ''}" oninput="updateItem(${index}, 'data_produkcji', this.value)" onchange="updateItem(${index}, 'data_produkcji', this.value)"
                            style="${inputStyle}" placeholder="Produkcja">
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" class="flatpickr-date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                    <input type="text" class="flatpickr-date field-data_przydatnosci" value="${item.data_przydatnosci || ''}" oninput="updateItem(${index}, 'data_przydatnosci', this.value)" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
                            style="${inputStyle}" placeholder="Przydatność">
                 </td>
                 <td style="padding: 10px 10px; text-align: center; vertical-align: middle;">
@@ -680,6 +688,7 @@
     }
 
     function updateItem(index, key, value) {
+        if (!items[index]) return;
         items[index][key] = value;
         const it = items[index];
         const q = parseFloat(it.quantity) || 0;
@@ -709,6 +718,8 @@
         if (!orderRef) return showToast('Podaj numer dokumentu (WZ)!', 'warning');
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
 
+        syncItemsFromDom();
+
         const missingName = items.some(it => !it.productName || !it.productName.trim());
         if (missingName) return showToast('Wypełnij nazwę produktu dla wszystkich pozycji!', 'warning');
 
@@ -725,9 +736,43 @@
         await saveDostawa(printerId || null);
     }
 
+    function syncItemsFromDom() {
+        const rows = document.querySelectorAll('#itemsTable tbody tr.pallet-row');
+        rows.forEach((r, idx) => {
+            if (!items[idx]) items[idx] = {};
+            const pName = r.querySelector('.field-productName');
+            const qty = r.querySelector('.field-quantity');
+            const unit = r.querySelector('.field-unit');
+            const pkg = r.querySelector('.field-packageForm');
+            const batch = r.querySelector('.field-nr_partii');
+            const pDate = r.querySelector('.field-data_produkcji');
+            const eDate = r.querySelector('.field-data_przydatnosci');
+
+            if (pName) items[idx].productName = pName.value.trim();
+            if (qty) items[idx].quantity = parseFloat(qty.value) || 0;
+            if (unit) items[idx].unit = unit.value;
+            if (pkg) items[idx].packageForm = pkg.value;
+            if (batch) items[idx].nr_partii = batch.value.trim();
+            if (pDate) items[idx].data_produkcji = pDate.value.trim();
+            if (eDate) items[idx].data_przydatnosci = eDate.value.trim();
+
+            const q = parseFloat(items[idx].quantity) || 0;
+            if (items[idx].unit === 'szt' || items[idx].packageForm === 'packaging') {
+                items[idx].unitsPerPallet = q;
+                items[idx].netWeight = 0;
+            } else {
+                items[idx].netWeight = q;
+                items[idx].unitsPerPallet = 0;
+            }
+        });
+    }
+
     async function saveDostawa(printerId = null) {
         const orderRef = document.getElementById('order_ref').value.trim();
         if (!orderRef) return showToast('Podaj numer dokumentu (WZ)!', 'warning');
+        
+        syncItemsFromDom();
+
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
 
         items.forEach(it => {

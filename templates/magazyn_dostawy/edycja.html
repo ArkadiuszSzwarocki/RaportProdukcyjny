@@ -279,13 +279,13 @@
         items: {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }}
     };
 </script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/config.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/state.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/render.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/palletPicker.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/events.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/config.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/state.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/utils.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/render.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/api.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/palletPicker.js') }}?v=20260903_1230"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/events.js') }}?v=20260903_1230"></script>
 
 <script>
 window.confirmWarehouseOrder = function(orderId) {

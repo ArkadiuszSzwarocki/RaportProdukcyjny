@@ -123,7 +123,7 @@ class AcceptanceService:
                 target['data_produkcji'] = data_produkcji
                 target['data_przydatnosci'] = data_przydatnosci
 
-                # Zwalniamy blokadę dla przyjętej palety źródłowej
+                # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety
                 source_pallet_id = target.get('sourcePalletId')
                 if source_pallet_id:
                     tbl_unblk = table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else None)
@@ -135,6 +135,12 @@ class AcceptanceService:
                             cursor.execute(f"UPDATE {tbl_unblk} SET is_blocked = 0 WHERE id = %s", (source_pallet_id,))
                         except Exception:
                             pass
+                if nr_palety:
+                    try:
+                        for tbl_check in [table_opk, table_sur, get_table_name('magazyn_palety', linia), 'magazyn_dodatki']:
+                            cursor.execute(f"UPDATE {tbl_check} SET is_blocked = 0 WHERE nr_palety = %s", (nr_palety,))
+                    except Exception:
+                        pass
 
                 # 3. Empty the source spot (from Transfer or from External Delivery pending buffer)
                 source_spot = target.get('sourceSpot')
