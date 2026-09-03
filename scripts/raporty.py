@@ -57,7 +57,7 @@ def polskie_znaki_pdf(text):
     # Dzięki temu system NIGDY się nie wyłączy przez błąd czcionki.
     return text.encode('latin-1', 'replace').decode('latin-1')
 
-def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows, bigbag_rows=None):
+def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
     """Generuje plik Excel i zwraca jego nazwę"""
     nazwa_excel = f"Raport_{dzisiaj}.xlsx"
     sciezka = os.path.join(RAPORTY_PATH, nazwa_excel)
@@ -68,17 +68,12 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows, bigbag_rows=None):
         pd.DataFrame(prod_rows, columns=['Sekcja', 'Produkt', 'Plan', 'Wykonanie']).to_excel(writer, sheet_name='Produkcja', index=False)
         pd.DataFrame(awarie_rows, columns=['Sekcja', 'Kategoria', 'Problem', 'Start', 'Stop', 'Minuty']).to_excel(writer, sheet_name='Awarie', index=False)
         pd.DataFrame(hr_rows, columns=['Pracownik', 'Typ', 'Godziny']).to_excel(writer, sheet_name='HR', index=False)
-        if bigbag_rows:
-            bb_cols = ['Zlecenie', 'Produkt', 'Kod Big Baga', 'Nr Partii', 'Waga kg', 'Pobrał']
-            formatted_bb = [r[:len(bb_cols)] for r in bigbag_rows]
-            pd.DataFrame(formatted_bb, columns=bb_cols).to_excel(writer, sheet_name='BigBagi', index=False)
 
     return nazwa_excel
 
 def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
                 folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
-                bufor_rows=None, nadgodziny_rows=None, palety_rows=None,
-                bigbag_rows=None):
+                bufor_rows=None, nadgodziny_rows=None, palety_rows=None):
     """Generates a PDF report with detailed tables."""
     linia_prefix = f"_{linia}" if linia else ""
     nazwa_pdf = f"Raport{linia_prefix}_{dzisiaj}.pdf"
@@ -459,55 +454,6 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         pdf.cell(140, 7, "RAZEM WYPRODUKOWANO W DNIU RAPORTU:", 1, 0, 'R', True)
         pdf.cell(25, 7, f"{total_szt} szt.", 1, 0, 'C', True)
         pdf.cell(25, 7, _fmt_kg(total_wg), 1, 1, 'C', True)
-        pdf.ln(5)
-
-    # --- TABELA: WSAD Z BIG BAGÓW (JEŚLI WYSTĘPUJE) ---
-    if bigbag_rows:
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(41, 128, 185)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 8, polskie_znaki_pdf("WSAD Z BIG BAGÓW (WORKOWANIE)"), ln=1, fill=True)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", size=9)
-        pdf.ln(2)
-
-        col_bb = (40, 50, 40, 30, 30) # Razem = 190
-        _rysuj_wiersz_multicell(
-            col_bb,
-            ["Zlecenie", "Produkt", "SSCC / Kod", "Partia", "Waga wsadu"],
-            col_aligns=['C', 'C', 'C', 'C', 'C'],
-            fill=True,
-            fill_color=(230, 230, 230),
-            font_style='B'
-        )
-
-        fill_bb = False
-        pdf.set_font("Arial", size=9)
-        total_bb_wg = 0.0
-        for r in bigbag_rows:
-            zlec = str(r[0]) if len(r) > 0 and r[0] else "Brak"
-            prod = str(r[1]) if len(r) > 1 and r[1] else "Brak"
-            sscc = str(r[2]) if len(r) > 2 and r[2] else "-"
-            partia = str(r[3]) if len(r) > 3 and r[3] else "-"
-            wg = float(r[4]) if len(r) > 4 and r[4] else 0.0
-            total_bb_wg += wg
-
-            row_color = (250, 250, 250) if fill_bb else (255, 255, 255)
-            _rysuj_wiersz_multicell(
-                col_bb,
-                [zlec, prod, sscc, partia, _fmt_kg(wg)],
-                col_aligns=['L', 'L', 'C', 'C', 'C'],
-                fill=fill_bb,
-                fill_color=row_color,
-                font_style=''
-            )
-            fill_bb = not fill_bb
-
-        pdf.set_font("Arial", 'B', 9)
-        pdf.set_fill_color(220, 240, 255)
-        pdf.cell(130, 7, "RAZEM POBRANO Z WSADU BIG BAGÓW:", 1, 0, 'R', True)
-        pdf.cell(30, 7, f"{len(bigbag_rows)} szt.", 1, 0, 'C', True)
-        pdf.cell(30, 7, _fmt_kg(total_bb_wg), 1, 1, 'C', True)
         pdf.ln(5)
 
     # --- TABELE PRZESTOJÓW I AWARII (PODZIAŁ NA ZASYP I WORKOWANIE) ---
