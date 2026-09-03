@@ -187,7 +187,7 @@
             </div>
             
             <div>
-                {% if p[3] in ['zaplanowane', 'zawieszone'] %}
+                {% if p[3] in ['zaplanowane', 'zawieszone', 'wstrzymane'] %}
                     <form action="/start_zlecenie/{{ p[0] }}" method="POST"
                         {% if linia == 'AGRO' and p[3] == 'zaplanowane' %}
                             class="d-inline start-form"
@@ -199,11 +199,11 @@
                         {% if p|length > 29 and p[29] == 'eksportowa' %}
                             data-eksport-pallet="1"
                         {% endif %}
-                        {% if p[3] == 'zawieszone' %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
+                        {% if p[3] in ['zawieszone', 'wstrzymane'] %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="sekcja" value="Workowanie">
-                        <button type="submit" class="btn-start btn-small" aria-label="Start">▶ {% if p[3] == 'zawieszone' %}Wznów{% else %}{{ _('start') }}{% endif %}</button>
+                        <button type="submit" class="btn-start btn-small" aria-label="Start">▶ {% if p[3] in ['zawieszone', 'wstrzymane'] %}Wznów{% else %}{{ _('start') }}{% endif %}</button>
                     </form>
                 {% endif %}
                 

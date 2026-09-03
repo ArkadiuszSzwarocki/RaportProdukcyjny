@@ -136,7 +136,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     quality_login_used = None
                     quality_role_used = None
 
-                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie and not is_big_bag and status_obecny != 'zawieszone':
+                    if sekcja == 'Workowanie' and linia == 'AGRO' and not is_czyszczenie and not is_big_bag and status_obecny not in ('zawieszone', 'wstrzymane'):
                         if not opakowanie_id or not etykieta_id:
                             flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
                             return redirect(bezpieczny_powrot())
@@ -162,7 +162,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         # Validate batch number (required for Workowanie)
                         nr_partii_post = request.form.get('nr_partii') or request.args.get('nr_partii')
                         if not is_czyszczenie and not (nr_partii_post and nr_partii_post.strip()):
-                            if status_obecny == 'zawieszone' and db_nr_partii:
+                            if status_obecny in ('zawieszone', 'wstrzymane') and db_nr_partii:
                                 nr_partii_post = db_nr_partii
                             else:
                                 flash('❌ Start zablokowany: Nr Partii jest obowiązkowy.', 'error')
