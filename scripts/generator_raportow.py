@@ -174,12 +174,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                     'Brak przydziału'
                 ) AS sekcja,
                 'Obecny' AS typ,
-                COALESCE(o.ilosc_godzin, 8.0) AS ilosc_godzin,
+                CASE 
+                    WHEN INSTR(LOWER(TRIM(COALESCE(o.typ, ''))), 'wyj') > 0 THEN GREATEST(8.0 - COALESCE(o.ilosc_godzin, 0), 0)
+                    ELSE COALESCE(o.ilosc_godzin, 8.0)
+                END AS ilosc_godzin,
                 COALESCE(o.komentarz, '') AS komentarz
             FROM pracownicy p
             JOIN obsada_zmiany oz2 ON oz2.pracownik_id = p.id AND oz2.data_wpisu = %s AND (UPPER(COALESCE(oz2.linia, 'PSD')) = UPPER(%s) OR (%s = 'PSD' AND (oz2.linia IS NULL OR oz2.linia = '')))
             LEFT JOIN obecnosc o ON o.pracownik_id = p.id AND o.data_wpisu = %s
-            GROUP BY p.id, p.imie_nazwisko, o.ilosc_godzin, o.komentarz
+            GROUP BY p.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz
             ORDER BY sekcja, p.imie_nazwisko
         """, conn, params=(data_raportu, linia, linia, data_raportu, linia, linia, data_raportu))
     except Exception as _e:
@@ -197,16 +200,16 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                     WHEN INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0 THEN o.typ
                     WHEN LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'zwolnienie lekarskie') THEN 'L4'
                     WHEN INSTR(LOWER(TRIM(o.typ)), 'opiek') > 0 THEN 'Opieka'
-                    WHEN LOWER(TRIM(o.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%' THEN 'Wyjście prywatne'
+                    WHEN INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0 THEN 'Wyjście prywatne'
                     WHEN LOWER(TRIM(o.typ)) IN ('nieobecnosc', 'nieobecność') THEN 'Nieobecność'
                     ELSE COALESCE(o.typ, 'Nieobecność')
                 END AS typ,
                 CASE
-                    WHEN (LOWER(TRIM(o.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%') 
+                    WHEN INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0
                          AND o.wyjscie_od IS NOT NULL AND o.wyjscie_do IS NOT NULL
                     THEN CONCAT(
                         IF(o.komentarz IS NOT NULL AND TRIM(o.komentarz) != '', CONCAT(TRIM(o.komentarz), ' '), ''),
-                        '(', DATE_FORMAT(o.wyjscie_od, '%H:%i'), ' - ', DATE_FORMAT(o.wyjscie_do, '%H:%i'), ')'
+                        '(', SUBSTRING(o.wyjscie_od, 1, 5), ' - ', SUBSTRING(o.wyjscie_do, 1, 5), ')'
                     )
                     ELSE COALESCE(o.komentarz, '')
                 END AS komentarz
@@ -216,7 +219,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
               AND (
                   INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0
                   OR LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'opieka', 'nieobecnosc', 'nieobecność', 'zwolnienie', 'kwarantanna', 'inne', 'wyjscie prywatne', 'wyjście prywatne')
-                  OR LOWER(TRIM(o.typ)) LIKE '%wyj%scie%'
+                  OR INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0
                   OR LOWER(TRIM(o.typ)) NOT IN ('obecny', 'obecność', 'obecnosc')
               )
               AND (
@@ -231,15 +234,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                 p.imie_nazwisko AS pracownik,
                 CASE 
                     WHEN INSTR(LOWER(TRIM(w.typ)), 'urlop') > 0 THEN w.typ
-                    WHEN LOWER(TRIM(w.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(w.typ)) LIKE '%wyj%scie%' THEN 'Wyjście prywatne'
+                    WHEN INSTR(LOWER(TRIM(w.typ)), 'wyj') > 0 THEN 'Wyjście prywatne'
                     ELSE COALESCE(w.typ, 'Urlop')
                 END AS typ,
                 CASE
-                    WHEN (LOWER(TRIM(w.typ)) IN ('wyjscie prywatne', 'wyjście prywatne') OR LOWER(TRIM(w.typ)) LIKE '%wyj%scie%') 
+                    WHEN INSTR(LOWER(TRIM(w.typ)), 'wyj') > 0 
                          AND w.czas_od IS NOT NULL AND w.czas_do IS NOT NULL
                     THEN CONCAT(
                         IF(w.powod IS NOT NULL AND TRIM(w.powod) != '', CONCAT(TRIM(w.powod), ' '), ''),
-                        '(', DATE_FORMAT(w.czas_od, '%H:%i'), ' - ', DATE_FORMAT(w.czas_do, '%H:%i'), ')'
+                        '(', SUBSTRING(w.czas_od, 1, 5), ' - ', SUBSTRING(w.czas_do, 1, 5), ')'
                     )
                     ELSE COALESCE(w.powod, 'Zatwierdzony wniosek')
                 END AS komentarz
