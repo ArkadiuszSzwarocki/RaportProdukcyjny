@@ -4,7 +4,7 @@ Processes warehouse rack layouts, maps pallets to 3D shelf slots, detects packag
 and prepares complete state for 3D visualization.
 """
 import re
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 from app.repositories.warehouse_3d_repository import Warehouse3dRepository
 from app.dto.warehouse_3d_dto import (
@@ -404,7 +404,7 @@ class Warehouse3dService:
 
     @classmethod
     def _calculate_expiry_info(cls, exp_val: Any) -> Dict[str, Any]:
-        """Calculates days until expiration and status flags."""
+        """Calculates days until expiration and status flags safely."""
         if not exp_val or str(exp_val).strip() in ('-', '', 'None', 'NULL'):
             return {
                 'days_to_exp': None,
@@ -415,19 +415,24 @@ class Warehouse3dService:
             }
 
         exp_date = None
-        if isinstance(exp_val, datetime):
-            exp_date = exp_val.date()
-        elif hasattr(exp_val, 'strftime'):
-            exp_date = exp_val
-        else:
-            s = str(exp_val).strip()[:10]
-            try:
-                exp_date = datetime.strptime(s, '%Y-%m-%d').date()
-            except Exception:
-                try:
-                    exp_date = datetime.strptime(s, '%d.%m.%Y').date()
-                except Exception:
-                    pass
+        try:
+            if hasattr(exp_val, 'date') and callable(getattr(exp_val, 'date')):
+                exp_date = exp_val.date()
+            elif isinstance(exp_val, datetime):
+                exp_date = exp_val.date()
+            elif hasattr(exp_val, 'year') and hasattr(exp_val, 'month') and hasattr(exp_val, 'day'):
+                # datetime.date object
+                exp_date = date(exp_val.year, exp_val.month, exp_val.day)
+            else:
+                s = str(exp_val).strip()[:10]
+                for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%Y/%m/%d'):
+                    try:
+                        exp_date = datetime.strptime(s, fmt).date()
+                        break
+                    except Exception:
+                        pass
+        except Exception:
+            exp_date = None
 
         if not exp_date:
             return {
@@ -439,7 +444,16 @@ class Warehouse3dService:
             }
 
         today = datetime.now().date()
-        days = (exp_date - today).days
+        try:
+            days = (exp_date - today).days
+        except Exception:
+            return {
+                'days_to_exp': None,
+                'is_expired': False,
+                'is_expiring_soon': False,
+                'status_label': 'Nieznana',
+                'status_color': '#94a3b8'
+            }
 
         if days < 0:
             return {
@@ -468,18 +482,23 @@ class Warehouse3dService:
 
     @staticmethod
     def _extract_sort_timestamp(prod_val: Any, created_val: Any) -> float:
-        """Extracts numeric sortable timestamp for FIFO ordering."""
+        """Extracts numeric sortable timestamp for FIFO ordering safely."""
         for val in (prod_val, created_val):
             if not val or str(val).strip() in ('-', '', 'None', 'NULL'):
                 continue
-            if isinstance(val, datetime):
-                return val.timestamp()
-            s = str(val).strip()
-            for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%d.%m.%Y'):
-                try:
-                    return datetime.strptime(s[:19], fmt).timestamp()
-                except Exception:
-                    continue
+            try:
+                if hasattr(val, 'timestamp') and callable(getattr(val, 'timestamp')):
+                    return float(val.timestamp())
+                if hasattr(val, 'year') and hasattr(val, 'month') and hasattr(val, 'day'):
+                    return datetime(val.year, val.month, val.day).timestamp()
+                s = str(val).strip()
+                for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%d.%m.%Y'):
+                    try:
+                        return datetime.strptime(s[:19], fmt).timestamp()
+                    except Exception:
+                        continue
+            except Exception:
+                continue
         return 9999999999.0
 
     @classmethod
