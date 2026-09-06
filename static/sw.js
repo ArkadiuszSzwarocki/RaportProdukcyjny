@@ -4,7 +4,7 @@
  * Provides robust offline navigation, static asset caching, and offline fallback.
  */
 
-const CACHE_NAME = 'rp-pwa-v1';
+const CACHE_NAME = 'rp-pwa-v2';
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',
@@ -65,7 +65,13 @@ self.addEventListener('fetch', (event) => {
     if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
         event.respondWith(
             fetch(request)
-                .then((networkResponse) => {
+                .then(async (networkResponse) => {
+                    // If upstream gateway / proxy returns 502/503/504 (container restarting or down), serve branded fallback
+                    if (networkResponse && [502, 503, 504].includes(networkResponse.status)) {
+                        console.warn('[SW] Gateway error ' + networkResponse.status + ' detected, serving offline fallback');
+                        const fallback = await caches.match('/static/offline_fallback.html');
+                        if (fallback) return fallback;
+                    }
                     if (networkResponse && networkResponse.status === 200) {
                         const responseClone = networkResponse.clone();
                         caches.open(CACHE_NAME).then((cache) => {

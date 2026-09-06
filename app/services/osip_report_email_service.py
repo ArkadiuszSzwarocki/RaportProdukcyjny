@@ -116,9 +116,16 @@ class OsipReportEmailService:
         is_source_osip = cls._is_osip_location(source_loc)
 
         if is_external:
-            doc_type_code = 'DOSTAWA'
-            doc_title = 'Dostawa'
-            header_title = '📦 Raport Przyjęcia: Dostawa'
+            if is_dest_osip:
+                doc_type_code = 'DOSTAWA_OSIP'
+                doc_title = 'Dostawa OSIP'
+                header_title = '📦 Raport Przyjęcia: Dostawa OSIP'
+                subject_tag = 'Dostawa OSIP'
+            else:
+                doc_type_code = 'DOSTAWA_CENTRALA'
+                doc_title = 'Dostawa Centrala'
+                header_title = '📦 Raport Przyjęcia: Dostawa Centrala'
+                subject_tag = 'Dostawa Centrala'
             theme_color_from = '#1e3a8a'
             theme_color_to = '#2563eb'
             source_label = 'DOSTAWCA'
@@ -127,7 +134,6 @@ class OsipReportEmailService:
             dest_value = dest_loc or 'Magazyn'
             creator_label = 'OTWORZYŁ / WPROWADZIŁ'
             acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-            subject_tag = f"Dostawa WZ: {ref}"
         else:
             doc_type_code = 'PRZESUNIECIE_MM'
             doc_title = 'Przesunięcie MM'
@@ -140,7 +146,7 @@ class OsipReportEmailService:
             dest_value = dest_loc or 'Magazyn'
             creator_label = 'WYDAŁ / OTWORZYŁ'
             acceptor_label = 'PRZYJĄŁ / ZATWIERDZIŁ'
-            subject_tag = f"Przesunięcie MM nr: {ref}"
+            subject_tag = 'Przesunięcie MM'
 
         created_by = dostawa.get('created_by') or 'System'
         created_at = dostawa.get('created_at')

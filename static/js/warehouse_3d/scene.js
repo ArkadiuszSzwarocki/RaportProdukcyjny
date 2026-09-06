@@ -20,6 +20,15 @@ function init3DStage() {
     const container = document.getElementById('wh3dCanvasStage');
     if (!container || typeof THREE === 'undefined') return;
 
+    // Suppress global SmartPolling and partial DOM reloads on the 3D twin page
+    if (typeof stopSmartPolling === 'function') {
+        stopSmartPolling();
+    }
+    const mainEl = document.getElementById('mainContent');
+    if (mainEl) {
+        mainEl.setAttribute('data-no-autorefresh', 'true');
+    }
+
     const width = container.clientWidth || 900;
     const height = container.clientHeight || 600;
 
@@ -381,7 +390,14 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                 const p = slotPallets[0];
                 const prodName = p ? (p.product_name || p.nazwa_produktu || 'SUROWIEC SYPKI') : 'SUROWIEC SYPKI';
                 const batchNum = p ? (p.batch || p.partia || 'PL-2026') : 'PL-2026';
-                const weightStr = p ? (p.weight_kg ? `${p.weight_kg.toFixed(0)} kg` : (p.amount ? `${p.amount} ${p.unit || 'kg'}` : (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg'))) : (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
+                let weightStr = (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
+                if (p) {
+                    if (p.weight_kg !== undefined && p.weight_kg !== null && !isNaN(Number(p.weight_kg))) {
+                        weightStr = `${Number(p.weight_kg).toFixed(0)} kg`;
+                    } else if (p.amount !== undefined && p.amount !== null) {
+                        weightStr = `${p.amount} ${p.unit || 'kg'}`;
+                    }
+                }
 
                 if (slot.payload_type === 'BIG_BAG') {
                     const bigBagGroup = createRealisticBigBagGroup(prodName, batchNum, weightStr);
@@ -503,3 +519,14 @@ function handleSearchKey(event) {
         onFilterCriteriaChanged();
     }
 }
+
+// Stage recovery in case an external partial reload ever replaces the DOM
+window.addEventListener('app:partialReload', () => {
+    const container = document.getElementById('wh3dCanvasStage');
+    if (container && (!renderer || !container.contains(renderer.domElement))) {
+        console.warn('[Warehouse3D] Re-initializing 3D stage after DOM replacement event');
+        init3DStage();
+        loadWarehouseData(false, true);
+    }
+});
+

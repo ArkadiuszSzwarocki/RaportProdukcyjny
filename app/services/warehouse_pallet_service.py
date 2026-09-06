@@ -713,14 +713,16 @@ class WarehousePalletService:
         return ('OK', 302, safe_return_url)
 
     @staticmethod
-    def usun_palete(id, linia, user_login, is_ajax, safe_return_url):
+    def usun_palete(id, linia, user_login, is_ajax, safe_return_url, conn=None):
         """Delete paleta from buffer."""
         linia = str(linia).upper()
         table_pal = get_table_name('palety_workowanie', linia)
         table_plan = get_table_name('plan_produkcji', linia)
-        conn = None
+        own_conn = False
         try:
-            conn = get_db_connection()
+            if conn is None:
+                conn = get_db_connection()
+                own_conn = True
             cursor = conn.cursor()
     
             cursor.execute(f"SELECT plan_id FROM {table_pal} WHERE id=%s", (id,))
@@ -774,7 +776,7 @@ class WarehousePalletService:
                 return ({'success': False, 'message': f'Błąd: {str(error)}'}), 500
             # flash(f'Błąd przy usuwaniu palety: {str(error)}', 'danger')
         finally:
-            if conn:
+            if own_conn and conn:
                 try:
                     conn.close()
                 except Exception:

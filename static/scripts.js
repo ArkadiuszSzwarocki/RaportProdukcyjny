@@ -355,12 +355,13 @@
         });
         if (visibleDetails) return true;
 
-        // Wyłącz auto-refresh na stronach z formularzami (data-no-autorefresh)
+        // Wyłącz auto-refresh na stronach z formularzami oraz widokach 3D WebGL
         try {
+            if (document.getElementById('wh3dCanvasStage') || document.querySelector('.wh3d-root')) return true;
             if (document.querySelector('[data-no-autorefresh]')) return true;
             if (document.querySelector('#receptionForm')) return true;
             const main = document.getElementById('mainContent');
-            if (main && main.querySelector('[data-no-autorefresh]')) return true;
+            if (main && (main.querySelector('[data-no-autorefresh]') || main.querySelector('#wh3dCanvasStage'))) return true;
         } catch (e) {}
         return false;
     }
@@ -576,6 +577,12 @@
     async function performPartialReload(options) {
         options = options || {};
         try {
+            // Guard: Never perform partial DOM replacement on dedicated 3D WebGL scenes
+            if (document.getElementById('wh3dCanvasStage') || document.querySelector('.wh3d-root') || document.querySelector('[data-no-autorefresh]')) {
+                console.info('[partialReload] Skipped on 3D warehouse / no-autorefresh view');
+                return;
+            }
+
             // Check if we should skip reload due to user interaction (modals, search, focus)
             // unless 'force' is specified.
             if (!options.force && typeof shouldSkipAutoRefresh === 'function' && shouldSkipAutoRefresh()) {

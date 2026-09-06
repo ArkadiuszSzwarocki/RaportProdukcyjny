@@ -34,10 +34,6 @@ def index():
         if user_grupa == 'OSIP':
             return redirect('/osip/transfers')
 
-        # Default redirect to scanner if no section/args are provided
-        if not request.args:
-            return redirect('/agro/scanner/ui')
-
         # Detect hall view from session or query param
         sess_hall = session.get('selected_hall_view')
         aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'

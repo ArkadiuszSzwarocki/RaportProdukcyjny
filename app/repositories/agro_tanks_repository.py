@@ -1,4 +1,6 @@
 import logging
+
+logger = logging.getLogger(__name__)
 from app.db import get_db_connection, get_table_name
 import datetime
 import os

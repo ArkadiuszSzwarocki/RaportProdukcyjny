@@ -269,7 +269,7 @@ class WarehouseDispatchService:
                         print("Błąd zapisu ruchu WZ:", m_err)
 
             if dispatched_count > 0:
-                return True, f"Zarejestrowano kompletny załadunek {dispatched_count} palet na samochód (łączna waga: {total_kg:.2f} kg)."
+                return True, f"Zarejestrowano załadunek {dispatched_count} palet na samochód (łączna waga: {total_kg:.2f} kg)."
             return False, "Nie udało się zapisać palet z listy załadunku."
 
         # Pojedyncza paleta (kompatybilność wsteczna)

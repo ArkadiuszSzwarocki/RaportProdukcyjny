@@ -175,7 +175,7 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         return render_template('warehouse/popups/edit_pallet.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja, linia=linia)
 
     @warehouse_bp.route('/confirm_delete_palete_page/<int:paleta_id>', methods=['GET'])
-    @login_required
+    @roles_required('lider', 'admin')
     def confirm_delete_palete_page(paleta_id):
         """Render delete confirmation for paleta."""
         linia = resolve_request_linia()
@@ -235,12 +235,14 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
     def usun_palete(paleta_id):
         """Delete unconfirmed paleta."""
         from app.services.warehouse_pallet_service import WarehousePalletService
+        from app.blueprints.warehouse.management import get_db_connection
         linia = resolve_request_linia()
         user_login = session.get('login', 'System')
         is_ajax = False
+        conn = get_db_connection()
         
         result, status_code, redirect_url = WarehousePalletService.usun_palete(
-            paleta_id, linia, user_login, is_ajax, safe_return()
+            paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
         )
         
         if status_code != 302:
@@ -295,12 +297,14 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
             return jsonify({'success': False, 'message': 'Brak ID palety'}), 400
         
         from app.services.warehouse_pallet_service import WarehousePalletService
+        from app.blueprints.warehouse.management import get_db_connection
         linia = resolve_request_linia()
         user_login = session.get('login', 'System')
         is_ajax = True
+        conn = get_db_connection()
         
         result, status_code, redirect_url = WarehousePalletService.usun_palete(
-            paleta_id, linia, user_login, is_ajax, safe_return()
+            paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
         )
         
         return jsonify({'success': status_code < 400, 'message': result}), status_code

@@ -677,3 +677,32 @@ def register_main_reporting_routes(main_bp):
             'message': msg,
             'schedule': sched
         })
+
+    @main_bp.route('/zamknij_zmiane', methods=['GET', 'POST'])
+    def legacy_zamknij_zmiane():
+        if request.method == 'GET':
+            return redirect('/')
+        if not session.get('user_id') and not session.get('login') and not session.get('pracownik_id'):
+            return redirect('/login')
+        role = str(session.get('rola', '')).lower().strip()
+        if role not in ['lider', 'admin', 'masteradmin', 'zarzad']:
+            return jsonify({'error': 'Brak uprawnień'}), 403
+
+        try:
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return redirect('/')
+
+    @main_bp.route('/wyslij_raport_email', methods=['POST'])
+    def legacy_wyslij_raport_email():
+        if not session.get('user_id') and not session.get('login') and not session.get('pracownik_id'):
+            return redirect('/login')
+        return redirect('/')

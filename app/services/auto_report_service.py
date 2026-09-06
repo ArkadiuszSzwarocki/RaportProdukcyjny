@@ -201,16 +201,6 @@ class AutoReportService:
                     (date_str, t_line, formatted_time, 1 if is_paused else 0, user_name)
                 )
 
-                # Reset history entry so daemon can re-trigger at the new scheduled time
-                if not is_paused and t_line not in ('ALL', 'WSZYSTKO'):
-                    cursor.execute(
-                        """
-                        DELETE FROM auto_report_history
-                        WHERE data_raportu = %s AND linia = %s AND typ_raportu = '15:00'
-                        """,
-                        (date_str, t_line)
-                    )
-
             conn.commit()
             cursor.close()
 
