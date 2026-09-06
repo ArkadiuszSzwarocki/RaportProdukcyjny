@@ -24,8 +24,27 @@ def _create_tables(cursor):
         cursor.execute("ALTER TABLE uzytkownicy ADD COLUMN grupa VARCHAR(50) DEFAULT NULL")
     except Exception:
         pass
+
+    try:
+        cursor.execute("ALTER TABLE uzytkownicy ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1")
+    except Exception:
+        pass
     
     cursor.execute("CREATE TABLE IF NOT EXISTS pracownicy (id INT AUTO_INCREMENT PRIMARY KEY, imie_nazwisko VARCHAR(100))")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS uzytkownicy_uprawnienia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            page_key VARCHAR(100) NOT NULL,
+            access TINYINT(1) NOT NULL DEFAULT 1,
+            readonly TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_user_page (user_id, page_key),
+            INDEX idx_user_id (user_id)
+        )
+    """)
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS zgloszenia_bledow (
@@ -573,6 +592,108 @@ def _create_tables(cursor):
             nazwa VARCHAR(100) NOT NULL UNIQUE,
             opis VARCHAR(255) DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Unified Warehouse Movement Ledger
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_ruchy_unified (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            movement_type VARCHAR(20) NOT NULL,
+            pallet_id INT NULL,
+            pallet_code VARCHAR(100) NOT NULL,
+            product_name VARCHAR(255) DEFAULT '',
+            batch_number VARCHAR(100) DEFAULT '',
+            source_location VARCHAR(100) DEFAULT '',
+            target_location VARCHAR(100) DEFAULT '',
+            quantity DECIMAL(12, 3) DEFAULT 0,
+            unit VARCHAR(20) DEFAULT 'kg',
+            user_login VARCHAR(100) DEFAULT 'system',
+            reference_id VARCHAR(100) DEFAULT '',
+            notes TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_mru_pallet_code (pallet_code),
+            INDEX idx_mru_movement_type (movement_type),
+            INDEX idx_mru_created_at (created_at),
+            INDEX idx_mru_batch (batch_number)
+        )
+    """)
+
+    # ERP Production BOM Variance & Tolerance Ledger
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produkcja_odchylki_recepturowe (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            linia VARCHAR(20) NOT NULL DEFAULT 'PSD',
+            kod_produktu VARCHAR(100) DEFAULT '',
+            skladnik VARCHAR(255) NOT NULL,
+            waga_recepturowa DECIMAL(10, 3) NOT NULL,
+            waga_rzeczywista DECIMAL(10, 3) NOT NULL,
+            odchylka_kg DECIMAL(10, 3) NOT NULL,
+            odchylka_procent DECIMAL(6, 2) NOT NULL,
+            tolerancja_procent DECIMAL(6, 2) NOT NULL DEFAULT 2.00,
+            is_exceeded TINYINT(1) NOT NULL DEFAULT 0,
+            user_login VARCHAR(100) DEFAULT 'system',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_por_plan_id (plan_id),
+            INDEX idx_por_linia (linia),
+            INDEX idx_por_created_at (created_at)
+        )
+    """)
+
+    # Quality Control: Blokada LAB & Quality Release
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS lab_blokady (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pallet_id INT NOT NULL,
+            pallet_code VARCHAR(100) NOT NULL,
+            pallet_type VARCHAR(50) DEFAULT 'surowiec',
+            linia VARCHAR(20) DEFAULT 'PSD',
+            status VARCHAR(50) NOT NULL DEFAULT 'BLOKADA_LAB',
+            powod_blokady TEXT,
+            komentarz_lab TEXT,
+            zablokowal_login VARCHAR(100) DEFAULT 'system',
+            zwolnil_login VARCHAR(100) NULL,
+            data_blokady DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_zwolnienia DATETIME NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_lb_pallet_code (pallet_code),
+            INDEX idx_lb_status (status)
+        )
+    """)
+
+    # Warehouse: Safety Stock & Reorder Point (Stany Minimalne i Punkt Zamówienia)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_stany_bezpieczenstwa (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kod_pozycji VARCHAR(100) NOT NULL,
+            nazwa VARCHAR(255) NOT NULL,
+            typ VARCHAR(50) DEFAULT 'surowiec',
+            linia VARCHAR(20) DEFAULT 'PSD',
+            stan_minimalny DECIMAL(12, 3) NOT NULL DEFAULT 0,
+            punkt_zamowienia DECIMAL(12, 3) NOT NULL DEFAULT 0,
+            jednostka VARCHAR(20) DEFAULT 'kg',
+            czas_dostawy_dni INT DEFAULT 7,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_pos_linia (kod_pozycji, linia),
+            INDEX idx_msb_typ (typ)
+        )
+    """)
+
+    # Skanery: Offline Scan Buffer & Idempotent Event Ledger
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS scanner_synced_events (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            client_uuid VARCHAR(100) NOT NULL UNIQUE,
+            scan_action VARCHAR(50) NOT NULL,
+            scanned_code VARCHAR(255) NOT NULL,
+            user_login VARCHAR(100) DEFAULT 'system',
+            status VARCHAR(20) DEFAULT 'PROCESSED',
+            response_payload TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_sse_uuid (client_uuid)
         )
     """)
 
@@ -1518,6 +1639,27 @@ def _seed_etykiety(cursor):
     
     print("[OK] Etykiety AGRO zainicjalizowane w bazie danych")
 
+def _create_composite_indexes(cursor):
+    """Create composite indexes for high-performance dashboard, MES, and WMS queries."""
+    indexes_to_create = [
+        ("plan_produkcji", "idx_pp_data_status_sekcja", "(data_planu, status, sekcja)"),
+        ("plan_produkcji_agro", "idx_ppa_data_status", "(data_planu, status)"),
+        ("palety_workowanie", "idx_pw_plan_status", "(plan_id, status)"),
+        ("palety_agro", "idx_pa_plan_status", "(plan_id, status)"),
+        ("szarze", "idx_sz_plan_status", "(plan_id, status)"),
+        ("szarze_agro", "idx_sza_plan_status", "(plan_id, status)"),
+        ("magazyn_surowce", "idx_ms_nazwa_stan", "(nazwa(50), stan_magazynowy)"),
+        ("magazyn_opakowania", "idx_mo_nazwa_stan", "(nazwa(50), stan_magazynowy)"),
+        ("magazyn_palety", "idx_mp_produkt_waga", "(produkt(50), waga_netto)"),
+        ("magazyn_palety_agro", "idx_mpa_produkt_waga", "(produkt(50), waga_netto)"),
+    ]
+    for table, index_name, columns in indexes_to_create:
+        try:
+            cursor.execute(f"CREATE INDEX {index_name} ON {table} {columns}")
+        except Exception:
+            # Index already exists or table structure incompatible
+            pass
+
 def setup_database():
     """Main setup function - orchestrates all database initialization."""
     print("==========================================================================================")
@@ -1536,6 +1678,9 @@ def setup_database():
 
         # 2b. Normalize existing pallet IDs to SSCC-like format (AAA + 18 digits)
         _standardize_warehouse_pallet_ids(cursor)
+
+        # 2c. Create composite indexes for high-speed indexing
+        _create_composite_indexes(cursor)
         
         # 3. Seed initial products
         _seed_produkty(cursor)

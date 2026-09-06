@@ -12,6 +12,7 @@ from .raw_materials import register_admin_raw_materials_routes
 from .zasyp_etapy_times import register_admin_zasyp_etapy_times_routes
 from .email_history import register_admin_email_history_routes
 from .tank_settings import register_admin_tank_settings_routes
+from .user_permissions import register_user_permissions_routes
 from app.db import create_notification_for_login, list_online_users
 
 def _load_roles(cursor):
@@ -35,3 +36,4 @@ register_admin_raw_materials_routes(admin_bp)
 register_admin_zasyp_etapy_times_routes(admin_bp)
 register_admin_email_history_routes(admin_bp)
 register_admin_tank_settings_routes(admin_bp)
+register_user_permissions_routes(admin_bp)

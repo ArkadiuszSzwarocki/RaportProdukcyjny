@@ -76,3 +76,30 @@ def audit_log(action: str, detail: str = '') -> None:
         logger.info('%s [%s] — %s — %s', user, role, action, detail)
     else:
         logger.info('%s [%s] — %s', user, role, action)
+
+
+def security_audit_log(event_type: str, detail: str = '', user_login: str = None, client_ip: str = None) -> None:
+    """Record a structured security event (e.g. CSRF_BLOCKED, RATE_LIMIT_LOCKOUT, PASSWORD_CHANGED).
+    
+    Args:
+        event_type: Uppercase event identifier (e.g. 'FAILED_LOGIN', 'CSRF_BLOCKED')
+        detail: Human-readable context
+        user_login: Explicit login if session is unauthenticated
+        client_ip: Explicit client IP if provided
+    """
+    try:
+        from flask import session, request
+        user = user_login or session.get('login') or 'anonymous'
+        role = session.get('rola') or 'none'
+        ip = client_ip or request.headers.get('X-Forwarded-For') or request.remote_addr or 'unknown'
+        ip = str(ip).split(',')[0].strip()
+    except Exception:
+        user = user_login or 'system'
+        role = 'none'
+        ip = client_ip or 'unknown'
+
+    logger = logging.getLogger('audit')
+    msg = f"[SECURITY] {event_type} | User: {user} ({role}) | IP: {ip}"
+    if detail:
+        msg += f" | {detail}"
+    logger.warning(msg)

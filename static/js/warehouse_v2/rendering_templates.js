@@ -94,6 +94,37 @@ function getExpiryStatus(dateExpStr) {
     }
 }
 
+function formatPackagingBadge(pkgType, palletId, type, linia) {
+    const raw = String(pkgType || '').toUpperCase();
+    const clickAttr = palletId 
+        ? `onclick="event.stopPropagation(); if(typeof openChangePackagingForPallet==='function'){openChangePackagingForPallet('${palletId}', '${(pkgType || 'Worek (25kg)').replace(/'/g, "\\'")}', '${type || ''}', '${linia || ''}');}" style="cursor: pointer; transition: transform 0.15s ease;" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'" title="Kliknij, aby zmienić rodzaj opakowania"`
+        : '';
+
+    if (raw.includes('BIG') || raw.includes('BB') || raw.includes('1000')) {
+        return `<span class="badge badge-packaging-bb" ${clickAttr} style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+            <span class="material-icons" style="font-size: 12px; color: #d97706;">shopping_bag</span> Big Bag (1000kg)
+        </span>`;
+    }
+    if (raw.includes('50KG')) {
+        return `<span class="badge badge-packaging-bag50" ${clickAttr} style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+            <span class="material-icons" style="font-size: 12px; color: #22c55e;">inventory_2</span> Worek (50kg)
+        </span>`;
+    }
+    if (raw.includes('KARTON') || raw.includes('OPAKOWANIE')) {
+        return `<span class="badge badge-packaging-box" ${clickAttr} style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+            <span class="material-icons" style="font-size: 12px; color: #64748b;">all_inbox</span> Karton / Opak.
+        </span>`;
+    }
+    if (raw.includes('ROLKA') || raw.includes('FOLIA')) {
+        return `<span class="badge badge-packaging-roll" ${clickAttr} style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+            <span class="material-icons" style="font-size: 12px; color: #0ea5e9;">rotate_90_degrees_cw</span> Rolka / Folia
+        </span>`;
+    }
+    return `<span class="badge badge-packaging-bag" ${clickAttr} style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+        <span class="material-icons" style="font-size: 12px; color: #10b981;">inventory_2</span> ${pkgType || 'Worek (25kg)'}
+    </span>`;
+}
+
 function generateTableRow(item, index) {
     const expiry = getExpiryStatus(item.date_exp);
     const isExpired = Boolean(expiry.isExpired);
@@ -126,6 +157,7 @@ function generateTableRow(item, index) {
                 style="${rowStyle}"
                 data-display-id="${item.displayId}"
                 data-product="${displayName.replace(/"/g, '&quot;')}"
+                data-packaging="${(item.packaging_type || 'Worek (25kg)').replace(/"/g, '&quot;')}"
                 data-amount="${item.amount}"
                 data-unit="${item.unit || 'kg'}"
                 data-location="${item.location}"
@@ -161,6 +193,9 @@ function generateTableRow(item, index) {
                 </span>
                 ${batchSubtitle}
             </div>
+        </td>
+        <td data-label="Opakowanie" class="packaging-cell">
+            ${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia)}
         </td>
         <td data-label="Ilość" class="amount-cell">
             <div class="amount-box-inner">
@@ -221,6 +256,7 @@ function generateGridCard(item) {
                  style="cursor: pointer; ${cardFifoStyle}"
                  data-display-id="${item.displayId}"
                  data-product="${displayName.replace(/"/g, '&quot;')}"
+                 data-packaging="${(item.packaging_type || 'Worek (25kg)').replace(/"/g, '&quot;')}"
                  data-amount="${item.amount}"
                  data-unit="${item.unit || 'kg'}"
                  data-location="${item.location}"
@@ -241,6 +277,7 @@ function generateGridCard(item) {
         </div>
         <div class="card-body">
             <div class="product-name">${displayName}</div>
+            <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia)}</div>
             ${batchSubtitle}
             <div class="amount-row">
                 <span class="val">${item.amount}</span>

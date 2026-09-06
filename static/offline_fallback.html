@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroMES • Tryb Offline - Raport Produkcyjny</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <style>
+        :root {
+            --bg-color: #070a13;
+            --card-bg: #0f172a;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --neon-cyan: #00f2fe;
+            --neon-magenta: #f43f5e;
+            --neon-emerald: #10b981;
+            --neon-amber: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .offline-card {
+            background: var(--card-bg);
+            padding: 36px 32px;
+            border-radius: 24px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 242, 254, 0.08);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-glow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--neon-amber), transparent);
+        }
+
+        .badge-offline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--neon-amber);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 5px 14px;
+            border-radius: 99px;
+            font-weight: 800;
+            font-size: 11px;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        .icon-wrap {
+            width: 72px;
+            height: 72px;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            margin: 0 auto 20px;
+        }
+
+        .icon-wrap .material-icons {
+            font-size: 36px;
+            color: var(--neon-amber);
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 900;
+            margin: 0 0 10px;
+            color: #fff;
+            letter-spacing: -0.01em;
+        }
+
+        p {
+            font-size: 13.5px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin: 0 0 24px;
+        }
+
+        .offline-stats-box {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .offline-stats-box .stat-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .offline-stats-box .stat-value {
+            color: var(--neon-cyan);
+            font-weight: 800;
+            font-family: monospace;
+        }
+
+        .actions-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .btn-resume-offline {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #00f2fe 0%, #0284c7 100%);
+            color: #04101e;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-weight: 900;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.35);
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-resume-offline:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 28px rgba(0, 242, 254, 0.55);
+        }
+
+        .btn-retry-online {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-retry-online:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .quick-links-title {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .quick-links-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .quick-link-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .quick-link-btn:hover {
+            background: rgba(0, 242, 254, 0.1);
+            border-color: rgba(0, 242, 254, 0.3);
+            color: #fff;
+        }
+
+        .quick-link-btn .material-icons {
+            font-size: 18px;
+            color: var(--neon-cyan);
+        }
+
+        .server-detected-banner {
+            display: none;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: var(--neon-emerald);
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 16px;
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-card">
+        <div class="card-glow"></div>
+        
+        <div class="badge-offline">
+            <span class="material-icons" style="font-size: 14px;">wifi_off</span>
+            TRYB OFFLINE AKTYWNY
+        </div>
+
+        <div class="icon-wrap">
+            <span class="material-icons">cloud_off</span>
+        </div>
+
+        <h1>Serwer jest chwilowo niedostępny</h1>
+        
+        <p>
+            Brak bezpośredniego połączenia z serwerem. Wszystkie zbuforowane dane, skanowania i widoki 
+            <strong>są bezpiecznie zapisane lokalnie</strong> w pamięci urządzenia.
+        </p>
+
+        <div class="server-detected-banner" id="serverDetectedBanner">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check_circle</span>
+            Wykryto ponowną dostępność serwera! Kliknij poniżej, aby połączyć.
+        </div>
+
+        <div class="offline-stats-box">
+            <span class="stat-label">Ostatnio aktywny moduł:</span>
+            <span class="stat-value" id="lastActiveModuleName">Pulpit Główny</span>
+        </div>
+
+        <div class="actions-stack">
+            <button type="button" class="btn-resume-offline" onclick="resumeOfflineWork()">
+                <span class="material-icons">play_circle_filled</span>
+                WZNÓW PRACĘ W TRYBIE OFFLINE
+            </button>
+
+            <button type="button" class="btn-retry-online" onclick="checkServerAndReload()">
+                <span class="material-icons">refresh</span>
+                Ponów próbę połączenia z serwerem
+            </button>
+        </div>
+
+        <div class="quick-links-title">DOSTĘPNE MODUŁY OFFLINE:</div>
+        <div class="quick-links-grid">
+            <a href="/scanner" class="quick-link-btn">
+                <span class="material-icons">qr_code_scanner</span>
+                Skaner & Bufor
+            </a>
+            <a href="/" class="quick-link-btn">
+                <span class="material-icons">dashboard</span>
+                Pulpit Produkcji
+            </a>
+            <a href="/maszyny" class="quick-link-btn">
+                <span class="material-icons">memory</span>
+                Telemetria Maszyn
+            </a>
+            <a href="/zasyp_agro" class="quick-link-btn">
+                <span class="material-icons">inventory</span>
+                Zasyp AGRO
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const lastPage = localStorage.getItem('rp_last_visited_page') || '/';
+        
+        // Display readable name of last page
+        const nameEl = document.getElementById('lastActiveModuleName');
+        if (nameEl) {
+            if (lastPage.includes('scanner')) nameEl.innerText = 'Skaner & Drukarka';
+            else if (lastPage.includes('maszyny')) nameEl.innerText = 'Centrum Maszyn';
+            else if (lastPage.includes('zasyp')) nameEl.innerText = 'Zasyp AGRO';
+            else if (lastPage === '/' || lastPage === '') nameEl.innerText = 'Pulpit Główny';
+            else nameEl.innerText = lastPage;
+        }
+
+        function resumeOfflineWork() {
+            // Navigate back in history if possible or go to stored lastPage
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = lastPage;
+            }
+        }
+
+        async function checkServerAndReload() {
+            try {
+                const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+                if (res.ok) {
+                    window.location.href = lastPage;
+                } else {
+                    window.location.reload();
+                }
+            } catch (e) {
+                window.location.reload();
+            }
+        }
+
+        // Periodically check if server comes back online
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+                if (res.ok) {
+                    const banner = document.getElementById('serverDetectedBanner');
+                    if (banner) banner.style.display = 'block';
+                }
+            } catch(e) {}
+        }, 3000);
+    </script>
+</body>
+</html>

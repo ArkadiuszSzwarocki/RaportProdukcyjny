@@ -1,120 +1,114 @@
-// AgroMES Service Worker v2 — PWA + Web Push Notifications
-const CACHE_NAME = 'agromes-v2';
+/**
+ * RaportProdukcyjny Service Worker (PWA Offline Engine)
+ * Version: 1.0.0
+ * Provides robust offline navigation, static asset caching, and offline fallback.
+ */
 
-const CACHE_ASSETS = [
-  '/static/css/style.css',
-  '/static/scripts.js',
-  '/static/fonts/MaterialIcons-Regular.woff2',
-  '/static/agro_logo.png'
+const CACHE_NAME = 'rp-pwa-v1';
+const STATIC_ASSETS = [
+    '/',
+    '/static/css/style.css',
+    '/static/scripts.js',
+    '/static/offline_fallback.html',
+    '/static/js/offline_scan_buffer.js',
+    '/static/js/scanner_i18n.js',
+    '/static/js/pwa_init.js',
+    '/static/manifest.json'
 ];
 
-self.addEventListener('install', (e) => {
-  console.log('[SW] Install');
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(CACHE_ASSETS))
-  );
-  self.skipWaiting();
+// 1. INSTALL: Pre-cache essential core assets
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            console.log('[SW] Pre-caching static assets');
+            return cache.addAll(STATIC_ASSETS).catch((err) => {
+                console.warn('[SW] Some assets failed to pre-cache', err);
+            });
+        }).then(() => self.skipWaiting())
+    );
 });
 
-self.addEventListener('activate', (e) => {
-  console.log('[SW] Activate');
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-    ))
-  );
-  e.waitUntil(clients.claim());
+// 2. ACTIVATE: Clean up old caches
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.map((key) => {
+                    if (key !== CACHE_NAME) {
+                        console.log('[SW] Removing old cache:', key);
+                        return caches.delete(key);
+                    }
+                })
+            );
+        }).then(() => self.clients.claim())
+    );
 });
 
-self.addEventListener('fetch', (e) => {
-  // Ignorujemy API zapytań (smartFetch obsłuży błędy offline za pomocą localStorage)
-  if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('/api/')) return;
+// 3. FETCH: Strategy based on request type
+self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    const url = new URL(request.url);
 
-  e.respondWith(
-    fetch(e.request).then(response => {
-      // Jeśli to HTML lub static resource, aktualizujemy cache (Network First)
-      if (response && response.status === 200) {
-        const resClone = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(e.request, resClone);
-        });
-      }
-      return response;
-    }).catch(() => {
-      // Offline fallback
-      return caches.match(e.request).then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return new Response('<b>Brak zasięgu WiFi. Sprawdź połączenie i odśwież stronę.</b>', { 
-            status: 200, 
-            headers: {'Content-Type': 'text/html; charset=utf-8'}
-        });
-      });
-    })
-  );
-});
+    // Skip non-GET requests and API data writes (they are handled by offline_scan_buffer.js)
+    if (request.method !== 'GET') {
+        return;
+    }
 
-// =====================================================
-// WEB PUSH — odbieranie powiadomień w tle
-// Działa nawet gdy ekran telefonu jest wyłączony!
-// =====================================================
-self.addEventListener('push', function(event) {
-  let data = {};
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch (e) {
-    data = { title: 'AgroMES', body: event.data ? event.data.text() : '' };
-  }
+    // Skip API routes from caching to avoid stale responses, except when network fails
+    const isApiRequest = url.pathname.startsWith('/api/');
 
-  const title   = data.title  || 'AgroMES';
-  const body    = data.body   || '';
-  const url     = data.url    || '/';
-  const icon    = data.icon   || '/static/agro_logo.png';
-  const badge   = '/static/favicon.ico';
+    if (isApiRequest) {
+        return;
+    }
 
-  const options = {
-    body:              body,
-    icon:              icon,
-    badge:             badge,
-    data:              { url: url },
-    requireInteraction: false,
-    vibrate:           [200, 100, 200],   // wibracja na Androidzie
-    // sound:          url_do_pliku_mp3,   // iOS nie obsługuje, Android tak
-    tag:               'agromes-push',     // grupuje powiadomienia
-    renotify:          true,              // ponawia dźwięk przy tym samym tag
-  };
+    // HTML Page Navigation: Network-First with Cache Fallback
+    if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+        event.respondWith(
+            fetch(request)
+                .then((networkResponse) => {
+                    if (networkResponse && networkResponse.status === 200) {
+                        const responseClone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(request, responseClone);
+                        });
+                    }
+                    return networkResponse;
+                })
+                .catch(async () => {
+                    console.log('[SW] Network failed, attempting cache retrieval for:', request.url);
+                    const cachedResponse = await caches.match(request);
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    // If page is not in cache, serve offline fallback
+                    return caches.match('/static/offline_fallback.html');
+                })
+        );
+        return;
+    }
 
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
+    // Static Assets (CSS, JS, Fonts, Images): Cache-First / Stale-While-Revalidate
+    event.respondWith(
+        caches.match(request).then((cachedResponse) => {
+            if (cachedResponse) {
+                // Fetch in background to update cache for next time
+                fetch(request).then((networkResponse) => {
+                    if (networkResponse && networkResponse.status === 200) {
+                        caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
+                    }
+                }).catch(() => {});
+                return cachedResponse;
+            }
 
-// =====================================================
-// Kliknięcie powiadomienia → otwiera właściwy widok
-// =====================================================
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-
-  const targetUrl = (event.notification.data && event.notification.data.url)
-    ? event.notification.data.url
-    : '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      // Jeśli aplikacja jest już otwarta — przełącz na nią i przejdź do URL
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.focus();
-          if ('navigate' in client) {
-            client.navigate(targetUrl);
-          }
-          return;
-        }
-      }
-      // Jeśli nie ma otwartego okna — otwórz nowe
-      return clients.openWindow(targetUrl);
-    })
-  );
+            return fetch(request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                    const responseClone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(request, responseClone);
+                    });
+                }
+                return networkResponse;
+            });
+        })
+    );
 });

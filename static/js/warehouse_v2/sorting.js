@@ -56,13 +56,19 @@ function sortWarehouseItems(items, colIndex, dir) {
             return isAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
         }
 
-        if (colIndex === 4) { // Ilość
+        if (colIndex === 4) { // Opakowanie
+            const pkgA = String(a.packaging_type || a.packagingType || '').toUpperCase();
+            const pkgB = String(b.packaging_type || b.packagingType || '').toUpperCase();
+            return isAsc ? pkgA.localeCompare(pkgB) : pkgB.localeCompare(pkgA);
+        }
+
+        if (colIndex === 5) { // Ilość
             const numA = parseFloat(a.amount) || 0;
             const numB = parseFloat(b.amount) || 0;
             return isAsc ? numA - numB : numB - numA;
         }
 
-        if (colIndex === 5) { // Lokalizacja
+        if (colIndex === 6) { // Lokalizacja
             const locA = (typeof parseLocationCode === 'function') ? parseLocationCode(a.location) : null;
             const locB = (typeof parseLocationCode === 'function') ? parseLocationCode(b.location) : null;
 
@@ -86,19 +92,19 @@ function sortWarehouseItems(items, colIndex, dir) {
             return isAsc ? strA.localeCompare(strB) : strB.localeCompare(strA);
         }
 
-        if (colIndex === 6) { // Typ
+        if (colIndex === 7) { // Typ
             const typA = String(a.type || '').toUpperCase();
             const typB = String(b.type || '').toUpperCase();
             return isAsc ? typA.localeCompare(typB) : typB.localeCompare(typA);
         }
 
-        if (colIndex === 7) { // Produkcja
+        if (colIndex === 8) { // Produkcja
             const dateA = String(a.date_prod || '');
             const dateB = String(b.date_prod || '');
             return isAsc ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
         }
 
-        if (colIndex === 8) { // Ważność
+        if (colIndex === 9) { // Ważność
             const expA = (a.date_exp && a.date_exp !== '-') ? a.date_exp : '9999-99-99';
             const expB = (b.date_exp && b.date_exp !== '-') ? b.date_exp : '9999-99-99';
             return isAsc ? expA.localeCompare(expB) : expB.localeCompare(expA);

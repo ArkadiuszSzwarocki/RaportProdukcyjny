@@ -420,3 +420,12 @@ def moje_godziny():
         calendar_days_viewed=calendar_days_viewed,
         pracownicy_list=pracownicy_list, selected_pid=selected_pid,
         owner_pid=owner_pid, viewed_pid=viewed_pid)
+
+
+@panels_bp.route('/maszyny', methods=['GET'])
+@panels_bp.route('/maszyny/dashboard', methods=['GET'])
+@login_required
+def maszyny_dashboard_page():
+    """Futuristic real-time telemetry dashboard for packing line machines."""
+    return render_template('panels/maszyny_dashboard.html')
+

@@ -76,12 +76,23 @@ def create_app(config_secret_key=None, init_db=True):
     _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
     app.secret_key = _secret_key
 
+    # Check for default or insecure secret key
+    if _secret_key in ('tajnyKluczAgronetzwerk', 'dev-secret-key', 'test-secret', 'change-me-in-production'):
+        import logging
+        logging.getLogger('app.security').warning(
+            "SECURITY WARNING: Running with default or insecure SECRET_KEY (%s). Please set a strong SECRET_KEY in .env for production!",
+            _secret_key
+        )
+
     # Configure session to ensure cookies are properly set
-    app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP in development
+    cookie_secure_env = str(os.environ.get('SESSION_COOKIE_SECURE', 'false')).strip().lower()
+    app.config['SESSION_COOKIE_SECURE'] = cookie_secure_env in ('true', '1', 'yes')
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
     app.config['SESSION_PERMANENT'] = True  # Make sessions survive app restarts
+    # Limit max payload upload size to 16MB to prevent DoS attacks
+    app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
 
     # Load session timeout from env/config so middleware can read it from app.config
     from app.config import SESSION_TIMEOUT_MINUTES as _timeout_min

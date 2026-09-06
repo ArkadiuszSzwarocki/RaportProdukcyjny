@@ -1,4 +1,5 @@
 from typing import Callable, Any
+from app.utils.sanitization import sanitize_plain_text
 
 class ValidationError(Exception):
     pass

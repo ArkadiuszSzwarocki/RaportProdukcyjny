@@ -165,7 +165,13 @@ def register_admin_team_routes(admin_bp, *, load_roles):
                 new_prac_id = cursor.lastrowid
 
             if create_acc and login and haslo:
-                hashed = generate_password_hash(haslo)
+                from app.services.password_policy_service import password_policy_service
+                is_valid_pwd, pwd_error = password_policy_service.validate_password(haslo)
+                if not is_valid_pwd:
+                    flash(f"Błąd hasła: {pwd_error}", 'danger')
+                    return redirect(url_for('admin.admin_ustawienia_zespol'))
+
+                hashed = generate_password_hash(haslo, method='pbkdf2:sha256')
                 cursor.execute(
                     "INSERT INTO uzytkownicy (login, haslo, rola, grupa, pracownik_id) VALUES (%s, %s, %s, %s, %s)",
                     (login, hashed, rola, grupa, new_prac_id),
@@ -418,6 +424,12 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         haslo = request.form.get('haslo', '').strip()
         try:
             if haslo:
+                from app.services.password_policy_service import password_policy_service
+                is_valid_pwd, pwd_error = password_policy_service.validate_password(haslo)
+                if not is_valid_pwd:
+                    flash(f"Błąd hasła: {pwd_error}", 'danger')
+                    return redirect(url_for('admin.admin_ustawienia_zespol'))
+
                 new_haslo = generate_password_hash(haslo, method='pbkdf2:sha256')
                 if login:
                     cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, new_haslo, rola, grupa, user_id))
@@ -429,6 +441,10 @@ def register_admin_team_routes(admin_bp, *, load_roles):
                 else:
                     cursor.execute("UPDATE uzytkownicy SET rola=%s, grupa=%s WHERE id=%s", (rola, grupa, user_id))
             conn.commit()
+            if haslo and user_id:
+                from app.db import deactivate_all_user_sessions
+                deactivate_all_user_sessions(int(user_id))
+
             login_summary = login if login else "(bez zmian)"
             change_summary = f'login={login_summary}, rola={rola}' + (', zmiana hasła' if haslo else '')
             audit_log('Edytował konto użytkownika', change_summary)
@@ -452,6 +468,10 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         cursor.execute("DELETE FROM uzytkownicy WHERE id=%s", (id,))
         conn.commit()
         conn.close()
+
+        from app.db import deactivate_all_user_sessions
+        deactivate_all_user_sessions(id)
+
         if row:
             audit_log('Usunął konto użytkownika', f'login={row[0]}, rola={row[1]}')
             current_app.logger.info('Admin %s usunął konto ID=%s (login=%s)', session.get('login'), id, row[0])

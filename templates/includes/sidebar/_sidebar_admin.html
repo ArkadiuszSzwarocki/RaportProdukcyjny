@@ -52,6 +52,9 @@
 
         {% if role in ['admin', 'zarzad', 'masteradmin'] %}
         <a href="{{ url_for('struktura.widok_struktury') }}" class="nav-sub-item {% if request.path.startswith('/struktura') %}active{% endif %}">Struktura Organizacyjna</a>
+        <a href="/maszyny" class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}" style="color: #0284c7; font-weight: 700;">
+            🤖 Maszyny & Telemetria 3D
+        </a>
         {% endif %}
     </div>
 </div>

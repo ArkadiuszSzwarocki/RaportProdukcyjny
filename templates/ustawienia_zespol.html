@@ -644,7 +644,10 @@
                                 
                                 {% if p.user_id %}
                                     <button class="btn-action btn-action-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}', '{{ p.login|e }}', '{{ p.rola|e }}', '{{ p.user_hall|e }}')" title="Zmień hasło lub rolę">
-                                        <span class="material-icons" style="font-size: 16px;">vpn_key</span> Uprawnienia
+                                        <span class="material-icons" style="font-size: 16px;">vpn_key</span> Konto
+                                    </button>
+                                    <button class="btn-action btn-action-account" onclick="openUserPermissionsModal({{ p.user_id }}, '{{ p.login|e }}', '{{ p.rola|e }}')" title="Konfiguruj indywidualne uprawnienia do ekranów">
+                                        <span class="material-icons" style="font-size: 16px;">tune</span> Moduły
                                     </button>
                                     <form action="/admin/konto/usun/{{ p.user_id }}" method="POST" onsubmit="return confirm('Czy na pewno zamknąć dostęp systemowy dla tej osoby? Sam rekord pracownika zostanie zachowany.');" style="margin:0; display:inline;">
                                         <button type="submit" class="btn-action btn-action-danger" title="Usuń dostęp systemowy">
@@ -717,7 +720,8 @@
             <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                 <button class="btn-action btn-action-edit" onclick="openEditPerson({{ p.id }})">✎ Dane</button>
                 {% if p.user_id %}
-                    <button class="btn-action btn-action-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}', '{{ p.login|e }}', '{{ p.rola|e }}', '{{ p.user_hall|e }}')">🔑 Uprawnienia</button>
+                    <button class="btn-action btn-action-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}', '{{ p.login|e }}', '{{ p.rola|e }}', '{{ p.user_hall|e }}')">🔑 Konto</button>
+                    <button class="btn-action btn-action-account" onclick="openUserPermissionsModal({{ p.user_id }}, '{{ p.login|e }}', '{{ p.rola|e }}')">⚙️ Moduły</button>
                 {% else %}
                     <button class="btn-action btn-action-account" onclick="openCreateAccount({{ p.id }}, '{{ p.imie_nazwisko|e }}')">+ Utwórz Konto</button>
                 {% endif %}
@@ -815,6 +819,25 @@
             }
         }
     })();
+
+    function closeQuickPopup() {
+        if (typeof window.closeQuickPopup === 'function' && window.closeQuickPopup !== closeQuickPopup) {
+            window.closeQuickPopup();
+            return;
+        }
+        var popups = document.querySelectorAll('.quick-popup, #quickPopup, #quickPopupOverlay, .quick-popup-overlay');
+        var backdrops = document.querySelectorAll('.quick-backdrop, #quickBackdrop, .quick-popup-backdrop');
+        popups.forEach(function (p) {
+            p.classList.remove('open', 'show');
+            p.setAttribute('aria-hidden', 'true');
+            setTimeout(function () { try { if (p.parentNode) p.remove(); } catch (e) { } }, 260);
+        });
+        backdrops.forEach(function (b) {
+            b.classList.remove('show', 'open');
+            setTimeout(function () { try { if (b.parentNode) b.remove(); } catch (e) { } }, 260);
+        });
+        document.body.classList.remove('slide-over-open', 'modal-open');
+    }
 
     function openAddPersonPopup() {
         showQuickPopup('👤 Dodaj nową osobę do zespołu', `
@@ -1043,6 +1066,129 @@
         if (!confirm('UWAGA: To usunie pracownika CAŁKOWICIE (również z historii obecności i raportów). Czy na pewno?')) return;
         fetch('/admin/pracownik/usun/' + id, { method: 'POST' })
         .then(() => location.reload());
+    }
+
+    function openUserPermissionsModal(userId, login, role) {
+        showQuickPopup('Indywidualne uprawnienia: @' + login + ' (Rola: ' + role + ')', `
+            <div id="userPermsLoading" style="padding: 24px; text-align: center; color: #64748b;">
+                <span class="material-icons" style="font-size: 32px; animation: spin 1s linear infinite;">sync</span>
+                <div style="margin-top: 8px; font-weight: 600;">Ładowanie listy modułów...</div>
+            </div>
+            <div id="userPermsContent" style="display: none; max-height: 60vh; overflow-y: auto; padding-right: 4px;">
+                <p style="font-size: 0.85rem; color: #64748b; margin-top: 0; line-height: 1.5;">
+                    Możesz wymusić dostęp lub blokadę do konkretnego ekranu dla tego użytkownika, niezależnie od jego roli <strong>${role}</strong>.
+                </p>
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0; text-align: left; color: #475569;">
+                            <th style="padding: 8px 4px;">Moduł / Ekran</th>
+                            <th style="padding: 8px 4px; text-align: center;">Domyślnie z roli</th>
+                            <th style="padding: 8px 4px; text-align: right;">Reguła użytkownika</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userPermsTableBody"></tbody>
+                </table>
+                <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn-popup-secondary" onclick="closeQuickPopup()">Zamknij</button>
+                    <button type="button" id="btnSaveUserPerms" class="btn-popup-primary" onclick="saveUserPermissions(${userId})">Zapisz uprawnienia</button>
+                </div>
+            </div>
+        `);
+
+        fetch('/admin/api/user/' + userId + '/permissions')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('userPermsLoading').innerHTML = '<div style="color:#dc2626;">Błąd: ' + (data.message || 'Nie udało się pobrać uprawnień') + '</div>';
+                return;
+            }
+            const tbody = document.getElementById('userPermsTableBody');
+            tbody.innerHTML = '';
+            
+            data.modules.forEach(m => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #f1f5f9';
+                
+                const roleBadge = m.role_access 
+                    ? '<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:12px; font-weight:700; font-size:0.75rem;">✓ Zezwolono</span>'
+                    : '<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:12px; font-weight:700; font-size:0.75rem;">✕ Zablokowano</span>';
+
+                let currentMode = 'inherit';
+                if (m.has_override) {
+                    currentMode = m.override_access ? 'allow' : 'deny';
+                }
+
+                tr.innerHTML = `
+                    <td style="padding: 8px 4px; font-weight: 600; color: #1e293b;">
+                        <code>${m.page_key}</code>
+                    </td>
+                    <td style="padding: 8px 4px; text-align: center;">${roleBadge}</td>
+                    <td style="padding: 8px 4px; text-align: right;">
+                        <select class="user-perm-select input-unified" data-page="${m.page_key}" style="padding: 4px 8px; font-size: 0.82rem; width: auto; display: inline-block;">
+                            <option value="inherit" ${currentMode === 'inherit' ? 'selected' : ''}>Domyślne z roli</option>
+                            <option value="allow" ${currentMode === 'allow' ? 'selected' : ''} style="color:#15803d; font-weight:bold;">🟢 Wymuś: Zezwól</option>
+                            <option value="deny" ${currentMode === 'deny' ? 'selected' : ''} style="color:#b91c1c; font-weight:bold;">🔴 Wymuś: Zablokuj</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('userPermsLoading').style.display = 'none';
+            document.getElementById('userPermsContent').style.display = 'block';
+        })
+        .catch(err => {
+            document.getElementById('userPermsLoading').innerHTML = '<div style="color:#dc2626;">Błąd połączenia: ' + err + '</div>';
+        });
+    }
+
+    function saveUserPermissions(userId) {
+        const btn = document.getElementById('btnSaveUserPerms');
+        if (btn) btn.disabled = true;
+
+        const selects = document.querySelectorAll('.user-perm-select');
+        const overrides = {};
+        selects.forEach(sel => {
+            const page = sel.getAttribute('data-page');
+            const mode = sel.value;
+            overrides[page] = { mode: mode, readonly: false };
+        });
+
+        fetch('/admin/api/user/' + userId + '/permissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ overrides: overrides })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Uprawnienia użytkownika zostały pomyślnie zapisane.');
+                closeQuickPopup();
+            } else {
+                alert('Błąd: ' + (data.message || 'Nie udało się zapisać uprawnień.'));
+                if (btn) btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            alert('Błąd zapisu: ' + err);
+            if (btn) btn.disabled = false;
+        });
+    }
+</script>
+<script src="{{ url_for('static', filename='js/password_validator.js') }}?v={{ static_version }}"></script>
+<script>
+    // Auto-attach password strength indicator when any popup opens
+    const originalShowQuickPopup = window.showQuickPopup;
+    if (originalShowQuickPopup) {
+        window.showQuickPopup = function(title, content, options) {
+            const res = originalShowQuickPopup(title, content, options);
+            setTimeout(() => {
+                document.querySelectorAll('#quickPopupOverlay input[type="password"]').forEach(el => {
+                    if (window.attachPasswordStrengthIndicator) window.attachPasswordStrengthIndicator(el);
+                });
+            }, 60);
+            return res;
+        };
     }
 </script>
 {% endblock %}

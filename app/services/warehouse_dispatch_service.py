@@ -6,6 +6,8 @@ Odpowiedzialność: Logika biznesowa walidacji i wykonywania wyjazdów ciężar�
 
 from app.repositories.warehouse_dispatch_repository import WarehouseDispatchRepository
 from app.services.scanner_service import ScannerService
+from app.dto.service_result import ServiceResult
+
 
 
 class WarehouseDispatchService:
@@ -168,10 +170,43 @@ class WarehouseDispatchService:
         uwagi = payload.get('uwagi', '').strip() or None
         linia = payload.get('linia', 'AGRO')
 
+        # Walidacja partii i kompletności
+        required_batch = payload.get('required_batch') or payload.get('wymagana_partia')
+        expected_count = payload.get('expected_count') or payload.get('oczekiwana_ilosc_palet')
+        if expected_count is not None:
+            try:
+                expected_count = int(expected_count)
+            except Exception:
+                expected_count = None
+
         # Jeśli przekazano listę wielu palet do zbiorczego załadunku
         if isinstance(pallets, list) and len(pallets) > 0:
+            # 1. Walidacja kompletności załadunku
+            if expected_count is not None and len(pallets) < expected_count:
+                missing = expected_count - len(pallets)
+                return False, f"Blokada wysyłki: Niekompletny załadunek! Zeskanowano {len(pallets)} z {expected_count} wymaganych palet (Brakuje {missing} palet)."
+
+            # 2. Walidacja zgodności partii (Batch Lock)
+            if required_batch:
+                norm_req_batch = str(required_batch).strip().upper()
+                for p in pallets:
+                    p_batch = str(p.get('batch') or p.get('nr_partii') or '').strip().upper()
+                    if p_batch and p_batch != '-' and p_batch != norm_req_batch:
+                        p_code = p.get('nr_palety') or p.get('displayId')
+                        return False, f"Blokada wysyłki: Niezgodność partii! Paleta {p_code} posiada partię '{p_batch}', a zlecenie wymaga partii '{norm_req_batch}'."
+
+            # 3. Walidacja blokad laboratoryjnych (Blokada LAB)
+            from app.services.lab_quality_service import LabQualityService
+            for p in pallets:
+                p_code = str(p.get('nr_palety') or p.get('displayId') or '').strip()
+                lab_status = LabQualityService.check_pallet_lab_status(p_code)
+                if lab_status.get('is_blocked'):
+                    return False, f"Blokada wysyłki: {lab_status.get('message')}"
+
             dispatched_count = 0
             total_kg = 0.0
+            from app.repositories.warehouse_movement_ledger_repository import WarehouseMovementLedgerRepository
+
             for p in pallets:
                 nr_palety = str(p.get('nr_palety') or p.get('displayId') or '').strip()
                 nazwa_produktu = str(p.get('nazwa_produktu') or p.get('productName') or '').strip()
@@ -183,6 +218,7 @@ class WarehouseDispatchService:
                 pallet_id = p.get('pallet_id') or p.get('id')
                 p_linia = p.get('linia') or linia
                 src_table = p.get('src_table')
+                p_batch = str(p.get('batch') or p.get('nr_partii') or '').strip()
 
                 if pallet_id and ilosc_kg > 0:
                     try:
@@ -213,9 +249,27 @@ class WarehouseDispatchService:
                 if did:
                     dispatched_count += 1
                     total_kg += ilosc_kg
+                    # Record WZ movement in unified warehouse ledger
+                    try:
+                        WarehouseMovementLedgerRepository.record_movement(
+                            movement_type='WZ',
+                            pallet_id=pallet_id,
+                            pallet_code=nr_palety,
+                            product_name=nazwa_produktu,
+                            batch_number=p_batch,
+                            source_location=f"MAGAZYN_{p_linia}",
+                            target_location=f"SAMOCHOD_{nr_rejestracyjny or 'WZ'}",
+                            quantity=ilosc_kg,
+                            unit='szt' if typ_palety == 'Opakowanie' else 'kg',
+                            user_login=magazynier_login,
+                            reference_id=nr_dokumentu_wz or str(did),
+                            notes=f"Wydanie zewnętrzne WZ: {nr_dokumentu_wz or ''}, Odbiorca: {odbiorca or ''}, Auto: {nr_rejestracyjny or ''}".strip()
+                        )
+                    except Exception as m_err:
+                        print("Błąd zapisu ruchu WZ:", m_err)
 
             if dispatched_count > 0:
-                return True, f"Zarejestrowano załadunek {dispatched_count} palet na samochód (łączna waga: {total_kg:.2f} kg)."
+                return True, f"Zarejestrowano kompletny załadunek {dispatched_count} palet na samochód (łączna waga: {total_kg:.2f} kg)."
             return False, "Nie udało się zapisać palet z listy załadunku."
 
         # Pojedyncza paleta (kompatybilność wsteczna)

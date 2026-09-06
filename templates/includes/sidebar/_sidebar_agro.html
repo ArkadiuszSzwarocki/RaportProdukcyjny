@@ -42,6 +42,11 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Workowanie Agro
         </a>
+        <a href="/maszyny"
+            class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}"
+            style="color: #0284c7; font-weight: 700;">
+            🤖 Maszyny & Telemetria 3D
+        </a>
         <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
             class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
             ⚠️ Przestoje AGRO

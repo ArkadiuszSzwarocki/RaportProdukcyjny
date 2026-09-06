@@ -78,19 +78,33 @@ class QRScanner {
     showCameraError(err) {
         const errorMsg = document.getElementById('qr-scanner-error');
         if (errorMsg) {
-            let message = 'Nie można uruchomić kamery. ';
+            let message = '';
             
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                message += 'Brak uprawnień do kamery. Sprawdź ustawienia przeglądarki.';
+                message = `
+                    <div style="text-align: left; padding: 10px; font-size: 0.9rem; line-height: 1.5;">
+                        <strong style="color: #b91c1c; font-size: 1rem;">⛔ Dostęp do kamery został zablokowany!</strong><br>
+                        <span style="color: #4b5563; font-size: 0.85rem;">Przeglądarka nie ma uprawnień do użycia kamery.</span>
+                        <div style="margin-top: 8px; background: #fff; padding: 8px 12px; border-radius: 6px; border: 1px solid #fecaca; font-size: 0.85rem; color: #1f2937;">
+                            <strong>Jak odblokować w 3 krokach:</strong><br>
+                            1. Kliknij ikonę <strong>🔒 / 📷</strong> po lewej stronie paska adresu strony.<br>
+                            2. Przy pozycji <strong>Kamera</strong> zmień na <strong>„Zezwalaj”</strong>.<br>
+                            3. Odśwież stronę (F5) i otwórz skaner ponownie.
+                        </div>
+                    </div>
+                `;
+                errorMsg.innerHTML = message;
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                message += 'Nie znaleziono kamery w urządzeniu.';
+                message = '<strong>📷 Nie znaleziono kamery</strong> w tym urządzeniu.';
+                errorMsg.innerHTML = message;
             } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                message += 'Kamera jest używana przez inną aplikację.';
+                message = '<strong>⚠️ Kamera zajęta</strong> – jest używana przez inną aplikację lub kartę przeglądarki.';
+                errorMsg.innerHTML = message;
             } else {
-                message += 'Błąd: ' + (err.message || err);
+                message = '<strong>Błąd kamery:</strong> ' + (err.message || err);
+                errorMsg.innerHTML = message;
             }
             
-            errorMsg.textContent = message;
             errorMsg.style.display = 'block';
         }
     }

@@ -38,6 +38,11 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'agro_warehouse.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_templates.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'modals.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_block.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -88,6 +93,17 @@ def inject_role_permissions():
                     linia = 'PSD'
                 page = f"{linia.lower()}.bufor"
 
+            # 1. Check User-Level ACL Override (if explicit override is set for this user)
+            user_id = session.get('user_id')
+            if user_id:
+                try:
+                    from app.repositories.user_permission_override_repository import user_permission_override_repository
+                    user_override = user_permission_override_repository.get_user_override(int(user_id), page)
+                    if user_override is not None:
+                        return bool(user_override.get('access', False))
+                except Exception:
+                    pass
+
             # Read config every time (no caching)
             perms = {}
             try:
@@ -115,6 +131,16 @@ def inject_role_permissions():
             if perms and len(perms) > 0:
                 # Config has data - check if page is in config
                 page_key = _resolve_page_key(page, perms)
+                # Check user-level override on resolved key if different
+                if user_id and page_key != page:
+                    try:
+                        from app.repositories.user_permission_override_repository import user_permission_override_repository
+                        user_override = user_permission_override_repository.get_user_override(int(user_id), page_key)
+                        if user_override is not None:
+                            return bool(user_override.get('access', False))
+                    except Exception:
+                        pass
+
                 # Page in config -> check role access
                 page_perms = perms.get(page_key)
                 if page_perms is None:
@@ -123,6 +149,19 @@ def inject_role_permissions():
                     if sub_keys:
                         has_sub_access = False
                         for sk in sub_keys:
+                            # Check user override on sub-key first
+                            if user_id:
+                                try:
+                                    from app.repositories.user_permission_override_repository import user_permission_override_repository
+                                    sk_override = user_permission_override_repository.get_user_override(int(user_id), sk)
+                                    if sk_override is not None:
+                                        if bool(sk_override.get('access', False)):
+                                            has_sub_access = True
+                                            break
+                                        continue
+                                except Exception:
+                                    pass
+
                             sk_perms = perms.get(sk, {})
                             role_cfg = sk_perms.get(r, {})
                             if bool(role_cfg.get('access', False)):
@@ -168,6 +207,17 @@ def inject_role_permissions():
             if r == 'masteradmin':
                 return False
 
+            # Check user override first
+            user_id = session.get('user_id')
+            if user_id:
+                try:
+                    from app.repositories.user_permission_override_repository import user_permission_override_repository
+                    user_override = user_permission_override_repository.get_user_override(int(user_id), page)
+                    if user_override is not None:
+                        return bool(user_override.get('readonly', False))
+                except Exception:
+                    pass
+
             # Read config every time (no caching)
             perms = {}
             try:
@@ -191,6 +241,15 @@ def inject_role_permissions():
                 # default: no readonly restrictions
                 return False
             page_key = _resolve_page_key(page, perms)
+            if user_id and page_key != page:
+                try:
+                    from app.repositories.user_permission_override_repository import user_permission_override_repository
+                    user_override = user_permission_override_repository.get_user_override(int(user_id), page_key)
+                    if user_override is not None:
+                        return bool(user_override.get('readonly', False))
+                except Exception:
+                    pass
+
             page_perms = perms.get(page_key)
             if page_perms is None:
                 return False

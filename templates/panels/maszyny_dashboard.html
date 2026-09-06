@@ -1,0 +1,4605 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<!-- THREE.JS & ORBIT CONTROLS CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<div class="cyber-container" id="telemetryAppRoot">
+    <!-- TOP HUD BAR -->
+    <div class="hud-header">
+        <div class="hud-title-wrap">
+            <div class="hud-glitch-badge">MES • 3D DIGITAL TWIN & IoT TELEMETRY</div>
+            <h1 class="hud-title">Centrum Telemetrii i Diagnostyki Maszyn</h1>
+            <p class="hud-subtitle">Model 3D w czasie rzeczywistym • Strumień MQTT • Rejestr błędów (Wagopakowaczka • Paletyzator 3D • Owijarka)</p>
+        </div>
+        
+        <div class="hud-status-cards">
+            <!-- THEME SWITCHER -->
+            <button type="button" class="btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()" title="Przełącz odcień (Jasny / Ciemny)">
+                <span class="material-icons" id="themeIcon">light_mode</span>
+                <span id="themeText">JASNY MOTYW</span>
+            </button>
+
+            <div class="hud-chip" id="brokerConnectionChip">
+                <span class="hud-dot pulsing" id="brokerDot"></span>
+                <div>
+                    <div class="hud-label">BROKER MQTT</div>
+                    <div class="hud-val" id="brokerStatusText">ŁĄCZENIE...</div>
+                </div>
+            </div>
+            
+            <div class="hud-chip">
+                <span class="material-icons hud-icon-cyber">speed</span>
+                <div>
+                    <div class="hud-label">ODEBRANE PAKIETY</div>
+                    <div class="hud-val" id="brokerMsgCount">0</div>
+                </div>
+            </div>
+
+            <div class="hud-chip">
+                <span class="material-icons hud-icon-cyber">history</span>
+                <div>
+                    <div class="hud-label">SYGNAŁ MASZYNY</div>
+                    <div class="hud-val" id="brokerLatencyText">0.0s temu</div>
+                </div>
+            </div>
+
+            <button type="button" class="btn-cyber-sim" onclick="simulateSignal()" title="Symulacja impulsu">
+                <span class="material-icons">sensors</span> TEST IMPULSU
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN MACHINE CARDS GRID -->
+    <div class="cyber-grid">
+        
+        <!-- CARD 1: WAGOPAKOWACZKA -->
+        <div class="cyber-card machine-bagger">
+            <div class="card-glow glow-cyan"></div>
+            <div class="card-header">
+                <div class="machine-tag">
+                    <span class="material-icons machine-icon">inventory_2</span>
+                    <div>
+                        <div class="machine-id">WAGOPAKOWACZKA</div>
+                        <div class="machine-name">Pakowaczka Automatyczna</div>
+                    </div>
+                </div>
+                <div class="status-pill" id="baggerStatusBadge">OFFLINE</div>
+            </div>
+
+            <div class="gauge-section">
+                <div class="bpm-display">
+                    <div class="bpm-number" id="baggerBpm">0.0</div>
+                    <div class="bpm-unit">WORKI / MIN (BPM)</div>
+                </div>
+                <div class="throughput-bar-wrap">
+                    <div class="throughput-bar" id="baggerThroughputBar" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="telemetry-metrics-grid">
+                <div class="metric-box">
+                    <div class="m-lbl">WYDAJNOŚĆ CHWILOWA</div>
+                    <div class="m-val highlight-cyan" id="baggerTonsPerHour">0.00 <span class="unit">t/h</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">LICZNIK GLOBALNY</div>
+                    <div class="m-val" id="baggerCounterGlobal">0 <span class="unit">szt</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">LICZNIK LOKALNY</div>
+                    <div class="m-val" id="baggerCounterLocal">0 <span class="unit">szt</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">AKTYWNA RECEPTURA</div>
+                    <div class="m-val recipe-text" id="baggerRecipe">Brak danych</div>
+                </div>
+            </div>
+
+            <!-- CHECKWEIGHER & REJECT DROP FLAP STATUS BLOCK -->
+            <div class="checkweigher-block" id="checkweigherBlock">
+                <div class="cw-header">
+                    <div class="cw-title-flex">
+                        <span class="material-icons cw-icon">scale</span>
+                        <div>
+                            <div class="cw-title">WAGA DYNAMICZNA & ZRZUT (START LINII)</div>
+                            <div class="cw-sub">Kontrola masy worka i odrzut wadliwych sztuk</div>
+                        </div>
+                    </div>
+                    <div class="header-actions-flex">
+                        <button type="button" class="btn-cyber-sim" style="padding: 3px 8px; font-size: 10px; border-color: rgba(244, 63, 94, 0.4); color: var(--neon-magenta); background: rgba(244, 63, 94, 0.1);" onclick="simulateRejectTest()" title="Przetestuj zrzut worka z niedowagą">
+                            <span class="material-icons" style="font-size: 13px;">eject</span> TEST ZRZUTU
+                        </button>
+                        <div class="status-pill" id="cwFlapStatusBadge">ZAMKNIĘTY</div>
+                    </div>
+                </div>
+
+                <div class="cw-metrics-row">
+                    <div class="cw-metric-item">
+                        <span class="cw-lbl">OSTATNIA WAGA</span>
+                        <strong class="cw-val highlight-cyan" id="cwLiveWeight">25.04 <span class="unit">kg</span></strong>
+                    </div>
+                    <div class="cw-metric-item">
+                        <span class="cw-lbl">TOLERANCJA</span>
+                        <span class="cw-val" id="cwToleranceText">24.75 - 25.25 kg</span>
+                    </div>
+                    <div class="cw-metric-item">
+                        <span class="cw-lbl">LICZNIK ZRZUTÓW</span>
+                        <strong class="cw-val highlight-magenta" id="cwRejectCount">0 <span class="unit">szt</span></strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD 2: PALETYZATOR 3D -->
+        <div class="cyber-card machine-palletizer">
+            <div class="card-glow glow-magenta"></div>
+            <div class="card-header">
+                <div class="machine-tag">
+                    <span class="material-icons machine-icon">view_in_ar</span>
+                    <div>
+                        <div class="machine-id">PALETYZATOR 3D</div>
+                        <div class="machine-name">Cyfrowy Bliźniak Paletyzatora</div>
+                    </div>
+                </div>
+                <div class="header-actions-flex">
+                    <div class="view-mode-toggle">
+                        <button type="button" class="view-tab active" id="tabView3d" onclick="switchPalletView('3d')" title="Interaktywny model 3D">
+                            <span class="material-icons">3d_rotation</span> 3D
+                        </button>
+                        <button type="button" class="view-tab" id="tabView2d" onclick="switchPalletView('2d')" title="Widok matrycy warstw 2D">
+                            <span class="material-icons">grid_view</span> 2D
+                        </button>
+                    </div>
+                    <button type="button" class="btn-cyber-cfg" onclick="openPalletConfigModal()" title="Konfiguruj schemat układania palety">
+                        <span class="material-icons">tune</span> SCHEMAT
+                    </button>
+                    <div class="status-pill" id="palletizerStatusBadge">OFFLINE</div>
+                </div>
+            </div>
+
+            <!-- SCHEME BADGE CHIP -->
+            <div class="pallet-schema-chip" id="palletSchemaBadge">
+                <span class="material-icons chip-icon">layers</span>
+                <span id="palletSchemaSummaryText">12W × 4szt + 2szt szczyt • Cel: 50 worków</span>
+            </div>
+
+            <!-- 3D DIGITAL TWIN PALLET VIEWPORT -->
+            <div class="pallet-3d-wrapper" id="pallet3dWrapper">
+                <div class="pallet-3d-toolbar">
+                    <button type="button" class="btn-3d-tool" id="btnAutoRotate" onclick="toggle3dAutoRotate()" title="Automatyczny obrót 360°">
+                        <span class="material-icons">sync</span> OBRÓT
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="set3dCameraView('iso')" title="Widok izometryczny">
+                        <span class="material-icons">view_in_ar</span> IZO
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="set3dCameraView('top')" title="Widok z góry">
+                        <span class="material-icons">layers</span> GÓRA
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="reset3dCamera()" title="Reset kamery">
+                        <span class="material-icons">restart_alt</span> RESET
+                    </button>
+                    <button type="button" class="btn-3d-tool" id="btnPalletFullscreen" onclick="toggle3dFullscreen('pallet3dWrapper', this)" title="Pełny ekran (Fullscreen)">
+                        <span class="material-icons">fullscreen</span> EKRAN
+                    </button>
+                </div>
+                
+                <div id="pallet3dCanvasContainer" class="pallet-3d-canvas-container">
+                    <!-- Three.js Canvas injected here -->
+                </div>
+
+                <div class="pallet-3d-live-badge">
+                    <span class="pulse-dot"></span>
+                    <span id="pallet3dLiveStatus">WARSTWA: 0 / 12 • WOREK: 0 / 4</span>
+                </div>
+            </div>
+
+            <!-- 2D LAYER VISUALIZER (OPTIONAL TOGGLE) -->
+            <div class="stack-visualizer" id="pallet2dWrapper" style="display: none;">
+                <div class="stack-header">
+                    <span>POSTĘP UKŁADANIA PALETY (2D)</span>
+                    <div>
+                        <span class="stack-count-sub" id="palletizerAccumulatedCount">0 / 50 worków</span>
+                        <strong id="palletizerProgressText">0%</strong>
+                    </div>
+                </div>
+                
+                <div class="stack-layers-grid" id="stackLayersContainer">
+                    <!-- Dynamic layers injected via JS -->
+                </div>
+
+                <div class="layer-stats">
+                    <div>WARSTWA: <strong id="valCurrentLayer" class="highlight-magenta">0 / 12</strong></div>
+                    <div>WOREK: <strong id="valCurrentBag" class="highlight-magenta">0 / 4</strong></div>
+                </div>
+            </div>
+
+            <div class="telemetry-metrics-grid">
+                <div class="metric-box">
+                    <div class="m-lbl">UKOŃCZONE PALETY</div>
+                    <div class="m-val highlight-magenta" id="palletizerCounter">0 <span class="unit">pal</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">STATUS OPRÓŻNIANIA</div>
+                    <div class="m-val" id="valEmptyingStatus">NIEAKTYWNE</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD 3: OWIJARKA (3D DIGITAL TWIN) -->
+        <div class="cyber-card machine-wrapper">
+            <div class="card-glow glow-emerald"></div>
+            <div class="card-header">
+                <div class="machine-tag">
+                    <span class="material-icons machine-icon" style="color: var(--neon-emerald);">rotate_right</span>
+                    <div>
+                        <div class="machine-id">OWIJARKA STRETCH</div>
+                        <div class="machine-name">Cyfrowy Bliźniak 3D</div>
+                    </div>
+                </div>
+                <div class="header-actions-flex">
+                    <div class="view-mode-toggle">
+                        <button type="button" class="view-tab active" id="tabWrapperView3d" onclick="switchWrapperView('3d')" title="Interaktywny model 3D">
+                            <span class="material-icons">3d_rotation</span> 3D
+                        </button>
+                        <button type="button" class="view-tab" id="tabWrapperView2d" onclick="switchWrapperView('2d')" title="Widok postępu 2D">
+                            <span class="material-icons">timeline</span> 2D
+                        </button>
+                    </div>
+                    <button type="button" class="btn-cyber-sim" style="padding: 4px 10px; font-size: 11px; border-color: rgba(16, 185, 129, 0.4); color: var(--neon-emerald); background: rgba(16, 185, 129, 0.1);" onclick="simulateWrapperTestCycle()" title="Uruchom testowy cykl owijania 3D z nałożeniem kapturka">
+                        <span class="material-icons" style="font-size: 14px;">play_circle</span> TEST 3D
+                    </button>
+                    <div class="status-pill" id="wrapperStatusBadge">OFFLINE</div>
+                </div>
+            </div>
+
+            <!-- TOP SHEET / KAPTUREK BADGE CHIP -->
+            <div class="wrapper-top-sheet-chip" id="wrapperTopSheetBadge">
+                <span class="material-icons chip-icon">shield</span>
+                <span id="wrapperTopSheetText">Kapturek nawierzchniowy (Top Sheet): BRAK</span>
+            </div>
+
+            <!-- 3D DIGITAL TWIN WRAPPER VIEWPORT -->
+            <div class="pallet-3d-wrapper wrapper-3d-wrapper" id="wrapper3dWrapper">
+                <div class="pallet-3d-toolbar">
+                    <button type="button" class="btn-3d-tool active" id="btnWrapperAutoRotate" onclick="toggleWrapper3dAutoRotate()" title="Automatyczny obrót stołu">
+                        <span class="material-icons">sync</span> OBRÓT
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="setWrapper3dCameraView('iso')" title="Widok izometryczny">
+                        <span class="material-icons">view_in_ar</span> IZO
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="setWrapper3dCameraView('top')" title="Widok z góry">
+                        <span class="material-icons">layers</span> GÓRA
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="resetWrapper3dCamera()" title="Reset kamery">
+                        <span class="material-icons">restart_alt</span> RESET
+                    </button>
+                    <button type="button" class="btn-3d-tool" id="btnWrapperFullscreen" onclick="toggle3dFullscreen('wrapper3dWrapper', this)" title="Pełny ekran (Fullscreen)">
+                        <span class="material-icons">fullscreen</span> EKRAN
+                    </button>
+                </div>
+                
+                <div id="wrapper3dCanvasContainer" class="pallet-3d-canvas-container">
+                    <!-- Three.js Canvas injected here -->
+                </div>
+
+                <div class="pallet-3d-live-badge">
+                    <span class="pulse-dot" style="background: var(--neon-emerald); box-shadow: 0 0 6px var(--neon-emerald);"></span>
+                    <span id="wrapper3dLiveStatus">ETAP: CZUWANIE • WÓZEK: 0% • OWINIĘCIE: 0%</span>
+                </div>
+            </div>
+
+            <!-- 2D WRAPPING PROGRESS VISUALIZER (OPTIONAL TOGGLE) -->
+            <div class="stack-visualizer wrapper-2d-visualizer" id="wrapper2dWrapper" style="display: none;">
+                <div class="stack-header">
+                    <span>POSTĘP CYKLU OWIJANIA (2D)</span>
+                    <strong id="wrapperProgressText2d" class="highlight-emerald">0%</strong>
+                </div>
+
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="wrapperProgressFill" style="width: 0%;"></div>
+                </div>
+
+                <div class="progress-milestones-row">
+                    <div class="milestone-step" id="mStepBottom">
+                        <span class="material-icons step-icon">expand_more</span>
+                        <span class="step-lbl">DÓŁ (30%)</span>
+                    </div>
+                    <div class="milestone-step" id="mStepTopSheet">
+                        <span class="material-icons step-icon">shield</span>
+                        <span class="step-lbl">KAPTUREK (50%)</span>
+                    </div>
+                    <div class="milestone-step" id="mStepTop">
+                        <span class="material-icons step-icon">expand_less</span>
+                        <span class="step-lbl">SZCZYT (80%)</span>
+                    </div>
+                    <div class="milestone-step" id="mStepDone">
+                        <span class="material-icons step-icon">check_circle</span>
+                        <span class="step-lbl">GOTOWA (100%)</span>
+                    </div>
+                </div>
+
+                <div class="wrapper-phase-banner" id="wrapperPhaseBanner">
+                    Oczekiwanie na nową paletę ze stołu paletyzatora
+                </div>
+            </div>
+
+            <!-- TELEMETRY METRICS GRID (4 BOXES) -->
+            <div class="telemetry-metrics-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="metric-box">
+                    <div class="m-lbl">POSTĘP OWINIĘCIA</div>
+                    <div class="m-val highlight-emerald" id="valWrapperProgress">0 <span class="unit">%</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">KAPTUREK NAWIERZCHNIOWY</div>
+                    <div class="m-val" id="valTopSheetStatus" style="font-size: 13px; font-weight: 800;">BRAK</div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">OBROTY STOŁU</div>
+                    <div class="m-val" id="valWrapperRotations">0 <span class="unit">obr</span></div>
+                </div>
+                <div class="metric-box">
+                    <div class="m-lbl">ETAP CYKLU</div>
+                    <div class="m-val recipe-text" id="valWrapperPhase" style="color: var(--neon-emerald); font-size: 13px;">CZUWANIE</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- PALLET LOGISTICS & STATION TRACKING PIPELINE (5 STACJI LINII) -->
+    <div class="cyber-card pallet-logistics-card">
+        <div class="card-glow glow-cyan"></div>
+        <div class="card-header" style="margin-bottom: 0;">
+            <div class="machine-tag">
+                <span class="material-icons machine-icon" style="color: var(--neon-cyan);">alt_route</span>
+                <div>
+                    <div class="machine-id">LOGISTYKA I TRANSPORT PALET</div>
+                    <div class="machine-name">Śledzenie Pozycji i Stanowisk Paletowych (5 Stacji Linii)</div>
+                </div>
+            </div>
+            <div class="header-actions-flex">
+                <div class="hud-glitch-badge" style="margin-bottom: 0;">MQTT REAL-TIME TRACKING</div>
+            </div>
+        </div>
+
+        <div class="stations-pipeline-grid" id="palletStationsContainer">
+            <!-- STACJA 1: MAGAZYNEK PALET -->
+            <div class="station-card active" id="stCard1">
+                <div class="station-num-badge">ST-01</div>
+                <div class="station-icon-title">
+                    <span class="material-icons station-icon">inventory_2</span>
+                    <div class="station-title">Magazynek Palet</div>
+                </div>
+                <div class="station-desc" id="stDesc1">Stos 8 szt pustych palet gotowych do podania</div>
+                <div class="station-status-row">
+                    <span class="station-count-pill" id="stCount1">8 szt</span>
+                    <div class="status-pill" id="stStatus1">GOTOWY</div>
+                </div>
+            </div>
+
+            <!-- STACJA 2: PALETYZATOR -->
+            <div class="station-card praca" id="stCard2">
+                <div class="station-num-badge">ST-02</div>
+                <div class="station-icon-title">
+                    <span class="material-icons station-icon">vertical_align_bottom</span>
+                    <div class="station-title">Stacja Paletyzatora</div>
+                </div>
+                <div class="station-desc" id="stDesc2">Układanie warstw worków na palecie</div>
+                <div class="station-status-row">
+                    <span class="station-count-pill" id="stCount2">0 worków</span>
+                    <div class="status-pill praca" id="stStatus2">UKŁADANIE</div>
+                </div>
+            </div>
+
+            <!-- STACJA 3: ROLOTOK POŚREDNI -->
+            <div class="station-card" id="stCard3">
+                <div class="station-num-badge">ST-03</div>
+                <div class="station-icon-title">
+                    <span class="material-icons station-icon">sync_alt</span>
+                    <div class="station-title">Rolotok Transferowy</div>
+                </div>
+                <div class="station-desc" id="stDesc3">Przenośnik rolkowy do owijarki stretch</div>
+                <div class="station-status-row">
+                    <span class="station-count-pill" id="stCount3">Wolny</span>
+                    <div class="status-pill" id="stStatus3">WOLNY</div>
+                </div>
+            </div>
+
+            <!-- STACJA 4: OWIJARKA -->
+            <div class="station-card" id="stCard4">
+                <div class="station-num-badge">ST-04</div>
+                <div class="station-icon-title">
+                    <span class="material-icons station-icon">rotate_right</span>
+                    <div class="station-title">Stół Owijarki</div>
+                </div>
+                <div class="station-desc" id="stDesc4">Owijanie folią stretch + kapturek</div>
+                <div class="station-status-row">
+                    <span class="station-count-pill" id="stCount4">0 obr</span>
+                    <div class="status-pill" id="stStatus4">CZUWANIE</div>
+                </div>
+            </div>
+
+            <!-- STACJA 5: ODBIÓR -->
+            <div class="station-card" id="stCard5">
+                <div class="station-num-badge">ST-05</div>
+                <div class="station-icon-title">
+                    <span class="material-icons station-icon">local_shipping</span>
+                    <div class="station-title">Bufor Odbioru</div>
+                </div>
+                <div class="station-desc" id="stDesc5">Strefa odbioru przez wózek widłowy</div>
+                <div class="station-status-row">
+                    <span class="station-count-pill" id="stCount5">Wolny</span>
+                    <div class="status-pill" id="stStatus5">WOLNY</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOWER SECTION: 2 COLUMNS (ERRORS JOURNAL + MQTT TERMINAL) -->
+    <div class="cyber-lower-grid">
+        
+        <!-- SECTION: REJESTR BŁĘDÓW I ALARMÓW MASZYN -->
+        <div class="cyber-card errors-journal-card">
+            <div class="terminal-head">
+                <div class="terminal-title" style="color: var(--neon-magenta);">
+                    <span class="material-icons terminal-icon">warning_amber</span>
+                    <span>REJESTR BŁĘDÓW I ALARMÓW MASZYN</span>
+                    <span class="error-counter-badge" id="errorCounterBadge">0 zdarzeń</span>
+                </div>
+                <div class="terminal-filters">
+                    <button type="button" class="term-btn active" data-err-filter="ALL" onclick="filterErrorLogs('ALL', this)">WSZYSTKIE</button>
+                    <button type="button" class="term-btn" data-err-filter="WAGOPAKOWACZKA" onclick="filterErrorLogs('WAGOPAKOWACZKA', this)">PAKOWACZKA</button>
+                    <button type="button" class="term-btn" data-err-filter="PALETYZATOR" onclick="filterErrorLogs('PALETYZATOR', this)">PALETYZATOR</button>
+                    <button type="button" class="term-btn" data-err-filter="OWIJARKA" onclick="filterErrorLogs('OWIJARKA', this)">OWIJARKA</button>
+                    <button type="button" class="term-btn btn-danger-action" onclick="clearMachineErrors()" title="Wyczyść historię błędów">WYCZYŚĆ</button>
+                </div>
+            </div>
+
+            <div class="errors-journal-body" id="machineErrorsContainer">
+                <div class="error-empty-state">
+                    <span class="material-icons" style="font-size: 32px; color: var(--neon-emerald); margin-bottom: 6px;">check_circle</span>
+                    <div>Brak zarejestrowanych błędów lub alarmów maszyn. Linia pracuje stabilnie.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: TERMINAL / MQTT LIVE LOG STREAM -->
+        <div class="cyber-card terminal-card">
+            <div class="terminal-head">
+                <div class="terminal-title">
+                    <span class="material-icons terminal-icon">terminal</span>
+                    <span>KONSOLA STRUMIENIA MQTT (Hela / HiveMQ)</span>
+                </div>
+                <div class="terminal-filters">
+                    <button type="button" class="term-btn active" data-filter="ALL" onclick="filterLogs('ALL', this)">WSZYSTKIE</button>
+                    <button type="button" class="term-btn" data-filter="agroPakowaczka" onclick="filterLogs('agroPakowaczka', this)">PAKOWACZKA</button>
+                    <button type="button" class="term-btn" data-filter="agroPaletyzator" onclick="filterLogs('agroPaletyzator', this)">PALETYZATOR</button>
+                    <button type="button" class="term-btn" data-filter="agroOwijarka" onclick="filterLogs('agroOwijarka', this)">OWIJARKA</button>
+                    <button type="button" class="term-btn" id="btnPauseTerm" onclick="togglePauseTerminal()">PAUZA</button>
+                </div>
+            </div>
+            <div class="terminal-body" id="mqttTerminalLogs">
+                <div class="term-row initial-msg">[SYSTEM] Nawiązywanie subskrypcji strumienia telemetrycznego...</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- MODAL: PALLET SCHEME CONFIGURATION -->
+<div class="cyber-modal-overlay" id="palletConfigModalOverlay" style="display: none;">
+    <div class="cyber-modal-box">
+        <div class="modal-glow"></div>
+        <div class="cyber-modal-header">
+            <div class="modal-title-wrap">
+                <span class="material-icons modal-title-icon">auto_fix_high</span>
+                <div>
+                    <h3 class="modal-title">Kreator Receptur & Schematów Paletyzacji</h3>
+                    <p class="modal-sub">Wybierz rodzaj palety (100/120 lub EURO) oraz zdefiniuj układ warstw</p>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="closePalletConfigModal()">&times;</button>
+        </div>
+
+        <div class="cyber-modal-body">
+            <!-- PALLET TYPE SELECTOR -->
+            <div class="cfg-section-title">1. WYBIERZ RODZAJ PALETY:</div>
+            <div class="pallet-type-cards-grid">
+                <div class="pallet-type-card active" id="modalCardInd" onclick="selectModalPalletType('INDUSTRIAL_100x120')">
+                    <div class="pallet-card-badge">STANDARD 100/120</div>
+                    <div class="pallet-card-title">🏭 Paleta Przemysłowa</div>
+                    <div class="pallet-card-dims">1000 × 1200 mm</div>
+                    <div class="pallet-card-sub">7 desek wierzchnich • Układ 4 lub 5 worków/w</div>
+                </div>
+                <div class="pallet-type-card" id="modalCardEuro" onclick="selectModalPalletType('EURO_80x120')">
+                    <div class="pallet-card-badge euro">EURO / EPAL 1</div>
+                    <div class="pallet-card-title">🇪🇺 Paleta EURO</div>
+                    <div class="pallet-card-dims">800 × 1200 mm</div>
+                    <div class="pallet-card-sub">5 desek wierzchnich • Standard logistyczny</div>
+                </div>
+            </div>
+
+            <!-- RECIPE PRESETS -->
+            <div class="cfg-section-title" style="margin-top: 18px;">2. SZYBKIE RECEPTURY (PRESETY DLA WYBRANEJ PALETY):</div>
+            <div class="preset-chips-grid" id="presetChipsContainer"></div>
+
+            <!-- CUSTOM RECIPE NAME & PARAMS -->
+            <div class="cfg-section-title" style="margin-top: 18px;">3. SZCZEGÓŁOWE PARAMETRY UKŁADANIA:</div>
+            
+            <div class="cfg-input-group" style="margin-bottom: 14px;">
+                <label class="cfg-label" for="cfgPresetName">
+                    <span class="material-icons label-icon">bookmark</span>
+                    Nazwa receptury:
+                </label>
+                <input type="text" id="cfgPresetName" class="cfg-input" placeholder="Wpisz nazwę receptury..." style="font-family: inherit; font-size: 13px;">
+            </div>
+
+            <div class="cfg-inputs-grid">
+                <div class="cfg-input-group">
+                    <label class="cfg-label" for="cfgTotalLayers">
+                        <span class="material-icons label-icon">height</span>
+                        Liczba pełnych warstw:
+                    </label>
+                    <input type="number" id="cfgTotalLayers" class="cfg-input" min="1" max="25" value="12" oninput="updateModalPreview()">
+                    <div class="cfg-hint">Np. 12 pełnych warstw</div>
+                </div>
+
+                <div class="cfg-input-group">
+                    <label class="cfg-label" for="cfgBagsPerLayer">
+                        <span class="material-icons label-icon">grid_view</span>
+                        Worki na pełnej warstwie:
+                    </label>
+                    <input type="number" id="cfgBagsPerLayer" class="cfg-input" min="1" max="10" value="4" oninput="updateModalPreview()">
+                    <div class="cfg-hint">Zazwyczaj 4 lub 5 worków/w</div>
+                </div>
+
+                <div class="cfg-input-group">
+                    <label class="cfg-label" for="cfgTopLayerBags">
+                        <span class="material-icons label-icon">vertical_align_top</span>
+                        Worki na szczycie palety (+):
+                    </label>
+                    <input type="number" id="cfgTopLayerBags" class="cfg-input" min="0" max="10" value="2" oninput="updateModalPreview()">
+                    <div class="cfg-hint">Np. 2 worki szczytowe (0 = brak)</div>
+                </div>
+
+                <div class="cfg-input-group">
+                    <label class="cfg-label" for="cfgBagWeight">
+                        <span class="material-icons label-icon">scale</span>
+                        Masa worka [kg]:
+                    </label>
+                    <input type="number" id="cfgBagWeight" class="cfg-input" min="1" max="100" step="0.5" value="25.0" oninput="updateModalPreview()">
+                    <div class="cfg-hint">Domyślnie 25.0 kg</div>
+                </div>
+            </div>
+
+            <!-- LIVE FORMULA PREVIEW -->
+            <div class="cfg-preview-box">
+                <div class="preview-head" id="cfgPreviewPalletTypeTag">PALETA PRZEMYSŁOWA (1000 × 1200 mm) • PODSUMOWANIE RECEPTURY:</div>
+                <div class="preview-formula" id="cfgPreviewFormulaText">
+                    (12 pełnych warstw × 4 szt) + (szczyt 2 szt) = <span class="highlight-magenta">50 worków</span>
+                </div>
+                <div class="preview-details" id="cfgPreviewWeightText">
+                    Łączna masa netto palety: <strong>1 250 kg</strong> (1.25 t)
+                </div>
+            </div>
+
+            <!-- SYNC TO BROKER TOGGLE -->
+            <div class="cfg-toggle-row">
+                <label class="cyber-switch">
+                    <input type="checkbox" id="cfgSyncToMachine" checked>
+                    <span class="slider"></span>
+                </label>
+                <div class="toggle-text">
+                    <div class="toggle-title">Wyślij komendę nowej receptury do brokera MQTT (agroPaletyzator)</div>
+                    <div class="toggle-desc">Automatycznie powiadom sterownik robota o nowym typie palety i schemacie układania.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cyber-modal-footer">
+            <button type="button" class="btn-cyber-cancel" onclick="closePalletConfigModal()">Anuluj</button>
+            <button type="button" class="btn-cyber-save" id="btnSavePalletConfig" onclick="savePalletConfig()">
+                <span class="material-icons">save</span> Zapisz & Aktywuj Recepturę
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   THEME VARIABLES: LIGHT (DEFAULT) vs DARK (CYBER HUD)
+   ───────────────────────────────────────────────────────────── */
+:root {
+    --theme-bg: #f1f5f9;
+    --theme-card-bg: #ffffff;
+    --theme-border: #e2e8f0;
+    --theme-text-main: #0f172a;
+    --theme-text-muted: #64748b;
+    --theme-box-bg: #f8fafc;
+    --theme-card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+    --neon-cyan: #0284c7;
+    --neon-magenta: #e11d48;
+    --neon-emerald: #10b981;
+    --neon-amber: #d97706;
+    --term-bg: #1e293b;
+    --term-text: #e2e8f0;
+    --layer-bar-bg: #e2e8f0;
+    --layer-dot-empty: #cbd5e1;
+}
+
+body.dark-theme {
+    --theme-bg: #070a13;
+    --theme-card-bg: rgba(15, 23, 42, 0.85);
+    --theme-border: rgba(255, 255, 255, 0.08);
+    --theme-text-main: #f8fafc;
+    --theme-text-muted: #94a3b8;
+    --theme-box-bg: rgba(0, 0, 0, 0.25);
+    --theme-card-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --neon-cyan: #00f2fe;
+    --neon-magenta: #f43f5e;
+    --neon-emerald: #10b981;
+    --neon-amber: #f59e0b;
+    --term-bg: #05070e;
+    --term-text: #cbd5e1;
+    --layer-bar-bg: rgba(255, 255, 255, 0.06);
+    --layer-dot-empty: rgba(255, 255, 255, 0.08);
+}
+
+body {
+    background-color: var(--theme-bg) !important;
+    color: var(--theme-text-main);
+    transition: background-color 0.3s ease;
+}
+
+.cyber-container {
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 24px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--theme-text-main);
+}
+
+/* HEADER HUD */
+.hud-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.hud-glitch-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(2, 132, 199, 0.1);
+    color: var(--neon-cyan);
+    border: 1px solid rgba(2, 132, 199, 0.3);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.hud-title {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--theme-text-main);
+}
+
+.hud-subtitle {
+    font-size: 13px;
+    color: var(--theme-text-muted);
+    margin: 4px 0 0;
+}
+
+.hud-status-cards {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text-main);
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--theme-card-shadow);
+    transition: all 0.2s;
+}
+
+.btn-theme-toggle:hover {
+    border-color: var(--neon-cyan);
+    color: var(--neon-cyan);
+    transform: translateY(-1px);
+}
+
+.btn-theme-toggle .material-icons {
+    font-size: 18px;
+    color: var(--neon-amber);
+}
+
+.hud-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    padding: 8px 16px;
+    border-radius: 12px;
+    box-shadow: var(--theme-card-shadow);
+}
+
+.hud-icon-cyber {
+    color: var(--neon-cyan);
+    font-size: 20px;
+}
+
+.hud-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ef4444;
+    display: inline-block;
+}
+
+.hud-dot.online { background: var(--neon-emerald); }
+
+.pulsing {
+    box-shadow: 0 0 10px var(--neon-emerald);
+    animation: pulseGlow 1.5s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    100% { transform: scale(1.15); opacity: 1; }
+}
+
+.hud-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--theme-text-muted);
+}
+
+.hud-val {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    font-family: monospace;
+}
+
+.btn-cyber-sim {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(2, 132, 199, 0.1);
+    color: var(--neon-cyan);
+    border: 1px solid rgba(2, 132, 199, 0.35);
+    padding: 9px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-cyber-sim:hover {
+    background: var(--neon-cyan);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+/* CARDS GRID */
+.cyber-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.cyber-card {
+    position: relative;
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: var(--theme-card-shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.card-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+}
+
+.glow-cyan { background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent); }
+.glow-magenta { background: linear-gradient(90deg, transparent, var(--neon-magenta), transparent); }
+.glow-emerald { background: linear-gradient(90deg, transparent, var(--neon-emerald), transparent); }
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.header-actions-flex {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.view-mode-toggle {
+    display: flex;
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 99px;
+    padding: 2px;
+}
+
+.view-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-tab.active {
+    background: var(--neon-magenta);
+    color: #fff;
+}
+
+.view-tab .material-icons { font-size: 14px; }
+
+.btn-cyber-cfg {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(225, 29, 72, 0.1);
+    color: var(--neon-magenta);
+    border: 1px solid rgba(225, 29, 72, 0.35);
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cyber-cfg:hover {
+    background: var(--neon-magenta);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.pallet-schema-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(225, 29, 72, 0.08);
+    border: 1px solid rgba(225, 29, 72, 0.2);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--neon-magenta);
+    margin-bottom: 12px;
+}
+
+.pallet-schema-chip .chip-icon { font-size: 15px; }
+
+.machine-tag {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.machine-icon {
+    font-size: 28px;
+    color: var(--neon-cyan);
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    padding: 8px;
+    border-radius: 12px;
+}
+
+.machine-id {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--theme-text-muted);
+    letter-spacing: 1px;
+}
+
+.machine-name {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+}
+
+.status-pill {
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.status-pill.praca {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--neon-emerald);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   3D DIGITAL TWIN PALLET VIEWPORT
+   ───────────────────────────────────────────────────────────── */
+.pallet-3d-wrapper {
+    position: relative;
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 16px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    height: 230px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.25s ease;
+}
+
+/* FULLSCREEN 3D VIEWPORT */
+.pallet-3d-wrapper.is-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    z-index: 999999 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: var(--theme-bg) !important;
+    box-shadow: none !important;
+}
+
+.pallet-3d-wrapper.is-fullscreen .pallet-3d-toolbar {
+    top: 24px;
+    right: 24px;
+    gap: 8px;
+}
+
+.pallet-3d-wrapper.is-fullscreen .btn-3d-tool {
+    padding: 8px 14px;
+    font-size: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.pallet-3d-wrapper.is-fullscreen .pallet-3d-live-badge {
+    bottom: 24px;
+    left: 24px;
+    padding: 8px 18px;
+    font-size: 13px;
+    border-radius: 10px;
+}
+
+.pallet-3d-toolbar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    gap: 5px;
+}
+
+.btn-3d-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text-main) !important;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+body.dark-theme .btn-3d-tool {
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.btn-3d-tool:hover {
+    border-color: var(--neon-magenta);
+    color: var(--neon-magenta) !important;
+    transform: translateY(-1px);
+}
+
+.btn-3d-tool.active {
+    background: var(--neon-magenta) !important;
+    color: #ffffff !important;
+    border-color: var(--neon-magenta) !important;
+    box-shadow: 0 0 10px rgba(225, 29, 72, 0.4);
+}
+
+.wrapper-3d-wrapper .btn-3d-tool:hover {
+    border-color: var(--neon-emerald);
+    color: var(--neon-emerald) !important;
+}
+
+.wrapper-3d-wrapper .btn-3d-tool.active {
+    background: var(--neon-emerald) !important;
+    color: #ffffff !important;
+    border-color: var(--neon-emerald) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.btn-3d-tool .material-icons {
+    font-size: 15px !important;
+    line-height: 1 !important;
+    color: inherit !important;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.pallet-3d-canvas-container {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+.pallet-3d-canvas-container:active { cursor: grabbing; }
+
+.pallet-3d-live-badge {
+    position: absolute;
+    bottom: 8px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--neon-magenta);
+    box-shadow: 0 0 6px var(--neon-magenta);
+    display: inline-block;
+}
+
+/* GAUGE & BPM */
+.gauge-section {
+    text-align: center;
+    padding: 16px 0;
+    background: var(--theme-box-bg);
+    border-radius: 16px;
+    margin-bottom: 20px;
+    border: 1px solid var(--theme-border);
+}
+
+.bpm-number {
+    font-size: 54px;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    font-family: monospace;
+    line-height: 1;
+}
+
+.bpm-unit {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    margin-top: 6px;
+    letter-spacing: 1px;
+}
+
+.throughput-bar-wrap {
+    height: 6px;
+    background: var(--theme-border);
+    border-radius: 99px;
+    margin: 16px 24px 4px;
+    overflow: hidden;
+}
+
+.throughput-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, var(--neon-cyan));
+    transition: width 0.4s ease;
+}
+
+/* METRICS GRID */
+.telemetry-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.metric-box {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    padding: 12px 14px;
+    border-radius: 12px;
+}
+
+.m-lbl {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.m-val {
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--theme-text-main);
+    font-family: monospace;
+}
+
+.m-val .unit {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-text-muted);
+}
+
+.highlight-cyan { color: var(--neon-cyan); }
+.highlight-magenta { color: var(--neon-magenta); }
+.highlight-emerald { color: var(--neon-emerald); }
+
+.recipe-text {
+    font-size: 13px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--neon-amber);
+}
+
+/* CHECKWEIGHER & REJECT DROP FLAP BLOCK */
+.checkweigher-block {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 12px;
+}
+
+.cw-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.cw-title-flex {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cw-icon {
+    font-size: 20px;
+    color: var(--neon-cyan);
+}
+
+.cw-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    line-height: 1.2;
+}
+
+.cw-sub {
+    font-size: 10px;
+    color: var(--theme-text-muted);
+}
+
+.cw-metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.cw-metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cw-lbl {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    letter-spacing: 0.5px;
+}
+
+.cw-val {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+}
+
+/* 2D PALLETIZER VISUALIZER */
+.stack-visualizer {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.stack-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    margin-bottom: 12px;
+}
+
+.stack-count-sub {
+    font-size: 11px;
+    color: var(--theme-text-muted);
+    margin-right: 8px;
+    font-weight: 600;
+}
+
+.stack-layers-grid {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+    min-height: 140px;
+    max-height: 160px;
+    margin-bottom: 12px;
+    justify-content: flex-start;
+}
+
+.layer-bar {
+    height: 9px;
+    background: var(--layer-bar-bg);
+    border-radius: 4px;
+    display: flex;
+    gap: 3px;
+    padding: 1px 2px;
+}
+
+.layer-bag-dot {
+    flex: 1;
+    background: var(--layer-dot-empty);
+    border-radius: 2px;
+    transition: background 0.3s;
+}
+
+.layer-bag-dot.filled {
+    background: var(--neon-magenta);
+    box-shadow: 0 0 4px rgba(225, 29, 72, 0.4);
+}
+
+.layer-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    padding-top: 8px;
+    border-top: 1px solid var(--theme-border);
+}
+
+/* WRAPPER 3D DIGITAL TWIN & TOP SHEET STYLING */
+.wrapper-top-sheet-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: var(--neon-emerald);
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+}
+
+.wrapper-top-sheet-chip.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--neon-emerald);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.wrapper-top-sheet-chip .chip-icon {
+    font-size: 15px;
+    color: var(--neon-emerald);
+}
+
+.wrapper-2d-visualizer {
+    margin-bottom: 16px;
+}
+
+.progress-bar-track {
+    height: 10px;
+    background: var(--layer-bar-bg);
+    border-radius: 99px;
+    overflow: hidden;
+    margin: 12px 0 16px;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #00f2fe);
+    border-radius: 99px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.progress-milestones-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.milestone-step {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--theme-text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: all 0.3s;
+}
+
+.milestone-step .step-icon {
+    font-size: 14px;
+    color: var(--theme-text-muted);
+}
+
+.milestone-step.active {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: var(--neon-emerald);
+    color: var(--neon-emerald);
+}
+
+.milestone-step.active .step-icon {
+    color: var(--neon-emerald);
+}
+
+.wrapper-phase-banner {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--theme-text-main);
+}
+
+/* PALLET LOGISTICS & 5-STATION PIPELINE HUD */
+.pallet-logistics-card {
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--theme-card-shadow);
+}
+
+.stations-pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    position: relative;
+    margin-top: 16px;
+}
+
+@media (max-width: 1200px) {
+    .stations-pipeline-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 640px) {
+    .stations-pipeline-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.station-card {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.station-card.active {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(2, 132, 199, 0.2);
+    background: rgba(2, 132, 199, 0.06);
+}
+
+.station-card.praca {
+    border-color: var(--neon-magenta);
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);
+    background: rgba(244, 63, 94, 0.06);
+}
+
+.station-card.ready {
+    border-color: var(--neon-emerald);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.station-card.off {
+    opacity: 0.65;
+}
+
+.station-num-badge {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--theme-text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.station-icon-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.station-icon {
+    font-size: 22px;
+    color: var(--neon-cyan);
+}
+
+.station-card.praca .station-icon {
+    color: var(--neon-magenta);
+}
+
+.station-card.ready .station-icon {
+    color: var(--neon-emerald);
+}
+
+.station-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    line-height: 1.2;
+}
+
+.station-desc {
+    font-size: 11px;
+    color: var(--theme-text-muted);
+    margin-bottom: 12px;
+    min-height: 28px;
+    line-height: 1.4;
+}
+
+.station-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid var(--theme-border);
+}
+
+.station-count-pill {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+}
+
+/* LOWER SECTION: 2 COLUMNS */
+.cyber-lower-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 1024px) {
+    .cyber-lower-grid { grid-template-columns: 1fr; }
+}
+
+/* REJESTR BŁĘDÓW I ALARMÓW */
+.errors-journal-card {
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    padding: 18px 20px;
+}
+
+.error-counter-badge {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(225, 29, 72, 0.12);
+    color: var(--neon-magenta);
+    margin-left: 8px;
+}
+
+.errors-journal-body {
+    height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.error-item-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-left: 4px solid var(--neon-amber);
+    font-size: 12px;
+}
+
+.error-item-row.critical {
+    border-left-color: var(--neon-magenta);
+    background: rgba(225, 29, 72, 0.05);
+}
+
+.error-item-row.communication { border-left-color: var(--neon-cyan); }
+
+.err-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.err-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.err-machine-tag {
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--theme-text-main);
+}
+
+body.dark-theme .err-machine-tag { background: rgba(255, 255, 255, 0.1); }
+
+.err-code-badge {
+    font-size: 10px;
+    font-weight: 800;
+    font-family: monospace;
+    color: var(--neon-magenta);
+}
+
+.err-msg-text {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--theme-text-main);
+}
+
+.err-time-text {
+    font-size: 11px;
+    color: var(--theme-text-muted);
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.error-empty-state {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--theme-text-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.btn-danger-action { color: var(--neon-magenta) !important; }
+
+.btn-danger-action:hover { background: rgba(225, 29, 72, 0.15) !important; }
+
+/* TERMINAL LOG STREAM */
+.terminal-card {
+    background: var(--term-bg);
+    border: 1px solid var(--theme-border);
+    padding: 18px 20px;
+}
+
+.terminal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--theme-border);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.terminal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--neon-cyan);
+}
+
+.terminal-icon { font-size: 18px; }
+
+.terminal-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.term-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--term-text);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.term-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.term-btn.active {
+    background: rgba(2, 132, 199, 0.25);
+    color: var(--neon-cyan);
+    border-color: var(--neon-cyan);
+}
+
+.terminal-body {
+    height: 220px;
+    overflow-y: auto;
+    font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: var(--term-text);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.term-row {
+    line-height: 1.4;
+    word-break: break-all;
+}
+
+.term-time { color: #94a3b8; margin-right: 8px; }
+.term-topic { color: var(--neon-cyan); font-weight: 700; margin-right: 8px; }
+.term-payload { color: #e2e8f0; }
+
+/* MODAL STYLES */
+.cyber-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.cyber-modal-box {
+    position: relative;
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 600px;
+    overflow: hidden;
+}
+
+.modal-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--neon-magenta), transparent);
+}
+
+.cyber-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modal-title-icon {
+    font-size: 28px;
+    color: var(--neon-magenta);
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 900;
+    margin: 0;
+    color: var(--theme-text-main);
+}
+
+.modal-sub {
+    font-size: 12px;
+    color: var(--theme-text-muted);
+    margin: 2px 0 0;
+}
+
+.btn-modal-close {
+    background: none;
+    border: none;
+    color: var(--theme-text-muted);
+    font-size: 26px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.cyber-modal-body {
+    padding: 20px 24px;
+    max-height: calc(85vh - 140px);
+    overflow-y: auto;
+}
+
+.cfg-section-title {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--theme-text-muted);
+    margin-bottom: 10px;
+}
+
+.pallet-type-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.pallet-type-card {
+    position: relative;
+    background: var(--theme-box-bg);
+    border: 2px solid var(--theme-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+}
+
+.pallet-type-card:hover {
+    border-color: rgba(225, 29, 72, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.pallet-type-card.active {
+    background: rgba(225, 29, 72, 0.08);
+    border-color: var(--neon-magenta);
+    box-shadow: 0 0 0 1px var(--neon-magenta), 0 8px 24px rgba(225, 29, 72, 0.15);
+}
+
+.pallet-card-badge {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(225, 29, 72, 0.15);
+    color: var(--neon-magenta);
+    border: 1px solid rgba(225, 29, 72, 0.3);
+}
+
+.pallet-card-badge.euro {
+    background: rgba(2, 132, 199, 0.15);
+    color: var(--neon-cyan);
+    border-color: rgba(2, 132, 199, 0.3);
+}
+
+.pallet-card-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--theme-text-main);
+    margin-bottom: 4px;
+}
+
+.pallet-card-dims {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--neon-cyan);
+    font-family: monospace;
+    margin-bottom: 4px;
+}
+
+.pallet-card-sub {
+    font-size: 10.5px;
+    color: var(--theme-text-muted);
+}
+
+.preset-chips-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.preset-chip {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text-main);
+    padding: 7px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preset-chip:hover {
+    border-color: var(--neon-magenta);
+    color: var(--neon-magenta);
+}
+
+.preset-chip.active {
+    background: rgba(225, 29, 72, 0.12);
+    border-color: var(--neon-magenta);
+    color: var(--neon-magenta);
+}
+
+.cfg-inputs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.cfg-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cfg-label {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cfg-label .label-icon {
+    font-size: 16px;
+    color: var(--neon-magenta);
+}
+
+.cfg-input {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    font-family: monospace;
+}
+
+.cfg-input:focus {
+    outline: none;
+    border-color: var(--neon-magenta);
+}
+
+.cfg-hint {
+    font-size: 10px;
+    color: var(--theme-text-muted);
+}
+
+.cfg-preview-box {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 20px;
+}
+
+.preview-head {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--theme-text-muted);
+    margin-bottom: 6px;
+}
+
+.preview-formula {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    margin-bottom: 4px;
+}
+
+.preview-details {
+    font-size: 12px;
+    color: var(--theme-text-muted);
+}
+
+.cfg-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    padding: 12px 16px;
+    border-radius: 12px;
+}
+
+.toggle-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+}
+
+.toggle-desc {
+    font-size: 11px;
+    color: var(--theme-text-muted);
+}
+
+/* SWITCH TOGGLE */
+.cyber-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.cyber-switch input { opacity: 0; width: 0; height: 0; }
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--theme-border);
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider { background-color: var(--neon-magenta); }
+
+input:checked + .slider:before { transform: translateX(20px); }
+
+.cyber-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--theme-border);
+    background: var(--theme-box-bg);
+}
+
+.btn-cyber-cancel {
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text-muted);
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-cyber-save {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--neon-magenta);
+    border: none;
+    color: #fff;
+    padding: 9px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+</style>
+
+<script>
+(function() {
+    let activeFilter = 'ALL';
+    let activeErrFilter = 'ALL';
+    let isPaused = false;
+    let currentConfig = {
+        total_layers: 13,
+        full_layers: 12,
+        bags_per_layer: 4,
+        top_layer_bags: 2,
+        bag_weight_kg: 25.0,
+        total_bags: 50
+    };
+    let availablePresets = [];
+
+    const terminalEl = document.getElementById('mqttTerminalLogs');
+    const errorsContainer = document.getElementById('machineErrorsContainer');
+    const stackContainer = document.getElementById('stackLayersContainer');
+
+    // ─────────────────────────────────────────────────────────────
+    // THEME MANAGEMENT (LIGHT / DARK)
+    // ─────────────────────────────────────────────────────────────
+    function initTheme() {
+        const savedTheme = localStorage.getItem('maszyny_theme') || 'dark';
+        applyTheme(savedTheme);
+    }
+
+    function applyTheme(theme) {
+        const body = document.body;
+        const icon = document.getElementById('themeIcon');
+        const text = document.getElementById('themeText');
+        
+        if (theme === 'dark') {
+            body.classList.add('dark-theme');
+            if (icon) icon.innerText = 'dark_mode';
+            if (text) text.innerText = 'CIEMNY MOTYW';
+            if (scene3d) scene3d.background = new THREE.Color(0x0b1120);
+            if (sceneWrapper3d) sceneWrapper3d.background = new THREE.Color(0x0b1120);
+        } else {
+            body.classList.remove('dark-theme');
+            if (icon) icon.innerText = 'light_mode';
+            if (text) text.innerText = 'JASNY MOTYW';
+            // Sleek dark tech background for 3D viewports to avoid eye glare
+            if (scene3d) scene3d.background = new THREE.Color(0x0f172a);
+            if (sceneWrapper3d) sceneWrapper3d.background = new THREE.Color(0x0f172a);
+        }
+        localStorage.setItem('maszyny_theme', theme);
+    }
+
+    window.toggleTheme = function() {
+        const isDark = document.body.classList.contains('dark-theme');
+        applyTheme(isDark ? 'light' : 'dark');
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 3D DIGITAL TWIN PALLET ENGINE (THREE.JS - HIGH-LEVEL PALLETIZER)
+    // ─────────────────────────────────────────────────────────────
+    let scene3d, camera3d, renderer3d, controls3d;
+    let palletGroup3d, bagsGroup3d, machineFrameGroup3d, upperPlateLeft3d, upperPlateRight3d, upperBagsGroup3d;
+    let autoRotate3d = false;
+    let current3dLayer = 0, current3dBag = 0;
+
+    function init3dScene() {
+        const container = document.getElementById('pallet3dCanvasContainer');
+        if (!container || typeof THREE === 'undefined') return;
+
+        const width = container.clientWidth || 360;
+        const height = container.clientHeight || 230;
+
+        // Scene
+        scene3d = new THREE.Scene();
+        scene3d.background = new THREE.Color(0x0b1120);
+
+        // Camera
+        camera3d = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+        camera3d.position.set(2.6, 2.5, 2.8);
+
+        // Renderer
+        renderer3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer3d.setSize(width, height);
+        renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer3d.shadowMap.enabled = true;
+        renderer3d.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        container.innerHTML = '';
+        container.appendChild(renderer3d.domElement);
+
+        // Orbit Controls
+        if (typeof THREE.OrbitControls !== 'undefined') {
+            controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+            controls3d.enableDamping = true;
+            controls3d.dampingFactor = 0.05;
+            controls3d.maxPolarAngle = Math.PI / 2 + 0.05;
+            controls3d.minDistance = 1.4;
+            controls3d.maxDistance = 6.5;
+            controls3d.target.set(0, 0.85, 0);
+        }
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene3d.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(4, 9, 4);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene3d.add(dirLight);
+
+        const blueFillLight = new THREE.DirectionalLight(0x0284c7, 0.35);
+        blueFillLight.position.set(-4, 3, -4);
+        scene3d.add(blueFillLight);
+
+        // Shadow Plane
+        const shadowPlaneGeo = new THREE.PlaneGeometry(6, 6);
+        const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.15 });
+        const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+        shadowPlane.rotation.x = -Math.PI / 2;
+        shadowPlane.position.y = -0.01;
+        shadowPlane.receiveShadow = true;
+        scene3d.add(shadowPlane);
+
+        // Groups
+        palletGroup3d = new THREE.Group();
+        bagsGroup3d = new THREE.Group();
+        machineFrameGroup3d = new THREE.Group();
+        upperBagsGroup3d = new THREE.Group();
+
+        scene3d.add(machineFrameGroup3d);
+        scene3d.add(palletGroup3d);
+        scene3d.add(bagsGroup3d);
+        scene3d.add(upperBagsGroup3d);
+
+        build3dPalletizerMachineFrame();
+        build3dEuroPallet();
+        rebuild3dBags(current3dLayer, current3dBag);
+
+        // Animation Loop
+        function animate3d() {
+            requestAnimationFrame(animate3d);
+            if (controls3d) {
+                if (autoRotate3d) {
+                    palletGroup3d.rotation.y += 0.004;
+                    bagsGroup3d.rotation.y += 0.004;
+                }
+                controls3d.update();
+            }
+            renderer3d.render(scene3d, camera3d);
+        }
+        animate3d();
+
+        window.addEventListener('resize', on3dWindowResize);
+    }
+
+    function on3dWindowResize() {
+        const container = document.getElementById('pallet3dCanvasContainer');
+        if (!container || !camera3d || !renderer3d) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        camera3d.aspect = width / height;
+        camera3d.updateProjectionMatrix();
+        renderer3d.setSize(width, height);
+    }
+
+    // Build Realistic Upper Infeed Conveyor, Bag Turner, Row Pusher, and Split Formation Table
+    let pusherPaddleMesh3d = null;
+
+    function build3dPalletizerMachineFrame() {
+        if (!machineFrameGroup3d) return;
+        machineFrameGroup3d.clear();
+
+        const steelMat = new THREE.MeshStandardMaterial({
+            color: 0x334155,
+            roughness: 0.5,
+            metalness: 0.7
+        });
+        const yellowMat = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b,
+            roughness: 0.4,
+            metalness: 0.3
+        });
+        const beltMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const chromeMat = new THREE.MeshStandardMaterial({
+            color: 0xe2e8f0,
+            roughness: 0.2,
+            metalness: 0.85
+        });
+
+        // 4 Vertical Heavy Duty Columns (Enclosing infeed staging belt at Z: -0.78 and split plates at Z: 0.18)
+        const colGeo = new THREE.BoxGeometry(0.08, 2.3, 0.08);
+        const colPos = [
+            [-0.65, 1.15, -0.98],
+            [0.65, 1.15, -0.98],
+            [-0.65, 1.15, 0.65],
+            [0.65, 1.15, 0.65]
+        ];
+        colPos.forEach(p => {
+            const col = new THREE.Mesh(colGeo, steelMat);
+            col.position.set(p[0], p[1], p[2]);
+            col.castShadow = true;
+            machineFrameGroup3d.add(col);
+        });
+
+        // Upper Perimeter Top Beams (Y: 2.25)
+        const beamXGeo = new THREE.BoxGeometry(1.38, 0.08, 0.08);
+        const beamZGeo = new THREE.BoxGeometry(0.08, 0.08, 1.71);
+
+        const b1 = new THREE.Mesh(beamXGeo, steelMat); b1.position.set(0, 2.25, -0.98);
+        const b2 = new THREE.Mesh(beamXGeo, steelMat); b2.position.set(0, 2.25, 0.65);
+        const b3 = new THREE.Mesh(beamZGeo, steelMat); b3.position.set(-0.65, 2.25, -0.165);
+        const b4 = new THREE.Mesh(beamZGeo, steelMat); b4.position.set(0.65, 2.25, -0.165);
+        machineFrameGroup3d.add(b1, b2, b3, b4);
+
+        // ─────────────────────────────────────────────────────────────
+        // INFEED CONVEYOR WITH DYNAMIC CHECKWEIGHER & REJECT DROP FLAP
+        // (Moved back to infeedZ = -0.78, widened to 0.60m so rotated 0.54m bags fit inside rails)
+        // ─────────────────────────────────────────────────────────────
+        const infeedZ = -0.78;
+        const beltW = 0.60;
+        const halfRail = 0.31; // Guide rail offset from center (clear internal width 0.62m)
+
+        // Section 1: Infeed Belt from Bagging Machine (X: -2.40 to -1.90, Z: infeedZ, Y: 1.78)
+        const infeed1Geo = new THREE.BoxGeometry(0.50, 0.06, beltW);
+        const infeed1Mesh = new THREE.Mesh(infeed1Geo, beltMat);
+        infeed1Mesh.position.set(-2.15, 1.78, infeedZ);
+        infeed1Mesh.castShadow = true;
+        machineFrameGroup3d.add(infeed1Mesh);
+
+        // Metal Detector Arch (Bramka detektora metali na wjeździe)
+        const mdArchGeo = new THREE.BoxGeometry(0.08, 0.40, beltW + 0.08);
+        const mdArch = new THREE.Mesh(mdArchGeo, chromeMat);
+        mdArch.position.set(-2.15, 1.96, infeedZ);
+        machineFrameGroup3d.add(mdArch);
+
+        // Section 2: Checkweigher Dynamic Scale Platform (X: -1.90 to -1.45, Y: 1.78, Z: infeedZ)
+        const scaleBedGeo = new THREE.BoxGeometry(0.42, 0.05, beltW);
+        const scaleMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.7 });
+        const scaleMesh = new THREE.Mesh(scaleBedGeo, scaleMat);
+        scaleMesh.position.set(-1.68, 1.775, infeedZ);
+        scaleMesh.castShadow = true;
+        machineFrameGroup3d.add(scaleMesh);
+
+        // Load cell sensors under scale platform
+        const loadCellGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.04, 12);
+        for (let lcx of [-1.82, -1.54]) {
+            for (let lcz of [infeedZ - 0.24, infeedZ + 0.24]) {
+                const cell = new THREE.Mesh(loadCellGeo, chromeMat);
+                cell.position.set(lcx, 1.73, lcz);
+                machineFrameGroup3d.add(cell);
+            }
+        }
+
+        // Section 3: Pneumatic Reject Drop Flap / Trapdoor (Klapa Zrzutu Odrzutów)
+        // Hinged at X: -1.45, dropping down at X: -1.25 when reject is active
+        const flapGeo = new THREE.BoxGeometry(0.38, 0.03, beltW);
+        const flapMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.6 });
+        rejectFlapMesh3d = new THREE.Mesh(flapGeo, flapMat);
+        rejectFlapMesh3d.position.set(-1.28, 1.78, infeedZ);
+        rejectFlapMesh3d.castShadow = true;
+        machineFrameGroup3d.add(rejectFlapMesh3d);
+
+        // Pneumatic cylinder operating the reject flap
+        const rejectCylGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 12);
+        const rejectCyl = new THREE.Mesh(rejectCylGeo, chromeMat);
+        rejectCyl.position.set(-1.28, 1.62, infeedZ - 0.28);
+        machineFrameGroup3d.add(rejectCyl);
+
+        // Reject Drop Funnel / Chute (Kosz / rynna zrzutowa na worki z błędem)
+        const chuteGeo = new THREE.BoxGeometry(0.42, 1.20, beltW + 0.02);
+        const chuteMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, metalness: 0.3, transparent: true, opacity: 0.65 });
+        const chuteMesh = new THREE.Mesh(chuteGeo, chuteMat);
+        chuteMesh.position.set(-1.28, 1.05, infeedZ);
+        machineFrameGroup3d.add(chuteMesh);
+
+        // Reject Collection Bin Box on Floor (Maintains clear safety margin before roller track)
+        const binBoxGeo = new THREE.BoxGeometry(0.55, 0.45, beltW + 0.04);
+        const binBoxMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.4 });
+        const binBox = new THREE.Mesh(binBoxGeo, binBoxMat);
+        binBox.position.set(-1.28, 0.22, infeedZ);
+        binBox.castShadow = true;
+
+        // Safety yellow rim on the reject collection bin
+        const binRimGeo = new THREE.BoxGeometry(0.57, 0.04, beltW + 0.06);
+        const binRim = new THREE.Mesh(binRimGeo, yellowMat);
+        binRim.position.set(-1.28, 0.44, infeedZ);
+        machineFrameGroup3d.add(binBox, binRim);
+
+        // Section 4: Lead-in belt to Turner (X: -1.05 to -0.65)
+        const leadInGeo = new THREE.BoxGeometry(0.38, 0.06, beltW);
+        const leadInMesh = new THREE.Mesh(leadInGeo, beltMat);
+        leadInMesh.position.set(-0.88, 1.78, infeedZ);
+        leadInMesh.castShadow = true;
+        machineFrameGroup3d.add(leadInMesh);
+
+        // Infeed Conveyor Support Legs (X: -2.30, -1.50, -0.75)
+        const legGeo = new THREE.BoxGeometry(0.05, 1.78, 0.05);
+        const legPositions = [
+            [-2.30, 0.89, infeedZ - 0.28], [-2.30, 0.89, infeedZ + 0.28],
+            [-1.50, 0.89, infeedZ - 0.28], [-1.50, 0.89, infeedZ + 0.28],
+            [-0.75, 0.89, infeedZ - 0.28], [-0.75, 0.89, infeedZ + 0.28]
+        ];
+        legPositions.forEach(lp => {
+            const leg = new THREE.Mesh(legGeo, steelMat);
+            leg.position.set(lp[0], lp[1], lp[2]);
+            machineFrameGroup3d.add(leg);
+        });
+
+        // Infeed Conveyor Side Guide Rails (0.62m internal width to allow rotated 0.54m bag without clipping)
+        const infeedRailGeo = new THREE.BoxGeometry(1.65, 0.09, 0.02);
+        const railBack = new THREE.Mesh(infeedRailGeo, yellowMat); railBack.position.set(-1.48, 1.83, infeedZ - halfRail);
+        const railFront = new THREE.Mesh(infeedRailGeo, yellowMat); railFront.position.set(-1.48, 1.83, infeedZ + halfRail);
+        machineFrameGroup3d.add(railBack, railFront);
+
+        // Infeed Electric Drive Motor
+        const motorGeo = new THREE.BoxGeometry(0.22, 0.16, 0.18);
+        const motorMesh = new THREE.Mesh(motorGeo, steelMat);
+        motorMesh.position.set(-2.25, 1.78, infeedZ - 0.38);
+        machineFrameGroup3d.add(motorMesh);
+
+        // Bag Turner (Obracak worków) Mechanism at entry
+        const turnerGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.04, 24);
+        const turnerMesh = new THREE.Mesh(turnerGeo, chromeMat);
+        turnerMesh.position.set(-0.62, 1.81, infeedZ);
+        machineFrameGroup3d.add(turnerMesh);
+
+        // Internal Receiving / Staging Conveyor & Transfer Bed (Stół buforowy rzędu łączący obracak z płytami rozjazdowymi)
+        // Spans from pusher rear Z: -0.98 continuously to the front edge of split formation plates Z: -0.18 (depth 0.80m)
+        const stagingConveyorGeo = new THREE.BoxGeometry(1.28, 0.05, 0.80);
+        const stagingConveyorMesh = new THREE.Mesh(stagingConveyorGeo, beltMat);
+        stagingConveyorMesh.position.set(0, 1.74, -0.58);
+        stagingConveyorMesh.castShadow = true;
+        machineFrameGroup3d.add(stagingConveyorMesh);
+
+        // Stainless steel transfer bridge transition between staging table and split plates
+        const bridgeBevelGeo = new THREE.BoxGeometry(1.28, 0.015, 0.04);
+        const bridgeBevel = new THREE.Mesh(bridgeBevelGeo, chromeMat);
+        bridgeBevel.position.set(0, 1.745, -0.18);
+        machineFrameGroup3d.add(bridgeBevel);
+
+        // Split Formation Plates / Trapdoor (Płyty rozsuwane dwudzielne, Z: 0.18, Y: 1.74)
+        const plateGeo = new THREE.BoxGeometry(0.48, 0.022, 0.72);
+        upperPlateLeft3d = new THREE.Mesh(plateGeo, chromeMat);
+        upperPlateLeft3d.position.set(-0.25, 1.74, 0.18);
+        upperPlateLeft3d.castShadow = true;
+
+        upperPlateRight3d = new THREE.Mesh(plateGeo, chromeMat);
+        upperPlateRight3d.position.set(0.25, 1.74, 0.18);
+        upperPlateRight3d.castShadow = true;
+
+        machineFrameGroup3d.add(upperPlateLeft3d);
+        machineFrameGroup3d.add(upperPlateRight3d);
+
+        // ROW PUSHER (PRZEPYCHACZ PNEUMATYCZNY W CZERWONEJ RAMCE)
+        // Overhead support beam & dual pneumatic cylinders positioned above the rear of staging conveyor
+        const pusherSupportBeamGeo = new THREE.BoxGeometry(1.30, 0.06, 0.06);
+        const pusherSupportBeam = new THREE.Mesh(pusherSupportBeamGeo, steelMat);
+        pusherSupportBeam.position.set(0, 2.05, infeedZ - 0.20);
+        machineFrameGroup3d.add(pusherSupportBeam);
+
+        const pusherCylinderGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.65, 16);
+        const cyl1 = new THREE.Mesh(pusherCylinderGeo, chromeMat);
+        cyl1.rotation.x = Math.PI / 2;
+        cyl1.position.set(-0.32, 1.95, infeedZ - 0.05);
+        const cyl2 = new THREE.Mesh(pusherCylinderGeo, chromeMat);
+        cyl2.rotation.x = Math.PI / 2;
+        cyl2.position.set(0.32, 1.95, infeedZ - 0.05);
+        machineFrameGroup3d.add(cyl1, cyl2);
+
+        // Moving Pusher Paddle / Blade (Żółta belka spychająca)
+        const paddleGeo = new THREE.BoxGeometry(1.16, 0.14, 0.04);
+        pusherPaddleMesh3d = new THREE.Mesh(paddleGeo, yellowMat);
+        pusherPaddleMesh3d.position.set(0, 1.84, infeedZ - 0.16);
+        pusherPaddleMesh3d.castShadow = true;
+        machineFrameGroup3d.add(pusherPaddleMesh3d);
+
+        // ─────────────────────────────────────────────────────────────
+        // 1. MOTORIZED FLOOR ROLLER CONVEYOR BED (ROLKOWIEC WZDŁUŻ OSI X POD PŁYTAMI)
+        // ─────────────────────────────────────────────────────────────
+        const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
+        const pWidth = isIndustrial ? 1.0 : 0.8;
+        const pLength = 1.2;
+        const trackZ = 0.18; // Exactly centered under split formation plates
+
+        // Main structural side rails running from Left Dispenser (X: -2.75) through Stacking (X: 0) to Outfeed (X: +2.45)
+        const trackLengthX = 5.2;
+        const sideRailGeo = new THREE.BoxGeometry(trackLengthX, 0.10, 0.06);
+        const halfRailZ = (pWidth / 2) + 0.08;
+
+        const sideRailRear = new THREE.Mesh(sideRailGeo, steelMat);
+        sideRailRear.position.set(-0.15, 0.05, trackZ - halfRailZ);
+        sideRailRear.castShadow = true;
+
+        const sideRailFront = new THREE.Mesh(sideRailGeo, steelMat);
+        sideRailFront.position.set(-0.15, 0.05, trackZ + halfRailZ);
+        sideRailFront.castShadow = true;
+        machineFrameGroup3d.add(sideRailRear, sideRailFront);
+
+        // Safety yellow guide edges on roller track
+        const guardEdgeGeo = new THREE.BoxGeometry(trackLengthX, 0.04, 0.02);
+        const guardRear = new THREE.Mesh(guardEdgeGeo, yellowMat); guardRear.position.set(-0.15, 0.10, trackZ - halfRailZ);
+        const guardFront = new THREE.Mesh(guardEdgeGeo, yellowMat); guardFront.position.set(-0.15, 0.10, trackZ + halfRailZ);
+        machineFrameGroup3d.add(guardRear, guardFront);
+
+        // Rotating Cylindrical Steel Rollers along X axis (Rollers span along Z)
+        const rollerLength = (halfRailZ * 2) - 0.04;
+        const rollerGeo = new THREE.CylinderGeometry(0.028, 0.028, rollerLength, 16);
+        for (let rx = -2.65; rx <= 2.35; rx += 0.22) {
+            const roller = new THREE.Mesh(rollerGeo, chromeMat);
+            roller.rotation.x = Math.PI / 2;
+            roller.position.set(rx, 0.055, trackZ);
+            roller.castShadow = true;
+            machineFrameGroup3d.add(roller);
+        }
+
+        // Roller track drive motors
+        const rollerMotorGeo = new THREE.BoxGeometry(0.18, 0.14, 0.18);
+        const motor1 = new THREE.Mesh(rollerMotorGeo, steelMat);
+        motor1.position.set(-2.55, 0.07, trackZ + halfRailZ + 0.12);
+        const motor2 = new THREE.Mesh(rollerMotorGeo, steelMat);
+        motor2.position.set(2.25, 0.07, trackZ + halfRailZ + 0.12);
+        machineFrameGroup3d.add(motor1, motor2);
+
+        // ─────────────────────────────────────────────────────────────
+        // 2. EMPTY PALLET MAGAZINE / DISPENSER (MAGAZYNEK PUSTYCH PALET PO LEWEJ OBOK ZRZUTU)
+        // ─────────────────────────────────────────────────────────────
+        const dispenserX = -1.85;
+        const dispColGeo = new THREE.BoxGeometry(0.06, 1.60, 0.06);
+        const dispHalfX = (pLength / 2) + 0.04; // 0.64m
+        const dispHalfZ = (pWidth / 2) + 0.04;  // 0.54m or 0.44m
+
+        const dispCorners = [
+            [dispenserX - dispHalfX, 0.80, trackZ - dispHalfZ],
+            [dispenserX + dispHalfX, 0.80, trackZ - dispHalfZ],
+            [dispenserX - dispHalfX, 0.80, trackZ + dispHalfZ],
+            [dispenserX + dispHalfX, 0.80, trackZ + dispHalfZ]
+        ];
+        dispCorners.forEach(c => {
+            const dCol = new THREE.Mesh(dispColGeo, steelMat);
+            dCol.position.set(c[0], c[1], c[2]);
+            dCol.castShadow = true;
+            machineFrameGroup3d.add(dCol);
+        });
+
+        // Top Funnel Guide Angles (Along X: pLength + 0.16m)
+        const funnelGeo = new THREE.BoxGeometry(pLength + 0.16, 0.05, 0.05);
+        const fun1 = new THREE.Mesh(funnelGeo, yellowMat); fun1.position.set(dispenserX, 1.60, trackZ - dispHalfZ);
+        const fun2 = new THREE.Mesh(funnelGeo, yellowMat); fun2.position.set(dispenserX, 1.60, trackZ + dispHalfZ);
+        machineFrameGroup3d.add(fun1, fun2);
+
+        // Pneumatic Bottom Pallet Separator Pawls
+        const pawlGeo = new THREE.BoxGeometry(0.12, 0.06, 0.08);
+        const pawlL = new THREE.Mesh(pawlGeo, chromeMat); pawlL.position.set(dispenserX - dispHalfX + 0.02, 0.22, trackZ);
+        const pawlR = new THREE.Mesh(pawlGeo, chromeMat); pawlR.position.set(dispenserX + dispHalfX - 0.02, 0.22, trackZ);
+        machineFrameGroup3d.add(pawlL, pawlR);
+
+        // Stack of 6 Empty Wooden Pallets in Magazine Chute (At dispenserX, trackZ)
+        const woodMat = new THREE.MeshStandardMaterial({
+            color: 0xc89d66,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+
+        for (let pIdx = 1; pIdx <= 6; pIdx++) {
+            const stackY = 0.08 + (pIdx * 0.144);
+            const stackPalletGeo = new THREE.BoxGeometry(pLength, 0.14, pWidth);
+            const stackPallet = new THREE.Mesh(stackPalletGeo, woodMat);
+            stackPallet.position.set(dispenserX, stackY, trackZ);
+            stackPallet.castShadow = true;
+            machineFrameGroup3d.add(stackPallet);
+        }
+    }
+
+    // Build Realistic Wooden Pallet (Industrial 1.0m x 1.2m vs EURO 0.8m x 1.2m) at (X: 0, Z: 0.18)
+    function build3dEuroPallet() {
+        if (!palletGroup3d) return;
+        palletGroup3d.clear();
+        palletGroup3d.position.set(0, 0, 0.18); // Positioned directly under split formation plates
+
+        const woodMat = new THREE.MeshStandardMaterial({
+            color: 0xc89d66,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+
+        const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
+        const palletWidth = isIndustrial ? 1.0 : 0.8;
+
+        if (isIndustrial) {
+            // INDUSTRIAL 1000 x 1200 mm (7 Top Boards)
+            const topBoardWidths = [0.145, 0.100, 0.100, 0.145, 0.100, 0.100, 0.145];
+            const topBoardX = [-0.4275, -0.285, -0.1425, 0, 0.1425, 0.285, 0.4275];
+            for (let i = 0; i < 7; i++) {
+                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(topBoardX[i], 0.133, 0);
+                board.castShadow = true;
+                board.receiveShadow = true;
+                palletGroup3d.add(board);
+            }
+
+            // Cross Stringer Boards (3 boards, 1.0m width)
+            const crossPositions = [-0.5, 0, 0.5];
+            for (let pos of crossPositions) {
+                const crossGeo = new THREE.BoxGeometry(1.0, 0.022, 0.145);
+                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
+                crossBoard.position.set(0, 0.111, pos);
+                crossBoard.castShadow = true;
+                palletGroup3d.add(crossBoard);
+            }
+
+            // Spacer Blocks (9 blocks)
+            const blockX = [-0.425, 0, 0.425];
+            const blockZ = [-0.5, 0, 0.5];
+            for (let bx of blockX) {
+                for (let bz of blockZ) {
+                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
+                    const block = new THREE.Mesh(blockGeo, woodMat);
+                    block.position.set(bx, 0.061, bz);
+                    block.castShadow = true;
+                    palletGroup3d.add(block);
+                }
+            }
+
+            // Bottom Skids (3 boards)
+            for (let bx of blockX) {
+                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
+                const botBoard = new THREE.Mesh(botGeo, woodMat);
+                botBoard.position.set(bx, 0.011, 0);
+                botBoard.castShadow = true;
+                palletGroup3d.add(botBoard);
+            }
+        } else {
+            // EURO / EPAL 800 x 1200 mm (5 Top Boards)
+            const topBoardWidths = [0.145, 0.100, 0.145, 0.100, 0.145];
+            const topBoardX = [-0.3275, -0.175, 0, 0.175, 0.3275];
+            for (let i = 0; i < 5; i++) {
+                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(topBoardX[i], 0.133, 0);
+                board.castShadow = true;
+                board.receiveShadow = true;
+                palletGroup3d.add(board);
+            }
+
+            // Cross Stringer Boards (3 boards, 0.8m width)
+            const crossPositions = [-0.5, 0, 0.5];
+            for (let pos of crossPositions) {
+                const crossGeo = new THREE.BoxGeometry(0.8, 0.022, 0.145);
+                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
+                crossBoard.position.set(0, 0.111, pos);
+                crossBoard.castShadow = true;
+                palletGroup3d.add(crossBoard);
+            }
+
+            // Spacer Blocks (9 blocks)
+            const blockX = [-0.325, 0, 0.325];
+            const blockZ = [-0.5, 0, 0.5];
+            for (let bx of blockX) {
+                for (let bz of blockZ) {
+                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
+                    const block = new THREE.Mesh(blockGeo, woodMat);
+                    block.position.set(bx, 0.061, bz);
+                    block.castShadow = true;
+                    palletGroup3d.add(block);
+                }
+            }
+
+            // Bottom Skids (3 boards)
+            for (let bx of blockX) {
+                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
+                const botBoard = new THREE.Mesh(botGeo, woodMat);
+                botBoard.position.set(bx, 0.011, 0);
+                botBoard.castShadow = true;
+                palletGroup3d.add(botBoard);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DYNAMIC SACK TEXTURE GENERATOR (AGRONETZWERK BRANDING & ACTIVE ORDER)
+    // ─────────────────────────────────────────────────────────────
+    let currentActiveOrder = {
+        product_name: 'KREDA NAWOZOWA AGRO GRANULOWANA',
+        batch_number: 'LOT-20260906-001',
+        production_date: '2026-09-06',
+        expiry_date: '2028-09-05',
+        weight_kg: 25.0,
+        brand: 'AGRONETZWERK',
+        sub_brand: 'AGRO PREMIUM FERTILIZERS'
+    };
+
+    // Cached procedural canvas textures for realistic bulk product sacks
+    let sackTextureNormal = null;
+    let sackTextureRotated = null;
+    let sackTextureLatest = null;
+    let sackTextureLatestRotated = null;
+
+    function resetSackTextureCache() {
+        sackTextureNormal = null;
+        sackTextureRotated = null;
+        sackTextureLatest = null;
+        sackTextureLatestRotated = null;
+    }
+
+    // Draws Agronetzwerk vector logo badge (emerald leaf & network nodes) on 2D context
+    function drawAgronetzwerkLogo(ctx, cx, cy, scale) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        // Outer Hexagonal / Shield Badge
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.moveTo(0, -32);
+        ctx.lineTo(28, -16);
+        ctx.lineTo(28, 16);
+        ctx.lineTo(0, 32);
+        ctx.lineTo(-28, 16);
+        ctx.lineTo(-28, -16);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner glowing border
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Leaf / Crop Plant Emblem
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.moveTo(0, -20);
+        ctx.quadraticCurveTo(16, -10, 12, 14);
+        ctx.quadraticCurveTo(0, 24, 0, 24);
+        ctx.quadraticCurveTo(0, 24, -12, 14);
+        ctx.quadraticCurveTo(-16, -10, 0, -20);
+        ctx.fill();
+
+        // Central leaf vein & network nodes
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 22);
+        ctx.lineTo(0, -14);
+        ctx.moveTo(0, 4);
+        ctx.lineTo(8, -4);
+        ctx.moveTo(0, 12);
+        ctx.lineTo(-8, 4);
+        ctx.stroke();
+
+        // Golden connection node points
+        ctx.fillStyle = '#fbbf24';
+        for (let pt of [[0, -14], [8, -4], [-8, 4], [0, 22]]) {
+            ctx.beginPath();
+            ctx.arc(pt[0], pt[1], 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    function generateSackCanvasTexture(isLatest, isRotated) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        const order = currentActiveOrder || {};
+        const prodName = String(order.product_name || 'KREDA NAWOZOWA AGRO GRANULOWANA').toUpperCase();
+        const batchNo = String(order.batch_number || 'LOT-20260906-01');
+        const prodDate = String(order.production_date || '2026-09-06');
+        const expDate = String(order.expiry_date || '2028-09-05');
+        const weightKg = (order.weight_kg || 25.0).toFixed(1);
+
+        // Background: Clean Multi-wall Kraft / Industrial Packaging Paper
+        ctx.fillStyle = isLatest ? '#e0f2fe' : '#f8fafc';
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Subtle paper fiber grain noise
+        for (let i = 0; i < 4500; i++) {
+            const rx = Math.random() * 512;
+            const ry = Math.random() * 512;
+            ctx.fillStyle = (Math.random() > 0.5) ? 'rgba(0,0,0,0.025)' : 'rgba(255,255,255,0.05)';
+            ctx.fillRect(rx, ry, 2, 2);
+        }
+
+        // Top & Bottom stitched seam bands (przeszycie nicią / zgrzewy przemysłowe)
+        const seamColor = isLatest ? '#0284c7' : '#047857';
+        ctx.fillStyle = seamColor;
+        if (!isRotated) {
+            ctx.fillRect(0, 0, 22, 512);
+            ctx.fillRect(490, 0, 22, 512);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.moveTo(11, 0); ctx.lineTo(11, 512);
+            ctx.moveTo(501, 0); ctx.lineTo(501, 512);
+            ctx.stroke();
+        } else {
+            ctx.fillRect(0, 0, 512, 22);
+            ctx.fillRect(0, 490, 512, 22);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.moveTo(0, 11); ctx.lineTo(512, 11);
+            ctx.moveTo(0, 501); ctx.lineTo(512, 501);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        if (!isRotated) {
+            // ──────────────── HORIZONTAL ORIENTATION (Normal Sack) ────────────────
+            // Top Green Brand Banner
+            ctx.fillStyle = '#065f46';
+            ctx.fillRect(34, 40, 444, 76);
+
+            // Draw Agronetzwerk Brand Logo & Name
+            drawAgronetzwerkLogo(ctx, 80, 78, 0.9);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 28px "Montserrat", "Arial Black", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('AGRONETZWERK', 125, 78);
+            ctx.fillStyle = '#34d399';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('AGRO PREMIUM CROP NUTRITION & FERTILIZERS', 125, 98);
+
+            // Central Product Name Ribbon
+            ctx.fillStyle = isLatest ? '#0284c7' : '#047857';
+            ctx.fillRect(34, 130, 444, 150);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+
+            // Split and wrap product name cleanly
+            if (prodName.length > 24) {
+                const words = prodName.split(' ');
+                const mid = Math.ceil(words.length / 2);
+                const line1 = words.slice(0, mid).join(' ');
+                const line2 = words.slice(mid).join(' ');
+                ctx.font = '900 25px sans-serif';
+                ctx.fillText(line1, 256, 175);
+                ctx.fillText(line2, 256, 210);
+            } else {
+                ctx.font = '900 30px sans-serif';
+                ctx.fillText(prodName, 256, 190);
+            }
+
+            ctx.fillStyle = '#fef08a'; // Bright yellow badge
+            ctx.font = '900 22px sans-serif';
+            ctx.fillText(`● MASA NETTO: ${weightKg} kg ●`, 256, 255);
+
+            // Bottom Traceability & Industrial Batch Box
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(40, 298, 432, 168);
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(40, 298, 432, 168);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.textAlign = 'left';
+            ctx.font = '900 15px monospace';
+            ctx.fillText(`PARTIA / LOT: ${batchNo}`, 58, 332);
+
+            ctx.font = 'bold 14px monospace';
+            ctx.fillStyle = '#334155';
+            ctx.fillText(`DATA PRODUKCJI: ${prodDate}`, 58, 362);
+            ctx.fillText(`NAJLEPIEJ ZUŻYĆ PRZED: ${expDate}`, 58, 392);
+
+            ctx.font = 'bold 12px monospace';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('NORMA: EN 197-1 CE ■ ISO 9001:2015 ■ PL', 58, 424);
+
+            // Simulated Barcode on the bottom right
+            ctx.fillStyle = '#0f172a';
+            for (let bx = 330; bx < 450; bx += 4) {
+                const bWidth = (Math.sin(bx * 13) > 0) ? 2.5 : 1.2;
+                ctx.fillRect(bx, 320, bWidth, 48);
+            }
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(batchNo.replace(/[^0-9]/g, '').slice(0, 12) || '590123456789', 390, 380);
+
+        } else {
+            // ──────────────── VERTICAL 90° ROTATED ORIENTATION ────────────────
+            ctx.save();
+            ctx.translate(256, 256);
+            ctx.rotate(Math.PI / 2);
+
+            // Top Brand Banner
+            ctx.fillStyle = '#065f46';
+            ctx.fillRect(-222, -216, 444, 76);
+
+            drawAgronetzwerkLogo(ctx, -176, -178, 0.9);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 28px "Montserrat", "Arial Black", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('AGRONETZWERK', -131, -178);
+            ctx.fillStyle = '#34d399';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('AGRO PREMIUM CROP NUTRITION & FERTILIZERS', -131, -158);
+
+            // Central Product Name Ribbon
+            ctx.fillStyle = isLatest ? '#0284c7' : '#047857';
+            ctx.fillRect(-222, -126, 444, 150);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+
+            if (prodName.length > 24) {
+                const words = prodName.split(' ');
+                const mid = Math.ceil(words.length / 2);
+                const line1 = words.slice(0, mid).join(' ');
+                const line2 = words.slice(mid).join(' ');
+                ctx.font = '900 25px sans-serif';
+                ctx.fillText(line1, 0, -81);
+                ctx.fillText(line2, 0, -46);
+            } else {
+                ctx.font = '900 30px sans-serif';
+                ctx.fillText(prodName, 0, -66);
+            }
+
+            ctx.fillStyle = '#fef08a';
+            ctx.font = '900 22px sans-serif';
+            ctx.fillText(`● MASA NETTO: ${weightKg} kg ●`, 0, -1);
+
+            // Bottom Traceability & Batch Box
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-216, 42, 432, 168);
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-216, 42, 432, 168);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.textAlign = 'left';
+            ctx.font = '900 15px monospace';
+            ctx.fillText(`PARTIA / LOT: ${batchNo}`, -198, 76);
+
+            ctx.font = 'bold 14px monospace';
+            ctx.fillStyle = '#334155';
+            ctx.fillText(`DATA PRODUKCJI: ${prodDate}`, -198, 106);
+            ctx.fillText(`NAJLEPIEJ ZUŻYĆ PRZED: ${expDate}`, -198, 136);
+
+            ctx.font = 'bold 12px monospace';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('NORMA: EN 197-1 CE ■ ISO 9001:2015 ■ PL', -198, 168);
+
+            // Simulated Barcode
+            ctx.fillStyle = '#0f172a';
+            for (let bx = 74; bx < 194; bx += 4) {
+                const bWidth = (Math.sin(bx * 13) > 0) ? 2.5 : 1.2;
+                ctx.fillRect(bx, 64, bWidth, 48);
+            }
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(batchNo.replace(/[^0-9]/g, '').slice(0, 12) || '590123456789', 134, 124);
+
+            ctx.restore();
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.anisotropy = 4;
+        return texture;
+    }
+
+    // Creates deformed pillow geometry simulating natural bulk powder/granule settling & internal pressure
+    function createBulkSackGeometry(w, h, l) {
+        const geo = new THREE.BoxGeometry(w, h, l, 16, 6, 16);
+        const pos = geo.attributes.position;
+        const halfW = w / 2;
+        const halfH = h / 2;
+        const halfL = l / 2;
+
+        for (let i = 0; i < pos.count; i++) {
+            let x = pos.getX(i);
+            let y = pos.getY(i);
+            let z = pos.getZ(i);
+
+            const nx = x / halfW; // -1 .. 1
+            const ny = y / halfH; // -1 .. 1
+            const nz = z / halfL; // -1 .. 1
+
+            // 1. Pillow bulge on top and bottom face
+            if (ny > 0.4) {
+                const centerBulge = Math.cos(nx * Math.PI * 0.46) * Math.cos(nz * Math.PI * 0.46);
+                y += centerBulge * (h * 0.32);
+            }
+
+            pos.setXYZ(i, x, y, z);
+        }
+        geo.computeVertexNormals();
+        return geo;
+    }
+
+    // Creates an ultra-realistic industrial bulk product sack with natural pillow shape and valve details
+    function create3dBagMesh(width, height, length, isLatest, isRotated) {
+        const bagGroup = new THREE.Group();
+
+        // Lazy initialize canvas textures
+        if (!sackTextureNormal) {
+            sackTextureNormal = generateSackCanvasTexture(false, false);
+            sackTextureRotated = generateSackCanvasTexture(false, true);
+            sackTextureLatest = generateSackCanvasTexture(true, false);
+            sackTextureLatestRotated = generateSackCanvasTexture(true, true);
+        }
+
+        const mapTex = isLatest 
+            ? (isRotated ? sackTextureLatestRotated : sackTextureLatest)
+            : (isRotated ? sackTextureRotated : sackTextureNormal);
+
+        const sackGeo = createBulkSackGeometry(width, height, length);
+        const sackMat = new THREE.MeshStandardMaterial({
+            map: mapTex,
+            roughness: 0.82,
+            metalness: 0.05,
+            emissive: isLatest ? 0x0284c7 : 0x000000,
+            emissiveIntensity: isLatest ? 0.20 : 0.0
+        });
+
+        const sackMesh = new THREE.Mesh(sackGeo, sackMat);
+        sackMesh.castShadow = true;
+        sackMesh.receiveShadow = true;
+        bagGroup.add(sackMesh);
+
+        return bagGroup;
+    }
+
+    // Rebuilds 3D Stacking: Pallet holds actual completed layers; Upper conveyor and split plate hold active bags
+    function rebuild3dBags(currentLayer, currentBag) {
+        if (!bagsGroup3d || !upperBagsGroup3d) return;
+        bagsGroup3d.clear();
+        upperBagsGroup3d.clear();
+        bagsGroup3d.position.set(0, 0, 0.18); // Directly under split formation plates
+
+        const fullLayers = currentConfig.full_layers || currentConfig.total_layers || 12;
+        const bagsPerLayer = currentConfig.bags_per_layer || 4;
+        const topLayerBags = currentConfig.top_layer_bags !== undefined ? currentConfig.top_layer_bags : 2;
+
+        const bagHeight = 0.095;
+        const baseHeight = 0.144; // Top surface of wooden pallet
+
+        // Exact Euro Pallet matching dimensions (0.80m x 1.20m)
+        const bagW = 0.385; // 2 bags = 0.77m width (inside 0.80m pallet)
+        const bagL = 0.585; // 2 bags = 1.17m length (inside 1.20m pallet)
+
+        // 1. RENDER ACTUAL COMPLETED LAYERS ON THE PALLET (1 .. currentLayer - 1)
+        const maxBagsInCurrent = (currentLayer > fullLayers) ? topLayerBags : bagsPerLayer;
+        const fullyDepositedLayers = (currentBag >= maxBagsInCurrent) ? currentLayer : (currentLayer - 1);
+
+        for (let l = 1; l <= fullyDepositedLayers; l++) {
+            const isTopLayer = (l > fullLayers);
+            const bagsInThisLayer = isTopLayer ? topLayerBags : bagsPerLayer;
+            const layerY = baseHeight + (l - 1) * bagHeight + (bagHeight / 2);
+            const isEvenLayer = (l % 2 === 0);
+
+            for (let b = 1; b <= bagsInThisLayer; b++) {
+                let posX = 0, posZ = 0;
+
+                if (isTopLayer) {
+                    if (topLayerBags === 2) { posX = (b === 1) ? -0.194 : 0.194; posZ = 0; }
+                    else if (topLayerBags === 1) { posX = 0; posZ = 0; }
+                    else { posX = (b % 2 === 0 ? 0.194 : -0.194); posZ = (b > 2 ? 0.294 : -0.294); }
+                } else if (bagsPerLayer === 4) {
+                    // Flush 2x2 grid forming perfectly straight walls
+                    if (b === 1) { posX = -0.194; posZ = -0.294; }
+                    else if (b === 2) { posX = 0.194; posZ = -0.294; }
+                    else if (b === 3) { posX = 0.194; posZ = 0.294; }
+                    else if (b === 4) { posX = -0.194; posZ = 0.294; }
+                } else if (bagsPerLayer === 5) {
+                    if (!isEvenLayer) {
+                        if (b <= 3) { posX = (b - 2) * 0.24; posZ = -0.18; }
+                        else { posX = (b === 4 ? -0.194 : 0.194); posZ = 0.27; }
+                    } else {
+                        if (b <= 2) { posX = (b === 1 ? -0.194 : 0.194); posZ = -0.27; }
+                        else { posX = (b - 4) * 0.24; posZ = 0.18; }
+                    }
+                } else {
+                    posX = (b % 2 === 0 ? 0.194 : -0.194);
+                    posZ = (b > 2 ? 0.294 : -0.294);
+                }
+
+                const bagMesh = create3dBagMesh(
+                    bagW,
+                    bagHeight - 0.008,
+                    bagL,
+                    false,
+                    isEvenLayer
+                );
+
+                bagMesh.position.set(posX, layerY, posZ);
+                bagsGroup3d.add(bagMesh);
+            }
+        }
+
+        // 2. RENDER INFEED CONVEYOR BAGS & STAGING
+        const infeedZ = -0.78;
+        const upperY = 1.74 + (bagHeight / 2) + 0.015;
+        const infeedY = 1.78 + (bagHeight / 2) + 0.02;
+
+        const bagOnEntry = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+        bagOnEntry.position.set(-2.10, infeedY, infeedZ);
+        upperBagsGroup3d.add(bagOnEntry);
+
+        const bagOnMiddle = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+        bagOnMiddle.position.set(-1.45, infeedY, infeedZ);
+        upperBagsGroup3d.add(bagOnMiddle);
+
+        const isCurrentEven = (currentLayer % 2 === 0);
+        const nextBagIdx = currentBag + 1;
+        let turnerShouldRotate = false;
+        if (bagsPerLayer === 4) {
+            turnerShouldRotate = (!isCurrentEven && (nextBagIdx === 1 || nextBagIdx === 3)) || (isCurrentEven && (nextBagIdx === 2 || nextBagIdx === 4));
+        }
+
+        const bagOnTurner = create3dBagMesh(
+            turnerShouldRotate ? 0.36 : 0.54,
+            bagHeight - 0.008,
+            turnerShouldRotate ? 0.54 : 0.36,
+            currentBag === 0,
+            turnerShouldRotate
+        );
+        bagOnTurner.position.set(-0.62, infeedY, infeedZ);
+        upperBagsGroup3d.add(bagOnTurner);
+
+        // 3. RENDER BAGS ON RECEIVING CONVEYOR & SPLIT FORMATION PLATES
+        if (currentLayer > 0 && currentBag > 0 && currentBag < maxBagsInCurrent) {
+            const isTopLayer = (currentLayer > fullLayers);
+
+            for (let b = 1; b <= currentBag; b++) {
+                const isLatest = (b === currentBag);
+                let posX = 0, posZ = 0;
+
+                if (isTopLayer) {
+                    posX = (b === 1 ? -0.194 : 0.194);
+                    posZ = (b === currentBag ? infeedZ : 0.18);
+                } else if (bagsPerLayer === 4) {
+                    if (b === 1) { posX = -0.194; posZ = (currentBag === 1 ? infeedZ : -0.10); }
+                    else if (b === 2) { posX = 0.194; posZ = (currentBag === 2 ? infeedZ : -0.10); }
+                    else if (b === 3) { posX = 0.194; posZ = (currentBag === 3 ? infeedZ : 0.28); }
+                    else if (b === 4) { posX = -0.194; posZ = (currentBag === 4 ? infeedZ : 0.28); }
+                }
+
+                const upperBag = create3dBagMesh(
+                    bagW,
+                    bagHeight - 0.008,
+                    bagL,
+                    isLatest,
+                    isCurrentEven
+                );
+
+                upperBag.position.set(posX, upperY, posZ);
+                upperBagsGroup3d.add(upperBag);
+            }
+
+            const isPushing = (currentBag === 2 || currentBag === 4);
+            if (pusherPaddleMesh3d) pusherPaddleMesh3d.position.z = isPushing ? -0.15 : (infeedZ - 0.16);
+            if (upperPlateLeft3d) upperPlateLeft3d.position.x = -0.25;
+            if (upperPlateRight3d) upperPlateRight3d.position.x = 0.25;
+        } else if (currentBag >= maxBagsInCurrent && currentLayer > 0) {
+            if (pusherPaddleMesh3d) pusherPaddleMesh3d.position.z = infeedZ - 0.16;
+            if (upperPlateLeft3d) upperPlateLeft3d.position.x = -0.52;
+            if (upperPlateRight3d) upperPlateRight3d.position.x = 0.52;
+        } else {
+            if (pusherPaddleMesh3d) pusherPaddleMesh3d.position.z = infeedZ - 0.16;
+            if (upperPlateLeft3d) upperPlateLeft3d.position.x = -0.25;
+            if (upperPlateRight3d) upperPlateRight3d.position.x = 0.25;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 3D DIGITAL TWIN OWIJARKA (STRETCH WRAPPER, ROLLER CONVEYOR & TURNTABLE LIFT)
+    // ─────────────────────────────────────────────────────────────
+    let sceneWrapper3d, cameraWrapper3d, rendererWrapper3d, controlsWrapper3d;
+    let turntableGroup3d, wrapperPalletGroup3d, mastGroup3d, carriageMesh3d, topSheetArmGroup3d;
+    let foilCylinderMesh3d, topSheetCoverMesh3d, blokerGroup3d, turntableLiftPiston3d;
+    let autoRotateWrapper3d = true;
+    let wrapperSimInterval = null;
+    let isWrapperRotating = false;
+    let isWrapperElevated = false;
+    let isBlokerLocked = false;
+
+    function initWrapper3dScene() {
+        const container = document.getElementById('wrapper3dCanvasContainer');
+        if (!container || typeof THREE === 'undefined') return;
+
+        const width = container.clientWidth || 360;
+        const height = container.clientHeight || 230;
+
+        sceneWrapper3d = new THREE.Scene();
+        sceneWrapper3d.background = new THREE.Color(0x0b1120);
+
+        cameraWrapper3d = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+        cameraWrapper3d.position.set(2.8, 2.4, 2.9);
+
+        rendererWrapper3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        rendererWrapper3d.setSize(width, height);
+        rendererWrapper3d.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        rendererWrapper3d.shadowMap.enabled = true;
+        rendererWrapper3d.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        container.innerHTML = '';
+        container.appendChild(rendererWrapper3d.domElement);
+
+        if (typeof THREE.OrbitControls !== 'undefined') {
+            controlsWrapper3d = new THREE.OrbitControls(cameraWrapper3d, rendererWrapper3d.domElement);
+            controlsWrapper3d.enableDamping = true;
+            controlsWrapper3d.dampingFactor = 0.05;
+            controlsWrapper3d.maxPolarAngle = Math.PI / 2 + 0.05;
+            controlsWrapper3d.minDistance = 1.6;
+            controlsWrapper3d.maxDistance = 6.5;
+            controlsWrapper3d.target.set(0, 0.75, 0);
+        }
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        sceneWrapper3d.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(4, 9, 4);
+        dirLight.castShadow = true;
+        sceneWrapper3d.add(dirLight);
+
+        const emeraldFillLight = new THREE.DirectionalLight(0x10b981, 0.35);
+        emeraldFillLight.position.set(-4, 3, -4);
+        sceneWrapper3d.add(emeraldFillLight);
+
+        const shadowPlaneGeo = new THREE.PlaneGeometry(6, 6);
+        const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.15 });
+        const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+        shadowPlane.rotation.x = -Math.PI / 2;
+        shadowPlane.position.y = -0.01;
+        shadowPlane.receiveShadow = true;
+        sceneWrapper3d.add(shadowPlane);
+
+        turntableGroup3d = new THREE.Group();
+        mastGroup3d = new THREE.Group();
+        sceneWrapper3d.add(mastGroup3d);
+        sceneWrapper3d.add(turntableGroup3d);
+
+        build3dWrapperStationaryMast();
+        build3dWrapperTurntable();
+        build3dPalletOnTurntable();
+        build3dWrapperFoilAndCap();
+
+        function animateWrapper3d() {
+            requestAnimationFrame(animateWrapper3d);
+            if (controlsWrapper3d) {
+                if (autoRotateWrapper3d && !isWrapperRotating) {
+                    turntableGroup3d.rotation.y += 0.004;
+                } else if (isWrapperRotating) {
+                    turntableGroup3d.rotation.y += 0.035; // Wrapping rotation
+                }
+                controlsWrapper3d.update();
+            }
+            rendererWrapper3d.render(sceneWrapper3d, cameraWrapper3d);
+        }
+        animateWrapper3d();
+
+        window.addEventListener('resize', onWrapper3dWindowResize);
+    }
+
+    function onWrapper3dWindowResize() {
+        const container = document.getElementById('wrapper3dCanvasContainer');
+        if (!container || !cameraWrapper3d || !rendererWrapper3d) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        cameraWrapper3d.aspect = width / height;
+        cameraWrapper3d.updateProjectionMatrix();
+        rendererWrapper3d.setSize(width, height);
+    }
+
+    // Build Vertical Mast Column, Full Continuous Roller Conveyor & Pneumatic Stopper (Bloker)
+    function build3dWrapperStationaryMast() {
+        if (!mastGroup3d) return;
+        mastGroup3d.clear();
+
+        const steelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.6 });
+        const yellowMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, metalness: 0.3 });
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.2, metalness: 0.8 });
+        const hazardMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+
+        // Base Mast Column (Positioned at X: 0.85, Z: -0.75)
+        const mastX = 0.85, mastZ = -0.75;
+        const mastGeo = new THREE.BoxGeometry(0.16, 2.1, 0.16);
+        const mastMesh = new THREE.Mesh(mastGeo, steelMat);
+        mastMesh.position.set(mastX, 1.05, mastZ);
+        mastMesh.castShadow = true;
+        mastGroup3d.add(mastMesh);
+
+        // Guide Rails
+        const railGeo = new THREE.CylinderGeometry(0.015, 0.015, 2.0, 16);
+        const rail1 = new THREE.Mesh(railGeo, chromeMat); rail1.position.set(mastX - 0.06, 1.05, mastZ + 0.08);
+        const rail2 = new THREE.Mesh(railGeo, chromeMat); rail2.position.set(mastX + 0.06, 1.05, mastZ + 0.08);
+        mastGroup3d.add(rail1, rail2);
+
+        // Top Sheet Overhead Applicator Arm
+        topSheetArmGroup3d = new THREE.Group();
+        const armBeamGeo = new THREE.BoxGeometry(1.0, 0.06, 0.08);
+        const armBeam = new THREE.Mesh(armBeamGeo, yellowMat);
+        armBeam.position.set(mastX - 0.45, 1.95, mastZ + 0.65);
+        armBeam.castShadow = true;
+        topSheetArmGroup3d.add(armBeam);
+
+        // Top Sheet Dispenser Roll
+        const topRollGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.9, 16);
+        const filmRollMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            roughness: 0.3,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.85
+        });
+        const topRoll = new THREE.Mesh(topRollGeo, filmRollMat);
+        topRoll.rotation.x = Math.PI / 2;
+        topRoll.position.set(mastX - 0.45, 1.92, mastZ + 0.65);
+        topSheetArmGroup3d.add(topRoll);
+        mastGroup3d.add(topSheetArmGroup3d);
+
+        // Movable Carriage with stretch film roll
+        carriageMesh3d = new THREE.Group();
+        const carriageBodyGeo = new THREE.BoxGeometry(0.24, 0.32, 0.22);
+        const carriageBody = new THREE.Mesh(carriageBodyGeo, yellowMat);
+        carriageBody.position.set(0, 0, 0);
+        carriageBody.castShadow = true;
+        carriageMesh3d.add(carriageBody);
+
+        const filmRollGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.5, 20);
+        const filmRoll = new THREE.Mesh(filmRollGeo, filmRollMat);
+        filmRoll.position.set(-0.12, 0, 0.08);
+        filmRoll.castShadow = true;
+        carriageMesh3d.add(filmRoll);
+
+        const tensionRollerGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.5, 12);
+        const tensionRoller = new THREE.Mesh(tensionRollerGeo, chromeMat);
+        tensionRoller.position.set(-0.18, 0, 0.14);
+        carriageMesh3d.add(tensionRoller);
+
+        carriageMesh3d.position.set(mastX, 0.3, mastZ + 0.08);
+        mastGroup3d.add(carriageMesh3d);
+
+        // ─────────────────────────────────────────────────────────────
+        // FULL CONTINUOUS ROLLER CONVEYOR (ROLKOWIEC: WJAZD • STACJA • WYJAZD)
+        // ─────────────────────────────────────────────────────────────
+        const rollerBedLeft = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 3.8), steelMat);
+        rollerBedLeft.position.set(-0.64, 0.04, 0);
+        const rollerBedRight = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 3.8), steelMat);
+        rollerBedRight.position.set(0.64, 0.04, 0);
+        mastGroup3d.add(rollerBedLeft, rollerBedRight);
+
+        // Driven Rollers along the entire conveyor track
+        const wrapRollerGeo = new THREE.CylinderGeometry(0.024, 0.024, 1.20, 16);
+        const rollerPositionsZ = [
+            -1.75, -1.55, -1.35, -1.15, -0.95, -0.75,
+            -0.50, -0.25, 0.0, 0.25, 0.50,
+            0.75, 0.95, 1.15, 1.35, 1.55, 1.75
+        ];
+
+        for (let rz of rollerPositionsZ) {
+            const wRoller = new THREE.Mesh(wrapRollerGeo, chromeMat);
+            wRoller.rotation.z = Math.PI / 2;
+            wRoller.position.set(0, 0.065, rz);
+            wRoller.castShadow = true;
+            mastGroup3d.add(wRoller);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // PNEUMATIC STOPPER / BLOKER MECHANISM (BLOKER POZYCJI PALETY)
+        // ─────────────────────────────────────────────────────────────
+        blokerGroup3d = new THREE.Group();
+        const pinGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.12, 16);
+        const pinL = new THREE.Mesh(pinGeo, hazardMat); pinL.position.set(-0.35, 0.06, 0.62);
+        const pinR = new THREE.Mesh(pinGeo, hazardMat); pinR.position.set(0.35, 0.06, 0.62);
+        const pinBar = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.02, 0.04), yellowMat);
+        pinBar.position.set(0, 0.10, 0.62);
+        blokerGroup3d.add(pinL, pinR, pinBar);
+        blokerGroup3d.position.y = -0.06; // retracted by default
+        mastGroup3d.add(blokerGroup3d);
+    }
+
+    // Build Turntable and Small Lift Mechanism (Winda stołu obrotowego unoszona spomiędzy rolek)
+    function build3dWrapperTurntable() {
+        if (!turntableGroup3d) return;
+        turntableGroup3d.clear();
+
+        const tableMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.4, metalness: 0.7 });
+        const tableEdgeMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.5 });
+        const steelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.6 });
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.2, metalness: 0.8 });
+
+        // Hydraulic Scissor / Piston Lift Column Under Turntable
+        turntableLiftPiston3d = new THREE.Group();
+        const pistonBase = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.04, 0.40), steelMat);
+        pistonBase.position.y = 0.02;
+        const pistonShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.18, 24), chromeMat);
+        pistonShaft.position.y = 0.08;
+        turntableLiftPiston3d.add(pistonBase, pistonShaft);
+        turntableGroup3d.add(turntableLiftPiston3d);
+
+        // Turntable Platform (1.65m diameter)
+        const tableGeo = new THREE.CylinderGeometry(0.82, 0.82, 0.05, 48);
+        const tableMesh = new THREE.Mesh(tableGeo, tableMat);
+        tableMesh.position.y = 0.07;
+        tableMesh.receiveShadow = true;
+        tableMesh.castShadow = true;
+        turntableGroup3d.add(tableMesh);
+
+        const ringGeo = new THREE.TorusGeometry(0.81, 0.015, 12, 48);
+        const ringMesh = new THREE.Mesh(ringGeo, tableEdgeMat);
+        ringMesh.rotation.x = Math.PI / 2;
+        ringMesh.position.y = 0.095;
+        turntableGroup3d.add(ringMesh);
+    }
+
+    // Build Realistic Pallet and Loaded Stack on Turntable
+    function build3dPalletOnTurntable(layersCount, topBagsCount) {
+        if (!turntableGroup3d) return;
+
+        if (wrapperPalletGroup3d) {
+            turntableGroup3d.remove(wrapperPalletGroup3d);
+        }
+
+        wrapperPalletGroup3d = new THREE.Group();
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0xc89d66, roughness: 0.8, metalness: 0.1 });
+        const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
+
+        if (isIndustrial) {
+            const topBoardWidths = [0.145, 0.100, 0.100, 0.145, 0.100, 0.100, 0.145];
+            const topBoardX = [-0.4275, -0.285, -0.1425, 0, 0.1425, 0.285, 0.4275];
+            for (let i = 0; i < 7; i++) {
+                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(topBoardX[i], 0.133, 0);
+                board.castShadow = true;
+                wrapperPalletGroup3d.add(board);
+            }
+            for (let pos of [-0.5, 0, 0.5]) {
+                const crossGeo = new THREE.BoxGeometry(1.0, 0.022, 0.145);
+                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
+                crossBoard.position.set(0, 0.111, pos);
+                crossBoard.castShadow = true;
+                wrapperPalletGroup3d.add(crossBoard);
+            }
+            for (let bx of [-0.425, 0, 0.425]) {
+                for (let bz of [-0.5, 0, 0.5]) {
+                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
+                    const block = new THREE.Mesh(blockGeo, woodMat);
+                    block.position.set(bx, 0.061, bz);
+                    block.castShadow = true;
+                    wrapperPalletGroup3d.add(block);
+                }
+                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
+                const botBoard = new THREE.Mesh(botGeo, woodMat);
+                botBoard.position.set(bx, 0.011, 0);
+                wrapperPalletGroup3d.add(botBoard);
+            }
+        } else {
+            const topBoardWidths = [0.145, 0.100, 0.145, 0.100, 0.145];
+            const topBoardX = [-0.3275, -0.175, 0, 0.175, 0.3275];
+            for (let i = 0; i < 5; i++) {
+                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(topBoardX[i], 0.133, 0);
+                board.castShadow = true;
+                wrapperPalletGroup3d.add(board);
+            }
+            for (let pos of [-0.5, 0, 0.5]) {
+                const crossGeo = new THREE.BoxGeometry(0.8, 0.022, 0.145);
+                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
+                crossBoard.position.set(0, 0.111, pos);
+                crossBoard.castShadow = true;
+                wrapperPalletGroup3d.add(crossBoard);
+            }
+            for (let bx of [-0.325, 0, 0.325]) {
+                for (let bz of [-0.5, 0, 0.5]) {
+                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
+                    const block = new THREE.Mesh(blockGeo, woodMat);
+                    block.position.set(bx, 0.061, bz);
+                    block.castShadow = true;
+                    wrapperPalletGroup3d.add(block);
+                }
+                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
+                const botBoard = new THREE.Mesh(botGeo, woodMat);
+                botBoard.position.set(bx, 0.011, 0);
+                wrapperPalletGroup3d.add(botBoard);
+            }
+        }
+
+        const bagHeight = 0.095;
+        const baseHeight = 0.144;
+        const fullLayers = (layersCount !== undefined && layersCount !== null) ? layersCount : (currentConfig.full_layers || 12);
+        const bagsPerLayer = currentConfig.bags_per_layer || 4;
+        const topLayerBags = (topBagsCount !== undefined && topBagsCount !== null) ? topBagsCount : (currentConfig.top_layer_bags !== undefined ? currentConfig.top_layer_bags : 2);
+
+        // Exact Euro Pallet matching dimensions (0.80m x 1.20m)
+        const bagW = 0.385;
+        const bagL = 0.585;
+
+        for (let l = 1; l <= fullLayers; l++) {
+            const isEven = (l % 2 === 0);
+            const layerY = baseHeight + (l - 1) * bagHeight + (bagHeight / 2);
+
+            for (let b = 1; b <= bagsPerLayer; b++) {
+                let posX = 0, posZ = 0;
+
+                if (bagsPerLayer === 4) {
+                    if (b === 1) { posX = -0.194; posZ = -0.294; }
+                    else if (b === 2) { posX = 0.194; posZ = -0.294; }
+                    else if (b === 3) { posX = 0.194; posZ = 0.294; }
+                    else if (b === 4) { posX = -0.194; posZ = 0.294; }
+                } else if (bagsPerLayer === 5) {
+                    if (!isEven) {
+                        if (b <= 3) { posX = (b - 2) * 0.24; posZ = -0.18; }
+                        else { posX = (b === 4 ? -0.194 : 0.194); posZ = 0.27; }
+                    } else {
+                        if (b <= 2) { posX = (b === 1 ? -0.194 : 0.194); posZ = -0.27; }
+                        else { posX = (b - 4) * 0.24; posZ = 0.18; }
+                    }
+                } else {
+                    posX = (b % 2 === 0 ? 0.194 : -0.194);
+                    posZ = (b > 2 ? 0.294 : -0.294);
+                }
+
+                const bagMesh = create3dBagMesh(
+                    bagW,
+                    bagHeight - 0.008,
+                    bagL,
+                    false,
+                    isEven
+                );
+                bagMesh.position.set(posX, layerY, posZ);
+                wrapperPalletGroup3d.add(bagMesh);
+            }
+        }
+
+        if (topLayerBags > 0 && fullLayers > 0) {
+            const topLayerY = baseHeight + fullLayers * bagHeight + (bagHeight / 2);
+            for (let b = 1; b <= topLayerBags; b++) {
+                const topBagMesh = create3dBagMesh(
+                    bagW,
+                    bagHeight - 0.008,
+                    bagL,
+                    false,
+                    true
+                );
+                topBagMesh.position.set(b === 1 ? -0.194 : 0.194, topLayerY, 0);
+                wrapperPalletGroup3d.add(topBagMesh);
+            }
+        }
+
+        wrapperPalletGroup3d.position.y = 0.095;
+        turntableGroup3d.add(wrapperPalletGroup3d);
+
+        build3dWrapperFoilAndCap(fullLayers, topLayerBags);
+    }
+
+    // Build Translucent Stretch Foil Envelope Mesh and Top Sheet Cover Cap
+    let currentWrapperStackHeight = 1.35;
+
+    function build3dWrapperFoilAndCap(actualLayers, actualTopBags) {
+        if (!turntableGroup3d) return;
+
+        if (foilCylinderMesh3d) turntableGroup3d.remove(foilCylinderMesh3d);
+        if (topSheetCoverMesh3d) turntableGroup3d.remove(topSheetCoverMesh3d);
+
+        const bagHeight = 0.095;
+        const baseHeight = 0.144;
+        const layers = (actualLayers !== undefined && actualLayers !== null) ? actualLayers : (currentConfig.full_layers || 12);
+        const topBags = (actualTopBags !== undefined && actualTopBags !== null) ? actualTopBags : (currentConfig.top_layer_bags || 0);
+
+        const stackHeight = (layers * bagHeight) + (topBags > 0 ? bagHeight : 0);
+        currentWrapperStackHeight = Math.max(0.40, baseHeight + stackHeight);
+
+        const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
+        const foilWidth = isIndustrial ? 1.02 : 0.80;
+        const capWidth = isIndustrial ? 1.04 : 0.82;
+
+        const foilGeo = new THREE.BoxGeometry(foilWidth, currentWrapperStackHeight, 1.20);
+        const foilMat = new THREE.MeshStandardMaterial({
+            color: 0xa5f3fc,
+            transparent: true,
+            opacity: 0.0,
+            roughness: 0.1,
+            metalness: 0.2
+        });
+        foilCylinderMesh3d = new THREE.Mesh(foilGeo, foilMat);
+        foilCylinderMesh3d.position.set(0, 0.095 + (currentWrapperStackHeight / 2), 0);
+        foilCylinderMesh3d.scale.set(1.01, 0.01, 1.01);
+        turntableGroup3d.add(foilCylinderMesh3d);
+
+        const capGeo = new THREE.BoxGeometry(capWidth, 0.08, 1.22);
+        const capMat = new THREE.MeshStandardMaterial({
+            color: 0x0284c7,
+            transparent: true,
+            opacity: 0.0,
+            roughness: 0.2,
+            metalness: 0.3
+        });
+        topSheetCoverMesh3d = new THREE.Mesh(capGeo, capMat);
+        topSheetCoverMesh3d.position.set(0, 0.095 + currentWrapperStackHeight + 0.02, 0);
+        turntableGroup3d.add(topSheetCoverMesh3d);
+    }
+
+    function updateWrapper3dVisuals(progressPct, topSheetApplied, topSheetActive, carriageHeightPct, isWrapping, isElevated, isBlocked) {
+        isWrapperRotating = isWrapping || (progressPct > 0 && progressPct < 100);
+        isWrapperElevated = (isElevated !== undefined) ? isElevated : (isWrapperRotating || (progressPct > 0 && progressPct < 100));
+        isBlokerLocked = (isBlocked !== undefined) ? isBlocked : (isWrapperElevated || progressPct > 0);
+
+        // Update Turntable Lift Position (Mała winda unosi stół o +120mm ponad rolki)
+        if (turntableGroup3d) {
+            const targetY = isWrapperElevated ? 0.12 : 0.0;
+            turntableGroup3d.position.y += (targetY - turntableGroup3d.position.y) * 0.15;
+        }
+
+        // Update Pneumatic Stopper (Bloker wysuwa się przy pozycji palety)
+        if (blokerGroup3d) {
+            const targetBlokerY = isBlokerLocked ? 0.0 : -0.06;
+            blokerGroup3d.position.y += (targetBlokerY - blokerGroup3d.position.y) * 0.2;
+        }
+
+        // Update Carriage Vertical Position
+        if (carriageMesh3d) {
+            const mastX = 0.85, mastZ = -0.75;
+            const minY = 0.25;
+            const maxY = Math.min(2.0, currentWrapperStackHeight + 0.25);
+            const targetY = minY + ((carriageHeightPct / 100.0) * (maxY - minY));
+            carriageMesh3d.position.set(mastX, targetY, mastZ + 0.08);
+        }
+
+        // Update Top Sheet Applicator Arm Position
+        if (topSheetArmGroup3d) {
+            const defaultArmY = 1.95;
+            const targetCapY = currentWrapperStackHeight + 0.10;
+            if (topSheetActive) {
+                topSheetArmGroup3d.position.y = Math.min(0, targetCapY - defaultArmY);
+            } else {
+                topSheetArmGroup3d.position.y = 0;
+            }
+        }
+
+        // Update Stretch Film Wrap Mesh
+        if (foilCylinderMesh3d) {
+            const pct = Math.min(100, Math.max(0, progressPct));
+            if (pct <= 0) {
+                foilCylinderMesh3d.material.opacity = 0.0;
+                foilCylinderMesh3d.scale.set(1.01, 0.01, 1.01);
+            } else {
+                foilCylinderMesh3d.material.opacity = Math.min(0.55, 0.15 + (pct / 100.0) * 0.4);
+                const scaleY = Math.max(0.05, pct / 100.0);
+                foilCylinderMesh3d.scale.set(1.01, scaleY, 1.01);
+                foilCylinderMesh3d.position.y = 0.095 + (scaleY * currentWrapperStackHeight) / 2;
+            }
+        }
+
+        // Update Top Sheet Cover Mesh
+        if (topSheetCoverMesh3d) {
+            if (topSheetApplied || topSheetActive) {
+                topSheetCoverMesh3d.material.opacity = 0.65;
+            } else {
+                topSheetCoverMesh3d.material.opacity = 0.0;
+            }
+        }
+    }
+
+    // Wrapper 3D View Controls
+    window.toggleWrapper3dAutoRotate = function() {
+        autoRotateWrapper3d = !autoRotateWrapper3d;
+        const btn = document.getElementById('btnWrapperAutoRotate');
+        if (btn) btn.classList.toggle('active', autoRotateWrapper3d);
+    };
+
+    window.setWrapper3dCameraView = function(view) {
+        if (!cameraWrapper3d || !controlsWrapper3d) return;
+        autoRotateWrapper3d = false;
+        const btn = document.getElementById('btnWrapperAutoRotate');
+        if (btn) btn.classList.remove('active');
+
+        if (view === 'iso') {
+            cameraWrapper3d.position.set(2.8, 2.4, 2.9);
+        } else if (view === 'top') {
+            cameraWrapper3d.position.set(0, 4.5, 0.01);
+        }
+        controlsWrapper3d.target.set(0, 0.75, 0);
+        controlsWrapper3d.update();
+    };
+
+    window.resetWrapper3dCamera = function() {
+        window.setWrapper3dCameraView('iso');
+        if (turntableGroup3d) turntableGroup3d.rotation.y = 0;
+    };
+
+    window.switchWrapperView = function(mode) {
+        const v3d = document.getElementById('wrapper3dWrapper');
+        const v2d = document.getElementById('wrapper2dWrapper');
+        const t3d = document.getElementById('tabWrapperView3d');
+        const t2d = document.getElementById('tabWrapperView2d');
+
+        if (mode === '3d') {
+            if (v3d) v3d.style.display = 'flex';
+            if (v2d) v2d.style.display = 'none';
+            if (t3d) t3d.classList.add('active');
+            if (t2d) t2d.classList.remove('active');
+            setTimeout(onWrapper3dWindowResize, 50);
+        } else {
+            if (v3d) v3d.style.display = 'none';
+            if (v2d) v2d.style.display = 'block';
+            if (t3d) t3d.classList.remove('active');
+            if (t2d) t2d.classList.add('active');
+        }
+    };
+
+    // Live Test Simulation of Wrapper 3D Cycle (Rolkowiec -> Bloker -> Mała Winda -> Owijanie -> Opuszczenie -> Odjazd)
+    window.simulateWrapperTestCycle = function() {
+        if (wrapperSimInterval) {
+            clearInterval(wrapperSimInterval);
+            wrapperSimInterval = null;
+        }
+
+        let simPct = 0;
+        isPaused = true;
+        const btnPause = document.getElementById('btnPauseTerm');
+        if (btnPause) { btnPause.innerText = 'WZNÓW'; btnPause.style.color = '#ef4444'; }
+
+        wrapperSimInterval = setInterval(() => {
+            simPct += 4;
+            let phaseCode = 'IDLE', phaseLabel = 'Wjazd palety na rolkowiec';
+            let topApplied = false, topActive = false, carriageH = 0;
+            let isElev = false, isBlock = false;
+
+            if (simPct <= 10) {
+                phaseCode = 'INFEED_CONVEYOR';
+                phaseLabel = '📦 Rolkowiec: Wjazd palety ze stanowiska paletyzatora';
+                isBlock = true;
+                isElev = false;
+            } else if (simPct <= 20) {
+                phaseCode = 'BLOKER_LIFT';
+                phaseLabel = '🛑 Bloker: Pozycja zablokowana • Winda unosi paletę (+120mm)';
+                isBlock = true;
+                isElev = true;
+            } else if (simPct <= 35) {
+                phaseCode = 'BOTTOM_WRAP';
+                phaseLabel = '🌀 Owinięcie dolnej podstawy palety na uniesionym stole';
+                isBlock = true;
+                isElev = true;
+                carriageH = 0;
+            } else if (simPct <= 55) {
+                phaseCode = 'ASCENDING';
+                phaseLabel = 'Wznoszenie wózka z folią stretch';
+                isBlock = true;
+                isElev = true;
+                carriageH = (simPct - 35) * 5.0;
+            } else if (simPct <= 70) {
+                phaseCode = 'TOP_SHEET';
+                phaseLabel = '🛡️ Nakładanie kapturka foliowego (Top Sheet)';
+                isBlock = true;
+                isElev = true;
+                topActive = true;
+                topApplied = true;
+                carriageH = 100;
+            } else if (simPct <= 85) {
+                phaseCode = 'TOP_WRAP';
+                phaseLabel = 'Owinięcie szczytu i zabezpieczenie kapturka';
+                isBlock = true;
+                isElev = true;
+                topApplied = true;
+                topActive = false;
+                carriageH = 100;
+            } else if (simPct < 95) {
+                phaseCode = 'DESCENDING';
+                phaseLabel = 'Zjazd wózka, odcięcie folii • Winda opuszcza paletę na rolki';
+                isBlock = true;
+                isElev = false;
+                topApplied = true;
+                carriageH = (95 - simPct) * 10;
+            } else {
+                phaseCode = 'DONE';
+                phaseLabel = '✅ Bloker zwolniony • Paleta owinięta odjeżdża na odbiór';
+                isBlock = false;
+                isElev = false;
+                topApplied = true;
+                carriageH = 0;
+            }
+
+            const simulatedWrapper = {
+                status: simPct >= 95 ? 'GOTOWA' : 'OWIJANIE',
+                progress_percent: simPct,
+                phase_code: phaseCode,
+                phase_label: phaseLabel,
+                top_sheet_applied: topApplied,
+                top_sheet_active: topActive,
+                rotations_count: Math.floor(simPct * 0.18),
+                carriage_height_percent: carriageH,
+                is_wrapped: simPct >= 95,
+                ready_for_pickup: simPct >= 95,
+                is_elevated: isElev,
+                is_blocked: isBlock
+            };
+
+            renderWrapperSection(simulatedWrapper);
+            updateWrapper3dVisuals(simPct, topApplied, topActive, carriageH, (simPct > 20 && simPct < 92), isElev, isBlock);
+
+            if (simPct >= 100) {
+                clearInterval(wrapperSimInterval);
+                wrapperSimInterval = null;
+                setTimeout(() => {
+                    isPaused = false;
+                    if (btnPause) { btnPause.innerText = 'PAUZA'; btnPause.style.color = ''; }
+                }, 3000);
+            }
+        }, 650);
+    };
+
+    // Live Simulation of Checkweigher Reject Event
+    window.simulateRejectTest = async function() {
+        try {
+            const testWeight = (23.80 + Math.random() * 0.4).toFixed(2);
+            await fetch('/api/machines/rejects/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    weight_kg: parseFloat(testWeight),
+                    target_weight_kg: 25.0,
+                    reason_code: 'UNDERWEIGHT',
+                    recipe_name: (typeof currentConfig !== 'undefined' && currentConfig.preset_name) ? currentConfig.preset_name : 'Mieszanka Agro 25kg'
+                })
+            });
+
+            // Trigger 3D Drop Flap animation for 2.5 seconds
+            if (typeof rejectFlapMesh3d !== 'undefined' && rejectFlapMesh3d) {
+                rejectFlapMesh3d.rotation.z = -Math.PI / 4;
+                const cwFlapBadge = document.getElementById('cwFlapStatusBadge');
+                const cwWeight = document.getElementById('cwLiveWeight');
+                if (cwWeight) {
+                    cwWeight.innerHTML = `${testWeight} <span class="unit">kg</span>`;
+                    cwWeight.className = 'cw-val highlight-magenta';
+                }
+                if (cwFlapBadge) {
+                    cwFlapBadge.innerText = '⚠️ ZRZUT OTWARTY';
+                    cwFlapBadge.className = 'status-pill praca';
+                }
+                setTimeout(() => {
+                    if (rejectFlapMesh3d) rejectFlapMesh3d.rotation.z = 0;
+                    if (cwFlapBadge) {
+                        cwFlapBadge.innerText = 'ZAMKNIĘTY (OK)';
+                        cwFlapBadge.className = 'status-pill ready';
+                    }
+                    fetchTelemetry();
+                }, 2500);
+            } else {
+                fetchTelemetry();
+            }
+        } catch (e) {
+            console.warn('Reject test error', e);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 2D LAYER GRID VISUALIZER
+    // ─────────────────────────────────────────────────────────────
+    function buildLayerGrid(totalLayers, bagsPerLayer, topLayerBags) {
+        if (!stackContainer) return;
+        stackContainer.innerHTML = '';
+        
+        for (let l = 1; l <= totalLayers; l++) {
+            const layerEl = document.createElement('div');
+            layerEl.className = 'layer-bar';
+            layerEl.id = 'layerBar_' + l;
+            
+            const isTop = (topLayerBags > 0 && l === totalLayers);
+            const bagsInThisLayer = isTop ? topLayerBags : bagsPerLayer;
+            for (let b = 1; b <= bagsInThisLayer; b++) {
+                const dot = document.createElement('div');
+                dot.className = 'layer-bag-dot';
+                dot.id = `layerBag_${l}_${b}`;
+                layerEl.appendChild(dot);
+            }
+            stackContainer.appendChild(layerEl);
+        }
+    }
+
+    async function loadPalletConfig() {
+        try {
+            const res = await fetch('/api/machines/palletizer/config');
+            if (!res.ok) return;
+            const payload = await res.json();
+            if (payload.success && payload.data) {
+                currentConfig = payload.data.config || currentConfig;
+                availablePresets = payload.data.presets || [];
+                renderPresets();
+                applyConfigToUI();
+                build3dEuroPallet();
+                rebuild3dBags(current3dLayer, current3dBag);
+                build3dPalletOnTurntable();
+                build3dWrapperFoilAndCap();
+            }
+        } catch (e) {
+            console.warn('Failed to load pallet config', e);
+        }
+    }
+
+    function renderPresets() {
+        const container = document.getElementById('presetChipsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const filteredPresets = availablePresets.filter(p => {
+            if (!p.pallet_type) return selectedModalPallet === 'INDUSTRIAL_100x120';
+            return p.pallet_type === selectedModalPallet;
+        });
+
+        if (filteredPresets.length === 0) {
+            container.innerHTML = '<div style="font-size: 11px; color: var(--theme-text-muted);">Brak zdefiniowanych presetów dla tego typu palety. Możesz wprowadzić własne parametry poniżej.</div>';
+            return;
+        }
+
+        filteredPresets.forEach(preset => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'preset-chip';
+            chip.innerText = preset.name;
+            chip.onclick = () => {
+                document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                document.getElementById('cfgPresetName').value = preset.name;
+                document.getElementById('cfgTotalLayers').value = preset.full_layers || preset.total_layers;
+                document.getElementById('cfgBagsPerLayer').value = preset.bags_per_layer;
+                document.getElementById('cfgTopLayerBags').value = preset.top_layer_bags || 0;
+                if (preset.bag_weight_kg) document.getElementById('cfgBagWeight').value = preset.bag_weight_kg;
+                updateModalPreview();
+            };
+            container.appendChild(chip);
+        });
+    }
+
+    function applyConfigToUI() {
+        const fullL = currentConfig.full_layers || currentConfig.total_layers || 12;
+        const bagsPerL = currentConfig.bags_per_layer || 4;
+        const topBags = currentConfig.top_layer_bags || 0;
+        const totalL = fullL + (topBags > 0 ? 1 : 0);
+        const totalB = (fullL * bagsPerL) + topBags;
+        const isInd = (currentConfig.pallet_type !== 'EURO_80x120');
+        const palletIcon = isInd ? '🏭' : '🇪🇺';
+        const palletShort = currentConfig.pallet_short_name || (isInd ? 'Przemysłowa 100×120' : 'EURO 80×120');
+
+        buildLayerGrid(totalL, bagsPerL, topBags);
+        
+        const summaryBadge = document.getElementById('palletSchemaSummaryText');
+        if (summaryBadge) {
+            summaryBadge.innerText = `${palletIcon} ${palletShort} • ${fullL}W × ${bagsPerL}szt` + (topBags > 0 ? ` + ${topBags}szt szczyt` : '') + ` • Cel: ${totalB} worków`;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TELEMETRY & LIVE POLLING
+    // ─────────────────────────────────────────────────────────────
+    async function fetchTelemetry() {
+        if (isPaused) return;
+
+        try {
+            const res = await fetch('/api/machines/telemetry/live');
+            if (!res.ok) return;
+            const payload = await res.json();
+            if (!payload.success || !payload.data) return;
+
+            renderDashboard(payload.data);
+        } catch (e) {
+            console.warn('Telemetry poll error', e);
+        }
+    }
+
+    function renderDashboard(data) {
+        const broker = data.broker || {};
+        const machines = data.machines || {};
+        const bagger = machines.bagger || {};
+        const palletizer = machines.palletizer || {};
+        const wrapper = machines.wrapper || {};
+
+        // 1. BROKER STATUS
+        const dot = document.getElementById('brokerDot');
+        const stText = document.getElementById('brokerStatusText');
+        const msgCount = document.getElementById('brokerMsgCount');
+        const latText = document.getElementById('brokerLatencyText');
+
+        if (dot && stText) {
+            if (broker.is_connected) {
+                dot.className = 'hud-dot online pulsing';
+                stText.innerText = 'ONLINE (Hela)';
+                stText.style.color = '#10b981';
+            } else {
+                dot.className = 'hud-dot';
+                stText.innerText = 'OFFLINE / CZUWANIE';
+                stText.style.color = '#ef4444';
+            }
+        }
+        if (msgCount) msgCount.innerText = broker.messages_total || 0;
+        if (latText) latText.innerText = (broker.time_since_update_sec > 900 ? '>15 min' : (broker.time_since_update_sec + 's temu'));
+
+        // 2. BAGGER
+        const baggerBpm = document.getElementById('baggerBpm');
+        const baggerTph = document.getElementById('baggerTonsPerHour');
+        const baggerGlob = document.getElementById('baggerCounterGlobal');
+        const baggerLoc = document.getElementById('baggerCounterLocal');
+        const baggerRec = document.getElementById('baggerRecipe');
+        const baggerSt = document.getElementById('baggerStatusBadge');
+        const baggerBar = document.getElementById('baggerThroughputBar');
+
+        if (baggerBpm) baggerBpm.innerText = bagger.bpm.toFixed(1);
+        if (baggerTph) baggerTph.innerHTML = `${bagger.tons_per_hour.toFixed(2)} <span class="unit">t/h</span>`;
+        if (baggerGlob) baggerGlob.innerHTML = `${bagger.counter_global} <span class="unit">szt</span>`;
+        if (baggerLoc) baggerLoc.innerHTML = `${bagger.counter_local} <span class="unit">szt</span>`;
+        if (baggerRec) baggerRec.innerText = bagger.recipe_name || 'Brak danych';
+        
+        if (baggerSt) {
+            baggerSt.innerText = bagger.status;
+            baggerSt.className = 'status-pill' + (bagger.is_running ? ' praca' : '');
+        }
+        if (baggerBar) {
+            const pct = Math.min(100, Math.max(0, (bagger.bpm / 20.0) * 100));
+            baggerBar.style.width = pct + '%';
+        }
+
+        // 2b. CHECKWEIGHER & REJECT DROP FLAP
+        const checkweigher = machines.checkweigher || {};
+        const cwWeight = document.getElementById('cwLiveWeight');
+        const cwTol = document.getElementById('cwToleranceText');
+        const cwRejectCnt = document.getElementById('cwRejectCount');
+        const cwFlapBadge = document.getElementById('cwFlapStatusBadge');
+
+        if (cwWeight) {
+            const curW = checkweigher.current_weight_kg || 0;
+            cwWeight.innerHTML = `${curW.toFixed(2)} <span class="unit">kg</span>`;
+            if (checkweigher.is_in_tolerance) {
+                cwWeight.className = 'cw-val highlight-cyan';
+            } else {
+                cwWeight.className = 'cw-val highlight-magenta';
+            }
+        }
+        if (cwTol) {
+            cwTol.innerText = `${checkweigher.min_tolerance_kg || 24.75} - ${checkweigher.max_tolerance_kg || 25.25} kg`;
+        }
+        if (cwRejectCnt) {
+            cwRejectCnt.innerHTML = `${checkweigher.reject_count_total || 0} <span class="unit">szt</span>`;
+        }
+        if (cwFlapBadge) {
+            if (checkweigher.reject_flap_open) {
+                cwFlapBadge.innerText = '⚠️ ZRZUT OTWARTY';
+                cwFlapBadge.className = 'status-pill praca';
+            } else {
+                cwFlapBadge.innerText = 'ZAMKNIĘTY (OK)';
+                cwFlapBadge.className = 'status-pill ready';
+            }
+        }
+
+        // Animate 3D Reject Flap Trapdoor
+        if (typeof rejectFlapMesh3d !== 'undefined' && rejectFlapMesh3d) {
+            if (checkweigher.reject_flap_open) {
+                rejectFlapMesh3d.rotation.z = -Math.PI / 4; // Drop down 45 degrees
+            } else {
+                rejectFlapMesh3d.rotation.z = 0; // Flat closed
+            }
+        }
+
+        // 3. PALLETIZER 3D & 2D
+        const palSt = document.getElementById('palletizerStatusBadge');
+        const palProg = document.getElementById('palletizerProgressText');
+        const palCount = document.getElementById('palletizerCounter');
+        const palAccum = document.getElementById('palletizerAccumulatedCount');
+        const curLayer = document.getElementById('valCurrentLayer');
+        const curBag = document.getElementById('valCurrentBag');
+        const emptySt = document.getElementById('valEmptyingStatus');
+        const live3dText = document.getElementById('pallet3dLiveStatus');
+
+        const fullLayers = palletizer.full_layers || currentConfig.full_layers || 12;
+        const bagsPerLayer = palletizer.bags_per_layer || currentConfig.bags_per_layer || 4;
+        const topLayerBags = palletizer.top_layer_bags !== undefined ? palletizer.top_layer_bags : (currentConfig.top_layer_bags || 0);
+        const totalLayers = palletizer.total_layers || (fullLayers + (topLayerBags > 0 ? 1 : 0));
+        const targetBags = palletizer.total_target_bags || ((fullLayers * bagsPerLayer) + topLayerBags);
+
+        // 2c. ACTIVE BAGGING ORDER & 3D SACK TEXTURES (AGRONETZWERK & DYNAMIC PRODUCT)
+        if (data.active_order && data.active_order.product_name) {
+            const orderChanged = !currentActiveOrder ||
+                currentActiveOrder.product_name !== data.active_order.product_name ||
+                currentActiveOrder.batch_number !== data.active_order.batch_number ||
+                currentActiveOrder.production_date !== data.active_order.production_date ||
+                currentActiveOrder.expiry_date !== data.active_order.expiry_date;
+
+            if (orderChanged) {
+                currentActiveOrder = data.active_order;
+                resetSackTextureCache();
+                rebuild3dBags(current3dLayer, current3dBag);
+            }
+        }
+
+        const newLayer = palletizer.current_layer || 0;
+        const newBag = palletizer.current_bag || 0;
+
+        // Update 3D model if layer or bag changed
+        if (newLayer !== current3dLayer || newBag !== current3dBag) {
+            current3dLayer = newLayer;
+            current3dBag = newBag;
+            rebuild3dBags(current3dLayer, current3dBag);
+        }
+
+        if (live3dText) {
+            const isTop = (current3dLayer > fullLayers);
+            const maxB = isTop ? topLayerBags : bagsPerLayer;
+            live3dText.innerText = `TAŚMA: 3 szt • STÓŁ: ${current3dBag}/${maxB} • PALETA: ${palletizer.accumulated_bags || 0}/${targetBags} (${palletizer.pallet_progress_percent || 0}%) • W: ${current3dLayer}/${totalLayers}`;
+        }
+
+        if (stackContainer && stackContainer.children.length !== totalLayers) {
+            buildLayerGrid(totalLayers, bagsPerLayer, topLayerBags);
+        }
+
+        if (palSt) {
+            palSt.innerText = palletizer.status;
+            palSt.className = 'status-pill' + (palletizer.status === 'PRACA' ? ' praca' : '');
+        }
+        if (palProg) palProg.innerText = palletizer.pallet_progress_percent + '%';
+        if (palAccum) palAccum.innerText = `${palletizer.accumulated_bags || 0} / ${targetBags} worków`;
+        if (palCount) palCount.innerHTML = `${palletizer.pallets_completed_global} <span class="unit">pal</span>`;
+        if (curLayer) curLayer.innerText = `${palletizer.current_layer} / ${totalLayers}`;
+        
+        const isTop = (palletizer.current_layer > fullLayers);
+        const maxBagInThisLayer = isTop ? topLayerBags : bagsPerLayer;
+        if (curBag) curBag.innerText = `${palletizer.current_bag} / ${maxBagInThisLayer}`;
+        if (emptySt) emptySt.innerText = palletizer.is_emptying ? 'OPRÓŻNIANIE...' : 'NORMALNE';
+
+        // Update 2D layer dots
+        for (let l = 1; l <= totalLayers; l++) {
+            const isTopL = (l > fullLayers);
+            const maxB = isTopL ? topLayerBags : bagsPerLayer;
+            for (let b = 1; b <= maxB; b++) {
+                const dotEl = document.getElementById(`layerBag_${l}_${b}`);
+                if (!dotEl) continue;
+                if (l < palletizer.current_layer) {
+                    dotEl.className = 'layer-bag-dot filled';
+                } else if (l === palletizer.current_layer && b <= palletizer.current_bag) {
+                    dotEl.className = 'layer-bag-dot filled';
+                } else {
+                    dotEl.className = 'layer-bag-dot';
+                }
+            }
+        }
+
+        // 4. WRAPPER (3D DIGITAL TWIN & TELEMETRY)
+        renderWrapperSection(wrapper);
+
+        // 5. PALLET LOGISTICS (5-STATION PIPELINE)
+        renderPalletStations(data.pallet_stations || []);
+
+        // 6. ERROR LOGS & MQTT MESSAGES
+        renderErrors(data.error_logs || []);
+        renderLogs(data.recent_messages || []);
+    }
+
+    function renderPalletStations(stations) {
+        if (!stations || !stations.length) return;
+        stations.forEach((st, idx) => {
+            const num = idx + 1;
+            const cardEl = document.getElementById(`stCard${num}`);
+            const descEl = document.getElementById(`stDesc${num}`);
+            const countEl = document.getElementById(`stCount${num}`);
+            const statusEl = document.getElementById(`stStatus${num}`);
+
+            if (descEl) descEl.innerText = st.description || '';
+            if (countEl) {
+                if (num === 1) countEl.innerText = `${st.count || 0} szt`;
+                else if (num === 2) countEl.innerText = `${st.count || 0} worków`;
+                else if (num === 3) countEl.innerText = st.status === 'TRANSFER' ? 'W ruchu' : 'Wolny';
+                else if (num === 4) countEl.innerText = `${st.count || 0} obr`;
+                else if (num === 5) countEl.innerText = st.pallet_present ? 'Paleta czeka' : 'Wolny';
+            }
+            if (statusEl) {
+                statusEl.innerText = st.status || 'CZUWANIE';
+                statusEl.className = st.badge_class || 'status-pill';
+            }
+            if (cardEl) {
+                const isPraca = (st.status === 'PODAWANIE' || st.status === 'OPRÓŻNIANIE' || st.status === 'TRANSFER' || st.status === 'OWIJANIE');
+                const isReady = (st.status === 'DO ODBIORU' || st.status === 'GOTOWA');
+                cardEl.className = 'station-card' + (isPraca ? ' praca' : (isReady ? ' ready' : (st.pallet_present ? ' active' : ' off')));
+            }
+        });
+    }
+
+    let lastRenderedWrapperLayers = -1;
+    let lastRenderedWrapperTop = -1;
+
+    function renderWrapperSection(wrapper) {
+        if (!wrapper) return;
+
+        // Dynamic Layer Count on Wrapper Pallet
+        const wrapLayers = (wrapper.current_layers !== undefined && wrapper.current_layers !== null) 
+            ? wrapper.current_layers 
+            : (currentConfig.full_layers || 12);
+        const wrapTop = (wrapper.top_layer_bags !== undefined && wrapper.top_layer_bags !== null)
+            ? wrapper.top_layer_bags
+            : (currentConfig.top_layer_bags || 0);
+
+        if (lastRenderedWrapperLayers !== wrapLayers || lastRenderedWrapperTop !== wrapTop) {
+            lastRenderedWrapperLayers = wrapLayers;
+            lastRenderedWrapperTop = wrapTop;
+            build3dPalletOnTurntable(wrapLayers, wrapTop);
+        }
+
+        const wrapSt = document.getElementById('wrapperStatusBadge');
+        const wrapProgress = document.getElementById('valWrapperProgress');
+        const wrapTopSheet = document.getElementById('valTopSheetStatus');
+        const wrapRotations = document.getElementById('valWrapperRotations');
+        const wrapPhase = document.getElementById('valWrapperPhase');
+        const wrapTopBadge = document.getElementById('wrapperTopSheetBadge');
+        const wrapTopText = document.getElementById('wrapperTopSheetText');
+        const live3dText = document.getElementById('wrapper3dLiveStatus');
+        const progFill2d = document.getElementById('wrapperProgressFill');
+        const progText2d = document.getElementById('wrapperProgressText2d');
+        const phaseBanner = document.getElementById('wrapperPhaseBanner');
+
+        const pct = wrapper.progress_percent || 0;
+        const isWrapping = (wrapper.status === 'OWIJANIE' || (pct > 0 && pct < 100));
+
+        // Update 3D Visualizer
+        updateWrapper3dVisuals(
+            pct,
+            wrapper.top_sheet_applied,
+            wrapper.top_sheet_active,
+            wrapper.carriage_height_percent || 0,
+            isWrapping
+        );
+
+        if (wrapSt) {
+            wrapSt.innerText = wrapper.status;
+            wrapSt.className = 'status-pill' + (wrapper.status === 'PRACA' || isWrapping || wrapper.status === 'GOTOWA' ? ' praca' : '');
+        }
+
+        if (wrapProgress) wrapProgress.innerHTML = `${pct} <span class="unit">%</span>`;
+        if (wrapRotations) wrapRotations.innerHTML = `${wrapper.rotations_count || 0} <span class="unit">obr</span>`;
+        if (wrapPhase) wrapPhase.innerText = wrapper.phase_code || 'CZUWANIE';
+
+        if (wrapTopSheet) {
+            if (wrapper.top_sheet_applied) {
+                wrapTopSheet.innerHTML = '<span style="color: #10b981;">✅ NAŁOŻONY</span>';
+            } else if (wrapper.top_sheet_active) {
+                wrapTopSheet.innerHTML = '<span style="color: var(--neon-cyan);">⏳ NAKŁADANIE</span>';
+            } else {
+                wrapTopSheet.innerHTML = '<span style="color: var(--theme-text-muted);">BRAK</span>';
+            }
+        }
+
+        if (wrapTopBadge && wrapTopText) {
+            if (wrapper.top_sheet_applied) {
+                wrapTopBadge.classList.add('active');
+                wrapTopText.innerText = 'Kapturek nawierzchniowy (Top Sheet): NAŁOŻONY (Wodoszczelny)';
+            } else if (wrapper.top_sheet_active) {
+                wrapTopBadge.classList.add('active');
+                wrapTopText.innerText = 'Kapturek nawierzchniowy (Top Sheet): NAKŁADANIE W TOKU...';
+            } else {
+                wrapTopBadge.classList.remove('active');
+                wrapTopText.innerText = 'Kapturek nawierzchniowy (Top Sheet): BRAK';
+            }
+        }
+
+        if (live3dText) {
+            live3dText.innerText = `ETAP: ${wrapper.phase_label || 'CZUWANIE'} • WÓZEK: ${wrapper.carriage_height_percent || 0}% • OWINIĘCIE: ${pct}%`;
+        }
+
+        if (progFill2d) progFill2d.style.width = pct + '%';
+        if (progText2d) progText2d.innerText = pct + '%';
+        if (phaseBanner) phaseBanner.innerText = wrapper.phase_label || 'Oczekiwanie na paletę';
+
+        // Update 2D Milestones
+        const mBottom = document.getElementById('mStepBottom');
+        const mTopSheet = document.getElementById('mStepTopSheet');
+        const mTop = document.getElementById('mStepTop');
+        const mDone = document.getElementById('mStepDone');
+
+        if (mBottom) mBottom.classList.toggle('active', pct >= 25);
+        if (mTopSheet) mTopSheet.classList.toggle('active', wrapper.top_sheet_applied || pct >= 50);
+        if (mTop) mTop.classList.toggle('active', pct >= 75);
+        if (mDone) mDone.classList.toggle('active', pct >= 100);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ERROR JOURNAL RENDERER
+    // ─────────────────────────────────────────────────────────────
+    function renderErrors(errors) {
+        if (!errorsContainer) return;
+        
+        const badge = document.getElementById('errorCounterBadge');
+        if (badge) badge.innerText = `${errors.length} zdarzeń`;
+
+        const filtered = errors.filter(e => {
+            if (activeErrFilter === 'ALL') return true;
+            return (e.machine || '').toUpperCase() === activeErrFilter.toUpperCase();
+        });
+
+        if (filtered.length === 0) {
+            errorsContainer.innerHTML = `
+                <div class="error-empty-state">
+                    <span class="material-icons" style="font-size: 32px; color: var(--neon-emerald); margin-bottom: 6px;">check_circle</span>
+                    <div>Brak zarejestrowanych błędów lub alarmów maszyn. Linia pracuje stabilnie.</div>
+                </div>
+            `;
+            return;
+        }
+
+        errorsContainer.innerHTML = '';
+        filtered.forEach(err => {
+            const row = document.createElement('div');
+            const sevClass = (err.severity || '').toLowerCase();
+            row.className = `error-item-row ${sevClass}`;
+            row.innerHTML = `
+                <div class="err-left">
+                    <div class="err-title-row">
+                        <span class="err-machine-tag">${err.machine || 'SYSTEM'}</span>
+                        <span class="err-code-badge">[${err.code || 'ERR'}]</span>
+                    </div>
+                    <div class="err-msg-text">${err.description || 'Błąd maszyny'}</div>
+                </div>
+                <div class="err-time-text">${err.timestamp_iso || ''}</div>
+            `;
+            errorsContainer.appendChild(row);
+        });
+    }
+
+    window.filterErrorLogs = function(filter, btn) {
+        activeErrFilter = filter;
+        document.querySelectorAll('[data-err-filter]').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        fetchTelemetry();
+    };
+
+    window.clearMachineErrors = async function() {
+        if (!confirm('Czy na pewno chcesz wyczyścić historię błędów maszyn?')) return;
+        try {
+            await fetch('/api/machines/errors/clear', { method: 'POST' });
+            fetchTelemetry();
+        } catch(e) {}
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // TERMINAL LOG STREAM
+    // ─────────────────────────────────────────────────────────────
+    function renderLogs(messages) {
+        if (!terminalEl || isPaused) return;
+        
+        const filtered = messages.filter(m => {
+            if (activeFilter === 'ALL') return true;
+            return (m.topic || '').includes(activeFilter);
+        });
+
+        if (filtered.length === 0) return;
+
+        terminalEl.innerHTML = '';
+        filtered.forEach(m => {
+            const row = document.createElement('div');
+            row.className = 'term-row';
+            const payloadStr = typeof m.payload === 'object' ? JSON.stringify(m.payload) : String(m.payload);
+            row.innerHTML = `<span class="term-time">[${m.received_at_iso || ''}]</span><span class="term-topic">${m.topic || ''}</span><span class="term-payload">${payloadStr}</span>`;
+            terminalEl.appendChild(row);
+        });
+
+        terminalEl.scrollTop = terminalEl.scrollHeight;
+    }
+
+    window.filterLogs = function(filter, btn) {
+        activeFilter = filter;
+        document.querySelectorAll('.terminal-filters [data-filter]').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+    };
+
+    window.togglePauseTerminal = function() {
+        isPaused = !isPaused;
+        const btn = document.getElementById('btnPauseTerm');
+        if (btn) {
+            btn.innerText = isPaused ? 'WZNÓW' : 'PAUZA';
+            btn.style.color = isPaused ? '#ef4444' : '';
+        }
+    };
+
+    window.simulateSignal = async function() {
+        try {
+            await fetch('/api/machines/telemetry/simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ add_counter: 5, add_pallets: 0, status: 'PRACA' })
+            });
+            fetchTelemetry();
+        } catch(e){}
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // PALLET MODAL & RECIPE MANAGEMENT
+    // ─────────────────────────────────────────────────────────────
+    let selectedModalPallet = 'INDUSTRIAL_100x120';
+
+    window.selectModalPalletType = function(type) {
+        selectedModalPallet = type;
+        const isInd = !String(type || '').toUpperCase().includes('EURO');
+        const cardInd = document.getElementById('modalCardInd');
+        const cardEuro = document.getElementById('modalCardEuro');
+
+        if (cardInd && cardEuro) {
+            cardInd.classList.toggle('active', isInd);
+            cardEuro.classList.toggle('active', !isInd);
+        }
+
+        // Filter presets for the chosen pallet type
+        renderPresets();
+
+        // Auto-select first preset for this pallet type if available
+        const firstPreset = availablePresets.find(p => isInd ? !String(p.pallet_type || '').toUpperCase().includes('EURO') : String(p.pallet_type || '').toUpperCase().includes('EURO'));
+        if (firstPreset) {
+            document.getElementById('cfgPresetName').value = firstPreset.name;
+            document.getElementById('cfgTotalLayers').value = firstPreset.full_layers || firstPreset.total_layers;
+            document.getElementById('cfgBagsPerLayer').value = firstPreset.bags_per_layer;
+            document.getElementById('cfgTopLayerBags').value = firstPreset.top_layer_bags || 0;
+            if (firstPreset.bag_weight_kg) document.getElementById('cfgBagWeight').value = firstPreset.bag_weight_kg;
+            
+            const firstChip = document.querySelector('.preset-chip');
+            if (firstChip) firstChip.classList.add('active');
+        }
+
+        updateModalPreview();
+    };
+
+    window.openPalletConfigModal = function() {
+        selectedModalPallet = currentConfig.pallet_type || 'INDUSTRIAL_100X120';
+        const isInd = !String(selectedModalPallet || '').toUpperCase().includes('EURO');
+        
+        const cardInd = document.getElementById('modalCardInd');
+        const cardEuro = document.getElementById('modalCardEuro');
+        if (cardInd && cardEuro) {
+            cardInd.classList.toggle('active', isInd);
+            cardEuro.classList.toggle('active', !isInd);
+        }
+
+        document.getElementById('cfgPresetName').value = currentConfig.preset_name || '';
+        document.getElementById('cfgTotalLayers').value = currentConfig.full_layers || currentConfig.total_layers || 12;
+        document.getElementById('cfgBagsPerLayer').value = currentConfig.bags_per_layer || 4;
+        document.getElementById('cfgTopLayerBags').value = currentConfig.top_layer_bags !== undefined ? currentConfig.top_layer_bags : 2;
+        document.getElementById('cfgBagWeight').value = currentConfig.bag_weight_kg || 25.0;
+
+        renderPresets();
+        updateModalPreview();
+        document.getElementById('palletConfigModalOverlay').style.display = 'flex';
+    };
+
+    window.closePalletConfigModal = function() {
+        document.getElementById('palletConfigModalOverlay').style.display = 'none';
+    };
+
+    window.updateModalPreview = function() {
+        const fullLayers = parseInt(document.getElementById('cfgTotalLayers').value) || 1;
+        const bagsPerLayer = parseInt(document.getElementById('cfgBagsPerLayer').value) || 1;
+        const topBags = parseInt(document.getElementById('cfgTopLayerBags').value) || 0;
+        const weight = parseFloat(document.getElementById('cfgBagWeight').value) || 25.0;
+
+        const isInd = !String(selectedModalPallet || '').toUpperCase().includes('EURO');
+        const tagEl = document.getElementById('cfgPreviewPalletTypeTag');
+        if (tagEl) {
+            tagEl.innerText = isInd 
+                ? 'PALETA PRZEMYSŁOWA (1000 × 1200 mm, 7 DESEK) • PODSUMOWANIE RECEPTURY:' 
+                : 'PALETA EURO / EPAL 1 (800 × 1200 mm, 5 DESEK) • PODSUMOWANIE RECEPTURY:';
+        }
+
+        const totalBags = (fullLayers * bagsPerLayer) + topBags;
+        let formulaStr = '';
+        if (topBags > 0) {
+            formulaStr = `(${fullLayers} pełnych warstw × ${bagsPerLayer} szt) + (szczyt ${topBags} szt) = <span class="highlight-magenta">${totalBags} worków</span>`;
+        } else {
+            formulaStr = `${fullLayers} pełnych warstw × ${bagsPerLayer} szt = <span class="highlight-magenta">${totalBags} worków</span>`;
+        }
+
+        const totalKg = totalBags * weight;
+        const totalTons = (totalKg / 1000.0).toFixed(2);
+
+        document.getElementById('cfgPreviewFormulaText').innerHTML = formulaStr;
+        document.getElementById('cfgPreviewWeightText').innerHTML = `Łączna masa netto palety: <strong>${totalKg.toLocaleString()} kg</strong> (${totalTons} t) • Wymiary: ${isInd ? '100 × 120 cm' : '80 × 120 cm'}`;
+    };
+
+    window.savePalletConfig = async function() {
+        const btn = document.getElementById('btnSavePalletConfig');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons">hourglass_empty</span> Aktywowanie...';
+        btn.disabled = true;
+
+        const fullL = parseInt(document.getElementById('cfgTotalLayers').value) || 12;
+        const bagsPerL = parseInt(document.getElementById('cfgBagsPerLayer').value) || 4;
+        const topL = parseInt(document.getElementById('cfgTopLayerBags').value) || 0;
+        const presetName = document.getElementById('cfgPresetName').value.trim();
+
+        const payload = {
+            preset_name: presetName,
+            pallet_type: selectedModalPallet,
+            full_layers: fullL,
+            total_layers: fullL + (topL > 0 ? 1 : 0),
+            bags_per_layer: bagsPerL,
+            top_layer_bags: topL,
+            bag_weight_kg: parseFloat(document.getElementById('cfgBagWeight').value) || 25.0,
+            sync_to_machine: document.getElementById('cfgSyncToMachine').checked
+        };
+
+        try {
+            const res = await fetch('/api/machines/palletizer/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.success) {
+                currentConfig = result.data;
+                applyConfigToUI();
+
+                // Rebuild 3D geometries for Palletizer & Wrapper twins
+                build3dEuroPallet();
+                rebuild3dBags(current3dLayer, current3dBag);
+                build3dPalletOnTurntable();
+                build3dWrapperFoilAndCap();
+
+                closePalletConfigModal();
+                fetchTelemetry();
+            } else {
+                alert('Błąd zapisu: ' + (result.message || 'Nieznany błąd'));
+            }
+        } catch (e) {
+            alert('Wystąpił błąd komunikacji: ' + e);
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+
+    // Fullscreen 3D Viewport Toggle
+    window.toggle3dFullscreen = function(wrapperId, btn) {
+        const wrapper = document.getElementById(wrapperId);
+        if (!wrapper) return;
+
+        const isFull = wrapper.classList.toggle('is-fullscreen');
+        if (btn) {
+            btn.innerHTML = `<span class="material-icons">${isFull ? 'fullscreen_exit' : 'fullscreen'}</span> ${isFull ? 'ZAMKNIJ' : 'EKRAN'}`;
+            btn.classList.toggle('active', isFull);
+        }
+
+        // Trigger renderer and camera resize
+        function trigger3dResize() {
+            if (wrapperId === 'pallet3dWrapper') {
+                on3dWindowResize();
+            } else if (wrapperId === 'wrapper3dWrapper') {
+                onWrapper3dWindowResize();
+            }
+        }
+
+        requestAnimationFrame(trigger3dResize);
+        setTimeout(trigger3dResize, 50);
+        setTimeout(trigger3dResize, 150);
+        setTimeout(trigger3dResize, 350);
+    };
+
+    // ESC key listener to exit 3D Fullscreen
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.pallet-3d-wrapper.is-fullscreen').forEach(el => {
+                el.classList.remove('is-fullscreen');
+                const btn = el.querySelector('[id*="Fullscreen"]');
+                if (btn) {
+                    btn.classList.remove('active');
+                    btn.innerHTML = '<span class="material-icons">fullscreen</span> EKRAN';
+                }
+                if (el.id === 'pallet3dWrapper') on3dWindowResize();
+                if (el.id === 'wrapper3dWrapper') onWrapper3dWindowResize();
+            });
+        }
+    });
+
+    // Initialize
+    initTheme();
+    loadPalletConfig();
+    setTimeout(init3dScene, 100);
+    setTimeout(initWrapper3dScene, 150);
+    fetchTelemetry();
+    setInterval(fetchTelemetry, 1000);
+})();
+</script>
+{% endblock %}

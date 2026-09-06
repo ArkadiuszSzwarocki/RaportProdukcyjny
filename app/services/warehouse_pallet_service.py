@@ -12,14 +12,16 @@ from app.utils.pallet_id import generate_pallet_id
 from app.blueprints.warehouse.routes.printing_routes import _select_preferred_printer
 from app.blueprints.warehouse.routes.palety_helpers import _resolve_plan_id_for_paleta
 
+from app.repositories.warehouse_pallet_repository import WarehousePalletRepository
+from app.repositories.warehouse_movement_ledger_repository import WarehouseMovementLedgerRepository
+
 class WarehousePalletService:
     @staticmethod
     def dodaj_palete(plan_id, linia, waga_palety, nr_plomby, data_produkcji, printer_ip, printer_name, user_login, app_obj, is_ajax, safe_return_url):
-        """Add paleta (package) to Workowanie buffer."""
+        """Add paleta (package) to Workowanie buffer using repository pattern and recording unified stock movement."""
         linia = linia
         table_plan = get_table_name('plan_produkcji', linia)
         table_pal = get_table_name('palety_workowanie', linia)
-        table_zasypy = get_table_name('szarze', linia)
     
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -39,15 +41,18 @@ class WarehousePalletService:
         elif len(nr_plomby) > 100:
             nr_plomby = nr_plomby[:100]
     
-        cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji, zasyp_id FROM {table_plan} WHERE id=%s", (plan_id,))
-        plan_row = cursor.fetchone()
+        plan_row = WarehousePalletRepository.get_plan_info(plan_id, linia, conn=conn)
     
         if not plan_row:
             conn.close()
             return ('Błąd: Plan nie znaleziony', 404, None)
     
         now_ts = datetime.now()
-        plan_sekcja, _plan_data, plan_produkt, plan_data_produkcji, plan_zasyp_id = plan_row
+        plan_sekcja = plan_row.get('sekcja')
+        _plan_data = plan_row.get('data_planu')
+        plan_produkt = plan_row.get('produkt')
+        plan_data_produkcji = plan_row.get('data_produkcji')
+        plan_zasyp_id = plan_row.get('zasyp_id')
     
         input_data_produkcji = str(data_produkcji or '').strip()
         if input_data_produkcji:
@@ -87,40 +92,46 @@ class WarehousePalletService:
             paleta_id = None
             nr_palety = None
     
-            # If there are reserved labels for this plan, consume the oldest one first.
-            cursor.execute(
-                f"SELECT id, nr_palety FROM {table_pal} WHERE plan_id = %s AND COALESCE(status, '') = 'rezerwacja' ORDER BY id ASC LIMIT 1",
-                (plan_id,),
-            )
-            reserved_row = cursor.fetchone()
+            # Concurrency-safe reserved pallet check with row locking
+            reserved_row = WarehousePalletRepository.find_reserved_pallet(plan_id, linia, lock_for_update=True, conn=conn)
     
             nr_palety_czyszczenie = None
             if plan_produkt and 'czyszczenie' in plan_produkt.lower():
-                cursor.execute(f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL LIMIT 1", (plan_id, plan_zasyp_id or -1))
-                sscc_row = cursor.fetchone()
-                if sscc_row and sscc_row[0]:
-                    nr_palety_czyszczenie = sscc_row[0]
+                nr_palety_czyszczenie = WarehousePalletRepository.find_cleaning_sscc(plan_id, plan_zasyp_id, linia, conn=conn)
     
             if reserved_row:
-                paleta_id = reserved_row[0]
+                paleta_id = reserved_row.get('id')
                 if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
                     nr_palety = nr_palety_czyszczenie
                 else:
-                    nr_palety = reserved_row[1] or generate_pallet_id(linia)
-                cursor.execute(
-                    f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, nr_plomby = COALESCE(%s, nr_plomby) WHERE id = %s",
-                    (waga_input, now_ts, user_login, nr_palety, nr_plomby, paleta_id),
+                    nr_palety = reserved_row.get('nr_palety') or generate_pallet_id(linia)
+                
+                WarehousePalletRepository.update_reserved_pallet(
+                    pallet_id=paleta_id,
+                    linia=linia,
+                    waga=waga_input,
+                    data_dodania=now_ts,
+                    user_login=user_login,
+                    nr_palety=nr_palety,
+                    nr_plomby=nr_plomby,
+                    conn=conn
                 )
             else:
                 if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
                     nr_palety = nr_palety_czyszczenie
                 else:
                     nr_palety = generate_pallet_id(linia)
-                cursor.execute(
-                    f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, nr_plomby) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, %s)",
-                    (plan_id, waga_input, now_ts, user_login, nr_palety, nr_plomby),
+                
+                paleta_id = WarehousePalletRepository.insert_new_pallet(
+                    plan_id=plan_id,
+                    linia=linia,
+                    waga=waga_input,
+                    data_dodania=now_ts,
+                    user_login=user_login,
+                    nr_palety=nr_palety,
+                    nr_plomby=nr_plomby,
+                    conn=conn
                 )
-                paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
             # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
             try:
@@ -128,14 +139,12 @@ class WarehousePalletService:
                     cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
                     res_lp = cursor.fetchone()
                     nr_palety_lp = int(res_lp[0]) if res_lp else 1
-                    # check if column exists
                     try:
                         cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
                         col = cursor.fetchone()
                         if col:
                             cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
                     except Exception:
-                        # ignore if SHOW COLUMNS or UPDATE fails on older schemas
                         pass
             except Exception:
                 pass
@@ -157,9 +166,24 @@ class WarehousePalletService:
                 if plan_produkt and 'czyszczenie' in plan_produkt.lower():
                     is_original_czyszczenie = True
                     nazwa_do_historii = "Mąka mix do Lnu"
-                    # Zaktualizuj nazwe produktu w zleceniu
                     cursor.execute(f"UPDATE {table_plan} SET produkt = %s WHERE id = %s", (nazwa_do_historii, plan_id))
                     plan_produkt = nazwa_do_historii
+    
+                # Record in unified warehouse movement ledger (PW movement)
+                WarehouseMovementLedgerRepository.record_movement(
+                    movement_type='PW',
+                    pallet_id=paleta_id,
+                    pallet_code=nr_palety,
+                    product_name=nazwa_do_historii,
+                    source_location=f"PRODUKCJA_{linia}",
+                    target_location="BUFOR_WORKOWANIE",
+                    quantity=waga_input,
+                    unit='kg',
+                    user_login=user_login,
+                    reference_id=str(plan_id),
+                    notes=f"Utworzono paletę wyrobu gotowego ze zlecenia #{plan_id}",
+                    external_conn=conn
+                )
     
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s)",

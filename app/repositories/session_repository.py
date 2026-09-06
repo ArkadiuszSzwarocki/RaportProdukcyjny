@@ -88,11 +88,41 @@ def deactivate_active_session(session_id):
         return True
     except Exception:
         try:
-            conn.rollback()
+            if conn:
+                conn.rollback()
+                conn.close()
         except Exception:
             pass
+        return False
+
+
+def deactivate_all_user_sessions(user_id, except_session_id=None):
+    """Deactivate all active sessions for a given user ID, optionally preserving one session."""
+    if not user_id:
+        return False
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if except_session_id:
+            cursor.execute(
+                "UPDATE aktywne_sesje SET is_active = 0, last_seen = NOW() WHERE user_id = %s AND session_id != %s",
+                (user_id, except_session_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE aktywne_sesje SET is_active = 0, last_seen = NOW() WHERE user_id = %s",
+                (user_id,)
+            )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
         try:
-            conn.close()
+            if conn:
+                conn.rollback()
+                conn.close()
         except Exception:
             pass
         return False
@@ -211,8 +241,37 @@ def deactivate_other_user_sessions(user_id, exclude_session_id):
                 pass
         return False
 
+def cleanup_abandoned_sessions(max_inactive_hours=24):
+    """Mark abandoned sessions (inactive for more than max_inactive_hours) as inactive."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE aktywne_sesje 
+            SET is_active = 0 
+            WHERE is_active = 1 
+              AND last_seen < DATE_SUB(NOW(), INTERVAL %s HOUR)
+            """,
+            (max_inactive_hours,)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
+        return False
+
+
 def is_session_active(session_id):
-    """Check if the session tracking ID is still active in the database."""
+    """Check if the session tracking ID and associated user account are still active in the database."""
     if not session_id:
         return False
     
@@ -224,17 +283,22 @@ def is_session_active(session_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT is_active FROM aktywne_sesje WHERE session_id = %s",
+            """
+            SELECT a.is_active, COALESCE(u.is_active, 1)
+            FROM aktywne_sesje a
+            LEFT JOIN uzytkownicy u ON a.user_id = u.id
+            WHERE a.session_id = %s
+            """,
             (session_id,)
         )
         row = cursor.fetchone()
         
-        # If the session exists in DB, respect its active status
+        # If the session exists in DB, respect its active status and user account status
         if row is not None:
-            is_act = row[0]
+            is_act, is_user_act = row[0], row[1]
             cursor.close()
             conn.close()
-            return is_act == 1
+            return bool(is_act == 1 and is_user_act == 1)
             
         # If the session does NOT exist in DB, but the Flask session cookie claims
         # we are logged in, we automatically replicate/reconstruct the session context!

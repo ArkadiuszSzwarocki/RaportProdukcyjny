@@ -42,9 +42,16 @@ function previewCurrentPallet() {
         AppDialog.alert('Brak aktywnej palety do podglądu.');
         return;
     }
-    const linia = currentPallet.linia || 'PSD';
-    const previewUrl = `/warehouse-v2/podglad-etykiety/${currentPallet.id}?linia=${encodeURIComponent(linia)}`;
-    window.open(previewUrl, 'label_preview_psd', 'width=1000,height=1200,resizable=yes,scrollbars=yes');
+    const linia = currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
+    const type = currentPallet.type || '';
+    const sscc = currentPallet.displayId || '';
+    const previewUrl = `/warehouse-v2/podglad-etykiety/${encodeURIComponent(currentPallet.id)}?linia=${encodeURIComponent(linia)}&type=${encodeURIComponent(type)}&sscc=${encodeURIComponent(sscc)}`;
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        window.open(previewUrl, '_blank');
+    } else {
+        window.open(previewUrl, 'label_preview_psd', 'width=900,height=1000,resizable=yes,scrollbars=yes');
+    }
 }
 
 async function printCurrentPallet(triggerBtn) {

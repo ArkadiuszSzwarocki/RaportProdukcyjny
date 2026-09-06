@@ -91,10 +91,11 @@ def get_db_connection(retries=2):
     if primary_host not in ('127.0.0.1', 'localhost'):
         candidate_hosts.extend(['127.0.0.1', 'localhost'])
 
+    num_retries = max(1, int(retries or 1))
     for host in candidate_hosts:
         conn_config = dict(base_config)
         conn_config['host'] = host
-        for attempt in range(retries):
+        for attempt in range(num_retries):
             try:
                 return mysql.connector.connect(**conn_config, buffered=True)
             except mysql.connector.Error as e:

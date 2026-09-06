@@ -197,7 +197,27 @@ class ProductionConsumptionService:
             # 3. Usuń paletę z aktywnego magazynu
             cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
 
-            # 4. Zarejestruj ruch w palety_historia
+            # 4. Zarejestruj ruch w zunifikowanym rejestrze ruchów magazynowych (RW - Rozchód Wewnętrzny)
+            try:
+                from app.repositories.warehouse_movement_ledger_repository import WarehouseMovementLedgerRepository
+                WarehouseMovementLedgerRepository.record_movement(
+                    movement_type='RW',
+                    pallet_id=pallet_id,
+                    pallet_code=pallet_sscc,
+                    product_name=pallet_name,
+                    batch_number=pallet_batch,
+                    source_location=last_location,
+                    target_location='ZUZYTE_0KG_PRODUKCJA',
+                    quantity=last_weight,
+                    unit='szt' if pallet_type == 'Opakowanie' else 'kg',
+                    user_login=worker_login,
+                    notes=f"Zużycie palety do 0 kg na produkcji: {comment or ''}".strip(),
+                    external_conn=conn
+                )
+            except Exception as m_err:
+                print("Błąd zapisu zunifikowanego ruchu magazynowego:", m_err)
+
+            # 5. Zarejestruj ruch w palety_historia
             try:
                 cursor.execute("""
                     INSERT INTO palety_historia (

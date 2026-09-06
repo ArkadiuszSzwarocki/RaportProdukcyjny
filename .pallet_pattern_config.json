@@ -1,0 +1,14 @@
+{
+  "preset_name": "Przemysłowa 100×120 • 12W x 4szt + 2szt = 50 worków",
+  "pallet_type": "INDUSTRIAL_100X120",
+  "pallet_name": "Paleta Przemysłowa (1000 × 1200 mm)",
+  "pallet_short_name": "Przemysłowa 100×120",
+  "pallet_width_m": 1.0,
+  "pallet_length_m": 1.2,
+  "full_layers": 12,
+  "total_layers": 13,
+  "bags_per_layer": 4,
+  "top_layer_bags": 2,
+  "bag_weight_kg": 25.0,
+  "total_bags": 50
+}

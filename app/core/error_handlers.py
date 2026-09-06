@@ -230,10 +230,15 @@ def register_error_handlers(app):
                         action = f"Button: {a}"
                         break
             
+            import uuid
+            err_ref = uuid.uuid4().hex[:8].upper()
+            
             # Log structured header for easier parsing in Error Trap view
-            app.logger.error(f"[TRAP_HEADER] URL: {path} | ACTION: {action}")
-            app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error_msg)
+            app.logger.error(f"[TRAP_HEADER] URL: {path} | ACTION: {action} | ERR_REF: ERR-{err_ref}")
+            app.logger.exception('Unhandled exception [ERR-%s] on %s %s: %s', err_ref, request.method, request.path, error_msg)
         except Exception as e:
+            import uuid
+            err_ref = uuid.uuid4().hex[:8].upper()
             app.logger.exception('Error in error handler: %s', e)
         
         # Return JSON for AJAX/API requests, HTML for normal page requests
@@ -248,15 +253,18 @@ def register_error_handlers(app):
             is_api = False
             content_json = False
 
+        # Mask internal technical error details in production to prevent information disclosure
+        user_facing_msg = str(error) if app.debug else f'Wystąpił wewnętrzny błąd serwera. Kod błędu: ERR-{err_ref}'
+
         if is_xhr or accepts_json or is_api or content_json:
-            return jsonify({'success': False, 'message': f'Błąd serwera: {str(error)}'}), 500
+            return jsonify({'success': False, 'message': user_facing_msg, 'error_code': f'ERR-{err_ref}'}), 500
 
         try:
-            flash(f'❌ Błąd: {str(error)}', 'danger')
+            flash(f'❌ {user_facing_msg}', 'danger')
         except Exception:
             pass
         # Return 500 error page
-        response = render_template('500.html')
+        response = render_template('500.html', error_code=f'ERR-{err_ref}')
         return response, 500
 
     @app.errorhandler(403)

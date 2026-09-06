@@ -60,6 +60,35 @@ def format_date_val(val, fmt='%Y-%m-%d'):
             return str(val)
     return str(val)
 
+def classify_packaging_type(product_name: str, type_str: str, amount: float = 0, unit: str = 'kg', raw_pkg: str = '') -> str:
+    p_name = str(product_name or '').upper()
+    t_str = str(type_str or '').upper()
+    pkg_raw = str(raw_pkg or '').upper()
+    
+    if 'BIG' in pkg_raw or 'BB' in pkg_raw or 'BIG BAG' in p_name or 'BIGBAG' in p_name or ' BB' in p_name or '1000KG' in p_name or '1000 KG' in p_name or 'WAPNO BB' in p_name:
+        return 'Big Bag (1000kg)'
+    if '25KG' in p_name or '25 KG' in p_name or 'WOREK' in pkg_raw or 'WORKI' in pkg_raw or 'WOREK' in p_name or 'WORK' in p_name:
+        return 'Worek (25kg)'
+    if '50KG' in p_name or '50 KG' in p_name:
+        return 'Worek (50kg)'
+    if '20KG' in p_name or '20 KG' in p_name:
+        return 'Worek (20kg)'
+    if 'KARTON' in pkg_raw or 'KARTON' in p_name:
+        return 'Karton'
+    if 'FOLIA' in p_name or 'ROLKA' in pkg_raw or 'ROLKA' in p_name or 'KALKA' in p_name:
+        return 'Rolka / Folia'
+    if 'WIADRO' in p_name or 'WIADRA' in p_name:
+        return 'Wiadro'
+    if 'KANISTER' in p_name or 'BECZKA' in p_name:
+        return 'Kanister / Beczka'
+    if t_str == 'OPAKOWANIE':
+        return 'Opakowanie / Karton'
+    if t_str in ('WYRÓB GOTOWY', 'SUROWIEC', 'DODATEK'):
+        if amount and amount >= 800 and ('BB' in p_name or ('SUROWIEC' in t_str and amount % 25 != 0)):
+            return 'Big Bag (1000kg)'
+        return 'Worek (25kg)'
+    return 'Worek (25kg)'
+
 @warehouse_v2_bp.route('/')
 def index():
     linia = request.args.get('linia', 'PSD').upper()
@@ -81,7 +110,7 @@ def index():
         # 1. Surowce
         table_surowce = get_table_name('magazyn_surowce', linia)
         try:
-            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at FROM {table_surowce} WHERE stan_magazynowy > 0")
+            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM {table_surowce} WHERE stan_magazynowy > 0")
             surowce = cursor.fetchall()
             for row in surowce:
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"SUR-{row['id']}"
@@ -92,6 +121,7 @@ def index():
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'kg'
                 row['is_blocked'] = row.get('is_blocked', 0)
+                row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                 items.append(row)
         except Exception as e:
             print(f"Error fetching surowce: {e}")
@@ -99,7 +129,7 @@ def index():
         # 2. Opakowania
         table_opakowania = get_table_name('magazyn_opakowania', linia)
         try:
-            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at FROM {table_opakowania} WHERE stan_magazynowy > 0")
+            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM {table_opakowania} WHERE stan_magazynowy > 0")
             opakowania = cursor.fetchall()
             for row in opakowania:
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
@@ -110,6 +140,7 @@ def index():
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'szt'
                 row['is_blocked'] = row.get('is_blocked', 0)
+                row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                 items.append(row)
         except Exception as e:
             print(f"Error fetching opakowania: {e}")
@@ -132,7 +163,8 @@ def index():
                            COALESCE(NULLIF(TRIM(m.linia), ''), '{linia_palety}') as linia, 
                            COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii, 
                            m.is_blocked, 
-                           COALESCE(m.created_at, m.data_potwierdzenia) as created_at
+                           COALESCE(m.created_at, m.data_potwierdzenia) as created_at,
+                           COALESCE(m.typ_opakowania, plan.typ_opakowania, '') as typ_opakowania
                     FROM {table_palety} m
                     LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
                     WHERE m.waga_netto > 0 {line_condition}
@@ -149,6 +181,7 @@ def index():
                     row['batch'] = row.get('nr_partii') or '-'
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
+                    row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
 
                     # Przypisz lokalizację MGW01/MGW02 dla wyrobów gotowych jeśli nie mają
                     if not row['location']:
@@ -160,7 +193,7 @@ def index():
 
         # 4. Dodatki (NEW)
         try:
-            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at FROM magazyn_dodatki WHERE stan_magazynowy > 0")
+            cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM magazyn_dodatki WHERE stan_magazynowy > 0")
             dodatki = cursor.fetchall()
             for row in dodatki:
                 row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"DOD-{row['id']}"
@@ -171,6 +204,7 @@ def index():
                 row['batch'] = row.get('nr_partii') or '-'
                 row['unit'] = 'kg'
                 row['is_blocked'] = row.get('is_blocked', 0)
+                row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                 items.append(row)
         except Exception as e:
             print(f"Error fetching dodatki: {e}")
@@ -622,81 +656,213 @@ def raport_palet():
        cursor.close()
        conn.close()
 
-@warehouse_v2_bp.route('/podglad-etykiety/<int:paleta_id>', methods=['GET'])
-@warehouse_v2_bp.route('/psd/podglad-etykiety/<int:paleta_id>', methods=['GET'])
+@warehouse_v2_bp.route('/podglad-etykiety/<paleta_id>', methods=['GET'])
+@warehouse_v2_bp.route('/psd/podglad-etykiety/<paleta_id>', methods=['GET'])
 def podglad_etykiety_psd(paleta_id):
-    """Generates HTML preview of a pallet label for PSD line using Labelary API."""
-    from app.utils.pallet_label import prepare_pallet_label_data
+    """Generates HTML preview of a pallet label for any pallet type (Surowiec, Opakowanie, Dodatek, Wyrób Gotowy) using Labelary API."""
+    from app.utils.pallet_label import prepare_pallet_label_data, is_packaging_item, calculate_expiry_date
     import json
-    
+
     linia = request.args.get('linia', 'PSD').strip().upper()
-    
+    pallet_type = request.args.get('type', '').strip()
+    sscc = request.args.get('sscc', '').strip()
+
+    search_id = str(paleta_id).strip()
+    search_sscc = sscc or search_id
+
     conn = get_db_connection()
+    label_data = None
+    resolved_type = pallet_type
+
     try:
-       cursor = conn.cursor(dictionary=True)
-       label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table='magazyn')
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Targeted lookup based on type
+        if pallet_type.lower() in ('surowiec', 'raw_material', 'surowce') or search_sscc.upper().startswith('SUR'):
+            tables = ['magazyn_surowce', 'magazyn_surowce_agro'] if linia != 'AGRO' else ['magazyn_surowce_agro', 'magazyn_surowce']
+            for tbl in tables:
+                cursor.execute(
+                    f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                    (search_id, search_id, search_sscc)
+                )
+                row = cursor.fetchone()
+                if row:
+                    label_data = {
+                        'id': row['id'],
+                        'nr_palety': row.get('nr_palety') or search_sscc,
+                        'nazwa': row.get('nazwa') or 'Surowiec',
+                        'ilosc': float(row.get('waga_netto') or 0),
+                        'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                        'termin': str(row.get('data_przydatnosci') or ''),
+                        'partia': row.get('nr_partii') or '---',
+                        'jednostka': 'kg',
+                        'typ': 'SUROWIEC',
+                        'linia': linia
+                    }
+                    resolved_type = 'Surowiec'
+                    break
+
+        elif pallet_type.lower() in ('opakowanie', 'packaging', 'opakowania') or search_sscc.upper().startswith(('OPK', 'OPA')):
+            tables = ['magazyn_opakowania', 'magazyn_opakowania_agro'] if linia != 'AGRO' else ['magazyn_opakowania_agro', 'magazyn_opakowania']
+            for tbl in tables:
+                cursor.execute(
+                    f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                    (search_id, search_id, search_sscc)
+                )
+                row = cursor.fetchone()
+                if row:
+                    label_data = {
+                        'id': row['id'],
+                        'nr_palety': row.get('nr_palety') or search_sscc,
+                        'nazwa': row.get('nazwa') or 'Opakowanie',
+                        'ilosc': float(row.get('waga_netto') or 0),
+                        'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                        'termin': str(row.get('data_przydatnosci') or ''),
+                        'partia': row.get('nr_partii') or '---',
+                        'jednostka': 'szt.',
+                        'typ': 'OPAKOWANIE',
+                        'linia': linia
+                    }
+                    resolved_type = 'Opakowanie'
+                    break
+
+        elif pallet_type.lower() in ('dodatek', 'dodatki') or search_sscc.upper().startswith('DOD'):
+            cursor.execute(
+                "SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM magazyn_dodatki WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                (search_id, search_id, search_sscc)
+            )
+            row = cursor.fetchone()
+            if row:
+                label_data = {
+                    'id': row['id'],
+                    'nr_palety': row.get('nr_palety') or search_sscc,
+                    'nazwa': row.get('nazwa') or 'Dodatek',
+                    'ilosc': float(row.get('waga_netto') or 0),
+                    'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                    'termin': str(row.get('data_przydatnosci') or ''),
+                    'partia': row.get('nr_partii') or '---',
+                    'jednostka': 'kg',
+                    'typ': 'DODATEK',
+                    'linia': linia
+                }
+                resolved_type = 'Dodatek'
+
+        # 2. If still not found and pallet_type is Wyrób Gotowy (or unspecified), try Finished Product tables
+        if not label_data:
+            try:
+                # Try prepare_pallet_label_data
+                label_data = prepare_pallet_label_data(cursor, search_id, linia, source_table='magazyn')
+            except Exception:
+                label_data = None
+
+        # 3. Fallback scan across all tables if not found
+        if not label_data:
+            all_candidate_tables = [
+                ('magazyn_surowce', 'SUROWIEC', 'kg'),
+                ('magazyn_surowce_agro', 'SUROWIEC', 'kg'),
+                ('magazyn_opakowania', 'OPAKOWANIE', 'szt.'),
+                ('magazyn_opakowania_agro', 'OPAKOWANIE', 'szt.'),
+                ('magazyn_dodatki', 'DODATEK', 'kg'),
+                ('magazyn_palety', 'WYRÓB GOTOWY', 'kg'),
+                ('magazyn_palety_agro', 'WYRÓB GOTOWY', 'kg')
+            ]
+            for tbl, def_typ, def_unit in all_candidate_tables:
+                col_name = 'produkt' if 'palety' in tbl else 'nazwa'
+                col_qty = 'waga_netto' if 'palety' in tbl else 'stan_magazynowy'
+                try:
+                    cursor.execute(
+                        f"SELECT id, {col_name} as nazwa, {col_qty} as waga_netto, nr_partii, data_produkcji, data_przydatnosci, nr_palety FROM {tbl} WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                        (search_id, search_id, search_sscc)
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        label_data = {
+                            'id': row['id'],
+                            'nr_palety': row.get('nr_palety') or search_sscc,
+                            'nazwa': row.get('nazwa') or 'Produkt',
+                            'ilosc': float(row.get('waga_netto') or 0),
+                            'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                            'termin': str(row.get('data_przydatnosci') or ''),
+                            'partia': row.get('nr_partii') or '---',
+                            'jednostka': def_unit,
+                            'typ': def_typ,
+                            'linia': linia
+                        }
+                        resolved_type = def_typ
+                        break
+                except Exception:
+                    continue
+
     finally:
-       conn.close()
-    
+        conn.close()
+
     if not label_data:
-       return 'Nie znaleziono danych etykiety dla tej palety.', 404
-    
-    nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or paleta_id).strip() or str(paleta_id)
-    product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip() or 'Brak nazwy'
-    nr_partii = str(label_data.get('partia') or '---').strip() or '---'
-    data_produkcji = str(label_data.get('data') or '---').strip() or '---'
-    data_przydatnosci = str(label_data.get('termin') or '---').strip() or '---'
-    qty_display = label_data.get('ilosc') or 0
+        return 'Nie znaleziono danych etykiety dla tej palety.', 404
+
+    nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or search_sscc or paleta_id).strip()
+    product_name = str(label_data.get('nazwa') or label_data.get('produkt') or 'Brak nazwy').strip()
+    nr_partii = str(label_data.get('partia') or label_data.get('nr_partii') or '---').strip() or '---'
+    data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()[:10]
+    data_przydatnosci_raw = str(label_data.get('termin') or label_data.get('data_przydatnosci') or '').strip()
+    data_przydatnosci = calculate_expiry_date(data_przydatnosci_raw, data_produkcji) if data_przydatnosci_raw else ''
+    qty_display = float(label_data.get('ilosc') or label_data.get('waga_netto') or 0)
     nr_palety_lp = label_data.get('nr_palety_lp')
     nr_plomby = label_data.get('nr_plomby') or None
-    
+
     try:
-       if nr_palety_lp not in (None, ''):
-           nr_palety_lp = int(nr_palety_lp)
+        if nr_palety_lp not in (None, ''):
+            nr_palety_lp = int(nr_palety_lp)
+        else:
+            nr_palety_lp = None
     except Exception:
-       nr_palety_lp = None
-    
+        nr_palety_lp = None
+
     nr_upper = nr_palety.upper()
     prod_lower = product_name.lower()
-    from app.utils.pallet_label import is_packaging_item
     is_pkg = is_packaging_item(
         product_name,
         unit=label_data.get('jednostka') or label_data.get('unit'),
-        typ=label_data.get('typ'),
+        typ=resolved_type or label_data.get('typ'),
         pallet_nr=nr_palety
+    )
+    is_surowiec = (
+        nr_upper.startswith('SUR') or 
+        nr_upper.startswith('DOD') or 
+        'surowiec' in prod_lower or 
+        (str(resolved_type or label_data.get('typ') or '')).lower() in ('surowiec', 'dodatek')
     )
 
     if is_pkg:
-       typ_label = 'OPAKOWANIE'
-       unit_str = 'szt.'
-       qty_header = 'ILOSC:'
-    elif nr_upper.startswith('SUR') or nr_upper.startswith('DOD') or is_surowiec:
-       typ_label = 'SUROWIEC'
-       unit_str = 'kg'
-       qty_header = 'WAGA NETTO:'
+        typ_label = 'OPAKOWANIE'
+        unit_str = 'szt.'
+        qty_header = 'ILOSC:'
+    elif is_surowiec:
+        typ_label = 'SUROWIEC'
+        unit_str = 'kg'
+        qty_header = 'WAGA NETTO:'
     else:
-       typ_label = 'WYRÓB GOTOWY'
-       unit_str = 'kg'
-       qty_header = 'WAGA NETTO:'
-    
+        typ_label = 'WYRÓB GOTOWY'
+        unit_str = 'kg'
+        qty_header = 'WAGA NETTO:'
+
     qr_details = {
-       "sscc": nr_palety,
-       "prod": product_name,
-       "lp": str(nr_palety_lp or ''),
-       "partia": nr_partii,
-       "plomba": str(nr_plomby or ''),
-       "data_prod": data_produkcji,
-       "data_przyd": data_przydatnosci,
-       "ilosc": f"{qty_display:.2f}",
-       "jm": unit_str,
-       "typ": f"{typ_label} - {linia}"
+        "sscc": nr_palety,
+        "prod": product_name,
+        "lp": str(nr_palety_lp or ''),
+        "partia": nr_partii,
+        "plomba": str(nr_plomby or ''),
+        "data_prod": data_produkcji,
+        "data_przyd": data_przydatnosci or '---',
+        "ilosc": f"{qty_display:.2f}",
+        "jm": unit_str,
+        "typ": f"{typ_label} - {linia}"
     }
     qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
-    
+
     partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != '---' else ""
     przydatnosc_line = f"^FO40,950^A0N,45,45^FDTERMIN PRZYDATNOŚCI: {data_przydatnosci}^FS" if data_przydatnosci and data_przydatnosci != '---' else ""
     plomba_line = f"^FO40,1000^A0N,45,45^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
-    
+
     zpl_string = f"""^XA
 ^CI28
 ^PW812^LL1214
@@ -715,19 +881,55 @@ def podglad_etykiety_psd(paleta_id):
 ^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
 ^PQ1
 ^XZ"""
-    
+
     return render_template(
-       'magazyn_dostawy/etykieta_podglad.html',
-       nr_palety=nr_palety,
-       product_name=product_name,
-       nr_partii=nr_partii,
-       data_produkcji=data_produkcji,
-       data_przydatnosci=data_przydatnosci,
-       qty=qty_display,
-       typ_label=typ_label,
-       linia=linia,
-       qr_details_json=json.dumps(qr_details),
-       zpl_string=zpl_string,
-       generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'magazyn_dostawy/etykieta_podglad.html',
+        nr_palety=nr_palety,
+        product_name=product_name,
+        nr_partii=nr_partii,
+        data_produkcji=data_produkcji,
+        data_przydatnosci=data_przydatnosci,
+        qty=qty_display,
+        typ_label=typ_label,
+        linia=linia,
+        qr_details_json=json.dumps(qr_details),
+        zpl_string=zpl_string,
+        generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     )
+
+@warehouse_v2_bp.route('/racks-3d')
+@warehouse_v2_bp.route('/widok-3d')
+def racks_3d_view():
+    """Interactive 3D Warehouse Rack visualization view."""
+    linia = request.args.get('linia', 'ALL').upper()
+    active_rack = request.args.get('rack_id', 'R01')
+    from app.services.warehouse_3d_service import Warehouse3dService
+    racks_config = Warehouse3dService.get_rack_configurations()
+    
+    # Magazyny zakladki for standard header navigation
+    magazyny_zakladki = [
+        {'id': 'all', 'name': 'Wszystkie Magazyny'},
+        {'id': 'MS01', 'name': 'Magazyn Surowcowy (MS01)'},
+        {'id': 'MP01', 'name': 'Magazyn Produkcyjny (MP01)'},
+        {'id': 'OSIP', 'name': 'Magazyn OSIP (OSIP)'},
+        {'id': 'PSD01', 'name': 'Magazyn Produkcyjny (PSD01)'},
+        {'id': 'MDO01', 'name': 'Magazyn Dodatków (MDO01)'},
+        {'id': 'MOP01', 'name': 'Magazyn Opakowań (MOP01)'},
+        {'id': 'MGW01', 'name': 'Wyroby Gotowe (MGW01)'},
+        {'id': 'MGW02', 'name': 'Wyroby Gotowe (MGW02)'},
+        {'id': 'BF_MS01', 'name': 'BUFOR MS01'},
+        {'id': 'BF_MP01', 'name': 'BUFOR MP01'}
+    ]
+
+    return render_template(
+        'warehouse_v2/racks_3d.html',
+        linia=linia,
+        active_rack=active_rack,
+        racks_config=racks_config,
+        zakladki=magazyny_zakladki,
+        aktywna_zakladka='all',
+        aktywna_podzakladka='all',
+        stats={}
+    )
+
 

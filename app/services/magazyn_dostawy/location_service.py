@@ -34,6 +34,30 @@ class LocationService:
             finally:
                 conn.close()
 
+    @staticmethod
+    def validate_slot_capacity(target_location: str, linia: str = 'PSD', excluding_pallet_code: str = None) -> tuple[bool, str]:
+        """
+        Validates rack slot capacity.
+        Standard high-storage racks (R01-R07) have a hard capacity limit of 1 pallet per slot.
+        Open buffer zones (RAMPA, BUFOR, KO, BB) allow multiple pallets.
+        """
+        norm_loc = LocationService._normalize_location_code(target_location)
+        if not norm_loc:
+            return False, "Nie podano lokalizacji docelowej."
+
+        if any(norm_loc.startswith(p) for p in LocationService.OPEN_LOCATIONS_PREFIXES):
+            return True, "Lokalizacja otwarta - nieograniczona pojemność."
+
+        if LocationService._is_rack_location_code(norm_loc):
+            is_occupied, content_desc, items = LocationService.check_location(target_location, linia)
+            if is_occupied:
+                if excluding_pallet_code:
+                    items = [it for it in items if str(it.get('nr_palety') or '').upper() != excluding_pallet_code.upper()]
+                if items:
+                    return False, f"Gniazdo regałowe {target_location} jest już zajęte przez: {content_desc} (Limit: 1 paleta / gniazdo)."
+
+        return True, "Lokalizacja dostępna."
+
     def get_location_suggestions(prefix, linia='PSD', only_free_for_racks=True, limit=40):
             prefix_normalized = LocationService._normalize_location_code(prefix)
             if not prefix_normalized:

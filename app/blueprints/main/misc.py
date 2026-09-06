@@ -32,6 +32,22 @@ def register_main_misc_routes(main_bp):
         from flask import Response
         return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
+    @main_bp.route('/sw.js')
+    def service_worker():
+        """Serve service worker with root scope and correct JS MIME type."""
+        from flask import send_from_directory
+        response = send_from_directory('static', 'sw.js', mimetype='application/javascript')
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
+    @main_bp.route('/manifest.json')
+    def web_manifest():
+        """Serve PWA manifest."""
+        from flask import send_from_directory
+        return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
+
+
     @main_bp.route('/debug/modal-move', methods=['POST'])
     def debug_modal_move() -> Tuple[str, int]:
         """Log modal-move debug data from client (AJAX)."""

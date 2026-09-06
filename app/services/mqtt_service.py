@@ -72,6 +72,17 @@ def _append_error(message):
         return
 
     ts = time.time()
+    try:
+        from app.services.machine_error_log_service import MachineErrorLogService
+        MachineErrorLogService.log_error(
+            machine="BROKER_MQTT",
+            description=str(message),
+            severity="COMMUNICATION",
+            code="MQTT-ERR"
+        )
+    except Exception:
+        pass
+
     with _data_lock:
         _latest_machine_data["recent_errors"].append(
             {
@@ -149,6 +160,13 @@ def on_message(client, userdata, msg):
             if len(_latest_machine_data["recent_messages"]) > _RECENT_MESSAGES_LIMIT:
                 _latest_machine_data["recent_messages"] = _latest_machine_data["recent_messages"][-_RECENT_MESSAGES_LIMIT:]
 
+            # Parse and record machine alarms into persistent error service
+            try:
+                from app.services.machine_error_log_service import MachineErrorLogService
+                MachineErrorLogService.parse_and_record_payload(topic, payload_data)
+            except Exception:
+                pass
+
             if "agroPakowaczka" in topic:
                 _latest_machine_data["bpm"] = _first_or_default(payload_data.get("wydajnoscAktualna"), 0)
                 
@@ -164,9 +182,74 @@ def on_message(client, userdata, msg):
                 receptura_val = _first_or_default(payload_data.get("nazwaReceptury"), "Brak danych")
                 _latest_machine_data["receptura"] = receptura_val or "Brak danych"
 
+                # Checkweigher (Waga Dynamiczna & Klapa Zrzutu) Telemetry
+                weight_val = _first_or_default(
+                    payload_data.get("wagaOstatniegoWorka") or payload_data.get("wagaWorka") or payload_data.get("wagaAktualna") or payload_data.get("waga"),
+                    None
+                )
+                if weight_val is not None:
+                    _latest_machine_data["checkweigher_weight"] = float(weight_val)
+
+                target_w = _first_or_default(payload_data.get("wagaZadana") or payload_data.get("wagaNominalna"), 25.0)
+                _latest_machine_data["checkweigher_target_weight"] = float(target_w)
+
+                reject_flap = _first_or_default(
+                    payload_data.get("klapaZrzutuOtwarta") or payload_data.get("zrzutAktywny") or payload_data.get("odrzutPraca") or payload_data.get("zrzutOdrzut"),
+                    False
+                )
+                _latest_machine_data["checkweigher_reject_active"] = bool(reject_flap)
+
+                reject_reason = _first_or_default(
+                    payload_data.get("powodOdrzutu") or payload_data.get("kodBleduWagi") or payload_data.get("rejectReason"),
+                    None
+                )
+                if reject_reason:
+                    _latest_machine_data["checkweigher_reject_reason"] = str(reject_reason)
+
+                reject_count_val = _first_or_default(
+                    payload_data.get("licznikOdrzutow") or payload_data.get("licznikZrzutow") or payload_data.get("rejectCount"),
+                    None
+                )
+                if reject_count_val is not None:
+                    _latest_machine_data["checkweigher_reject_count"] = int(reject_count_val)
+
+                # Trigger reject logger if reject flap is active
+                if reject_flap:
+                    try:
+                        from app.services.machine_reject_log_service import MachineRejectLogService
+                        cur_w = float(weight_val) if weight_val is not None else 24.10
+                        tgt_w = float(target_w)
+                        r_code = str(reject_reason).upper() if reject_reason else ("UNDERWEIGHT" if cur_w < tgt_w else "OVERWEIGHT")
+                        MachineRejectLogService.log_reject(
+                            weight_kg=cur_w,
+                            target_weight_kg=tgt_w,
+                            reason_code=r_code,
+                            recipe_name=receptura_val,
+                            raw_data=payload_data
+                        )
+                    except Exception:
+                        pass
+
             elif "agroOwijarka" in topic:
                 wrapped = _first_or_default(payload_data.get("wyjazdPaletaOwinieta"), False)
                 _latest_machine_data["is_wrapped"] = bool(wrapped)
+                
+                # Wrapping cycle telemetry
+                progress_val = _first_or_default(payload_data.get("postepOwijania") or payload_data.get("progress"), None)
+                if progress_val is not None:
+                    _latest_machine_data["wrapping_progress"] = float(progress_val)
+                    
+                top_sheet_val = _first_or_default(payload_data.get("kapturekZalozony") or payload_data.get("top_sheet"), None)
+                if top_sheet_val is not None:
+                    _latest_machine_data["top_sheet_applied"] = bool(top_sheet_val)
+                    
+                rotations_val = _first_or_default(payload_data.get("obrotyStolu") or payload_data.get("rotations"), None)
+                if rotations_val is not None:
+                    _latest_machine_data["wrapper_rotations"] = int(rotations_val)
+                    
+                phase_val = _first_or_default(payload_data.get("etapOwijania") or payload_data.get("phase"), None)
+                if phase_val:
+                    _latest_machine_data["wrapper_phase"] = str(phase_val)
 
             elif "agroPaletyzator" in topic:
                 real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), 0)
@@ -178,6 +261,37 @@ def on_message(client, userdata, msg):
                 _latest_machine_data["nrWarstwy"] = current_layer
                 _latest_machine_data["nrWorka"] = current_bag
                 
+                # Bag turner / rotation angle if provided by PLC
+                rotation_val = _first_or_default(
+                    payload_data.get("obrotWorka") or payload_data.get("katObrotu") or payload_data.get("orientacja") or payload_data.get("obracak"),
+                    None
+                )
+                if rotation_val is not None:
+                    _latest_machine_data["bag_rotation_deg"] = rotation_val
+                
+                turner_active = _first_or_default(payload_data.get("obracakPraca") or payload_data.get("obracakAktywny"), None)
+                if turner_active is not None:
+                    _latest_machine_data["turner_active"] = bool(turner_active)
+
+                pusher_active = _first_or_default(payload_data.get("popychaczPraca") or payload_data.get("popychaczAktywny"), None)
+                if pusher_active is not None:
+                    _latest_machine_data["pusher_active"] = bool(pusher_active)
+                
+                # Pallet dispenser / infeed magazine telemetry
+                dispenser_count = _first_or_default(
+                    payload_data.get("magazynekPaletIlosc") or payload_data.get("magazynekIloscPalet") or payload_data.get("liczbaPaletMagazynek"),
+                    None
+                )
+                if dispenser_count is not None:
+                    _latest_machine_data["dispenser_pallet_count"] = int(dispenser_count)
+
+                dispenser_active = _first_or_default(
+                    payload_data.get("podawaniePalety") or payload_data.get("podajnikPaletPraca") or payload_data.get("podawaniePaletyAktywne"),
+                    None
+                )
+                if dispenser_active is not None:
+                    _latest_machine_data["dispenser_active"] = bool(dispenser_active)
+
                 oproznianie = _first_or_default(payload_data.get("oproznianie"), False)
                 _latest_machine_data["oproznianie"] = bool(oproznianie)
                 

@@ -1,106 +1,519 @@
-<!-- MODAL: Szczegóły Palety -->
+<!-- MODAL STYLES & MOBILE OVERRIDES -->
+<style>
+.modal-premium-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1500;
+    padding: 16px;
+    box-sizing: border-box;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.modal-premium-content {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(226, 232, 240, 0.8);
+    width: 100%;
+    max-width: 780px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    transform: scale(0.96);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-premium-header {
+    padding: 18px 24px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-premium-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.modal-premium-close {
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    color: #e2e8f0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.modal-premium-close:hover {
+    background: #ef4444;
+    color: #ffffff;
+    transform: scale(1.05);
+}
+
+.modal-premium-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* SPECIFICATION CARDS GRID */
+.modal-specs-card {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.modal-specs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px 18px;
+}
+
+.modal-spec-full {
+    grid-column: span 3;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 12px;
+}
+
+.modal-spec-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #64748b;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.modal-spec-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+/* PREMIUM ACTION BUTTONS */
+.modal-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.btn-modal-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+    text-transform: uppercase;
+}
+
+.btn-modal-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
+}
+
+.btn-modal-action:active {
+    transform: translateY(0);
+}
+
+.btn-modal-primary {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+}
+
+.btn-modal-teal {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    color: #ffffff;
+}
+
+.btn-modal-packaging {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+}
+
+.btn-modal-dark {
+    background: #334155;
+    color: #ffffff;
+}
+
+.btn-modal-block {
+    background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+    color: #ffffff;
+}
+
+.btn-modal-unblock {
+    background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+    color: #ffffff;
+}
+
+/* PRINT & PREVIEW STRIP */
+.modal-print-box {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1.5px solid #86efac;
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.08);
+}
+
+.modal-print-header {
+    font-size: 13px;
+    font-weight: 800;
+    color: #166534;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.modal-print-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.modal-printer-select {
+    flex: 1;
+    min-width: 200px;
+    background: #ffffff;
+    border: 2px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.modal-printer-select:focus {
+    border-color: #22c55e;
+}
+
+.btn-print-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-transform: uppercase;
+}
+
+.btn-print-action.print {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(22, 163, 74, 0.25);
+}
+
+.btn-print-action.print:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(22, 163, 74, 0.35);
+}
+
+.btn-print-action.preview {
+    background: #ffffff;
+    color: #0284c7;
+    border: 2px solid #bae6fd;
+}
+
+.btn-print-action.preview:hover {
+    background: #f0f9ff;
+    border-color: #0284c7;
+    transform: translateY(-1px);
+}
+
+/* OUTLINE SECONDARY BUTTONS */
+.modal-footer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-modal-outline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.btn-modal-outline.expedition {
+    color: #059669;
+    border: 2px solid #a7f3d0;
+}
+
+.btn-modal-outline.expedition:hover {
+    background: #ecfdf5;
+    border-color: #059669;
+}
+
+.btn-modal-outline.history {
+    color: #2563eb;
+    border: 2px solid #bfdbfe;
+}
+
+.btn-modal-outline.history:hover {
+    background: #eff6ff;
+    border-color: #2563eb;
+}
+
+/* RESPONSIVE MOBILE FIXES */
+@media (max-width: 680px) {
+    .modal-premium-overlay {
+        padding: 10px;
+    }
+
+    .modal-premium-content {
+        max-width: 100% !important;
+        max-height: 95vh !important;
+        border-radius: 16px;
+    }
+
+    .modal-premium-header {
+        padding: 14px 16px;
+    }
+
+    .modal-premium-header h3 {
+        font-size: 15px;
+    }
+
+    .modal-premium-body {
+        padding: 16px;
+    }
+
+    .modal-specs-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .modal-spec-full {
+        grid-column: span 2;
+    }
+
+    .modal-actions-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .modal-print-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .modal-printer-select {
+        width: 100%;
+        min-width: 100%;
+    }
+
+    .modal-print-btn-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .btn-print-action {
+        width: 100%;
+        padding: 10px 8px;
+        font-size: 12px;
+    }
+}
+</style>
+
+<!-- MODAL: Szczegóły Palety (Enlarged & Polished) -->
 <div id="palletModal" class="modal-premium-overlay" style="display: none;">
-    <div class="modal-premium-content" id="palletModalContent" style="max-width: 600px; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.2s ease;">
+    <div class="modal-premium-content" id="palletModalContent">
         <div class="modal-premium-header">
-            <h3 class="row items-center gap-10">
-                <span class="material-icons text-primary">inventory_2</span>
-                Paleta: <span id="modalDisplayId"></span>
-                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalDisplayId').innerText).then(() => { const i = this.querySelector('.material-icons'); i.textContent='check'; i.style.color='#10b981'; setTimeout(()=>{i.textContent='content_copy'; i.style.color='inherit';}, 1500); })" style="background:none; border:none; cursor:pointer; color:#64748b; margin-left: -5px; padding: 4px; display:flex; align-items:center; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" title="Kopiuj numer palety">
-                    <span class="material-icons" style="font-size: 18px;">content_copy</span>
+            <h3>
+                <span class="material-icons" style="color: #38bdf8; font-size: 22px;">inventory_2</span>
+                Paleta: <span id="modalDisplayId" style="font-family: monospace; letter-spacing: 0.5px;"></span>
+                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalDisplayId').innerText).then(() => { const i = this.querySelector('.material-icons'); i.textContent='check'; i.style.color='#10b981'; setTimeout(()=>{i.textContent='content_copy'; i.style.color='inherit';}, 1500); })" style="background: rgba(255,255,255,0.1); border:none; cursor:pointer; color:#cbd5e1; padding: 4px 8px; display:flex; align-items:center; border-radius: 6px; transition: all 0.2s;" title="Kopiuj numer palety">
+                    <span class="material-icons" style="font-size: 16px;">content_copy</span>
                 </button>
-                <img id="modalQrCode" src="" alt="QR" width="40" height="40" style="margin-left: 5px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white; display: none;">
+                <img id="modalQrCode" src="" alt="QR" width="36" height="36" style="margin-left: 4px; border: 1px solid #475569; border-radius: 6px; padding: 2px; background: white; display: none;">
             </h3>
-            <button onclick="closePalletModal()" class="modal-premium-close">&times;</button>
+            <button onclick="closePalletModal()" class="modal-premium-close" title="Zamknij (Esc)">&times;</button>
         </div>
+
         <div class="modal-premium-body">
-            <div style="background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div style="grid-column: span 2; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Nazwa Surowca / Produktu</div>
-                        <div id="modalProductName" style="font-size: 17px; font-weight: 800; color: #0f172a;"></div>
+            <!-- SPECS CARD -->
+            <div class="modal-specs-card">
+                <div class="modal-specs-grid">
+                    <div class="modal-spec-full">
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #0284c7;">label</span> Nazwa Surowca / Produktu</div>
+                        <div id="modalProductName" style="font-size: 18px; font-weight: 900; color: #0f172a; line-height: 1.3;"></div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Numer Partii</div>
-                        <div id="modalBatch" style="font-size: 15px; font-weight: 800; color: #1e293b; font-family: monospace;"></div>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #0284c7;">tag</span> Partia (LOT)</div>
+                        <div id="modalBatch" class="modal-spec-value" style="font-family: monospace; color: #1e293b;"></div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Masa / Ilość</div>
-                        <div style="font-size: 16px; font-weight: 800; color: #10b981;">
-                            <span id="modalAmount"></span> <small id="modalUnit" class="text-muted" style="font-weight: 700;"></small>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #10b981;">scale</span> Ilość / Masa</div>
+                        <div class="modal-spec-value" style="color: #059669; font-size: 16px;">
+                            <span id="modalAmount"></span> <small id="modalUnit" style="font-weight: 800; color: #64748b;"></small>
                         </div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Gdzie się znajduje (Lokalizacja)</div>
-                        <div id="modalLocation" style="font-family: monospace; font-size: 15px; font-weight: 800; color: #2563eb;"></div>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #2563eb;">place</span> Lokalizacja</div>
+                        <div id="modalLocation" class="modal-spec-value" style="font-family: monospace; color: #2563eb;"></div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Typ Palety</div>
-                        <div id="modalType" class="status-badge" style="padding: 3px 8px; font-size: 12px; font-weight: 700; display: inline-block;"></div>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #8b5cf6;">category</span> Typ Palety</div>
+                        <div id="modalType" class="modal-spec-value"></div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Data Produkcji</div>
-                        <div id="modalDateProd" style="font-size: 14px; font-weight: 700; color: #334155;"></div>
+                        <div class="modal-spec-label" style="display: flex; align-items: center; justify-content: space-between;">
+                            <span><span class="material-icons" style="font-size: 13px; color: #d97706;">shopping_bag</span> Opakowanie</span>
+                            <span style="font-size: 9px; color: #0284c7; cursor: pointer; text-decoration: underline;" onclick="promptChangePackaging()">[Zmień]</span>
+                        </div>
+                        <div id="modalPackagingBadge" style="cursor: pointer;" onclick="promptChangePackaging()" title="Kliknij, aby zmienić rodzaj opakowania">
+                            <span class="badge" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">-</span>
+                        </div>
                     </div>
                     <div>
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Data Przydatności / Ważności</div>
-                        <div id="modalDateExp" style="font-size: 14px; font-weight: 700; color: #0284c7;"></div>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #64748b;">event</span> Data Produkcji</div>
+                        <div id="modalDateProd" class="modal-spec-value" style="color: #334155;"></div>
                     </div>
-                    <div style="grid-column: span 2; border-top: 1px solid #f1f5f9; padding-top: 8px;">
-                        <div class="text-muted small font-bold uppercase mb-1" style="font-size: 11px; letter-spacing: 0.5px;">Data Przyjęcia / Dodania</div>
-                        <div id="modalDateAdded" style="font-size: 13px; font-weight: 600; color: #64748b;"></div>
+                    <div>
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #0284c7;">schedule</span> Data Ważności</div>
+                        <div id="modalDateExp" class="modal-spec-value" style="color: #0284c7;"></div>
+                    </div>
+                    <div class="modal-spec-full" style="border-top: 1px dashed #cbd5e1; border-bottom: none; padding-top: 10px; margin-top: 4px; padding-bottom: 0;">
+                        <div class="modal-spec-label"><span class="material-icons" style="font-size: 13px; color: #94a3b8;">login</span> Data Przyjęcia na Magazyn</div>
+                        <div id="modalDateAdded" class="modal-spec-value" style="font-size: 13px; color: #64748b; font-weight: 600;"></div>
                     </div>
                 </div>
             </div>
 
             {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
             {% if role not in ('laborant', 'laboratorium') %}
-            <div class="grid-2 gap-10" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-                <button onclick="promptMoveLocation()" class="modal-btn-primary"><span class="material-icons">place</span> PRZENIEŚ</button>
-                <button onclick="promptUpdateWeight()" class="modal-btn-primary"><span class="material-icons">scale</span> ZMIEŃ ILOŚĆ</button>
-                <button onclick="promptRename()" class="modal-btn-secondary"><span class="material-icons">edit</span> NAZWA</button>
-                <button onclick="togglePalletBlock()" id="toggleBlockBtn" class="modal-btn-secondary"><span class="material-icons">block</span> BLOKADA</button>
+            <!-- ACTION BUTTONS GRID -->
+            <div class="modal-actions-grid">
+                <button type="button" onclick="promptMoveLocation()" class="btn-modal-action btn-modal-primary">
+                    <span class="material-icons" style="font-size: 18px;">place</span> PRZENIEŚ
+                </button>
+                <button type="button" onclick="promptUpdateWeight()" class="btn-modal-action btn-modal-teal">
+                    <span class="material-icons" style="font-size: 18px;">scale</span> ZMIEŃ ILOŚĆ
+                </button>
+                <button type="button" onclick="promptChangePackaging()" class="btn-modal-action btn-modal-packaging" title="Zmień typ opakowania (Big Bag, Worek 25kg, Karton itp.)">
+                    <span class="material-icons" style="font-size: 18px;">inventory_2</span> OPAKOWANIE
+                </button>
+                <button type="button" onclick="promptRename()" class="btn-modal-action btn-modal-dark">
+                    <span class="material-icons" style="font-size: 18px;">edit</span> NAZWA
+                </button>
+                <button type="button" onclick="togglePalletBlock()" id="toggleBlockBtn" class="btn-modal-action btn-modal-block">
+                    <span class="material-icons" style="font-size: 18px;">block</span> BLOKADA
+                </button>
             </div>
 
-            <!-- MODUŁ DRUKOWANIA ETYKIETY -->
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
-                <div style="font-size: 13px; font-weight: 700; color: #166534; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                    <span class="material-icons" style="font-size: 18px;">print</span> WYDRUKUJ ETYKIETĘ (ZPL)
+            <!-- MODUŁ DRUKOWANIA ETYKIETY (RESPONSIVE) -->
+            <div class="modal-print-box">
+                <div class="modal-print-header">
+                    <span class="material-icons" style="font-size: 20px;">print</span> DRUKOWANIE & PODGLĄD ETYKIETY (ZPL)
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <select id="printerSelect" class="form-control" style="flex: 1;">
-                        <option value="">-- Wybierz drukarkę --</option>
+                <div class="modal-print-controls">
+                    <select id="printerSelect" class="modal-printer-select">
+                        <option value="">-- Wybierz drukarkę docelową --</option>
                         {% for printer in printers %}
                             <option value="db:{{ printer.id }}">{{ printer.nazwa }} ({{ printer.lokalizacja or printer.ip }})</option>
                         {% endfor %}
                     </select>
-                    <button type="button" onclick="if (typeof printCurrentPallet === 'function') { printCurrentPallet(this); } else { AppDialog.alert('Błąd klienta: brak funkcji druku. Odśwież stronę (Ctrl+F5).'); }" class="btn-action btn-green" style="white-space: nowrap; font-weight: bold;">🖨️ DRUKUJ</button>
-                    <button type="button" onclick="if (typeof previewCurrentPallet === 'function') { previewCurrentPallet(); } else { AppDialog.alert('Brak funkcji podglądu.'); }" class="btn-action btn-secondary" style="white-space: nowrap; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600;">👁️ PODGLĄD</button>
+                    <div class="modal-print-btn-group" style="display: flex; gap: 8px;">
+                        <button type="button" onclick="if (typeof printCurrentPallet === 'function') { printCurrentPallet(this); } else { AppDialog.alert('Błąd klienta: brak funkcji druku. Odśwież stronę (Ctrl+F5).'); }" class="btn-print-action print">
+                            <span class="material-icons" style="font-size: 17px;">print</span> DRUKUJ
+                        </button>
+                        <button type="button" onclick="if (typeof previewCurrentPallet === 'function') { previewCurrentPallet(); } else { AppDialog.alert('Brak funkcji podglądu.'); }" class="btn-print-action preview">
+                            <span class="material-icons" style="font-size: 17px;">visibility</span> PODGLĄD
+                        </button>
+                    </div>
                 </div>
-                <div id="printerSelectionWarning" style="font-size: 11px; color: #991b1b; margin-top: 5px; display: {% if printers %}none{% else %}block{% endif %};">Brak dodanych drukarek w ustawieniach!</div>
+                <div id="printerSelectionWarning" style="font-size: 12px; color: #dc2626; margin-top: 8px; font-weight: 700; display: {% if printers %}none{% else %}block{% endif %};">
+                    ⚠️ Brak skonfigurowanych drukarek w ustawieniach systemu.
+                </div>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <button onclick="promptDispatch()" class="modal-btn-outline" style="color: #10b981; border-color: #10b981;">
-                    <span class="material-icons">local_shipping</span> WYDAJ PALETĘ (EXPEDITION)
+            <!-- SECONDARY FOOTER ACTIONS -->
+            <div class="modal-footer-actions">
+                <button type="button" onclick="promptDispatch()" class="btn-modal-outline expedition">
+                    <span class="material-icons">local_shipping</span> WYDAJ PALETĘ (EXPEDITION / WYSYŁKA)
                 </button>
-                <button id="returnToRawBtn" onclick="promptReturnToRaw()" class="modal-btn-outline" style="display: none; color: #f59e0b; border-color: #f59e0b;">
+                <button type="button" id="returnToRawBtn" onclick="promptReturnToRaw()" class="btn-modal-outline" style="display: none; color: #d97706; border-color: #fde68a;">
                     <span class="material-icons">undo</span> ZWRÓĆ DO SUROWCÓW
                 </button>
-                <button onclick="fetchHistory()" class="modal-btn-outline" style="color: #3b82f6; border-color: #3b82f6;">
-                    <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW
+                <button type="button" onclick="fetchHistory()" class="btn-modal-outline history">
+                    <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW PALETY
                 </button>
             </div>
             {% endif %}
-            <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; max-height: 150px; overflow-y: auto; padding-right: 5px;">
+
+            <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; max-height: 180px; overflow-y: auto;">
                 <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
             </div>
 
             {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
             {% if role in ('masteradmin', 'admin', 'administrator') %}
             <div style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #fecaca;">
-                <div style="font-size: 11px; font-weight: 700; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa niebezpieczna (Admin)</div>
-                <button onclick="deletePalletPermanently()" class="modal-btn-outline" style="color: #dc2626; border-color: #dc2626; font-size: 12px; width: 100%;">
-                    <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE (duplikat / testowa)
+                <div style="font-size: 11px; font-weight: 800; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa Administratora</div>
+                <button type="button" onclick="deletePalletPermanently()" class="btn-modal-outline" style="color: #dc2626; border-color: #fca5a5; font-size: 12px; width: 100%;">
+                    <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE Z BAZY (DUPLIKAT / TESTOWA)
                 </button>
             </div>
             {% endif %}
@@ -108,27 +521,67 @@
     </div>
 </div>
 
+<!-- MODAL: Zmiana rodzaju opakowania (Enlarged & Responsive) -->
+<div id="changePackagingModal" class="modal-premium-overlay" style="display: none; z-index: 2100;">
+    <div class="modal-premium-content" style="max-width: 520px;">
+        <div class="modal-premium-header">
+            <h3>
+                <span class="material-icons" style="color: #38bdf8; font-size: 22px;">inventory_2</span> Zmień Rodzaj Opakowania
+            </h3>
+            <button onclick="closeChangePackagingModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <p style="font-size: 13px; color: #475569; margin-top: 0; margin-bottom: 18px; line-height: 1.5;">
+                Wybierz typ opakowania palety. Wpłynie to na oznaczenia w tabeli magazynowej, raportach, etykietach oraz wygląd w wizualizacji 3D cyfrowego bliźniaka.
+            </p>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Wybierz rodzaj opakowania:</label>
+                <select id="packagingTypeSelect" class="form-control" style="width: 100%; font-size: 15px; font-weight: 700; padding: 12px 14px; border: 2px solid #cbd5e1; border-radius: 12px; color: #0f172a; outline: none; background: #ffffff;" onchange="onPackagingTypeSelectChange(this.value)">
+                    <option value="Big Bag (1000kg)">🔹 Big Bag (1000kg) [FIBC / Kontener elastyczny]</option>
+                    <option value="Worek (25kg)">🔸 Worek (25kg) [Standardowy worek przemysłowy]</option>
+                    <option value="Worek (50kg)">📦 Worek (50kg) [Ciężki worek]</option>
+                    <option value="Worek (20kg)">📦 Worek (20kg)</option>
+                    <option value="Karton">📦 Karton / Opakowanie zbiorcze</option>
+                    <option value="Rolka / Folia">📜 Rolka / Kalka / Folia stretch</option>
+                    <option value="Wiadro">🪣 Wiadro plastikowe</option>
+                    <option value="Kanister / Beczka">🛢️ Kanister / Beczka</option>
+                    <option value="Inne">🏷️ Inne / Własna nazwa</option>
+                </select>
+            </div>
+
+            <div id="customPackagingWrap" style="margin-bottom: 18px; display: none;">
+                <label style="display: block; font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Wpisz własną nazwę opakowania:</label>
+                <input type="text" id="customPackagingInput" class="form-control" placeholder="Wpisz np. Big Bag 500kg lub Skrzyniopaleta" style="width: 100%; font-size: 14px; padding: 12px 14px; border: 2px solid #cbd5e1; border-radius: 12px; box-sizing: border-box;">
+            </div>
+
+            <div id="changePackagingError" style="color: #dc2626; font-size: 13px; margin-bottom: 14px; display: none; font-weight: 700; padding: 8px 12px; background: #fee2e2; border-radius: 8px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                <button type="button" onclick="closeChangePackagingModal()" class="btn-print-action preview" style="padding: 10px 18px;">Anuluj</button>
+                <button type="button" onclick="submitChangePackaging()" class="btn-print-action print" style="padding: 10px 24px;">Zapisz Zmianę</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL: Zmiana lokalizacji (Custom Prompt) -->
 <div id="moveLocationModal" class="modal-premium-overlay" style="display: none; z-index: 2000;">
-    <div class="modal-premium-content" style="max-width: 400px; padding: 25px;">
-        <div class="modal-premium-header" style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
-            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #0f172a;">
-                <span class="material-icons text-primary">place</span> Przenieś paletę
-            </h3>
-            <button onclick="closeMoveLocationModal()" class="modal-premium-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+    <div class="modal-premium-content" style="max-width: 440px;">
+        <div class="modal-premium-header">
+            <h3><span class="material-icons" style="color: #38bdf8;">place</span> Przenieś paletę</h3>
+            <button onclick="closeMoveLocationModal()" class="modal-premium-close">&times;</button>
         </div>
         <div class="modal-premium-body">
             <div style="margin-bottom: 20px;">
-                <label class="form-label" style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Nowa lokalizacja</label>
-                <input type="text" id="newLocationInput" class="form-control" placeholder="Wpisz np. R010101" list="locationSuggestions" autocomplete="off" style="width: 100%; text-transform: uppercase; font-size: 16px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; transition: border-color 0.2s;">
-                <datalist id="locationSuggestions">
-                    <!-- Wygenerowane z JS -->
-                </datalist>
-                <div id="moveLocationError" style="color: #dc2626; font-size: 12px; margin-top: 8px; display: none; font-weight: 600;"></div>
+                <label style="display: block; font-size: 12px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase;">Nowa lokalizacja regałowa / magazynowa</label>
+                <input type="text" id="newLocationInput" class="form-control" placeholder="Wpisz np. R010101 lub MP01" list="locationSuggestions" autocomplete="off" style="width: 100%; text-transform: uppercase; font-size: 16px; font-weight: 800; padding: 12px 14px; border: 2px solid #cbd5e1; border-radius: 10px; box-sizing: border-box;">
+                <datalist id="locationSuggestions"></datalist>
+                <div id="moveLocationError" style="color: #dc2626; font-size: 12px; margin-top: 8px; display: none; font-weight: 700;"></div>
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button onclick="closeMoveLocationModal()" class="btn-action btn-secondary" style="background: #f1f5f9; color: #475569; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">Anuluj</button>
-                <button onclick="submitMoveLocation()" class="btn-action btn-blue" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">Zapisz</button>
+                <button type="button" onclick="closeMoveLocationModal()" class="btn-print-action preview">Anuluj</button>
+                <button type="button" onclick="submitMoveLocation()" class="btn-print-action print">Przenieś</button>
             </div>
         </div>
     </div>
@@ -138,12 +591,12 @@
 <div id="returnModal" class="modal-premium-overlay" style="display: none;">
     <div class="modal-premium-content" style="max-width: 900px;">
         <div class="modal-premium-header">
-            <h3 class="row items-center gap-10"><span class="material-icons text-primary">assignment_return</span> Zwrot surowców na magazyn</h3>
+            <h3><span class="material-icons" style="color: #38bdf8;">assignment_return</span> Zwrot surowców na magazyn</h3>
             <button onclick="closeReturnModal()" class="modal-premium-close">&times;</button>
         </div>
         <div class="modal-premium-body">
             <div id="returnTableContainer" style="max-height: 400px; overflow-y: auto; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-                <table class="modern-table" style="margin: 0;">
+                <table class="modern-table" style="margin: 0; width: 100%;">
                     <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc;">
                         <tr><th></th><th>Surowiec</th><th>Lokalizacja</th><th class="text-right">Pobrano</th><th class="text-right">Zwrócono</th><th class="text-right">Do zwrotu</th><th>Data</th></tr>
                     </thead>
@@ -151,14 +604,14 @@
                 </table>
             </div>
             <div id="returnFormSection" style="display: none; background: #f0f9ff; padding: 20px; border-radius: 12px; border: 1px solid #bae6fd;">
-                <div class="grid-3 gap-15">
+                <div class="grid-3 gap-15" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
                     <input type="hidden" id="return_ruch_id"><input type="hidden" id="return_surowiec_id"><input type="hidden" id="return_plan_id">
-                    <div><label class="form-label">Nazwa surowca</label><input type="text" id="return_nazwa" class="form-control" readonly></div>
-                    <div><label class="form-label">Ilość (kg)</label><input type="number" id="return_ilosc" class="form-control"></div>
-                    <div><label class="form-label">Lokalizacja docelowa</label><input type="text" id="return_lokalizacja" class="form-control" placeholder="Np. R010101"></div>
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Nazwa surowca</label><input type="text" id="return_nazwa" class="form-control" readonly style="font-weight: 700;"></div>
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Ilość (kg)</label><input type="number" id="return_ilosc" class="form-control" style="font-weight: 700;"></div>
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Lokalizacja docelowa</label><input type="text" id="return_lokalizacja" class="form-control" placeholder="Np. R010101" style="font-weight: 700; text-transform: uppercase;"></div>
                 </div>
                 <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
-                    <button onclick="submitReturn('{{ linia }}')" class="btn-action btn-blue">Zapisz zwrot</button>
+                    <button type="button" onclick="submitReturn('{{ linia }}')" class="btn-print-action print">Zapisz zwrot</button>
                 </div>
             </div>
         </div>
@@ -169,19 +622,19 @@
 <div id="reportsModal" class="modal-premium-overlay" style="display: none;">
     <div class="modal-premium-content" style="max-width: 600px;">
         <div class="modal-premium-header">
-            <h3>Centrum Raportów</h3>
+            <h3><span class="material-icons" style="color: #38bdf8;">analytics</span> Centrum Raportów Magazynowych</h3>
             <button onclick="closeReportsModal()" class="modal-premium-close">&times;</button>
         </div>
         <div class="modal-premium-body">
-            <div class="grid-1 gap-15" style="display: grid; gap: 15px;">
-                <button onclick="printInventorySheet(allWarehouseItems, '{{ linia }}')" class="btn-report-action">
-                    <span class="material-icons" style="color: #3b82f6;">print</span> Arkusz Inwentaryzacyjny (Druk)
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button type="button" onclick="printInventorySheet(allWarehouseItems, '{{ linia }}')" class="btn-modal-outline" style="color: #0284c7; border: 2px solid #bae6fd; justify-content: flex-start;">
+                    <span class="material-icons" style="color: #0284c7;">print</span> Arkusz Inwentaryzacyjny (Druk)
                 </button>
-                <a href="/warehouse-v2/psd/raport_palet" class="btn-report-action" style="text-decoration: none;">
-                    <span class="material-icons" style="color: #10b981;">summarize</span> Raport Palet
+                <a href="/warehouse-v2/psd/raport_palet" class="btn-modal-outline" style="color: #059669; border: 2px solid #a7f3d0; justify-content: flex-start; text-decoration: none;">
+                    <span class="material-icons" style="color: #059669;">summarize</span> Raport Palet i Produkcji
                 </a>
-                <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-report-action" style="text-decoration: none;">
-                    <span class="material-icons" style="color: #10b981;">history</span> Raport Przesunięć i Ruchów
+                <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-modal-outline" style="color: #6366f1; border: 2px solid #c7d2fe; justify-content: flex-start; text-decoration: none;">
+                    <span class="material-icons" style="color: #6366f1;">history</span> Raport Przesunięć i Ruchów
                 </a>
             </div>
         </div>

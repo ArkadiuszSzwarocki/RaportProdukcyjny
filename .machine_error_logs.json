@@ -1,0 +1,24 @@
+[
+  {
+    "id": "err_1788726023048",
+    "timestamp": 1788726023.0484123,
+    "timestamp_iso": "2026-09-06 22:20:23",
+    "machine": "WAGA_ZRZUT",
+    "severity": "WARNING",
+    "code": "REJ-UNDE",
+    "description": "Odrzut worka: Niedowaga worka (< min tolerancji) | Waga: 24.12 kg (zadana: 25.0 kg)",
+    "raw_data": {
+      "id": "rej_1788726023046",
+      "timestamp": 1788726023.046872,
+      "timestamp_iso": "2026-09-06 22:20:23",
+      "weight_kg": 24.12,
+      "target_weight_kg": 25.0,
+      "deviation_kg": -0.88,
+      "reason_code": "UNDERWEIGHT",
+      "reason_label": "Niedowaga worka (< min tolerancji)",
+      "recipe_name": "Mieszanka Testowa",
+      "operator": "Automatyczny zrzut PLC",
+      "raw_data": {}
+    }
+  }
+]

@@ -642,3 +642,47 @@ class WarehouseV2Service:
             return False, str(e)
         finally:
             conn.close()
+
+    @staticmethod
+    def update_packaging_type(pallet_id, pallet_type, new_packaging_type, worker_login, linia='PSD'):
+        """Aktualizuje rodzaj opakowania na palecie (np. Big Bag (1000kg), Worek (25kg), Karton)."""
+        if not new_packaging_type:
+            return False, "Nie podano rodzaju opakowania."
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            if pallet_type == 'Surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+            elif pallet_type == 'Opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
+            else:
+                table = get_table_name('magazyn_palety', linia)
+
+            cursor.execute(f"SELECT id, nr_palety, typ_opakowania FROM {table} WHERE id = %s", (pallet_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje."
+
+            old_pkg = row.get('typ_opakowania') or 'brak'
+            cursor.execute(f"UPDATE {table} SET typ_opakowania = %s WHERE id = %s", (new_packaging_type, pallet_id))
+
+            # Audit history log
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, 'ZMIANA_OPAKOWANIA', %s, %s)",
+                    (pallet_id, row.get('nr_palety'), linia, pallet_type.lower(), f"Zmiana opakowania: {old_pkg} -> {new_packaging_type}", worker_login)
+                )
+            except Exception as e:
+                print(f"Błąd logowania historii zmiany opakowania: {e}")
+
+            conn.commit()
+            return True, "Rodzaj opakowania został pomyślnie zaktualizowany."
+        except Exception as e:
+            if conn: conn.rollback()
+            return False, f"Błąd bazy danych: {str(e)}"
+        finally:
+            conn.close()
+

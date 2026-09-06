@@ -15,12 +15,14 @@ def register_middleware(app):
     """
     app.before_request(record_request_start_time(app))
     app.before_request(log_request_info(app))
+    app.before_request(enforce_csrf_origin_check(app))
     app.before_request(ensure_default_language(app))
     app.before_request(ensure_pracownik_mapping(app))
     app.before_request(enforce_session_timeout(app))
     app.before_request(track_active_session(app))
     app.after_request(log_slow_requests(app))
     app.after_request(add_cache_headers(app))
+    app.after_request(add_security_headers(app))
 
 
 def log_request_info(app):
@@ -48,6 +50,51 @@ def log_request_info(app):
             app.logger.debug('Incoming request (pid=%s): %s %s', pid, request.method, full)
         except Exception:
             pass
+    return middleware
+
+
+def enforce_csrf_origin_check(app):
+    """Middleware: Defend state-changing requests (POST, PUT, DELETE, PATCH) against CSRF via Origin/Referer verification."""
+    from urllib.parse import urlparse
+
+    def middleware():
+        if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
+            return
+
+        # Exclude local printing bridge or internal testing calls
+        if request.remote_addr in ('127.0.0.1', '::1') and request.args.get('internal_print') == '1':
+            return
+
+        origin = request.headers.get('Origin')
+        referer = request.headers.get('Referer')
+        target_source = origin or referer
+
+        if not target_source:
+            # Same-origin requests without headers (e.g. direct scripts/native tools)
+            return
+
+        try:
+            parsed = urlparse(target_source)
+            source_netloc = parsed.netloc.lower()
+            expected_host = (request.host or '').lower()
+
+            if source_netloc and expected_host and source_netloc != expected_host:
+                app.logger.warning(
+                    "[CSRF_BLOCKED] Cross-origin request rejected. Source: %s, Expected Host: %s, Path: %s",
+                    source_netloc, expected_host, request.path
+                )
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = accepts_json = False
+
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'Forbidden: Cross-origin request blocked.'}), 403
+                return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola', '')), 403
+        except Exception:
+            pass
+
     return middleware
 
 
@@ -100,6 +147,24 @@ def add_cache_headers(app):
                 response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
                 response.headers['Pragma'] = 'no-cache'
                 response.headers['Expires'] = '0'
+        except Exception:
+            pass
+        return response
+    return middleware
+
+
+def add_security_headers(app):
+    """Middleware: Attach defensive security headers to HTTP responses.
+    
+    Enforces protections against Clickjacking, MIME-type sniffing,
+    and cross-origin leaks.
+    """
+    def middleware(response):
+        try:
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         except Exception:
             pass
         return response
@@ -239,6 +304,16 @@ def track_active_session(app):
                 return redirect(url_for('auth.login', timeout=1))
 
             now_ts = time.time()
+            # Run periodic session housekeeping at most once per hour
+            last_cleanup = float(getattr(app, '_last_session_cleanup', 0))
+            if now_ts - last_cleanup > 3600:
+                setattr(app, '_last_session_cleanup', now_ts)
+                try:
+                    from app.repositories.session_repository import cleanup_abandoned_sessions
+                    cleanup_abandoned_sessions(max_inactive_hours=24)
+                except Exception:
+                    pass
+
             last_ping = float(session.get('last_presence_ping') or 0)
             if now_ts - last_ping < 20:
                 return

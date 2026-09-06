@@ -58,11 +58,12 @@
                     <th style="width: 65px; text-align: center; cursor: pointer;" onclick="sortTable(1)">ID ↕</th>
                     <th style="cursor: pointer;" onclick="sortTable(2)">ID Palety / SSCC ↕</th>
                     <th style="cursor: pointer;" onclick="sortTable(3)">📋 Produkt ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(4)">⚖️ Ilość ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(5)">📍 Lokalizacja ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(6)">🏷️ Typ ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(7)">📅 Produkcja ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(8)">⌛ Ważność ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(4)">📦 Opakowanie ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(5)">⚖️ Ilość ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(6)">📍 Lokalizacja ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(7)">🏷️ Typ ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(8)">📅 Produkcja ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(9)">⌛ Ważność ↕</th>
                 </tr>
             </thead>
             <tbody id="palletTableBody" style="opacity:0; transition: opacity 0.15s ease;">
@@ -100,6 +101,7 @@ var allWarehouseItems = [
             id: {{ (item.id or '')|tojson }},
             linia: {{ (item.linia or '')|tojson }},
             productName: {{ item.get('productName')|tojson }}, 
+            packaging_type: {{ (item.get('packaging_type') or 'Worek (25kg)')|tojson }},
             amount: {{ item.amount|default(0)|float }}, 
             type: {{ item.type|tojson }},
             location: {{ (item.location or '')|tojson }},
@@ -200,7 +202,8 @@ document.addEventListener('DOMContentLoaded', function() {
             d.dateAdded    || '',
             d.batch        || '-',
             d.dateExp      || '-',
-            d.unit         || 'kg'
+            d.unit         || 'kg',
+            d.packaging    || 'Worek (25kg)'
         );
     });
 });

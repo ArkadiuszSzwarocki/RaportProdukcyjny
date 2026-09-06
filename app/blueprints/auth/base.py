@@ -270,6 +270,21 @@ def login():
             flash(str(e), 'danger')
             return redirect('/login')
 
+        from app.services.login_rate_limiter_service import login_rate_limiter
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr) or '127.0.0.1'
+
+        is_limited, remaining_sec = login_rate_limiter.is_rate_limited(client_ip, login_field)
+        if is_limited:
+            from app.core.audit import security_audit_log
+            security_audit_log('RATE_LIMIT_LOCKOUT', f'Lockout={remaining_sec}s', user_login=login_field, client_ip=client_ip)
+            current_app.logger.warning(
+                "Rate limit exceeded for user '%s' from IP %s. Locked for %ds",
+                login_field, client_ip, remaining_sec
+            )
+            flash(f"Zbyt wiele nieudanych prób logowania. Odczekaj {remaining_sec} sekund przed kolejną próbą.", 'danger')
+            return redirect('/login')
+
         try:
             conn = get_db_connection(retries=1)
             cursor = conn.cursor()
@@ -294,6 +309,12 @@ def login():
         if row:
             uid, hashed, rola, pracownik_id, grupa = row[0], row[1], row[2], row[3], row[4]
             if hashed and check_password_hash(hashed, password_field):
+                # Reset rate limiter upon successful login
+                login_rate_limiter.reset_attempts(client_ip, login_field)
+
+                # Clear previous session data to prevent Session Fixation
+                session.clear()
+
                 # Must set permanent=True to ensure session cookie is saved
                 session.permanent = True
                 session['zalogowany'] = True
@@ -327,9 +348,10 @@ def login():
                 
                 # Log login with current process PID
                 from flask import current_app
-                from app.core.audit import audit_log
+                from app.core.audit import audit_log, security_audit_log
                 current_app.logger.info("Użytkownik '%s' zalogował się (rola: %s)", login_field, (rola or '').lower())
                 audit_log('Zalogował się')
+                security_audit_log('LOGIN_SUCCESS', f'Role={normalized_role}, Hall={session.get("grupa")}', user_login=login_field, client_ip=client_ip)
                 
                 # Pobierz imię_nazwisko z tabeli pracownicy dla wyświetlenia w belce górnej
                 imie_nazwisko = None
@@ -342,8 +364,6 @@ def login():
                     except Exception:
                         pass
                 session['imie_nazwisko'] = imie_nazwisko or login_field
-                forwarded_for = request.headers.get('X-Forwarded-For', '')
-                client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr)
                 touch_active_session(
                     session_id=session.get('session_tracking_id'),
                     user_id=session.get('user_id'),
@@ -372,9 +392,18 @@ def login():
                 target = get_user_redirect_target(session.get('rola'), session.get('grupa'))
                 return redirect(target)
         
+        # Record failed attempt in rate limiter
+        is_now_locked, lock_duration = login_rate_limiter.record_failed_attempt(client_ip, login_field)
         cursor.close()
         conn.close()
-        flash("Błędne dane!", 'danger')
+
+        from app.core.audit import security_audit_log
+        security_audit_log('FAILED_LOGIN', f'RateLimitLocked={is_now_locked}', user_login=login_field, client_ip=client_ip)
+
+        if is_now_locked:
+            flash(f"Zbyt wiele nieudanych prób logowania. Konto tymczasowo zablokowane na {lock_duration} sekund.", 'danger')
+        else:
+            flash("Błędne dane logowania!", 'danger')
         return redirect('/login')
     
     # If already logged in, don't show login form — redirect to app
@@ -681,8 +710,10 @@ def zmien_moje_haslo():
     if nowe_haslo != powtorz_haslo:
         return jsonify({'success': False, 'message': 'Nowe hasła nie są identyczne.'}), 400
 
-    if len(nowe_haslo) < 4:
-        return jsonify({'success': False, 'message': 'Nowe hasło musi mieć co najmniej 4 znaki.'}), 400
+    from app.services.password_policy_service import password_policy_service
+    is_valid_pwd, pwd_error = password_policy_service.validate_password(nowe_haslo)
+    if not is_valid_pwd:
+        return jsonify({'success': False, 'message': pwd_error}), 400
 
     login = session.get('login')
     if not login:
@@ -703,6 +734,10 @@ def zmien_moje_haslo():
         new_hash = generate_password_hash(nowe_haslo, method='pbkdf2:sha256')
         cursor.execute("UPDATE uzytkownicy SET haslo = %s WHERE id = %s", (new_hash, user['id']))
         conn.commit()
+
+        # Invalidate all other active sessions for this user except the current one
+        from app.db import deactivate_all_user_sessions
+        deactivate_all_user_sessions(user['id'], except_session_id=session.get('session_tracking_id'))
 
         from app.core.audit import audit_log
         audit_log('Zmiana hasła', f'Użytkownik {login} zmienił własne hasło')

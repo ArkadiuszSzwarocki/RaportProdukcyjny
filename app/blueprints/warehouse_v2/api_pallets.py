@@ -65,7 +65,15 @@ def get_pallet_details():
             if hasattr(val, 'strftime'): return val.strftime(fmt)
             return str(val)[:10]
 
-        from .views import compute_expiry_date
+        from .views import compute_expiry_date, classify_packaging_type
+
+        pkg_formatted = classify_packaging_type(
+            row.get('productName') or row.get('nazwa') or row.get('produkt'),
+            t_type,
+            float(row.get('amount') or 0),
+            row.get('unit') or 'kg',
+            row.get('typ_opakowania') or ''
+        )
 
         details = {
             'id': row.get('id'),
@@ -79,13 +87,31 @@ def get_pallet_details():
             'date_exp': compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji')),
             'date_added': fmt_d(row.get('created_at'), '%Y-%m-%d %H:%M'),
             'type': t_type,
-            'is_blocked': row.get('is_blocked', 0)
+            'is_blocked': row.get('is_blocked', 0),
+            'packaging_type': pkg_formatted,
+            'raw_packaging_type': row.get('typ_opakowania') or ''
         }
         return jsonify({'success': True, 'pallet': details})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conn.close()
+
+@warehouse_v2_bp.route('/api/pallet/update-packaging', methods=['POST'])
+def update_packaging():
+    data = request.get_json() or {}
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    new_packaging = data.get('packaging_type')
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    if not all([pallet_id, pallet_type, new_packaging]):
+        return jsonify({'success': False, 'error': 'Brak parametrów (id, type, packaging_type)'}), 400
+        
+    success, msg = WarehouseV2Service.update_packaging_type(pallet_id, pallet_type, new_packaging, worker, linia)
+    return jsonify({'success': success, 'message': msg})
+
 
 @warehouse_v2_bp.route('/api/pallet/move', methods=['POST'])
 def move_pallet():

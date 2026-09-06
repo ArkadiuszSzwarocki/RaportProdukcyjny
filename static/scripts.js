@@ -2095,8 +2095,31 @@ window.showConfirmModal = function(message, onConfirm) {
 };
 
     function showQuickPopup(title, html, opts) { return createQuickPopup(title, html, opts); }
+    function closeQuickPopup() {
+        var popups = document.querySelectorAll('.quick-popup, #quickPopup, #quickPopupOverlay, .quick-popup-overlay');
+        var backdrops = document.querySelectorAll('.quick-backdrop, #quickBackdrop, .quick-popup-backdrop');
+        popups.forEach(function (p) {
+            p.classList.remove('open', 'show');
+            p.setAttribute('aria-hidden', 'true');
+            setTimeout(function () {
+                try {
+                    if (p.parentNode) p.remove();
+                } catch (e) { }
+            }, 260);
+        });
+        backdrops.forEach(function (b) {
+            b.classList.remove('show', 'open');
+            setTimeout(function () {
+                try {
+                    if (b.parentNode) b.remove();
+                } catch (e) { }
+            }, 260);
+        });
+        document.body.classList.remove('slide-over-open', 'modal-open');
+    }
     window.createQuickPopup = createQuickPopup;
     window.showQuickPopup = showQuickPopup;
+    window.closeQuickPopup = closeQuickPopup;
 
     // duplicate createQuickPopup removed; primary implementation above will be used
 

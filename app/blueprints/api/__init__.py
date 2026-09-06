@@ -5,6 +5,12 @@ from .products import register_api_product_routes
 from .receptury_agro import register_api_receptury_agro_routes
 from .runtime import register_api_runtime_routes
 from .email_routes import register_api_email_routes
+from .health import register_api_health_routes
+from .production_variance import register_api_production_variance_routes
+from .mes_erp_routes import register_api_mes_erp_routes
+from .scanner_sync import register_api_scanner_sync_routes
+from .machine_telemetry import register_api_machine_telemetry_routes
+from .warehouse_3d import register_api_warehouse_3d_routes
 from flask import Blueprint
 
 api_bp = Blueprint('api', __name__)
@@ -15,3 +21,13 @@ register_api_plan_validation_routes(api_bp)
 register_api_plan_ops_routes(api_bp)
 register_api_receptury_agro_routes(api_bp)
 register_api_email_routes(api_bp)
+register_api_health_routes(api_bp)
+register_api_production_variance_routes(api_bp)
+register_api_mes_erp_routes(api_bp)
+register_api_scanner_sync_routes(api_bp)
+register_api_machine_telemetry_routes(api_bp)
+register_api_warehouse_3d_routes(api_bp)
+
+
+
+

@@ -17,7 +17,7 @@
 
         <!-- STATYSTYKI ZAJĘTOŚCI (Przeniesione tutaj) -->
         <div id="stats-container" style="margin-top: 10px;">
-            {% for zid, s in stats.items() %}
+            {% for zid, s in (stats or {}).items() %}
             <div class="capacity-bar" id="cap-{{ zid }}" 
                  style="display: {% if zid == aktywna_zakladka %}block{% else %}none{% endif %}; 
                         background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -98,6 +98,9 @@
             </div>
 
             <div class="list-footer" style="display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.racks_3d_view', linia=linia) }}'" class="status-link-btn" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color: #38bdf8; color: #ffffff; font-weight: 800; box-shadow: 0 4px 10px rgba(56, 189, 248, 0.25);">
+                    <span class="material-icons">view_in_ar</span> WIDOK 3D REGAŁÓW
+                </button>
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.summary', linia=linia) }}'" class="status-link-btn" style="background: #f0f9ff; border-color: #0ea5e9; color: #0369a1;">
                     <span class="material-icons">pie_chart</span> PODSUMOWANIE MAGAZYNU
                 </button>
