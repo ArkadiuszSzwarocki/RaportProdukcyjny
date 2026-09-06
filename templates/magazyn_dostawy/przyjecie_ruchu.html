@@ -9,29 +9,30 @@
 }
 
 .receipt-hero {
-    border-radius: 18px;
-    border: 1px solid #dbe7ff;
-    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
-    padding: 18px;
-    margin-bottom: 18px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
 .receipt-hero-head {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 12px;
+    gap: 16px;
     flex-wrap: wrap;
 }
 
 .receipt-title {
     margin: 0;
-    font-size: 1.55rem;
+    font-size: 1.6rem;
     font-weight: 800;
-    color: #1f2937;
+    color: #0f172a;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .receipt-subtitle {
@@ -61,16 +62,15 @@
 }
 
 .bulk-print-bar {
-    margin-top: 12px;
+    margin-top: 14px;
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
-    background: #ffffff;
-    border: 1px solid #e6edf8;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 10px 12px;
-    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+    padding: 10px 14px;
 }
 
 .bulk-print-label {
@@ -83,18 +83,24 @@
 }
 
 .kpi-grid {
-    margin-top: 14px;
+    margin-top: 16px;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    gap: 14px;
 }
 
 .kpi-card {
-    background: #ffffff;
-    border: 1px solid #e6edf8;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 12px;
-    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+    padding: 14px;
+    box-shadow: none;
+    transition: all 0.15s ease;
+}
+
+.kpi-card:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
 }
 
 .kpi-card .k-label {
@@ -229,19 +235,25 @@
 }
 
 .bottom-row-grid {
-    padding: 12px 14px 14px;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.acceptance-inputs-row {
     display: grid;
-    grid-template-columns: 1fr 260px;
-    gap: 10px;
+    grid-template-columns: 1fr 280px;
+    gap: 12px;
     align-items: end;
 }
 
 .field-box label {
     display: block;
     margin-bottom: 5px;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
     font-weight: 700;
     color: #64748b;
 }
@@ -249,18 +261,20 @@
 .field-box input {
     width: 100%;
     min-width: 0;
-    height: 36px;
+    height: 38px;
     border: 1px solid #d9e2ef;
     border-radius: 10px;
-    padding: 0 10px;
-    font-size: 0.9rem;
+    padding: 0 12px;
+    font-size: 0.92rem;
     box-sizing: border-box;
+    background: #ffffff;
+    transition: all 0.15s ease;
 }
 
 .field-box input:focus {
     outline: none;
     border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .field-box.source input {
@@ -276,7 +290,7 @@
 }
 
 .field-box.loc.strong label {
-    color: #1e3a8a;
+    color: #1e40af;
     font-weight: 800;
 }
 
@@ -284,26 +298,51 @@
     border: 2px solid #93c5fd;
     font-weight: 900;
     background: #eff6ff;
+    color: #1e3a8a;
 }
 
-.row-actions-inline {
+.acceptance-buttons-single-row {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.acceptance-buttons-single-row > * {
+    flex: 1;
+    min-width: 0;
+}
+
+.acceptance-buttons-single-row .btn-reprint {
+    flex: 1.1;
+    justify-content: center;
+    height: 38px;
+    margin: 0;
 }
 
 .btn-confirm {
-    width: 100%;
-    height: 36px;
+    height: 38px;
+    flex: 1.3;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
     gap: 7px;
     border-radius: 10px;
-    background: linear-gradient(180deg, #1f8c4f, #16713f);
+    background: linear-gradient(180deg, #16a34a, #15803d);
     color: #fff;
-    border: 1px solid #14683a;
-    padding: 10px 12px;
+    border: 1px solid #14532d;
+    padding: 0 14px;
     font-weight: 800;
+    font-size: 0.88rem;
     cursor: pointer;
+    box-shadow: 0 2px 4px rgba(21, 128, 61, 0.18);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-confirm:hover:not([disabled]) {
+    background: linear-gradient(180deg, #15803d, #166534);
+    box-shadow: 0 3px 6px rgba(21, 128, 61, 0.25);
 }
 
 .btn-confirm[disabled] {
@@ -312,17 +351,27 @@
 }
 
 .btn-reject {
-    width: 100%;
-    height: 36px;
+    height: 38px;
+    flex: 0.9;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
     gap: 7px;
     border-radius: 10px;
     background: #ffffff;
     color: #b91c1c;
     border: 1px solid #fca5a5;
-    padding: 10px 12px;
+    padding: 0 12px;
     font-weight: 800;
+    font-size: 0.86rem;
     cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-reject:hover:not([disabled]) {
+    background: #fef2f2;
+    border-color: #f87171;
 }
 
 .btn-reject[disabled] {
@@ -361,8 +410,14 @@
     .field-box.source {
         grid-column: 1 / -1;
     }
-    .bottom-row-grid {
+    .acceptance-inputs-row {
         grid-template-columns: 1fr;
+    }
+    .acceptance-buttons-single-row {
+        flex-wrap: wrap;
+    }
+    .acceptance-buttons-single-row > * {
+        flex: 1 1 100%;
     }
     .receipt-head {
         padding: 10px;
@@ -591,7 +646,7 @@
                 <span class="material-icons" style="font-size: 18px;">print</span>
                 {{ 'Druk etykiet całej dostawy' if is_external else 'Druk etykiet całego przesunięcia' }}
             </div>
-            <select id="bulk_print_printer" class="premium-select" style="margin: 0; height: 36px; font-size: 0.85rem; border-color: #99f6e4; min-width: 220px;">
+            <select id="bulk_print_printer" class="premium-select" style="margin: 0; height: 36px; font-size: 0.85rem; border-color: #99f6e4; min-width: 220px;" onchange="syncSelectedPrinter(this.value)">
                 <option value="">-- WYBIERZ DRUKARKĘ --</option>
                 <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
                 {% for pr in printers %}
@@ -712,14 +767,15 @@
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="display: flex; flex-direction: column;">
                         <label style="font-size: 0.68rem; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 3px;">Drukarka do dodruku</label>
-                        <select id="reprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #a7f3d0; width: 180px;">
+                        <select id="reprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #a7f3d0; width: 180px;" onchange="syncSelectedPrinter(this.value)">
+                            <option value="">-- WYBIERZ DRUKARKĘ --</option>
                             <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
                             {% for pr in printers %}
                             <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ item.get('nr_partii')|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
+                    <button id="reprint_btn_{{ idx }}" type="button" class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel(this, {{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ item.get('nr_partii')|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
                         <span class="material-icons" style="font-size: 16px;">print</span>
                         Dodrukuj etykietę (2 szt)
                     </button>
@@ -790,30 +846,32 @@
             </div>
 
             <div class="bottom-row-grid">
-                <div class="field-box loc strong">
-                    <label for="loc_{{ idx }}">Lokalizacja odstawienia</label>
-                    <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
-                </div>
-                <div class="row-actions-inline">
+                <div class="acceptance-inputs-row">
+                    <div class="field-box loc strong">
+                        <label for="loc_{{ idx }}">Lokalizacja odstawienia</label>
+                        <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
+                    </div>
                     <div>
-                        <label style="font-size: 0.68rem; font-weight: 800; color: #0f766e; text-transform: uppercase; margin-bottom: 3px; display: block;">Drukarka do etykiet</label>
-                        <select id="preprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #99f6e4;">
-                            <option value="">-- WYBIERZ --</option>
+                        <label style="font-size: 0.72rem; font-weight: 800; color: #0f766e; text-transform: uppercase; margin-bottom: 5px; display: block; letter-spacing: 0.4px;">Drukarka do etykiet</label>
+                        <select id="preprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 38px; font-size: 0.85rem; border-color: #99f6e4; background: #ffffff;" onchange="syncSelectedPrinter(this.value)">
+                            <option value="">-- WYBIERZ DRUKARKĘ --</option>
                             <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
                             {% for pr in printers %}
                             <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button class="btn-reprint" style="height: 34px; width: 100%;" onclick="preprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ qty or 0 }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
+                </div>
+                <div class="acceptance-buttons-single-row">
+                    <button id="print_btn_{{ idx }}" type="button" class="btn-reprint" onclick="preprintLabel(this, {{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.get('productName')|tojson }}, {{ qty or 0 }}, {{ 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec'|tojson }})">
                         <span class="material-icons" style="font-size: 16px;">print</span>
                         Drukuj etykiety (2 szt)
                     </button>
-                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get("id")|tojson }}, {{ idx }}, {{ item.get("productName")|tojson }}, {{ qty|float }}, {{ "packaging" if item.get("packageForm") == "packaging" else "surowiec"|tojson }})'>
+                    <button id="btn_{{ idx }}" type="button" class="btn-confirm" onclick='acceptItemClick({{ item.get("id")|tojson }}, {{ idx }}, {{ item.get("productName")|tojson }}, {{ qty|float }}, {{ "packaging" if item.get("packageForm") == "packaging" else "surowiec"|tojson }})'>
                         <span class="material-icons" style="font-size: 18px;">check_circle</span>
                         Potwierdź przyjęcie
                     </button>
-                    <button id="reject_btn_{{ idx }}" class="btn-reject" onclick='rejectItem({{ item.get('id')|tojson }}, {{ idx }})'>
+                    <button id="reject_btn_{{ idx }}" type="button" class="btn-reject" onclick='rejectItem({{ item.get('id')|tojson }}, {{ idx }})'>
                         <span class="material-icons" style="font-size: 18px;">block</span>
                         Odrzuć pozycję
                     </button>
@@ -890,7 +948,17 @@ function buildLabelPreviewUrl(payload) {
 }
 
 function normalizeLocationCode(value) {
-    return String(value || '').trim().toUpperCase();
+    let s = String(value || '').trim().toUpperCase();
+    if (!s) return '';
+    // Auto-correct common letter 'O' instead of digit '0' in warehouse prefixes
+    if (/^MS[O](\d+|$)/.test(s)) s = s.replace(/^MS[O]/, 'MS0');
+    if (/^MP[O](\d+|$)/.test(s)) s = s.replace(/^MP[O]/, 'MP0');
+    if (/^MD[O](\d+|$)/.test(s)) s = s.replace(/^MD[O]/, 'MD0');
+    if (/^MGW[O](\d+|$)/.test(s)) s = s.replace(/^MGW[O]/, 'MGW0');
+    if (/^BF_?MS[O]/.test(s)) s = s.replace(/^BF_?MS[O]/, 'BF_MS0');
+    if (/^BF_?MP[O]/.test(s)) s = s.replace(/^BF_?MP[O]/, 'BF_MP0');
+    if (/^R[O]\d/.test(s)) s = s.replace(/^R[O]/, 'R0');
+    return s;
 }
 
 function ensureLocationSuggestionsList() {
@@ -1076,7 +1144,8 @@ function acceptItemClick(itemId, idx, productName, qty, pType) {
     const prodEl = document.getElementById(`prod_${idx}`);
     const expEl = document.getElementById(`exp_${idx}`);
 
-    const location = (locEl.value || '').trim().toUpperCase();
+    const location = normalizeLocationCode(locEl ? locEl.value : '');
+    if (locEl) locEl.value = location;
     const sourceSpot = (sourceEl ? sourceEl.value : '').trim().toUpperCase();
     const nrPartii = (batchEl.value || '').trim();
     const dataProdukcji = prodEl.value || null;
@@ -1197,9 +1266,64 @@ async function confirmAcceptWithPrinter() {
     }
 }
 
-async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp, qty, pType) {
+function syncSelectedPrinter(printerId) {
+    if (!printerId) return;
+    try {
+        localStorage.setItem('selected_warehouse_printer', printerId);
+    } catch (e) {}
+
+    const bulkSelect = document.getElementById('bulk_print_printer');
+    if (bulkSelect && bulkSelect.value !== printerId) {
+        bulkSelect.value = printerId;
+    }
+
+    const modalSelect = document.getElementById('modalPrinterSelect');
+    if (modalSelect && modalSelect.value !== printerId) {
+        modalSelect.value = printerId;
+    }
+
+    document.querySelectorAll('[id^="preprint_printer_"], [id^="reprint_printer_"]').forEach(el => {
+        if (el && el.value !== printerId) {
+            el.value = printerId;
+        }
+    });
+}
+
+function initDefaultPrinterSelection() {
+    let savedPrinter = '';
+    try {
+        savedPrinter = localStorage.getItem('selected_warehouse_printer') || '';
+    } catch (e) {}
+
+    const bulkSelect = document.getElementById('bulk_print_printer');
+    let fallbackPrinter = '';
+    if (bulkSelect) {
+        for (let i = 0; i < bulkSelect.options.length; i++) {
+            const val = bulkSelect.options[i].value;
+            if (val && val !== pdfPreviewPrinterId) {
+                fallbackPrinter = val;
+                break;
+            }
+        }
+    }
+
+    const targetPrinter = savedPrinter || fallbackPrinter;
+    if (targetPrinter) {
+        syncSelectedPrinter(targetPrinter);
+    }
+}
+
+async function reprintLabel(btnElement, idx, nrPalety, productName, batch, dateProd, dateExp, qty, pType) {
     const printerSelect = document.getElementById(`reprint_printer_${idx}`);
-    const printerId = printerSelect ? printerSelect.value : '';
+    let printerId = printerSelect ? printerSelect.value : '';
+    if (!printerId) {
+        const bulkSelect = document.getElementById('bulk_print_printer');
+        if (bulkSelect && bulkSelect.value) {
+            printerId = bulkSelect.value;
+            syncSelectedPrinter(printerId);
+        }
+    }
+
     if (!printerId) {
         safeToast('Wybierz drukarkę przed dodrukiem!', 'warning');
         return;
@@ -1215,14 +1339,16 @@ async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp
             qty: qty,
             p_type: pType || 'surowiec',
         });
-        safeToast('Otwarto podglad etykiety. Wybierz drukarke PDF w oknie wydruku.', 'info');
+        safeToast('Otwarto podgląd etykiety. Wybierz drukarkę PDF w oknie wydruku.', 'info');
         return;
     }
 
-    const btn = event.currentTarget;
-    const oldHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+    const btn = (btnElement && btnElement.nodeType) ? btnElement : (document.getElementById(`reprint_btn_${idx}`) || document.getElementById(`print_btn_${idx}`));
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+    }
 
     try {
         const resp = await fetch(reprintEndpointUrl, {
@@ -1249,8 +1375,10 @@ async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp
     } catch (e) {
         safeToast('Błąd komunikacji z serwerem.', 'danger');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = oldHtml;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
     }
 }
 
@@ -1308,7 +1436,7 @@ async function printAllPendingLabels() {
             btn.disabled = false;
             btn.innerHTML = oldHtml;
         }
-        safeToast(`Otwarto podglad etykiet: ${validItems.length}.`, 'info');
+        safeToast(`Otwarto podgląd etykiet: ${validItems.length}.`, 'info');
         return;
     }
 
@@ -1339,9 +1467,17 @@ async function printAllPendingLabels() {
     }
 }
 
-async function preprintLabel(idx, nrPalety, productName, qty, pType) {
+async function preprintLabel(btnElement, idx, nrPalety, productName, qty, pType) {
     const printerSelect = document.getElementById(`preprint_printer_${idx}`);
-    const printerId = printerSelect ? printerSelect.value : '';
+    let printerId = printerSelect ? printerSelect.value : '';
+    if (!printerId) {
+        const bulkSelect = document.getElementById('bulk_print_printer');
+        if (bulkSelect && bulkSelect.value) {
+            printerId = bulkSelect.value;
+            syncSelectedPrinter(printerId);
+        }
+    }
+
     if (!printerId) {
         safeToast('Wybierz drukarkę przed drukiem!', 'warning');
         return;
@@ -1372,14 +1508,16 @@ async function preprintLabel(idx, nrPalety, productName, qty, pType) {
             qty: Number(qty || 0),
             p_type: pType || 'surowiec',
         });
-        safeToast('Otwarto podglad etykiety. Wybierz drukarke PDF w oknie wydruku.', 'info');
+        safeToast('Otwarto podgląd etykiety. Wybierz drukarkę PDF w oknie wydruku.', 'info');
         return;
     }
 
-    const btn = event.currentTarget;
-    const oldHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+    const btn = (btnElement && btnElement.nodeType) ? btnElement : (document.getElementById(`print_btn_${idx}`) || (typeof event !== 'undefined' && event ? event.currentTarget : null));
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+    }
 
     try {
         const resp = await fetch(reprintEndpointUrl, {
@@ -1406,8 +1544,10 @@ async function preprintLabel(idx, nrPalety, productName, qty, pType) {
     } catch (e) {
         safeToast('Błąd komunikacji z serwerem.', 'danger');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = oldHtml;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+        }
     }
 }
 
@@ -1473,6 +1613,7 @@ async function rejectItem(itemId, idx) {
 
 document.addEventListener('DOMContentLoaded', function () {
     ensureLocationSuggestionsList();
+    initDefaultPrinterSelection();
 });
 </script>
 {% endblock %}

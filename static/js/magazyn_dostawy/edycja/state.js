@@ -33,7 +33,16 @@ function getStoredDraftState() {
     }
 
 function hasDraftItems(draft) {
-        return !!(draft && Array.isArray(draft.items) && draft.items.length > 0);
+        if (!draft || !Array.isArray(draft.items) || draft.items.length === 0) {
+            return false;
+        }
+        return draft.items.some(item => {
+            if (!item) return false;
+            const nr = String(item.nr_palety || item.sourcePalletNo || '').trim();
+            const prod = String(item.productName || item.nazwa || '').trim();
+            const qty = parseFloat(item.quantity) || 0;
+            return nr !== '' || prod !== '' || qty > 0;
+        });
     }
 
 function saveDraftState() {
@@ -43,14 +52,12 @@ function saveDraftState() {
 
         try {
             const sourceInput = document.getElementById('lokalizacja_z');
-            const targetInput = document.getElementById('lokalizacja_do');
             const countInput = document.getElementById('pallet_count');
             const orderRefInput = document.getElementById('order_ref');
             const bypassInput = document.getElementById('skip_warehouse_lookup');
 
             const draft = {
                 lokalizacja_z: sourceInput ? sourceInput.value : '',
-                lokalizacja_do: targetInput ? targetInput.value : '',
                 pallet_count: countInput ? countInput.value : '0',
                 order_ref: orderRefInput ? orderRefInput.value : '',
                 skip_warehouse_lookup: !!(bypassInput && bypassInput.checked),
@@ -65,6 +72,12 @@ function saveDraftState() {
             }
 
             window.localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
+            try {
+                window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { key: FORM_DRAFT_KEY, hasDraft: true } }));
+                if (typeof window.updateSidebarDraftBadges === 'function') {
+                    window.updateSidebarDraftBadges();
+                }
+            } catch (evErr) {}
         } catch (error) {
             console.warn('saveDraftState error', error);
         }
@@ -82,13 +95,11 @@ function restoreDraftState(draftOverride = null, options = {}) {
             }
 
             const sourceInput = document.getElementById('lokalizacja_z');
-            const targetInput = document.getElementById('lokalizacja_do');
             const countInput = document.getElementById('pallet_count');
             const orderRefInput = document.getElementById('order_ref');
             const bypassInput = document.getElementById('skip_warehouse_lookup');
 
             if (sourceInput) sourceInput.value = draft.lokalizacja_z || '';
-            if (targetInput) targetInput.value = draft.lokalizacja_do || '';
             if (orderRefInput && draft.order_ref) orderRefInput.value = draft.order_ref || '';
             if (bypassInput) bypassInput.checked = !!draft.skip_warehouse_lookup;
 
@@ -120,6 +131,12 @@ function restoreDraftState(draftOverride = null, options = {}) {
 function clearDraftState() {
         try {
             window.localStorage.removeItem(FORM_DRAFT_KEY);
+            try {
+                window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { key: FORM_DRAFT_KEY, hasDraft: false } }));
+                if (typeof window.updateSidebarDraftBadges === 'function') {
+                    window.updateSidebarDraftBadges();
+                }
+            } catch (evErr) {}
         } catch (error) {
             console.warn('clearDraftState error', error);
         }
@@ -174,6 +191,12 @@ function removeItem(index) {
         const removed = removedItems && removedItems.length ? removedItems[0] : null;
         if (removed) {
             clearCopiedMarker(removed, index);
+            if (typeof unlockDraftPallets === 'function') {
+                unlockDraftPallets([removed]);
+            }
+            if (typeof removeLiveTransferItem === 'function') {
+                removeLiveTransferItem(removed);
+            }
         }
         const countInput = document.getElementById('pallet_count');
         countInput.value = items.length;

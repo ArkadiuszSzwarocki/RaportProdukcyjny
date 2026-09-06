@@ -3,200 +3,944 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/magazyn_dostawy/oczekujace.css') }}">
+<style>
+/* Modern Waiting List Design - System Standard */
+.waiting-list-screen {
+    width: 100%;
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 16px 20px 40px 20px;
+    box-sizing: border-box;
+    min-width: 0;
+}
 
-<div class="logistyka-container p-20 waiting-screen" data-no-autorefresh>
-    <div class="waiting-hero">
-        <div class="waiting-hero-head">
-            <div>
-                <h1 class="waiting-title">
-                    <span class="material-icons" style="color:#2563eb;">pending_actions</span>
-                    Oczekujące na Przyjęcie
-                </h1>
-                <p class="waiting-subtitle">Towary gotowe do wprowadzenia na stan (Hala <strong>{{ linia }}</strong>).</p>
-                
-                <!-- Przełącznik Hal dla Skanera -->
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
-                    <a href="?linia=PSD" class="hall-pill {% if linia == 'PSD' %}active{% endif %}">Hala PSD</a>
-                    <a href="?linia=AGRO" class="hall-pill {% if linia == 'AGRO' %}active{% endif %}">Hala AGRO</a>
-                    <span style="font-size: 10px; color: #94a3b8; margin-left: 10px; font-weight: 700;">
-                        FILTR: {{ linia }} | ZNALEZIONO: {{ dostawy.dostawy|length }}
-                    </span>
-                </div>
+/* 1. Header / Hero Card */
+.waiting-hero-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+}
 
+.waiting-hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.header-tags-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.badge-tag-hall {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.badge-tag-hall:hover {
+    background: #dbeafe;
+}
+
+.badge-tag-hall.active {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+.badge-tag-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+.waiting-page-title {
+    margin: 2px 0 0 0;
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.02em;
+}
+
+.title-icon-wrapper {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.waiting-page-subtitle {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.waiting-hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Action Buttons */
+.btn-waiting-primary {
+    height: 42px;
+    padding: 0 20px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+    transition: all 0.2s ease;
+}
+
+.btn-waiting-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.38);
+    color: #ffffff !important;
+}
+
+.btn-waiting-secondary {
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #1e293b !important;
+    font-weight: 600;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    transition: all 0.15s ease;
+}
+
+.btn-waiting-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a !important;
+}
+
+.btn-waiting-warning {
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #fffbeb;
+    color: #b45309 !important;
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #fcd34d;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.12);
+    transition: all 0.15s ease;
+}
+
+.btn-waiting-warning:hover {
+    background: #fef3c7;
+    color: #92400e !important;
+}
+
+/* 2. KPI / Stats Row */
+.waiting-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.waiting-stat-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.waiting-stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+.stat-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.stat-card-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+    margin-top: 2px;
+}
+
+.stat-card-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 3. Toolbar (Search & Tabs) */
+.waiting-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex: 1 1 240px;
+    min-width: 200px;
+    max-width: 500px;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 20px;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.search-input-wrapper input {
+    width: 100%;
+    height: 40px;
+    padding: 0 36px 0 40px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #1e293b;
+    background: #f8fafc;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+}
+
+.search-input-wrapper input:focus {
+    background: #ffffff;
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.filter-tabs-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 10px;
+}
+
+.filter-tab-btn {
+    padding: 6px 16px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.filter-tab-btn.active {
+    background: #ffffff;
+    color: #1e293b;
+    font-weight: 800;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tab-pill-count {
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #e2e8f0;
+    font-size: 11px;
+    font-weight: 800;
+    color: #475569;
+}
+
+.filter-tab-btn.active .tab-pill-count {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+/* 4. Table Wrap & Rows */
+.waiting-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.waiting-table-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.modern-waiting-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 860px;
+}
+
+.modern-waiting-table thead th {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+
+.modern-waiting-table tbody tr.waiting-row {
+    transition: background 0.12s ease;
+    cursor: pointer;
+}
+
+.modern-waiting-table tbody tr.waiting-row:hover {
+    background: #f8fbff;
+}
+
+.modern-waiting-table tbody td {
+    padding: 14px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.modern-waiting-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Route visualization */
+.route-flow-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+
+.route-node-src {
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.route-arrow-icon {
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+.route-node-dst {
+    font-weight: 800;
+    font-size: 12px;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Action buttons in rows */
+.table-actions-flow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.btn-action-primary {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: #2563eb;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    transition: all 0.15s ease;
+}
+
+.btn-action-primary:hover {
+    background: #1d4ed8;
+}
+
+.btn-action-outline {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1;
+    font-weight: 600;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-action-outline:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a !important;
+}
+
+.btn-action-danger-ghost {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: #be123c;
+    border: 1px solid #fecdd3;
+    font-weight: 700;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-action-danger-ghost:hover {
+    background: #fff1f2;
+    border-color: #fda4af;
+}
+
+.btn-action-text {
+    display: inline;
+}
+
+/* Medium screens (< 1300px): Action buttons turn into compact clickable icons */
+@media (max-width: 1300px) {
+    .modern-waiting-table th.table-action-col {
+        width: 140px !important;
+        text-align: right !important;
+    }
+    .btn-action-text {
+        display: none !important;
+    }
+    .btn-action-primary,
+    .btn-action-outline,
+    .btn-action-danger-ghost {
+        width: 36px !important;
+        height: 36px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        border-radius: 8px !important;
+        flex: 0 0 36px !important;
+        min-width: 36px !important;
+        box-sizing: border-box !important;
+    }
+    .btn-action-primary .material-icons,
+    .btn-action-outline .material-icons,
+    .btn-action-danger-ghost .material-icons {
+        font-size: 19px !important;
+        margin: 0 !important;
+    }
+}
+
+/* Tablet and Mobile Responsive (< 1024px) */
+@media (max-width: 1024px) {
+    .waiting-list-screen {
+        padding: 12px 14px 30px 14px;
+    }
+    .waiting-hero-card {
+        padding: 16px;
+    }
+    .waiting-hero-actions {
+        width: 100%;
+    }
+    .waiting-hero-actions a,
+    .waiting-hero-actions button {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+    .waiting-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+    }
+    .waiting-toolbar-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 10px 12px;
+    }
+    .search-input-wrapper {
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+        flex: 0 0 40px !important;
+        height: 40px !important;
+    }
+    .filter-tabs-group {
+        width: 100%;
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        box-sizing: border-box;
+    }
+    .filter-tab-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 7px 10px;
+    }
+
+    /* Transform Table into Mobile / Tablet Cards */
+    .modern-waiting-table {
+        min-width: 0 !important;
+    }
+    .modern-waiting-table thead {
+        display: none !important;
+    }
+    .modern-waiting-table, 
+    .modern-waiting-table tbody, 
+    .modern-waiting-table tr.waiting-row,
+    .modern-waiting-table tr {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .modern-waiting-table tr.waiting-row,
+    .modern-waiting-table tbody tr {
+        background: #ffffff !important;
+        border-radius: 12px !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 12px !important;
+        padding: 14px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03) !important;
+        box-sizing: border-box !important;
+    }
+    .modern-waiting-table tbody td {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 8px 0 !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        font-size: 13.5px !important;
+        text-align: right !important;
+        box-sizing: border-box !important;
+    }
+    .modern-waiting-table tbody td:last-child {
+        border-bottom: none !important;
+    }
+    .modern-waiting-table tbody td:before {
+        content: attr(data-label);
+        font-weight: 800;
+        color: #64748b;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        text-align: left;
+        margin-right: 12px;
+        flex-shrink: 0;
+    }
+    .table-actions-flow {
+        justify-content: flex-end !important;
+        flex-wrap: nowrap !important;
+        margin-top: 10px !important;
+        padding-top: 10px !important;
+        border-top: 1px dashed #e2e8f0 !important;
+        width: 100%;
+        gap: 8px !important;
+        box-sizing: border-box !important;
+    }
+    .table-actions-flow > * {
+        flex: 0 0 38px !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        border-radius: 10px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .waiting-list-screen {
+        padding: 8px 8px 24px 8px;
+    }
+    .waiting-hero-card {
+        padding: 12px 14px;
+    }
+    .waiting-page-title {
+        font-size: 1.35rem;
+    }
+    .waiting-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="logistyka-container waiting-list-screen" data-no-autorefresh>
+    <!-- 1. HERO HEADER -->
+    <div class="waiting-hero-card">
+        <div class="waiting-hero-left">
+            <div class="header-tags-flow">
+                <a href="?linia=PSD" class="badge-tag-hall {% if linia == 'PSD' %}active{% endif %}">
+                    <span class="material-icons" style="font-size:14px;">business</span> Hala PSD
+                </a>
+                <a href="?linia=AGRO" class="badge-tag-hall {% if linia == 'AGRO' %}active{% endif %}">
+                    <span class="material-icons" style="font-size:14px;">business</span> Hala AGRO
+                </a>
+                <span class="badge-tag-type">
+                    <span class="material-icons" style="font-size:14px;">filter_alt</span> Filtr: {{ linia }} | Znaleziono: {{ dostawy.dostawy|length }}
+                </span>
             </div>
+            <h1 class="waiting-page-title">
+                <span class="title-icon-wrapper">
+                    <span class="material-icons" style="font-size: 22px;">pending_actions</span>
+                </span>
+                Oczekujące na Przyjęcie
+            </h1>
+            <p class="waiting-page-subtitle">Towary gotowe do wprowadzenia na stan (Hala <strong>{{ linia }}</strong>).</p>
+        </div>
         <div class="waiting-hero-actions">
-            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-premium-outline waiting-cta-btn" style="display: none;">
-                <span class="material-icons">history</span> Kontynuuj wpis
+            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-waiting-warning" style="display: none;">
+                <span class="material-icons" style="font-size: 18px;">history</span> <span id="continue_transfer_label">Kontynuuj wpis</span>
             </a>
-            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}" class="btn-premium-outline waiting-cta-btn">
-                <span class="material-icons">swap_horiz</span> Nowe wydanie
+            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia) }}" class="btn-waiting-secondary">
+                <span class="material-icons" style="font-size: 18px; color: #475569;">swap_horiz</span> Nowe wydanie
             </a>
-            <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" class="btn-premium waiting-cta-btn">
-                <span class="material-icons">add</span> Nowa dostawa
+            <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" class="btn-waiting-primary">
+                <span class="material-icons" style="font-size: 18px;">add</span> Nowa dostawa
             </a>
-        </div>
         </div>
     </div>
 
-    <!-- TABS -->
-    <div class="waiting-tabs">
-        <button class="waiting-tab active" onclick="showTab('tab-dostawy', this)">
-            Dostawy ({{ dostawy.dostawy|length }})
-        </button>
-        <button class="waiting-tab" onclick="showTab('tab-wg', this)">
-            Z Produkcji ({{ dostawy.wg|length }})
-        </button>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj po nazwie, nr palety, referencji lub dacie..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px; max-width: 600px; margin: 0 auto; display: block;">
-    </div>
-
-    <!-- GLOBAL SCANNER -->
-    {% if dostawy.dostawy or dostawy.wg %}
-    <div class="wg-scan-box" style="margin-bottom: 20px;">
-        <p class="wg-scan-title">Szybkie przyjmowanie (Dostawy i Produkcja)</p>
-        <div style="max-width: 600px; margin: 0 auto;">
-            <input
-                type="text"
-                id="globalScannerInput"
-                class="premium-input w-full"
-                placeholder="1. Zeskanuj paletę (SSCC) i naciśnij Enter"
-                autocomplete="off"
-                spellcheck="false"
-                style="font-size: 1.2rem; padding: 15px; text-align: center; font-weight: 600;"
-            >
+    <!-- KPI / Stats Summary Bar -->
+    {% set total_deliveries = dostawy.dostawy|length %}
+    {% set total_wg = dostawy.wg|length %}
+    {% set ns_stats = namespace(total_pallets=0, total_kg=0.0) %}
+    {% for d in dostawy.dostawy %}
+        {% for item in d.items_parsed %}
+            {% if not item.accepted and not item.rejected %}
+                {% set ns_stats.total_pallets = ns_stats.total_pallets + 1 %}
+                {% set ns_stats.total_kg = ns_stats.total_kg + ((item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float) %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+    <div class="waiting-stats-grid">
+        <div class="waiting-stat-card">
+            <div>
+                <div class="stat-card-label">Oczekujące Zlecenia</div>
+                <div class="stat-card-value">{{ total_deliveries }}</div>
+                <div class="small text-muted" style="margin-top: 3px;">Hala {{ linia }}</div>
+            </div>
+            <div class="stat-card-icon-box" style="background: #eff6ff; color: #2563eb;">
+                <span class="material-icons" style="font-size: 22px;">local_shipping</span>
+            </div>
         </div>
-        <p id="globalScanHint" class="transfer-scan-hint" style="margin-top: 10px; font-weight: 600; color: #1e40af;">Zeskanuj dowolną oczekującą paletę.</p>
+        <div class="waiting-stat-card">
+            <div>
+                <div class="stat-card-label">Palety do Przyjęcia</div>
+                <div class="stat-card-value" style="color: #1e40af;">{{ ns_stats.total_pallets }} <span style="font-size: 0.9rem; font-weight: 600; color: #64748b;">pal.</span></div>
+                <div class="small text-muted" style="margin-top: 3px;">Suma w dostawach</div>
+            </div>
+            <div class="stat-card-icon-box" style="background: #f0fdf4; color: #16a34a;">
+                <span class="material-icons" style="font-size: 22px;">inventory</span>
+            </div>
+        </div>
+        <div class="waiting-stat-card">
+            <div>
+                <div class="stat-card-label">Masa Całkowita</div>
+                <div class="stat-card-value" style="color: #0f172a;">{{ '%.2f'|format(ns_stats.total_kg) }} <span style="font-size: 0.9rem; font-weight: 600; color: #64748b;">kg</span></div>
+                <div class="small text-muted" style="margin-top: 3px;">Waga netto w ruchu</div>
+            </div>
+            <div class="stat-card-icon-box" style="background: #fef3c7; color: #d97706;">
+                <span class="material-icons" style="font-size: 22px;">scale</span>
+            </div>
+        </div>
     </div>
-    {% endif %}
+
+    <!-- 3. Filter & Search Toolbar -->
+    <div class="waiting-toolbar-card">
+        <div class="search-input-wrapper">
+            <span class="material-icons search-icon">search</span>
+            <input type="text" id="tableSearchInput" placeholder="Szukaj po nazwie, nr palety, referencji lub dacie..." onkeyup="filterTableRows()">
+        </div>
+
+        <div class="filter-tabs-group">
+            <button type="button" class="filter-tab-btn waiting-tab active" onclick="showTab('tab-dostawy', this)">
+                <span class="material-icons" style="font-size: 16px;">move_to_inbox</span>
+                Dostawy <span class="tab-pill-count">{{ total_deliveries }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn waiting-tab" onclick="showTab('tab-wg', this)">
+                <span class="material-icons" style="font-size: 16px;">precision_manufacturing</span>
+                Z Produkcji <span class="tab-pill-count">{{ total_wg }}</span>
+            </button>
+        </div>
+    </div>
 
     <!-- TAB: DOSTAWY -->
     <div id="tab-dostawy" class="tab-content">
         {% if dostawy.dostawy %}
-        <div class="waiting-table-wrap">
-            <table class="premium-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">Lp.</th>
-                        <th>Typ</th>
-                        <th>Referencja</th>
-                        <th>Skąd</th>
-                        <th>Dokąd</th>
-                        <th>Ile palet</th>
-                        <th>Suma kg do przesunięcia</th>
-                        <th>Data</th>
-                        <th class="text-right">Akcja</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for d in dostawy.dostawy %}
-                    {% set ns = namespace(pending=0, kg=0.0, pallets=[]) %}
-                    {% for item in d.items_parsed %}
-                        {% if not item.accepted and not item.rejected %}
-                            {% set item_w = (item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float %}
-                            {% set item_pname = item.productName or item.name or '' %}
-                            {% set ns.pending = ns.pending + 1 %}
-                            {% set ns.kg = ns.kg + item_w %}
-                            {% set _ = ns.pallets.append("• " ~ (item.nr_palety or item.sourcePalletNo or "?") ~ ((" - " ~ item_pname) if item_pname else "") ~ " (" ~ item_w ~ " kg)") %}
+        <div class="waiting-table-card">
+            <div class="waiting-table-responsive">
+                <table class="modern-waiting-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Lp.</th>
+                            <th style="width: 120px;">Typ</th>
+                            <th>Referencja</th>
+                            <th>Trasa ruchu</th>
+                            <th style="text-align: center;">Ile palet</th>
+                            <th>Suma kg</th>
+                            <th>Data utworzenia</th>
+                            <th class="text-right table-action-col" style="width: 240px;">Akcja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in dostawy.dostawy %}
+                        {% set ns = namespace(pending=0, kg=0.0, pallets=[]) %}
+                        {% for item in d.items_parsed %}
+                            {% if not item.accepted and not item.rejected %}
+                                {% set item_w = (item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float %}
+                                {% set item_pname = item.productName or item.name or '' %}
+                                {% set ns.pending = ns.pending + 1 %}
+                                {% set ns.kg = ns.kg + item_w %}
+                                {% set _ = ns.pallets.append("• " ~ (item.nr_palety or item.sourcePalletNo or "?") ~ ((" - " ~ item_pname) if item_pname else "") ~ " (" ~ item_w ~ " kg)") %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if ns.pending > 0 %}
+                        <tr class="waiting-row" 
+                            onclick="window.location.href='{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}'"
+                            title="Kliknij, aby otworzyć przyjęcie zlecenia">
+                            <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                            <td data-label="Typ">
+                                <span class="premium-badge {% if d.lokalizacja_z %}badge-info{% else %}badge-warning{% endif %}">
+                                    {{ 'PRZESUNIĘCIE' if d.lokalizacja_z else 'DOSTAWA' }}
+                                </span>
+                            </td>
+                            <td data-label="Referencja">
+                                <div class="font-bold" style="color: #0f172a; font-size: 0.95rem;">#{{ d.id[:8] }}</div>
+                                <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
+                            </td>
+                            <td data-label="Trasa ruchu">
+                                <div class="route-flow-box">
+                                    <span class="route-node-src">
+                                        <span class="material-icons" style="font-size: 13px; color: #64748b;">place</span>
+                                        {{ d.lokalizacja_z or 'DOSTAWCA' }}
+                                    </span>
+                                    <span class="material-icons route-arrow-icon">arrow_forward</span>
+                                    <span class="route-node-dst">
+                                        <span class="material-icons" style="font-size: 13px; color: #2563eb;">move_to_inbox</span>
+                                        {{ d.lokalizacja_do or 'RUCH WEWN.' }}
+                                    </span>
+                                </div>
+                                <div style="display: none;">{{ ns.pallets | join(' ') }}</div>
+                            </td>
+                            <td data-label="Ile palet" style="text-align: center;">
+                                <span class="premium-badge badge-info" style="font-size: 0.85rem; padding: 4px 10px;">{{ ns.pending }} pal.</span>
+                            </td>
+                            <td data-label="Suma kg" class="font-bold" style="color: #0f172a; font-size: 0.92rem;">{{ '%.2f'|format(ns.kg) }} kg</td>
+                            <td data-label="Data" class="text-muted" style="font-size: 0.85rem;">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at and d.created_at.strftime else d.created_at }}</td>
+                            <td data-label="Akcja" class="text-right">
+                                <div class="table-actions-flow">
+                                    <a class="btn-action-primary" href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Przyjmij zlecenie" aria-label="Przyjmij zlecenie">
+                                        <span class="material-icons" style="font-size:16px;">task_alt</span>
+                                        <span class="btn-action-text">PRZYJMIJ</span>
+                                    </a>
+                                    {% if d.lokalizacja_z %}
+                                    <a class="btn-action-outline" href="{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Dopisz kolejne palety" aria-label="Dopisz kolejne palety">
+                                        <span class="material-icons" style="font-size:16px;">add</span>
+                                        <span class="btn-action-text">DOPISZ</span>
+                                    </a>
+                                    {% else %}
+                                    <a class="btn-action-outline" href="{{ url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Edytuj dostawę" aria-label="Edytuj dostawę">
+                                        <span class="material-icons" style="font-size:16px;">edit</span>
+                                        <span class="btn-action-text">EDYTUJ</span>
+                                    </a>
+                                    {% endif %}
+                                    <button type="button" class="btn-action-danger-ghost" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')" title="Anuluj to zlecenie" aria-label="Anuluj to zlecenie">
+                                        <span class="material-icons" style="font-size:16px;">close</span>
+                                        <span class="btn-action-text">ANULUJ</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
                         {% endif %}
-                    {% endfor %}
-                    {% if ns.pending > 0 %}
-                    <tr class="hover-highlight-row" 
-                        onclick="window.location.href='{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}'"
-                        onmouseenter="startPalletPreviewTimer('{{ ns.pallets | join('<br>') | replace("'", "\\'") }}', event)"
-                        onmouseleave="cancelPalletPreviewTimer()">
-                        <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
-                        <td data-label="Typ">
-                            <span class="premium-badge {% if d.lokalizacja_z %}badge-info{% else %}badge-warning{% endif %}">
-                                {{ 'PRZESUNIĘCIE' if d.lokalizacja_z else 'DOSTAWA' }}
-                            </span>
-                        </td>
-                        <td data-label="Referencja">
-                            <div class="font-bold">#{{ d.id[:8] }}</div>
-                            <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
-                        </td>
-                        <td data-label="Skąd" class="font-bold">
-                            {{ d.lokalizacja_z or '-' }}
-                            <div style="display: none;">{{ ns.pallets | join(' ') }}</div>
-                        </td>
-                        <td data-label="Dokąd" class="font-bold">{{ d.lokalizacja_do or '-' }}</td>
-                        <td data-label="Ile palet"><span class="premium-badge badge-info">{{ ns.pending }}</span></td>
-                        <td data-label="Suma kg" class="font-bold">{{ '%.2f'|format(ns.kg) }} kg</td>
-                        <td data-label="Data">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at and d.created_at.strftime else d.created_at }}</td>
-                        <td data-label="Akcja" class="text-right">
-                            <div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; align-items:center;">
-                                <a class="btn-premium btn-xs" href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Potwierdź przyjęcie palet na magazyn">
-                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">task_alt</span> PRZYJMIJ
-                                </a>
-                                {% if d.lokalizacja_z %}
-                                <a class="btn-premium-outline btn-xs" href="{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Otwórz przesunięcie i dopisz kolejne palety">
-                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">add</span> DOPISZ PALETY
-                                </a>
-                                {% else %}
-                                <a class="btn-premium-outline btn-xs" href="{{ url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" onclick="event.stopPropagation();" title="Edytuj dostawę zewnętrzną">
-                                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">edit</span> EDYTUJ
-                                </a>
-                                {% endif %}
-                                <button class="btn-premium-outline btn-xs text-danger" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')" title="Anuluj to zlecenie">
-                                    ANULUJ
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                </tbody>
-            </table>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         {% else %}
-        <div class="premium-card p-40 text-center text-muted">Brak oczekujących dostaw.</div>
+        <div class="premium-card p-40 text-center text-muted" style="border-radius: 14px; background: #ffffff; border: 1px solid #e2e8f0; padding: 48px 24px;">
+            <span class="material-icons" style="font-size: 42px; color: #94a3b8; display: block; margin-bottom: 10px;">inbox</span>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #475569;">Brak oczekujących dostaw</div>
+            <div class="small text-muted" style="margin-top: 4px;">Wszystkie pozycje w Hali {{ linia }} zostały rozliczone.</div>
+        </div>
         {% endif %}
     </div>
 
     <!-- TAB: WG -->
     <div id="tab-wg" class="tab-content" style="display:none;">
         {% if dostawy.wg %}
-        <div class="premium-card">
-            <table class="premium-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">Lp.</th>
-                        <th>Data</th>
-                        <th>Zlecenie</th>
-                        <th>Produkt</th>
-                        <th>Nr Palety</th>
-                        <th>Ilość</th>
-                        <th class="text-right">Akcja</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in dostawy.wg %}
-                    <tr>
-                        <td style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
-                        <td>{{ p.data_dodania.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td><span class="premium-badge badge-info">#{{ p.numer_zlecenia }}</span></td>
-                        <td class="font-bold">{{ p.nazwa_produktu }}</td>
-                        <td class="font-mono">{{ p.nr_palety }}</td>
-                        <td class="font-bold">{{ p.waga }} kg</td>
-                        <td class="text-right">
-                            <button
-                                class="btn-premium btn-xs"
-                                data-wg-id="{{ p.id }}"
-                                data-wg-nr="{{ p.nr_palety }}"
-                                data-wg-waga="{{ p.waga or '' }}"
-                                data-wg-linia="{{ p.linia }}"
-                                onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }}, '{{ p.linia }}')"
-                            >PRZYJMIJ</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="waiting-table-card">
+            <div class="waiting-table-responsive">
+                <table class="modern-waiting-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Lp.</th>
+                            <th>Data zgłoszenia</th>
+                            <th>Nr Zlecenia</th>
+                            <th>Produkt</th>
+                            <th>Nr Palety (SSCC)</th>
+                            <th>Ilość / Waga</th>
+                            <th class="text-right table-action-col" style="width: 140px;">Akcja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in dostawy.wg %}
+                        <tr class="waiting-row">
+                            <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                            <td data-label="Data" class="text-muted" style="font-size: 0.85rem;">{{ p.data_dodania.strftime('%Y-%m-%d %H:%M') if p.data_dodania and p.data_dodania.strftime else p.data_dodania }}</td>
+                            <td data-label="Zlecenie"><span class="premium-badge badge-info font-bold">#{{ p.numer_zlecenia }}</span></td>
+                            <td data-label="Produkt" class="font-bold" style="color: #0f172a;">{{ p.nazwa_produktu }}</td>
+                            <td data-label="Nr Palety" class="font-mono" style="font-weight: 700; color: #1e40af;">{{ p.nr_palety }}</td>
+                            <td data-label="Ilość" class="font-bold" style="color: #0f172a;">{{ p.waga }} kg</td>
+                            <td data-label="Akcja" class="text-right">
+                                <div class="table-actions-flow">
+                                    <button
+                                        type="button"
+                                        class="btn-action-primary"
+                                        data-wg-id="{{ p.id }}"
+                                        data-wg-nr="{{ p.nr_palety }}"
+                                        data-wg-waga="{{ p.waga or '' }}"
+                                        data-wg-linia="{{ p.linia }}"
+                                        onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }}, '{{ p.linia }}')"
+                                        title="Przyjmij paletę WG"
+                                        aria-label="Przyjmij paletę WG"
+                                    >
+                                        <span class="material-icons" style="font-size: 16px;">task_alt</span>
+                                        <span class="btn-action-text">PRZYJMIJ</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         {% else %}
-        <div class="premium-card p-40 text-center text-muted">Brak palet z produkcji.</div>
+        <div class="premium-card p-40 text-center text-muted" style="border-radius: 14px; background: #ffffff; border: 1px solid #e2e8f0; padding: 48px 24px;">
+            <span class="material-icons" style="font-size: 42px; color: #94a3b8; display: block; margin-bottom: 10px;">precision_manufacturing</span>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #475569;">Brak palet z produkcji</div>
+            <div class="small text-muted" style="margin-top: 4px;">Wszystkie palety gotowe zostały przyjęte.</div>
+        </div>
         {% endif %}
     </div>
 </div>
@@ -208,10 +952,7 @@
      data-pending-items="{{ pending_scan_items|tojson|forceescape }}" 
      style="display:none;">
 </div>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/location_suggestions.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/ui.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/scanner_logic.js') }}"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_search.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/wg_acceptance.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_logic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/pallet_preview.js') }}"></script>
@@ -222,7 +963,7 @@ function filterTableRows() {
     const input = document.getElementById('tableSearchInput');
     if (!input) return;
     const filter = input.value.toLowerCase();
-    const rows = document.querySelectorAll('.premium-table tbody tr');
+    const rows = document.querySelectorAll('.modern-waiting-table tbody tr, .premium-table tbody tr');
     rows.forEach(row => {
         if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
         

@@ -178,6 +178,14 @@ def index():
     except Exception as e:
         print(f"Error in dashboard: {e}")
 
+    # Mark expired pallets as system-blocked
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    for it in items:
+        exp = it.get('date_exp')
+        if exp and exp not in ('-', 'brak', '', 'None') and exp < today_str:
+            it['is_blocked'] = 1
+            it['is_system_blocked'] = 1
+
     # Sortowanie: Regał -> Rząd -> Gniazdo
     def get_sort_key(item):
         loc = (item.get('location') or '').strip().upper()
@@ -366,11 +374,19 @@ def summary():
         pid = int(p.get('id') or 0)
         return (bk[0], bk[1], pid)
 
+    today_str = datetime.now().strftime('%Y-%m-%d')
     for name, data in summary_data.items():
         data['pallets'].sort(key=_summary_fifo_key)
-        total_p = len(data['pallets'])
-        earliest_bk = _summary_batch_key(data['pallets'][0]) if data['pallets'] else ('9999-99-99', '9999-99-99')
-        has_multiple_batches = any(_summary_batch_key(p) != earliest_bk for p in data['pallets'])
+        
+        for p in data['pallets']:
+            p_exp = str(p.get('data_przydatnosci') or '').strip()
+            if p_exp and p_exp not in ('-', 'brak', '', 'None') and p_exp < today_str:
+                p['is_blocked'] = 1
+                p['is_system_blocked'] = 1
+
+        valid_pallets = [p for p in data['pallets'] if not p.get('is_blocked')]
+        earliest_bk = _summary_batch_key(valid_pallets[0]) if valid_pallets else ('9999-99-99', '9999-99-99')
+        has_multiple_batches = any(_summary_batch_key(p) != earliest_bk for p in valid_pallets)
 
         unique_batches = []
         for p in data['pallets']:
@@ -381,10 +397,11 @@ def summary():
         for idx, p in enumerate(data['pallets'], 1):
             bk = _summary_batch_key(p)
             batch_num = unique_batches.index(bk) + 1 if bk in unique_batches else 1
-            is_earliest = (bk == earliest_bk)
+            is_eligible = not p.get('is_blocked')
+            is_earliest = is_eligible and (bk == earliest_bk)
             p['fifo_index'] = idx
             p['fifo_batch_num'] = batch_num
-            p['is_first_fifo'] = is_earliest and (has_multiple_batches or total_p > 1)
+            p['is_first_fifo'] = is_earliest and (has_multiple_batches or len(valid_pallets) > 1)
 
     return render_template('warehouse_v2/summary.html', summary=summary_data, linia=linia)
 

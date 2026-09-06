@@ -228,13 +228,7 @@ function generateManualRows(count) {
     }
 
 function appendPalletsToItems(selectedPallets) {
-        const targetLoc = getCurrentTargetLocation();
-        const conflictingPallets = selectedPallets.filter(pal => isRouteConflictLocation(pal && pal.lokalizacja, targetLoc));
-        const validPallets = selectedPallets.filter(pal => !isRouteConflictLocation(pal && pal.lokalizacja, targetLoc));
-
-        if (conflictingPallets.length > 0) {
-            showToast(`Operacja niemożliwa: ${conflictingPallets.length} palet ma tę samą lokalizację co pole Dokąd (${targetLoc}).`, 'warning');
-        }
+        const validPallets = selectedPallets || [];
 
         if (validPallets.length === 0) {
             return;
@@ -308,6 +302,10 @@ function appendPalletsToItems(selectedPallets) {
                 items.push(newItem);
                 appendedRows += 1;
             }
+
+            if (typeof addLiveTransferItem === 'function') {
+                addLiveTransferItem(newItem);
+            }
         });
 
         const countInput = document.getElementById('pallet_count');
@@ -316,14 +314,17 @@ function appendPalletsToItems(selectedPallets) {
         }
 
         saveDraftState();
+        if (typeof lockDraftPallets === 'function') {
+            lockDraftPallets(dedupedPallets);
+        }
         renderItems();
         if (typeof showToast === 'function') {
             if (filledOpenRows > 0 && appendedRows > 0) {
-                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy i dodano ${appendedRows} nowych palet.`, 'success');
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy i dodano ${appendedRows} nowych palet (zablokowano w bazie).`, 'success');
             } else if (filledOpenRows > 0) {
-                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy.`, 'success');
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy (zablokowano w bazie).`, 'success');
             } else {
-                showToast(`Dodano ${appendedRows} palet.`, 'success');
+                showToast(`Dodano ${appendedRows} palet (zablokowano w bazie).`, 'success');
             }
         }
     }

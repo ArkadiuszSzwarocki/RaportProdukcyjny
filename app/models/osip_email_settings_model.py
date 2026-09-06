@@ -16,7 +16,10 @@ class OsipEmailSettingsModel:
     smtp_password: str = ""
     sender_name: str = "Magazyn Centralny -> OSIP"
     odbiorcy: str = ""
-    auto_send_on_dispatch: bool = True
+    auto_send_on_dispatch: bool = False
+    daily_report_enabled: bool = True
+    daily_report_time: str = "15:00"
+    last_daily_report_date: Optional[str] = None
     is_active: bool = True
     updated_by: Optional[str] = None
     updated_at: Optional[datetime] = None
@@ -58,6 +61,9 @@ class OsipEmailSettingsModel:
             "sender_name": self.sender_name,
             "odbiorcy": self.odbiorcy,
             "auto_send_on_dispatch": self.auto_send_on_dispatch,
+            "daily_report_enabled": self.daily_report_enabled,
+            "daily_report_time": self.daily_report_time,
+            "last_daily_report_date": self.last_daily_report_date,
             "is_active": self.is_active,
             "updated_by": self.updated_by,
             "updated_at": self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.updated_at, datetime) else self.updated_at,

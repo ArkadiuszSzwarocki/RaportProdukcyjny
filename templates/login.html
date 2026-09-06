@@ -376,7 +376,7 @@
                     </svg>
                 </button>
                 <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password" autocorrect="off" inputmode="text" data-lpignore="true">
-                <button type="button" id="toggle-password-visibility" class="password-visibility-toggle" aria-label="Pokaż hasło" aria-pressed="false">
+                <button type="button" id="toggle-password-visibility" class="password-visibility-toggle" onclick="togglePasswordVisibilityInline(this)" aria-label="Pokaż hasło" aria-pressed="false">
                     <span class="password-eye-open" aria-hidden="true">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M2 12C3.9 8.2 7.7 6 12 6C16.3 6 20.1 8.2 22 12C20.1 15.8 16.3 18 12 18C7.7 18 3.9 15.8 2 12Z" stroke="currentColor" stroke-width="1.8"/>
@@ -416,12 +416,29 @@ function changeLanguage(lang) {
     window.location.href = window.location.pathname + "?lang=" + lang;
 }
 
+window.togglePasswordVisibilityInline = function(btn) {
+    const passwordInput = document.getElementById('haslo');
+    if (!passwordInput) return;
+    const isVisible = btn.classList.contains('visible') || btn.getAttribute('aria-pressed') === 'true';
+    const nextState = !isVisible;
+    passwordInput.type = nextState ? 'text' : 'password';
+    btn.classList.toggle('visible', nextState);
+    btn.setAttribute('aria-pressed', nextState ? 'true' : 'false');
+    btn.setAttribute('aria-label', nextState ? 'Ukryj hasło' : 'Pokaż hasło');
+    try {
+        passwordInput.focus();
+        const len = String(passwordInput.value || '').length;
+        passwordInput.setSelectionRange(len, len);
+    } catch (e) {}
+};
+
 // Ustawiamy selektor na domyślny się wybrany język z cookie oraz dodajemy animację logowania
 window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
     const loginInput = document.getElementById('login');
     const passwordInput = document.getElementById('haslo');
     const passwordVisibilityToggleBtn = document.getElementById('toggle-password-visibility');
+    const softKeyboardToggleBtn = document.getElementById('soft-keyboard-toggle');
     const keyboardManagedInputs = [loginInput, passwordInput].filter(Boolean);
 
     window.focusFieldWithKeyboard = function(fieldId) {
@@ -498,16 +515,9 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 
     if (passwordVisibilityToggleBtn) {
-        passwordVisibilityToggleBtn.addEventListener('click', function() {
-            const isVisible = passwordVisibilityToggleBtn.getAttribute('aria-pressed') === 'true';
-            setPasswordVisible(!isVisible);
-            if (passwordInput) {
-                passwordInput.focus();
-                try {
-                    const len = String(passwordInput.value || '').length;
-                    passwordInput.setSelectionRange(len, len);
-                } catch (e) {}
-            }
+        passwordVisibilityToggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.togglePasswordVisibilityInline(passwordVisibilityToggleBtn);
         });
     }
 

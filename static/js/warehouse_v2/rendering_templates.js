@@ -1,24 +1,123 @@
 
+function getExpiryStatus(dateExpStr) {
+    if (!dateExpStr || dateExpStr === '-' || dateExpStr === 'brak') {
+        return {
+            monthsLeft: null,
+            daysLeft: null,
+            borderColor: '#cbd5e1',
+            badgeBg: '#f1f5f9',
+            badgeColor: '#64748b',
+            textColor: '#64748b',
+            label: ''
+        };
+    }
+
+    const expDate = new Date(dateExpStr);
+    if (isNaN(expDate.getTime())) {
+        return {
+            monthsLeft: null,
+            daysLeft: null,
+            borderColor: '#cbd5e1',
+            badgeBg: '#f1f5f9',
+            badgeColor: '#64748b',
+            textColor: '#64748b',
+            label: ''
+        };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = expDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffMonths = diffDays / 30.44;
+
+    if (diffDays < 0) {
+        return {
+            isExpired: true,
+            isSystemBlocked: true,
+            monthsLeft: 0,
+            daysLeft: diffDays,
+            borderColor: '#dc2626', // Deep red: expired
+            badgeBg: '#fee2e2',
+            badgeColor: '#991b1b',
+            textColor: '#dc2626',
+            label: 'ZABLOKOWANA: PO TERMINIE'
+        };
+    } else if (diffMonths <= 2) {
+        // <= 2 months: Red
+        return {
+            isExpired: false,
+            monthsLeft: Math.max(0, Math.round(diffMonths * 10) / 10),
+            daysLeft: diffDays,
+            borderColor: '#ef4444',
+            badgeBg: '#fee2e2',
+            badgeColor: '#b91c1c',
+            textColor: '#ef4444',
+            label: `${diffDays} dni`
+        };
+    } else if (diffMonths <= 3) {
+        // 2 - 3 months: Orange
+        return {
+            isExpired: false,
+            monthsLeft: Math.round(diffMonths * 10) / 10,
+            daysLeft: diffDays,
+            borderColor: '#f97316',
+            badgeBg: '#ffedd5',
+            badgeColor: '#c2410c',
+            textColor: '#ea580c',
+            label: `${Math.round(diffMonths)} mies.`
+        };
+    } else if (diffMonths <= 5) {
+        // 3 - 5 months: Yellow / Amber
+        return {
+            isExpired: false,
+            monthsLeft: Math.round(diffMonths * 10) / 10,
+            daysLeft: diffDays,
+            borderColor: '#eab308',
+            badgeBg: '#fef9c3',
+            badgeColor: '#854d0e',
+            textColor: '#ca8a04',
+            label: `${Math.round(diffMonths)} mies.`
+        };
+    } else {
+        // > 5 months: Neutral gray
+        return {
+            isExpired: false,
+            monthsLeft: Math.round(diffMonths * 10) / 10,
+            daysLeft: diffDays,
+            borderColor: '#cbd5e1',
+            badgeBg: '#f8fafc',
+            badgeColor: '#64748b',
+            textColor: '#475569',
+            label: ''
+        };
+    }
+}
+
 function generateTableRow(item, index) {
-    const isBlockedCls = item.is_blocked ? 'is-blocked-row' : '';
-    const isFirstFifo = Boolean(item.is_first_fifo);
-    const rowStyle = isFirstFifo 
-        ? 'cursor: pointer; background: #fffbeb !important; border-left: 4px solid #f59e0b;' 
-        : 'cursor: pointer;';
-    const icon = item.is_blocked 
-        ? '<span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>' 
+    const expiry = getExpiryStatus(item.date_exp);
+    const isExpired = Boolean(expiry.isExpired);
+    const isBlocked = Boolean(item.is_blocked) || isExpired;
+    const isFirstFifo = Boolean(item.is_first_fifo) && !isBlocked && !isExpired;
+
+    const isBlockedCls = isBlocked ? 'is-blocked-row' : '';
+    const rowStyle = `cursor: pointer; background: ${isBlocked ? '#fff1f2' : '#ffffff'} !important; border-left: 4px solid ${expiry.borderColor} !important;`;
+
+    const icon = isBlocked 
+        ? '<span class="material-icons" style="color: #dc2626; font-size: 16px;" title="Paleta zablokowana systemowo">block</span>' 
         : (isFirstFifo 
             ? '<span class="material-icons" style="color: #ea580c; font-size: 16px;" title="Pierwsza partia do zużycia (FIFO)">bolt</span>'
             : '<span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>');
     
+    // Clean, compact FIFO tag without artificial batch numbering (strictly for eligible non-expired pallets)
     const fifoBadge = isFirstFifo
-        ? `<span class="badge" style="background: #f59e0b; color: #ffffff; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; vertical-align: middle; box-shadow: 0 1px 2px rgba(245,158,11,0.25);">
-                <span class="material-icons" style="font-size: 12px;">bolt</span> 1. DO ZUŻYCIA (FIFO)
+        ? `<span class="badge fifo-tag" style="background: #ea580c; color: #ffffff; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; white-space: nowrap; margin-left: 5px; width: auto; max-width: fit-content; box-shadow: none;">
+                <span class="material-icons" style="font-size: 11px;">bolt</span> FIFO
            </span>`
-        : (item.fifo_batch_num && item.fifo_batch_num > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">Partia ${item.fifo_batch_num}</span>` : (item.fifo_index && item.fifo_total > 1 ? `<span class="badge" style="background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;">FIFO #${item.fifo_index}</span>` : ''));
+        : '';
 
     const batchSubtitle = (item.batch && item.batch !== '-' && item.batch !== 'brak')
-        ? `<div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">Partia: <span style="font-family: monospace; color: #334155; font-weight: 700;">${item.batch}</span></div>`
+        ? `<span class="batch-subtitle-wrapper" style="font-size: 11px; color: #64748b; font-weight: 600;">Partia: <span style="font-family: monospace; color: #334155; font-weight: 700;">${item.batch}</span></span>`
         : '';
 
     const displayName = (item.productName && item.productName !== '-' && item.productName.trim() !== '') ? item.productName : (item.produkt || item.nazwa || 'Nieznany produkt');
@@ -36,41 +135,70 @@ function generateTableRow(item, index) {
                 data-batch="${(item.batch || '-').replace(/"/g, '&quot;')}"
                 data-id="${item.id}"
                 data-linia="${item.linia}"
-                data-blocked="${item.is_blocked}"
+                data-blocked="${isBlocked ? '1' : '0'}"
                 data-date-added="${item.date_added}">
-        <td style="text-align: center; color: #94a3b8; font-weight: 700; background: ${isFirstFifo ? '#fef3c7' : '#f8fafc'}; font-size: 11px;">${index}</td>
-        <td style="text-align: center; color: #64748b; font-weight: 700; font-family: monospace; font-size: 11px;">#${item.id || '-'}</td>
-        <td class="font-bold">
+        <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">${index}</td>
+        <td class="pallet-id-cell" style="color: #64748b; font-weight: 700; font-family: monospace; font-size: 11px;">
+            <div class="pallet-id-header-flow" style="display: flex; align-items: center; gap: 6px;">
+                <span class="pallet-id-number">#${item.id || '-'}</span>
+                ${fifoBadge ? `<span class="mobile-header-badge">${fifoBadge}</span>` : ''}
+                ${expiry.label ? `<span class="mobile-header-badge badge expiry-status-pill" style="background: ${expiry.badgeBg}; color: ${expiry.badgeColor}; border: 1px solid ${expiry.borderColor}; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 3px; display: inline-flex; align-items: center; gap: 2px; width: fit-content; text-transform: uppercase;">${isExpired ? '<span class="material-icons" style="font-size: 10px;">block</span> ' : ''}${expiry.label}</span>` : ''}
+            </div>
+        </td>
+        <td class="font-bold desktop-sscc-cell">
             <div style="display: flex; align-items: center; gap: 6px;">
                 ${icon}
                 ${item.displayId}
             </div>
         </td>
-        <td data-label="Produkt">
-            <strong class="text-primary">${displayName}</strong>
-            ${fifoBadge}
-            ${batchSubtitle}
+        <td data-label="Produkt" class="product-cell">
+            <div class="product-inline-flow" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;">
+                <strong class="text-primary product-title" style="font-size: 13px; font-weight: 700; color: #0f172a;">${displayName}</strong>
+                ${fifoBadge ? `<span class="desktop-only-fifo">${fifoBadge}</span>` : ''}
+                <span class="mobile-sscc-badge" style="display: none; align-items: center; gap: 4px; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #1e293b;">
+                    ${icon}
+                    <span>${item.displayId}</span>
+                </span>
+                ${batchSubtitle}
+            </div>
         </td>
-        <td data-label="Ilość"><strong>${item.amount}</strong> <small>${item.unit}</small></td>
+        <td data-label="Ilość" class="amount-cell">
+            <div class="amount-box-inner">
+                <strong class="amount-val">${item.amount}</strong>
+                <span class="amount-unit">${item.unit || 'kg'}</span>
+            </div>
+        </td>
         <td data-label="Lokalizacja" class="location-cell" data-loc-raw="${item.location}">
-            ${formatLocation(item.location)}
+            <div class="location-box-inner">
+                <span class="material-icons" style="font-size: 14px; color: #2563eb;">place</span>
+                <span class="loc-text">${formatLocation(item.location)}</span>
+            </div>
         </td>
         <td data-label="Typ">
             <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">${item.type}</span>
         </td>
         <td data-label="Produkcja" class="time-display">${item.date_prod}</td>
-        <td data-label="Ważność" class="time-display" style="${isFirstFifo ? 'color: #ea580c; font-weight: 700;' : ''}">${item.date_exp}</td>
+        <td data-label="Ważność" class="time-display expiry-cell" style="white-space: nowrap;">
+            <div class="expiry-box-inner">
+                <span class="expiry-date-val" style="color: ${expiry.textColor}; font-weight: 700; font-size: 12px;">${item.date_exp || '-'}</span>
+                ${expiry.label ? `<span class="desktop-only-expiry-pill badge expiry-status-pill" style="background: ${expiry.badgeBg}; color: ${expiry.badgeColor}; border: 1px solid ${expiry.borderColor}; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 3px; display: inline-flex; align-items: center; gap: 2px; width: fit-content; text-transform: uppercase;">${isExpired ? '<span class="material-icons" style="font-size: 10px;">block</span> ' : ''}${expiry.label}</span>` : ''}
+            </div>
+        </td>
     </tr>`;
 }
 
 function generateGridCard(item) {
-    const isBlockedCls = item.is_blocked ? 'is-blocked-card' : '';
-    const isFirstFifo = Boolean(item.is_first_fifo);
-    const cardFifoStyle = isFirstFifo ? 'border: 2px solid #f59e0b; background: #fffbeb;' : '';
-    const icon = item.is_blocked 
-        ? '<span class="material-icons text-danger" style="font-size: 18px;">block</span>' 
+    const expiry = getExpiryStatus(item.date_exp);
+    const isExpired = Boolean(expiry.isExpired);
+    const isBlocked = Boolean(item.is_blocked) || isExpired;
+    const isFirstFifo = Boolean(item.is_first_fifo) && !isBlocked && !isExpired;
+
+    const isBlockedCls = isBlocked ? 'is-blocked-card' : '';
+    const cardFifoStyle = `border-left: 4px solid ${expiry.borderColor} !important; background: ${isBlocked ? '#fff1f2' : '#ffffff'} !important;`;
+    const icon = isBlocked 
+        ? '<span class="material-icons text-danger" style="font-size: 18px;" title="Paleta zablokowana">block</span>' 
         : (isFirstFifo 
-            ? '<span class="badge" style="background: #f59e0b; color: white; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px;"><span class="material-icons" style="font-size: 10px;">bolt</span> 1. FIFO</span>' 
+            ? '<span class="badge fifo-tag" style="background: #ea580c; color: white; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px;"><span class="material-icons" style="font-size: 10px;">bolt</span> FIFO</span>' 
             : '');
 
     let loc_code = (item.location || '').toUpperCase();
@@ -106,6 +234,7 @@ function generateGridCard(item) {
                  data-date-added="${item.date_added}">
         <div class="card-header">
             <span class="loc-tag" data-loc-raw="${item.location}">
+                <span class="material-icons" style="font-size: 13px; color: #2563eb; vertical-align: middle; margin-right: 2px;">place</span>
                 ${loc_html}
             </span>
             <span class="id-tag">#${item.displayId}</span>
@@ -117,9 +246,9 @@ function generateGridCard(item) {
                 <span class="val">${item.amount}</span>
                 <span class="unit">${item.unit}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #e2e8f0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; margin-top: 6px; padding-top: 4px; border-top: 1px dashed #e2e8f0;">
                 <span>Prod: <strong style="color: #334155;">${item.date_prod}</strong></span>
-                <span>Ważn: <strong style="${isFirstFifo ? 'color: #ea580c; font-weight: 700;' : 'color: #0284c7;'}">${item.date_exp}</strong></span>
+                <span>Ważn: <strong style="color: ${expiry.textColor};">${item.date_exp}</strong> ${expiry.label ? `<span class="badge" style="background: ${expiry.badgeBg}; color: ${expiry.badgeColor}; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 2px;">${expiry.label}</span>` : ''}</span>
             </div>
         </div>
         <div class="card-footer">

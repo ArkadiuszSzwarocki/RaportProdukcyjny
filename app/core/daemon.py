@@ -137,12 +137,15 @@ def _update_instance_heartbeat(component, status='running', extra=''):
 def _acquire_named_lock(lock_name, timeout_seconds=0):
     """Try to acquire a MySQL named lock and keep it by holding the connection."""
     from app.db import get_db_connection
+    from app.core.database import get_active_database_name
 
     conn = None
     try:
+        active_db = get_active_database_name() or 'default'
+        scoped_lock = f"{lock_name}_{active_db}"
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT GET_LOCK(%s, %s)", (str(lock_name), int(timeout_seconds)))
+        cursor.execute("SELECT GET_LOCK(%s, %s)", (str(scoped_lock), int(timeout_seconds)))
         row = cursor.fetchone()
         acquired = bool(row and int(row[0]) == 1)
         if acquired:
@@ -164,8 +167,11 @@ def _release_named_lock(conn, lock_name):
         return
 
     try:
+        from app.core.database import get_active_database_name
+        active_db = get_active_database_name() or 'default'
+        scoped_lock = f"{lock_name}_{active_db}"
         cursor = conn.cursor()
-        cursor.execute("SELECT RELEASE_LOCK(%s)", (str(lock_name),))
+        cursor.execute("SELECT RELEASE_LOCK(%s)", (str(scoped_lock),))
     except Exception as lock_err:
         _safe_log_warning('Failed to release named lock %s: %s', lock_name, lock_err)
     finally:
@@ -1060,38 +1066,42 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     enabled_lines = global_cfg.get('enabled_lines', ['AGRO', 'PSD'])
 
                     # 1. Sprawdzanie bieżącego dnia (podstawowe okno wysyłki o 15:00 lub wg harmonogramu)
-                    if AutoReportService.is_report_day(today_str):
-                        for linia in ['AGRO', 'PSD']:
-                            if linia not in enabled_lines:
-                                continue
+                    is_standard_report_day = AutoReportService.is_report_day(today_str)
+                    for linia in ['AGRO', 'PSD']:
+                        if linia not in enabled_lines:
+                            continue
 
-                            if not AutoReportService.is_1500_report_sent(linia, today_str):
-                                sched = AutoReportService.get_schedule(linia, today_str)
-                                if not sched.get('is_paused'):
-                                    sched_time = sched.get('scheduled_time_full') or '15:00:00'
-                                    if now_time_str >= sched_time:
-                                        _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {today_str} (sched: {sched_time}, now: {now_time_str})')
-                                        with app.app_context():
-                                            success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=today_str)
-                                            _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {today_str}: success={success}, msg={msg}')
+                        sched = AutoReportService.get_schedule(linia, today_str)
+                        # Dzień jest aktywny, jeśli to standardowy dzień roboczy LUB lider ustawił indywidualny czas na dziś
+                        if not is_standard_report_day and not sched.get('is_custom'):
+                            continue
 
-                    # 2. Opcjonalne sprawdzenie wczorajszego dnia (wyłącznie we wczesnych godzinach nocnych 00:00 - 05:59, jeśli lider ustawił custom czas po północy)
-                    if now.hour < 6:
-                        yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-                        if AutoReportService.is_report_day(yesterday_str):
-                            for linia in ['AGRO', 'PSD']:
-                                if linia not in enabled_lines:
-                                    continue
+                        if not AutoReportService.is_1500_report_sent(linia, today_str):
+                            if not sched.get('is_paused'):
+                                sched_time = sched.get('scheduled_time_full') or '15:00:00'
+                                if now_time_str >= sched_time:
+                                    _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {today_str} (sched: {sched_time}, now: {now_time_str})')
+                                    with app.app_context():
+                                        success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=today_str)
+                                        _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {today_str}: success={success}, msg={msg}')
 
-                                if not AutoReportService.is_1500_report_sent(linia, yesterday_str):
-                                    sched = AutoReportService.get_schedule(linia, yesterday_str)
-                                    if not sched.get('is_paused') and sched.get('is_custom'):
-                                        sched_time = sched.get('scheduled_time_full') or '15:00:00'
-                                        if sched_time < '06:00:00' and now_time_str >= sched_time:
-                                            _safe_log_info(f'[AUTO_REPORT] Triggering night custom report for {linia} on {yesterday_str} (sched: {sched_time}, now: {now_time_str})')
-                                            with app.app_context():
-                                                success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=yesterday_str)
-                                                _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {yesterday_str}: success={success}, msg={msg}')
+                    # 2. Sprawdzanie dziennego raportu zbiorczego z dostaw i przesunięć magazynowych
+                    try:
+                        from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+                        wh_cfg = OsipEmailSettingsRepository().get_settings()
+                        if wh_cfg.is_active and wh_cfg.daily_report_enabled:
+                            wh_sched_time = (wh_cfg.daily_report_time or '15:00').strip()
+                            if len(wh_sched_time) == 5:
+                                wh_sched_time += ':00'
+                            
+                            if now_time_str >= wh_sched_time and wh_cfg.last_daily_report_date != today_str:
+                                _safe_log_info(f'[WAREHOUSE_DAILY_REPORT] Triggering daily report for {today_str} (sched: {wh_sched_time}, now: {now_time_str})')
+                                with app.app_context():
+                                    from app.services.osip_report_email_service import OsipReportEmailService
+                                    success, msg = OsipReportEmailService().send_daily_warehouse_summary_report(date_str=today_str, force=False)
+                                    _safe_log_info(f'[WAREHOUSE_DAILY_REPORT] Result for {today_str}: success={success}, msg={msg}')
+                    except Exception as _whe:
+                        _safe_log_exception(f'Error checking warehouse daily report: {_whe}')
 
                 except Exception as _e:
                     _safe_log_exception(f'Error in auto-report scheduler loop: {_e}')

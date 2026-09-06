@@ -1,6 +1,14 @@
 // ---- PALLET OPERATIONS ----
 function promptMoveLocation() {
     if(!currentPallet.id) return;
+    if(currentPallet.is_blocked) {
+        if(typeof AppDialog !== 'undefined' && AppDialog.alert) {
+            AppDialog.alert('Ta paleta jest zablokowana (znajduje się na liście do przesunięcia lub została zablokowana). Przesunięcie jest niemożliwe!');
+        } else {
+            alert('Ta paleta jest zablokowana (znajduje się na liście do przesunięcia lub została zablokowana). Przesunięcie jest niemożliwe!');
+        }
+        return;
+    }
     
     // Generowanie podpowiedzi tylko raz
     const datalist = document.getElementById('locationSuggestions');
@@ -42,6 +50,10 @@ function closeMoveLocationModal() {
 
 function submitMoveLocation() {
     if(!currentPallet.id) return;
+    if(currentPallet.is_blocked) {
+        alert('Ta paleta jest zablokowana (znajduje się na liście do przesunięcia)!');
+        return;
+    }
     const input = document.getElementById('newLocationInput');
     const errEl = document.getElementById('moveLocationError');
     let newLoc = input ? input.value.trim().toUpperCase() : '';

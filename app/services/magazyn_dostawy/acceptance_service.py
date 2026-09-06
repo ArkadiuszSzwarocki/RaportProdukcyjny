@@ -4,7 +4,7 @@ from datetime import datetime
 import uuid
 import re
 from app.utils.pallet_id import generate_pallet_id
-from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
+from app.utils.location_validator import validate_warehouse_location, is_production_tank_code, normalize_warehouse_location
 
 from app.services.magazyn_dostawy.location_service import LocationService
 
@@ -32,7 +32,7 @@ class AcceptanceService:
                 dostawa = cursor.fetchone()
                 if not dostawa: return False, "Nie znaleziono przesunięcia", None
 
-                lokalizacja = str(lokalizacja or '').strip().upper()
+                lokalizacja = normalize_warehouse_location(lokalizacja) or str(lokalizacja or '').strip().upper()
                 if not lokalizacja:
                     return False, "Podaj lokalizację odstawienia.", None
 
@@ -192,14 +192,6 @@ class AcceptanceService:
                     )
                 )
                 conn.commit()
-                
-                if new_status == 'COMPLETED':
-                    # Auto wysyłka e-mail raportu po przyjęciu każdego zarejestrowanego przesunięcia / dostawy
-                    try:
-                        from app.services.osip_report_email_service import OsipReportEmailService
-                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
-                    except Exception as mail_err:
-                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail po przyjęciu: {mail_err}")
                 
                 # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
                 if printer_ip and printer_name:
@@ -387,13 +379,6 @@ class AcceptanceService:
                     )
                 )
                 conn.commit()
-
-                if new_status == 'COMPLETED':
-                    try:
-                        from app.services.osip_report_email_service import OsipReportEmailService
-                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
-                    except Exception as mail_err:
-                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail po odrzuceniu: {mail_err}")
 
                 return True, "", {
                     "all_accepted": all_processed,

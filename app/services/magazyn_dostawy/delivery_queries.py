@@ -54,6 +54,11 @@ class DeliveryQueries:
                 # 2. Pending Production Pallets (WG)
                 wg = DeliveryQueries.get_pending_production_pallets(linia)
                 
+                try:
+                    DeliveryQueries.sync_pending_transfers_blocked_state()
+                except Exception:
+                    pass
+
                 return {
                     "dostawy": dostawy,
                     "wg": wg
@@ -186,3 +191,145 @@ class DeliveryQueries:
                 return dostawy
             finally:
                 conn.close()
+
+    @staticmethod
+    def is_pallet_in_pending_transfer(pallet_id=None, nr_palety=None):
+        """
+        Sprawdza czy paleta o podanym ID lub numerze znajduje się w otwartym zleceniu przesunięcia (status 'OCZEKUJE').
+        Zwraca tuple (is_in_transfer: bool, order_ref: str).
+        """
+        if not pallet_id and not nr_palety:
+            return False, ""
+
+        norm_nr = str(nr_palety).strip().upper() if nr_palety else ""
+        norm_id = str(pallet_id).strip() if pallet_id else ""
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, order_ref, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
+            rows = cursor.fetchall()
+            for r in rows:
+                raw_items = r.get('items')
+                if not raw_items:
+                    continue
+                try:
+                    items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                except Exception:
+                    continue
+                if not isinstance(items, list):
+                    continue
+                for it in items:
+                    if not isinstance(it, dict):
+                        continue
+                    if it.get('accepted') or it.get('rejected'):
+                        continue
+                    it_nr = str(it.get('nr_palety') or it.get('sourcePalletNo') or '').strip().upper()
+                    it_ids = [str(val).strip() for val in [it.get('sourcePalletId'), it.get('id'), it.get('surowiec_id'), it.get('pallet_id')] if val is not None and str(val).strip()]
+                    if (norm_nr and it_nr and norm_nr == it_nr) or (norm_id and norm_id in it_ids):
+                        ref = r.get('order_ref') or f"RUCH-{r['id'][:8]}"
+                        return True, ref
+            return False, ""
+        except Exception as e:
+            print(f"Error checking pending transfer for pallet: {e}")
+            return False, ""
+        finally:
+            conn.close()
+
+    @staticmethod
+    def sync_pending_transfers_blocked_state():
+        """
+        Synchronizuje flagę is_blocked = 1 dla wszystkich palet znajdujących się na aktywnych listach przesunięć.
+        """
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
+            rows = cursor.fetchall()
+            for r in rows:
+                raw_items = r.get('items')
+                if not raw_items:
+                    continue
+                try:
+                    items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                except Exception:
+                    continue
+                if not isinstance(items, list):
+                    continue
+                for it in items:
+                    if not isinstance(it, dict) or it.get('accepted') or it.get('rejected'):
+                        continue
+                    pid = it.get('sourcePalletId')
+                    pnr = it.get('nr_palety') or it.get('sourcePalletNo')
+                    for l_code in ['PSD', 'AGRO']:
+                        for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                            if pid:
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (pid,))
+                                except Exception: pass
+                            if pnr:
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                                except Exception: pass
+                        if pid:
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (pid,))
+                            except Exception: pass
+                        if pnr:
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                            except Exception: pass
+            conn.commit()
+        except Exception as e:
+            print(f"Error syncing pending transfers blocked state: {e}")
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_live_transfer_status(dostawa_id):
+        """Returns live execution status, accepted items count, and completion state for an active transfer order."""
+        if not dostawa_id:
+            return False, "Missing dostawa_id"
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT id, order_ref, status, linia, created_at, created_by,
+                       potwierdzone_przez, potwierdzone_at, items
+                FROM magazyn_dostawy
+                WHERE id = %s
+            """, (dostawa_id,))
+            dostawa = cursor.fetchone()
+            if not dostawa:
+                return False, f"Transfer order #{dostawa_id} not found"
+
+            raw_items = dostawa.get('items')
+            items = json.loads(raw_items) if isinstance(raw_items, str) else (raw_items or [])
+            if not isinstance(items, list):
+                items = []
+
+            total_items = len(items)
+            accepted_count = sum(1 for it in items if it.get('accepted'))
+            all_accepted = total_items > 0 and (accepted_count == total_items)
+            
+            # If all items are accepted and status is still OCZEKUJE, update it to COMPLETED
+            if all_accepted and dostawa.get('status') == 'OCZEKUJE':
+                cursor.execute("""
+                    UPDATE magazyn_dostawy
+                    SET status = 'COMPLETED', potwierdzone_at = NOW()
+                    WHERE id = %s
+                """, (dostawa_id,))
+                conn.commit()
+                dostawa['status'] = 'COMPLETED'
+
+            return True, {
+                "dostawa_id": dostawa['id'],
+                "order_ref": dostawa.get('order_ref') or '',
+                "status": dostawa.get('status') or 'OCZEKUJE',
+                "linia": dostawa.get('linia') or 'AGRO',
+                "total_items": total_items,
+                "accepted_count": accepted_count,
+                "all_accepted": all_accepted,
+                "items": items,
+            }
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+

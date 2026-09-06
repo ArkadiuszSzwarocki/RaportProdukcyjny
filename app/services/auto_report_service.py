@@ -201,6 +201,16 @@ class AutoReportService:
                     (date_str, t_line, formatted_time, 1 if is_paused else 0, user_name)
                 )
 
+                # Reset history entry so daemon can re-trigger at the new scheduled time
+                if not is_paused and t_line not in ('ALL', 'WSZYSTKO'):
+                    cursor.execute(
+                        """
+                        DELETE FROM auto_report_history
+                        WHERE data_raportu = %s AND linia = %s AND typ_raportu = '15:00'
+                        """,
+                        (date_str, t_line)
+                    )
+
             conn.commit()
             cursor.close()
 
@@ -300,6 +310,18 @@ class AutoReportService:
         env_recipients = os.getenv('DEFAULT_REPORT_RECIPIENTS', '')
         if env_recipients:
             return [e.strip() for e in env_recipients.replace(';', ',').split(',') if e.strip()]
+
+        # Fallback z ustawień modułu magazynowego / OSIP
+        try:
+            from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
+            wh_settings = OsipEmailSettingsRepository().get_settings()
+            if wh_settings and wh_settings.recipient_emails:
+                parsed = [e.strip() for e in wh_settings.recipient_emails.replace(';', ',').split(',') if e.strip()]
+                if parsed:
+                    return parsed
+        except Exception:
+            pass
+
         return []
 
     @classmethod
@@ -689,13 +711,14 @@ class AutoReportService:
             logger.info("[AUTO_REPORT] %s", msg)
             return True, msg
 
-        if not force and not cls.is_report_day(date_str):
-            msg = f"Automatyczny raport dla {linia} w dniu {date_str} pominięty - dzień nie jest aktywny w harmonogramie wysyłek."
-            logger.info("[AUTO_REPORT] %s", msg)
-            return True, msg
-
         if not force:
             sched = cls.get_schedule(linia, date_str)
+            is_custom_sched = sched.get('is_custom', False)
+            if not is_custom_sched and not cls.is_report_day(date_str):
+                msg = f"Automatyczny raport dla {linia} w dniu {date_str} pominięty - dzień nie jest aktywny w harmonogramie wysyłek."
+                logger.info("[AUTO_REPORT] %s", msg)
+                return True, msg
+
             if sched.get('is_paused'):
                 msg = f"Automatyczny raport dla {linia} w dniu {date_str} jest wstrzymany (is_paused=True)."
                 logger.info("[AUTO_REPORT] %s", msg)

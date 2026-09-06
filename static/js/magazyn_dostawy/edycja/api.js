@@ -156,15 +156,8 @@ async function savePrzesuniecie() {
             notifyReadOnly();
             return;
         }
-        const targetInputElement = document.getElementById('lokalizacja_do');
-        const targetLoc = targetInputElement ? targetInputElement.value : '';
         const orderRefElem = document.getElementById('order_ref');
         const orderRef = orderRefElem ? orderRefElem.value.trim() : '';
-
-        const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
-        if (conflictingItems.length > 0) {
-            return showToast(`Operacja niemożliwa: ${conflictingItems.length} palet ma lokalizację źródłową taką samą jak Dokąd (${normalizeLocation(targetLoc)}).`, 'warning');
-        }
 
         const unknownSourceLocations = getUnknownSourceLocations();
         if (unknownSourceLocations.length > 0) {
@@ -185,7 +178,7 @@ async function savePrzesuniecie() {
         const payload = {
             id: window.EdycjaConfig.dostawaId,
             order_ref: orderRef,
-            lokalizacja_do: targetLoc,
+            lokalizacja_do: '',
             linia: window.EdycjaConfig.linia,
             items: items,
             skip_warehouse_lookup: isWarehouseLookupBypassed(),
@@ -200,12 +193,16 @@ async function savePrzesuniecie() {
         const data = await res.json();
         if (data.success) {
             clearDraftState();
-            showToast('Zapisano pomyślnie! Przesunięcie jest otwarte w Oczekujących.', 'success');
+            showToast('Zlecenie otwarte w Oczekujących! Magazynier 2 może już przyjmować palety skanerem.', 'success');
             if (typeof window.refreshSidebarBadges === 'function') {
                 window.refreshSidebarBadges();
             }
+            const savedId = data.id || window.EdycjaConfig.dostawaId;
+            const targetUrl = savedId 
+                ? `/magazyn-dostawy/${savedId}?linia=${window.EdycjaConfig.linia}`
+                : (window.EdycjaConfig.urlOczekujace || ('/magazyn-dostawy/oczekujace?linia=' + window.EdycjaConfig.linia));
             setTimeout(() => {
-                window.location.href = window.EdycjaConfig.urlOczekujace || ('/magazyn-dostawy/oczekujace?linia=' + window.EdycjaConfig.linia);
+                window.location.href = targetUrl;
             }, 600);
         } else {
             showToast('Błąd: ' + data.error, 'danger');
@@ -232,3 +229,210 @@ function resetTransferFormAfterSave() {
         renderItems();
         updateSaveButtonState();
     }
+
+async function lockDraftPallets(pallets) {
+    if (!pallets || pallets.length === 0) return;
+    try {
+        await fetch('/magazyn-dostawy/api/draft/lock', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                items: pallets
+            })
+        });
+    } catch (e) {
+        console.warn('Błąd blokowania palet w wersji roboczej:', e);
+    }
+}
+
+async function unlockDraftPallets(pallets) {
+    if (!pallets || pallets.length === 0) return;
+    try {
+        await fetch('/magazyn-dostawy/api/draft/unlock', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                items: pallets
+            })
+        });
+    } catch (e) {
+        console.warn('Błąd odblokowywania palet:', e);
+    }
+}
+
+async function syncDraftPallets() {
+    if (!items || items.length === 0) return;
+    try {
+        const res = await fetch('/magazyn-dostawy/api/draft/sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                items: items
+            })
+        });
+        const data = await res.json();
+        if (data.success && data.result) {
+            if (Array.isArray(data.result.items) && data.result.items.length > 0) {
+                items = data.result.items;
+                saveDraftState();
+                renderItems();
+            }
+            if (Array.isArray(data.result.changes) && data.result.changes.length > 0) {
+                const changesSummary = data.result.changes
+                    .map(c => `${c.nr_palety}: ${c.old_location || 'brak'} ➔ ${c.new_location}`)
+                    .join(', ');
+                if (typeof showToast === 'function') {
+                    showToast(`Zaktualizowano lokalizację palet z bazy danych: ${changesSummary}. Palety są zablokowane.`, 'warning');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Błąd synchronizacji wersji roboczej z bazą:', e);
+    }
+}
+
+let liveTransferPollTimer = null;
+let isInitializingLiveTransfer = false;
+
+async function ensureLiveTransferInitialized() {
+    if (window.EdycjaConfig && window.EdycjaConfig.dostawaId) {
+        return window.EdycjaConfig.dostawaId;
+    }
+    if (isInitializingLiveTransfer) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        return window.EdycjaConfig ? window.EdycjaConfig.dostawaId : null;
+    }
+    isInitializingLiveTransfer = true;
+    try {
+        const orderRefElem = document.getElementById('order_ref');
+        const orderRef = orderRefElem ? orderRefElem.value.trim() : '';
+        const res = await fetch('/magazyn-dostawy/api/live-transfer/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                order_ref: orderRef
+            })
+        });
+        const data = await res.json();
+        if (data.success && data.result && data.result.dostawa_id) {
+            if (!window.EdycjaConfig) window.EdycjaConfig = {};
+            window.EdycjaConfig.dostawaId = String(data.result.dostawa_id);
+            if (orderRefElem && data.result.order_ref) {
+                orderRefElem.value = data.result.order_ref;
+            }
+            try {
+                if (window.history && window.history.replaceState) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('id', window.EdycjaConfig.dostawaId);
+                    window.history.replaceState({}, document.title, url.pathname + '?' + url.searchParams.toString());
+                }
+            } catch (err) {
+                console.warn('History replaceState warning:', err);
+            }
+            startLiveTransferPolling();
+            return window.EdycjaConfig.dostawaId;
+        }
+    } catch (e) {
+        console.error('Error initializing live transfer order:', e);
+    } finally {
+        isInitializingLiveTransfer = false;
+    }
+    return window.EdycjaConfig ? window.EdycjaConfig.dostawaId : null;
+}
+
+async function addLiveTransferItem(item) {
+    if (!item || (!item.nr_palety && !item.productName)) return;
+    try {
+        const dostawaId = await ensureLiveTransferInitialized();
+        if (!dostawaId) return;
+
+        const res = await fetch('/magazyn-dostawy/api/live-transfer/add-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dostawa_id: dostawaId,
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                item: item
+            })
+        });
+        const data = await res.json();
+        if (data.success && data.result && data.result.item_id) {
+            item.id = data.result.item_id;
+            saveDraftState();
+        }
+    } catch (e) {
+        console.warn('Error adding live transfer item:', e);
+    }
+}
+
+async function removeLiveTransferItem(item) {
+    if (!item || !window.EdycjaConfig || !window.EdycjaConfig.dostawaId) return;
+    try {
+        await fetch('/magazyn-dostawy/api/live-transfer/remove-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dostawa_id: window.EdycjaConfig.dostawaId,
+                linia: (window.EdycjaConfig && window.EdycjaConfig.linia) || 'AGRO',
+                item_id: item.id,
+                nr_palety: item.nr_palety
+            })
+        });
+    } catch (e) {
+        console.warn('Error removing live transfer item:', e);
+    }
+}
+
+async function pollLiveTransferStatus() {
+    if (!window.EdycjaConfig || !window.EdycjaConfig.dostawaId) return;
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/live-transfer/status/${window.EdycjaConfig.dostawaId}`);
+        const data = await res.json();
+        if (data.success && data.result) {
+            const statusInfo = data.result;
+            let updated = false;
+
+            if (Array.isArray(statusInfo.items)) {
+                statusInfo.items.forEach(remoteItem => {
+                    const localItem = items.find(i => 
+                        (remoteItem.nr_palety && i.nr_palety === remoteItem.nr_palety) ||
+                        (remoteItem.id && i.id === remoteItem.id)
+                    );
+                    if (localItem) {
+                        if (remoteItem.accepted !== localItem.accepted || remoteItem.lokalizacja_przyjecia !== localItem.lokalizacja_przyjecia) {
+                            localItem.accepted = remoteItem.accepted;
+                            localItem.lokalizacja_przyjecia = remoteItem.lokalizacja_przyjecia;
+                            updated = true;
+                        }
+                    }
+                });
+            }
+
+            if (typeof updateLiveTransferUI === 'function') {
+                updateLiveTransferUI(statusInfo);
+            }
+
+            if (updated) {
+                saveDraftState();
+                renderItems();
+                updateSaveButtonState();
+            }
+        }
+    } catch (e) {
+        console.warn('Error polling live transfer status:', e);
+    }
+}
+
+function startLiveTransferPolling() {
+    if (liveTransferPollTimer) clearInterval(liveTransferPollTimer);
+    if (window.EdycjaConfig && window.EdycjaConfig.dostawaId) {
+        pollLiveTransferStatus();
+        liveTransferPollTimer = setInterval(pollLiveTransferStatus, 3000);
+    }
+}
+
+

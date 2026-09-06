@@ -232,6 +232,15 @@ class WarehouseV2Service:
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
             
+            # --- PRZYJĘCIE W LOCIE DLA PALETY W ZLECENIU PRZESUNIĘCIA LUB BLOKADA JAKOŚCIOWA ---
+            from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+            in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)
+            is_in_transfer_acceptance = bool(in_transfer)
+
+            # Zwykła blokada jakościowa/ręczna (jeśli paleta NIE bierze udziału w otwartym zleceniu przesunięcia)
+            if row.get('is_blocked') and not is_in_transfer_acceptance:
+                return False, f"BŁĄD: Paleta {nr_palety or pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!"
+
             # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
             if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
                 from app.utils.location_validator import check_rack_location_availability, validate_centrala_osip_move
@@ -341,14 +350,6 @@ class WarehouseV2Service:
                                     """,
                                     (json.dumps(d_items), new_status, 1 if all_processed else 0, worker_login, 1 if all_processed else 0, d['id'])
                                 )
-                                
-                                if new_status == 'COMPLETED':
-                                    try:
-                                        from app.services.osip_report_email_service import OsipReportEmailService
-                                        OsipReportEmailService.trigger_async_delivery_report(d['id'])
-                                    except Exception as mail_err:
-                                        print("[WAREHOUSE_EMAIL] Błąd wysyłki e-mail ze skanera:", mail_err)
-                                        
                         except Exception as inner_e:
                             print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)
                 except Exception as e:
@@ -365,6 +366,8 @@ class WarehouseV2Service:
                 print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
             
             conn.commit()
+            if is_in_transfer_acceptance:
+                return True, f"✅ Przyjęto w zleceniu {trf_ref} na regał: {new_location}"
             return True, "Pomyślnie przeniesiono."
         except Exception as e:
             if conn: conn.rollback()
@@ -486,6 +489,14 @@ class WarehouseV2Service:
             p = cursor.fetchone()
             if not p:
                 return False, "Paleta nie znaleziona."
+
+            if p.get('is_blocked'):
+                return False, "NIE MOŻNA ZARCHIWIZOWAĆ ZABLOKOWANEJ PALETY!"
+
+            from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+            in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=p.get('nr_palety'))
+            if in_trf:
+                return False, f"BŁĄD: Paleta {p.get('nr_palety') or pallet_id} znajduje się na otwartej liście przesunięć #{trf_ref}. Archiwizacja niemożliwa!"
 
             # 2. Wstaw do archiwum
             cursor.execute("""

@@ -118,6 +118,23 @@ function filterTable() {
         productGroups[pKey].push(item);
     });
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isItemExpired = (item) => {
+        if (!item.date_exp || item.date_exp === '-' || item.date_exp === 'brak') return false;
+        const expDate = new Date(item.date_exp);
+        return !isNaN(expDate.getTime()) && expDate.getTime() < today.getTime();
+    };
+
+    // System-block pallets that have passed their expiration date
+    filtered.forEach(item => {
+        if (isItemExpired(item)) {
+            item.is_blocked = 1;
+            item.is_system_blocked = true;
+        }
+    });
+
     const getBatchDateKey = (item) => {
         const exp = (item.date_exp && item.date_exp !== '-') ? item.date_exp : '9999-99-99';
         const prod = (item.date_prod && item.date_prod !== '-') ? item.date_prod : '9999-99-99';
@@ -137,9 +154,10 @@ function filterTable() {
         group.sort((a, b) => fifoKey(a).localeCompare(fifoKey(b)));
         const total = group.length;
 
-        // Znajdź najwcześniejszą datę partii w grupie
-        const earliestBatchKey = total > 0 ? getBatchDateKey(group[0]) : '';
-        const hasMultipleBatches = group.some(x => getBatchDateKey(x) !== earliestBatchKey);
+        // Only valid, non-expired, non-blocked pallets are eligible for FIFO release
+        const validGroup = group.filter(x => !x.is_blocked && !isItemExpired(x));
+        const earliestValidBatchKey = validGroup.length > 0 ? getBatchDateKey(validGroup[0]) : null;
+        const hasMultipleBatches = validGroup.some(x => getBatchDateKey(x) !== earliestValidBatchKey);
 
         const uniqueBatches = [];
         group.forEach(item => {
@@ -150,13 +168,14 @@ function filterTable() {
         group.forEach((item, idx) => {
             const bKey = getBatchDateKey(item);
             const batchNum = uniqueBatches.indexOf(bKey) + 1;
-            const isEarliestBatch = (bKey === earliestBatchKey);
+            const isEligible = !item.is_blocked && !isItemExpired(item);
+            const isEarliestBatch = Boolean(isEligible && earliestValidBatchKey && (bKey === earliestValidBatchKey));
 
             item.fifo_index = idx + 1;
             item.fifo_batch_num = batchNum;
             item.fifo_total = total;
-            // Zaznacz wszystkie palety posiadające najwcześniejszą datę ważności/produkcji
-            item.is_first_fifo = isEarliestBatch && (hasMultipleBatches || total > 1);
+            // Mark as 1st FIFO only if the pallet is eligible (not expired, not blocked)
+            item.is_first_fifo = Boolean(isEarliestBatch && (hasMultipleBatches || validGroup.length > 1));
         });
         fifoList.push(...group);
     });

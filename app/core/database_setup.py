@@ -869,6 +869,30 @@ def _create_tables(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     _add_column_if_missing(cursor, 'magazyn_wyjazdy_samochodowe', 'linia', "VARCHAR(50) DEFAULT 'AGRO'", "dodanie linii magazynu do wyjazdów")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS osip_email_settings (
+            id INT PRIMARY KEY,
+            smtp_server VARCHAR(150) NOT NULL DEFAULT 'smtp.gmail.com',
+            smtp_port INT NOT NULL DEFAULT 465,
+            smtp_security VARCHAR(10) NOT NULL DEFAULT 'SSL',
+            smtp_username VARCHAR(150) NOT NULL DEFAULT '',
+            smtp_password VARCHAR(255) NOT NULL DEFAULT '',
+            sender_name VARCHAR(150) DEFAULT 'Magazyn Centralny -> OSIP',
+            odbiorcy TEXT,
+            auto_send_on_dispatch TINYINT(1) DEFAULT 0,
+            daily_report_enabled TINYINT(1) DEFAULT 1,
+            daily_report_time VARCHAR(10) DEFAULT '15:00',
+            last_daily_report_date VARCHAR(20) DEFAULT NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            updated_by VARCHAR(100) DEFAULT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+    _add_column_if_missing(cursor, 'osip_email_settings', 'daily_report_enabled', "TINYINT(1) DEFAULT 1", "dodanie daily_report_enabled do osip_email_settings")
+    _add_column_if_missing(cursor, 'osip_email_settings', 'daily_report_time', "VARCHAR(10) DEFAULT '15:00'", "dodanie daily_report_time do osip_email_settings")
+    _add_column_if_missing(cursor, 'osip_email_settings', 'last_daily_report_date', "VARCHAR(20) DEFAULT NULL", "dodanie last_daily_report_date do osip_email_settings")
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""

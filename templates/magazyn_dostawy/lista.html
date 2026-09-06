@@ -4,254 +4,897 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
 
 <style>
+/* Modern Transfer List Design */
 .transfer-list-screen {
-    max-width: 1480px;
+    max-width: 1560px;
+    margin: 0 auto;
+    padding: 16px 20px 40px 20px;
 }
 
-.transfer-hero {
-    border-radius: 18px;
-    border: 1px solid #dbe7ff;
-    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
-    padding: 18px;
-    margin-bottom: 18px;
-}
-
-.transfer-hero-head {
+/* 1. Header / Hero Card */
+.transfer-hero-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 20px;
     flex-wrap: wrap;
 }
 
-.transfer-title {
-    margin: 0;
-    font-size: 1.55rem;
-    font-weight: 800;
-    color: #1f2937;
+.transfer-hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.header-tags-flow {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
-.transfer-subtitle {
-    margin: 6px 0 0;
-    color: #64748b;
-    font-size: 0.92rem;
-}
-
-.transfer-pill {
+.badge-tag-hall {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.78rem;
-    font-weight: 700;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    text-transform: uppercase;
     letter-spacing: 0.3px;
-    background: #e7f1ff;
-    color: #1e40af;
-    border: 1px solid #cfe0ff;
-    margin-top: 8px;
+}
+
+.badge-tag-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+.transfer-page-title {
+    margin: 2px 0 0 0;
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.02em;
+}
+
+.title-icon-wrapper {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.transfer-page-subtitle {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #64748b;
+    font-weight: 500;
 }
 
 .transfer-hero-actions {
     display: flex;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
 }
 
-.transfer-cta-btn {
-    min-width: 210px;
-    height: 44px;
+/* Action Buttons */
+.btn-transfer-primary {
+    height: 42px;
+    padding: 0 20px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 13px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
-    border-radius: 10px;
-    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+    transition: all 0.2s ease;
 }
 
-.transfer-row.row-clickable {
+.btn-transfer-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.38);
+    color: #ffffff !important;
+}
+
+.btn-transfer-secondary {
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #1e293b !important;
+    font-weight: 600;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    transition: all 0.15s ease;
+}
+
+.btn-transfer-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a !important;
+}
+
+.btn-transfer-warning {
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #fffbeb;
+    color: #b45309 !important;
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #fcd34d;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.12);
+    transition: all 0.15s ease;
+}
+
+.btn-transfer-warning:hover {
+    background: #fef3c7;
+    color: #92400e !important;
+}
+
+/* 2. KPI / Stats Row */
+.transfer-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.transfer-stat-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.transfer-stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+.stat-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.stat-card-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+    margin-top: 2px;
+}
+
+.stat-card-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 3. Filter Toolbar & Search */
+.transfer-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+    max-width: 480px;
+}
+
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 20px;
+    pointer-events: none;
+}
+
+.search-input-wrapper input {
+    width: 100%;
+    height: 40px;
+    padding: 0 36px 0 40px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #1e293b;
+    background: #f8fafc;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+}
+
+.search-input-wrapper input:focus {
+    background: #ffffff;
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    display: none;
+    font-size: 18px;
+    padding: 0;
+}
+
+.filter-tabs-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.filter-tab-btn {
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.filter-tab-btn:hover {
+    color: #0f172a;
+}
+
+.filter-tab-btn.active {
+    background: #ffffff;
+    color: #1d4ed8;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.tab-pill-count {
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.filter-tab-btn.active .tab-pill-count {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* 4. Table Container & Row Designs */
+.transfer-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+}
+
+.modern-transfer-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.modern-transfer-table thead th {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+
+.modern-transfer-table tbody tr.transfer-row {
+    transition: background 0.12s ease;
     cursor: pointer;
 }
 
-.transfer-row.row-clickable:hover {
+.modern-transfer-table tbody tr.transfer-row:hover {
     background: #f8fbff;
 }
 
-.transfer-row.row-issued-locked {
-    cursor: not-allowed;
+.modern-transfer-table tbody td {
+    padding: 14px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
 }
 
-.issuance-locked-pill {
+.modern-transfer-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Route visualization */
+.route-flow-box {
     display: inline-flex;
     align-items: center;
-    border-radius: 999px;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     padding: 4px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #7c2d12;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
 }
 
-@media (max-width: 760px) {
-    .transfer-cta-btn {
+.route-node-src {
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.route-arrow-icon {
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+.route-node-dst {
+    font-weight: 800;
+    font-size: 12px;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Status Pills */
+.status-pill-modern {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.status-pill-pending {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.status-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #d97706;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+    animation: pulseStatus 1.8s infinite;
+}
+
+@keyframes pulseStatus {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(217, 119, 6, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+}
+
+.status-pill-completed {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.status-pill-cancelled {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+/* Reference badge & Pallet chip */
+.order-ref-number {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.pallet-count-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-top: 3px;
+}
+
+/* Action buttons in rows */
+.table-actions-flow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.btn-action-primary {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: #2563eb;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    transition: all 0.15s ease;
+}
+
+.btn-action-primary:hover {
+    background: #1d4ed8;
+}
+
+.btn-action-outline {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1;
+    font-weight: 600;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-action-outline:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a !important;
+}
+
+.btn-action-danger-ghost {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: #be123c;
+    border: 1px solid #fecdd3;
+    font-weight: 700;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-action-danger-ghost:hover {
+    background: #fff1f2;
+    border-color: #fda4af;
+}
+
+.issuance-hint-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #9a3412;
+    background: #fff7ed;
+    border: 1px solid #ffedd5;
+}
+
+/* 5. Mobile Responsive (< 992px) */
+@media (max-width: 992px) {
+    .transfer-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .transfer-list-screen {
+        padding: 10px 10px 30px 10px;
+    }
+    .transfer-hero-card {
+        padding: 16px;
+    }
+    .transfer-hero-actions {
         width: 100%;
-        min-width: 0;
     }
-    
-    .table-responsive {
+    .transfer-hero-actions a,
+    .transfer-hero-actions button {
         width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        border-radius: 12px;
-        box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.1);
+        justify-content: center;
     }
-    
-    .premium-table {
-        min-width: 600px; /* Zapewnia, że kolumny nie będą zgniecione, wymusza scroll poziomy */
+    .transfer-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
     }
-    
-    /* Zmniejszenie paddingów na mobilce */
-    .premium-table th, .premium-table td {
-        padding: 10px 8px !important;
-        font-size: 13px !important;
+    .transfer-stat-card {
+        padding: 10px 12px;
     }
-    
-    .logistyka-container {
-        padding: 10px !important;
+    .stat-card-value {
+        font-size: 1.25rem;
+    }
+    .transfer-toolbar-card {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 10px;
+    }
+    .search-input-wrapper {
+        max-width: 100%;
+        width: 100%;
+    }
+    .filter-tabs-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .filter-tab-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+
+    /* Transform Table into Mobile Cards */
+    .modern-transfer-table thead {
+        display: none !important;
+    }
+    .modern-transfer-table, 
+    .modern-transfer-table tbody, 
+    .modern-transfer-table tr.transfer-row {
+        display: block !important;
+        width: 100% !important;
+    }
+    .modern-transfer-table tr.transfer-row {
+        background: #ffffff !important;
+        border-radius: 12px !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 12px !important;
+        padding: 14px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03) !important;
+        box-sizing: border-box !important;
+    }
+    .modern-transfer-table tbody td {
+        display: block !important;
+        padding: 6px 0 !important;
+        border-bottom: none !important;
+        text-align: left !important;
+    }
+    .table-actions-flow {
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+        margin-top: 10px !important;
+        padding-top: 10px !important;
+        border-top: 1px dashed #e2e8f0 !important;
     }
 }
 </style>
 
-<div class="logistyka-container p-20 transfer-list-screen">
-    <div class="transfer-hero">
-        <div class="transfer-hero-head">
-        <div>
-            <h1 class="transfer-title">
-                <span class="material-icons" style="color:#2563eb;">swap_horiz</span>
+<div class="logistyka-container transfer-list-screen">
+    <!-- 1. HERO HEADER -->
+    <div class="transfer-hero-card">
+        <div class="transfer-hero-left">
+            <div class="header-tags-flow">
+                <span class="badge-tag-hall"><span class="material-icons" style="font-size:14px;">business</span> Hala: {{ linia }}</span>
+                <span class="badge-tag-type"><span class="material-icons" style="font-size:14px;">sync_alt</span> Ruchy wewnętrzne</span>
+            </div>
+            <h1 class="transfer-page-title">
+                <span class="title-icon-wrapper">
+                    <span class="material-icons" style="font-size: 22px;">swap_horiz</span>
+                </span>
                 Przesunięcia Palet
             </h1>
-            <p class="transfer-subtitle">Wydanie i dwuetapowe przyjęcie ruchów wewnętrznych (Hala {{ linia }}).</p>
-            <span class="transfer-pill">
-                <span class="material-icons" style="font-size: 16px;">inventory_2</span>
-                Ruchy wewnętrzne
-            </span>
+            <p class="transfer-page-subtitle">Zarządzanie wydaniem oraz dwuetapowym przyjęciem przesunięć między magazynami.</p>
         </div>
         <div class="transfer-hero-actions">
-            <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=linia) }}" class="btn-premium-outline transfer-cta-btn">
-                <span class="material-icons">inventory_2</span> Oczekujące
+            <button type="button" class="btn-transfer-secondary" onclick="triggerWarehouseDailyReport()" title="Wyślij podsumowanie raportu dziennego e-mail">
+                <span class="material-icons" style="font-size:18px; color:#2563eb;">send</span> Wyślij raport dzienny
+            </button>
+            <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=linia) }}" class="btn-transfer-secondary">
+                <span class="material-icons" style="font-size:18px; color:#475569;">inventory_2</span> Oczekujące
             </a>
-            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-premium-outline transfer-cta-btn" style="display: none;">
-                <span class="material-icons">history</span> Kontynuuj wpis
+            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-transfer-warning" style="display: none;">
+                <span class="material-icons" style="font-size:18px;">history</span> <span id="continue_transfer_label">Kontynuuj wpis</span>
             </a>
-            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}" class="btn-premium transfer-cta-btn">
-                <span class="material-icons">swap_horiz</span> Nowe Przesunięcie
+            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia) }}" class="btn-transfer-primary">
+                <span class="material-icons" style="font-size:18px;">add</span> Nowe Przesunięcie
             </a>
-        </div>
         </div>
     </div>
 
-    <div style="margin-bottom: 15px;">
-        <input type="text" id="tableSearchInput" class="premium-input w-full" placeholder="🔍 Szukaj po nazwie, nr palety, referencji lub dacie..." onkeyup="filterTableRows()" style="padding: 10px; font-size: 14px; max-width: 600px; margin: 0 auto; display: block;">
+    <!-- 2. KPI / STATS BAR -->
+    {% set total_count = dostawy|length %}
+    {% set pending_count = dostawy|selectattr('status', 'equalto', 'OCZEKUJE')|list|length %}
+    {% set completed_count = dostawy|selectattr('status', 'equalto', 'COMPLETED')|list|length %}
+    {% set cancelled_count = dostawy|selectattr('status', 'equalto', 'CANCELLED')|list|length %}
+    
+    <div class="transfer-stats-grid">
+        <div class="transfer-stat-card">
+            <div>
+                <div class="stat-card-label">Wszystkie zlecenia</div>
+                <div class="stat-card-value">{{ total_count }}</div>
+            </div>
+            <div class="stat-card-icon-box" style="background:#eff6ff; color:#2563eb;">
+                <span class="material-icons">receipt_long</span>
+            </div>
+        </div>
+        <div class="transfer-stat-card" style="border-left: 3px solid #d97706;">
+            <div>
+                <div class="stat-card-label" style="color: #92400e;">W trakcie (Wydane)</div>
+                <div class="stat-card-value" style="color: #b45309;">{{ pending_count }}</div>
+            </div>
+            <div class="stat-card-icon-box" style="background:#fef3c7; color:#d97706;">
+                <span class="material-icons">hourglass_top</span>
+            </div>
+        </div>
+        <div class="transfer-stat-card" style="border-left: 3px solid #059669;">
+            <div>
+                <div class="stat-card-label" style="color: #065f46;">Zrealizowane</div>
+                <div class="stat-card-value" style="color: #047857;">{{ completed_count }}</div>
+            </div>
+            <div class="stat-card-icon-box" style="background:#ecfdf5; color:#059669;">
+                <span class="material-icons">task_alt</span>
+            </div>
+        </div>
+        <div class="transfer-stat-card">
+            <div>
+                <div class="stat-card-label">Anulowane</div>
+                <div class="stat-card-value" style="color: #64748b;">{{ cancelled_count }}</div>
+            </div>
+            <div class="stat-card-icon-box" style="background:#f1f5f9; color:#64748b;">
+                <span class="material-icons">block</span>
+            </div>
+        </div>
     </div>
 
-    <div class="premium-card">
-        <div class="table-responsive">
-            <table class="premium-table">
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Numer / Referencja</th>
-                        <th>Trasa</th>
-                        <th>Status</th>
-                        <th class="text-right">Akcje</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for d in dostawy %}
-                    <tr class="transfer-row row-clickable"
-                        data-open-url="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}">
-                        <td>
-                            {% if d.created_at %}
-                                {% if d.created_at is string %}
-                                    <div class="font-bold">{{ d.created_at[:10] }}</div>
-                                    <div class="small text-muted">{{ d.created_at[11:16] }}</div>
-                                {% else %}
-                                    <div class="font-bold">{{ d.created_at.strftime('%Y-%m-%d') }}</div>
-                                    <div class="small text-muted">{{ d.created_at.strftime('%H:%M') }}</div>
-                                {% endif %}
+    <!-- 3. SEARCH & STATUS TABS -->
+    <div class="transfer-toolbar-card">
+        <div class="search-input-wrapper">
+            <span class="material-icons search-icon">search</span>
+            <input type="text" id="tableSearchInput" placeholder="Szukaj po referencji, lokalizacji, dacie lub palecie..." onkeyup="filterTableRows()">
+            <button type="button" class="search-clear-btn" id="searchClearBtn" onclick="clearSearchInput()"><span class="material-icons">close</span></button>
+        </div>
+        <div class="filter-tabs-group">
+            <button type="button" class="filter-tab-btn active" data-filter="ALL" onclick="setStatusFilter('ALL', this)">
+                Wszystkie <span class="tab-pill-count">{{ total_count }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="OCZEKUJE" onclick="setStatusFilter('OCZEKUJE', this)">
+                W trakcie <span class="tab-pill-count" style="background:#fef3c7; color:#92400e;">{{ pending_count }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="COMPLETED" onclick="setStatusFilter('COMPLETED', this)">
+                Wykonano <span class="tab-pill-count" style="background:#d1fae5; color:#065f46;">{{ completed_count }}</span>
+            </button>
+            <button type="button" class="filter-tab-btn" data-filter="CANCELLED" onclick="setStatusFilter('CANCELLED', this)">
+                Anulowane <span class="tab-pill-count">{{ cancelled_count }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 4. TRANSFERS TABLE -->
+    <div class="transfer-table-card">
+        <table class="modern-transfer-table">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Data i czas</th>
+                    <th style="width: 220px;">Numer / Referencja</th>
+                    <th>Trasa (Skąd ➔ Dokąd)</th>
+                    <th style="width: 150px;">Status</th>
+                    <th class="text-right" style="width: 280px; text-align: right;">Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in dostawy %}
+                <tr class="transfer-row row-clickable"
+                    data-status="{{ d.status }}"
+                    data-open-url="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}">
+                    <td>
+                        {% if d.created_at %}
+                            {% if d.created_at is string %}
+                                <div style="font-weight: 700; color: #0f172a; font-size: 13px;">{{ d.created_at[:10] }}</div>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 3px;">
+                                    <span class="material-icons" style="font-size: 12px;">schedule</span> {{ d.created_at[11:16] }}
+                                </div>
                             {% else %}
-                                <div class="font-bold">-</div>
-                                <div class="small text-muted">-</div>
+                                <div style="font-weight: 700; color: #0f172a; font-size: 13px;">{{ d.created_at.strftime('%Y-%m-%d') }}</div>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 3px;">
+                                    <span class="material-icons" style="font-size: 12px;">schedule</span> {{ d.created_at.strftime('%H:%M') }}
+                                </div>
                             {% endif %}
-                        </td>
-                        <td>
-                            <div class="font-mono font-bold">{{ d.order_ref or 'RUCH-' ~ d.id[:8] }}</div>
-                            <div class="small text-muted">{{ (d.items_parsed|length) if d.items_parsed else 0 }} palet</div>
-                            <div style="display: none;">
-                                {% for item in d.items_parsed %}
-                                    {{ item.productName }} {{ item.nr_palety }} {{ item.sourcePalletNo }}
-                                {% endfor %}
-                            </div>
-                        </td>
-                        <td>
-                            <div class="flex items-center gap-8">
-                                <span class="font-bold text-muted small">{{ d.lokalizacja_z or '???' }}</span>
-                                <span class="material-icons text-muted" style="font-size:14px;">arrow_forward</span>
-                                <span class="font-bold text-primary small">{{ d.lokalizacja_do }}</span>
-                            </div>
-                        </td>
-                        <td>
+                        {% else %}
+                            <div style="font-weight: 700; color: #64748b;">-</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="order-ref-number">#{{ d.order_ref or 'RUCH-' ~ d.id[:8] }}</div>
+                        <div class="pallet-count-chip">
+                            <span class="material-icons" style="font-size: 12px; color: #64748b;">inventory_2</span>
+                            <span>{{ (d.items_parsed|length) if d.items_parsed else 0 }} palet</span>
+                        </div>
+                        <div style="display: none;" class="searchable-items-payload">
+                            {{ d.order_ref }} {{ d.lokalizacja_z }} {{ d.lokalizacja_do }}
+                            {% for item in d.items_parsed %}
+                                {{ item.productName }} {{ item.nr_palety }} {{ item.sourcePalletNo }}
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="route-flow-box">
+                            <span class="route-node-src">
+                                <span class="material-icons" style="font-size: 13px; color: #64748b;">place</span>
+                                {{ d.lokalizacja_z or 'WIELE' }}
+                            </span>
+                            <span class="material-icons route-arrow-icon">arrow_forward</span>
+                            <span class="route-node-dst">
+                                <span class="material-icons" style="font-size: 13px;">subdirectory_arrow_right</span>
+                                {{ d.lokalizacja_do or 'Ruch wewn.' }}
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if d.status == 'OCZEKUJE' %}
+                            <span class="status-pill-modern status-pill-pending">
+                                <span class="status-pulse-dot"></span> W TRAKCIE
+                            </span>
+                        {% elif d.status == 'COMPLETED' %}
+                            <span class="status-pill-modern status-pill-completed">
+                                <span class="material-icons" style="font-size: 13px;">check_circle</span> WYKONANO
+                            </span>
+                        {% elif d.status == 'CANCELLED' %}
+                            <span class="status-pill-modern status-pill-cancelled">
+                                <span class="material-icons" style="font-size: 13px;">cancel</span> ANULOWANO
+                            </span>
+                        {% else %}
+                            <span class="status-pill-modern status-pill-cancelled">{{ d.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <div class="table-actions-flow">
                             {% if d.status == 'OCZEKUJE' %}
-                                <span class="premium-badge badge-warning">W TRAKCIE</span>
-                            {% elif d.status == 'COMPLETED' %}
-                                <span class="premium-badge badge-success">WYKONANO</span>
-                            {% else %}
-                                <span class="premium-badge badge-info">{{ d.status }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-right">
-                            <div class="flex justify-end gap-10">
-                                {% if d.status == 'OCZEKUJE' %}
-                                <span class="issuance-locked-pill">Wydanie: tylko podgląd</span>
-                                <button class="btn-premium-outline btn-xs" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}');">
-                                    Anuluj
+                                <span class="issuance-hint-chip" title="Wydanie zostało zarejestrowane. Oczekuje na przyjęcie.">
+                                    <span class="material-icons" style="font-size: 12px;">lock</span> Podgląd wydania
+                                </span>
+                                <button type="button" class="btn-action-danger-ghost" title="Anuluj całe zlecenie przesunięcia"
+                                        onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}');">
+                                    <span class="material-icons" style="font-size: 14px;">close</span> Anuluj
                                 </button>
                                 <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" 
-                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
-                                    Formularz przyjęcia
+                                   class="btn-action-primary" onclick="event.stopPropagation();" title="Przejdź do formularza przyjęcia palet">
+                                    <span>Przyjmij</span> <span class="material-icons" style="font-size: 14px;">arrow_forward</span>
                                 </a>
-                                {% elif d.status == 'COMPLETED' %}
+                            {% elif d.status == 'COMPLETED' %}
                                 <a href="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) }}"
-                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
-                                    Raport / Etykiety
+                                   class="btn-action-outline" onclick="event.stopPropagation();">
+                                    <span class="material-icons" style="font-size: 14px; color: #2563eb;">description</span> Raport / Etykiety
                                 </a>
-                                {% else %}
+                            {% else %}
                                 <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" 
-                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
-                                    Szczegóły
+                                   class="btn-action-outline" onclick="event.stopPropagation();">
+                                    <span class="material-icons" style="font-size: 14px;">visibility</span> Szczegóły
                                 </a>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center py-40 text-muted">
-                            Brak aktywnych przesunięć palet.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyTableRow">
+                    <td colspan="5" style="text-align: center; padding: 48px 16px; color: #64748b;">
+                        <span class="material-icons" style="font-size: 42px; color: #cbd5e1; display: block; margin-bottom: 8px;">inbox</span>
+                        <div style="font-weight: 700; font-size: 14px; color: #334155;">Brak przesunięć palet w tym magazynie.</div>
+                        <div style="font-size: 12px; margin-top: 4px;">Kliknij "Nowe Przesunięcie", aby zainicjować ruch palet.</div>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="noSearchResultsRow" style="display: none;">
+                    <td colspan="5" style="text-align: center; padding: 40px 16px; color: #64748b;">
+                        <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 8px;">search_off</span>
+                        <div style="font-weight: 700; font-size: 14px; color: #334155;">Brak wyników spełniających kryteria.</div>
+                        <div style="font-size: 12px; margin-top: 4px;">Spróbuj zmienić filtr statusu lub wpisać inną frazę.</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
 <script>
+let currentStatusFilter = 'ALL';
+
 function safeToast(msg, kind) {
     if (typeof showToast === 'function') {
         showToast(msg, kind || 'info');
@@ -262,7 +905,7 @@ function safeToast(msg, kind) {
 
 async function cancelTransferOrder(dostawaId, orderRef) {
     const label = orderRef || dostawaId;
-    const ok = await AppDialog.confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
+    const ok = await AppDialog.confirm(`Czy na pewno anulować całe zlecenie #${label}?`);
     if (!ok) {
         return;
     }
@@ -282,7 +925,7 @@ async function cancelTransferOrder(dostawaId, orderRef) {
         safeToast(data.message || 'Zlecenie anulowane.', 'success');
         setTimeout(() => {
             window.location.reload();
-        }, 250);
+        }, 300);
     } catch (e) {
         safeToast('Błąd połączenia z serwerem.', 'danger');
     }
@@ -292,27 +935,38 @@ function hasPendingTransferDraft() {
     const draftKey = "magazyn_dostawy_draft_{{ linia }}_new";
     try {
         const raw = window.localStorage.getItem(draftKey);
-        if (!raw) {
-            return false;
-        }
+        if (!raw) return null;
         const draft = JSON.parse(raw);
-        return !!(draft && Array.isArray(draft.items) && draft.items.length > 0);
+        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+            const hasData = draft.items.some(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0)));
+            return hasData ? draft : null;
+        }
+        return null;
     } catch (error) {
-        return false;
+        return null;
     }
 }
 
-const continueBtn = document.getElementById('continue_transfer_btn');
-if (continueBtn && hasPendingTransferDraft()) {
-    continueBtn.style.display = 'inline-flex';
-}
+// Auto-check pending draft
+(function initDraftButton() {
+    const pendingDraft = hasPendingTransferDraft();
+    const continueBtn = document.getElementById('continue_transfer_btn');
+    const continueLabel = document.getElementById('continue_transfer_label');
+    if (continueBtn && pendingDraft) {
+        continueBtn.style.display = 'inline-flex';
+        const validCount = (pendingDraft.items || []).filter(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0))).length;
+        if (continueLabel && validCount > 0) {
+            continueLabel.textContent = `Kontynuuj szkic (${validCount} pal.)`;
+        }
+    }
+})();
 
+// Row click listener
 document.querySelectorAll('.transfer-row').forEach((row) => {
     row.addEventListener('click', (event) => {
         if (event.target.closest('a,button,input,select,textarea,label')) {
             return;
         }
-
         const targetUrl = row.dataset.openUrl;
         if (targetUrl) {
             window.location.href = targetUrl;
@@ -320,21 +974,75 @@ document.querySelectorAll('.transfer-row').forEach((row) => {
     });
 });
 
+// Status tabs & Search filter
+function setStatusFilter(filterVal, btn) {
+    currentStatusFilter = filterVal;
+    document.querySelectorAll('.filter-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    filterTableRows();
+}
+
+function clearSearchInput() {
+    const input = document.getElementById('tableSearchInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+        document.getElementById('searchClearBtn').style.display = 'none';
+        filterTableRows();
+    }
+}
+
 function filterTableRows() {
     const input = document.getElementById('tableSearchInput');
-    if (!input) return;
-    const filter = input.value.toLowerCase();
-    const rows = document.querySelectorAll('.premium-table tbody tr');
+    const filterText = (input ? input.value : '').trim().toLowerCase();
+    const clearBtn = document.getElementById('searchClearBtn');
+    if (clearBtn) {
+        clearBtn.style.display = filterText ? 'inline-block' : 'none';
+    }
+
+    const rows = document.querySelectorAll('.modern-transfer-table tbody tr.transfer-row');
+    let visibleCount = 0;
+
     rows.forEach(row => {
-        // Pomiń wiersz "Brak danych", jeśli istnieje
-        if (row.querySelector('.text-muted') && row.cells.length === 1) return;
-        
-        if (row.textContent.toLowerCase().includes(filter)) {
+        const rowStatus = (row.getAttribute('data-status') || '').toUpperCase();
+        const matchesStatus = (currentStatusFilter === 'ALL' || rowStatus === currentStatusFilter);
+        const matchesText = !filterText || row.textContent.toLowerCase().includes(filterText);
+
+        if (matchesStatus && matchesText) {
             row.style.display = '';
+            visibleCount++;
         } else {
             row.style.display = 'none';
         }
     });
+
+    const noResultsRow = document.getElementById('noSearchResultsRow');
+    if (noResultsRow) {
+        noResultsRow.style.display = (rows.length > 0 && visibleCount === 0) ? '' : 'none';
+    }
+}
+
+async function triggerWarehouseDailyReport() {
+    if (!confirm('Czy na pewno chcesz wygenerować i wysłać raport zbiorczy za dzisiaj na zdefiniowane adresy e-mail?')) {
+        return;
+    }
+    
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = await fetch('/magazyn-dostawy/api/send-daily-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: todayStr, force: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+            safeToast('Sukces: ' + data.message, 'success');
+        } else {
+            safeToast('Informacja/Błąd: ' + (data.message || data.error || 'Nie udało się wysłać raportu.'), 'warning');
+        }
+    } catch (e) {
+        safeToast('Błąd sieci: ' + e.message, 'danger');
+    }
 }
 </script>
 {% endblock %}

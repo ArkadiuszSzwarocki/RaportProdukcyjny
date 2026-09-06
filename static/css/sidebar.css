@@ -146,6 +146,31 @@
     z-index: 2;
 }
 
+.nav-draft-badge {
+    position: static;
+    margin-left: auto;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 17px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    box-shadow: 0 1px 3px rgba(245, 158, 11, 0.35);
+    pointer-events: none;
+    z-index: 2;
+    animation: pulse-draft 2.2s infinite ease-in-out;
+}
+
+@keyframes pulse-draft {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.05); }
+}
+
 .nav-sub-item:hover {
     color: #2563eb;
     background: #f8fafc;

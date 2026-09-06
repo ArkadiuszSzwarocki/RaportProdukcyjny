@@ -1293,6 +1293,16 @@ class ScannerService:
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje"
 
+            # --- PRZYJĘCIE W LOCIE DLA PALETY W ZLECENIU PRZESUNIĘCIA LUB BLOKADA JAKOŚCIOWA ---
+            nr_p = pallet.get('nr_palety')
+            from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+            in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=surowiec_id, nr_palety=nr_p)
+            is_in_transfer_acceptance = bool(in_trf)
+            trf_order_ref = trf_ref or ''
+
+            if pallet.get('is_blocked') and not is_in_transfer_acceptance:
+                return False, f"BŁĄD: Paleta {nr_p or surowiec_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesunięta."
+
             stara_lokalizacja = (pallet.get('lokalizacja') or '').strip().upper()
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
@@ -1306,7 +1316,7 @@ class ScannerService:
             now = datetime.now()
             stan = float(pallet['stan_magazynowy'] or 0)
 
-            # Zmień lokalizację i odblokuj paletę
+            # Zmień lokalizację i zdejmij ewentualną blokadę roboczą
             cur.execute(
                 f"UPDATE {table_surowce} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s",
                 (nowa_lokalizacja, surowiec_id)
@@ -1343,6 +1353,8 @@ class ScannerService:
                 import logging
                 logging.error(f"Błąd powiadamiania dostaw/transferów o przeniesieniu: {ex}")
 
+            if is_in_transfer_acceptance:
+                return True, f"✅ Przyjęto w zleceniu {trf_order_ref} na regał: {nowa_lokalizacja}"
             return True, f"Przeniesiono paletę [{pallet['nazwa']}] na lokalizację: {nowa_lokalizacja}"
         except Exception as e:
             conn.rollback()

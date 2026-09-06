@@ -71,6 +71,9 @@
             </span>
         </div>
         <div class="flex gap-10">
+            <button type="button" class="btn-premium-outline" onclick="triggerWarehouseDailyReport()" style="border-color: #3b82f6; color: #1d4ed8; display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 10px; font-weight: 700;">
+                <span class="material-icons">send</span> Wyślij raport dzienny
+            </button>
             <a href="{{ url_for('magazyn_dostawy.reception_edit', linia=linia) }}" class="btn-premium">
                 <span class="material-icons">add</span> Nowa Dostawa
             </a>
@@ -199,6 +202,29 @@ function filterTableRows() {
             row.style.display = 'none';
         }
     });
+}
+
+async function triggerWarehouseDailyReport() {
+    if (!confirm('Czy na pewno chcesz wygenerować i wysłać raport zbiorczy za dzisiaj na zdefiniowane adresy e-mail?')) {
+        return;
+    }
+    
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = await fetch('/magazyn-dostawy/api/send-daily-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: todayStr, force: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Sukces: ' + data.message);
+        } else {
+            alert('Informacja/Błąd: ' + (data.message || data.error || 'Nie udało się wysłać raportu.'));
+        }
+    } catch (e) {
+        alert('Błąd sieci: ' + e.message);
+    }
 }
 </script>
 {% endblock %}

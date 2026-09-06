@@ -147,3 +147,116 @@ def anuluj_dostawe(dostawa_id):
     success, msg = DeliveryCommandService.cancel_dostawa(dostawa_id, session.get('login', 'system'))
     return jsonify({"success": success, "message": msg})
 
+@magazyn_dostawy_bp.route('/api/send-daily-report', methods=['POST'])
+@login_required
+def api_send_daily_report():
+    """Wymusza wysyłkę e-mail dziennego raportu zbiorczego (dostawy i przesunięcia)."""
+    data = request.json or {}
+    date_str = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+    force = bool(data.get('force', True))
+    from app.services.osip_report_email_service import OsipReportEmailService
+    service = OsipReportEmailService()
+    ok, msg = service.send_daily_warehouse_summary_report(date_str=date_str, force=force)
+    return jsonify({"success": ok, "message": msg}), (200 if ok else 400)
+
+
+@magazyn_dostawy_bp.route('/api/draft/lock', methods=['POST'])
+def api_draft_lock():
+    """Locks pallets present in a draft transfer list."""
+    data = request.json or {}
+    items = data.get('items') or []
+    linia = data.get('linia', 'AGRO')
+    login = session.get('login', 'system')
+    success, msg = DeliveryCommandService.lock_draft_pallets(items, linia=linia, user_login=login)
+    return jsonify({"success": success, "message": msg})
+
+
+@magazyn_dostawy_bp.route('/api/draft/unlock', methods=['POST'])
+def api_draft_unlock():
+    """Unlocks pallets removed from a draft transfer list."""
+    data = request.json or {}
+    items = data.get('items') or []
+    linia = data.get('linia', 'AGRO')
+    login = session.get('login', 'system')
+    success, msg = DeliveryCommandService.unlock_draft_pallets(items, linia=linia, user_login=login)
+    return jsonify({"success": success, "message": msg})
+
+
+@magazyn_dostawy_bp.route('/api/draft/sync', methods=['POST'])
+def api_draft_sync():
+    """Synchronizes draft items with active DB state (refreshes locations and locks pallets)."""
+    data = request.json or {}
+    items = data.get('items') or []
+    linia = data.get('linia', 'AGRO')
+    login = session.get('login', 'system')
+    success, result = DeliveryCommandService.sync_draft_pallets(items, linia=linia, user_login=login)
+    if success:
+        return jsonify({"success": True, "result": result})
+    return jsonify({"success": False, "error": str(result)}), 500
+
+
+@magazyn_dostawy_bp.route('/api/live-transfer/init', methods=['POST'])
+def api_live_transfer_init():
+    """Initializes a new open live transfer order in the database."""
+    data = request.json or {}
+    linia = data.get('linia', 'AGRO')
+    order_ref = data.get('order_ref')
+    login = session.get('login', 'system')
+    success, res = DeliveryCommandService.init_live_transfer(linia=linia, order_ref=order_ref, login=login)
+    if success:
+        return jsonify({"success": True, "result": res})
+    return jsonify({"success": False, "error": str(res)}), 500
+
+
+@magazyn_dostawy_bp.route('/api/live-transfer/add-item', methods=['POST'])
+def api_live_transfer_add_item():
+    """Adds a pallet to an active live transfer in real time."""
+    data = request.json or {}
+    dostawa_id = data.get('dostawa_id')
+    item = data.get('item')
+    linia = data.get('linia', 'AGRO')
+    login = session.get('login', 'system')
+    success, res = DeliveryCommandService.add_live_transfer_item(dostawa_id=dostawa_id, item=item, linia=linia, login=login)
+    if success:
+        return jsonify({"success": True, "result": res})
+    return jsonify({"success": False, "error": str(res)}), 400
+
+
+@magazyn_dostawy_bp.route('/api/live-transfer/remove-item', methods=['POST'])
+def api_live_transfer_remove_item():
+    """Removes a pallet from an active live transfer in real time."""
+    data = request.json or {}
+    dostawa_id = data.get('dostawa_id')
+    item_id = data.get('item_id')
+    nr_palety = data.get('nr_palety')
+    linia = data.get('linia', 'AGRO')
+    login = session.get('login', 'system')
+    success, res = DeliveryCommandService.remove_live_transfer_item(
+        dostawa_id=dostawa_id, item_id=item_id, nr_palety=nr_palety, linia=linia, login=login
+    )
+    if success:
+        return jsonify({"success": True, "result": res})
+    return jsonify({"success": False, "error": str(res)}), 400
+
+
+@magazyn_dostawy_bp.route('/api/live-transfer/status/<dostawa_id>', methods=['GET'])
+def api_live_transfer_status(dostawa_id):
+    """Fetches live execution status and accepted pallets for an active transfer order."""
+    success, res = DeliveryQueries.get_live_transfer_status(dostawa_id)
+    if success:
+        return jsonify({"success": True, "result": res})
+    return jsonify({"success": False, "error": str(res)}), 404
+
+
+@magazyn_dostawy_bp.route('/api/live-transfer/close/<dostawa_id>', methods=['POST'])
+def api_live_transfer_close(dostawa_id):
+    """Explicitly closes an active live transfer order."""
+    login = session.get('login', 'system')
+    success, msg = DeliveryCommandService.close_live_transfer(dostawa_id, login=login)
+    if success:
+        return jsonify({"success": True, "message": msg})
+    return jsonify({"success": False, "error": str(msg)}), 400
+
+
+
+

@@ -33,12 +33,12 @@ function showDraftDecisionBanner(draft) {
         const meta = document.getElementById('draftDecisionMeta');
         const savedAt = draft && draft.saved_at ? new Date(draft.saved_at) : null;
         const savedAtText = savedAt && !Number.isNaN(savedAt.getTime())
-            ? savedAt.toLocaleString('pl-PL')
-            : 'nieznany czas zapisu';
+            ? savedAt.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+            : 'niedawno';
         const itemsCount = draft && Array.isArray(draft.items) ? draft.items.length : 0;
 
         if (meta) {
-            meta.textContent = `Szkic: ${itemsCount} palet, zapis: ${savedAtText}.`;
+            meta.textContent = `Przywrócono roboczą wersję (${itemsCount} palet, godz. ${savedAtText}). Zeskanowane pozycje są zachowane w tabeli.`;
         }
 
         banner.style.display = 'block';
@@ -46,6 +46,7 @@ function showDraftDecisionBanner(draft) {
 
 function continueDraftEntry() {
         if (!pendingDraftToDecide) {
+            hideDraftDecisionBanner();
             return;
         }
         restoreDraftState(pendingDraftToDecide, { silentToast: false });
@@ -53,9 +54,21 @@ function continueDraftEntry() {
         hideDraftDecisionBanner();
         renderItems();
         updateSaveButtonState();
+        if (typeof syncDraftPallets === 'function') {
+            syncDraftPallets();
+        }
     }
 
 function startFreshEntry() {
+        const hasActiveData = items && items.length > 0 && items.some(i => i.nr_palety || i.productName || parseFloat(i.quantity) > 0);
+        if (hasActiveData) {
+            if (!confirm('Czy na pewno chcesz wyczyścić formularz i usunąć wszystkie wprowadzone palety?')) {
+                return;
+            }
+        }
+        if (typeof unlockDraftPallets === 'function' && items && items.length > 0) {
+            unlockDraftPallets(items);
+        }
         clearDraftState();
         pendingDraftToDecide = null;
         hideDraftDecisionBanner();
@@ -65,16 +78,18 @@ function startFreshEntry() {
         palletPickerState = null;
 
         const countInput = document.getElementById('pallet_count');
-        const targetInput = document.getElementById('lokalizacja_do');
         const scannerInput = document.getElementById('scanner_input');
         const bypassInput = document.getElementById('skip_warehouse_lookup');
         if (countInput) countInput.value = '0';
-        if (targetInput) targetInput.value = '';
         if (scannerInput) scannerInput.value = '';
         if (bypassInput) bypassInput.checked = false;
 
+        addEmptyRow();
         renderItems();
         updateSaveButtonState();
+        if (typeof showToast === 'function') {
+            showToast('Formularz został wyczyszczony i odblokowano palety.', 'info');
+        }
     }
 
 function renderLocationSuggestionOptions(suggestions) {
@@ -434,3 +449,60 @@ function previewItemLabel(index) {
     });
     window.open(`/magazyn-dostawy/podglad-etykiety?${params.toString()}`, '_blank', 'noopener');
 }
+
+function updateLiveTransferUI(statusInfo) {
+    if (!statusInfo) return;
+    const banner = document.getElementById('liveTransferBanner');
+    const badge = document.getElementById('liveTransferBadge');
+    const title = document.getElementById('liveTransferBannerTitle');
+    const subtitle = document.getElementById('liveTransferBannerSubtitle');
+    const wzBtn = document.getElementById('liveTransferWzBtn');
+    const saveBtn = document.getElementById('save_transfer_btn');
+
+    if (banner) {
+        banner.style.display = 'flex';
+    }
+
+    const acceptedCount = statusInfo.accepted_count || 0;
+    const totalItems = statusInfo.total_items || items.length || 0;
+
+    if (badge) {
+        badge.textContent = `Przyjęto: ${acceptedCount} / ${totalItems}`;
+        badge.style.background = (statusInfo.all_accepted && totalItems > 0) ? '#15803d' : '#2563eb';
+    }
+
+    if (statusInfo.all_accepted && totalItems > 0) {
+        if (title) {
+            title.textContent = `🎉 Wszystkie palety (${totalItems}) zostały przyjęte w locie!`;
+            title.style.color = '#15803d';
+        }
+        if (subtitle) {
+            subtitle.textContent = `Zlecenie #${statusInfo.order_ref || statusInfo.dostawa_id} zostało automatycznie zakończone i rozliczone.`;
+            subtitle.style.color = '#166534';
+        }
+        if (wzBtn) {
+            wzBtn.style.display = 'inline-flex';
+            wzBtn.href = `/magazyn-dostawy/raport-przesuniecia/${statusInfo.dostawa_id}`;
+        }
+        if (saveBtn) {
+            saveBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">print</span> RAPORT PRZESUNIĘCIA (WZ)';
+            saveBtn.style.background = '#15803d';
+            saveBtn.onclick = function() {
+                window.open(`/magazyn-dostawy/raport-przesuniecia/${statusInfo.dostawa_id}`, '_blank');
+            };
+        }
+    } else {
+        if (title) {
+            title.textContent = `📦 Przesunięcie w locie aktywne (Zlecenie #${statusInfo.order_ref || statusInfo.dostawa_id})`;
+            title.style.color = '#1e3a8a';
+        }
+        if (subtitle) {
+            subtitle.textContent = 'Magazynier docelowy może na bieżąco odstawiać palety na regały skanerem.';
+            subtitle.style.color = '#1d4ed8';
+        }
+        if (wzBtn) {
+            wzBtn.style.display = 'none';
+        }
+    }
+}
+

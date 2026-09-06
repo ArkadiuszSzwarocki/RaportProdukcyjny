@@ -22,7 +22,12 @@
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' %}active{% endif %}">Przyjęcie dostawy</a>
         {% endif %}
         {% if role_has_access('magazyn.return') %}
-        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' %}active{% endif %}">Przesunięcia Palet</a>
+        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') != 'OSIP' %}active{% endif %}">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">Przesunięcia Palet</span>
+                <span class="nav-draft-badge" data-draft-hall="{{ (effective_hall or 'ALL')|upper }}" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
+            </span>
+        </a>
         {% endif %}
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
@@ -109,7 +114,12 @@
             </span>
         </a>
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-arrow-down mr-1" style="font-size:12px;"></i> Przyjęcie dostawy</a>
-        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-dolly mr-1" style="font-size:12px;"></i> Przesunięcia Palet</a>
+        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text"><i class="fas fa-dolly mr-1" style="font-size:12px;"></i> Przesunięcia Palet</span>
+                <span class="nav-draft-badge" data-draft-hall="OSIP" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
+            </span>
+        </a>
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text"><i class="fas fa-clock mr-1" style="font-size:12px;"></i> Oczekujące Przyjęcia</span>

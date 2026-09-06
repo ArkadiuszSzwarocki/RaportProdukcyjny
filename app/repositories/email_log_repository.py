@@ -4,16 +4,24 @@ EmailLogRepository - Repository for persisting and querying sent email history.
 Provides data access methods without business logic.
 """
 
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 from app.core.database import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 
 class EmailLogRepository:
     """Repository handling email logs persistence in database."""
 
-    @staticmethod
-    def ensure_table() -> None:
+    _ensured: bool = False
+
+    @classmethod
+    def ensure_table(cls) -> None:
         """Ensures the email_logs table exists and is populated with past history."""
+        if cls._ensured:
+            return
+
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -37,24 +45,37 @@ class EmailLogRepository:
             """)
             conn.commit()
 
-            # Synchronizuj wcześniejsze wpisy z auto_report_history
-            cursor.execute("""
-                INSERT INTO email_logs (sender, recipients, subject, source, linia, status, attachments, created_at)
-                SELECT 
-                    'Konto Systemowe' as sender,
-                    h.odbiorcy as recipients,
-                    CONCAT('📊 Raport Produkcyjny ', h.linia, ' — ', h.typ_raportu, ' — ', h.data_raportu) as subject,
-                    CONCAT('Auto-Raport ', h.typ_raportu) as source,
-                    h.linia as linia,
-                    IF(h.status = 'SENT', 'SUCCESS', 'FAILED') as status,
-                    'Raport_PDF_XLS.zip' as attachments,
-                    h.created_at as created_at
-                FROM auto_report_history h
-                LEFT JOIN email_logs e ON e.created_at = h.created_at AND e.linia = h.linia
-                WHERE e.id IS NULL AND h.status = 'SENT'
-            """)
-            conn.commit()
+            # Bezpieczna synchronizacja wcześniejszych wpisów z auto_report_history
+            try:
+                cursor.execute("SHOW COLUMNS FROM auto_report_history LIKE 'status'")
+                has_status_col = bool(cursor.fetchone())
+
+                status_expr = "IF(h.status = 'SENT', 'SUCCESS', 'FAILED')" if has_status_col else "'SUCCESS'"
+                status_where = "AND h.status = 'SENT'" if has_status_col else ""
+
+                cursor.execute(f"""
+                    INSERT INTO email_logs (sender, recipients, subject, source, linia, status, attachments, created_at)
+                    SELECT 
+                        'Konto Systemowe' as sender,
+                        h.odbiorcy as recipients,
+                        CONCAT('📊 Raport Produkcyjny ', h.linia, ' — ', h.typ_raportu, ' — ', h.data_raportu) as subject,
+                        CONCAT('Auto-Raport ', h.typ_raportu) as source,
+                        h.linia as linia,
+                        {status_expr} as status,
+                        'Raport_PDF_XLS.zip' as attachments,
+                        h.created_at as created_at
+                    FROM auto_report_history h
+                    LEFT JOIN email_logs e ON e.created_at = h.created_at AND e.linia = h.linia
+                    WHERE e.id IS NULL {status_where}
+                """)
+                conn.commit()
+            except Exception as sync_err:
+                logger.warning("Pomijanie synchronizacji historii auto-raportów: %s", sync_err)
+
+            cls._ensured = True
             cursor.close()
+        except Exception as e:
+            logger.error("Błąd podczas ensure_table w EmailLogRepository: %s", e)
         finally:
             conn.close()
 

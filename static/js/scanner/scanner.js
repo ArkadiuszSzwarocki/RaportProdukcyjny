@@ -209,6 +209,14 @@ async function doMoveFromMainInput(loc) {
     return;
   }
 
+  const isTransfer = Boolean(currentPallet && (currentPallet.is_transfer || currentPallet.is_magazyn_dostawy || currentPallet.transfer));
+  if (currentPallet && currentPallet.is_blocked && !isTransfer) {
+    showToast('⛔ Ta paleta jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!', 'danger');
+    scanInput.value = '';
+    scanInput.focus();
+    return;
+  }
+
   const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('PSD') || loc.startsWith('MIX') || loc.startsWith('BF_');
   
   if (isProduction) {
@@ -460,11 +468,24 @@ function showPallet(p) {
   
   // Badge typu palety
   const isUsedUp = p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0;
-  const isPending = p.is_transfer || (p.lokalizacja && (p.lokalizacja.toUpperCase().includes('OCZEK') || p.lokalizacja.toUpperCase().includes('TRANZYT')));
+  const isTransferOrder = Boolean(p.is_transfer || p.is_magazyn_dostawy || p.transfer);
+  const isBlocked = Boolean(p.is_blocked) && !isTransferOrder;
+  const isPending = isTransferOrder || (p.lokalizacja && (p.lokalizacja.toUpperCase().includes('OCZEK') || p.lokalizacja.toUpperCase().includes('TRANZYT')));
   const typePill = document.getElementById('palletTypePill');
   if (typePill) {
     const invType = p.inventory_type || 'Surowiec';
-    if (isUsedUp) {
+    if (isTransferOrder) {
+      const trfCode = (p.transfer && p.transfer.transfer_code) || 'ZLECENIE';
+      typePill.textContent = `📦 W ZLECENIU: ${trfCode} (PRZYJĘCIE W LOCIE)`;
+      typePill.className = 'pill';
+      typePill.style.background = '#0284c7';
+      typePill.style.color = '#fff';
+    } else if (isBlocked) {
+      typePill.textContent = '⛔ ZABLOKOWANA (BLOKADA MAGAZYNOWA)';
+      typePill.className = 'pill';
+      typePill.style.background = '#dc2626';
+      typePill.style.color = '#fff';
+    } else if (isUsedUp) {
       typePill.textContent = 'Zużyta / Rozchodowana';
       typePill.className = 'pill';
       typePill.style.background = '#ef4444';
@@ -526,7 +547,27 @@ function showPallet(p) {
   const titleIcon = document.getElementById('scanTitleIcon');
   const iconEl = document.querySelector('.input-icon');
 
-  if (isUsedUp) {
+  if (isTransferOrder) {
+    if (mainTitle) mainTitle.textContent = 'Zeskanuj regał docelowy (przyjęcie w locie)';
+    if (titleIcon) {
+      titleIcon.textContent = 'move_to_inbox';
+      titleIcon.style.color = '#0284c7';
+    }
+    scanInput.placeholder = 'Zeskanuj regał docelowy (np. R040101 lub MP01)...';
+    scanInput.style.borderColor = '#0284c7';
+    scanInput.style.borderWidth = '2px';
+    if (iconEl) iconEl.style.color = '#0284c7';
+  } else if (isBlocked) {
+    if (mainTitle) mainTitle.textContent = '⛔ Paleta zablokowana — nie można przesunąć!';
+    if (titleIcon) {
+      titleIcon.textContent = 'block';
+      titleIcon.style.color = '#dc2626';
+    }
+    scanInput.placeholder = 'Paleta zablokowana ręcznie — zeskanuj inną...';
+    scanInput.style.borderColor = '#dc2626';
+    scanInput.style.borderWidth = '2px';
+    if (iconEl) iconEl.style.color = '#dc2626';
+  } else if (isUsedUp) {
     if (mainTitle) mainTitle.textContent = 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
     if (titleIcon) {
       titleIcon.textContent = 'block';

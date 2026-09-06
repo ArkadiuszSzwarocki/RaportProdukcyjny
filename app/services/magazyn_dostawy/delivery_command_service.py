@@ -152,6 +152,18 @@ class DeliveryCommandService:
                         if not is_trf_valid:
                             return False, trf_err
 
+            # Date validation for items
+            today_date = datetime.now().strftime('%Y-%m-%d')
+            for idx, it in enumerate(items):
+                prod_date = str(it.get('data_produkcji') or '').strip()
+                expiry_date = str(it.get('data_przydatnosci') or '').strip()
+
+                if prod_date and prod_date > today_date:
+                    return False, f"Pozycja {idx + 1}: Data produkcji ({prod_date}) jest późniejsza niż dzisiejsza data ({today_date})."
+
+                if prod_date and expiry_date and expiry_date < prod_date:
+                    return False, f"Pozycja {idx + 1}: Data przydatności ({expiry_date}) jest wcześniejsza niż data produkcji ({prod_date})."
+
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
@@ -346,15 +358,22 @@ class DeliveryCommandService:
                         if not item_list: return
                         for it in item_list:
                             pid = it.get('sourcePalletId')
-                            if not pid: continue
-                            src = str(it.get('source') or it.get('scannedType') or it.get('type') or '').lower()
-                            tbl = table_got if src in ['magazyn', 'produkcja', 'wyrob_gotowy'] else (table_opk if src == 'opakowanie' else (table_sur if src == 'surowiec' else None))
-                            if not tbl and src == 'dodatek': tbl = 'magazyn_dodatki'
-                            if tbl:
-                                try:
-                                    cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
-                                except Exception:
-                                    pass
+                            pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+                            if not pid and not pnr: continue
+                            for l_code in ['PSD', 'AGRO']:
+                                for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                                    if pid:
+                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
+                                        except Exception: pass
+                                    if pnr:
+                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
+                                        except Exception: pass
+                                if pid:
+                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
+                                    except Exception: pass
+                                if pnr:
+                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
+                                    except Exception: pass
 
                     # 1. Zdejmujemy blokadę ze wszystkich starych palet
                     if old_items:
@@ -515,12 +534,21 @@ class DeliveryCommandService:
                                 item['nr_palety'] = p_nr
                             item['accepted'] = False
 
-                            # Block the pallet so it cannot be used elsewhere while pending
-                            tbl_blk = table_got if p_type in ['wyrob_gotowy', 'magazyn', 'produkcja'] else (table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else 'magazyn_dodatki'))
-                            try:
-                                cursor.execute(f"UPDATE {tbl_blk} SET is_blocked = 1 WHERE id = %s", (p_id,))
-                            except Exception:
-                                pass
+                            # Block the pallet so it cannot be moved or used elsewhere while pending in transfer
+                            for l_code in ['PSD', 'AGRO']:
+                                for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                                    if p_id:
+                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (p_id,))
+                                        except Exception: pass
+                                    if p_nr:
+                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
+                                        except Exception: pass
+                                if p_id:
+                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (p_id,))
+                                    except Exception: pass
+                                if p_nr:
+                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
+                                    except Exception: pass
 
                             cursor.execute(
                                 "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
@@ -553,14 +581,6 @@ class DeliveryCommandService:
                           lokalizacja_z, lokalizacja_do))
 
                 conn.commit()
-
-                if final_status == 'COMPLETED':
-                    try:
-                        from app.services.osip_report_email_service import OsipReportEmailService
-                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
-                    except Exception as mail_err:
-                        print(f"[WAREHOUSE_EMAIL] Błąd automatycznej wysyłki e-mail w save_dostawa: {mail_err}")
-
                 return True, dostawa_id
             except Exception as e:
                 return False, str(e)
@@ -603,18 +623,24 @@ class DeliveryCommandService:
                             )
 
                 # Zwalnianie blokad na paletach przy anulowaniu
-                table_got = get_table_name('magazyn_palety', linia)
                 for it in items:
                     pid = it.get('sourcePalletId')
-                    if not pid: continue
-                    src = str(it.get('scannedType') or it.get('type') or '').lower()
-                    tbl = table_got if src in ['magazyn', 'produkcja', 'wyrob_gotowy'] else (table_opk if src == 'opakowanie' else (table_sur if src == 'surowiec' else None))
-                    if not tbl and src == 'dodatek': tbl = 'magazyn_dodatki'
-                    if tbl:
-                        try:
-                            cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (pid,))
-                        except Exception:
-                            pass
+                    pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+                    if not pid and not pnr: continue
+                    for l_code in ['PSD', 'AGRO']:
+                        for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                            if pid:
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (pid,))
+                                except Exception: pass
+                            if pnr:
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE nr_palety = %s", (pnr,))
+                                except Exception: pass
+                        if pid:
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE id = %s", (pid,))
+                            except Exception: pass
+                        if pnr:
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE nr_palety = %s", (pnr,))
+                            except Exception: pass
 
                 # Mark as CANCELLED instead of deleting
                 cursor.execute("UPDATE magazyn_dostawy SET status = 'CANCELLED' WHERE id = %s", (dostawa_id,))
@@ -624,3 +650,370 @@ class DeliveryCommandService:
                 return False, str(e)
             finally:
                 conn.close()
+
+    @staticmethod
+    def lock_draft_pallets(items, linia='AGRO', user_login='system'):
+        """
+        Locks pallets added to a draft transfer list so they cannot be moved or modified elsewhere.
+        Sets is_blocked = 1 across warehouse tables for both lines.
+        """
+        if not items:
+            return True, "No items to lock"
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            for it in items:
+                pid = it.get('sourcePalletId') or it.get('id')
+                pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+                if not pid and not pnr:
+                    continue
+                for l_code in ['PSD', 'AGRO']:
+                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                        if pid:
+                            try:
+                                cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (pid,))
+                            except Exception:
+                                pass
+                        if pnr:
+                            try:
+                                cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                            except Exception:
+                                pass
+                    if pid:
+                        try:
+                            cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (pid,))
+                        except Exception:
+                            pass
+                    if pnr:
+                        try:
+                            cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                        except Exception:
+                            pass
+            conn.commit()
+            return True, "Draft pallets locked successfully"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def unlock_draft_pallets(items, linia='AGRO', user_login='system'):
+        """
+        Unlocks pallets removed from a draft transfer list (provided they are not in an active transfer).
+        Sets is_blocked = 0 across warehouse tables.
+        """
+        if not items:
+            return True, "No items to unlock"
+        from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            for it in items:
+                pid = it.get('sourcePalletId') or it.get('id')
+                pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+                if not pid and not pnr:
+                    continue
+                # Do NOT unlock if pallet is in an active saved transfer
+                in_trf, _ = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pid, nr_palety=pnr)
+                if in_trf:
+                    continue
+                for l_code in ['PSD', 'AGRO']:
+                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                        if pid:
+                            try:
+                                cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (pid,))
+                            except Exception:
+                                pass
+                        if pnr:
+                            try:
+                                cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE nr_palety = %s", (pnr,))
+                            except Exception:
+                                pass
+                    if pid:
+                        try:
+                            cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE id = %s", (pid,))
+                        except Exception:
+                            pass
+                    if pnr:
+                        try:
+                            cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE nr_palety = %s", (pnr,))
+                        except Exception:
+                            pass
+            conn.commit()
+            return True, "Draft pallets unlocked successfully"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def sync_draft_pallets(items, linia='AGRO', user_login='system'):
+        """
+        Synchronizes draft items with current DB state:
+        - Refreshes current location (lokalizacja) and current weight/stock.
+        - Ensures is_blocked = 1 for all items in the draft.
+        - Returns updated items and a list of changes (if any location was updated).
+        """
+        if not items:
+            return True, {"items": [], "changes": []}
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            updated_items = []
+            changes = []
+            for it in items:
+                item_copy = dict(it)
+                pid = it.get('sourcePalletId') or it.get('id')
+                pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+                curr_row = None
+                found_tbl = None
+
+                # Search across warehouse tables
+                for l_code in [linia, 'AGRO' if str(linia).upper() == 'PSD' else 'PSD']:
+                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                        if pnr:
+                            cursor.execute(f"SELECT * FROM {tbl} WHERE nr_palety = %s LIMIT 1", (pnr,))
+                            curr_row = cursor.fetchone()
+                        if not curr_row and pid:
+                            try:
+                                cursor.execute(f"SELECT * FROM {tbl} WHERE id = %s LIMIT 1", (int(pid),))
+                                curr_row = cursor.fetchone()
+                            except (ValueError, TypeError):
+                                pass
+                        if curr_row:
+                            found_tbl = tbl
+                            break
+                    if curr_row:
+                        break
+
+                if curr_row:
+                    old_loc = (item_copy.get('sourceSpot') or item_copy.get('lokalizacja_z') or '').strip().upper()
+                    new_loc = (curr_row.get('lokalizacja') or '').strip().upper()
+                    if new_loc and old_loc != new_loc:
+                        changes.append({
+                            'nr_palety': pnr or str(pid),
+                            'old_location': old_loc,
+                            'new_location': new_loc
+                        })
+                        item_copy['sourceSpot'] = new_loc
+                        item_copy['originalSpot'] = new_loc
+                        item_copy['lokalizacja_z'] = new_loc
+
+                    qty_col = 'waga_netto' if 'magazyn_palety' in (found_tbl or '') else 'stan_magazynowy'
+                    if qty_col in curr_row and curr_row[qty_col] is not None:
+                        item_copy['quantity'] = float(curr_row[qty_col])
+                        item_copy['ilosc'] = float(curr_row[qty_col])
+
+                    # Ensure is_blocked = 1 in database
+                    if found_tbl and curr_row.get('id'):
+                        try:
+                            cursor.execute(f"UPDATE {found_tbl} SET is_blocked = 1 WHERE id = %s", (curr_row['id'],))
+                        except Exception:
+                            pass
+                    if found_tbl and curr_row.get('nr_palety'):
+                        try:
+                            cursor.execute(f"UPDATE {found_tbl} SET is_blocked = 1 WHERE nr_palety = %s", (curr_row['nr_palety'],))
+                        except Exception:
+                            pass
+
+                updated_items.append(item_copy)
+            conn.commit()
+            return True, {"items": updated_items, "changes": changes}
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def init_live_transfer(linia='AGRO', order_ref=None, login='system'):
+        """Initializes a new open live transfer order directly in the database."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            dostawa_id = str(uuid.uuid4())
+            if not order_ref:
+                from app.blueprints.magazyn_dostawy.config import generate_pallet_id
+                now_s = datetime.now().strftime('%Y%m%d%H%M')
+                order_ref = f"WZ-{linia.upper()}-{now_s}"
+            
+            cursor.execute("""
+                INSERT INTO magazyn_dostawy
+                    (id, order_ref, supplier, delivery_date, status, items,
+                     created_by, created_at, requires_lab, linia,
+                     lokalizacja_z, lokalizacja_do)
+                VALUES (%s, %s, %s, %s, 'OCZEKUJE', '[]', %s, NOW(), 0, %s, 'WIELE', '')
+            """, (dostawa_id, order_ref, None, datetime.now(), login, linia.upper()))
+            conn.commit()
+            return True, {"dostawa_id": dostawa_id, "order_ref": order_ref}
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_live_transfer_item(dostawa_id, item, linia='AGRO', login='system'):
+        """Adds a single pallet to an active live transfer order and sets is_blocked=1."""
+        if not dostawa_id or not item:
+            return False, "Missing dostawa_id or item payload"
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, status, items, order_ref FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            dostawa = cursor.fetchone()
+            if not dostawa:
+                return False, f"Transfer order #{dostawa_id} not found"
+
+            raw_items = dostawa.get('items')
+            items = json.loads(raw_items) if isinstance(raw_items, str) else (raw_items or [])
+            if not isinstance(items, list):
+                items = []
+
+            p_nr = item.get('nr_palety') or item.get('sourcePalletNo')
+            p_id = item.get('sourcePalletId') or item.get('id')
+
+            # Check if item is already added to this transfer
+            for it in items:
+                it_nr = it.get('nr_palety') or it.get('sourcePalletNo')
+                it_id = it.get('sourcePalletId') or it.get('id')
+                if (p_nr and it_nr and str(p_nr).strip().upper() == str(it_nr).strip().upper()) or \
+                   (p_id and it_id and str(p_id).strip() == str(it_id).strip()):
+                    # Already added
+                    accepted_count = sum(1 for i in items if i.get('accepted'))
+                    return True, {"total_items": len(items), "accepted_count": accepted_count, "items": items}
+
+            item_to_add = dict(item)
+            item_to_add['id'] = str(len(items))
+            item_to_add['accepted'] = False
+            if p_nr:
+                item_to_add['nr_palety'] = p_nr
+                item_to_add['sourcePalletNo'] = p_nr
+            if p_id:
+                item_to_add['sourcePalletId'] = p_id
+
+            items.append(item_to_add)
+
+            # Block pallet in database so scanner knows it is part of this active transfer
+            for l_code in ['PSD', 'AGRO']:
+                for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                    if p_id:
+                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (p_id,))
+                        except Exception: pass
+                    if p_nr:
+                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
+                        except Exception: pass
+                if p_id:
+                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (p_id,))
+                    except Exception: pass
+                if p_nr:
+                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
+                    except Exception: pass
+
+            cursor.execute("UPDATE magazyn_dostawy SET items = %s, status = 'OCZEKUJE' WHERE id = %s", (json.dumps(items), dostawa_id))
+            conn.commit()
+
+            accepted_count = sum(1 for i in items if i.get('accepted'))
+            return True, {"total_items": len(items), "accepted_count": accepted_count, "items": items}
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def remove_live_transfer_item(dostawa_id, item_id=None, nr_palety=None, linia='AGRO', login='system'):
+        """Removes a pallet from an active live transfer order and unblocks it."""
+        if not dostawa_id:
+            return False, "Missing dostawa_id"
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            dostawa = cursor.fetchone()
+            if not dostawa:
+                return False, f"Transfer order #{dostawa_id} not found"
+
+            raw_items = dostawa.get('items')
+            items = json.loads(raw_items) if isinstance(raw_items, str) else (raw_items or [])
+            if not isinstance(items, list):
+                items = []
+
+            norm_nr = str(nr_palety).strip().upper() if nr_palety else None
+            norm_id = str(item_id).strip() if item_id else None
+
+            remaining_items = []
+            removed_item = None
+            for it in items:
+                it_nr = str(it.get('nr_palety') or it.get('sourcePalletNo') or '').strip().upper()
+                it_id = str(it.get('sourcePalletId') or it.get('id') or '').strip()
+                if (norm_nr and it_nr and norm_nr == it_nr) or (norm_id and it_id and norm_id == it_id):
+                    removed_item = it
+                else:
+                    remaining_items.append(it)
+
+            if removed_item:
+                p_id = removed_item.get('sourcePalletId') or removed_item.get('id')
+                p_nr = removed_item.get('sourcePalletNo') or removed_item.get('nr_palety')
+                for l_code in ['PSD', 'AGRO']:
+                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                        if p_id:
+                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (p_id,))
+                            except Exception: pass
+                        if p_nr:
+                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE nr_palety = %s", (p_nr,))
+                            except Exception: pass
+                    if p_id:
+                        try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE id = %s", (p_id,))
+                        except Exception: pass
+                    if p_nr:
+                        try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE nr_palety = %s", (p_nr,))
+                        except Exception: pass
+
+                cursor.execute("UPDATE magazyn_dostawy SET items = %s WHERE id = %s", (json.dumps(remaining_items), dostawa_id))
+                conn.commit()
+
+            accepted_count = sum(1 for i in remaining_items if i.get('accepted'))
+            return True, {"total_items": len(remaining_items), "accepted_count": accepted_count, "items": remaining_items}
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def close_live_transfer(dostawa_id, login='system'):
+        """Closes an active live transfer order and marks status as COMPLETED."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, items, status FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            dostawa = cursor.fetchone()
+            if not dostawa:
+                return False, f"Transfer order #{dostawa_id} not found"
+
+            raw_items = dostawa.get('items')
+            items = json.loads(raw_items) if isinstance(raw_items, str) else (raw_items or [])
+
+            # Unblock any items
+            for it in items:
+                p_id = it.get('sourcePalletId') or it.get('id')
+                p_nr = it.get('sourcePalletNo') or it.get('nr_palety')
+                for l_code in ['PSD', 'AGRO']:
+                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                        if p_id:
+                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (p_id,))
+                            except Exception: pass
+                        if p_nr:
+                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE nr_palety = %s", (p_nr,))
+                            except Exception: pass
+
+            cursor.execute("""
+                UPDATE magazyn_dostawy
+                SET status = 'COMPLETED', potwierdzone_przez = %s, potwierdzone_at = NOW()
+                WHERE id = %s
+            """, (login, dostawa_id))
+            conn.commit()
+            return True, "Zlecenie zostało pomyślnie zamknięte (status: COMPLETED)"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+

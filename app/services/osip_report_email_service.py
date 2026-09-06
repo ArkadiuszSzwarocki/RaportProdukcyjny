@@ -10,6 +10,7 @@ Zawiera jednoznaczne informacje o tym Kto otworzył i Kto przyjął dokument.
 """
 import smtplib
 import os
+import re
 import json
 import tempfile
 import threading
@@ -31,6 +32,7 @@ class OsipReportEmailService:
     OSIP_LOCATION_KEYWORDS = ('OSIP', 'OS01', 'OS02', 'OS03', 'OS04', 'OS05', 'OS06', 'OS07', 'OS08', 'OS09', 'W_TRANZYCIE_OSIP')
     
     _active_dispatches: Set[str] = set()
+    _sent_daily_dates: Set[str] = set()
     _dispatch_lock: threading.Lock = threading.Lock()
 
     def __init__(self, settings_repo: Optional[OsipEmailSettingsRepository] = None):
@@ -1372,65 +1374,895 @@ class OsipReportEmailService:
             with self._dispatch_lock:
                 self._active_dispatches.discard(dispatch_key)
 
+    def get_daily_warehouse_activity(self, date_str: str) -> Dict[str, Any]:
+        """
+        Pobiera wszystkie zrealizowane w danym dniu dostawy zewnętrzne oraz przesunięcia MM / transfery.
+        Zwraca ustrukturyzowane dane z wyraźnym podziałem na Dostawy oraz Przesunięcia.
+        """
+        conn = get_db_connection()
+        dostawy_rows = []
+        osip_transfers_rows = []
+        osip_items_by_transfer = {}
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # 1. Pobierz dokumenty z magazyn_dostawy
+            cursor.execute("""
+                SELECT * FROM magazyn_dostawy 
+                WHERE status = 'COMPLETED' 
+                  AND (
+                      DATE(potwierdzone_at) = %s 
+                      OR (potwierdzone_at IS NULL AND DATE(created_at) = %s)
+                      OR (potwierdzone_at IS NULL AND delivery_date = %s)
+                  )
+                ORDER BY created_at ASC
+            """, (date_str, date_str, date_str))
+            dostawy_rows = cursor.fetchall() or []
+
+            # 2. Pobierz transfery z osip_transfers
+            try:
+                cursor.execute("""
+                    SELECT * FROM osip_transfers 
+                    WHERE status = 'COMPLETED'
+                      AND (
+                          DATE(completed_at) = %s 
+                          OR (completed_at IS NULL AND DATE(created_at) = %s)
+                      )
+                    ORDER BY created_at ASC
+                """, (date_str, date_str))
+                osip_transfers_rows = cursor.fetchall() or []
+
+                if osip_transfers_rows:
+                    t_ids = [t['id'] for t in osip_transfers_rows]
+                    placeholders = ','.join(['%s'] * len(t_ids))
+                    cursor.execute(f"""
+                        SELECT * FROM osip_transfer_items 
+                        WHERE transfer_id IN ({placeholders})
+                        ORDER BY id ASC
+                    """, tuple(t_ids))
+                    all_it_rows = cursor.fetchall() or []
+                    for it in all_it_rows:
+                        tid = it['transfer_id']
+                        if tid not in osip_items_by_transfer:
+                            osip_items_by_transfer[tid] = []
+                        osip_items_by_transfer[tid].append(it)
+            except Exception:
+                osip_transfers_rows = []
+            finally:
+                cursor.close()
+        finally:
+            conn.close()
+
+        deliveries = []
+        transfers = []
+        deliveries_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        transfers_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        all_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        total_pallets = 0
+        total_qty_by_unit: Dict[str, float] = {}
+
+        # Przetwarzanie magazyn_dostawy
+        for d in dostawy_rows:
+            try:
+                raw_items = json.loads(d.get('items') or '[]')
+            except Exception:
+                raw_items = []
+            
+            cat = self.categorize_delivery_doc(d, raw_items)
+            doc_items = []
+            doc_summary_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+            for idx, it in enumerate(raw_items, start=1):
+                pname_raw = it.get('productName') or 'Brak nazwy'
+                pname = re.sub(r'\s+', ' ', str(pname_raw).strip())
+                nr_pal = it.get('nr_palety') or '-'
+                nr_partii = it.get('nr_partii') or '-'
+                prod_date = it.get('data_produkcji') or '-'
+                exp_date = it.get('data_przydatnosci') or '-'
+                raw_q = it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0
+                try:
+                    qty = float(raw_q)
+                except Exception:
+                    qty = 0.0
+                unit = ('szt' if it.get('packageForm') == 'packaging' else 'kg').strip().lower()
+                source_spot = it.get('sourceSpot') or cat['source_value']
+                target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
+                accepted = bool(it.get('accepted'))
+                status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
+
+                item_obj = {
+                    'lp': idx,
+                    'product_name': pname,
+                    'nr_palety': nr_pal,
+                    'nr_partii': nr_partii,
+                    'data_produkcji': prod_date,
+                    'data_przydatnosci': exp_date,
+                    'quantity': qty,
+                    'unit': unit,
+                    'source_spot': source_spot,
+                    'target_spot': target_spot,
+                    'status': status_txt,
+                    'accepted': accepted
+                }
+                doc_items.append(item_obj)
+
+                # Statystyki dokumentu
+                s_key = (pname.lower(), unit)
+                if s_key not in doc_summary_map:
+                    doc_summary_map[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                doc_summary_map[s_key]['count'] += 1
+                doc_summary_map[s_key]['total_qty'] += qty
+
+                # Statystyki łączne
+                if s_key not in all_products_summary:
+                    all_products_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                all_products_summary[s_key]['count'] += 1
+                all_products_summary[s_key]['total_qty'] += qty
+
+                # Statystyki podzielone na dostawy i przesuniecia
+                target_summary = deliveries_products_summary if cat['is_external'] else transfers_products_summary
+                if s_key not in target_summary:
+                    target_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                target_summary[s_key]['count'] += 1
+                target_summary[s_key]['total_qty'] += qty
+
+                total_qty_by_unit[unit] = total_qty_by_unit.get(unit, 0.0) + qty
+                total_pallets += 1
+
+            doc_entry = {
+                'id': d.get('id'),
+                'order_ref': cat['ref'],
+                'doc_type': 'DOSTAWA' if cat['is_external'] else 'PRZESUNIECIE_MM',
+                'doc_title': cat['doc_title'],
+                'source': cat['source_value'],
+                'destination': cat['dest_value'],
+                'created_by': cat['created_by'],
+                'created_str': cat['created_str'],
+                'accepted_by': cat['accepted_by'],
+                'accepted_str': cat['accepted_str'],
+                'uwagi': d.get('uwagi') or '-',
+                'items': doc_items,
+                'items_count': len(doc_items),
+                'summary': list(doc_summary_map.values())
+            }
+
+            if cat['is_external']:
+                deliveries.append(doc_entry)
+            else:
+                transfers.append(doc_entry)
+
+        # Przetwarzanie osip_transfers
+        for tr in osip_transfers_rows:
+            tr_id = tr.get('id')
+            raw_t_items = osip_items_by_transfer.get(tr_id, [])
+            code = tr.get('transfer_code') or f"TR-{tr_id}"
+            source = tr.get('source_warehouse') or 'Centrala'
+            dest = tr.get('destination_warehouse') or 'OSIP'
+            created_by = tr.get('created_by') or 'System'
+            completed_by = tr.get('completed_by') or tr.get('updated_by') or '-'
+            created_at = tr.get('created_at')
+            completed_at = tr.get('completed_at') or created_at
+            created_str = created_at.strftime('%Y-%m-%d %H:%M') if hasattr(created_at, 'strftime') else str(created_at or '-')
+            completed_str = completed_at.strftime('%Y-%m-%d %H:%M') if hasattr(completed_at, 'strftime') else str(completed_at or '-')
+
+            doc_items = []
+            doc_summary_map = {}
+
+            for idx, it in enumerate(raw_t_items, start=1):
+                pname_raw = it.get('product_name') or 'Brak nazwy'
+                pname = re.sub(r'\s+', ' ', str(pname_raw).strip())
+                nr_pal = it.get('nr_palety') or '-'
+                batch = it.get('batch_number') or '-'
+                raw_q = it.get('loaded_qty') or it.get('requested_qty') or 0.0
+                try:
+                    qty = float(raw_q)
+                except Exception:
+                    qty = 0.0
+                unit = str(it.get('unit') or 'kg').strip().lower()
+                target_spot = it.get('target_location') or dest
+                it_status = it.get('status') or 'RECEIVED'
+
+                item_obj = {
+                    'lp': idx,
+                    'product_name': pname,
+                    'nr_palety': nr_pal,
+                    'nr_partii': batch,
+                    'data_produkcji': '-',
+                    'data_przydatnosci': '-',
+                    'quantity': qty,
+                    'unit': unit,
+                    'source_spot': source,
+                    'target_spot': target_spot,
+                    'status': it_status,
+                    'accepted': it_status == 'RECEIVED'
+                }
+                doc_items.append(item_obj)
+
+                s_key = (pname.lower(), unit)
+                if s_key not in doc_summary_map:
+                    doc_summary_map[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                doc_summary_map[s_key]['count'] += 1
+                doc_summary_map[s_key]['total_qty'] += qty
+
+                if s_key not in all_products_summary:
+                    all_products_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                all_products_summary[s_key]['count'] += 1
+                all_products_summary[s_key]['total_qty'] += qty
+
+                if s_key not in transfers_products_summary:
+                    transfers_products_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                transfers_products_summary[s_key]['count'] += 1
+                transfers_products_summary[s_key]['total_qty'] += qty
+
+                total_qty_by_unit[unit] = total_qty_by_unit.get(unit, 0.0) + qty
+                total_pallets += 1
+
+            transfers.append({
+                'id': tr_id,
+                'order_ref': code,
+                'doc_type': 'TRANSFER_OSIP',
+                'doc_title': f'Transfer Wewnętrzny {source} ➔ {dest}',
+                'source': source,
+                'destination': dest,
+                'created_by': created_by,
+                'created_str': created_str,
+                'accepted_by': completed_by,
+                'accepted_str': completed_str,
+                'uwagi': tr.get('notes') or '-',
+                'items': doc_items,
+                'items_count': len(doc_items),
+                'summary': list(doc_summary_map.values())
+            })
+
+        has_activity = bool(deliveries or transfers)
+
+        return {
+            'date_str': date_str,
+            'deliveries': deliveries,
+            'transfers': transfers,
+            'deliveries_count': len(deliveries),
+            'transfers_count': len(transfers),
+            'total_pallets': total_pallets,
+            'total_qty_by_unit': total_qty_by_unit,
+            'deliveries_products_summary': sorted(deliveries_products_summary.values(), key=lambda x: x['product_name'].lower()),
+            'transfers_products_summary': sorted(transfers_products_summary.values(), key=lambda x: x['product_name'].lower()),
+            'all_products_summary': sorted(all_products_summary.values(), key=lambda x: x['product_name'].lower()),
+            'has_activity': has_activity
+        }
+
+    def build_daily_summary_report_html(self, date_str: str, activity_data: Dict[str, Any]) -> str:
+        """Buduje nowoczesny, czytelny raport HTML z podsumowaniem dnia (Dostawy i Przesunięcia)."""
+        deliveries = activity_data.get('deliveries', [])
+        transfers = activity_data.get('transfers', [])
+        total_pallets = activity_data.get('total_pallets', 0)
+        total_qty_by_unit = activity_data.get('total_qty_by_unit', {})
+        all_products = activity_data.get('all_products_summary', [])
+        deliveries_products = activity_data.get('deliveries_products_summary', [])
+        transfers_products = activity_data.get('transfers_products_summary', [])
+        
+        totals_str_parts = [f"<strong>{qty:,.2f} {unit}</strong>" for unit, qty in sorted(total_qty_by_unit.items())]
+        totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
+
+        def _render_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
+            badge_color = "#1e3a8a" if is_delivery else "#065f46"
+            theme_grad = "linear-gradient(135deg, #1e3a8a, #2563eb)" if is_delivery else "linear-gradient(135deg, #065f46, #059669)"
+            doc_type_icon = "📦" if is_delivery else "🔄"
+            src_label = "Dostawca" if is_delivery else "Skąd"
+            dst_label = "Lokalizacja docelowa" if is_delivery else "Dokąd"
+
+            rows_html = ""
+            for item in doc.get('items', []):
+                status_badge = '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">PRZYJĘTA</span>' if item.get('accepted') else '<span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #b91c1c;">ODRZUCONA</span>'
+                rows_html += f"""
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                    <td style="padding: 8px 10px; text-align: center; color: #64748b; font-weight: 600;">{item.get('lp')}</td>
+                    <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{item.get('product_name')}</td>
+                    <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{item.get('nr_palety')}</td>
+                    <td style="padding: 8px 10px; text-align: center; color: #475569;">{item.get('nr_partii')}</td>
+                    <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #166534;">{item.get('quantity'):,.2f} {item.get('unit')}</td>
+                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #2563eb;">{item.get('target_spot')}</td>
+                    <td style="padding: 8px 10px; text-align: center;">{status_badge}</td>
+                </tr>
+                """
+
+            summary_rows_html = ""
+            for s in doc.get('summary', []):
+                summary_rows_html += f"""
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                    <td style="padding: 6px 10px; font-weight: 700; color: #1e293b;">{s.get('product_name')}</td>
+                    <td style="padding: 6px 10px; text-align: center; font-weight: 800; color: {badge_color};">{s.get('count')} szt.</td>
+                    <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #166534;">{s.get('total_qty'):,.2f} {s.get('unit')}</td>
+                </tr>
+                """
+
+            return f"""
+            <div style="margin-bottom: 24px; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div style="background: {theme_grad}; padding: 14px 18px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.9;">{doc_type_icon} {doc.get('doc_title')}</div>
+                    <div style="font-size: 18px; font-weight: 900; margin-top: 2px;">Dokument: {doc.get('order_ref')}</div>
+                </div>
+                <div style="padding: 12px 18px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 12px; line-height: 1.6;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="width: 50%; vertical-align: top;">
+                                <div><span style="color: #64748b;">{src_label}:</span> <strong>{doc.get('source')}</strong></div>
+                                <div><span style="color: #64748b;">{dst_label}:</span> <strong style="color: {badge_color};">{doc.get('destination')}</strong></div>
+                            </td>
+                            <td style="width: 50%; vertical-align: top;">
+                                <div><span style="color: #64748b;">Wprowadził:</span> <strong>{doc.get('created_by')}</strong> ({doc.get('created_str')})</div>
+                                <div><span style="color: #64748b;">Przyjął:</span> <strong style="color: #166534;">{doc.get('accepted_by')}</strong> ({doc.get('accepted_str')})</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div style="padding: 14px 18px;">
+                    <div style="font-size: 12px; font-weight: 800; color: #0f172a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz pozycji / palet ({doc.get('items_count')} szt.):</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 14px;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase;">
+                                <th style="padding: 8px 10px; text-align: center; width: 30px;">Lp</th>
+                                <th style="padding: 8px 10px; text-align: left;">Produkt</th>
+                                <th style="padding: 8px 10px; text-align: center;">Nr Palety</th>
+                                <th style="padding: 8px 10px; text-align: center;">Partia</th>
+                                <th style="padding: 8px 10px; text-align: right;">Ilość</th>
+                                <th style="padding: 8px 10px; text-align: center;">Lokalizacja</th>
+                                <th style="padding: 8px 10px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+
+                    <div style="font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Podsumowanie pozycji dokumentu:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f8fafc; color: #64748b; font-size: 10px; text-transform: uppercase;">
+                                <th style="padding: 6px 10px; text-align: left;">Produkt</th>
+                                <th style="padding: 6px 10px; text-align: center; width: 100px;">Liczba Palet</th>
+                                <th style="padding: 6px 10px; text-align: right; width: 140px;">Łączna Ilość</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary_rows_html}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            """
+
+        deliveries_blocks = "".join(_render_doc_block(d, is_delivery=True) for d in deliveries) if deliveries else '<div style="padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 13px; margin-bottom: 20px;">Brak dostaw zewnętrznych w tym dniu.</div>'
+        transfers_blocks = "".join(_render_doc_block(t, is_delivery=False) for t in transfers) if transfers else '<div style="padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 13px; margin-bottom: 20px;">Brak przesunięć MM / transferów w tym dniu.</div>'
+
+        def _render_html_products_rows(prod_list: List[Dict[str, Any]], count_color: str) -> str:
+            if not prod_list:
+                return '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #64748b;">Brak pozycji w tym zestawieniu.</td></tr>'
+            rows = ""
+            for idx, p in enumerate(prod_list, start=1):
+                rows += f"""
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                    <td style="padding: 8px 12px; text-align: center; color: #64748b; font-weight: 600; width: 35px;">{idx}</td>
+                    <td style="padding: 8px 12px; font-weight: 700; color: #0f172a;">{p.get('product_name')}</td>
+                    <td style="padding: 8px 12px; text-align: center; font-weight: 800; color: {count_color}; width: 120px;">{p.get('count')} szt.</td>
+                    <td style="padding: 8px 12px; text-align: right; font-weight: 800; color: #166534; width: 150px;">{p.get('total_qty'):,.2f} {p.get('unit')}</td>
+                </tr>
+                """
+            return rows
+
+        deliveries_products_rows = _render_html_products_rows(deliveries_products, "#1e3a8a")
+        transfers_products_rows = _render_html_products_rows(transfers_products, "#065f46")
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+            <div style="max-width: 820px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+                
+                <!-- Hero Header -->
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">Magazyn • Dzienny Raport Zbiorczy</div>
+                    <div style="font-size: 24px; font-weight: 900; margin-top: 6px;">📋 Raport Zbiorczy Dostaw i Przesunięć</div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-top: 6px;">Dzień: <strong>{date_str}</strong> | Wygenerowano: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M')}</strong></div>
+                </div>
+
+                <!-- KPI Banner -->
+                <div style="padding: 18px 24px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                        <tr>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawy WZ</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #1e3a8a; margin-top: 4px;">{len(deliveries)}</div>
+                            </td>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Przesunięcia MM</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #065f46; margin-top: 4px;">{len(transfers)}</div>
+                            </td>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łącznie Palet</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #0284c7; margin-top: 4px;">{total_pallets}</div>
+                            </td>
+                            <td style="width: 25%; padding: 10px;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łączna Ilość</div>
+                                <div style="font-size: 16px; font-weight: 900; color: #166534; margin-top: 6px;">{totals_display}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="padding: 24px;">
+
+                    <!-- SEKCJA 1: DOSTAWY ZEWNĘTRZNE -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #1e3a8a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📦 1. Dostawy Zewnętrzne (WZ) ({len(deliveries)})
+                            </h2>
+                        </div>
+                        {deliveries_blocks}
+                    </div>
+
+                    <!-- SEKCJA 2: PRZESUNIĘCIA MM I TRANSFERY -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #065f46; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #065f46; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                🔄 2. Przesunięcia MM i Transfery Wewnętrzne ({len(transfers)})
+                            </h2>
+                        </div>
+                        {transfers_blocks}
+                    </div>
+
+                    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU Z PODZIAŁEM NA DOSTAWY I PRZESUNIĘCIA -->
+                    <div style="margin-bottom: 16px;">
+                        <div style="margin-bottom: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📊 3. Zbiorcze Podsumowanie Asortymentu z Całego Dnia
+                            </h2>
+                        </div>
+
+                        <!-- 3.1 Dostawy Zewnętrzne -->
+                        <div style="margin-bottom: 20px;">
+                            <div style="font-size: 12px; font-weight: 800; color: #1e3a8a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📦 3.1. Podsumowanie Asortymentu — Dostawy Zewnętrzne (WZ) ({len(deliveries_products)})
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+                                <thead>
+                                    <tr style="background: #eff6ff; color: #1e3a8a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <th style="padding: 8px 12px; text-align: center; width: 35px;">Lp</th>
+                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Surowiec / Opakowanie</th>
+                                        <th style="padding: 8px 12px; text-align: center; width: 120px;">Liczba Palet</th>
+                                        <th style="padding: 8px 12px; text-align: right; width: 150px;">Łączna Ilość</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {deliveries_products_rows}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 3.2 Przesunięcia MM i Transfery Wewnętrzne -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 12px; font-weight: 800; color: #065f46; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                🔄 3.2. Podsumowanie Asortymentu — Przesunięcia MM i Transfery Wewnętrzne ({len(transfers_products)})
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+                                <thead>
+                                    <tr style="background: #f0fdf4; color: #065f46; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <th style="padding: 8px 12px; text-align: center; width: 35px;">Lp</th>
+                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Surowiec / Opakowanie</th>
+                                        <th style="padding: 8px 12px; text-align: center; width: 120px;">Liczba Palet</th>
+                                        <th style="padding: 8px 12px; text-align: right; width: 150px;">Łączna Ilość</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {transfers_products_rows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer -->
+                <div style="background: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+                    Dzienny raport magazynowy wygenerowany automatycznie przez system RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF A4 do druku.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+    def generate_daily_summary_pdf(self, date_str: str, activity_data: Dict[str, Any]) -> Optional[str]:
+        """Generuje plik PDF w układzie do druku A4 z pełnym zestawieniem dostaw i przesunięć z danego dnia."""
+        deliveries = activity_data.get('deliveries', [])
+        transfers = activity_data.get('transfers', [])
+        total_pallets = activity_data.get('total_pallets', 0)
+        total_qty_by_unit = activity_data.get('total_qty_by_unit', {})
+        all_products = activity_data.get('all_products_summary', [])
+        deliveries_products = activity_data.get('deliveries_products_summary', [])
+        transfers_products = activity_data.get('transfers_products_summary', [])
+        gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        totals_str_parts = [f"{qty:,.2f} {unit}" for unit, qty in sorted(total_qty_by_unit.items())]
+        totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
+
+        def _render_pdf_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
+            src_label = "Dostawca" if is_delivery else "Skąd"
+            dst_label = "Lokalizacja docelowa" if is_delivery else "Dokąd"
+            header_bg = "#eff6ff" if is_delivery else "#f0fdf4"
+            header_color = "#1e3a8a" if is_delivery else "#065f46"
+
+            rows_html = ""
+            for item in doc.get('items', []):
+                status_txt = item.get('status', 'PRZYJĘTA')
+                status_color = "#166534" if item.get('accepted') else "#991b1b"
+                rows_html += f"""
+                <tr>
+                    <td style="text-align: center;">{item.get('lp')}</td>
+                    <td><strong>{item.get('product_name')}</strong></td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 700;">{item.get('nr_palety')}</td>
+                    <td style="text-align: center;">{item.get('nr_partii')}</td>
+                    <td style="text-align: center;">{item.get('data_produkcji')}</td>
+                    <td style="text-align: center;">{item.get('data_przydatnosci')}</td>
+                    <td style="text-align: right; font-weight: 700;">{item.get('quantity'):,.2f} {item.get('unit')}</td>
+                    <td style="text-align: center;">{item.get('source_spot')}</td>
+                    <td style="text-align: center; font-weight: 700; color: #1e40af;">{item.get('target_spot')}</td>
+                    <td style="text-align: center; font-weight: 700; color: {status_color};">{status_txt}</td>
+                </tr>
+                """
+
+            return f"""
+            <div class="doc-card">
+                <div class="doc-card-head" style="background: {header_bg}; color: {header_color}; border-bottom: 1.5px solid {header_color};">
+                    <div style="font-size: 13px; font-weight: 900;">{doc.get('doc_title')}: {doc.get('order_ref')}</div>
+                    <div style="font-size: 10px; color: #475569;">
+                        {src_label}: <strong>{doc.get('source')}</strong> ➔ {dst_label}: <strong>{doc.get('destination')}</strong> | 
+                        Wprowadził: <strong>{doc.get('created_by')}</strong> | Przyjął: <strong>{doc.get('accepted_by')}</strong> ({doc.get('accepted_str')})
+                    </div>
+                </div>
+                <div class="doc-card-body">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25px; text-align: center;">Lp</th>
+                                <th style="text-align: left;">Produkt</th>
+                                <th style="width: 80px; text-align: center;">Nr Palety</th>
+                                <th style="width: 75px; text-align: center;">Partia</th>
+                                <th style="width: 65px; text-align: center;">Data Prod.</th>
+                                <th style="width: 65px; text-align: center;">Data Ważn.</th>
+                                <th style="width: 75px; text-align: right;">Ilość</th>
+                                <th style="width: 65px; text-align: center;">Skąd</th>
+                                <th style="width: 70px; text-align: center;">Dokąd</th>
+                                <th style="width: 65px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            """
+
+        deliv_blocks = "".join(_render_pdf_doc_block(d, is_delivery=True) for d in deliveries) if deliveries else '<p style="color: #64748b; font-style: italic; margin-bottom: 12px;">Brak dostaw zewnętrznych w tym dniu.</p>'
+        transf_blocks = "".join(_render_pdf_doc_block(t, is_delivery=False) for t in transfers) if transfers else '<p style="color: #64748b; font-style: italic; margin-bottom: 12px;">Brak przesunięć wewnętrznych w tym dniu.</p>'
+
+        def _render_pdf_products_rows(prod_list: List[Dict[str, Any]], count_color: str) -> str:
+            if not prod_list:
+                return '<tr><td colspan="4" style="text-align: center; color: #64748b; font-style: italic; padding: 6px;">Brak pozycji w tym zestawieniu.</td></tr>'
+            rows = ""
+            for idx, p in enumerate(prod_list, start=1):
+                rows += f"""
+                <tr>
+                    <td style="text-align: center; width: 30px;">{idx}</td>
+                    <td><strong>{p.get('product_name')}</strong></td>
+                    <td style="text-align: center; font-weight: 700; color: {count_color}; width: 100px;">{p.get('count')} szt.</td>
+                    <td style="text-align: right; font-weight: 800; color: #166534; width: 140px;">{p.get('total_qty'):,.2f} {p.get('unit')}</td>
+                </tr>
+                """
+            return rows
+
+        pdf_deliveries_products_rows = _render_pdf_products_rows(deliveries_products, "#1e3a8a")
+        pdf_transfers_products_rows = _render_pdf_products_rows(transfers_products, "#065f46")
+
+        html_content = f"""<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <title>Zbiorczy Raport Magazynowy - {date_str}</title>
+    <style>
+        @page {{
+            size: A4 portrait;
+            margin: 10mm 10mm 12mm 10mm;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+            font-size: 10px;
+            line-height: 1.25;
+        }}
+        .header-box {{
+            border: 2px solid #0f172a;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            background: #f8fafc;
+        }}
+        .doc-title {{
+            font-size: 16px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 4px 0;
+            color: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .doc-meta {{
+            font-size: 10px;
+            color: #475569;
+        }}
+        .kpi-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #cbd5e1;
+            text-align: center;
+        }}
+        .kpi-item {{
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 6px;
+        }}
+        .kpi-label {{
+            font-size: 8px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+        }}
+        .kpi-val {{
+            font-size: 13px;
+            font-weight: 900;
+            color: #0f172a;
+            margin-top: 2px;
+        }}
+        .section-title {{
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 14px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1.5px solid #0f172a;
+        }}
+        .doc-card {{
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            page-break-inside: avoid;
+        }}
+        .doc-card-head {{
+            padding: 6px 10px;
+        }}
+        .doc-card-body {{
+            padding: 6px 10px;
+        }}
+        table.report-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+            margin-top: 4px;
+        }}
+        table.report-table th, table.report-table td {{
+            border: 1px solid #cbd5e1;
+            padding: 4px 6px;
+        }}
+        table.report-table th {{
+            background: #f1f5f9;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 8px;
+            color: #475569;
+        }}
+        .footer-note {{
+            margin-top: 14px;
+            font-size: 8px;
+            color: #64748b;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 6px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header-box">
+        <div class="doc-title">
+            <span>DZIENNY RAPORT ZBIORCZY: DOSTAWY I PRZESUNIĘCIA</span>
+            <span style="font-size: 12px; color: #2563eb;">{date_str}</span>
+        </div>
+        <div class="doc-meta">
+            Raport wygenerowano: <strong>{gen_now}</strong> | System RaportProdukcyjny (Moduł Magazynowy)
+        </div>
+        <div class="kpi-grid">
+            <div class="kpi-item">
+                <div class="kpi-label">Dostawy WZ</div>
+                <div class="kpi-val" style="color: #1e3a8a;">{len(deliveries)}</div>
+            </div>
+            <div class="kpi-item">
+                <div class="kpi-label">Przesunięcia MM</div>
+                <div class="kpi-val" style="color: #065f46;">{len(transfers)}</div>
+            </div>
+            <div class="kpi-item">
+                <div class="kpi-label">Łącznie Palet</div>
+                <div class="kpi-val" style="color: #0284c7;">{total_pallets}</div>
+            </div>
+            <div class="kpi-item">
+                <div class="kpi-label">Łączna Waga / Ilość</div>
+                <div class="kpi-val" style="color: #166534; font-size: 11px;">{totals_display}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
+        1. DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries)}]
+    </div>
+    {deliv_blocks}
+
+    <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
+        2. PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers)}]
+    </div>
+    {transf_blocks}
+
+    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
+        3.1. ZBIORCZE PODSUMOWANIE ASORTYMENTU: DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries_products)}]
+    </div>
+    <table class="report-table" style="margin-bottom: 12px; page-break-inside: avoid;">
+        <thead>
+            <tr>
+                <th style="width: 30px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Produkt / Surowiec / Opakowanie</th>
+                <th style="width: 100px; text-align: center;">Liczba Palet</th>
+                <th style="width: 140px; text-align: right;">Łączna Ilość</th>
+            </tr>
+        </thead>
+        <tbody>
+            {pdf_deliveries_products_rows}
+        </tbody>
+    </table>
+
+    <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
+        3.2. ZBIORCZE PODSUMOWANIE ASORTYMENTU: PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers_products)}]
+    </div>
+    <table class="report-table" style="margin-bottom: 12px; page-break-inside: avoid;">
+        <thead>
+            <tr>
+                <th style="width: 30px; text-align: center;">Lp</th>
+                <th style="text-align: left;">Produkt / Surowiec / Opakowanie</th>
+                <th style="width: 100px; text-align: center;">Liczba Palet</th>
+                <th style="width: 140px; text-align: right;">Łączna Ilość</th>
+            </tr>
+        </thead>
+        <tbody>
+            {pdf_transfers_products_rows}
+        </tbody>
+    </table>
+
+    <div class="footer-note">
+        Dokument wygenerowany automatycznie z bazy danych systemu RaportProdukcyjny. Zawiera zestawienie wszystkich zatwierdzonych operacji przyjęć z dnia {date_str}.
+    </div>
+</body>
+</html>
+        """
+        return self._render_html_to_temp_pdf(html_content, prefix=f"raport_dzienny_{date_str}_")
+
+    def send_daily_warehouse_summary_report(self, date_str: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
+        """
+        Wysyła dzienny zbiorczy raport z dostaw i przesunięć z danego dnia na listę odbiorców.
+        Jeśli w danym dniu nie było dostaw ani przesunięć i nie wymuszono wysyłki (force=False), raport nie jest wysyłany.
+        """
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+
+        dispatch_key = f"daily_summary_{date_str}"
+        with self._dispatch_lock:
+            if not force and date_str in self._sent_daily_dates:
+                return False, f"Zbiorczy raport dzienny dla {date_str} został już wysłany w tej sesji aplikacji."
+            if dispatch_key in self._active_dispatches:
+                return False, f"Wysyłka raportu dziennego dla {date_str} jest już w toku."
+            self._active_dispatches.add(dispatch_key)
+
+        try:
+            config = self.settings_repo.get_settings()
+            if not config.is_active:
+                return False, "Moduł wysyłki e-mail jest wyłączony w ustawieniach."
+
+            if not config.is_configured:
+                return False, "Dedykowane konto e-mail nadawcy nie zostało jeszcze skonfigurowane."
+
+            recipients = config.recipients_list
+            if not recipients:
+                return False, "Brak zdefiniowanych adresów e-mail odbiorców w Ustawieniach E-mail."
+
+            activity_data = self.get_daily_warehouse_activity(date_str)
+            if not activity_data['has_activity'] and not force:
+                return False, f"Brak zarejestrowanych dostaw i przesunięć w dniu {date_str} - raport nie został wysłany."
+
+            subject = f"📋 Raport Dzienny Dostaw i Przesunięć: {date_str} (Dostawy: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
+            body_html = self.build_daily_summary_report_html(date_str, activity_data)
+
+            pdf_path = None
+            try:
+                pdf_path = self.generate_daily_summary_pdf(date_str, activity_data)
+                attachments = [pdf_path] if (pdf_path and os.path.exists(pdf_path)) else None
+                ok, msg = self._send_raw_email(config, recipients, subject, body_html, attachments=attachments)
+                if ok:
+                    with self._dispatch_lock:
+                        self._sent_daily_dates.add(date_str)
+                    try:
+                        self.settings_repo.update_last_daily_report_date(date_str)
+                    except Exception as db_err:
+                        print(f"[DAILY_REPORT_EMAIL] Ostrzeżenie zapisu last_daily_report_date w bazie: {db_err}")
+                    return True, f"Zbiorczy raport dzienny za dzień {date_str} wysłany pomyślnie na adresy: {', '.join(recipients)}."
+                return ok, msg
+            finally:
+                if pdf_path and os.path.exists(pdf_path):
+                    try:
+                        os.remove(pdf_path)
+                    except Exception:
+                        pass
+        finally:
+            with self._dispatch_lock:
+                self._active_dispatches.discard(dispatch_key)
+
+    @classmethod
+    def trigger_async_daily_warehouse_report(cls, date_str: Optional[str] = None, force: bool = False) -> None:
+        """Uruchamia w osobnym wątku wysyłkę dziennego raportu zbiorczego."""
+        def _worker():
+            try:
+                service = cls()
+                ok, msg = service.send_daily_warehouse_summary_report(date_str=date_str, force=force)
+                if ok:
+                    print(f"[DAILY_REPORT_EMAIL] Sukces wysyłki raportu dziennego ({date_str}): {msg}")
+                else:
+                    print(f"[DAILY_REPORT_EMAIL] Informacja o raporcie dziennym ({date_str}): {msg}")
+            except Exception as ex:
+                print(f"[DAILY_REPORT_EMAIL] Błąd krytyczny wysyłki raportu dziennego: {ex}")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
     @classmethod
     def trigger_async_delivery_report(cls, dostawa_id: Any) -> None:
-        """Uruchamia asynchroniczną wysyłkę e-mail po przyjęciu dostawy lub przesunięcia MM."""
+        """Kompatybilność wsteczna: uruchamia ręczną/wymuszoną wysyłkę e-mail po przyjęciu dostawy."""
         if not dostawa_id:
             return
-        try:
-            from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
-            cfg = OsipEmailSettingsRepository().get_settings()
-            if not (cfg.is_active and cfg.auto_send_on_dispatch):
-                return
+        def _worker():
+            try:
+                service = cls()
+                ok, msg = service.send_central_delivery_osip_report(dostawa_id)
+                print(f"[WAREHOUSE_EMAIL] Wynik wysyłki dla dostawy {dostawa_id}: {msg}")
+            except Exception as ex:
+                print(f"[WAREHOUSE_EMAIL] Błąd wysyłki dla dostawy {dostawa_id}: {ex}")
 
-            # Wczesne sprawdzenie czy wysyłka nie jest już w toku lub już zrealizowana
-            dispatch_key = f"delivery_{dostawa_id}"
-            with cls._dispatch_lock:
-                if dispatch_key in cls._active_dispatches:
-                    return
-
-            def _worker():
-                try:
-                    service = cls()
-                    ok, msg = service.send_central_delivery_osip_report(dostawa_id)
-                    if ok:
-                        print(f"[WAREHOUSE_EMAIL] Sukces wysyłki e-mail dla dostawy {dostawa_id}: {msg}")
-                    else:
-                        print(f"[WAREHOUSE_EMAIL] Informacja dla dostawy {dostawa_id}: {msg}")
-                except Exception as ex:
-                    print(f"[WAREHOUSE_EMAIL] Błąd krytyczny wysyłki e-mail dla dostawy {dostawa_id}: {ex}")
-
-            threading.Thread(target=_worker, daemon=True).start()
-        except Exception as e:
-            print(f"[WAREHOUSE_EMAIL] Błąd inicjalizacji wątku e-mail dla dostawy {dostawa_id}: {e}")
+        threading.Thread(target=_worker, daemon=True).start()
 
     @classmethod
     def trigger_async_transfer_report(cls, transfer_id: Any) -> None:
-        """Uruchamia asynchroniczną wysyłkę e-mail po przyjęciu transferu OSIP."""
+        """Kompatybilność wsteczna: uruchamia ręczną/wymuszoną wysyłkę e-mail po przyjęciu transferu OSIP."""
         if not transfer_id:
             return
-        try:
-            from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
-            cfg = OsipEmailSettingsRepository().get_settings()
-            if not (cfg.is_active and cfg.auto_send_on_dispatch):
-                return
+        def _worker():
+            try:
+                service = cls()
+                ok, msg = service.send_osip_transfer_report(transfer_id)
+                print(f"[OSIP_EMAIL] Wynik wysyłki dla transferu {transfer_id}: {msg}")
+            except Exception as ex:
+                print(f"[OSIP_EMAIL] Błąd wysyłki dla transferu {transfer_id}: {ex}")
 
-            dispatch_key = f"transfer_{transfer_id}"
-            with cls._dispatch_lock:
-                if dispatch_key in cls._active_dispatches:
-                    return
+        threading.Thread(target=_worker, daemon=True).start()
 
-            def _worker():
-                try:
-                    service = cls()
-                    ok, msg = service.send_osip_transfer_report(transfer_id)
-                    if ok:
-                        print(f"[OSIP_EMAIL] Sukces wysyłki e-mail dla transferu {transfer_id}: {msg}")
-                    else:
-                        print(f"[OSIP_EMAIL] Informacja dla transferu {transfer_id}: {msg}")
-                except Exception as ex:
-                    print(f"[OSIP_EMAIL] Błąd krytyczny wysyłki e-mail dla transferu {transfer_id}: {ex}")
-
-            threading.Thread(target=_worker, daemon=True).start()
-        except Exception as e:
-            print(f"[OSIP_EMAIL] Błąd inicjalizacji wątku e-mail dla transferu {transfer_id}: {e}")

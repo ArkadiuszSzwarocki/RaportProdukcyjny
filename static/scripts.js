@@ -357,6 +357,8 @@
 
         // Wyłącz auto-refresh na stronach z formularzami (data-no-autorefresh)
         try {
+            if (document.querySelector('[data-no-autorefresh]')) return true;
+            if (document.querySelector('#receptionForm')) return true;
             const main = document.getElementById('mainContent');
             if (main && main.querySelector('[data-no-autorefresh]')) return true;
         } catch (e) {}

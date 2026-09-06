@@ -258,7 +258,7 @@
                 E-mail dla Raportów Dostaw i Przesunięć
             </h1>
             <p class="hero-subtitle">
-                Zdefiniuj dedykowane konto pocztowe nadawcy oraz listę odbiorców. Raporty są wysyłane automatycznie <strong>po przyjęciu każdego zarejestrowanego przesunięcia lub dostawy</strong>.
+                Zdefiniuj dedykowane konto pocztowe nadawcy oraz listę odbiorców. System sprawdza dostawy i przesunięcia z całego dnia i <strong>o wyznaczonej godzinie (lub na żądanie przyciskiem) wysyła zbiorczy raport dzienny</strong> z załącznikiem PDF.
             </p>
         </div>
         <div>
@@ -272,7 +272,7 @@
     <div class="notice-box notice-info">
         <i class="fas fa-info-circle fa-lg" style="margin-top: 2px;"></i>
         <div>
-            <strong>Dedykowana skrzynka pocztowa:</strong> Ta konfiguracja używa wyłącznie podanego poniżej konta SMTP. Poczta systemowa nie jest wykorzystywana do wysyłki raportów dostaw i przesunięć magazynowych.
+            <strong>Zbiorczy Raport Dzienny:</strong> System zbiera wszystkie zakończone w danym dniu dostawy zewnętrzne oraz przesunięcia magazynowe, generuje kompletny raport w formacie HTML + dokument A4 PDF i wysyła do zdefiniowanych odbiorców.
         </div>
     </div>
 
@@ -354,37 +354,64 @@
             </div>
         </div>
 
-        <!-- Karta 2: Odbiorcy Raportów -->
+        <!-- Karta 2: Harmonogram i Odbiorcy Raportu Dziennego -->
         <div class="app-card">
             <div class="app-card-header">
                 <h2 class="app-card-title">
-                    <i class="fas fa-users" style="color: #10b981;"></i>
-                    Lista Odbiorców Raportów Magazynowych
+                    <i class="fas fa-calendar-check" style="color: #10b981;"></i>
+                    Harmonogram i Odbiorcy Zbiorczego Raportu Dziennego
                 </h2>
                 <div class="form-check form-switch" style="display: flex; align-items: center; gap: 8px;">
-                    <input class="form-check-input" type="checkbox" id="auto_send_on_dispatch" name="auto_send_on_dispatch" {% if settings.auto_send_on_dispatch %}checked{% endif %}>
-                    <label class="form-check-label form-label" for="auto_send_on_dispatch" style="margin: 0;">Automatyczna wysyłka po przyjęciu</label>
+                    <input class="form-check-input" type="checkbox" id="daily_report_enabled" name="daily_report_enabled" {% if settings.daily_report_enabled %}checked{% endif %}>
+                    <label class="form-check-label form-label" for="daily_report_enabled" style="margin: 0;">Automatyczny raport dzienny aktywny</label>
                 </div>
             </div>
             <div class="app-card-body">
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="daily_report_time">Godzina wysyłki raportu dziennego (HH:MM) *</label>
+                        <input type="time" class="form-input" id="daily_report_time" name="daily_report_time" value="{{ settings.daily_report_time or '15:00' }}" required>
+                        <span class="form-help">Godzina, o której demon sprawdza czy w danym dniu były dostawy/przesunięcia i wysyła raport zbiorczy.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Data ostatniej automatycznej wysyłki:</label>
+                        <div style="padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; font-weight: 700; color: #1e293b;">
+                            {{ settings.last_daily_report_date or 'Brak zarejestrowanej wysyłki' }}
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label class="form-label" for="odbiorcy">Adresy e-mail odbiorców (rozdzielone przecinkami lub nową linią) *</label>
                     <textarea class="form-textarea" id="odbiorcy" name="odbiorcy" rows="4" placeholder="magazyn@firma.pl, logistyka@firma.pl, kierownik@firma.pl">{{ settings.odbiorcy }}</textarea>
-                    <span class="form-help">Wprowadź adresy osób, które mają otrzymywać zestawienie przyjętego towaru dla każdego zarejestrowanego przesunięcia lub dostawy.</span>
+                    <span class="form-help">Wprowadź adresy osób, które mają otrzymywać zbiorcze zestawienie dostaw i przesunięć z danego dnia.</span>
+                </div>
+
+                <div class="form-group" style="display: none;">
+                    <input class="form-check-input" type="checkbox" id="auto_send_on_dispatch" name="auto_send_on_dispatch" {% if settings.auto_send_on_dispatch %}checked{% endif %}>
                 </div>
 
                 <div class="notice-box notice-warning" style="margin-top: 18px;">
                     <i class="fas fa-shield-alt fa-lg" style="margin-top: 2px;"></i>
                     <div>
-                        <strong>Reguła powiadomień:</strong> System wysyła raport natychmiast po przyjęciu towaru (zatwierdzeniu kompletu pozycji do statusu <em>COMPLETED</em>).
+                        <strong>Zasada działania:</strong> Jeśli w danym dniu nie zarejestrowano żadnych dostaw ani przesunięć, system nie wysyła pustej wiadomości. Raport zawiera pełne dane wydruku podzielone na sekcje <em>Dostawy</em> oraz <em>Przesunięcia MM</em> wraz z załącznikiem PDF.
                     </div>
                 </div>
 
-                <div class="btn-actions">
+                <div class="btn-actions" style="justify-content: space-between; align-items: center;">
                     <button type="submit" class="btn-primary-custom" id="btnSaveSettings">
                         <i class="fas fa-save"></i> Zapisz konfigurację E-mail
                     </button>
+
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="date" class="form-input" id="manual_report_date" style="width: 160px; padding: 10px;" value="">
+                        <button type="button" class="btn-secondary-custom" id="btnSendDailyNow" onclick="sendDailyReportNow()" style="background: #0f172a; color: #ffffff; border-color: #0f172a;">
+                            <i class="fas fa-paper-plane"></i> Wyślij raport zbiorczy teraz
+                        </button>
+                    </div>
                 </div>
+                <div id="manualSendResultBox" class="test-result-box" style="margin-top: 16px;"></div>
             </div>
         </div>
     </form>
@@ -398,6 +425,14 @@ const PRESETS = {
     o2: { server: 'poczta.o2.pl', port: 465, security: 'SSL' },
     office365: { server: 'smtp.office365.com', port: 587, security: 'TLS' }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('manual_report_date');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = todayStr;
+    }
+});
 
 function applyPreset(name) {
     const p = PRESETS[name];
@@ -417,6 +452,8 @@ function getFormData() {
         sender_name: document.getElementById('sender_name').value.trim(),
         odbiorcy: document.getElementById('odbiorcy').value.trim(),
         is_active: document.getElementById('is_active').checked,
+        daily_report_enabled: document.getElementById('daily_report_enabled').checked,
+        daily_report_time: document.getElementById('daily_report_time').value.trim() || '15:00',
         auto_send_on_dispatch: document.getElementById('auto_send_on_dispatch').checked
     };
 }
@@ -504,6 +541,51 @@ async function saveEmailSettings(event) {
         }
     } catch (e) {
         alert('Błąd sieci podczas zapisu: ' + e.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function sendDailyReportNow() {
+    const btn = document.getElementById('btnSendDailyNow');
+    const resultBox = document.getElementById('manualSendResultBox');
+    const dateInput = document.getElementById('manual_report_date');
+    const targetDate = dateInput ? dateInput.value : '';
+
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generowanie i wysyłka raportu...';
+    btn.disabled = true;
+    resultBox.style.display = 'none';
+
+    try {
+        const resp = await fetch('/admin/api/ustawienia-email-magazyn/send-daily', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: targetDate, force: true })
+        });
+        const res = await resp.json();
+
+        resultBox.style.display = 'block';
+        if (res.success) {
+            resultBox.style.background = '#f0fdf4';
+            resultBox.style.color = '#166534';
+            resultBox.style.border = '1px solid #bbf7d0';
+            resultBox.innerHTML = '<i class="fas fa-check-circle mr-2"></i> ' + res.message;
+            if (typeof showToast === 'function') showToast(res.message, 'success');
+        } else {
+            resultBox.style.background = '#fef2f2';
+            resultBox.style.color = '#991b1b';
+            resultBox.style.border = '1px solid #fecaca';
+            resultBox.innerHTML = '<i class="fas fa-times-circle mr-2"></i> ' + res.message;
+            if (typeof showToast === 'function') showToast(res.message, 'error');
+        }
+    } catch (e) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fef2f2';
+        resultBox.style.color = '#991b1b';
+        resultBox.style.border = '1px solid #fecaca';
+        resultBox.innerHTML = '<i class="fas fa-times-circle mr-2"></i> Błąd sieci: ' + e.message;
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;

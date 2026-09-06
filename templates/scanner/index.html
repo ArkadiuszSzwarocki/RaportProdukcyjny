@@ -98,15 +98,15 @@
     <!-- Przyciski akcji pod spodem okna -->
     <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
       <!-- Pomarańczowy przycisk zatwierdzenia -->
-      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()" title="Zatwierdź / Szukaj"
-              style="width: 100%; padding: 13px 16px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; background: #d35400 !important; color: #ffffff !important; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(211, 84, 0, 0.25);">
-        <span class="material-icons">qr_code_scanner</span>
+      <button type="button" id="scan-btn" onclick="triggerScan()" title="Zatwierdź / Szukaj"
+              style="width: 100%; box-sizing: border-box; min-height: 48px; padding: 13px 16px; background: linear-gradient(135deg, #ea580c, #c2410c); color: #ffffff !important; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.28); text-align: center;">
+        <span class="material-icons" style="font-size: 22px;">qr_code_scanner</span>
         <span>Zatwierdź kod</span>
       </button>
 
       <!-- Niebieski przycisk skanera na żywo -->
       <button type="button" id="camera-scan-btn" onclick="openHighBayCameraScanner()" 
-              style="width: 100%; box-sizing: border-box; padding: 13px 16px; background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #ffffff; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); text-align: center;">
+              style="width: 100%; box-sizing: border-box; min-height: 48px; padding: 13px 16px; background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #ffffff !important; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); text-align: center;">
         <span class="material-icons" style="font-size: 22px;">photo_camera</span>
         <span>Skaner na żywo w telefonie (Zoom 7m)</span>
       </button>
@@ -390,7 +390,7 @@
     const LINIA = '{{ linia }}';
 </script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260903_0841"></script>
+<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260905_1105"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260903_0841"></script>
 {% endblock %}
 

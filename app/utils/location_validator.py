@@ -16,19 +16,20 @@ PRODUCTION_TANK_PATTERNS = [
     r'^WZ\d{2}$',      # WZ04 (new production tank)
     r'^PSD\d*$',       # PSD, PSD01, PSD02
     r'^MIX\d*$',       # MIX, MIX01
-    r'^BF_\w*$',       # BF_...
 ]
 
 def is_production_tank_code(location_code):
     """
     Sprawdza czy podany kod to kod zbiornika produkcyjnego.
+    Lokalizacje buforowe i magazynowe (BF_MS01, BF_MP01, BFOS itp.) ZAWSZE zwracają False,
+    ponieważ są lokalizacjami magazynowymi, a NIE produkcyjnymi.
     
     Args:
         location_code: Kod lokalizacji do sprawdzenia
         
     Returns:
-        True jeśli to kod zbiornika produkcyjnego (BB*, MZ*, KO*)
-        False w przeciwnym wypadku
+        True jeśli to kod zbiornika produkcyjnego (BB*, MZ*, KO*, CZ*, WZ*)
+        False w przeciwnym wypadku (w tym dla BF_MS01, BF_MP01 itp.)
     """
     if not location_code:
         return False
@@ -36,11 +37,31 @@ def is_production_tank_code(location_code):
     normalized = str(location_code).strip().upper()
     if not normalized:
         return False
+
+    clean_norm = normalized.replace('_', '').replace('-', '').replace(' ', '')
+    # Bufory magazynowe (BF_MS01, BF_MP01, BFOS, BF_*) to lokalizacje magazynowe, NIE produkcyjne
+    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MDO01', 'MGW01', 'MGW02', 'RAMPA', 'R0')):
+        return False
         
     for pattern in PRODUCTION_TANK_PATTERNS:
         if re.match(pattern, normalized):
             return True
     return False
+
+
+def is_warehouse_location(location_code):
+    """
+    Sprawdza czy kod jest lokalizacją magazynową (regały, podłogi magazynowe, bufory BF_MS01, BF_MP01 itp.).
+    """
+    if not location_code:
+        return False
+    normalized = str(location_code).strip().upper()
+    if not normalized:
+        return False
+    clean_norm = normalized.replace('_', '').replace('-', '').replace(' ', '')
+    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'KO', 'R0')):
+        return True
+    return not is_production_tank_code(normalized)
 
 
 def validate_warehouse_location(location_code, allow_empty=True):
@@ -91,19 +112,38 @@ def validate_warehouse_location(location_code, allow_empty=True):
 
 def normalize_warehouse_location(location_code):
     """
-    Normalizuje kod lokalizacji magazynowej (uppercase, trim).
+    Normalizes warehouse location code (uppercase, trim) and auto-corrects common
+    character typos such as the letter 'O' instead of digit '0' in standard warehouse
+    zone and rack codes (e.g. MSO1 -> MS01, MPO1 -> MP01, RO01 -> R001).
     
     Args:
-        location_code: Kod lokalizacji do znormalizowania
+        location_code: Location code string to normalize
         
     Returns:
-        Znormalizowany kod lub None jeśli pusta wartość
+        Normalized location code or None if empty
     """
     if not location_code:
         return None
     
     normalized = str(location_code).strip().upper()
-    return normalized if normalized else None
+    if not normalized:
+        return None
+
+    # Auto-correct common letter 'O' instead of digit '0' in standard prefixes
+    for prefix in ('MS', 'MP', 'MD', 'MGW', 'MOP', 'MDM', 'MDO', 'MIX', 'PSD', 'KO'):
+        if normalized.startswith(f"{prefix}O") and len(normalized) > len(prefix) + 1 and normalized[len(prefix)+1].isdigit():
+            normalized = f"{prefix}0{normalized[len(prefix)+1:]}"
+        elif normalized == f"{prefix}O1":
+            normalized = f"{prefix}01"
+
+    if normalized.startswith(('BF_MSO', 'BFMSO')):
+        normalized = normalized.replace('MSO', 'MS0')
+    if normalized.startswith(('BF_MPO', 'BFMPO')):
+        normalized = normalized.replace('MPO', 'MP0')
+    if re.match(r'^RO\d+', normalized):
+        normalized = 'R0' + normalized[2:]
+
+    return normalized
 
 def is_rack_location(location_code):
     """

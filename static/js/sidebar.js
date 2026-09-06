@@ -356,8 +356,70 @@
                         }
                     }
                 });
+                updateSidebarDraftBadges();
             })
             .catch(err => console.error('[sidebar] Failed to refresh badges:', err));
     };
+
+    function updateSidebarDraftBadges() {
+        const draftsByHall = {};
+        try {
+            for (let i = 0; i < window.localStorage.length; i++) {
+                const k = window.localStorage.key(i);
+                if (k && k.startsWith('magazyn_dostawy_draft_')) {
+                    const match = k.match(/^magazyn_dostawy_draft_([^_]+)_/);
+                    const draftHall = match ? match[1].toUpperCase() : 'ALL';
+                    const raw = window.localStorage.getItem(k);
+                    if (raw) {
+                        const draft = JSON.parse(raw);
+                        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+                            const validItems = draft.items.filter(it => Boolean(it && (it.nr_palety || it.sourcePalletNo || it.productName || parseFloat(it.quantity) > 0)));
+                            if (validItems.length > 0) {
+                                draftsByHall[draftHall] = (draftsByHall[draftHall] || 0) + validItems.length;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // silent
+        }
+
+        const draftBadges = document.querySelectorAll('.nav-draft-badge');
+        draftBadges.forEach(badge => {
+            const badgeHall = (badge.getAttribute('data-draft-hall') || 'ALL').toUpperCase();
+            let countForBadge = 0;
+
+            if (badgeHall === 'OSIP') {
+                countForBadge = draftsByHall['OSIP'] || 0;
+            } else if (badgeHall === 'ALL') {
+                Object.keys(draftsByHall).forEach(h => {
+                    if (h !== 'OSIP') {
+                        countForBadge += draftsByHall[h];
+                    }
+                });
+            } else {
+                countForBadge = (draftsByHall[badgeHall] || 0) + (draftsByHall['ALL'] || 0);
+            }
+
+            if (countForBadge > 0) {
+                badge.style.display = 'inline-flex';
+                badge.textContent = `SZKIC (${countForBadge})`;
+                badge.title = `W formularzu przesunięcia (${badgeHall}) są robocze palety: ${countForBadge} szt.`;
+            } else {
+                badge.style.display = 'none';
+            }
+        });
+    }
+
+    window.updateSidebarDraftBadges = updateSidebarDraftBadges;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateSidebarDraftBadges);
+    } else {
+        updateSidebarDraftBadges();
+    }
+    window.addEventListener('storage', updateSidebarDraftBadges);
+    window.addEventListener('draftStateChanged', updateSidebarDraftBadges);
 
 })();

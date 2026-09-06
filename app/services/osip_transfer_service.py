@@ -129,14 +129,6 @@ class OsipTransferService:
             conn.close()
 
         self.repository.update_transfer_status(transfer_id, "COMPLETED", user_login)
-
-        # Auto wysyłka e-mail raportu po przyjęciu transferu
-        try:
-            from app.services.osip_report_email_service import OsipReportEmailService
-            OsipReportEmailService.trigger_async_transfer_report(transfer_id)
-        except Exception as mail_err:
-            print(f"[TRANSFER_EMAIL] Błąd automatycznej wysyłki e-mail po przyjęciu transferu: {mail_err}")
-
         return self.repository.get_transfer_by_id(transfer_id)
 
     def receive_single_item(self, transfer_id: Any, pallet_code: str, target_location: str, user_login: str) -> Dict[str, Any]:
@@ -203,13 +195,6 @@ class OsipTransferService:
             self.repository.update_transfer_status(transfer.id, "COMPLETED", user_login)
             updated_transfer = self.repository.get_transfer_by_id(transfer.id)
             updated_items = self._extract_items(updated_transfer)
-
-            # Auto wysyłka e-mail raportu po przyjęciu wszystkich palet
-            try:
-                from app.services.osip_report_email_service import OsipReportEmailService
-                OsipReportEmailService.trigger_async_transfer_report(transfer.id)
-            except Exception as mail_err:
-                print(f"[TRANSFER_EMAIL] Błąd automatycznej wysyłki e-mail po przyjęciu: {mail_err}")
 
         received_count = sum(1 for it in updated_items if getattr(it, 'status', None) == 'RECEIVED' or (it.get('status') if isinstance(it, dict) else None) == 'RECEIVED')
         total_count = len(updated_items)

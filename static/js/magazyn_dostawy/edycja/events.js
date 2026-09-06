@@ -3,27 +3,40 @@ function cancelTransferForm(event) {
     if (event && typeof event.preventDefault === 'function') {
         event.preventDefault();
     }
-    if (!window.EdycjaConfig.READ_ONLY_MODE) {
-        clearDraftState();
+    const draft = getStoredDraftState();
+    if (hasDraftItems(draft)) {
+        if (confirm('Czy na pewno chcesz porzucić wprowadzone palety i wyczyścić formularz? Wybierz OK, aby usunąć szkic, lub Anuluj, aby zachować wprowadzone palety.')) {
+            if (!window.EdycjaConfig.READ_ONLY_MODE) {
+                if (typeof unlockDraftPallets === 'function' && draft.items) {
+                    unlockDraftPallets(draft.items);
+                }
+                clearDraftState();
+            }
+        }
     }
     window.location.href = window.EdycjaConfig.urlListaDostaw;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Strip 'draft' query parameter from URL so Back button or refresh never re-executes mode
+    try {
+        if (window.history && window.history.replaceState) {
+            const currentUrl = new URL(window.location.href);
+            if (currentUrl.searchParams.has('draft')) {
+                currentUrl.searchParams.delete('draft');
+                window.history.replaceState({}, document.title, currentUrl.pathname + (currentUrl.searchParams.toString() ? '?' + currentUrl.searchParams.toString() : ''));
+            }
+        }
+    } catch (e) {
+        console.warn('replaceState draft cleanup error', e);
+    }
+
     const ref = document.getElementById('order_ref');
     if (!ref.value) ref.value = generateWZ();
 
     ensureLocationSuggestionsList();
 
-    const targetInput = document.getElementById('lokalizacja_do');
     const bypassInput = document.getElementById('skip_warehouse_lookup');
-    if (targetInput) {
-        targetInput.addEventListener('change', () => {
-            saveDraftState();
-            renderItems();
-            updateSaveButtonState();
-        });
-    }
     if (bypassInput) {
         bypassInput.addEventListener('change', () => {
             saveDraftState();
@@ -75,25 +88,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // If it's a printable character or number, focus the input
             if (e.key.length === 1) {
                 scannerInput.focus();
-                // We do not prevent default, so the character will be typed into the focused input
             }
         });
     }
 
     const draft = getStoredDraftState();
     if (hasDraftItems(draft)) {
-        const mode = getDraftModeFromUrl();
-        if (mode === 'restore') {
-            restoreDraftState(draft, { silentToast: true });
-            renderItems();
-            updateSaveButtonState();
-        } else if (mode === 'new') {
-            startFreshEntry();
-        } else {
-            pendingDraftToDecide = draft;
-            showDraftDecisionBanner(draft);
-            renderItems();
-            updateSaveButtonState();
+        // Automatically restore draft into table so scans are NEVER lost when visiting other views/scanner
+        restoreDraftState(draft, { silentToast: true });
+        showDraftDecisionBanner(draft);
+        renderItems();
+        updateSaveButtonState();
+        if (typeof syncDraftPallets === 'function') {
+            syncDraftPallets();
         }
     } else {
         if (!window.EdycjaConfig.IS_NEW_TRANSFER_FORM && items.length > 0) {
@@ -103,5 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         renderItems();
         updateSaveButtonState();
+    }
+
+    if (typeof startLiveTransferPolling === 'function') {
+        startLiveTransferPolling();
     }
 });

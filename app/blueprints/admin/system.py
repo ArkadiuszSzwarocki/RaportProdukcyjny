@@ -905,7 +905,9 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             sender_name=payload.get('sender_name', 'Magazyn - Raporty'),
             odbiorcy=payload.get('odbiorcy', ''),
             is_active=bool(payload.get('is_active', True)),
-            auto_send_on_dispatch=bool(payload.get('auto_send_on_dispatch', True)),
+            auto_send_on_dispatch=bool(payload.get('auto_send_on_dispatch', False)),
+            daily_report_enabled=bool(payload.get('daily_report_enabled', True)),
+            daily_report_time=str(payload.get('daily_report_time', '15:00')).strip() or '15:00',
             updated_by=updated_by
         )
         saved = OsipEmailSettingsRepository().save_settings(model)
@@ -925,6 +927,18 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             smtp_username=payload.get('smtp_username', ''),
             smtp_password=payload.get('smtp_password', '')
         )
+        return jsonify({"success": ok, "message": msg}), (200 if ok else 400)
+
+    @admin_bp.route('/admin/api/ustawienia-email-magazyn/send-daily', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_send_daily_warehouse_report():
+        """Wymusza wysyłkę dziennego raportu zbiorczego dla wskazanego dnia (lub bieżącego)."""
+        payload = request.get_json() or {}
+        date_str = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
+        force = bool(payload.get('force', True))
+        from app.services.osip_report_email_service import OsipReportEmailService
+        service = OsipReportEmailService()
+        ok, msg = service.send_daily_warehouse_summary_report(date_str=date_str, force=force)
         return jsonify({"success": ok, "message": msg}), (200 if ok else 400)
 
     @admin_bp.route('/admin/ustawienia/drukarki-biurowe')

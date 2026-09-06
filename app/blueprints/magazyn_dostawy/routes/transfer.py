@@ -108,6 +108,7 @@ def oczekujace():
                            pending_scan_items=pending_scan_items)
 
 @magazyn_dostawy_bp.route('/nowa')
+@magazyn_dostawy_bp.route('/edycja/<dostawa_id>')
 @magazyn_dostawy_bp.route('/<dostawa_id>')
 def edycja_dostawy(dostawa_id=None):
     linia = request.args.get('linia', 'PSD').upper()
@@ -161,7 +162,6 @@ def edycja_dostawy(dostawa_id=None):
         wszystkie_produkty=wszystkie_produkty,
         aktywne_zamowienia=aktywne_zamowienia,
         lokalizacje=LOKALIZACJE,
-        lokalizacje_do=LOKALIZACJE_CEL,
         printers=printers,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
@@ -389,11 +389,6 @@ def raport_przesuniecia(dostawa_id):
                     dostawa['status'] = 'COMPLETED'
                     cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))
                     conn.commit()
-                    try:
-                        from app.services.osip_report_email_service import OsipReportEmailService
-                        OsipReportEmailService.trigger_async_delivery_report(dostawa_id)
-                    except Exception as mail_err:
-                        logging.warning(f"Error triggering email report in raport_przesuniecia: {mail_err}")
             except Exception as e:
                 import logging
                 logging.warning(f"Error checking physical pallet locations for delivery {dostawa_id}: {e}")
