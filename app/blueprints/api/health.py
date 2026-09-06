@@ -4,7 +4,10 @@ Provides health monitoring status for Docker/Kubernetes/monitoring tools.
 
 import time
 import os
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 from flask import jsonify
 from app.core.database import get_db_connection
 
@@ -40,12 +43,13 @@ def register_api_health_routes(api_bp):
         # Memory and process stats
         memory_usage_mb = 0.0
         cpu_percent = 0.0
-        try:
-            proc = psutil.Process(os.getpid())
-            memory_usage_mb = round(proc.memory_info().rss / (1024 * 1024), 2)
-            cpu_percent = proc.cpu_percent(interval=0.05)
-        except Exception:
-            pass
+        if psutil:
+            try:
+                proc = psutil.Process(os.getpid())
+                memory_usage_mb = round(proc.memory_info().rss / (1024 * 1024), 2)
+                cpu_percent = proc.cpu_percent(interval=0.05)
+            except Exception:
+                pass
 
         total_duration_ms = round((time.time() - start_time) * 1000, 2)
         is_healthy = db_status == "healthy"

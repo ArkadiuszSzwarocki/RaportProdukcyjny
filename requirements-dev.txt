@@ -12,3 +12,4 @@ python-dotenv
 mysql-connector-python
 paho-mqtt==2.1.0
 gTTS==2.4.0
+psutil>=5.9.0

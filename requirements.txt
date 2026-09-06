@@ -19,4 +19,4 @@ flask-cors==4.0.0
 cryptography>=42.0.0
 pyopenssl>=23.0.0
 pywin32==312; sys_platform == 'win32'
-
+psutil>=5.9.0
