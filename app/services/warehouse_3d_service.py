@@ -274,6 +274,8 @@ class Warehouse3dService:
                         rack_blocked += 1
                         total_blocked_count += 1
 
+                    is_shelf_rack = (rc.get('rack_type') == 'SHELVING' or rack_id == 'R09')
+
                     slots_map[loc_code] = {
                         'location_code': loc_code,
                         'rack_id': rack_id,
@@ -283,6 +285,8 @@ class Warehouse3dService:
                         'level_index': lvl,
                         'is_occupied': is_occupied,
                         'is_blocked': slot_is_blocked,
+                        'is_shelf': is_shelf_rack,
+                        'items_count': len(pallets_list),
                         'payload_type': primary_payload_type,
                         'primary_payload_type': primary_payload_type,
                         'pallet': pallets_list[0] if pallets_list else None,
@@ -293,10 +297,13 @@ class Warehouse3dService:
             total_slots_count += total_rack_slots
             occ_pct = round((rack_occupied / total_rack_slots) * 100, 1) if total_rack_slots > 0 else 0.0
 
+            is_shelving = (rc.get('rack_type') == 'SHELVING' or rack_id == 'R09')
+
             racks_output.append({
                 'rack_id': rack_id,
                 'name': rc['name'],
                 'rack_type': rc['rack_type'],
+                'is_shelving': is_shelving,
                 'columns': cols,
                 'levels': levels,
                 'columns_count': cols,

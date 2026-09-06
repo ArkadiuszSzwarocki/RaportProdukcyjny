@@ -440,3 +440,44 @@
 @keyframes wh3d-spin {
     to { transform: rotate(360deg); }
 }
+
+/* SHELVING RACK & MULTI-ITEM STYLES */
+.wh3d-shelf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.wh3d-shelf-multi-badge {
+    background: rgba(2, 132, 199, 0.22);
+    border: 1px solid #38bdf8;
+    color: #38bdf8;
+}
+
+.wh3d-item-move-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid #38bdf8;
+    color: #38bdf8;
+    transition: all 0.2s;
+}
+
+.wh3d-item-move-btn:hover {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}

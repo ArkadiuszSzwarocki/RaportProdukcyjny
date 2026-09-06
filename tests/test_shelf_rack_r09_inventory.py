@@ -74,3 +74,26 @@ def test_check_rack_location_availability_allows_multiple_pallets_on_r09():
     assert is_valid_r09_other is True
     assert err_r09 is None
 
+
+def test_warehouse_3d_recognizes_r09_as_shelving_with_multi_items():
+    from app.services.warehouse_3d_service import Warehouse3dService
+    mock_stock = [
+        {'id': 1, 'nr_palety': 'OPK001', 'productName': 'Etykieta Czerwona', 'location': 'R090103', 'amount': 30.0, 'pallet_type': 'Opakowanie', 'is_blocked': False, 'typ_opakowania': 'opakowanie'},
+        {'id': 2, 'nr_palety': 'OPK002', 'productName': 'Etykieta Żółta', 'location': 'R090103', 'amount': 36.0, 'pallet_type': 'Opakowanie', 'is_blocked': False, 'typ_opakowania': 'opakowanie'},
+    ]
+    with patch('app.repositories.warehouse_3d_repository.Warehouse3dRepository.fetch_all_active_stock', return_value=mock_stock):
+        state = Warehouse3dService.get_warehouse_3d_state(linia='ALL', rack_filter='R09')
+        assert state is not None
+        assert len(state['racks']) == 1
+        r09 = state['racks'][0]
+        assert r09['rack_id'] == 'R09'
+        assert r09['rack_type'] == 'SHELVING'
+        assert r09['is_shelving'] is True
+
+        slot_0103 = next((s for s in r09['slots'] if s['location_code'] == 'R090103'), None)
+        assert slot_0103 is not None
+        assert slot_0103['is_occupied'] is True
+        assert slot_0103['is_shelf'] is True
+        assert slot_0103['items_count'] == 2
+        assert len(slot_0103['pallets']) == 2
+

@@ -254,84 +254,138 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
         const rackGroup = new THREE.Group();
         rackGroup.position.set(rx, 0, rz);
 
-        const colGeo = new THREE.BoxGeometry(0.08, lvls * lvlH + 0.15, 0.08);
-        const basePlateGeo = new THREE.BoxGeometry(0.18, 0.02, 0.18);
-        const beamGeo = new THREE.BoxGeometry(cols * bayW + 0.16, 0.08, 0.06);
+        const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09');
 
-        for (let c = 0; c <= cols; c += 2) {
-            const cx = c * bayW;
+        if (isShelving) {
+            // Shelving rack structure (Regał Półkowy - smukłe profile, lite półki na każdym poziomie)
+            const shelfPostGeo = new THREE.BoxGeometry(0.045, lvls * lvlH + 0.05, 0.045);
+            const shelfPostMat = sharedMats.shelfSteel || sharedMats.steel;
 
-            const colF = new THREE.Mesh(colGeo, sharedMats.steel);
-            colF.position.set(cx, (lvls * lvlH + 0.15) / 2, depth / 2);
-            colF.castShadow = true;
+            for (let c = 0; c <= cols; c++) {
+                const cx = c * bayW;
+                const postF = new THREE.Mesh(shelfPostGeo, shelfPostMat);
+                postF.position.set(cx, (lvls * lvlH + 0.05) / 2, depth / 2);
+                postF.castShadow = true;
 
-            const colR = new THREE.Mesh(colGeo, sharedMats.steel);
-            colR.position.set(cx, (lvls * lvlH + 0.15) / 2, -depth / 2);
-            colR.castShadow = true;
+                const postR = new THREE.Mesh(shelfPostGeo, shelfPostMat);
+                postR.position.set(cx, (lvls * lvlH + 0.05) / 2, -depth / 2);
+                postR.castShadow = true;
 
-            const bpF = new THREE.Mesh(basePlateGeo, sharedMats.steel);
-            bpF.position.set(cx, 0.01, depth / 2);
-            const bpR = new THREE.Mesh(basePlateGeo, sharedMats.steel);
-            bpR.position.set(cx, 0.01, -depth / 2);
+                rackGroup.add(postF, postR);
 
-            rackGroup.add(colF, colR, bpF, bpR);
-
-            for (let l = 0; l <= lvls; l++) {
-                const by = l * lvlH;
-                if (by > 0) {
-                    const hBrace = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, depth), sharedMats.steel);
-                    hBrace.position.set(cx, by, 0);
-                    rackGroup.add(hBrace);
-                }
-                if (l < lvls) {
-                    const diagLen = Math.sqrt(depth * depth + lvlH * lvlH);
-                    const diagGeo = new THREE.BoxGeometry(0.03, 0.03, diagLen);
-                    const dBrace = new THREE.Mesh(diagGeo, sharedMats.steel);
-                    dBrace.position.set(cx, l * lvlH + lvlH / 2, 0);
-                    dBrace.rotation.x = (l % 2 === 0 ? 1 : -1) * Math.atan2(lvlH, depth);
-                    rackGroup.add(dBrace);
+                // Side ties between front and rear uprights
+                for (let l = 1; l <= lvls; l++) {
+                    const tieGeo = new THREE.BoxGeometry(0.03, 0.03, depth);
+                    const tieMesh = new THREE.Mesh(tieGeo, shelfPostMat);
+                    tieMesh.position.set(cx, (l - 1) * lvlH + 0.015, 0);
+                    rackGroup.add(tieMesh);
                 }
             }
-        }
 
-        // 1. Beams and labels for elevated levels (Level 2, 3, ..., lvls)
-        for (let l = 2; l <= lvls; l++) {
-            const beamY = (l - 1) * lvlH;
-            const beamF = new THREE.Mesh(beamGeo, sharedMats.beam);
-            beamF.position.set((cols * bayW) / 2, beamY, depth / 2);
-            beamF.castShadow = true;
+            // Solid shelves (blaty półkowe) on every level 1..lvls
+            for (let l = 1; l <= lvls; l++) {
+                const shelfY = (l - 1) * lvlH;
+                for (let c = 1; c <= cols; c++) {
+                    const slotX = (c - 0.5) * bayW;
+                    const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}${String(l).padStart(2, '0')}`;
 
-            const beamR = new THREE.Mesh(beamGeo, sharedMats.beam);
-            beamR.position.set((cols * bayW) / 2, beamY, -depth / 2);
-            beamR.castShadow = true;
+                    // Solid galvanized/painted shelf surface plate
+                    const shelfDeckGeo = new THREE.BoxGeometry(bayW * 0.98, 0.022, depth * 0.96);
+                    const shelfDeck = new THREE.Mesh(shelfDeckGeo, sharedMats.shelfPanel);
+                    shelfDeck.position.set(slotX, shelfY + 0.011, 0);
+                    shelfDeck.receiveShadow = true;
+                    rackGroup.add(shelfDeck);
 
-            rackGroup.add(beamF, beamR);
+                    // Front shelf edge with label strip
+                    const labelTex = getBeamSlotLabelTexture(slotCode, c, l);
+                    const labelGeo = new THREE.PlaneGeometry(Math.min(0.50, bayW * 0.44), 0.12);
+                    const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: false, depthWrite: true });
+                    const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+                    labelMesh.position.set(slotX, shelfY + 0.011, depth / 2 + 0.015);
+                    rackGroup.add(labelMesh);
+                }
+            }
+        } else {
+            // High-bay pallet racking (Regały wysokiego składowania palet)
+            const colGeo = new THREE.BoxGeometry(0.08, lvls * lvlH + 0.15, 0.08);
+            const basePlateGeo = new THREE.BoxGeometry(0.18, 0.02, 0.18);
+            const beamGeo = new THREE.BoxGeometry(cols * bayW + 0.16, 0.08, 0.06);
 
+            for (let c = 0; c <= cols; c += 2) {
+                const cx = c * bayW;
+
+                const colF = new THREE.Mesh(colGeo, sharedMats.steel);
+                colF.position.set(cx, (lvls * lvlH + 0.15) / 2, depth / 2);
+                colF.castShadow = true;
+
+                const colR = new THREE.Mesh(colGeo, sharedMats.steel);
+                colR.position.set(cx, (lvls * lvlH + 0.15) / 2, -depth / 2);
+                colR.castShadow = true;
+
+                const bpF = new THREE.Mesh(basePlateGeo, sharedMats.steel);
+                bpF.position.set(cx, 0.01, depth / 2);
+                const bpR = new THREE.Mesh(basePlateGeo, sharedMats.steel);
+                bpR.position.set(cx, 0.01, -depth / 2);
+
+                rackGroup.add(colF, colR, bpF, bpR);
+
+                for (let l = 0; l <= lvls; l++) {
+                    const by = l * lvlH;
+                    if (by > 0) {
+                        const hBrace = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, depth), sharedMats.steel);
+                        hBrace.position.set(cx, by, 0);
+                        rackGroup.add(hBrace);
+                    }
+                    if (l < lvls) {
+                        const diagLen = Math.sqrt(depth * depth + lvlH * lvlH);
+                        const diagGeo = new THREE.BoxGeometry(0.03, 0.03, diagLen);
+                        const dBrace = new THREE.Mesh(diagGeo, sharedMats.steel);
+                        dBrace.position.set(cx, l * lvlH + lvlH / 2, 0);
+                        dBrace.rotation.x = (l % 2 === 0 ? 1 : -1) * Math.atan2(lvlH, depth);
+                        rackGroup.add(dBrace);
+                    }
+                }
+            }
+
+            // 1. Beams and labels for elevated levels (Level 2, 3, ..., lvls)
+            for (let l = 2; l <= lvls; l++) {
+                const beamY = (l - 1) * lvlH;
+                const beamF = new THREE.Mesh(beamGeo, sharedMats.beam);
+                beamF.position.set((cols * bayW) / 2, beamY, depth / 2);
+                beamF.castShadow = true;
+
+                const beamR = new THREE.Mesh(beamGeo, sharedMats.beam);
+                beamR.position.set((cols * bayW) / 2, beamY, -depth / 2);
+                beamR.castShadow = true;
+
+                rackGroup.add(beamF, beamR);
+
+                for (let c = 1; c <= cols; c++) {
+                    const slotX = (c - 0.5) * bayW;
+                    const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}${String(l).padStart(2, '0')}`;
+                    
+                    const labelTex = getBeamSlotLabelTexture(slotCode, c, l);
+                    const labelGeo = new THREE.PlaneGeometry(0.56, 0.16);
+                    const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: false, depthWrite: true });
+                    const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+                    labelMesh.position.set(slotX, beamY, depth / 2 + 0.032);
+                    rackGroup.add(labelMesh);
+                }
+            }
+
+            // 2. Floor location labels for Level 1 (Poziom 1 na posadzce / podłodze pod paletami)
             for (let c = 1; c <= cols; c++) {
                 const slotX = (c - 0.5) * bayW;
-                const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}${String(l).padStart(2, '0')}`;
+                const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}01`;
                 
-                const labelTex = getBeamSlotLabelTexture(slotCode, c, l);
-                const labelGeo = new THREE.PlaneGeometry(0.56, 0.16);
-                const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: false, depthWrite: true });
-                const labelMesh = new THREE.Mesh(labelGeo, labelMat);
-                labelMesh.position.set(slotX, beamY, depth / 2 + 0.032);
-                rackGroup.add(labelMesh);
+                const labelTex1 = getBeamSlotLabelTexture(slotCode, c, 1);
+                const floorLabelGeo = new THREE.PlaneGeometry(0.56, 0.16);
+                const floorLabelMat = new THREE.MeshBasicMaterial({ map: labelTex1, transparent: false, depthWrite: true });
+                const floorLabelMesh = new THREE.Mesh(floorLabelGeo, floorLabelMat);
+                floorLabelMesh.position.set(slotX, 0.015, depth / 2 + 0.12);
+                floorLabelMesh.rotation.x = -Math.PI / 2;
+                rackGroup.add(floorLabelMesh);
             }
-        }
-
-        // 2. Floor location labels for Level 1 (Poziom 1 na posadzce / podłodze pod paletami)
-        for (let c = 1; c <= cols; c++) {
-            const slotX = (c - 0.5) * bayW;
-            const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}01`;
-            
-            const labelTex1 = getBeamSlotLabelTexture(slotCode, c, 1);
-            const floorLabelGeo = new THREE.PlaneGeometry(0.56, 0.16);
-            const floorLabelMat = new THREE.MeshBasicMaterial({ map: labelTex1, transparent: false, depthWrite: true });
-            const floorLabelMesh = new THREE.Mesh(floorLabelGeo, floorLabelMat);
-            floorLabelMesh.position.set(slotX, 0.015, depth / 2 + 0.12);
-            floorLabelMesh.rotation.x = -Math.PI / 2;
-            rackGroup.add(floorLabelMesh);
         }
 
         rack.slots.forEach(slot => {
@@ -396,56 +450,89 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
 
             const slotGroup = new THREE.Group();
             slotGroup.position.set(slotX, slotY, slotZ);
-            slotGroup.userData = { slot: slot, rack: rack };
+            slotGroup.userData = { slot: slot, rack: rack, isShelving: isShelving };
 
             if (slot.is_occupied) {
-                const isInd = (rack.depth_m >= 1.2);
-                const palletGroup = createRealisticPalletGroup(isInd);
-                slotGroup.add(palletGroup);
+                if (isShelving) {
+                    // Render realistic multi-item assortment on shelf
+                    const shelfAssortment = createRealisticShelfAssortmentGroup(slotPallets, bayW, depth, lvlH);
+                    slotGroup.add(shelfAssortment);
 
-                const p = slotPallets[0];
-                const prodName = p ? (p.product_name || p.nazwa_produktu || 'SUROWIEC SYPKI') : 'SUROWIEC SYPKI';
-                const batchNum = p ? (p.batch || p.partia || 'PL-2026') : 'PL-2026';
-                let weightStr = (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
-                if (p) {
-                    if (p.weight_kg !== undefined && p.weight_kg !== null && !isNaN(Number(p.weight_kg))) {
-                        weightStr = `${Number(p.weight_kg).toFixed(0)} kg`;
-                    } else if (p.amount !== undefined && p.amount !== null) {
-                        weightStr = `${p.amount} ${p.unit || 'kg'}`;
+                    const pStatus = slotPallets.find(p => p.is_first_fifo || p.is_expired || p.is_expiring_soon);
+                    if (pStatus) {
+                        const badgeTex = getPalletStatusBadgeTexture(pStatus.is_first_fifo, pStatus.fifo_rank, pStatus.is_expired, pStatus.is_expiring_soon, pStatus.days_to_exp);
+                        const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
+                        const badgeSprite = new THREE.Sprite(badgeMat);
+                        const spriteY = (slotPallets.length > 1) ? Math.min(lvlH * 0.95, 0.72) : Math.min(lvlH * 0.78, 0.55);
+                        badgeSprite.position.set(0, spriteY, 0);
+                        badgeSprite.scale.set(0.68, 0.18, 1);
+                        badgeSprite.renderOrder = 999;
+                        slotGroup.add(badgeSprite);
+                    }
+
+                    if (slot.is_blocked) {
+                        const blockBoxGeo = new THREE.BoxGeometry(bayW * 0.90, lvlH * 0.65, depth * 0.85);
+                        const blockMesh = new THREE.Mesh(blockBoxGeo, sharedMats.blocked);
+                        blockMesh.position.set(0, (lvlH * 0.65) / 2, 0);
+                        blockMesh.material.transparent = true;
+                        blockMesh.material.opacity = 0.40;
+                        slotGroup.add(blockMesh);
+                    }
+                } else {
+                    const isInd = (rack.depth_m >= 1.2);
+                    const palletGroup = createRealisticPalletGroup(isInd);
+                    slotGroup.add(palletGroup);
+
+                    const p = slotPallets[0];
+                    const prodName = p ? (p.product_name || p.nazwa_produktu || 'SUROWIEC SYPKI') : 'SUROWIEC SYPKI';
+                    const batchNum = p ? (p.batch || p.partia || 'PL-2026') : 'PL-2026';
+                    let weightStr = (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
+                    if (p) {
+                        if (p.weight_kg !== undefined && p.weight_kg !== null && !isNaN(Number(p.weight_kg))) {
+                            weightStr = `${Number(p.weight_kg).toFixed(0)} kg`;
+                        } else if (p.amount !== undefined && p.amount !== null) {
+                            weightStr = `${p.amount} ${p.unit || 'kg'}`;
+                        }
+                    }
+
+                    if (slot.payload_type === 'BIG_BAG') {
+                        const bigBagGroup = createRealisticBigBagGroup(prodName, batchNum, weightStr);
+                        slotGroup.add(bigBagGroup);
+                    } else {
+                        const pinwheelStack = createRealisticPinwheelStack(prodName, batchNum, weightStr);
+                        slotGroup.add(pinwheelStack);
+                    }
+
+                    if (p && (p.is_first_fifo || p.is_expired || p.is_expiring_soon)) {
+                        const badgeTex = getPalletStatusBadgeTexture(p.is_first_fifo, p.fifo_rank, p.is_expired, p.is_expiring_soon, p.days_to_exp);
+                        const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
+                        const badgeSprite = new THREE.Sprite(badgeMat);
+                        const spriteY = (slot.payload_type === 'BIG_BAG') ? 1.48 : 1.28;
+                        badgeSprite.position.set(0, spriteY, 0);
+                        badgeSprite.scale.set(0.72, 0.22, 1);
+                        badgeSprite.renderOrder = 999;
+                        slotGroup.add(badgeSprite);
+                    }
+
+                    if (slot.is_blocked) {
+                        const blockBoxGeo = new THREE.BoxGeometry(1.24, 1.05, 0.84);
+                        const blockMesh = new THREE.Mesh(blockBoxGeo, sharedMats.blocked);
+                        blockMesh.position.set(0, 0.62, 0);
+                        blockMesh.material.transparent = true;
+                        blockMesh.material.opacity = 0.45;
+                        slotGroup.add(blockMesh);
                     }
                 }
-
-                if (slot.payload_type === 'BIG_BAG') {
-                    const bigBagGroup = createRealisticBigBagGroup(prodName, batchNum, weightStr);
-                    slotGroup.add(bigBagGroup);
-                } else {
-                    const pinwheelStack = createRealisticPinwheelStack(prodName, batchNum, weightStr);
-                    slotGroup.add(pinwheelStack);
-                }
-
-                if (p && (p.is_first_fifo || p.is_expired || p.is_expiring_soon)) {
-                    const badgeTex = getPalletStatusBadgeTexture(p.is_first_fifo, p.fifo_rank, p.is_expired, p.is_expiring_soon, p.days_to_exp);
-                    const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
-                    const badgeSprite = new THREE.Sprite(badgeMat);
-                    const spriteY = (slot.payload_type === 'BIG_BAG') ? 1.48 : 1.28;
-                    badgeSprite.position.set(0, spriteY, 0);
-                    badgeSprite.scale.set(0.72, 0.22, 1);
-                    badgeSprite.renderOrder = 999;
-                    slotGroup.add(badgeSprite);
-                }
-
-                if (slot.is_blocked) {
-                    const blockBoxGeo = new THREE.BoxGeometry(1.24, 1.05, 0.84);
-                    const blockMesh = new THREE.Mesh(blockBoxGeo, sharedMats.blocked);
-                    blockMesh.position.set(0, 0.62, 0);
-                    blockMesh.material.transparent = true;
-                    blockMesh.material.opacity = 0.45;
-                    slotGroup.add(blockMesh);
-                }
             } else {
-                const emptyMesh = new THREE.Mesh(sharedGeos.palletBase, sharedMats.emptySlot);
-                emptyMesh.position.set(0, 0.07, 0);
-                slotGroup.add(emptyMesh);
+                if (isShelving) {
+                    const emptyShelfMesh = new THREE.Mesh(new THREE.BoxGeometry(bayW * 0.88, 0.005, depth * 0.85), sharedMats.emptySlot);
+                    emptyShelfMesh.position.set(0, 0.015, 0);
+                    slotGroup.add(emptyShelfMesh);
+                } else {
+                    const emptyMesh = new THREE.Mesh(sharedGeos.palletBase, sharedMats.emptySlot);
+                    emptyMesh.position.set(0, 0.07, 0);
+                    slotGroup.add(emptyMesh);
+                }
             }
 
             const hitGeo = new THREE.BoxGeometry(bayW * 0.92, lvlH * 0.90, depth * 0.95);

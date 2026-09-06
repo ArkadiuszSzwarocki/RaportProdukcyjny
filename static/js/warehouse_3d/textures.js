@@ -369,3 +369,144 @@ function getOrCreateBigBagTexture(productName, batch, weightText) {
     bigBagTextureCache.set(key, tex);
     return tex;
 }
+
+const shelfItemTextureCache = new Map();
+const shelfMultiBadgeTextureCache = new Map();
+
+function getShelfItemCardboardTexture(productName, batch, amountText, nrPalety, accentColor = '#0284c7') {
+    const key = `${productName || 'ITEM'}_${batch || 'LOT'}_${amountText || '0'}_${nrPalety || 'OPK'}_${accentColor}`;
+    if (shelfItemTextureCache.has(key)) {
+        return shelfItemTextureCache.get(key);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Realistic kraft cardboard base
+    ctx.fillStyle = '#bfa175';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Subtle cardboard fiber noise
+    for (let i = 0; i < 2400; i++) {
+        ctx.fillStyle = (Math.random() > 0.5) ? 'rgba(0,0,0,0.035)' : 'rgba(255,255,255,0.05)';
+        ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+    }
+
+    // Corrugated edge shadows and folding crease
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(0, 0, 512, 12);
+    ctx.fillRect(0, 500, 512, 12);
+    ctx.fillRect(0, 0, 12, 512);
+    ctx.fillRect(500, 0, 12, 512);
+
+    // Packing tape horizontal band
+    ctx.fillStyle = 'rgba(180, 125, 60, 0.45)';
+    ctx.fillRect(0, 240, 512, 32);
+
+    // 2. High-contrast Warehouse Assortment Label (White adhesive label)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(36, 44, 440, 424);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(36, 44, 440, 424);
+
+    // Accent header strip
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(36, 44, 440, 54);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 22px "Outfit", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('PÓŁKA REGALOWA • ASORTYMENT', 54, 78);
+
+    // Product Title
+    const cleanProd = (productName || 'ASORTYMENT').toUpperCase();
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 28px "Outfit", sans-serif';
+    drawCanvasWrappedText(ctx, cleanProd, 54, 136, 400, 32, 2);
+
+    // Divider
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(54, 196, 404, 3);
+
+    // Product Details Box
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(54, 212, 404, 144);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(54, 212, 404, 144);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText(`STAN: ${amountText || '1 szt'}`, 70, 246);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText(`PARTIA / LOT: ${batch || '-'}`, 70, 280);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '14px monospace';
+    ctx.fillText(`KOD / SSCC: ${nrPalety || '-'}`, 70, 314);
+    ctx.fillText('TYP: KOMPLETACJA / PÓŁKA', 70, 340);
+
+    // Barcode at bottom
+    ctx.fillStyle = '#0f172a';
+    for (let bx = 70; bx < 420; bx += 5) {
+        const bw = (Math.sin(bx * 13) > 0) ? 3.2 : 1.5;
+        ctx.fillRect(bx, 376, bw, 46);
+    }
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`*${nrPalety || 'ITEM'}*`, 256, 442);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    shelfItemTextureCache.set(key, tex);
+    return tex;
+}
+
+function getShelfMultiItemBadgeTexture(count) {
+    const key = `multi_${count}`;
+    if (shelfMultiBadgeTextureCache.has(key)) {
+        return shelfMultiBadgeTextureCache.get(key);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 280;
+    canvas.height = 70;
+    const ctx = canvas.getContext('2d');
+
+    const bgGrad = ctx.createLinearGradient(0, 0, 280, 70);
+    bgGrad.addColorStop(0, '#0369a1');
+    bgGrad.addColorStop(1, '#0284c7');
+    ctx.fillStyle = bgGrad;
+
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(4, 4, 272, 62, 14);
+    } else {
+        ctx.rect(4, 4, 272, 62);
+    }
+    ctx.fill();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 24px "Outfit", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`📦 ${count} POZYCJE NA PÓŁCE`, 140, 26);
+
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('Wieloasortymentowa', 140, 50);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    shelfMultiBadgeTextureCache.set(key, texture);
+    return texture;
+}

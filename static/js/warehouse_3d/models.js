@@ -15,6 +15,12 @@ function initSharedResources() {
     sharedMats.dropValid = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.7, transparent: true, opacity: 0.65 });
     sharedMats.dropInvalid = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xb91c1c, emissiveIntensity: 0.7, transparent: true, opacity: 0.65 });
 
+    // Dedicated materials for shelving racks (R09 / SHELVING)
+    sharedMats.shelfPanel = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.45, metalness: 0.55 });
+    sharedMats.shelfDivider = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5, metalness: 0.4 });
+    sharedMats.shelfSteel = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.75 });
+    sharedMats.cartonBody = new THREE.MeshStandardMaterial({ color: 0xbfa175, roughness: 0.85, metalness: 0.05 });
+
     sharedGeos.palletBase = new THREE.BoxGeometry(1.2, 0.14, 0.8);
 }
 
@@ -272,4 +278,135 @@ function createRealisticBigBagGroup(productName, batch, weightText) {
     });
 
     return bbGroup;
+}
+
+function getAssortmentColor(productName) {
+    const p = String(productName || '').toLowerCase();
+    if (p.includes('czerwon')) return '#ef4444';
+    if (p.includes('żółt') || p.includes('zolt')) return '#eab308';
+    if (p.includes('biał') || p.includes('bial')) return '#f8fafc';
+    if (p.includes('fiolet')) return '#a855f7';
+    if (p.includes('brąz') || p.includes('braz')) return '#b45309';
+    if (p.includes('kalka')) return '#06b6d4';
+    if (p.includes('włókn') || p.includes('wlokn') || p.includes('sms')) return '#10b981';
+    if (p.includes('opakow')) return '#f97316';
+    return '#0284c7';
+}
+
+function createRealisticShelfAssortmentGroup(slotPallets, bayW, depth, lvlH) {
+    const group = new THREE.Group();
+    if (!slotPallets || slotPallets.length === 0) return group;
+
+    const count = slotPallets.length;
+    const baseH = 0.024;
+
+    if (count === 1) {
+        const item = slotPallets[0];
+        const pName = item.product_name || item.nazwa || 'ASORTYMENT';
+        const batch = item.batch || item.nr_partii || '-';
+        const nrPal = item.nr_palety || item.display_id || `ID #${item.id}`;
+        let amtStr = '1 szt';
+        if (item.amount !== undefined && item.amount !== null) {
+            amtStr = `${item.amount} ${item.unit || 'szt'}`;
+        }
+        const accent = getAssortmentColor(pName);
+
+        const boxW = Math.min(bayW * 0.44, 0.54);
+        const boxH = Math.min(lvlH * 0.48, 0.38);
+        const boxD = Math.min(depth * 0.72, 0.65);
+
+        for (let i = 0; i < 2; i++) {
+            const bx = (i === 0 ? -0.16 : 0.16);
+            const bGeo = new THREE.BoxGeometry(boxW * 0.78, boxH, boxD);
+            const tex = getShelfItemCardboardTexture(pName, batch, amtStr, nrPal, accent);
+            const matFront = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.05 });
+            const matSide = sharedMats.cartonBody;
+            const mats = [matSide, matSide, matSide, matSide, matFront, matSide];
+            const boxMesh = new THREE.Mesh(bGeo, mats);
+            boxMesh.position.set(bx, baseH + boxH / 2, 0);
+            boxMesh.castShadow = true;
+            group.add(boxMesh);
+        }
+    } else if (count === 2) {
+        const halfBay = (bayW * 0.92) / 2;
+        const boxW = Math.min(halfBay * 0.88, 0.52);
+        const boxH = Math.min(lvlH * 0.50, 0.40);
+        const boxD = Math.min(depth * 0.76, 0.68);
+
+        const divGeo = new THREE.BoxGeometry(0.015, boxH * 1.05, depth * 0.82);
+        const divMesh = new THREE.Mesh(divGeo, sharedMats.shelfDivider);
+        divMesh.position.set(0, baseH + (boxH * 1.05) / 2, 0);
+        group.add(divMesh);
+
+        slotPallets.forEach((item, idx) => {
+            const pName = item.product_name || item.nazwa || 'ASORTYMENT';
+            const batch = item.batch || item.nr_partii || '-';
+            const nrPal = item.nr_palety || item.display_id || `ID #${item.id}`;
+            let amtStr = '1 szt';
+            if (item.amount !== undefined && item.amount !== null) {
+                amtStr = `${item.amount} ${item.unit || 'szt'}`;
+            }
+            const accent = getAssortmentColor(pName);
+            const posX = (idx === 0 ? -halfBay * 0.52 : halfBay * 0.52);
+
+            const bGeo = new THREE.BoxGeometry(boxW, boxH, boxD);
+            const tex = getShelfItemCardboardTexture(pName, batch, amtStr, nrPal, accent);
+            const matFront = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.05 });
+            const matSide = sharedMats.cartonBody;
+            const mats = [matSide, matSide, matSide, matSide, matFront, matSide];
+
+            const boxMesh = new THREE.Mesh(bGeo, mats);
+            boxMesh.position.set(posX, baseH + boxH / 2, 0);
+            boxMesh.castShadow = true;
+            group.add(boxMesh);
+        });
+    } else {
+        const boxW = Math.min((bayW * 0.88) / count, 0.36);
+        const boxH = Math.min(lvlH * 0.46, 0.36);
+        const boxD = Math.min(depth * 0.74, 0.65);
+
+        const startX = -((count - 1) * boxW * 1.15) / 2;
+        slotPallets.forEach((item, idx) => {
+            const pName = item.product_name || item.nazwa || 'ASORTYMENT';
+            const batch = item.batch || item.nr_partii || '-';
+            const nrPal = item.nr_palety || item.display_id || `ID #${item.id}`;
+            let amtStr = '1 szt';
+            if (item.amount !== undefined && item.amount !== null) {
+                amtStr = `${item.amount} ${item.unit || 'szt'}`;
+            }
+            const accent = getAssortmentColor(pName);
+            const posX = startX + idx * boxW * 1.15;
+
+            const bGeo = new THREE.BoxGeometry(boxW, boxH, boxD);
+            const tex = getShelfItemCardboardTexture(pName, batch, amtStr, nrPal, accent);
+            const matFront = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.05 });
+            const matSide = sharedMats.cartonBody;
+            const mats = [matSide, matSide, matSide, matSide, matFront, matSide];
+
+            const boxMesh = new THREE.Mesh(bGeo, mats);
+            boxMesh.position.set(posX, baseH + boxH / 2, 0);
+            boxMesh.castShadow = true;
+            group.add(boxMesh);
+
+            if (idx < count - 1) {
+                const divGeo = new THREE.BoxGeometry(0.012, boxH * 0.95, depth * 0.75);
+                const divMesh = new THREE.Mesh(divGeo, sharedMats.shelfDivider);
+                divMesh.position.set(posX + (boxW * 1.15) / 2, baseH + (boxH * 0.95) / 2, 0);
+                group.add(divMesh);
+            }
+        });
+    }
+
+    if (count > 1) {
+        const multiTex = getShelfMultiItemBadgeTexture(count);
+        const multiMat = new THREE.SpriteMaterial({ map: multiTex, depthTest: false, transparent: true });
+        const multiSprite = new THREE.Sprite(multiMat);
+        const spriteY = Math.min(lvlH * 0.85, 0.62);
+        multiSprite.position.set(0, spriteY, 0);
+        multiSprite.scale.set(0.70, 0.20, 1);
+        multiSprite.renderOrder = 998;
+        group.add(multiSprite);
+    }
+
+    return group;
 }

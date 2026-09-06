@@ -144,14 +144,21 @@ function onDocumentPointerMove(event) {
                     dragState.targetRack = r;
                     dragState.targetMesh = hit.object;
 
-                    showDropZoneHighlight(hit.object, s, r, !s.is_occupied);
+                    const isTargetShelf = Boolean(r.is_shelving || r.rack_type === 'SHELVING' || r.rack_id === 'R09' || s.is_shelf);
+                    const canDrop = (!s.is_occupied || isTargetShelf);
+
+                    showDropZoneHighlight(hit.object, s, r, canDrop);
 
                     const hudText = document.getElementById('wh3dDragHUDText');
                     if (hudText) {
-                        if (!s.is_occupied) {
-                            hudText.innerHTML = `🟢 <span style="color: #4ade80;">WOLNE GNIAZDO: ${s.location_code}</span> • Puść przycisk myszy, aby przenieść`;
+                        if (canDrop) {
+                            if (isTargetShelf && s.is_occupied) {
+                                hudText.innerHTML = `🟢 <span style="color: #4ade80;">PÓŁKA WIELOPOZYCYJNA: ${s.location_code}</span> • Puść przycisk myszy, aby dołożyć asortyment`;
+                            } else {
+                                hudText.innerHTML = `🟢 <span style="color: #4ade80;">WOLNE MIEJSCE: ${s.location_code}</span> • Puść przycisk myszy, aby przenieść`;
+                            }
                         } else {
-                            hudText.innerHTML = `⛔ <span style="color: #f87171;">ZAJĘTE GNIAZDO: ${s.location_code}</span> • Wybierz puste miejsce`;
+                            hudText.innerHTML = `⛔ <span style="color: #f87171;">ZAJĘTE GNIAZDO: ${s.location_code}</span> • Wybierz wolne miejsce lub półkę`;
                         }
                     }
                     break;
@@ -182,9 +189,12 @@ async function onDocumentPointerUp(event) {
 
     if (dragState.isDragging) {
         const targetSlot = dragState.targetSlot;
+        const targetRack = dragState.targetRack;
         const pallet = dragState.pallet;
 
-        if (targetSlot && !targetSlot.is_occupied && pallet) {
+        const isTargetShelf = targetRack && Boolean(targetRack.is_shelving || targetRack.rack_type === 'SHELVING' || targetRack.rack_id === 'R09' || (targetSlot && targetSlot.is_shelf));
+
+        if (targetSlot && (!targetSlot.is_occupied || isTargetShelf) && pallet) {
             await executePallet3DMove(pallet, targetSlot.location_code);
         } else {
             if (dragState.slotGroup && dragState.originalPos) {
@@ -294,7 +304,28 @@ function openInspectDrawer(slot, rack) {
     const content = document.getElementById('inspectContent');
     if (!drawer || !locBadge || !content) return;
 
-    locBadge.innerText = slot.location_code;
+    const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09' || slot.is_shelf);
+
+    locBadge.innerHTML = isShelving 
+        ? `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">table_rows</span> PÓŁKA ${slot.location_code}</span>`
+        : slot.location_code;
+
+    const pallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
+
+    let shelfBadgeHtml = '';
+    if (isShelving) {
+        if (pallets.length > 1) {
+            shelfBadgeHtml = `<div style="margin: 8px 0; padding: 6px 10px; background: rgba(2, 132, 199, 0.25); border: 1px solid #38bdf8; border-radius: 8px; font-size: 11px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 16px;">category</span>
+                PÓŁKA WIELOASORTYMENTOWA (${pallets.length} POZYCJE)
+            </div>`;
+        } else if (pallets.length === 1) {
+            shelfBadgeHtml = `<div style="margin: 8px 0; padding: 6px 10px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; font-size: 11px; font-weight: 700; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 16px;">table_rows</span>
+                REGAŁ PÓŁKOWY (1 POZYCJA ASORTYMENTOWA)
+            </div>`;
+        }
+    }
 
     let html = `
         <div class="wh3d-row">
@@ -306,17 +337,16 @@ function openInspectDrawer(slot, rack) {
             <span class="wh3d-row-val">K${slot.column_index} • P${slot.level_index}</span>
         </div>
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Status Slotu:</span>
+            <span class="wh3d-row-lbl">Status ${isShelving ? 'Półki' : 'Slotu'}:</span>
             <span class="wh3d-row-val" style="color: ${slot.is_occupied ? '#10b981' : '#94a3b8'}">
-                ${slot.is_occupied ? '● ZAJĘTY' : '○ WOLNY'}
+                ${slot.is_occupied ? (isShelving ? `● ZAJĘTA (${pallets.length} poz.)` : '● ZAJĘTY') : '○ WOLNY'}
             </span>
         </div>
+        ${shelfBadgeHtml}
     `;
 
-    const pallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
-
     if (slot.is_occupied && pallets.length > 0) {
-        pallets.forEach((p) => {
+        pallets.forEach((p, idx) => {
             const isBlocked = p.is_blocked || slot.is_blocked;
             const pNum = p.nr_palety || p.display_id || `PAL-${p.id || 'N/A'}`;
             const amountText = (p.weight_kg !== undefined && p.weight_kg !== null) 
@@ -325,7 +355,9 @@ function openInspectDrawer(slot, rack) {
 
             let pkgLabel = 'Worki (25kg)';
             if (p.packaging_type === 'BIG_BAG') pkgLabel = 'Big Bag (1000kg)';
-            else if (p.packaging_type === 'WRAPPED_PALLET') pkgLabel = 'Paleta Owinięta / Karton';
+            else if (p.packaging_type === 'WRAPPED_PALLET') pkgLabel = isShelving ? 'Pojemnik / Pudełko półkowe' : 'Paleta Owinięta / Karton';
+
+            const itemAccent = (typeof getAssortmentColor === 'function') ? getAssortmentColor(p.product_name) : '#38bdf8';
 
             let fifoPill = '';
             if (p.is_first_fifo) {
@@ -343,10 +375,15 @@ function openInspectDrawer(slot, rack) {
                 expPill = `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 10px; padding: 2px 6px; border-radius: 6px;">✅ Ważna (${p.days_to_exp} dni)</span>`;
             }
 
+            const safePalletJson = JSON.stringify(p).replace(/"/g, '&quot;');
+
             html += `
-                <div class="wh3d-pallet-card ${isBlocked ? 'blocked' : ''}" style="margin-top: 12px;">
+                <div class="wh3d-pallet-card ${isBlocked ? 'blocked' : ''}" style="margin-top: 12px; border-left: 3px solid ${itemAccent};">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <strong style="color: #38bdf8; font-size: 14px; font-family: monospace;">${pNum}</strong>
+                        <div>
+                            ${pallets.length > 1 ? `<span style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-right: 4px;">#${idx + 1}</span>` : ''}
+                            <strong style="color: ${itemAccent}; font-size: 14px; font-family: monospace;">${pNum}</strong>
+                        </div>
                         <span class="status-pill ${isBlocked ? 'praca' : 'ready'}" style="font-size: 10px; padding: 2px 8px;">
                             ${isBlocked ? '⛔ KWARANTANNA' : 'DOSTĘPNA'}
                         </span>
@@ -393,6 +430,12 @@ function openInspectDrawer(slot, rack) {
                         <span class="wh3d-row-val" style="color: #fca5a5;">${p.block_reason}</span>
                     </div>
                     ` : ''}
+
+                    <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                        <button type="button" class="wh3d-btn" style="height: 28px; font-size: 11px; padding: 0 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8;" onclick="startSingleItemRelocate(${safePalletJson}, '${slot.location_code}')" title="Przenieś tę pozycję">
+                            <span class="material-icons" style="font-size: 14px;">open_with</span> Przenieś tę pozycję
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -400,13 +443,22 @@ function openInspectDrawer(slot, rack) {
         html += `
             <div style="text-align: center; padding: 24px 12px; color: #94a3b8; font-size: 13px;">
                 <span class="material-icons" style="font-size: 32px; color: #64748b; margin-bottom: 6px;">check_box_outline_blank</span>
-                <div>Gniazdo regałowe jest puste i gotowe do przyjęcia palety.</div>
+                <div>${isShelving ? 'Półka jest pusta i gotowa do przyjęcia asortymentu.' : 'Gniazdo regałowe jest puste i gotowe do przyjęcia palety.'}</div>
             </div>
         `;
     }
 
     content.innerHTML = html;
     drawer.classList.add('open');
+}
+
+function startSingleItemRelocate(pallet, currentLoc) {
+    if (!is3DDragEnabled) {
+        toggleRelocateMode();
+    }
+    const pCode = pallet.nr_palety || pallet.display_id || `ID #${pallet.id}`;
+    notifyUser(`🎯 Wybrano asortyment: ${pallet.product_name} (${pCode}). Wskaż docelową półkę lub miejsce regałowe.`, 'info');
+    dragState.pallet = pallet;
 }
 
 function closeInspectDrawer() {
