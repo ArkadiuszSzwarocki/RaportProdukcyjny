@@ -320,17 +320,17 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             }
         }
 
-        // 2. Floor location labels for Level 1 (Poziom 1 na posadzce / podłodze)
+        // 2. Floor location labels for Level 1 (Poziom 1 na posadzce / podłodze pod paletami)
         for (let c = 1; c <= cols; c++) {
             const slotX = (c - 0.5) * bayW;
             const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}01`;
             
             const labelTex1 = getBeamSlotLabelTexture(slotCode, c, 1);
-            const floorLabelGeo = new THREE.PlaneGeometry(0.52, 0.15);
+            const floorLabelGeo = new THREE.PlaneGeometry(0.56, 0.16);
             const floorLabelMat = new THREE.MeshBasicMaterial({ map: labelTex1, transparent: false, depthWrite: true });
             const floorLabelMesh = new THREE.Mesh(floorLabelGeo, floorLabelMat);
-            floorLabelMesh.position.set(slotX, 0.03, depth / 2 + 0.10);
-            floorLabelMesh.rotation.x = -Math.PI / 4;
+            floorLabelMesh.position.set(slotX, 0.015, depth / 2 + 0.12);
+            floorLabelMesh.rotation.x = -Math.PI / 2;
             rackGroup.add(floorLabelMesh);
         }
 
