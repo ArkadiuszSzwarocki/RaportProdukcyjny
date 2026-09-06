@@ -294,8 +294,9 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             }
         }
 
-        for (let l = 1; l <= lvls; l++) {
-            const beamY = l * lvlH;
+        // 1. Beams and labels for elevated levels (Level 2, 3, ..., lvls)
+        for (let l = 2; l <= lvls; l++) {
+            const beamY = (l - 1) * lvlH;
             const beamF = new THREE.Mesh(beamGeo, sharedMats.beam);
             beamF.position.set((cols * bayW) / 2, beamY, depth / 2);
             beamF.castShadow = true;
@@ -319,11 +320,26 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             }
         }
 
+        // 2. Floor location labels for Level 1 (Poziom 1 na posadzce / podłodze)
+        for (let c = 1; c <= cols; c++) {
+            const slotX = (c - 0.5) * bayW;
+            const slotCode = `${rack.rack_id}${String(c).padStart(2, '0')}01`;
+            
+            const labelTex1 = getBeamSlotLabelTexture(slotCode, c, 1);
+            const floorLabelGeo = new THREE.PlaneGeometry(0.52, 0.15);
+            const floorLabelMat = new THREE.MeshBasicMaterial({ map: labelTex1, transparent: false, depthWrite: true });
+            const floorLabelMesh = new THREE.Mesh(floorLabelGeo, floorLabelMat);
+            floorLabelMesh.position.set(slotX, 0.03, depth / 2 + 0.10);
+            floorLabelMesh.rotation.x = -Math.PI / 4;
+            rackGroup.add(floorLabelMesh);
+        }
+
         rack.slots.forEach(slot => {
             const col = slot.column_index || slot.column;
             const lvl = slot.level_index || slot.level;
             const slotX = (col - 0.5) * bayW;
-            const slotY = lvl * lvlH;
+            // Levels count from floor up: Level 1 on floor (0m), Level 2 on beam 1 (lvlH), Level 3 on beam 2 (2*lvlH), etc.
+            const slotY = (lvl - 1) * lvlH;
             const slotZ = 0;
 
             const slotPallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
