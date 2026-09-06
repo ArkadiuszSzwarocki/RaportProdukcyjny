@@ -20,7 +20,10 @@ let dragState = {
     targetMesh: null,
     startX: 0,
     startY: 0,
-    hasMoved: false
+    hasMoved: false,
+    singleItemPending: false,
+    singleItemPallet: null,
+    singleItemSourceLoc: null
 };
 
 function toggleRelocateMode() {
@@ -68,6 +71,28 @@ function onDocumentPointerDown(event) {
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(interactiveSlotMeshes, false);
 
+    if (dragState.singleItemPending && intersects.length > 0) {
+        const hit = intersects[0].object;
+        const targetSlot = hit.userData.slot;
+        const targetRack = hit.userData.rack;
+
+        if (targetSlot.location_code === dragState.singleItemSourceLoc) {
+            notifyUser('⚠️ Kliknięto to samo gniazdo źródłowe. Wybierz inne miejsce docelowe.', 'warning');
+            return;
+        }
+
+        const isTargetShelf = Boolean(targetRack.is_shelving || targetRack.rack_type === 'SHELVING' || targetRack.rack_id === 'R09' || targetSlot.is_shelf);
+        const canDrop = (!targetSlot.is_occupied || isTargetShelf);
+
+        if (canDrop) {
+            executePallet3DMove(dragState.singleItemPallet, targetSlot.location_code);
+            cancelSingleItemRelocate();
+        } else {
+            notifyUser(`⛔ Gniazdo ${targetSlot.location_code} jest zajęte. Wybierz wolne miejsce lub półkę.`, 'error');
+        }
+        return;
+    }
+
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         const slot = hit.userData.slot;
@@ -91,7 +116,10 @@ function onDocumentPointerDown(event) {
             targetMesh: null,
             startX: event.clientX,
             startY: event.clientY,
-            hasMoved: false
+            hasMoved: false,
+            singleItemPending: false,
+            singleItemPallet: null,
+            singleItemSourceLoc: null
         };
     }
 }
@@ -457,9 +485,38 @@ function startSingleItemRelocate(pallet, currentLoc) {
         toggleRelocateMode();
     }
     const pCode = pallet.nr_palety || pallet.display_id || `ID #${pallet.id}`;
-    notifyUser(`🎯 Wybrano asortyment: ${pallet.product_name} (${pCode}). Wskaż docelową półkę lub miejsce regałowe.`, 'info');
-    dragState.pallet = pallet;
+
+    dragState.singleItemPending = true;
+    dragState.singleItemPallet = pallet;
+    dragState.singleItemSourceLoc = currentLoc;
+
+    closeInspectDrawer();
+
+    const hud = document.getElementById('wh3dDragHUD');
+    const hudText = document.getElementById('wh3dDragHUDText');
+    if (hud && hudText) {
+        hudText.innerHTML = `🎯 Wybrany asortyment: <span style="color:#38bdf8; font-family:monospace;">${pallet.product_name}</span> (<span style="color:#fef08a;">${pCode}</span>) z <span style="color:#4ade80;">${currentLoc}</span> • <strong>Kliknij docelowe gniazdo</strong> lub naciśnij <kbd style="background:#1e293b;border:1px solid #475569;padding:1px 6px;border-radius:4px;font-size:11px;">Esc</kbd> aby anulować`;
+        hud.style.display = 'flex';
+    }
+
+    notifyUser(`🎯 Wybrano: ${pallet.product_name} (${pCode}). Kliknij docelowe gniazdo na scenie 3D.`, 'info');
 }
+
+function cancelSingleItemRelocate() {
+    dragState.singleItemPending = false;
+    dragState.singleItemPallet = null;
+    dragState.singleItemSourceLoc = null;
+
+    const hud = document.getElementById('wh3dDragHUD');
+    if (hud) hud.style.display = 'none';
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dragState.singleItemPending) {
+        cancelSingleItemRelocate();
+        notifyUser('❌ Relokacja pojedynczego asortymentu anulowana.', 'info');
+    }
+});
 
 function closeInspectDrawer() {
     const drawer = document.getElementById('wh3dInspectDrawer');

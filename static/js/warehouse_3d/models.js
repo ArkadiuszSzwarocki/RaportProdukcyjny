@@ -361,12 +361,26 @@ function createRealisticShelfAssortmentGroup(slotPallets, bayW, depth, lvlH) {
             group.add(boxMesh);
         });
     } else {
-        const boxW = Math.min((bayW * 0.88) / count, 0.36);
-        const boxH = Math.min(lvlH * 0.46, 0.36);
-        const boxD = Math.min(depth * 0.74, 0.65);
+        // Grid layout: 2 columns x N rows for 3+ items
+        const gridCols = Math.min(count, 3);
+        const gridRows = Math.ceil(count / gridCols);
 
-        const startX = -((count - 1) * boxW * 1.15) / 2;
+        const totalBayW = bayW * 0.92;
+        const totalDepthD = depth * 0.88;
+
+        const boxW = Math.min(totalBayW / gridCols - 0.04, 0.38);
+        const boxH = Math.min((lvlH * 0.72) / gridRows - 0.02, 0.28);
+        const boxD = Math.min(totalDepthD / gridRows - 0.03, 0.50);
+
+        const xSpacing = totalBayW / gridCols;
+        const zSpacing = totalDepthD / gridRows;
+        const xStart = -((gridCols - 1) * xSpacing) / 2;
+        const zStart = -((gridRows - 1) * zSpacing) / 2;
+
         slotPallets.forEach((item, idx) => {
+            const col = idx % gridCols;
+            const row = Math.floor(idx / gridCols);
+
             const pName = item.product_name || item.nazwa || 'ASORTYMENT';
             const batch = item.batch || item.nr_partii || '-';
             const nrPal = item.nr_palety || item.display_id || `ID #${item.id}`;
@@ -375,26 +389,45 @@ function createRealisticShelfAssortmentGroup(slotPallets, bayW, depth, lvlH) {
                 amtStr = `${item.amount} ${item.unit || 'szt'}`;
             }
             const accent = getAssortmentColor(pName);
-            const posX = startX + idx * boxW * 1.15;
+            const posX = xStart + col * xSpacing;
+            const posZ = zStart + row * zSpacing;
 
             const bGeo = new THREE.BoxGeometry(boxW, boxH, boxD);
             const tex = getShelfItemCardboardTexture(pName, batch, amtStr, nrPal, accent);
             const matFront = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.05 });
+            const accentHex = parseInt(accent.replace('#', ''), 16) || 0x0284c7;
+            const matAccentSide = new THREE.MeshStandardMaterial({ color: accentHex, roughness: 0.6, metalness: 0.15, transparent: true, opacity: 0.85 });
             const matSide = sharedMats.cartonBody;
-            const mats = [matSide, matSide, matSide, matSide, matFront, matSide];
+            // [+X, -X, +Y, -Y, +Z(front), -Z(back)]
+            const mats = [matAccentSide, matSide, matSide, matSide, matFront, matSide];
 
             const boxMesh = new THREE.Mesh(bGeo, mats);
-            boxMesh.position.set(posX, baseH + boxH / 2, 0);
+            boxMesh.position.set(posX, baseH + boxH / 2, posZ);
             boxMesh.castShadow = true;
             group.add(boxMesh);
+        });
 
-            if (idx < count - 1) {
-                const divGeo = new THREE.BoxGeometry(0.012, boxH * 0.95, depth * 0.75);
+        // Vertical dividers between columns
+        for (let c = 0; c < gridCols - 1; c++) {
+            const divX = xStart + (c + 0.5) * xSpacing;
+            const divH = Math.min(lvlH * 0.68, gridRows * boxH + 0.04);
+            const divGeo = new THREE.BoxGeometry(0.012, divH, totalDepthD);
+            const divMesh = new THREE.Mesh(divGeo, sharedMats.shelfDivider);
+            divMesh.position.set(divX, baseH + divH / 2, 0);
+            group.add(divMesh);
+        }
+
+        // Horizontal dividers between rows (if multi-row)
+        if (gridRows > 1) {
+            for (let r = 0; r < gridRows - 1; r++) {
+                const divZ = zStart + (r + 0.5) * zSpacing;
+                const divH = Math.min(lvlH * 0.68, gridRows * boxH + 0.04);
+                const divGeo = new THREE.BoxGeometry(totalBayW, 0.012, 0.012);
                 const divMesh = new THREE.Mesh(divGeo, sharedMats.shelfDivider);
-                divMesh.position.set(posX + (boxW * 1.15) / 2, baseH + (boxH * 0.95) / 2, 0);
+                divMesh.position.set(0, baseH + divH / 2, divZ);
                 group.add(divMesh);
             }
-        });
+        }
     }
 
     if (count > 1) {
