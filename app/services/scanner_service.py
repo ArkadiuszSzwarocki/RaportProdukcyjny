@@ -360,14 +360,50 @@ class ScannerService:
                     final_res['status_info'] = f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}"
             return final_res
         elif transfer_info:
+            it = transfer_info.get('item_details') or {}
+            if not it and transfer_info.get('items'):
+                for sub_it in transfer_info['items']:
+                    if str(sub_it.get('nr_palety') or '').upper() == str(location_code).upper() or str(sub_it.get('pallet_id') or '') == str(location_code):
+                        it = sub_it
+                        break
+                if not it and transfer_info['items']:
+                    it = transfer_info['items'][0]
+
+            p_name = it.get('productName') or it.get('product_name') or it.get('nazwa') or f"Transfer {transfer_info.get('transfer_code')}"
+            pkg_form = str(it.get('packageForm') or '').lower()
+            scanned_t = str(it.get('scannedType') or it.get('type') or '').lower()
+            is_pkg = pkg_form == 'packaging' or scanned_t == 'opakowanie'
+            is_dodatek = scanned_t == 'dodatek'
+            inv_type = 'Opakowanie' if is_pkg else ('Dodatek' if is_dodatek else 'Surowiec')
+            unit = 'szt.' if is_pkg else (it.get('unit') or 'kg')
+            qty = float(it.get('unitsPerPallet') or it.get('netWeight') or it.get('loaded_qty') or it.get('requested_qty') or it.get('stan_magazynowy') or 0.0)
+            nr_pal = it.get('nr_palety') or location_code
+            src = transfer_info.get('source_warehouse', '')
+            dst = transfer_info.get('destination_warehouse', '')
+
             return {
+                "id": it.get('id') or it.get('sourcePalletId') or transfer_info.get('id'),
+                "item_id": it.get('id'),
+                "dostawa_id": transfer_info.get('id'),
                 "is_transfer": True,
                 "transfer": transfer_info,
-                "nazwa": f"Transfer {transfer_info['transfer_code']}",
+                "nazwa": p_name,
+                "stan_magazynowy": qty,
+                "unit": unit,
+                "inventory_type": inv_type,
+                "typ": inv_type,
+                "nr_palety": nr_pal,
+                "sscc": nr_pal,
+                "nr_partii": it.get('nr_partii', '') or '—',
+                "data_produkcji": it.get('data_produkcji', '') or '—',
+                "data_przydatnosci": it.get('data_przydatnosci', '') or '—',
                 "lokalizacja": "OCZEKUJĄCE",
-                "source_location": transfer_info.get('source_warehouse'),
-                "destination_location": transfer_info.get('destination_warehouse'),
-                "typ": "TRANSFER"
+                "source_location": src,
+                "destination_location": dst,
+                "is_used_up": False,
+                "can_dispatch": False,
+                "status_pl": "Oczekuje na przyjęcie",
+                "status_info": f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}" if transfer_info.get('is_magazyn_dostawy') else f"Transfer {transfer_info.get('transfer_code')}: {src} ➔ {dst}"
             }
 
         # Sprawdź czy kod to wiadro z Maluchów (01-99, W01-W99)

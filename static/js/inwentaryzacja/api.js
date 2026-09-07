@@ -41,6 +41,7 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
         linia: pallet.linia || 'PSD',
         data_produkcji: pallet.data_produkcji,
         data_przydatnosci: pallet.data_przydatnosci,
+        typ_opakowania: pallet.typ_opakowania || pallet.packaging_type || 'brak',
         jednostka: unit || pallet.jednostka || 'kg'
     };
 

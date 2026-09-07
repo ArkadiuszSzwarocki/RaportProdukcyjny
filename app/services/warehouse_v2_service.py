@@ -208,8 +208,13 @@ class WarehouseV2Service:
 
             # Pobierz stare dane do logu i podziału
             col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
-            row = cursor.fetchone()
+            row = None
+            if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
+                cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (int(pallet_id),))
+                row = cursor.fetchone()
+            if not row:
+                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s", (str(pallet_id),))
+                row = cursor.fetchone()
             if not row and pallet_type != 'Dodatek':
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 if pallet_type == 'Surowiec':
@@ -218,14 +223,57 @@ class WarehouseV2Service:
                     alt_table = get_table_name('magazyn_opakowania', alt_linia)
                 else:
                     alt_table = get_table_name('magazyn_palety', alt_linia)
-                cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s", (pallet_id,))
-                alt_row = cursor.fetchone()
+                if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s", (int(pallet_id),))
+                    alt_row = cursor.fetchone()
+                else:
+                    alt_row = None
+                if not alt_row:
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE nr_palety = %s", (str(pallet_id),))
+                    alt_row = cursor.fetchone()
                 if alt_row:
                     table = alt_table
                     linia = alt_linia
                     row = alt_row
 
             if not row:
+                # Sprawdź czy to oczekujące przesunięcie / dostawa w magazyn_dostawy
+                code_to_check = str(pallet_id or '').strip()
+                if code_to_check:
+                    try:
+                        import json
+                        from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+                        cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'IN_PROGRESS')")
+                        pending_orders = cursor.fetchall()
+                        for o in pending_orders:
+                            items_data = json.loads(o.get('items') or '[]')
+                            for item in items_data:
+                                if not item.get('accepted') and not item.get('rejected'):
+                                    it_nr = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
+                                    it_id = str(item.get('id') or item.get('sourcePalletId') or '')
+                                    if (it_nr and it_nr == code_to_check.upper()) or (it_id and it_id == code_to_check):
+                                        ok_acc, msg_acc, _ = AcceptanceService.accept_item(
+                                            o['id'],
+                                            item['id'],
+                                            new_location,
+                                            worker_login
+                                        )
+                                        if ok_acc:
+                                            return True, f"Przyjęto przesunięcie i umieszczono paletę na lokalizacji: {new_location}"
+                                        else:
+                                            return False, f"Błąd przyjęcia przesunięcia: {msg_acc}"
+                    except Exception as ex_acc:
+                        print(f"Błąd auto-przyjęcia dostawy w move_pallet: {ex_acc}")
+
+                # Sprawdź również transfer OSIP
+                try:
+                    from app.services.osip_transfer_service import OsipTransferService
+                    ok_osip, msg_osip = OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login)
+                    if ok_osip:
+                        return True, f"Przyjęto transfer OSIP na lokalizację: {new_location}"
+                except Exception as ex_osip:
+                    pass
+
                 return False, "Paleta nie znaleziona."
                 
             old_loc = row.get('lokalizacja')

@@ -69,7 +69,8 @@ class AcceptanceService:
                     fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
-                if source_spot and source_spot == lokalizacja:
+                is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
+                if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None
 
                 table_sur = get_table_name('magazyn_surowce', linia)
@@ -79,6 +80,9 @@ class AcceptanceService:
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
                 nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'))
                 pkg_form = target.get('packageForm', 'bags') # bags or big_bag
+                nr_partii = nr_partii or target.get('nr_partii') or None
+                data_produkcji = data_produkcji or _clean_date(target.get('data_produkcji'))
+                data_przydatnosci = data_przydatnosci or _clean_date(target.get('data_przydatnosci'))
 
                 open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD', 'R09']
                 is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)

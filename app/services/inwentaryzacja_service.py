@@ -72,12 +72,12 @@ class InwentaryzacjaService:
             # 1. Surowce
             if extracted_id is not None:
                 cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_surowce WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                     (extracted_id, raw_code, clean_code)
                 )
             else:
                 cursor.execute(
-                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                    "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Surowiec' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_surowce WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                     (raw_code, clean_code)
                 )
             found_row = cursor.fetchone()
@@ -86,12 +86,12 @@ class InwentaryzacjaService:
             if not found_row:
                 if extracted_id is not None:
                     cursor.execute(
-                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_opakowania WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (extracted_id, raw_code, clean_code)
                     )
                 else:
                     cursor.execute(
-                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Opakowanie' as typ, linia, 'szt' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (raw_code, clean_code)
                     )
                 found_row = cursor.fetchone()
@@ -100,12 +100,12 @@ class InwentaryzacjaService:
             if not found_row:
                 if extracted_id is not None:
                     cursor.execute(
-                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_dodatki WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (extracted_id, raw_code, clean_code)
                     )
                 else:
                     cursor.execute(
-                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci FROM magazyn_dodatki WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
+                        "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy as waga, lokalizacja, 'Dodatek' as typ, linia, COALESCE(jednostka, 'kg') as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_dodatki WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (stan_magazynowy > 0) DESC, id DESC LIMIT 1",
                         (raw_code, clean_code)
                     )
                 found_row = cursor.fetchone()
@@ -115,12 +115,12 @@ class InwentaryzacjaService:
                 for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
                     if extracted_id is not None:
                         cursor.execute(
-                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
                             (extracted_id, raw_code, clean_code)
                         )
                     else:
                         cursor.execute(
-                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
                             (raw_code, clean_code)
                         )
                     found_row = cursor.fetchone()
@@ -438,7 +438,7 @@ class InwentaryzacjaService:
             # 1. Surowce
             table_sur = 'magazyn_surowce'
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM {table_sur} WHERE {in_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka, typ_opakowania FROM {table_sur} WHERE {in_clause} AND stan_magazynowy > 0", 
                 loc_variants
             )
             for p in cursor.fetchall():
@@ -448,7 +448,7 @@ class InwentaryzacjaService:
             # 2. Opakowania
             table_opk = 'magazyn_opakowania'
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM {table_opk} WHERE {in_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka, typ_opakowania FROM {table_opk} WHERE {in_clause} AND stan_magazynowy > 0", 
                 loc_variants
             )
             for p in cursor.fetchall():
@@ -457,7 +457,7 @@ class InwentaryzacjaService:
 
             # 2.5 Dodatki
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {in_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka, typ_opakowania FROM magazyn_dodatki WHERE {in_clause} AND stan_magazynowy > 0", 
                 loc_variants
             )
             for p in cursor.fetchall():
@@ -468,7 +468,7 @@ class InwentaryzacjaService:
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
                 cursor.execute(
-                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE {in_clause} AND waga_netto > 0", 
+                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka, typ_opakowania FROM {table} WHERE {in_clause} AND waga_netto > 0", 
                     loc_variants
                 )
                 for p in cursor.fetchall():
@@ -564,6 +564,20 @@ class InwentaryzacjaService:
             
             d_prod = InwentaryzacjaService._clean_date(data_produkcji)
             d_przyd = InwentaryzacjaService._clean_date(data_przydatnosci)
+
+            # Preserve existing packaging from DB if not provided or set to 'brak'
+            if (not typ_opakowania or typ_opakowania == 'brak') and paleta_id:
+                try:
+                    t_tbl = 'magazyn_surowce'
+                    if typ_palety == 'opakowanie': t_tbl = 'magazyn_opakowania'
+                    elif typ_palety == 'dodatek': t_tbl = 'magazyn_dodatki'
+                    elif typ_palety == 'wyrób gotowy': t_tbl = 'magazyn_palety'
+                    cursor.execute(f"SELECT typ_opakowania FROM {t_tbl} WHERE id = %s", (paleta_id,))
+                    _tp_row = cursor.fetchone()
+                    if _tp_row and _tp_row[0] and _tp_row[0] != 'brak':
+                        typ_opakowania = _tp_row[0]
+                except Exception:
+                    pass
 
             # Check if entry already exists for this item in this session
             existing = None
@@ -841,7 +855,8 @@ class InwentaryzacjaService:
                         # Update stock and metadata
                         cursor.execute(f"""
                             UPDATE {table} 
-                            SET {col_amount} = %s, lokalizacja = %s, nr_partii = %s, typ_opakowania = %s, 
+                            SET {col_amount} = %s, lokalizacja = %s, nr_partii = %s, 
+                                typ_opakowania = COALESCE(NULLIF(NULLIF(%s, 'brak'), ''), typ_opakowania), 
                                 data_produkcji = %s, data_przydatnosci = %s 
                             WHERE id = %s
                         """, (e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], e['typ_opakowania'], 

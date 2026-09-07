@@ -164,7 +164,7 @@ let pendingProductionLoc = null;
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
 
-  if (currentPallet && (currentPallet.is_used_up || currentPallet.stan_magazynowy <= 0)) {
+  if (currentPallet && !currentPallet.is_transfer && (currentPallet.is_used_up || parseFloat(currentPallet.stan_magazynowy || 0) <= 0)) {
     showToast('❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść ani wydać.', 'danger');
     scanInput.value = '';
     scanInput.focus();
@@ -238,6 +238,7 @@ async function doMoveFromMainInput(loc) {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         surowiec_id: currentPallet.id,
+        nr_palety: currentPallet.nr_palety || currentPallet.sscc,
         type: currentPallet.inventory_type,
         lokalizacja: loc,
         linia: LINIA
@@ -467,8 +468,8 @@ function showPallet(p) {
   }
   
   // Badge typu palety
-  const isUsedUp = p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0;
   const isTransferOrder = Boolean(p.is_transfer || p.is_magazyn_dostawy || p.transfer);
+  const isUsedUp = !isTransferOrder && (p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0);
   const isBlocked = Boolean(p.is_blocked) && !isTransferOrder;
   const isPending = isTransferOrder || (p.lokalizacja && (p.lokalizacja.toUpperCase().includes('OCZEK') || p.lokalizacja.toUpperCase().includes('TRANZYT')));
   const typePill = document.getElementById('palletTypePill');

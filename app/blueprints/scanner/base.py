@@ -127,19 +127,26 @@ def dispatch():
 def move():
     data = request.get_json(silent=True) or {}
     surowiec_id = data.get('surowiec_id')
+    nr_palety = data.get('nr_palety')
     pallet_type = data.get('type')
     nowa_lokalizacja = data.get('lokalizacja')
     linia = data.get('linia', 'AGRO')
 
-    if not surowiec_id or not nowa_lokalizacja:
-        return jsonify({'success': False, 'error': 'Brak parametrów: surowiec_id, lokalizacja'}), 400
+    identifier = surowiec_id or nr_palety
+    if not identifier or not nowa_lokalizacja:
+        return jsonify({'success': False, 'error': 'Brak parametrów: surowiec_id/nr_palety, lokalizacja'}), 400
 
-    # Default to Surowiec if no type is provided (for backward compatibility)
-    if not pallet_type:
+    # Default to Surowiec if no type is provided or is TRANSFER (for backward compatibility)
+    if not pallet_type or pallet_type == 'TRANSFER':
         pallet_type = 'Surowiec'
 
+    if isinstance(identifier, str) and identifier.isdigit():
+        pallet_id_val = int(identifier)
+    else:
+        pallet_id_val = identifier
+
     ok, msg = WarehouseV2Service.move_pallet(
-        pallet_id=int(surowiec_id),
+        pallet_id=pallet_id_val,
         pallet_type=pallet_type,
         new_location=nowa_lokalizacja,
         worker_login=_worker(),
