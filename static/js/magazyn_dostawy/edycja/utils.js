@@ -178,13 +178,13 @@ function isKnownSourceLocation(value) {
         const bbMatch = loc.match(/^BB(\d{2})$/);
         if (bbMatch) {
             const nr = parseInt(bbMatch[1], 10);
-            return nr >= 1 && nr <= 24;
+            return nr >= 1 && nr <= 24 && ![7, 8, 9, 10, 23, 24].includes(nr);
         }
 
         const mzSimple = loc.match(/^MZ(\d{2})$/);
         if (mzSimple) {
             const nr = parseInt(mzSimple[1], 10);
-            return nr >= 1 && nr <= 6;
+            return [7, 8, 9, 10, 23, 24].includes(nr);
         }
 
         // Magazyn Dodatków (MD / MDO)
@@ -192,7 +192,7 @@ function isKnownSourceLocation(value) {
             return true;
         }
 
-        return loc === 'MZ05-01' || loc === 'MZ06-01';
+        return false;
     }
 
 function getUnknownSourceLocations() {

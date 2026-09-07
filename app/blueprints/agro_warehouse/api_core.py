@@ -72,7 +72,7 @@ def use_material():
         if not surowiec_id or ilosc <= 0:
             return (jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400)
         if zbiornik_raw and (not zbiornik_norm):
-            return (jsonify({'success': False, 'error': 'Nieprawidłowy zbiornik. Dozwolone: BB01-BB24, MZ01-MZ06, MZ05-01, MZ06-01, KO01-KO22.'}), 400)
+            return (jsonify({'success': False, 'error': 'Nieprawidłowy zbiornik. Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40.'}), 400)
         worker_login = session.get('login')
         AgroSurowceService.use_for_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, zbiornik=zbiornik_norm)
         return jsonify({'success': True})
@@ -203,20 +203,30 @@ def return_from_production():
         lokalizacja = data.get('lokalizacja')
         if not surowiec_id or ilosc <= 0:
             return (jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400)
-        AgroTanksService.return_from_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, ruch_produkcja_id=ruch_produkcja_id, lokalizacja=lokalizacja)
+        worker_login = session.get('login') or session.get('username') or session.get('user') or 'Magazynier'
+        result = AgroTanksService.return_from_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, ruch_produkcja_id=ruch_produkcja_id, lokalizacja=lokalizacja)
         
-        # Automatyczny wydruk etykiety po zwrocie z produkcji (2 kopie)
+        new_pallet_id = None
+        new_sscc = None
+        if isinstance(result, tuple) and len(result) >= 3:
+            _, new_pallet_id, new_sscc = result
+        elif isinstance(result, tuple) and len(result) == 2:
+            _, new_pallet_id = result
+
+        target_print_id = new_pallet_id if new_pallet_id else int(surowiec_id)
+
+        # Automatyczny wydruk etykiety po zwrocie z produkcji (2 kopie z nowym numerem SSCC)
         try:
             from app.services.print_server import get_printer
             from app.services.scanner_service import ScannerService
             printer = get_printer()
-            label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
+            label_data = ScannerService.get_label_data(int(target_print_id), linia=linia)
             if label_data:
                 printer.print_pallet_label(label_data, copies=2)
         except Exception as pe:
             current_app.logger.warning(f"Nie udało się automatycznie wydrukować etykiety po zwrocie: {pe}")
 
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'new_pallet_id': new_pallet_id, 'new_sscc': new_sscc})
 
     except Exception as e:
         current_app.logger.error(f'Error in return_from_production: {e}')

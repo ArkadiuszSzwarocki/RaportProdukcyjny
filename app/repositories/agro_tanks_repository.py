@@ -10,7 +10,7 @@ _DODATEK_NAME_REGEX = re.compile(r'DODATEK')
 
 BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
 
-MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 25) if not (11 <= i <= 22)] + ["MZ05-01", "MZ06-01"]
+MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
 KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
 CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 99)]
 PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + CZ_TANK_CODES + ["WZ04"]
@@ -132,45 +132,195 @@ class AgroTanksRepository:
                 conn.close()
 
     def return_from_production(surowiec_id, ilosc, worker_login, plan_id=None, linia='Agro', komentarz=None, ruch_produkcja_id=None, lokalizacja=None):
-            """Zwrot surowca z produkcji na magazyn — zwiększa stan palety.
+            """Zwrot surowca ze stacji produkcyjnej na magazyn.
             
-            ruch_produkcja_id: opcjonalne ID ruchu PRODUKCJA, którego dotyczy zwrot.
-            lokalizacja: docelowa lokalizacja (regał) — jeśli podana, aktualizuje lokalizację palety.
+            Tworzy nowy numer SSCC dla zwróconej palety, kopiuje pełną historię palety matki
+            oraz przekazuje nową paletę do kolejki 'Oczekujące na przyjęcie' (magazyn_dostawy ze statusem OCZEKUJE).
             """
+            from app.utils.pallet_id import generate_pallet_id
+            import json
+            import time
+
             table_surowce = get_table_name('magazyn_surowce', linia)
             table_ruch = get_table_name('magazyn_ruch', linia)
             conn = get_db_connection()
             try:
-                cursor = conn.cursor()
+                cursor = conn.cursor(dictionary=True)
 
-                cursor.execute(f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy + %s WHERE id = %s", (ilosc, surowiec_id))
+                # 1. Pobierz dane palety matki ze stacji
+                cursor.execute(f"SELECT * FROM {table_surowce} WHERE id = %s", (surowiec_id,))
+                mother = cursor.fetchone()
+                if not mother:
+                    raise ValueError(f"Nie znaleziono surowca o ID {surowiec_id}")
 
-                # Aktualizuj lokalizację palety jeśli podano
-                if lokalizacja:
-                    cursor.execute(f"UPDATE {table_surowce} SET lokalizacja = %s WHERE id = %s", (lokalizacja, surowiec_id))
+                mother_id = mother['id']
+                mother_sscc = mother.get('nr_palety') or f"SUR-{mother_id}"
+                mother_nazwa = mother.get('nazwa') or 'Surowiec'
+                stacja = mother.get('lokalizacja') or 'PRODUKCJA'
+                
+                # Zmniejsz stan palety matki na stacji o zwracaną ilość
+                mother_current_qty = float(mother.get('stan_magazynowy') or 0)
+                new_mother_qty = max(0.0, round(mother_current_qty - ilosc, 3))
+                cursor.execute(f"UPDATE {table_surowce} SET stan_magazynowy = %s, updated_at = NOW() WHERE id = %s", (new_mother_qty, mother_id))
 
-                cursor.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
-                stan_po = cursor.fetchone()[0]
+                # 2. Generuj nowy unikalny numer SSCC dla nowej palety
+                new_sscc = generate_pallet_id(linia, 'surowiec')
 
+                # Docelowa lokalizacja techniczna: 'ZWROT' jeśli brak innej (czeka na przyjęcie w magazynie)
+                target_loc = lokalizacja.strip().upper() if lokalizacja and str(lokalizacja).strip() else 'ZWROT'
+
+                # 3. Utwórz nową paletę w magazyn_surowce ze zwróconą ilością
+                insert_new_pallet_sql = f"""
+                    INSERT INTO {table_surowce}
+                    (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci,
+                     typ_opakowania, is_blocked, linia, jednostka, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s, NOW(), NOW())
+                """
+                cursor.execute(insert_new_pallet_sql, (
+                    new_sscc,
+                    mother_nazwa,
+                    ilosc,
+                    target_loc,
+                    mother.get('nr_partii'),
+                    mother.get('data_produkcji'),
+                    mother.get('data_przydatnosci'),
+                    mother.get('typ_opakowania'),
+                    linia,
+                    mother.get('jednostka') or 'kg'
+                ))
+                new_pallet_id = cursor.lastrowid
+
+                # 4. Kopiowanie historii z palety matki do nowej palety
+                cursor.execute("""
+                    SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu
+                    FROM palety_historia
+                    WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
+                    ORDER BY data_ruchu ASC, id ASC
+                """, (mother_id, mother_sscc))
+                mother_history = cursor.fetchall() or []
+
+                for h in mother_history:
+                    cursor.execute("""
+                        INSERT INTO palety_historia
+                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        new_pallet_id,
+                        new_sscc,
+                        h.get('linia') or linia,
+                        h.get('typ_palety') or 'surowiec',
+                        h.get('akcja'),
+                        h.get('lokalizacja_zrodlowa'),
+                        h.get('lokalizacja_docelowa'),
+                        h.get('komentarz'),
+                        h.get('user_login'),
+                        h.get('data_ruchu') or datetime.datetime.now()
+                    ))
+
+                # 5. Dodaj wpisy zdarzenia zwrotu dla obu palet
+                now_dt = datetime.datetime.now()
+                # Dla nowej palety:
+                cursor.execute("""
+                    INSERT INTO palety_historia
+                    (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                    VALUES (%s, %s, %s, 'surowiec', 'ZWROT_PRODUKCJA', %s, %s, %s, %s, %s)
+                """, (
+                    new_pallet_id,
+                    new_sscc,
+                    linia,
+                    stacja,
+                    target_loc,
+                    f"Zdjęto ze stacji {stacja} ({ilosc} kg). Paleta matka: {mother_sscc}",
+                    worker_login,
+                    now_dt
+                ))
+
+                # Dla palety matki:
+                cursor.execute("""
+                    INSERT INTO palety_historia
+                    (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                    VALUES (%s, %s, %s, 'surowiec', 'ZWROT_ZE_STACJI', %s, %s, %s, %s, %s)
+                """, (
+                    mother_id,
+                    mother_sscc,
+                    linia,
+                    stacja,
+                    stacja,
+                    f"Zdjęto ze stacji {stacja} {ilosc} kg do nowej palety {new_sscc}",
+                    worker_login,
+                    now_dt
+                ))
+
+                # 6. Wpis w magazyn_ruch
                 plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
                 ruch_ref = int(ruch_produkcja_id) if ruch_produkcja_id not in (None, '', 0, '0') else None
-                lok_val = lokalizacja.strip() if lokalizacja and str(lokalizacja).strip() else None
-                cursor.execute(
-                    f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, ruch_zrodlowy_id, lokalizacja) "
-                    "VALUES (%s, 'ZWROT', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (surowiec_id, ilosc, stan_po, worker_login, datetime.datetime.now(), worker_login, datetime.datetime.now(), plan_id_val, komentarz, ruch_ref, lok_val)
-                )
+                if not ruch_ref:
+                    cursor.execute(f"SELECT id FROM {table_ruch} WHERE surowiec_id = %s AND typ_ruchu = 'PRODUKCJA' ORDER BY id DESC LIMIT 1", (mother_id,))
+                    last_prod_mov = cursor.fetchone()
+                    if last_prod_mov:
+                        ruch_ref = last_prod_mov['id']
 
-                # Log to palety_historia
-                cursor.execute(f"SELECT nazwa FROM {table_surowce} WHERE id = %s", (surowiec_id,))
-                s_row = cursor.fetchone()
-                s_name = s_row[0] if s_row else 'surowiec'
-                cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'ZWROT', %s, %s, %s)",
-                    (surowiec_id, linia, lok_val, f"Zwrot z produkcji ({ilosc} kg): {s_name}", worker_login)
-                )
+                cursor.execute(f"""
+                    INSERT INTO {table_ruch}
+                    (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data,
+                     potwierdzil_login, potwierdzil_data, plan_id, komentarz, ruch_zrodlowy_id, lokalizacja, zbiornik)
+                    VALUES (%s, %s, 'ZWROT', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    new_pallet_id,
+                    mother_nazwa,
+                    ilosc,
+                    ilosc,
+                    worker_login,
+                    now_dt,
+                    worker_login,
+                    now_dt,
+                    plan_id_val,
+                    komentarz or f"Zwrot ze stacji {stacja} do nowej palety {new_sscc}",
+                    ruch_ref,
+                    target_loc,
+                    stacja
+                ))
+
+                # 7. Utwórz wpis w magazyn_dostawy (kolejka OCZEKUJĄCE NA PRZYJĘCIE)
+                dostawa_id = f"ZWROT-{new_pallet_id}-{int(time.time())}"
+                dostawa_item = [{
+                    "id": str(new_pallet_id),
+                    "pallet_id": str(new_pallet_id),
+                    "productName": mother_nazwa,
+                    "netWeight": ilosc,
+                    "quantity": ilosc,
+                    "unit": mother.get('jednostka') or 'kg',
+                    "confirmed": False,
+                    "nr_palety": new_sscc,
+                    "sourcePalletNo": mother_sscc,
+                    "sourcePalletId": mother_id,
+                    "nr_partii": mother.get('nr_partii') or '',
+                    "data_produkcji": str(mother.get('data_produkcji') or ''),
+                    "data_przydatnosci": str(mother.get('data_przydatnosci') or ''),
+                    "typ_opakowania": mother.get('typ_opakowania') or 'bags',
+                    "sourceSpot": stacja,
+                    "lokalizacja_z": stacja,
+                    "is_return": True
+                }]
+
+                cursor.execute("""
+                    INSERT INTO magazyn_dostawy
+                    (id, order_ref, supplier, delivery_date, status, items, created_by, created_at, requires_lab, linia, lokalizacja_z, lokalizacja_do)
+                    VALUES (%s, %s, %s, %s, 'OCZEKUJE', %s, %s, %s, 0, %s, %s, 'MAGAZYN')
+                """, (
+                    dostawa_id,
+                    f"Zwrot ze stacji {stacja}",
+                    "PRODUKCJA",
+                    now_dt.strftime('%Y-%m-%d'),
+                    json.dumps(dostawa_item),
+                    worker_login,
+                    now_dt,
+                    linia,
+                    stacja
+                ))
+
                 conn.commit()
-                return True
+                return True, new_pallet_id, new_sscc
             finally:
                 conn.close()
 

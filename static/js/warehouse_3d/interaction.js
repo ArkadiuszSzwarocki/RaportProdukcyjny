@@ -355,7 +355,30 @@ function openInspectDrawer(slot, rack) {
         }
     }
 
+    let qrDrawerCardHtml = '';
+    const locQrCanvas = (typeof getSlotQrCanvas === 'function') ? getSlotQrCanvas(slot.location_code, 120) : null;
+    if (locQrCanvas) {
+        try {
+            const qrDataUrl = locQrCanvas.toDataURL();
+            qrDrawerCardHtml = `
+                <div style="display: flex; align-items: center; gap: 14px; background: rgba(15, 23, 42, 0.7); padding: 10px 14px; border-radius: 12px; margin-bottom: 14px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                    <div style="background: #ffffff; padding: 5px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); flex-shrink: 0;">
+                        <img src="${qrDataUrl}" width="68" height="68" alt="QR ${slot.location_code}" style="display: block; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">KOD QR GNIAZDA / LOKALIZACJI</div>
+                        <div style="font-size: 16px; font-weight: 900; color: #38bdf8; font-family: monospace; margin: 2px 0;">${slot.location_code}</div>
+                        <div style="font-size: 11px; color: #cbd5e1;">Zgodny ze skanerami Zebra i mobilnymi</div>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            console.warn('Could not generate drawer QR data URL:', e);
+        }
+    }
+
     let html = `
+        ${qrDrawerCardHtml}
         <div class="wh3d-row">
             <span class="wh3d-row-lbl">Regał / Sektor:</span>
             <span class="wh3d-row-val">${rack.name}</span>

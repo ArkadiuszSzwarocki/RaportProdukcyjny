@@ -123,6 +123,8 @@
         </div>
     </div>
 
+    {% set can_restore = (session.get('rola') or session.get('role') or '')|lower|trim in ['masteradmin', 'lider', 'admin', 'zarzad'] %}
+
     <!-- DAILY HISTORY SECTION -->
     <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden" style="border: 1px solid #e2e8f0;">
         <div class="card-header bg-transparent p-4 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom">
@@ -156,12 +158,15 @@
                             <th style="padding: 10px 14px; text-align: right; width: 100px;">Waga Przed</th>
                             <th style="padding: 10px 14px; text-align: center; width: 100px;">Lokalizacja</th>
                             <th style="padding: 10px 14px; width: 110px;">Magazynier</th>
+                            {% if can_restore %}
+                            <th style="padding: 10px 14px; text-align: center; width: 100px;">Akcje</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody id="consumptionHistoryBody">
                         {% if not daily_history %}
                         <tr id="emptyHistoryRow">
-                            <td colspan="8" style="text-align: center; padding: 30px; color: #94a3b8;">
+                            <td colspan="{{ 9 if can_restore else 8 }}" style="text-align: center; padding: 30px; color: #94a3b8;">
                                 <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
                                 <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
                                 <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
@@ -169,7 +174,7 @@
                         </tr>
                         {% else %}
                         {% for row in daily_history %}
-                        <tr>
+                        <tr id="history-row-{{ row.id }}">
                             <td style="padding: 10px 14px; font-family: monospace; font-weight: 700; color: #0284c7;">{{ row.time }}</td>
                             <td style="padding: 10px 14px; font-family: monospace; font-weight: 800;">{{ row.nr_palety }}</td>
                             <td style="padding: 10px 14px;"><span class="badge" style="background:#e2e8f0; color:#334155; font-size:11px; padding:3px 8px; border-radius:6px;">{{ row.typ_palety }}</span></td>
@@ -178,6 +183,16 @@
                             <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #dc2626;">{{ "%.1f"|format(row.waga_ostatnia or 0) }} kg</td>
                             <td style="padding: 10px 14px; text-align: center; font-weight: 700; font-size: 12px;">{{ row.lokalizacja_ostatnia or '-' }}</td>
                             <td style="padding: 10px 14px; font-size: 12px; color: #64748b;">{{ row.user_login or '-' }}</td>
+                            {% if can_restore %}
+                            <td style="padding: 6px 10px; text-align: center;">
+                                <button type="button" onclick="restoreFromConsumptionHistory({{ row.id }}, '{{ row.nr_palety }}', {{ row.waga_ostatnia or 0 }}, '{{ row.lokalizacja_ostatnia or '' }}')" 
+                                        class="btn-action" 
+                                        style="padding: 5px 10px; font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
+                                        title="Przywróć tę paletę na magazyn">
+                                    <span class="material-icons" style="font-size: 14px;">restore</span> Przywróć
+                                </button>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                         {% endif %}
@@ -198,6 +213,9 @@
 <!-- QR Scanner Modal & script -->
 {% include 'includes/qr_scanner_modal.html' %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    window.CAN_RESTORE_PALLET = {{ 'true' if can_restore else 'false' }};
+</script>
 <script src="{{ url_for('static', filename='js/qr_scanner.js') }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/production_consumption.js') }}?v={{ static_version }}"></script>
 

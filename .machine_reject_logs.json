@@ -1,5 +1,18 @@
 [
   {
+    "id": "rej_1788781591348",
+    "timestamp": 1788781591.3481402,
+    "timestamp_iso": "2026-09-07 13:46:31",
+    "weight_kg": 23.91,
+    "target_weight_kg": 25.0,
+    "deviation_kg": -1.09,
+    "reason_code": "UNDERWEIGHT",
+    "reason_label": "Niedowaga worka (< min tolerancji)",
+    "recipe_name": "Przemysłowa 100×120 • 12W x 4szt + 2szt = 50 worków",
+    "operator": "Test Panelu Cyfrowego Bliźniaka",
+    "raw_data": {}
+  },
+  {
     "id": "rej_1788726023046",
     "timestamp": 1788726023.046872,
     "timestamp_iso": "2026-09-06 22:20:23",

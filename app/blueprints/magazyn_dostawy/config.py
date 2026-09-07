@@ -8,16 +8,16 @@ LOKALIZACJE_ZRODLO = [
     'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
 ]
 
-# Regały R04 (20 poz.), R05 (20 poz.), R06 (10 poz.), R07 (20 poz.)
-_r04 = [f'R04{str(i+1).zfill(2)}01' for i in range(20)]
+# Regały R04 (18 poz.: 6 kolumn x 3 poziomy), R05 (20 poz.), R06 (10 poz.), R07 (44 poz.: 11 kolumn x 4 poziomy)
+_r04 = [f'R04{str(c).zfill(2)}{str(l).zfill(2)}' for l in range(1, 4) for c in range(1, 7)]
 _r05 = [f'R05{str(i+1).zfill(2)}01' for i in range(20)]
 _r06 = [f'R06{str(i+1).zfill(2)}01' for i in range(10)]
-_r07 = [f'R07{str(i+1).zfill(2)}01' for i in range(20)]
+_r07 = sorted([f'R07{str(c).zfill(2)}{str(l).zfill(2)}' for c in range(1, 12) for l in range(1, 5)])
 # OSIP – lokalizacje A01..A99 oraz BFOS (+ wsparcie legacy OS01..OS77)
 _osip = [f'A{str(i+1).zfill(2)}' for i in range(99)] + ['BFOS'] + [f'OS{str(i+1).zfill(2)}' for i in range(77)]
-# Stanowiska produkcyjne BB01..BB24, MZ01..MZ06
-_bb = [f'BB{str(i+1).zfill(2)}' for i in range(24)]
-_mz = ['MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06', 'MZ05-01', 'MZ06-01']
+# Stanowiska produkcyjne BB (BB01-BB06, BB11-BB22), MZ (MZ07-MZ10, MZ23-MZ24)
+_bb = [f'BB{str(i).zfill(2)}' for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
+_mz = ['MZ07', 'MZ08', 'MZ09', 'MZ10', 'MZ23', 'MZ24']
 _ko = [f'KO{str(i+1).zfill(2)}' for i in range(22)]
 
 LOKALIZACJE_SZCZEGOLOWE = {

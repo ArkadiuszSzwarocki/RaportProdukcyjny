@@ -111,11 +111,13 @@ class LocationService:
                 'MDO01', 'MD01',
             }
 
-            # Standard rack map: R01-R07 (3 rows x 10 places)
+            # Standard rack map: R01-R07 - R04 has 6 places, R07 has 11 places x 4 rows, others have up to 10 places x 3 rows
             for rack_no in range(1, 8):
                 rack_prefix = f"R{rack_no:02d}"
-                for place in range(1, 11):
-                    for row in range(1, 4):
+                max_places = 6 if rack_prefix == 'R04' else (11 if rack_prefix == 'R07' else 10)
+                max_rows = 4 if rack_prefix == 'R07' else 3
+                for place in range(1, max_places + 1):
+                    for row in range(1, max_rows + 1):
                         candidates.add(f"{rack_prefix}{place:02d}{row:02d}")
 
             # Regał półkowy R09: 4 kolumny/rzędy x 6 poziomów/półek (R090101 - R090406)
@@ -126,17 +128,15 @@ class LocationService:
             for idx in range(1, 78):
                 candidates.add(f"OS{idx:02d}")
 
-            for idx in range(1, 25):
+            for idx in (i for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)):
                 candidates.add(f"BB{idx:02d}")
 
-            for idx in range(1, 7):
+            for idx in (7, 8, 9, 10, 23, 24):
                 candidates.add(f"MZ{idx:02d}")
 
             for idx in range(1, 23):
                 candidates.add(f"KO{idx:02d}")
 
-            candidates.add('MZ05-01')
-            candidates.add('MZ06-01')
             return candidates
 
     def _append_locations_from_query(cursor, query, params, target_set):

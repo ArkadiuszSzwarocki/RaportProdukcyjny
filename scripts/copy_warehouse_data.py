@@ -15,7 +15,7 @@ DST_DB = 'biblioteka_testowa'
 TABLES_TO_COPY = [
     'magazyn_surowce',
     'magazyn_opakowania',
-    'magazyn_agro_slownik_surowce',
+    'slownik_surowcow',
     'magazyn_palety',
     'magazyn_palety_agro',
     'produkty_receptury'

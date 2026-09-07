@@ -1,5 +1,27 @@
 [
   {
+    "id": "err_1788781591354",
+    "timestamp": 1788781591.3543258,
+    "timestamp_iso": "2026-09-07 13:46:31",
+    "machine": "WAGA_ZRZUT",
+    "severity": "WARNING",
+    "code": "REJ-UNDE",
+    "description": "Odrzut worka: Niedowaga worka (< min tolerancji) | Waga: 23.91 kg (zadana: 25.0 kg)",
+    "raw_data": {
+      "id": "rej_1788781591348",
+      "timestamp": 1788781591.3481402,
+      "timestamp_iso": "2026-09-07 13:46:31",
+      "weight_kg": 23.91,
+      "target_weight_kg": 25.0,
+      "deviation_kg": -1.09,
+      "reason_code": "UNDERWEIGHT",
+      "reason_label": "Niedowaga worka (< min tolerancji)",
+      "recipe_name": "Przemysłowa 100×120 • 12W x 4szt + 2szt = 50 worków",
+      "operator": "Test Panelu Cyfrowego Bliźniaka",
+      "raw_data": {}
+    }
+  },
+  {
     "id": "err_1788726023048",
     "timestamp": 1788726023.0484123,
     "timestamp_iso": "2026-09-06 22:20:23",

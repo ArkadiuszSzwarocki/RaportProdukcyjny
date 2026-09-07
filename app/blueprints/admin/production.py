@@ -37,7 +37,7 @@ def register_admin_production_routes(admin_bp, *, load_roles):
 
         surowce = []
         if str(linia).upper() == 'AGRO':
-            cursor.execute('SELECT id, nazwa FROM magazyn_agro_slownik_surowce ORDER BY nazwa ASC')
+            cursor.execute('SELECT id, nazwa FROM slownik_surowcow ORDER BY nazwa ASC')
             surowce = [{'id': row[0], 'nazwa': row[1]} for row in cursor.fetchall()]
 
         conn.close()
@@ -55,11 +55,11 @@ def register_admin_production_routes(admin_bp, *, load_roles):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('SELECT id FROM magazyn_agro_slownik_surowce WHERE LOWER(nazwa) = LOWER(%s)', (nazwa,))
+            cursor.execute('SELECT id FROM slownik_surowcow WHERE LOWER(nazwa) = LOWER(%s)', (nazwa,))
             if cursor.fetchone():
                 return jsonify({'success': False, 'message': 'Taki surowiec już istnieje w słowniku.'}), 400
 
-            cursor.execute('INSERT INTO magazyn_agro_slownik_surowce (nazwa) VALUES (%s)', (nazwa,))
+            cursor.execute('INSERT INTO slownik_surowcow (nazwa, typ) VALUES (%s, %s)', (nazwa, 'surowiec'))
             conn.commit()
             return jsonify({'success': True, 'message': f'Surowiec "{nazwa}" został dodany do bazy.'})
         except Exception as e:
@@ -74,13 +74,13 @@ def register_admin_production_routes(admin_bp, *, load_roles):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('SELECT nazwa FROM magazyn_agro_slownik_surowce WHERE id = %s', (item_id,))
+            cursor.execute('SELECT nazwa FROM slownik_surowcow WHERE id = %s', (item_id,))
             row = cursor.fetchone()
             if not row:
                 return jsonify({'success': False, 'message': 'Nie znaleziono wybranego surowca.'}), 404
 
             nazwa = row[0]
-            cursor.execute('DELETE FROM magazyn_agro_slownik_surowce WHERE id = %s', (item_id,))
+            cursor.execute('DELETE FROM slownik_surowcow WHERE id = %s', (item_id,))
             conn.commit()
             return jsonify({'success': True, 'message': f'Surowiec "{nazwa}" został usunięty.'})
         except Exception as e:
@@ -93,7 +93,7 @@ def register_admin_production_routes(admin_bp, *, load_roles):
     def admin_master_slownik_surowcow():
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id, nazwa FROM magazyn_agro_slownik_surowce ORDER BY nazwa ASC')
+        cursor.execute('SELECT id, nazwa FROM slownik_surowcow ORDER BY nazwa ASC')
         surowce = [{'id': row[0], 'nazwa': row[1]} for row in cursor.fetchall()]
         conn.close()
         return render_template('admin_slownik_surowce.html', surowce=surowce)

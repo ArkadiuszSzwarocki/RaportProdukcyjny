@@ -52,9 +52,14 @@
                     <td style="padding: 12px 10px; font-size: 13px; color: #64748b;">{{ item.user_login }}</td>
                     <td style="padding: 12px 10px; font-size: 12px; color: #64748b; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ item.komentarz }}">{{ item.komentarz }}</td>
                     <td style="padding: 12px 10px; text-align: center;">
+                        {% set can_restore = (session.get('rola') or session.get('role') or '')|lower|trim in ['masteradmin', 'lider', 'admin', 'zarzad'] %}
+                        {% if can_restore %}
                         <button onclick="restorePallet({{ item.id }}, '{{ item.nr_palety }}')" class="btn-action" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 6px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Przywróć na stan">
                             <span class="material-icons" style="font-size: 18px;">restore</span>
                         </button>
+                        {% else %}
+                        <span style="color: #cbd5e1; font-size: 12px;">—</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

@@ -2177,8 +2177,14 @@ input:checked + .slider:before { transform: translateX(20px); }
     // ─────────────────────────────────────────────────────────────
     let scene3d, camera3d, renderer3d, controls3d;
     let palletGroup3d, bagsGroup3d, machineFrameGroup3d, upperPlateLeft3d, upperPlateRight3d, upperBagsGroup3d;
+    let palletElevatorPiston3d;
     let autoRotate3d = false;
-    let current3dLayer = 0, current3dBag = 0;
+    let targetPalletY = 1.48; // High-level palletizer: empty pallet starts elevated directly under formation plates (Y: 1.48m)
+    let currentPalletY = 1.48;
+    let targetPalletX = 0; // Horizontal conveyor outfeed position (X: 0 = elevator, X: 2.45 = outfeed to wrapper)
+    let currentPalletX = 0;
+    let rollerMeshes3d = [];
+    let lastPalletizer3dState = '';
 
     function init3dScene() {
         const container = document.getElementById('pallet3dCanvasContainer');
@@ -2253,11 +2259,39 @@ input:checked + .slider:before { transform: translateX(20px); }
 
         build3dPalletizerMachineFrame();
         build3dEuroPallet();
-        rebuild3dBags(current3dLayer, current3dBag);
+        rebuild3dBags(current3dLayer, current3dBag, false, 0, null);
 
         // Animation Loop
         function animate3d() {
             requestAnimationFrame(animate3d);
+
+            // Smooth vertical elevator movement (winda paletyzatora)
+            currentPalletY += (targetPalletY - currentPalletY) * 0.08;
+            if (palletGroup3d) {
+                palletGroup3d.position.y = currentPalletY;
+            }
+            if (bagsGroup3d) {
+                bagsGroup3d.position.y = currentPalletY;
+            }
+            if (palletElevatorPiston3d) {
+                // Telescopic lift cylinder extending from floor (0.05m) to elevator carriage
+                palletElevatorPiston3d.scale.y = Math.max(0.04, currentPalletY / 1.48);
+            }
+
+            // Smooth horizontal outfeed conveyor movement (płynny wyjazd palety wzdłuż rolotoku)
+            if (Math.abs(targetPalletX - currentPalletX) > 0.001) {
+                const diffX = targetPalletX - currentPalletX;
+                currentPalletX += diffX * 0.04;
+                if (palletGroup3d) palletGroup3d.position.x = currentPalletX;
+                if (bagsGroup3d) bagsGroup3d.position.x = currentPalletX;
+
+                // Rotate steel rollers along conveyor bed while pallet is rolling
+                if (rollerMeshes3d && rollerMeshes3d.length > 0) {
+                    const rotDelta = (diffX > 0 ? 0.06 : -0.06);
+                    rollerMeshes3d.forEach(r => { r.rotation.z += rotDelta; });
+                }
+            }
+
             if (controls3d) {
                 if (autoRotate3d) {
                     palletGroup3d.rotation.y += 0.004;
@@ -2334,6 +2368,30 @@ input:checked + .slider:before { transform: translateX(20px); }
         const b3 = new THREE.Mesh(beamZGeo, steelMat); b3.position.set(-0.65, 2.25, -0.165);
         const b4 = new THREE.Mesh(beamZGeo, steelMat); b4.position.set(0.65, 2.25, -0.165);
         machineFrameGroup3d.add(b1, b2, b3, b4);
+
+        // ─────────────────────────────────────────────────────────────
+        // PALLET ELEVATOR VERTICAL GUIDE RAILS & HYDRAULIC CYLINDER
+        // ─────────────────────────────────────────────────────────────
+        const guideRailGeo = new THREE.BoxGeometry(0.04, 2.2, 0.04);
+        const guideL = new THREE.Mesh(guideRailGeo, chromeMat);
+        guideL.position.set(-0.61, 1.15, 0.18);
+        const guideR = new THREE.Mesh(guideRailGeo, chromeMat);
+        guideR.position.set(0.61, 1.15, 0.18);
+        machineFrameGroup3d.add(guideL, guideR);
+
+        // Base Outer Cylinder fixed to floor (Y: 0.0 to 0.75m)
+        const pistonBaseGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.85, 20);
+        const pistonBaseMesh = new THREE.Mesh(pistonBaseGeo, steelMat);
+        pistonBaseMesh.position.set(0, 0.425, 0.18);
+        pistonBaseMesh.castShadow = true;
+        machineFrameGroup3d.add(pistonBaseMesh);
+
+        // Dynamic Telescopic Chrome Shaft (scales with currentPalletY)
+        const pistonShaftGeo = new THREE.CylinderGeometry(0.038, 0.038, 1.48, 20);
+        pistonShaftGeo.translate(0, 0.74, 0); // Translation so Y scaling extends upward from base
+        palletElevatorPiston3d = new THREE.Mesh(pistonShaftGeo, chromeMat);
+        palletElevatorPiston3d.position.set(0, 0.05, 0.18);
+        machineFrameGroup3d.add(palletElevatorPiston3d);
 
         // ─────────────────────────────────────────────────────────────
         // INFEED CONVEYOR WITH DYNAMIC CHECKWEIGHER & REJECT DROP FLAP
@@ -2526,6 +2584,7 @@ input:checked + .slider:before { transform: translateX(20px); }
         machineFrameGroup3d.add(guardRear, guardFront);
 
         // Rotating Cylindrical Steel Rollers along X axis (Rollers span along Z)
+        rollerMeshes3d = [];
         const rollerLength = (halfRailZ * 2) - 0.04;
         const rollerGeo = new THREE.CylinderGeometry(0.028, 0.028, rollerLength, 16);
         for (let rx = -2.65; rx <= 2.35; rx += 0.22) {
@@ -2534,6 +2593,7 @@ input:checked + .slider:before { transform: translateX(20px); }
             roller.position.set(rx, 0.055, trackZ);
             roller.castShadow = true;
             machineFrameGroup3d.add(roller);
+            rollerMeshes3d.push(roller);
         }
 
         // Roller track drive motors
@@ -2594,20 +2654,61 @@ input:checked + .slider:before { transform: translateX(20px); }
         }
     }
 
-    // Build Realistic Wooden Pallet (Industrial 1.0m x 1.2m vs EURO 0.8m x 1.2m) at (X: 0, Z: 0.18)
+    // Build Realistic Wooden Pallet & Steel Lift Carriage (Industrial 1.0m x 1.2m vs EURO 0.8m x 1.2m) at (X: 0, Z: 0.18)
     function build3dEuroPallet() {
         if (!palletGroup3d) return;
         palletGroup3d.clear();
-        palletGroup3d.position.set(0, 0, 0.18); // Positioned directly under split formation plates
+        palletGroup3d.position.set(currentPalletX, currentPalletY, 0.18); // Dynamic elevator vertical and horizontal position
 
         const woodMat = new THREE.MeshStandardMaterial({
             color: 0xc89d66,
             roughness: 0.8,
             metalness: 0.1
         });
+        const carriageMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.5,
+            metalness: 0.7
+        });
+        const yellowHazardMat = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b,
+            roughness: 0.4,
+            metalness: 0.3
+        });
 
         const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
         const palletWidth = isIndustrial ? 1.0 : 0.8;
+        const forkSpanX = isIndustrial ? 0.35 : 0.28;
+
+        // ─────────────────────────────────────────────────────────────
+        // STEEL ELEVATOR CARRIAGE FRAME & LIFT FORKS (WÓZEK WINDY PALETYZATORA)
+        // ─────────────────────────────────────────────────────────────
+        // Longitudinal steel lift forks supporting pallet skids (Z: -0.63 to +0.63)
+        const forkGeo = new THREE.BoxGeometry(0.12, 0.04, 1.26);
+        const forkL = new THREE.Mesh(forkGeo, carriageMat);
+        forkL.position.set(-forkSpanX, -0.02, 0);
+        forkL.castShadow = true;
+        const forkR = new THREE.Mesh(forkGeo, carriageMat);
+        forkR.position.set(forkSpanX, -0.02, 0);
+        forkR.castShadow = true;
+        palletGroup3d.add(forkL, forkR);
+
+        // Cross carriage beam connecting forks under center of pallet
+        const crossCarriageGeo = new THREE.BoxGeometry(1.22, 0.05, 0.18);
+        const crossCarriage = new THREE.Mesh(crossCarriageGeo, carriageMat);
+        crossCarriage.position.set(0, -0.02, 0);
+        crossCarriage.castShadow = true;
+        palletGroup3d.add(crossCarriage);
+
+        // Side guide brackets sliding along the column guide rails at X: -0.61 and +0.61
+        const bracketGeo = new THREE.BoxGeometry(0.08, 0.14, 0.10);
+        const bracketL = new THREE.Mesh(bracketGeo, yellowHazardMat);
+        bracketL.position.set(-0.61, -0.02, 0);
+        bracketL.castShadow = true;
+        const bracketR = new THREE.Mesh(bracketGeo, yellowHazardMat);
+        bracketR.position.set(0.61, -0.02, 0);
+        bracketR.castShadow = true;
+        palletGroup3d.add(bracketL, bracketR);
 
         if (isIndustrial) {
             // INDUSTRIAL 1000 x 1200 mm (7 Top Boards)
@@ -3050,15 +3151,15 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 
     // Rebuilds 3D Stacking: Pallet holds actual completed layers; Upper conveyor and split plate hold active bags
-    function rebuild3dBags(currentLayer, currentBag) {
+    function rebuild3dBags(currentLayer, currentBag, isLineRunning, bpm, palletizerData) {
         if (!bagsGroup3d || !upperBagsGroup3d) return;
         bagsGroup3d.clear();
         upperBagsGroup3d.clear();
-        bagsGroup3d.position.set(0, 0, 0.18); // Directly under split formation plates
+        bagsGroup3d.position.set(currentPalletX, currentPalletY, 0.18); // Follows dynamic elevator vertical and horizontal outfeed position
 
-        const fullLayers = currentConfig.full_layers || currentConfig.total_layers || 12;
-        const bagsPerLayer = currentConfig.bags_per_layer || 4;
-        const topLayerBags = currentConfig.top_layer_bags !== undefined ? currentConfig.top_layer_bags : 2;
+        const fullLayers = (palletizerData && palletizerData.full_layers) || currentConfig.full_layers || currentConfig.total_layers || 12;
+        const bagsPerLayer = (palletizerData && palletizerData.bags_per_layer) || currentConfig.bags_per_layer || 4;
+        const topLayerBags = (palletizerData && palletizerData.top_layer_bags !== undefined) ? palletizerData.top_layer_bags : (currentConfig.top_layer_bags !== undefined ? currentConfig.top_layer_bags : 2);
 
         const bagHeight = 0.095;
         const baseHeight = 0.144; // Top surface of wooden pallet
@@ -3070,6 +3171,28 @@ input:checked + .slider:before { transform: translateX(20px); }
         // 1. RENDER ACTUAL COMPLETED LAYERS ON THE PALLET (1 .. currentLayer - 1)
         const maxBagsInCurrent = (currentLayer > fullLayers) ? topLayerBags : bagsPerLayer;
         const fullyDepositedLayers = (currentBag >= maxBagsInCurrent) ? currentLayer : (currentLayer - 1);
+
+        // DYNAMIC PALLET ELEVATOR HEIGHT (Winda paletyzatora) & HORIZONTAL ROLLER CONVEYOR OUTFEED:
+        // When empty / waiting for layer 1 (fullyDepositedLayers <= 0), pallet is elevated at TOP (1.48m) at X: 0.
+        // As layers accumulate, it steps down 95mm per layer.
+        // On transfer / completion / oproznianie, it lowers to floor roller level (0.06m).
+        // Once lowered, it smoothly rolls out horizontally along X (+2.45m) towards wrapper!
+        const isTransferring = palletizerData && (palletizerData.status === 'TRANSFER' || palletizerData.status === 'DO ODBIORU' || palletizerData.is_emptying || palletizerData.wrapper_start_signal || (palletizerData.pallet_progress_percent >= 100 && fullyDepositedLayers >= fullLayers));
+        if (isTransferring) {
+            targetPalletY = 0.06;
+            // Roll out along X roller conveyor towards stretch wrapper
+            if (currentPalletY <= 0.35) {
+                targetPalletX = 2.45;
+            } else {
+                targetPalletX = 0;
+            }
+        } else if (fullyDepositedLayers <= 0) {
+            targetPalletY = 1.48; // Lifted high under split plates
+            targetPalletX = 0;
+        } else {
+            targetPalletY = Math.max(0.06, 1.48 - (fullyDepositedLayers * bagHeight));
+            targetPalletX = 0;
+        }
 
         for (let l = 1; l <= fullyDepositedLayers; l++) {
             const isTopLayer = (l > fullLayers);
@@ -3116,35 +3239,41 @@ input:checked + .slider:before { transform: translateX(20px); }
             }
         }
 
-        // 2. RENDER INFEED CONVEYOR BAGS & STAGING
+        // 2. RENDER INFEED CONVEYOR BAGS & STAGING (Conditional on real movement / non-empty state)
+        const isBaggerRunning = (bpm !== undefined && bpm > 0) || (palletizerData && (palletizerData.status === 'PRACA' || palletizerData.is_emptying));
+        const hasAccumulated = palletizerData && (palletizerData.accumulated_bags > 0);
+        const hasInfeedBags = Boolean(isLineRunning || isBaggerRunning || currentBag > 0 || currentLayer > 1 || hasAccumulated);
+
         const infeedZ = -0.78;
         const upperY = 1.74 + (bagHeight / 2) + 0.015;
         const infeedY = 1.78 + (bagHeight / 2) + 0.02;
 
-        const bagOnEntry = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
-        bagOnEntry.position.set(-2.10, infeedY, infeedZ);
-        upperBagsGroup3d.add(bagOnEntry);
+        if (hasInfeedBags) {
+            const bagOnEntry = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+            bagOnEntry.position.set(-2.10, infeedY, infeedZ);
+            upperBagsGroup3d.add(bagOnEntry);
 
-        const bagOnMiddle = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
-        bagOnMiddle.position.set(-1.45, infeedY, infeedZ);
-        upperBagsGroup3d.add(bagOnMiddle);
+            const bagOnMiddle = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+            bagOnMiddle.position.set(-1.45, infeedY, infeedZ);
+            upperBagsGroup3d.add(bagOnMiddle);
 
-        const isCurrentEven = (currentLayer % 2 === 0);
-        const nextBagIdx = currentBag + 1;
-        let turnerShouldRotate = false;
-        if (bagsPerLayer === 4) {
-            turnerShouldRotate = (!isCurrentEven && (nextBagIdx === 1 || nextBagIdx === 3)) || (isCurrentEven && (nextBagIdx === 2 || nextBagIdx === 4));
+            const isCurrentEven = (currentLayer % 2 === 0);
+            const nextBagIdx = currentBag + 1;
+            let turnerShouldRotate = false;
+            if (bagsPerLayer === 4) {
+                turnerShouldRotate = (!isCurrentEven && (nextBagIdx === 1 || nextBagIdx === 3)) || (isCurrentEven && (nextBagIdx === 2 || nextBagIdx === 4));
+            }
+
+            const bagOnTurner = create3dBagMesh(
+                turnerShouldRotate ? 0.36 : 0.54,
+                bagHeight - 0.008,
+                turnerShouldRotate ? 0.54 : 0.36,
+                currentBag === 0,
+                turnerShouldRotate
+            );
+            bagOnTurner.position.set(-0.62, infeedY, infeedZ);
+            upperBagsGroup3d.add(bagOnTurner);
         }
-
-        const bagOnTurner = create3dBagMesh(
-            turnerShouldRotate ? 0.36 : 0.54,
-            bagHeight - 0.008,
-            turnerShouldRotate ? 0.54 : 0.36,
-            currentBag === 0,
-            turnerShouldRotate
-        );
-        bagOnTurner.position.set(-0.62, infeedY, infeedZ);
-        upperBagsGroup3d.add(bagOnTurner);
 
         // 3. RENDER BAGS ON RECEIVING CONVEYOR & SPLIT FORMATION PLATES
         if (currentLayer > 0 && currentBag > 0 && currentBag < maxBagsInCurrent) {
@@ -3262,8 +3391,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
         build3dWrapperStationaryMast();
         build3dWrapperTurntable();
-        build3dPalletOnTurntable();
-        build3dWrapperFoilAndCap();
+        // Note: Pallet on turntable will be rendered dynamically by renderWrapperSection based on ST4 telemetry
 
         function animateWrapper3d() {
             requestAnimationFrame(animateWrapper3d);
@@ -3911,9 +4039,11 @@ input:checked + .slider:before { transform: translateX(20px); }
                 renderPresets();
                 applyConfigToUI();
                 build3dEuroPallet();
-                rebuild3dBags(current3dLayer, current3dBag);
-                build3dPalletOnTurntable();
-                build3dWrapperFoilAndCap();
+                rebuild3dBags(current3dLayer, current3dBag, false, 0, null);
+                if (typeof lastWrapperHasPallet !== 'undefined' && lastWrapperHasPallet && typeof build3dPalletOnTurntable === 'function') {
+                    build3dPalletOnTurntable();
+                    build3dWrapperFoilAndCap();
+                }
             }
         } catch (e) {
             console.warn('Failed to load pallet config', e);
@@ -4109,24 +4239,33 @@ input:checked + .slider:before { transform: translateX(20px); }
             if (orderChanged) {
                 currentActiveOrder = data.active_order;
                 resetSackTextureCache();
-                rebuild3dBags(current3dLayer, current3dBag);
             }
         }
 
         const newLayer = palletizer.current_layer || 0;
         const newBag = palletizer.current_bag || 0;
+        const isLineRunning = (palletizer.status === 'PRACA' || (bagger && bagger.bpm > 0) || newBag > 0 || newLayer > 0 || (palletizer.accumulated_bags > 0));
+        const currentBpm = (bagger && bagger.bpm) ? bagger.bpm : 0;
+        const currentPalletizerStateKey = `${newLayer}_${newBag}_${palletizer.status}_${isLineRunning}_${palletizer.accumulated_bags}_${currentBpm}`;
 
-        // Update 3D model if layer or bag changed
-        if (newLayer !== current3dLayer || newBag !== current3dBag) {
+        // Update 3D model if layer, bag, status, or running state changed
+        if (typeof lastPalletizer3dState === 'undefined' || currentPalletizerStateKey !== lastPalletizer3dState) {
+            lastPalletizer3dState = currentPalletizerStateKey;
             current3dLayer = newLayer;
             current3dBag = newBag;
-            rebuild3dBags(current3dLayer, current3dBag);
+            rebuild3dBags(current3dLayer, current3dBag, isLineRunning, currentBpm, palletizer);
         }
 
         if (live3dText) {
             const isTop = (current3dLayer > fullLayers);
             const maxB = isTop ? topLayerBags : bagsPerLayer;
-            live3dText.innerText = `TAŚMA: 3 szt • STÓŁ: ${current3dBag}/${maxB} • PALETA: ${palletizer.accumulated_bags || 0}/${targetBags} (${palletizer.pallet_progress_percent || 0}%) • W: ${current3dLayer}/${totalLayers}`;
+            const hasInfeedBags = Boolean(isLineRunning || currentBpm > 0 || current3dBag > 0 || current3dLayer > 1 || (palletizer.accumulated_bags > 0));
+            const infeedText = hasInfeedBags ? (currentBpm > 0 ? `${Math.min(3, Math.max(1, Math.round(currentBpm / 5)))} szt` : '1 szt') : 'PUSTA';
+            const elevMm = Math.round(currentPalletY * 1000);
+            const elevLabel = currentPalletY > 1.2 ? `GÓRA (${elevMm}mm)` : (currentPalletY < 0.2 ? `DÓŁ (${elevMm}mm)` : `${elevMm}mm`);
+            const stText = palletizer.status || 'CZUWANIE';
+            const outfeedText = (currentPalletX > 0.3) ? ' • WYJAZD NA ROLOTOK' : '';
+            live3dText.innerText = `STAN: ${stText}${outfeedText} • TAŚMA: ${infeedText} • WINDA: ${elevLabel} • STÓŁ: ${current3dBag}/${maxB} • PALETA: ${palletizer.accumulated_bags || 0}/${targetBags} (${palletizer.pallet_progress_percent || 0}%) • W: ${current3dLayer}/${totalLayers}`;
         }
 
         if (stackContainer && stackContainer.children.length !== totalLayers) {
@@ -4165,7 +4304,7 @@ input:checked + .slider:before { transform: translateX(20px); }
         }
 
         // 4. WRAPPER (3D DIGITAL TWIN & TELEMETRY)
-        renderWrapperSection(wrapper);
+        renderWrapperSection(wrapper, data.pallet_stations || []);
 
         // 5. PALLET LOGISTICS (5-STATION PIPELINE)
         renderPalletStations(data.pallet_stations || []);
@@ -4206,22 +4345,49 @@ input:checked + .slider:before { transform: translateX(20px); }
 
     let lastRenderedWrapperLayers = -1;
     let lastRenderedWrapperTop = -1;
+    let lastWrapperHasPallet = null;
 
-    function renderWrapperSection(wrapper) {
+    function renderWrapperSection(wrapper, stations) {
         if (!wrapper) return;
 
+        const st4 = (stations && stations.length >= 4) ? stations[3] : null;
+        const pct = wrapper.progress_percent || 0;
+        const isWrapping = (wrapper.status === 'OWIJANIE' || (pct > 0 && pct < 100));
+        const hasPallet = Boolean((st4 && st4.pallet_present) || isWrapping || (wrapper.current_layers && wrapper.current_layers > 0));
+
         // Dynamic Layer Count on Wrapper Pallet
-        const wrapLayers = (wrapper.current_layers !== undefined && wrapper.current_layers !== null) 
+        const wrapLayers = (wrapper.current_layers !== undefined && wrapper.current_layers !== null && wrapper.current_layers > 0) 
             ? wrapper.current_layers 
             : (currentConfig.full_layers || 12);
         const wrapTop = (wrapper.top_layer_bags !== undefined && wrapper.top_layer_bags !== null)
             ? wrapper.top_layer_bags
             : (currentConfig.top_layer_bags || 0);
 
-        if (lastRenderedWrapperLayers !== wrapLayers || lastRenderedWrapperTop !== wrapTop) {
-            lastRenderedWrapperLayers = wrapLayers;
-            lastRenderedWrapperTop = wrapTop;
-            build3dPalletOnTurntable(wrapLayers, wrapTop);
+        if (!hasPallet) {
+            if (lastWrapperHasPallet !== false || wrapperPalletGroup3d) {
+                lastWrapperHasPallet = false;
+                lastRenderedWrapperLayers = -1;
+                lastRenderedWrapperTop = -1;
+                if (wrapperPalletGroup3d && turntableGroup3d) {
+                    turntableGroup3d.remove(wrapperPalletGroup3d);
+                    wrapperPalletGroup3d = null;
+                }
+                if (foilCylinderMesh3d && turntableGroup3d) {
+                    turntableGroup3d.remove(foilCylinderMesh3d);
+                    foilCylinderMesh3d = null;
+                }
+                if (topSheetCoverMesh3d && turntableGroup3d) {
+                    turntableGroup3d.remove(topSheetCoverMesh3d);
+                    topSheetCoverMesh3d = null;
+                }
+            }
+        } else {
+            if (!wrapperPalletGroup3d || lastWrapperHasPallet !== true || lastRenderedWrapperLayers !== wrapLayers || lastRenderedWrapperTop !== wrapTop) {
+                lastWrapperHasPallet = true;
+                lastRenderedWrapperLayers = wrapLayers;
+                lastRenderedWrapperTop = wrapTop;
+                build3dPalletOnTurntable(wrapLayers, wrapTop);
+            }
         }
 
         const wrapSt = document.getElementById('wrapperStatusBadge');
@@ -4236,12 +4402,11 @@ input:checked + .slider:before { transform: translateX(20px); }
         const progText2d = document.getElementById('wrapperProgressText2d');
         const phaseBanner = document.getElementById('wrapperPhaseBanner');
 
-        const pct = wrapper.progress_percent || 0;
-        const isWrapping = (wrapper.status === 'OWIJANIE' || (pct > 0 && pct < 100));
+        const pctVal = wrapper.progress_percent || 0;
 
         // Update 3D Visualizer
         updateWrapper3dVisuals(
-            pct,
+            pctVal,
             wrapper.top_sheet_applied,
             wrapper.top_sheet_active,
             wrapper.carriage_height_percent || 0,
@@ -4253,7 +4418,7 @@ input:checked + .slider:before { transform: translateX(20px); }
             wrapSt.className = 'status-pill' + (wrapper.status === 'PRACA' || isWrapping || wrapper.status === 'GOTOWA' ? ' praca' : '');
         }
 
-        if (wrapProgress) wrapProgress.innerHTML = `${pct} <span class="unit">%</span>`;
+        if (wrapProgress) wrapProgress.innerHTML = `${pctVal} <span class="unit">%</span>`;
         if (wrapRotations) wrapRotations.innerHTML = `${wrapper.rotations_count || 0} <span class="unit">obr</span>`;
         if (wrapPhase) wrapPhase.innerText = wrapper.phase_code || 'CZUWANIE';
 
@@ -4281,7 +4446,11 @@ input:checked + .slider:before { transform: translateX(20px); }
         }
 
         if (live3dText) {
-            live3dText.innerText = `ETAP: ${wrapper.phase_label || 'CZUWANIE'} • WÓZEK: ${wrapper.carriage_height_percent || 0}% • OWINIĘCIE: ${pct}%`;
+            if (!hasPallet) {
+                live3dText.innerText = `STÓŁ: PUSTY • STATUS: ${wrapper.status || 'CZUWANIE'} • BLOKER: OTWARTY`;
+            } else {
+                live3dText.innerText = `ETAP: ${wrapper.phase_label || 'CZUWANIE'} • WÓZEK: ${wrapper.carriage_height_percent || 0}% • OWINIĘCIE: ${pctVal}%`;
+            }
         }
 
         if (progFill2d) progFill2d.style.width = pct + '%';
@@ -4534,9 +4703,11 @@ input:checked + .slider:before { transform: translateX(20px); }
 
                 // Rebuild 3D geometries for Palletizer & Wrapper twins
                 build3dEuroPallet();
-                rebuild3dBags(current3dLayer, current3dBag);
-                build3dPalletOnTurntable();
-                build3dWrapperFoilAndCap();
+                rebuild3dBags(current3dLayer, current3dBag, false, 0, null);
+                if (typeof lastWrapperHasPallet !== 'undefined' && lastWrapperHasPallet && typeof build3dPalletOnTurntable === 'function') {
+                    build3dPalletOnTurntable();
+                    build3dWrapperFoilAndCap();
+                }
 
                 closePalletConfigModal();
                 fetchTelemetry();

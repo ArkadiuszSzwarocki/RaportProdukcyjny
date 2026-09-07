@@ -368,9 +368,9 @@ class PrintServer:
             cur.execute("SELECT symbol, typ FROM slownik_surowcow WHERE nazwa = %s", (product_name,))
             row = cur.fetchone()
             if row:
-                if row['symbol']:
+                if row.get('symbol'):
                     symbol = str(row['symbol']).strip()
-                if row['typ']:
+                if row.get('typ'):
                     db_typ = str(row['typ']).strip()
             cur.close()
             conn.close()

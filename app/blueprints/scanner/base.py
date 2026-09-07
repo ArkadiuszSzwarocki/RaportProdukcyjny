@@ -47,6 +47,122 @@ def lookup():
     return jsonify({'success': True, 'pallet': pallet})
 
 
+@scanner_bp.route('/pallet/history', methods=['GET'])
+def get_pallet_history():
+    pallet_id = request.args.get('id')
+    pallet_type = request.args.get('type') or 'Surowiec'
+    linia = request.args.get('linia') or _linia() or 'AGRO'
+    
+    if not pallet_id:
+        return jsonify({'success': False, 'error': 'Brak ID lub numeru palety'}), 400
+        
+    history = WarehouseV2Service.get_pallet_history(pallet_id, pallet_type, linia)
+    return jsonify({'success': True, 'history': history})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Restore from archive / consumption (MasterAdmin & Liderzy)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@scanner_bp.route('/restore', methods=['POST'])
+def restore_pallet():
+    user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
+    if user_role not in ['masteradmin', 'lider', 'admin', 'zarzad']:
+        return jsonify({
+            'success': False, 
+            'error': 'Brak uprawnień. Tylko MasterAdmin i Liderzy mogą przywracać zużyte palety.'
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    archive_id = data.get('archive_id')
+    nr_palety = data.get('nr_palety')
+    waga = data.get('waga')
+    lokalizacja = data.get('lokalizacja')
+    
+    if not archive_id and not nr_palety:
+        return jsonify({'success': False, 'error': 'Brak numeru palety lub ID archiwum'}), 400
+
+    ok, msg, restored_info = WarehouseV2Service.restore_pallet_from_archive(
+        archive_id=int(archive_id) if archive_id else None,
+        nr_palety=nr_palety,
+        new_weight=float(waga) if waga is not None else None,
+        new_location=lokalizacja,
+        user_login=_worker()
+    )
+
+    if not ok:
+        return jsonify({'success': False, 'error': msg}), 400
+
+    return jsonify({
+        'success': True,
+        'message': msg,
+        'pallet': restored_info
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Validate station / tank before dispatch
+# ─────────────────────────────────────────────────────────────────────────────
+
+@scanner_bp.route('/validate-station', methods=['POST'])
+def validate_station():
+    data = request.get_json(silent=True) or {}
+    zbiornik = str(data.get('zbiornik') or '').strip().upper()
+    surowiec_nazwa = str(data.get('surowiec_nazwa') or '').strip()
+    surowiec_id = data.get('surowiec_id')
+    pallet_type = data.get('pallet_type') or 'Surowiec'
+
+    if not zbiornik:
+        return jsonify({'success': False, 'error': 'Brak kodu lokalizacji/stacji'}), 400
+
+    from app.utils.location_validator import is_production_tank_code, is_deleted_station_code
+    if is_deleted_station_code(zbiornik):
+        return jsonify({
+            'success': False,
+            'is_production': True,
+            'error': f'❌ Stacja {zbiornik} została wycofana/usunięta z systemu!'
+        }), 400
+
+    if not is_production_tank_code(zbiornik):
+        # Nie jest to stacja produkcyjna (np. regał magazynowy)
+        return jsonify({'success': True, 'is_production': False})
+
+    # Do stacji produkcyjnych nie wolno wydawać wyrobów gotowych ani opakowań
+    if pallet_type == 'Wyrób Gotowy':
+        return jsonify({
+            'success': False,
+            'is_production': True,
+            'error': f'❌ Wyrobów gotowych nie można przekazać na stację produkcyjną ({zbiornik})!'
+        }), 400
+
+    if pallet_type == 'Opakowanie':
+        return jsonify({
+            'success': False,
+            'is_production': True,
+            'error': f'❌ Opakowań nie można wydawać do stacji produkcyjnej ({zbiornik})!'
+        }), 400
+
+    from app.services.tank_validation_service import TankValidationService
+    is_valid, err_msg = TankValidationService.validate_tank_material(
+        kod_zbiornika=zbiornik,
+        surowiec_nazwa=surowiec_nazwa,
+        surowiec_id=surowiec_id
+    )
+
+    if not is_valid:
+        return jsonify({
+            'success': False,
+            'is_production': True,
+            'error': err_msg
+        }), 400
+
+    return jsonify({
+        'success': True,
+        'is_production': True,
+        'message': 'OK'
+    })
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Dispatch to production
 # ─────────────────────────────────────────────────────────────────────────────

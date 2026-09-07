@@ -542,84 +542,36 @@ def delete_pallet():
 
 @warehouse_v2_bp.route('/api/archiwum/restore/<int:archive_id>', methods=['POST'])
 def restore_from_archive(archive_id):
+    # Weryfikacja uprawnień: tylko MasterAdmin, Liderzy i Admin
+    user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
+    if user_role not in ['masteradmin', 'lider', 'admin', 'zarzad']:
+        return jsonify({
+            'success': False, 
+            'error': 'Brak uprawnień. Tylko MasterAdmin i Liderzy mogą przywracać zużyte palety.'
+        }), 403
+
     try:
         data = request.json or {}
-        new_weight = data.get('waga', 0)
-        
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # 1. Pobierz rekord z archiwum
-        cursor.execute("SELECT * FROM magazyn_archiwum WHERE id = %s", (archive_id,))
-        arc_row = cursor.fetchone()
-        if not arc_row:
-            conn.close()
-            return jsonify({'success': False, 'error': 'Nie znaleziono wpisu w archiwum.'}), 404
-            
-        new_location = data.get('lokalizacja') or arc_row['lokalizacja_ostatnia']
-        new_weight = float(data.get('waga') if data.get('waga') is not None else (arc_row.get('waga_ostatnia') or 0))
-        nr_partii = arc_row.get('nr_partii') or ''
-        typ_palety = arc_row['typ_palety'].lower()
-        linia = arc_row.get('linia', 'PSD')
-        
-        if typ_palety == 'surowiec':
-            table = get_table_name('magazyn_surowce', linia)
-            col_amount = 'stan_magazynowy'
-            col_name = 'nazwa'
-        elif typ_palety == 'opakowanie':
-            table = get_table_name('magazyn_opakowania', linia)
-            col_amount = 'stan_magazynowy'
-            col_name = 'nazwa'
-        elif typ_palety == 'dodatek':
-            table = get_table_name('magazyn_dodatki', linia)
-            col_amount = 'stan_magazynowy'
-            col_name = 'nazwa'
-        else:
-            table = get_table_name('magazyn_palety', linia)
-            col_amount = 'waga_netto'
-            col_name = 'produkt'
-            
-        # 2. Sprawdź duplikat nr_palety
-        nr_palety = arc_row['nr_palety']
-        if nr_palety:
-            cursor.execute(f"SELECT id FROM {table} WHERE nr_palety = %s", (nr_palety,))
-            if cursor.fetchone():
-                conn.close()
-                return jsonify({'success': False, 'error': f'Paleta o numerze {nr_palety} już istnieje w głównym magazynie!'}), 400
-                
-        # 3. Wstaw z powrotem (z partią jeśli istnieje)
-        if typ_palety in ['surowiec', 'opakowanie']:
-            cursor.execute(f"""
-                INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (nr_palety, arc_row['nazwa'], new_weight, new_location, nr_partii, linia))
-        else:
-            cursor.execute(f"""
-                INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (nr_palety, arc_row['nazwa'], new_weight, new_location, linia))
-        
-        new_id = cursor.lastrowid
-        
-        # 4. Dodaj log w historii
+        new_weight = data.get('waga')
+        new_location = data.get('lokalizacja')
         user_login = session.get('login', 'admin')
-        cursor.execute("""
-            INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login)
-            VALUES (%s, %s, %s, 'PRZYWROCENIE_Z_ARCHIWUM', %s, %s, %s)
-        """, (new_id, linia, typ_palety, new_location, f'Przywrócono z archiwum z wagą: {new_weight} kg. Lokalizacja: {new_location}. Partia: {nr_partii}', user_login))
-        
-        # 5. Usuń z archiwum
-        cursor.execute("DELETE FROM magazyn_archiwum WHERE id = %s", (archive_id,))
-        
-        conn.commit()
-        return jsonify({'success': True, 'message': f'Paleta {nr_palety or arc_row["nazwa"]} została pomyślnie przywrócona na {new_location}.'})
 
-        
+        ok, msg, restored_info = WarehouseV2Service.restore_pallet_from_archive(
+            archive_id=archive_id,
+            new_weight=new_weight,
+            new_location=new_location,
+            user_login=user_login
+        )
+
+        if not ok:
+            return jsonify({'success': False, 'error': msg}), 400
+
+        return jsonify({
+            'success': True,
+            'message': msg,
+            'pallet': restored_info
+        })
     except Exception as e:
-        if 'conn' in locals() and conn:
-            conn.rollback()
         print(f"Error restoring pallet: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if 'conn' in locals() and conn:
-            conn.close()
+

@@ -82,40 +82,119 @@ function getPalletStatusBadgeTexture(isFifo, fifoRank, isExpired, isExpiringSoon
     return texture;
 }
 
+const qrCanvasCache = new Map();
+
+/**
+ * Generates or retrieves a cached canvas with a QR code for a given slot/location code.
+ */
+function getSlotQrCanvas(slotCode, size = 104) {
+    if (!slotCode) return null;
+    const cleanCode = String(slotCode).trim();
+    const cacheKey = `${cleanCode}_${size}`;
+    if (qrCanvasCache.has(cacheKey)) {
+        return qrCanvasCache.get(cacheKey);
+    }
+
+    if (typeof QRCode === 'undefined') {
+        console.warn('QRCode library not loaded yet');
+        return null;
+    }
+
+    try {
+        const tempDiv = document.createElement('div');
+        new QRCode(tempDiv, {
+            text: cleanCode,
+            width: size,
+            height: size,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        const qrCanvas = tempDiv.querySelector('canvas');
+        if (qrCanvas) {
+            qrCanvasCache.set(cacheKey, qrCanvas);
+            return qrCanvas;
+        }
+    } catch (err) {
+        console.error('Error generating QR code for slot:', cleanCode, err);
+    }
+    return null;
+}
+
 function getBeamSlotLabelTexture(slotCode, colNum, lvlNum) {
     const key = `${slotCode}_${colNum}_${lvlNum}`;
     if (beamLabelTextureCache.has(key)) {
         return beamLabelTextureCache.get(key);
     }
 
+    // High resolution canvas (512x144) for crisp text & QR code in Three.js
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 72;
+    canvas.width = 512;
+    canvas.height = 144;
     const ctx = canvas.getContext('2d');
 
+    // 1. Warehouse label background (Vibrant industrial yellow)
     ctx.fillStyle = '#fef08a';
-    ctx.fillRect(0, 0, 256, 72);
+    ctx.fillRect(0, 0, 512, 144);
 
+    // 2. Crisp dark outer frame
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(2, 2, 252, 68);
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, 506, 138);
 
+    // 3. Left side: Location QR Code square container
+    const qrBoxX = 12;
+    const qrBoxY = 12;
+    const qrBoxSize = 120;
+    
+    // Pure white background for maximum scanner optical contrast
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize);
+
+    // Draw QR Code
+    const qrSize = 104;
+    const qrCanvas = getSlotQrCanvas(slotCode, qrSize);
+    if (qrCanvas) {
+        ctx.drawImage(qrCanvas, qrBoxX + 8, qrBoxY + 8, qrSize, qrSize);
+    } else {
+        // Fallback placeholder pattern if QRCode library unavailable
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(qrBoxX + 8, qrBoxY + 8, qrSize, qrSize);
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 16px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('QR CODE', qrBoxX + qrBoxSize / 2, qrBoxY + qrBoxSize / 2);
+    }
+
+    // 4. Right side: Top Header Ribbon (Col & Level info)
+    const rightX = 140;
+    const rightW = 360;
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(4, 4, 248, 24);
+    ctx.fillRect(rightX, 12, rightW, 44);
 
     ctx.fillStyle = '#38bdf8';
-    ctx.font = '900 13px "JetBrains Mono", monospace';
+    ctx.font = '900 20px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const lvlText = lvlNum === 0 ? 'P0 (POSADZKA)' : `POZIOM ${lvlNum}`;
-    ctx.fillText(`GNIAZDO ${colNum} • ${lvlText}`, 128, 16);
+    ctx.fillText(`GNIAZDO ${colNum} • ${lvlText}`, rightX + rightW / 2, 34);
 
+    // 5. Right side: Main Location Code (slotCode)
     ctx.fillStyle = '#0f172a';
-    ctx.font = '900 24px "JetBrains Mono", monospace';
-    ctx.fillText(slotCode, 128, 48);
+    ctx.font = '900 48px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(slotCode, rightX + rightW / 2, 96);
 
     const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
     beamLabelTextureCache.set(key, texture);
     return texture;
 }

@@ -8,7 +8,7 @@ def register_admin_raw_materials_routes(admin_bp):
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM magazyn_agro_slownik_surowce ORDER BY nazwa ASC")
+            cursor.execute("SELECT * FROM slownik_surowcow ORDER BY nazwa ASC")
             items = cursor.fetchall()
         finally:
             conn.close()
@@ -30,17 +30,16 @@ def register_admin_raw_materials_routes(admin_bp):
         try:
             cursor = conn.cursor()
             if item_id:
-                # Update
                 cursor.execute("""
-                    UPDATE magazyn_agro_slownik_surowce 
+                    UPDATE slownik_surowcow 
                     SET nazwa = %s, symbol = %s, typ = %s 
                     WHERE id = %s
                 """, (nazwa, symbol, typ, item_id))
             else:
-                # Insert
                 cursor.execute("""
-                    INSERT INTO magazyn_agro_slownik_surowce (nazwa, symbol, typ) 
+                    INSERT INTO slownik_surowcow (nazwa, symbol, typ) 
                     VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE symbol = VALUES(symbol), typ = VALUES(typ)
                 """, (nazwa, symbol, typ))
             conn.commit()
             flash("Zapisano pomyślnie.", "success")
@@ -57,7 +56,7 @@ def register_admin_raw_materials_routes(admin_bp):
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM magazyn_agro_slownik_surowce WHERE id = %s", (item_id,))
+            cursor.execute("DELETE FROM slownik_surowcow WHERE id = %s", (item_id,))
             conn.commit()
             flash("Usunięto pomyślnie.", "success")
         except Exception as e:

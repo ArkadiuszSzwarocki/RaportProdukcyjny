@@ -86,25 +86,24 @@ def skaner_production_inventory(sesja_id):
             elif 15 <= num <= 22:
                 return 'BB - Waga 03 (BB15-BB22)'
             else:
-                return 'BB - Pozostałe'
+                return None
 
         if prefix == 'MZ':
-            if 1 <= num <= 6:
-                return 'MZ - Waga 01'
-            elif 7 <= num <= 14:
-                return 'MZ - Waga 02'
-            elif 15 <= num <= 26:
-                return 'MZ - Waga 03'
+            if 7 <= num <= 10:
+                return 'MZ - Waga 02 (MZ07-MZ10)'
+            elif 23 <= num <= 24:
+                return 'MZ - Waga 03 (MZ23-MZ24)'
             else:
-                return 'MZ - Pozostałe'
+                return None
         return f"{prefix} - Zbiorniki"
 
     grouped_entries = {}
     for entry in entries:
         g = get_group(entry.get('zbiornik', ''))
-        if g not in grouped_entries:
-            grouped_entries[g] = []
-        grouped_entries[g].append(entry)
+        if g is not None:
+            if g not in grouped_entries:
+                grouped_entries[g] = []
+            grouped_entries[g].append(entry)
 
     sorted_groups = {}
     for k in sorted(grouped_entries.keys()):

@@ -217,7 +217,7 @@ async function doMoveFromMainInput(loc) {
     return;
   }
 
-  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('PSD') || loc.startsWith('MIX') || loc.startsWith('BF_');
+  const isProduction = (loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('PSD') || loc.startsWith('MIX')) && !loc.startsWith('BF_') && !loc.startsWith('BF');
   
   if (isProduction) {
     // Wyroby gotowe nie mogą być przekazywane na produkcję
@@ -226,6 +226,37 @@ async function doMoveFromMainInput(loc) {
       scanInput.value = '';
       scanInput.focus();
       return;
+    }
+    if (currentPallet.inventory_type === 'Opakowanie') {
+      showToast('❌ Opakowań nie można przekazać do stacji produkcyjnej', 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+      return;
+    }
+
+    // Walidacja stacji / zbiornika przed otwarciem modala przekazania na produkcję
+    try {
+      const vRes = await fetch('/agro/scanner/validate-station', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          zbiornik: loc,
+          surowiec_nazwa: currentPallet.nazwa || currentPallet.produkt || '',
+          surowiec_id: currentPallet.id,
+          pallet_type: currentPallet.inventory_type || 'Surowiec',
+          linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO')
+        })
+      });
+      const vData = await vRes.json();
+      if (!vData.success) {
+        showToast(vData.error || vData.message || `⛔ BŁĄD: Stacja ${loc} jest niezgodna z tym surowcem!`, 'danger');
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        scanInput.value = '';
+        scanInput.focus();
+        return;
+      }
+    } catch (err) {
+      console.error('Błąd walidacji stacji:', err);
     }
     
     pendingProductionLoc = loc;
@@ -457,6 +488,10 @@ function showPallet(p) {
   if (idVal) {
     idVal.textContent = p.id ? `#${p.id}` : '—';
   }
+  const histBtn = document.getElementById('palletHistoryBtn');
+  if (histBtn) {
+    histBtn.style.display = 'inline-flex';
+  }
   if (p.is_bucket) {
     document.querySelector('.pallet-qty').innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${p.jednostka || 'składniki'}`;
   } else if (p.unit === 'szt.' || p.unit === 'szt' || p.inventory_type === 'Opakowanie' || p.is_pkg) {
@@ -533,11 +568,18 @@ function showPallet(p) {
 
   // Check if pallet is on a production station
   const locUpper = (p.lokalizacja || '').toUpperCase();
-  const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX') || locUpper.startsWith('BF_'));
+  const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX')) && !locUpper.startsWith('BF_') && !locUpper.startsWith('BF');
   
   const returnBtn = document.getElementById('scannerReturnBtnContainer');
   if (returnBtn) {
     returnBtn.style.display = isProductionStation ? 'block' : 'none';
+  }
+
+  // Obsługa przycisku przywracania palety ze stanu zużycia (MasterAdmin i Liderzy)
+  const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
+  if (restoreBtn) {
+    const canRestore = Boolean((typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
+    restoreBtn.style.display = canRestore ? 'block' : 'none';
   }
 
   document.getElementById('palletCard').classList.add('visible');
@@ -633,8 +675,15 @@ function hidePallet() {
   const idVal = document.getElementById('palletIdVal');
   if (idVal) idVal.textContent = '—';
 
+  const histBtn = document.getElementById('palletHistoryBtn');
+  if (histBtn) histBtn.style.display = 'none';
+  closeScannerHistoryModal();
+
   const typePill = document.getElementById('palletTypePill');
   if (typePill) typePill.style.display = 'none';
+
+  const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
+  if (restoreBtn) restoreBtn.style.display = 'none';
   
   const barContainer = document.getElementById('palletTimeoutBarContainer');
   if (barContainer) barContainer.style.display = 'none';
@@ -1001,7 +1050,8 @@ function submitScannerReturn() {
   .then(r => r.json())
   .then(d => {
     if (d.success) {
-      showToast(`Pomyślnie zwrócono ${qty} kg na magazyn`, 'success');
+      const ssccMsg = d.new_sscc ? ` (Nowy SSCC: ${d.new_sscc})` : '';
+      showToast(`Pomyślnie zwrócono ${qty} kg${ssccMsg}. Paleta trafiła do Oczekujących.`, 'success');
       closeScannerReturnModal();
       hidePallet();
     } else {
@@ -1014,4 +1064,272 @@ function submitScannerReturn() {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Przywracanie palety z zużycia (MasterAdmin & Liderzy)
+// ─────────────────────────────────────────────────────────────────────────────
 
+function openScannerRestoreModal() {
+  if (!currentPallet) return;
+  const overlay = document.getElementById('scannerRestoreOverlay');
+  if (!overlay) return;
+
+  const nameEl = document.getElementById('restoreModalPalletName');
+  if (nameEl) nameEl.textContent = currentPallet.nazwa || 'Paleta';
+
+  const ssccEl = document.getElementById('restoreModalSSCC');
+  if (ssccEl) ssccEl.textContent = currentPallet.nr_palety || currentPallet.inventory_code || '-';
+
+  const batchEl = document.getElementById('restoreModalBatch');
+  if (batchEl) batchEl.textContent = currentPallet.nr_partii || '-';
+
+  const wInput = document.getElementById('restoreModalWeight');
+  if (wInput) {
+    const w = parseFloat(currentPallet.waga_ostatnia || 0);
+    wInput.value = w > 0 ? w : '';
+  }
+
+  const lInput = document.getElementById('restoreModalLocation');
+  if (lInput) {
+    let loc = currentPallet.lokalizacja_ostatnia || currentPallet.lokalizacja || 'MP01';
+    loc = loc.replace(/^ZUZYTA\s*\(/i, '').replace(/\)$/, '').trim();
+    lInput.value = loc || 'MP01';
+  }
+
+  overlay.style.display = 'flex';
+  setTimeout(() => {
+    if (wInput) wInput.focus();
+  }, 100);
+}
+
+function closeScannerRestoreModal() {
+  const overlay = document.getElementById('scannerRestoreOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function confirmScannerRestore() {
+  if (!currentPallet) return;
+
+  const btn = document.getElementById('btnConfirmScannerRestore');
+  const wInput = document.getElementById('restoreModalWeight');
+  const lInput = document.getElementById('restoreModalLocation');
+
+  const weightVal = parseFloat(wInput.value);
+  if (isNaN(weightVal) || weightVal < 0) {
+    showToast('Podaj poprawną wagę palety (większą lub równą 0 kg).', 'warning');
+    wInput.focus();
+    return;
+  }
+
+  const locVal = (lInput.value || '').trim().toUpperCase();
+  if (!locVal) {
+    showToast('Podaj lokalizację docelową dla przywracanej palety.', 'warning');
+    lInput.focus();
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Trwa przywracanie...';
+  }
+
+  try {
+    const res = await fetch('/agro/scanner/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        archive_id: currentPallet.archive_id,
+        nr_palety: currentPallet.nr_palety,
+        waga: weightVal,
+        lokalizacja: locVal
+      })
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      showToast(data.error || 'Błąd przywracania palety', 'danger');
+      return;
+    }
+
+    showToast(data.message || 'Paleta została pomyślnie przywrócona!', 'success');
+    closeScannerRestoreModal();
+
+    // Automatycznie odśwież widok w skanerze, aby pokazać aktywną paletę
+    const targetCode = currentPallet.nr_palety || locVal;
+    setTimeout(() => {
+      lookupPallet(targetCode);
+    }, 400);
+
+  } catch (err) {
+    console.error('Błąd przywracania:', err);
+    showToast('Błąd połączenia z serwerem podczas przywracania palety.', 'danger');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons" style="font-size:18px;">check</span> Przywróć na stan';
+    }
+  }
+}
+
+/* ─── Pallet History Modal ───────────────────────────────── */
+function openScannerHistoryModal() {
+  if (!currentPallet) {
+    showToast('Najpierw zeskanuj paletę', 'info');
+    return;
+  }
+  const overlay = document.getElementById('scannerHistoryOverlay');
+  if (!overlay) return;
+
+  overlay.style.display = 'flex';
+
+  const nameEl = document.getElementById('histModalPalletName');
+  if (nameEl) nameEl.textContent = currentPallet.nazwa || 'Nieznany produkt';
+
+  const ssccEl = document.getElementById('histModalSSCC');
+  if (ssccEl) ssccEl.textContent = currentPallet.nr_palety || '—';
+
+  const idEl = document.getElementById('histModalId');
+  if (idEl) idEl.textContent = currentPallet.id ? `#${currentPallet.id}` : '—';
+
+  const qtyEl = document.getElementById('histModalQty');
+  if (qtyEl) {
+    const rawVal = parseFloat(currentPallet.stan_magazynowy || 0);
+    const qtyFormatted = Number.isInteger(rawVal) ? String(parseInt(rawVal, 10)) : rawVal.toFixed(1);
+    qtyEl.textContent = `${qtyFormatted} ${currentPallet.unit || 'kg'}`;
+  }
+
+  const locEl = document.getElementById('histModalLoc');
+  if (locEl) locEl.textContent = currentPallet.lokalizacja || '—';
+
+  fetchScannerHistory();
+}
+
+function closeScannerHistoryModal() {
+  const overlay = document.getElementById('scannerHistoryOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function fetchScannerHistory() {
+  if (!currentPallet) return;
+
+  const loadingEl = document.getElementById('histModalLoading');
+  const emptyEl = document.getElementById('histModalEmpty');
+  const timelineEl = document.getElementById('histModalTimeline');
+  const countEl = document.getElementById('histModalCount');
+
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (timelineEl) {
+    timelineEl.style.display = 'none';
+    timelineEl.innerHTML = '';
+  }
+
+  const palletId = currentPallet.id || currentPallet.nr_palety;
+  const palletType = currentPallet.inventory_type || currentPallet.typ || currentPallet.type || 'Surowiec';
+  const liniaVal = typeof LINIA !== 'undefined' ? LINIA : (currentPallet.linia || 'AGRO');
+
+  const url = `/agro/scanner/pallet/history?id=${encodeURIComponent(palletId)}&type=${encodeURIComponent(palletType)}&linia=${encodeURIComponent(liniaVal)}`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (data.success && data.history && data.history.length > 0) {
+        if (countEl) countEl.textContent = `Wpisów: ${data.history.length}`;
+        if (timelineEl) {
+          timelineEl.style.display = 'flex';
+          timelineEl.innerHTML = renderHistoryTimeline(data.history);
+        }
+      } else {
+        if (countEl) countEl.textContent = 'Wpisów: 0';
+        if (emptyEl) emptyEl.style.display = 'block';
+      }
+    })
+    .catch(err => {
+      console.error('Błąd pobierania historii:', err);
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = `
+          <span class="material-icons" style="font-size:32px; color:#ef4444;">error_outline</span>
+          <div style="font-size:13px; font-weight:600; color:#ef4444; margin-top:8px;">Błąd pobierania historii: ${err.message || err}</div>
+        `;
+      }
+    });
+}
+
+function renderHistoryTimeline(items) {
+  const getActionConfig = (actionRaw) => {
+    const a = String(actionRaw || '').toUpperCase();
+    if (a.includes('ZWROT')) {
+      return { label: a.replace(/_/g, ' '), bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46', icon: 'keyboard_return' };
+    }
+    if (a.includes('WYDANIE') || a.includes('PRODUKCJA')) {
+      return { label: a.replace(/_/g, ' '), bg: '#fffbeb', border: '#fde68a', text: '#92400e', icon: 'precision_manufacturing' };
+    }
+    if (a.includes('PRZYJECIE') || a.includes('DOSTAWA')) {
+      return { label: a.replace(/_/g, ' '), bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', icon: 'inventory_2' };
+    }
+    if (a.includes('PODZIAL')) {
+      return { label: a.replace(/_/g, ' '), bg: '#faf5ff', border: '#e9d5ff', text: '#6b21a8', icon: 'call_split' };
+    }
+    if (a.includes('PRZESUNIECIE')) {
+      return { label: a.replace(/_/g, ' '), bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: 'swap_horiz' };
+    }
+    if (a.includes('PRZYWROC')) {
+      return { label: a.replace(/_/g, ' '), bg: '#f0fdfa', border: '#99f6e4', text: '#0f766e', icon: 'restore' };
+    }
+    if (a.includes('EDYCJA') || a.includes('KOREKTA')) {
+      return { label: a.replace(/_/g, ' '), bg: '#fff1f2', border: '#fecdd3', text: '#be123c', icon: 'edit' };
+    }
+    return { label: a.replace(/_/g, ' ') || 'RUCH', bg: '#f1f5f9', border: '#cbd5e1', text: '#334155', icon: 'history' };
+  };
+
+  return items.map((item) => {
+    const cfg = getActionConfig(item.typ_ruchu);
+    const dateStr = item.autor_data || '—';
+    const userStr = item.autor_login ? `@${item.autor_login}` : '';
+    const commentStr = item.komentarz || '';
+
+    let routeHtml = '';
+    if (item.lokalizacja_zrodlowa || item.lokalizacja_docelowa) {
+      routeHtml = `
+        <div style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:4px; margin-top:4px;">
+          <span>${item.lokalizacja_zrodlowa || '—'}</span>
+          <span class="material-icons" style="font-size:12px;">arrow_forward</span>
+          <span>${item.lokalizacja_docelowa || '—'}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="position:relative; padding-left:24px; border-left:2px solid #e2e8f0; padding-bottom:6px;">
+        <div style="position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%; background:${cfg.text}; border:2px solid #ffffff; box-shadow:0 0 0 1px #cbd5e1;"></div>
+        
+        <div style="background:#ffffff; border:1px solid ${cfg.border}; border-radius:10px; padding:10px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
+            <div style="display:inline-flex; align-items:center; gap:4px; background:${cfg.bg}; color:${cfg.text}; border:1px solid ${cfg.border}; border-radius:4px; padding:2px 6px; font-size:11px; font-weight:800;">
+              <span class="material-icons" style="font-size:13px;">${cfg.icon}</span>
+              <span>${cfg.label}</span>
+            </div>
+            <div style="font-size:11px; color:#64748b; font-weight:600;">
+              <span>${dateStr}</span>
+              ${userStr ? `<span style="color:#0f172a; margin-left:4px;">(${userStr})</span>` : ''}
+            </div>
+          </div>
+          
+          ${routeHtml}
+          
+          ${commentStr ? `<div style="font-size:12px; color:#334155; margin-top:5px; line-height:1.4; word-break:break-word;">${commentStr}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Zamknięcie modala historii przy kliknięciu poza okno
+window.addEventListener('click', function(e) {
+  const overlay = document.getElementById('scannerHistoryOverlay');
+  if (e.target === overlay) {
+    closeScannerHistoryModal();
+  }
+});

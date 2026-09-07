@@ -88,8 +88,6 @@ class TankValidationService:
                     return 'Waga03 (BB15-BB22)'
                 return 'Pozostałe Big-Bag'
             if prefix == 'MZ':
-                if 1 <= num <= 6:
-                    return 'MZ (MZ01-MZ06)'
                 if 7 <= num <= 10:
                     return 'Waga02 (MZ07-MZ10)'
                 if 23 <= num <= 24:

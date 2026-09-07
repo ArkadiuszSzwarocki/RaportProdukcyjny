@@ -142,8 +142,11 @@ def edycja_dostawy(dostawa_id=None):
             ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,)),
             (f"SELECT DISTINCT produkt as nazwa FROM {table_wg}", ())
         ]:
-            cursor.execute(query, p)
-            wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+            try:
+                cursor.execute(query, p)
+                wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+            except Exception:
+                pass
         wszystkie_produkty = sorted(list(wszystkie_produkty))
 
         printers = []

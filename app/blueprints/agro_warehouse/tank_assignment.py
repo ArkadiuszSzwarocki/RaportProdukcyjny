@@ -31,13 +31,15 @@ def _normalize_tank_code(code):
     return code
 
 
+from app.repositories.agro_tanks_repository import PRODUCTION_TANK_CODES
+
+
 def _is_valid_tank_code(code):
-    """Sprawdza czy kod to poprawny zbiornik BB/MZ/KO/CZ/WZ."""
+    """Sprawdza czy kod to poprawny zbiornik produkcyjny."""
     if not code:
         return False
     code = _normalize_tank_code(code)
-    patterns = [r'^BB\d{2}$', r'^MZ\d{2}$', r'^KO\d{2}$', r'^CZ\d{2}$', r'^WZ\d{2}$']
-    return any(re.match(p, code) for p in patterns)
+    return code in PRODUCTION_TANK_CODES
 
 
 def _normalize_pallet_scan(scan_value):

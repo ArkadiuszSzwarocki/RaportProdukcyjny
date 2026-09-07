@@ -107,11 +107,24 @@ class AcceptanceService:
                     p_type = 'dodatek'
                 else:
                     qty = float(target.get('netWeight') or 0)
-                    cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                     p_type = 'surowiec'
+                    # Sprawdź, czy rekord palety już istnieje (np. utworzony podczas zwrotu ze stacji jako ZWROT)
+                    cursor.execute(f"SELECT id FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                    exist_sur = cursor.fetchone()
+                    if exist_sur:
+                        pallet_id = exist_sur['id']
+                        cursor.execute(f"""
+                            UPDATE {table_sur}
+                            SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
+                                data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s,
+                                is_blocked = 0, updated_at = NOW()
+                            WHERE id = %s
+                        """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, pkg_form, pallet_id))
+                    else:
+                        cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                        pallet_id = cursor.lastrowid
 
-                # Get the ID of the pallet (new or existing)
-                pallet_id = cursor.lastrowid
+                # Get the ID of the pallet (new or existing) if not resolved yet
                 if not pallet_id or pallet_id == 0:
                     table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)
                     cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja,))
@@ -149,9 +162,10 @@ class AcceptanceService:
                 # 3. Empty the source spot (from Transfer or from External Delivery pending buffer)
                 source_spot = target.get('sourceSpot')
                 is_partial = target.get('is_partial', False)
+                is_return = target.get('is_return', False)
                 source_pallet_id = target.get('sourcePalletId')
 
-                if source_spot and not is_partial:
+                if source_spot and not is_partial and not is_return:
                     actual_source_loc = 'OCZEKUJĄCE' if source_spot == 'DOSTAWA' else source_spot
                     
                     if source_pallet_id:
@@ -165,17 +179,17 @@ class AcceptanceService:
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                 
-                # If it's partial, we already subtracted at Stage 1, so we just create the new one at destination (handled by next lines)
-                    
                     cursor.execute(
                         "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
                         (None, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
                     )
 
                 # Log to palety_historia
+                action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
+                comment_text = f"Przyjęcie zwrotu z produkcji: {product_name} na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}"
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PRZYJECIE', %s, %s, %s)",
-                    (pallet_id, linia, p_type, lokalizacja, f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}", login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (pallet_id, nr_palety, linia, p_type, action_name, source_spot or 'OCZEKUJACE', lokalizacja, comment_text, login)
                 )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)

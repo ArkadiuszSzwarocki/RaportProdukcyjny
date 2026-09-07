@@ -62,12 +62,12 @@ class DeliveryCommandService:
                 bb_match = re.match(r'^BB(\d{2})$', loc)
                 if bb_match:
                     nr = int(bb_match.group(1))
-                    return 1 <= nr <= 24
+                    return (1 <= nr <= 24) and (nr not in (7, 8, 9, 10, 23, 24))
 
                 mz_simple = re.match(r'^MZ(\d{2})$', loc)
                 if mz_simple:
                     nr = int(mz_simple.group(1))
-                    return 1 <= nr <= 6
+                    return nr in (7, 8, 9, 10, 23, 24)
 
                 ko_match = re.match(r'^KO(\d{2})$', loc)
                 if ko_match:
@@ -77,7 +77,7 @@ class DeliveryCommandService:
                 if loc.startswith('MD') or loc.startswith('MDO') or loc.startswith('BF'):
                     return True
 
-                return loc in {'MZ05-01', 'MZ06-01'}
+                return False
 
             linia = data.get('linia', 'PSD').upper()
             dostawa_id = data.get('id') or str(uuid.uuid4())[:18]

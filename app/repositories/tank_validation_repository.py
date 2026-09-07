@@ -28,7 +28,11 @@ class TankValidationRepository:
             """)
             cursor.execute("""
                 DELETE FROM konfiguracja_zbiornikow
-                WHERE kod_zbiornika IN ('MZ11', 'MZ12', 'MZ13', 'MZ14', 'MZ15', 'MZ16', 'MZ17', 'MZ18', 'MZ19', 'MZ20', 'MZ21', 'MZ22')
+                WHERE kod_zbiornika IN (
+                    'BB07', 'BB08', 'BB09', 'BB10', 'BB23', 'BB24', 'BB7', 'BB8', 'BB9', 'BB10',
+                    'MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06', 'MZ05-01', 'MZ06-01',
+                    'MZ11', 'MZ12', 'MZ13', 'MZ14', 'MZ15', 'MZ16', 'MZ17', 'MZ18', 'MZ19', 'MZ20', 'MZ21', 'MZ22'
+                )
             """)
             conn.commit()
         finally:
@@ -165,7 +169,7 @@ class TankValidationRepository:
             try:
                 cursor.execute("""
                     SELECT id, nazwa, symbol, typ 
-                    FROM magazyn_agro_slownik_surowce 
+                    FROM slownik_surowcow 
                     WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''
                     ORDER BY nazwa ASC
                 """)

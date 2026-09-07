@@ -180,9 +180,12 @@
 
 </div>
 
+<!-- QR CODE GENERATOR FOR LOCATION LABELS -->
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
+
 <!-- MODULAR 3D SCRIPTS -->
-<script src="{{ url_for('static', filename='js/warehouse_3d/textures.js') }}?v=20260907_6"></script>
-<script src="{{ url_for('static', filename='js/warehouse_3d/models.js') }}?v=20260907_6"></script>
-<script src="{{ url_for('static', filename='js/warehouse_3d/interaction.js') }}?v=20260907_6"></script>
-<script src="{{ url_for('static', filename='js/warehouse_3d/scene.js') }}?v=20260907_6"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/textures.js') }}?v=20260907_qr"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/models.js') }}?v=20260907_qr"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/interaction.js') }}?v=20260907_qr"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/scene.js') }}?v=20260907_qr"></script>
 {% endblock %}

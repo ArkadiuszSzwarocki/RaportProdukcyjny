@@ -45,20 +45,26 @@ function renderRackGrid(prefix) {
     let maxCols = 10;
     let maxRows = 3;
     
-    // R05 has 4 rows and 4 columns
-    if (normPrefix === 'R05') {
+    // Rack dimensions (columns x levels)
+    if (normPrefix === 'R04') {
+        maxCols = 6;
+        maxRows = 3;
+    } else if (normPrefix === 'R05') {
         maxCols = 4;
         maxRows = 4;
     } else if (normPrefix === 'R06') {
         maxCols = 5;
         maxRows = 5;
+    } else if (normPrefix === 'R07') {
+        maxCols = 11;
+        maxRows = 4;
     } else if (normPrefix === 'R09') {
         maxCols = 4;
         maxRows = 6;
     }
     
     grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;
-    grid.style.minWidth = maxCols > 6 ? '650px' : '300px';
+    grid.style.minWidth = maxCols > 6 ? `${Math.max(650, maxCols * 62)}px` : '300px';
 
     for(let r = maxRows; r >= 1; r--) {
         for(let c = 1; c <= maxCols; c++) {

@@ -218,7 +218,7 @@ class AgroSurowceRepository:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT nazwa FROM magazyn_agro_slownik_surowce ORDER BY nazwa ASC")
+                cursor.execute("SELECT nazwa FROM slownik_surowcow ORDER BY nazwa ASC")
                 return cursor.fetchall()
             finally:
                 conn.close()
@@ -282,7 +282,7 @@ class AgroSurowceRepository:
                 cursor = conn.cursor()
                 
                 # 1. Check if surowiec exists in dictionary
-                cursor.execute("INSERT IGNORE INTO magazyn_agro_slownik_surowce (nazwa) VALUES (%s)", (nazwa,))
+                cursor.execute("INSERT IGNORE INTO slownik_surowcow (nazwa) VALUES (%s)", (nazwa,))
                 
                 # 2. Add pending movement
                 cursor.execute(

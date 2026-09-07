@@ -105,14 +105,9 @@ def _get_allowed_dosypka_materials(cursor, linia: str) -> list[str]:
     linia_upper = str(linia or '').upper()
     
     # We only want raw materials and additives (no packaging), and no duplicates/locations.
-    if linia_upper == 'AGRO':
-        candidate_tables = [
-            'magazyn_agro_slownik_surowce'
-        ]
-    else:
-        candidate_tables = [
-            'magazyn_agro_slownik_surowce'
-        ]
+    candidate_tables = [
+        'slownik_surowcow'
+    ]
         
     candidate_columns = ['nazwa', 'surowiec_nazwa', 'nazwa_surowca', 'surowiec']
 

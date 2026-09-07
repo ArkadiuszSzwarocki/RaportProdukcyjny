@@ -9,7 +9,7 @@ from app.repositories.bucket_maluch_repository import BucketMaluchRepository
 class BucketMaluchService:
     """Service handling business logic for Wiaderka z Maluchami."""
 
-    VALID_STATION_REGEX = re.compile(r'^(KO(0[1-9]|[1-3][0-9]|40|\d{1,2})|BB\d{2}|MZ\d{2})$', re.IGNORECASE)
+    VALID_STATION_REGEX = re.compile(r'^(KO(0[1-9]|[1-3][0-9]|40)|BB(0[1-6]|1[1-9]|2[0-2])|MZ(0[7-9]|10|23|24))$', re.IGNORECASE)
     VALID_MIXER_REGEX = re.compile(r'^(MI\d{2}|MIX\d{2}|MIESZALNIK[-_\s]*\d*)$', re.IGNORECASE)
 
     @classmethod
@@ -215,7 +215,7 @@ class BucketMaluchService:
 
         norm_station = cls.normalize_station_code(stacja_kod)
         if not norm_station or not cls.VALID_STATION_REGEX.match(norm_station):
-            return False, f"Nieprawidłowy kod stacji/zbiornika: {stacja_kod}. Dozwolone: KO01-KO40, BB01-BB24", None
+            return False, f"Nieprawidłowy kod stacji/zbiornika: {stacja_kod}. Dozwolone: KO01-KO40, BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24", None
 
         # Automatically resolve raw material name from station if not provided or placeholder
         if not surowiec_nazwa or not surowiec_nazwa.strip():

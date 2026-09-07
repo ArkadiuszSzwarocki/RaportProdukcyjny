@@ -47,7 +47,8 @@ class WarehouseV2Service:
             if nr_pal_sscc:
                 query_params = [nr_pal_sscc, target_id] + list(allowed_types)
                 cursor.execute(f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa
                     FROM palety_historia
                     WHERE (nr_palety = %s OR (nr_palety IS NULL AND paleta_id = %s AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})))
                     ORDER BY data_ruchu DESC
@@ -55,7 +56,8 @@ class WarehouseV2Service:
             else:
                 query_params = [target_id, target_sscc] + list(allowed_types)
                 cursor.execute(f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa
                     FROM palety_historia
                     WHERE (paleta_id = %s OR nr_palety = %s)
                       AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})
@@ -69,7 +71,8 @@ class WarehouseV2Service:
                 for t_ruch in ['magazyn_ruch', 'magazyn_agro_ruch']:
                     try:
                         cursor.execute(f"""
-                            SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz 
+                            SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
+                                   NULL as lokalizacja_zrodlowa, NULL as lokalizacja_docelowa
                             FROM {t_ruch} 
                             WHERE surowiec_id = %s 
                             ORDER BY id DESC
@@ -79,7 +82,11 @@ class WarehouseV2Service:
                         pass
             else:
                 try:
-                    cursor.execute(f"SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz FROM {source_tbl} WHERE id = %s OR nr_palety = %s", (target_id, target_sscc))
+                    cursor.execute(f"""
+                        SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz,
+                               NULL as lokalizacja_zrodlowa, NULL as lokalizacja_docelowa
+                        FROM {source_tbl} WHERE id = %s OR nr_palety = %s
+                    """, (target_id, target_sscc))
                     row = cursor.fetchone()
                     if row and row.get('autor_data'):
                         historia_stara.append(row)
@@ -317,21 +324,31 @@ class WarehouseV2Service:
                 cursor = conn.cursor()
                 cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s", (new_location, pallet_id))
                 moved_qty = qty
+            is_split = amount_to_move < qty
+            if not is_split:
+                # Cała paleta przenoszona
+                cursor = conn.cursor()
+                cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
                 new_pallet_id = pallet_id
+                target_pallet_sscc = nr_palety
             else:
                 # Dzielenie palety (split)
+                from app.utils.pallet_id import generate_pallet_id
                 new_qty_old = qty - amount_to_move
                 cursor = conn.cursor()
                 cursor.execute(f"UPDATE {table} SET {col_qty} = %s WHERE id = %s", (new_qty_old, pallet_id))
                 
-                # Utwórz nową paletę z odciętą ilością
+                # Utwórz nową paletę z odciętą ilością i nowym numerem SSCC
                 insert_data = dict(row)
                 del insert_data['id'] # Usuń ID, żeby wygenerowało nowe
                 insert_data['lokalizacja'] = new_location
                 insert_data[col_qty] = amount_to_move
                 insert_data['is_blocked'] = 0
-                # Zerujemy nr_palety by wymusić ewentualne wydrukowanie nowej etykiety
-                insert_data['nr_palety'] = None
+                
+                # Generujemy nowy unikalny numer SSCC
+                new_sscc = generate_pallet_id(linia, pallet_type)
+                insert_data['nr_palety'] = new_sscc
+                target_pallet_sscc = new_sscc
                 
                 columns = ', '.join([f"`{k}`" for k in insert_data.keys()])
                 placeholders = ', '.join(['%s'] * len(insert_data))
@@ -348,21 +365,80 @@ class WarehouseV2Service:
                     INSERT INTO {table_ruch} 
                     (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
                     VALUES (%s, 'PRZESUNIECIE', 0, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (new_pallet_id, moved_qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}" + (" (Podział)" if amount_to_move < qty else "")))
+                """, (new_pallet_id, moved_qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}" + (" (Podział)" if is_split else "")))
 
-                # Log to palety_historia dla palety przenoszonej/nowej
-                cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (new_pallet_id, nr_palety, linia, pallet_type.lower(), 'PRZESUNIECIE_PODZIAL' if amount_to_move < qty else 'PRZESUNIECIE', old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}" + (f" (Podział: przeniesiono {amount_to_move})" if amount_to_move < qty else ""), worker_login)
-                )
-                
-                # Dodatkowy log dla starej palety jeśli był podział
-                if amount_to_move < qty:
-                    cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s)",
-                        (pallet_id, nr_palety, linia, pallet_type.lower(), old_loc, old_loc, f"Odjęto {amount_to_move} podczas podziału palety", worker_login)
-                    )
+                mother_sscc = nr_palety or f"{pallet_type[:3].upper()}-{pallet_id}"
+                now_dt = datetime.now()
+
+                if is_split:
+                    # Kopiowanie pełnej historii palety matki do nowo powstałej palety
+                    cur_h = conn.cursor(dictionary=True)
+                    cur_h.execute("""
+                        SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu
+                        FROM palety_historia
+                        WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
+                        ORDER BY data_ruchu ASC, id ASC
+                    """, (pallet_id, mother_sscc))
+                    for h in cur_h.fetchall() or []:
+                        cursor.execute("""
+                            INSERT INTO palety_historia
+                            (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            new_pallet_id,
+                            target_pallet_sscc,
+                            h.get('linia') or linia,
+                            h.get('typ_palety') or pallet_type.lower(),
+                            h.get('akcja'),
+                            h.get('lokalizacja_zrodlowa'),
+                            h.get('lokalizacja_docelowa'),
+                            h.get('komentarz'),
+                            h.get('user_login'),
+                            h.get('data_ruchu') or now_dt
+                        ))
+
+                    # Log podziału dla nowo utworzonej palety
+                    cursor.execute("""
+                        INSERT INTO palety_historia
+                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                        VALUES (%s, %s, %s, %s, 'PODZIAL_PALETY', %s, %s, %s, %s, %s)
+                    """, (
+                        new_pallet_id,
+                        target_pallet_sscc,
+                        linia,
+                        pallet_type.lower(),
+                        old_loc,
+                        new_location,
+                        f"Utworzono z podziału palety matki {mother_sscc} (odcięto {amount_to_move}). Przeniesiono na {new_location}",
+                        worker_login,
+                        now_dt
+                    ))
+
+                    # Log odjęcia ilości z palety matki
+                    cursor.execute("""
+                        INSERT INTO palety_historia
+                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                        VALUES (%s, %s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s, %s)
+                    """, (
+                        pallet_id,
+                        mother_sscc,
+                        linia,
+                        pallet_type.lower(),
+                        old_loc,
+                        old_loc,
+                        f"Odcięto {amount_to_move} podczas podziału palety do nowej palety {target_pallet_sscc}",
+                        worker_login,
+                        now_dt
+                    ))
+                else:
+                    # Log to palety_historia dla palety przenoszonej w całości
+                    cursor.execute("""
+                        INSERT INTO palety_historia
+                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                        VALUES (%s, %s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)
+                    """, (new_pallet_id, target_pallet_sscc, linia, pallet_type.lower(), old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}", worker_login))
             except Exception as e:
+                print("Błąd zapisu ruchu:", e)
                 print("Błąd zapisu ruchu:", e)
             # --- AUTO-AKCEPTACJA DOSTAWY ZEWNĘTRZNEJ ---
             # Jeśli przenoszona paleta wisiała w "Oczekujące na Przyjęcie", zdejmujemy ją stamtąd.
@@ -733,4 +809,123 @@ class WarehouseV2Service:
             return False, f"Błąd bazy danych: {str(e)}"
         finally:
             conn.close()
+
+    @staticmethod
+    def restore_pallet_from_archive(archive_id: int = None, nr_palety: str = None, new_weight: float = None, new_location: str = None, user_login: str = 'admin') -> tuple[bool, str, dict]:
+        """Przywraca paletę z tabeli magazyn_archiwum z powrotem do aktywnego magazynu."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # 1. Pobierz rekord z archiwum
+            if archive_id:
+                cursor.execute("SELECT * FROM magazyn_archiwum WHERE id = %s", (archive_id,))
+            elif nr_palety:
+                cursor.execute("SELECT * FROM magazyn_archiwum WHERE UPPER(TRIM(nr_palety)) = %s ORDER BY id DESC LIMIT 1", (nr_palety.strip().upper(),))
+            else:
+                return False, "Nie podano identyfikatora ani numeru palety do przywrócenia.", {}
+                
+            arc_row = cursor.fetchone()
+            if not arc_row:
+                return False, "Nie znaleziono palety w archiwum (być może została już przywrócona).", {}
+                
+            actual_archive_id = arc_row['id']
+            pallet_nr = arc_row.get('nr_palety')
+            pallet_name = arc_row.get('nazwa') or 'Surowiec'
+            typ_palety = (arc_row.get('typ_palety') or 'surowiec').lower()
+            linia = (arc_row.get('linia') or 'PSD').upper()
+            nr_partii = arc_row.get('nr_partii') or ''
+            
+            loc = (new_location or arc_row.get('lokalizacja_ostatnia') or 'MP01').strip().upper()
+            weight = float(new_weight if new_weight is not None else (arc_row.get('waga_ostatnia') or 0.0))
+            if weight < 0:
+                weight = 0.0
+                
+            # 2. Ustal docelową tabelę i kolumny
+            if typ_palety == 'surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+                col_amount = 'stan_magazynowy'
+                col_name = 'nazwa'
+            elif typ_palety == 'opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+                col_amount = 'stan_magazynowy'
+                col_name = 'nazwa'
+            elif typ_palety == 'dodatek':
+                table = 'magazyn_dodatki'
+                col_amount = 'stan_magazynowy'
+                col_name = 'nazwa'
+            else:
+                table = get_table_name('magazyn_palety', linia)
+                col_amount = 'waga_netto'
+                col_name = 'produkt'
+                
+            # 3. Sprawdź czy taka paleta nie istnieje już w tabeli aktywnej
+            if pallet_nr:
+                cursor.execute(f"SELECT id FROM {table} WHERE nr_palety = %s", (pallet_nr,))
+                existing = cursor.fetchone()
+                if existing:
+                    return False, f"Paleta o numerze {pallet_nr} już istnieje w magazynie aktywnym (ID: {existing['id']})!", {}
+                    
+            # 4. Pobierz ewentualne metadane (daty, opakowanie)
+            dt_prod = None
+            dt_przyd = None
+            typ_opk = ''
+            if pallet_nr:
+                try:
+                    cursor.execute("SELECT data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_inwentaryzacja_wpisy WHERE nr_palety = %s ORDER BY id DESC LIMIT 1", (pallet_nr,))
+                    meta_row = cursor.fetchone()
+                    if meta_row:
+                        dt_prod = meta_row.get('data_produkcji')
+                        dt_przyd = meta_row.get('data_przydatnosci')
+                        typ_opk = meta_row.get('typ_opakowania') or ''
+                except Exception:
+                    pass
+
+            # 5. Wstaw z powrotem do aktywnego magazynu
+            if typ_palety == 'surowiec':
+                cursor.execute(f"""
+                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia, data_produkcji, data_przydatnosci, typ_opakowania)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (pallet_nr, pallet_name, weight, loc, nr_partii, linia, dt_prod, dt_przyd, typ_opk))
+            elif typ_palety == 'opakowanie':
+                cursor.execute(f"""
+                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (pallet_nr, pallet_name, weight, loc, nr_partii, linia))
+            else:
+                cursor.execute(f"""
+                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (pallet_nr, pallet_name, weight, loc, linia))
+                
+            new_id = cursor.lastrowid
+            
+            # 6. Rejestracja w palety_historia
+            cursor.execute("""
+                INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login)
+                VALUES (%s, %s, %s, %s, 'PRZYWROCENIE_Z_ZUZYCIA', %s, %s, %s)
+            """, (new_id, pallet_nr, linia, typ_palety, loc, f'Przywrócono z zużycia/archiwum przez {user_login}. Waga: {weight} kg, lokalizacja: {loc}. Partia: {nr_partii}', user_login))
+            
+            # 7. Usunięcie z magazyn_archiwum
+            cursor.execute("DELETE FROM magazyn_archiwum WHERE id = %s", (actual_archive_id,))
+            
+            conn.commit()
+            
+            restored_info = {
+                'id': new_id,
+                'nr_palety': pallet_nr,
+                'nazwa': pallet_name,
+                'waga': weight,
+                'lokalizacja': loc,
+                'typ_palety': typ_palety,
+                'linia': linia,
+                'nr_partii': nr_partii
+            }
+            return True, f"Paleta {pallet_nr or pallet_name} została pomyślnie przywrócona na lokalizację {loc} z wagą {weight} kg.", restored_info
+        except Exception as e:
+            if conn: conn.rollback()
+            return False, f"Błąd bazy danych podczas przywracania palety: {str(e)}", {}
+        finally:
+            conn.close()
+
 

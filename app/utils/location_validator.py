@@ -8,15 +8,28 @@ import re
 
 # Wzorce kodów zbiorników produkcyjnych (NIE mogą być lokalizacjami magazynowymi!)
 PRODUCTION_TANK_PATTERNS = [
-    r'^BB\d{2}$',      # BB01, BB02, ..., BB24
-    r'^MZ\d{2}$',      # MZ01, MZ02, ..., MZ24
-    r'^MZ\d{2}-\d{2}$',  # MZ05-01, MZ06-01
-    r'^KO\d{2}$',      # KO01, KO02, ..., KO24
-    r'^CZ\d{2}$',      # CZ01, CZ02, ... (Czyszczenie)
-    r'^WZ\d{2}$',      # WZ04 (new production tank)
-    r'^PSD\d*$',       # PSD, PSD01, PSD02
-    r'^MIX\d*$',       # MIX, MIX01
+    r'^BB(0[1-6]|1[1-9]|2[0-2])$',      # BB01-BB06, BB11-BB22 (BB07-BB10, BB23-BB24 usunięte)
+    r'^MZ(0[7-9]|10|23|24)$',          # MZ07-MZ10, MZ23-MZ24 (MZ01-MZ06, MZ11-MZ22 usunięte)
+    r'^KO\d{2}$',                      # KO01, KO02, ..., KO40
+    r'^CZ\d{2}$',                      # CZ01, CZ02, ... (Czyszczenie)
+    r'^WZ\d{2}$',                      # WZ04 (new production tank)
+    r'^PSD\d*$',                       # PSD, PSD01, PSD02
+    r'^MIX\d*$',                       # MIX, MIX01
 ]
+
+DELETED_STATION_CODES = {
+    'BB07', 'BB08', 'BB09', 'BB10', 'BB23', 'BB24',
+    'MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06',
+    'MZ11', 'MZ12', 'MZ13', 'MZ14', 'MZ15', 'MZ16', 'MZ17', 'MZ18', 'MZ19', 'MZ20', 'MZ21', 'MZ22',
+    'MZ05-01', 'MZ06-01'
+}
+
+def is_deleted_station_code(location_code):
+    """Sprawdza czy kod to usunięta ze stanowisk stacja BB lub MZ."""
+    if not location_code:
+        return False
+    normalized = str(location_code).strip().upper()
+    return normalized in DELETED_STATION_CODES
 
 def is_production_tank_code(location_code):
     """
@@ -100,6 +113,12 @@ def validate_warehouse_location(location_code, allow_empty=True):
     # Wyjątek: Magazyny, bufory (BFMS01, BFMP01, BFOS, BF_*) oraz KO są dozwolonymi lokalizacjami magazynowymi
     if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'KO', 'R0')):
         return True, None
+
+    if is_deleted_station_code(normalized):
+        return False, (
+            f"Lokalizacja {normalized} to wycofana/usunięta stacja produkcyjna. "
+            "Użyj kodów regałów magazynowych (np. R021002, R030601)"
+        )
 
     if is_production_tank_code(normalized):
         return False, (

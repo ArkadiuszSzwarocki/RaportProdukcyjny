@@ -917,7 +917,7 @@ class InwentaryzacjaService:
                 cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
                 for r in cursor.fetchall(): names.add(r[0].strip())
                 try:
-                    cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND nazwa != ''")
+                    cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE (typ = 'surowiec' OR typ IS NULL OR typ = '') AND nazwa IS NOT NULL AND nazwa != ''")
                     for r in cursor.fetchall(): names.add(r[0].strip())
                 except Exception:
                     pass
@@ -925,6 +925,11 @@ class InwentaryzacjaService:
             if typ_lower in ('opakowanie', '') or not typ_lower:
                 cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
                 for r in cursor.fetchall(): names.add(r[0].strip())
+                try:
+                    cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE typ = 'opakowanie' AND nazwa IS NOT NULL AND nazwa != ''")
+                    for r in cursor.fetchall(): names.add(r[0].strip())
+                except Exception:
+                    pass
 
             if typ_lower in ('wyrób gotowy', 'wyrob gotowy', 'pal', '') or not typ_lower:
                 for hall in ['PSD', 'AGRO']:

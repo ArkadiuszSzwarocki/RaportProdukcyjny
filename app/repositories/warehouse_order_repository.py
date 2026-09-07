@@ -128,7 +128,7 @@ class WarehouseOrderRepository:
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                "SELECT id, nazwa FROM magazyn_agro_slownik_surowce WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''"
+                "SELECT id, nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''"
             )
             dict_rows = cursor.fetchall()
             cursor.execute(

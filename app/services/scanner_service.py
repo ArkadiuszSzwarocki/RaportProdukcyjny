@@ -1080,15 +1080,36 @@ class ScannerService:
                         last_loc = arch_row.get('lokalizacja_ostatnia') or 'PRODUKCJA'
                         arch_typ = arch_row.get('typ_palety') or 'Surowiec'
                         arch_code_prefix = 'PAL' if arch_typ == 'Wyrób Gotowy' else ('OPK' if arch_typ == 'Opakowanie' else ('DOD' if arch_typ == 'Dodatek' else 'SUR'))
+                        
+                        # Pobierz dodatkowe metadane (jeśli istnieją w inwentaryzacji)
+                        dt_prod = ''
+                        dt_exp = ''
+                        opk_type = ''
+                        if arch_row.get('nr_palety'):
+                            try:
+                                cur.execute("SELECT data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_inwentaryzacja_wpisy WHERE nr_palety = %s ORDER BY id DESC LIMIT 1", (arch_row['nr_palety'],))
+                                meta_row = cur.fetchone()
+                                if meta_row:
+                                    dt_prod = str(meta_row.get('data_produkcji') or '')
+                                    dt_exp = str(meta_row.get('data_przydatnosci') or '')
+                                    opk_type = meta_row.get('typ_opakowania') or ''
+                            except Exception:
+                                pass
+
                         results.append({
                             'id': arch_row.get('original_id') or arch_row['id'],
+                            'archive_id': arch_row['id'],
                             'nazwa': arch_row.get('nazwa') or 'Zużyty materiał',
                             'stan_magazynowy': 0.0,
+                            'waga_ostatnia': float(arch_row.get('waga_ostatnia') or 0.0),
                             'lokalizacja': f"ZUZYTA ({last_loc})",
+                            'lokalizacja_ostatnia': last_loc,
+                            'linia': arch_row.get('linia') or linia,
                             'nr_palety': arch_row.get('nr_palety') or location_code,
                             'nr_partii': arch_row.get('nr_partii') or '',
-                            'data_produkcji': '',
-                            'data_przydatnosci': '',
+                            'data_produkcji': dt_prod,
+                            'data_przydatnosci': dt_exp,
+                            'typ_opakowania': opk_type,
                             'inventory_type': arch_typ,
                             'inventory_key': arch_code_prefix,
                             'inventory_code': arch_row.get('nr_palety') or location_code,
@@ -1199,6 +1220,10 @@ class ScannerService:
             zbiornik_normalized = str(zbiornik or '').strip().upper() if zbiornik else None
             if not zbiornik_normalized:
                 return False, "⚠️ Brak kodu zbiornika! Podaj zbiornik (np. BB02, MZ07) aby przenieść surowiec na produkcję.", None
+
+            from app.utils.location_validator import is_deleted_station_code
+            if is_deleted_station_code(zbiornik_normalized):
+                return False, f"❌ Stacja/zbiornik {zbiornik_normalized} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40.", None
             
             zbiornik_val = zbiornik_normalized
             lokalizacja_val = zbiornik_val  # lokalizacja = zbiornik (move to tank)

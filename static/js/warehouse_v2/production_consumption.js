@@ -226,7 +226,21 @@ function prependHistoryRow(row) {
     if (!tbody) return;
 
     const tr = document.createElement('tr');
+    tr.id = `history-row-${row.id}`;
     tr.style.animation = 'fadeInScale 0.3s ease-out';
+    
+    const canRestore = Boolean(window.CAN_RESTORE_PALLET);
+    const actionCell = canRestore ? `
+        <td style="padding: 6px 10px; text-align: center;">
+            <button type="button" onclick="restoreFromConsumptionHistory(${row.id}, '${row.nr_palety}', ${parseFloat(row.waga_ostatnia || 0)}, '${row.lokalizacja_ostatnia || ''}')" 
+                    class="btn-action" 
+                    style="padding: 5px 10px; font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
+                    title="Przywróć tę paletę na magazyn">
+                <span class="material-icons" style="font-size: 14px;">restore</span> Przywróć
+            </button>
+        </td>
+    ` : '';
+
     tr.innerHTML = `
         <td style="padding: 10px 14px; font-family: monospace; font-weight: 700; color: #0284c7;">${row.time || '-'}</td>
         <td style="padding: 10px 14px; font-family: monospace; font-weight: 800;">${row.nr_palety || '-'}</td>
@@ -236,6 +250,7 @@ function prependHistoryRow(row) {
         <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #dc2626;">${parseFloat(row.waga_ostatnia || 0).toFixed(1)} kg</td>
         <td style="padding: 10px 14px; text-align: center; font-weight: 700; font-size: 12px;">${row.lokalizacja_ostatnia || '-'}</td>
         <td style="padding: 10px 14px; font-size: 12px; color: #64748b;">${row.user_login || '-'}</td>
+        ${actionCell}
     `;
 
     tbody.insertBefore(tr, tbody.firstChild);
@@ -256,10 +271,12 @@ async function refreshConsumptionHistory() {
             const tbody = document.getElementById('consumptionHistoryBody');
             if (!tbody) return;
 
+            const canRestore = Boolean(window.CAN_RESTORE_PALLET);
+
             if (data.history.length === 0) {
                 tbody.innerHTML = `
                     <tr id="emptyHistoryRow">
-                        <td colspan="8" style="text-align: center; padding: 30px; color: #94a3b8;">
+                        <td colspan="${canRestore ? 9 : 8}" style="text-align: center; padding: 30px; color: #94a3b8;">
                             <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
                             <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
                             <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
@@ -270,6 +287,18 @@ async function refreshConsumptionHistory() {
                 tbody.innerHTML = '';
                 data.history.forEach(row => {
                     const tr = document.createElement('tr');
+                    tr.id = `history-row-${row.id}`;
+                    const actionCell = canRestore ? `
+                        <td style="padding: 6px 10px; text-align: center;">
+                            <button type="button" onclick="restoreFromConsumptionHistory(${row.id}, '${row.nr_palety}', ${parseFloat(row.waga_ostatnia || 0)}, '${row.lokalizacja_ostatnia || ''}')" 
+                                    class="btn-action" 
+                                    style="padding: 5px 10px; font-size: 11px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
+                                    title="Przywróć tę paletę na magazyn">
+                                <span class="material-icons" style="font-size: 14px;">restore</span> Przywróć
+                            </button>
+                        </td>
+                    ` : '';
+
                     tr.innerHTML = `
                         <td style="padding: 10px 14px; font-family: monospace; font-weight: 700; color: #0284c7;">${row.time || '-'}</td>
                         <td style="padding: 10px 14px; font-family: monospace; font-weight: 800;">${row.nr_palety || '-'}</td>
@@ -279,6 +308,7 @@ async function refreshConsumptionHistory() {
                         <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #dc2626;">${parseFloat(row.waga_ostatnia || 0).toFixed(1)} kg</td>
                         <td style="padding: 10px 14px; text-align: center; font-weight: 700; font-size: 12px;">${row.lokalizacja_ostatnia || '-'}</td>
                         <td style="padding: 10px 14px; font-size: 12px; color: #64748b;">${row.user_login || '-'}</td>
+                        ${actionCell}
                     `;
                     tbody.appendChild(tr);
                 });
@@ -293,3 +323,68 @@ async function refreshConsumptionHistory() {
         console.error('Błąd odświeżania historii:', e);
     }
 }
+
+async function restoreFromConsumptionHistory(archiveId, nrPalety, defaultWeight, defaultLoc) {
+    const weightStr = prompt(`Przywracanie palety ${nrPalety || ''}\n\nPodaj wagę (kg) po przywróceniu:`, defaultWeight > 0 ? defaultWeight : '0');
+    if (weightStr === null) return; // anulowano
+
+    const weight = parseFloat(weightStr.replace(',', '.'));
+    if (isNaN(weight) || weight < 0) {
+        alert('Podaj prawidłową wagę (większą lub równą 0 kg).');
+        return;
+    }
+
+    const locStr = prompt(`Podaj lokalizację docelową dla palety ${nrPalety || ''}:`, defaultLoc || 'MP01');
+    if (locStr === null) return; // anulowano
+    const loc = locStr.trim().toUpperCase();
+    if (!loc) {
+        alert('Podaj lokalizację docelową.');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/warehouse-v2/api/archiwum/restore/${archiveId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ waga: weight, lokalizacja: loc })
+        });
+
+        const data = await resp.json();
+        if (!data.success) {
+            alert('Błąd: ' + (data.error || 'Nie udało się przywrócić palety.'));
+            return;
+        }
+
+        if (typeof showToast === 'function') {
+            showToast('success', data.message || 'Paleta została pomyślnie przywrócona!');
+        } else {
+            alert(data.message || 'Paleta została pomyślnie przywrócona!');
+        }
+
+        // Usuń wiersz z tabeli zużyć
+        const rowEl = document.getElementById(`history-row-${archiveId}`);
+        if (rowEl) rowEl.remove();
+
+        const countBadge = document.getElementById('historyCountBadge');
+        const tbody = document.getElementById('consumptionHistoryBody');
+        if (countBadge && tbody) {
+            const total = tbody.querySelectorAll('tr:not(#emptyHistoryRow)').length;
+            countBadge.innerText = `Pozycji: ${total}`;
+            if (total === 0) {
+                tbody.innerHTML = `
+                    <tr id="emptyHistoryRow">
+                        <td colspan="${window.CAN_RESTORE_PALLET ? 9 : 8}" style="text-align: center; padding: 30px; color: #94a3b8;">
+                            <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
+                            <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
+                            <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+    } catch (e) {
+        console.error('Błąd przywracania z historii:', e);
+        alert('Wystąpił błąd komunikacji z serwerem.');
+    }
+}
+

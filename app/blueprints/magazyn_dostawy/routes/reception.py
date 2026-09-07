@@ -53,8 +53,11 @@ def reception_edit(dostawa_id=None):
             (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
             ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
         ]:
-            cursor.execute(query, p)
-            wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+            try:
+                cursor.execute(query, p)
+                wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+            except Exception:
+                pass
         wszystkie_produkty = sorted(list(wszystkie_produkty))
 
         try:
