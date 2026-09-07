@@ -4,8 +4,14 @@ from datetime import datetime, date, timedelta
 from app.decorators import zarzad_required, dynamic_role_required
 from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
 from app.db import get_db_connection # Do raportów okresowych jeśli nie przeniesione w całości
+from app.services.machine_telemetry_service import MachineTelemetryService
 
 zarzad_bp = Blueprint('zarzad', __name__)
+
+
+def _normalize_line(raw_line: str) -> str:
+    line = str(raw_line or 'AGRO').strip().upper()
+    return line if line in ('AGRO', 'PSD', 'ALL') else 'AGRO'
 
 @zarzad_bp.route('/zarzad')
 @dynamic_role_required('wyniki')
@@ -62,6 +68,76 @@ def zarzad_panel():
         pracownicy_stats=pracownicy_stats,
         next_date=next_date
     )
+
+
+@zarzad_bp.route('/zarzad/live-line')
+@dynamic_role_required('wyniki')
+def zarzad_live_line():
+    """Dedicated live management dashboard for production line monitoring."""
+    linia = _normalize_line(request.args.get('linia'))
+    return render_template('zarzad_live_line.html', linia=linia)
+
+
+@zarzad_bp.route('/zarzad/live-line/api')
+@dynamic_role_required('wyniki')
+def zarzad_live_line_api():
+    """JSON feed for the dedicated live management dashboard."""
+    linia = _normalize_line(request.args.get('linia'))
+    data = MachineTelemetryService.get_live_dashboard_data()
+
+    machines = data.get('machines') or {}
+    bagger = machines.get('bagger') or {}
+    palletizer = machines.get('palletizer') or {}
+    wrapper = machines.get('wrapper') or {}
+    broker = data.get('broker') or {}
+    order = data.get('active_order') or {}
+
+    response = {
+        'success': True,
+        'linia': linia,
+        'timestamp_iso': data.get('timestamp_iso'),
+        'broker': {
+            'is_connected': bool(broker.get('is_connected', False)),
+            'time_since_update_sec': broker.get('time_since_update_sec', 0),
+            'messages_total': broker.get('messages_total', 0),
+            'topics_seen': broker.get('topics_seen') or [],
+        },
+        'order': {
+            'plan_id': order.get('plan_id', 0),
+            'product_name': order.get('product_name', ''),
+            'batch_number': order.get('batch_number', ''),
+            'status': order.get('status', ''),
+        },
+        'kpi': {
+            'wydajnosc_bpm': bagger.get('bpm', 0),
+            'ton_per_hour': bagger.get('tons_per_hour', 0),
+            'worki_licznik_global': bagger.get('counter_global', 0),
+            'palety_licznik_global': palletizer.get('pallets_completed_global', 0),
+            'ulozone_worki': palletizer.get('accumulated_bags', 0),
+            'target_worki_na_palete': palletizer.get('total_target_bags', 0),
+            'postep_palety_percent': palletizer.get('pallet_progress_percent', 0),
+        },
+        'line_state': {
+            'pakowaczka_status': bagger.get('status', 'OFFLINE'),
+            'paletyzator_status': palletizer.get('status', 'OFFLINE'),
+            'owijarka_status': wrapper.get('status', 'OFFLINE'),
+            'warstwa': palletizer.get('current_layer', 0),
+            'worek_na_warstwie': palletizer.get('current_bag', 0),
+            'obracak_aktywny': bool(palletizer.get('turner_active', False)),
+            'popychacz_aktywny': bool(palletizer.get('pusher_active', False)),
+            'oproznianie': bool(palletizer.get('is_emptying', False)),
+            'sygnal_start_owijarki': bool(palletizer.get('wrapper_start_signal', False)),
+            'owijanie_postep_percent': wrapper.get('progress_percent', 0),
+            'owijanie_faza': wrapper.get('phase_code', 'IDLE'),
+            'paleta_owinieta': bool(wrapper.get('is_wrapped', False)),
+            'rolki1zajete': bool(palletizer.get('roller_1_occupied', False)),
+            'rolki2zajete': bool(palletizer.get('roller_2_occupied', False)),
+            'buforPelny': bool(palletizer.get('buffer_full', False)),
+        },
+        'stations': data.get('pallet_stations') or [],
+        'recent_errors': data.get('recent_errors') or [],
+    }
+    return jsonify(response)
 
 @zarzad_bp.route('/zarzad/dzien_szczegoly')
 @dynamic_role_required('wyniki')

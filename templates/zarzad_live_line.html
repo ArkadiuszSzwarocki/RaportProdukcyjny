@@ -1,0 +1,491 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<!-- Three.js r128 + OrbitControls (same CDN used in maszyny_dashboard) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<style>
+  .ll-shell { max-width: 1500px; margin: 0 auto; display: grid; gap: 14px; }
+  .ll-head { background: linear-gradient(140deg, #172554, #0f172a 60%, #111827); color: #e2e8f0;
+    border-radius: 18px; padding: 16px 20px; display: flex; justify-content: space-between;
+    align-items: center; flex-wrap: wrap; gap: 12px; }
+  .ll-title { margin: 0; font-size: 1.38rem; font-weight: 800; }
+  .ll-sub { margin-top: 3px; color: #bfdbfe; font-size: .88rem; }
+  .ll-pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ll-pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(148,163,184,.4);
+    padding: 6px 10px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: rgba(15,23,42,.35); }
+  .dot { width: 8px; height: 8px; border-radius: 999px; background: #ef4444; }
+  .dot.ok { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,.7); }
+  .btn-back { border: 1px solid rgba(148,163,184,.4); color: #e2e8f0; text-decoration: none;
+    border-radius: 10px; padding: 7px 12px; font-size: .8rem; font-weight: 700; }
+
+  .scene-wrap { background: #060e1c; border: 1px solid #1a2a3e; border-radius: 18px;
+    padding: 10px 10px 6px 10px; }
+  .scene-bar { display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .scene-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: .78rem; color: #94a3b8; }
+  .ld { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 5px; vertical-align: middle; }
+  .ld-ok { background: #22c55e; }
+  .ld-warn { background: #f59e0b; }
+  .ld-off { background: #ef4444; }
+  .ld-idle { background: #38bdf8; }
+  .cam-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cam-btn { border: 1px solid #1f3552; background: #0f1e30; color: #94a3b8;
+    border-radius: 7px; padding: 5px 9px; font-size: .75rem; font-weight: 700; cursor: pointer; }
+  .cam-btn:hover { border-color: #38bdf8; color: #e0f2fe; }
+  .cam-btn.active-cam { border-color: #22c55e; color: #22c55e; }
+
+  .scene-canvas-wrap { position: relative; width: 100%; height: 600px;
+    border-radius: 12px; overflow: hidden; background: #030b17; }
+  .scene-canvas-wrap canvas { display: block; position: absolute; top: 0; left: 0; }
+  .scene-mount { position: absolute; inset: 0; }
+  .scene-hud { position: absolute; bottom: 10px; left: 10px; display: flex; flex-direction: column;
+    gap: 5px; z-index: 4; pointer-events: none; }
+  .hud-chip { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 20px;
+    font-size: .72rem; color: #bfdbfe; border: 1px solid rgba(56,189,248,.22);
+    background: rgba(6,14,28,.72); white-space: nowrap; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .kpi-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
+  .kpi-box-wide { grid-column: 1 / -1; }
+  .kpi-lbl { font-size: .73rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; }
+  .kpi-val { margin-top: 3px; font-size: 1.16rem; color: #0f172a; font-weight: 800; }
+  .kpi-sub { font-size: .8rem; color: #475569; margin-top: 2px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  .errs { max-height: 150px; overflow: auto; display: grid; gap: 7px; }
+  .err-row { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px;
+    padding: 7px; font-size: .79rem; }
+  @media (max-width: 900px) {
+    .scene-canvas-wrap { height: 420px; }
+  }
+</style>
+
+<div class="ll-shell">
+
+  <section class="ll-head">
+    <div>
+      <h2 class="ll-title">Linia Produkcyjna — Podglad 3D (LIVE)</h2>
+      <div class="ll-sub">Cyfrowy blizniak linii paletyzacji i owijania. Scena odswiezana co 3 s z API MQTT.</div>
+    </div>
+    <div class="ll-pills">
+      <div class="ll-pill"><span id="connDot" class="dot"></span><span id="connText">Laczenie...</span></div>
+      <div class="ll-pill">Linia: <strong>{{ linia }}</strong></div>
+      <a class="btn-back" href="/zarzad">Wroc</a>
+    </div>
+  </section>
+
+  <section class="scene-wrap">
+    <div class="scene-bar">
+      <div class="scene-legend">
+        <span><i class="ld ld-ok"></i>Aktywne</span>
+        <span><i class="ld ld-idle"></i>Gotowe/IDLE</span>
+        <span><i class="ld ld-warn"></i>Oczekiwanie</span>
+        <span><i class="ld ld-off"></i>Blad/Offline</span>
+      </div>
+      <div class="cam-btns">
+        <button class="cam-btn" type="button" id="camObrut">OBROT</button>
+        <button class="cam-btn active-cam" type="button" id="camIso">IZO</button>
+        <button class="cam-btn" type="button" id="camTop">GORA</button>
+        <button class="cam-btn" type="button" id="camFront">PRZOD</button>
+        <button class="cam-btn" type="button" id="camReset">RESET</button>
+        <button class="cam-btn" type="button" id="camZamknij">ZAMKNIJ</button>
+      </div>
+    </div>
+    <div class="scene-canvas-wrap" id="sceneCanvasWrap" data-no-autorefresh>
+      <div id="line3dMount" class="scene-mount"></div>
+      <div class="scene-hud">
+        <div class="hud-chip">Pakowaczka: <strong id="hPak">-</strong></div>
+        <div class="hud-chip">Obracak: <strong id="hObr">-</strong></div>
+        <div class="hud-chip">Paletyzator: <strong id="hPal">-</strong></div>
+        <div class="hud-chip">Owijarka: <strong id="hOwi">-</strong></div>
+        <div class="hud-chip">Bufor R1/R2: <strong id="hBuf">WOLNE</strong></div>
+        <div class="hud-chip">Owijanie: <strong id="hWrap">0%</strong></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="kpi-grid">
+    <article class="kpi-box">
+      <div class="kpi-lbl">Aktywne zlecenie</div>
+      <div class="kpi-val" id="orderId">-</div>
+      <div class="kpi-sub" id="orderProduct">-</div>
+      <div class="kpi-sub">Batch: <span class="mono" id="orderBatch">-</span></div>
+    </article>
+    <article class="kpi-box">
+      <div class="kpi-lbl">Wydajnosc</div>
+      <div class="kpi-val"><span id="kpiBpm">0</span> BPM</div>
+      <div class="kpi-sub"><span id="kpiTph">0</span> t/h</div>
+    </article>
+    <article class="kpi-box">
+      <div class="kpi-lbl">Postep palety</div>
+      <div class="kpi-val"><span id="kpiProgress">0</span>%</div>
+      <div class="kpi-sub">Ulozone: <strong id="kpiPacked">0</strong> / <strong id="kpiTarget">0</strong></div>
+    </article>
+    <article class="kpi-box">
+      <div class="kpi-lbl">Liczniki</div>
+      <div class="kpi-sub">Worki: <strong id="kpiBags">0</strong> | Palety: <strong id="kpiPallets">0</strong></div>
+      <div class="kpi-sub">MQTT: <strong id="kpiMsgs">0</strong> | Topiki: <strong id="topicsCount">0</strong></div>
+      <div class="kpi-sub">Age: <strong id="ageSec">0</strong> s | <span id="lastTs">-</span></div>
+    </article>
+    <article class="kpi-box kpi-box-wide">
+      <div class="kpi-lbl">Ostatnie bledy</div>
+      <div id="errorsBox" class="errs"><div class="kpi-sub">Brak bledow.</div></div>
+    </article>
+  </section>
+</div>
+
+<script>
+/* Three.js 3D Digital-Twin linii produkcyjnej
+   Layout X: Pakowaczka(-9) → Obracak(-3.5) → Paletyzator(1) → Owijarka(7.5) → Bufor(11) */
+const API_URL = '/zarzad/live-line/api?linia={{ linia }}';
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function statusCode(v){
+  const s=String(v||'').toUpperCase();
+  if(s.includes('OFFLINE')||s.includes('BLAD')||s.includes('ERROR')) return 'off';
+  if(s.includes('GOTOW')||s.includes('IDLE')||s==='-') return 'idle';
+  return 'ok';
+}
+
+let scene,camera,renderer,controls,raf;
+let autoRotate=false;
+let trackRollers=[],stationMeshes=[],stationLamps=[];
+let bagMesh,palletGroup,wrapArm,wrapRingMesh,obracakDisc,bufR1Mesh,bufR2Mesh;
+let bagTargetX=-8.2,bagCurrentX=-8.2;
+let palletTargetY=0,palletCurrentY=0;
+let wrapRingTargetY=0.55,wrapRingCurrentY=0.55;
+const LS={pct:0,wrapPct:0,st:{},connected:false};
+
+function mkMat(hex,rough,metal,emissive,emInt){
+  return new THREE.MeshStandardMaterial({color:hex,roughness:rough,metalness:metal,
+    ...(emissive?{emissive:new THREE.Color(emissive),emissiveIntensity:emInt||0.3}:{})});
+}
+
+function buildConveyor(G,cx,cy,cz,len,depth){
+  const half=len/2;
+  const steelM=mkMat(0x334155,0.4,0.8);
+  const chromeM=mkMat(0xcbd5e1,0.18,0.95);
+  const railGeo=new THREE.BoxGeometry(len,0.12,0.07);
+  [-depth/2,depth/2].forEach(dz=>{
+    const r=new THREE.Mesh(railGeo,steelM.clone());
+    r.position.set(cx,cy+0.06,cz+dz); r.castShadow=true; G.add(r);
+  });
+  const legCnt=Math.max(2,Math.round(len/1.2));
+  const legGeo=new THREE.BoxGeometry(0.06,cy,0.06);
+  for(let i=0;i<legCnt;i++){
+    const lx=cx-half+(len/(legCnt-1))*i;
+    [-depth/2+0.04,depth/2-0.04].forEach(dz=>{
+      const leg=new THREE.Mesh(legGeo,steelM.clone());
+      leg.position.set(lx,cy/2,cz+dz); G.add(leg);
+    });
+  }
+  const rR=0.038;
+  const rollerGeo=new THREE.CylinderGeometry(rR,rR,depth+0.02,16);
+  const rCnt=Math.max(4,Math.round(len/0.19));
+  for(let i=0;i<rCnt;i++){
+    const rx=cx-half+(len/(rCnt-1))*i;
+    const rm=new THREE.Mesh(rollerGeo,chromeM.clone());
+    rm.rotation.z=Math.PI/2; rm.position.set(rx,cy+rR+0.02,cz);
+    rm.castShadow=true; G.add(rm); trackRollers.push(rm);
+  }
+}
+
+function buildStation(G,x,y,z,mat){
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.05,1.1,0.82),mat.clone());
+  body.position.set(x,y+0.55,z); body.castShadow=true; G.add(body);
+  stationMeshes.push(body);
+  const lamp=new THREE.PointLight(0x38bdf8,0.55,2.8);
+  lamp.position.set(x,y+1.38,z); G.add(lamp); stationLamps.push(lamp);
+  const plate=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.14,0.04),mkMat(0x111827,0.8,0.2));
+  plate.position.set(x,y+1.12,z+0.43); G.add(plate);
+}
+
+function buildScene(){
+  const mount=document.getElementById('line3dMount');
+  const wrap=document.getElementById('sceneCanvasWrap');
+  if(!mount||!wrap||typeof THREE==='undefined') return;
+  const W=wrap.clientWidth||wrap.offsetWidth||1200;
+  const H=wrap.clientHeight||wrap.offsetHeight||600;
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x030b17);
+  scene.fog=new THREE.Fog(0x030b17,20,46);
+
+  camera=new THREE.PerspectiveCamera(46,W/H,0.1,120);
+  camera.position.set(3,7,13);
+
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.setSize(W,H);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  mount.innerHTML=''; mount.appendChild(renderer.domElement);
+
+  if(typeof THREE.OrbitControls!=='undefined'){
+    controls=new THREE.OrbitControls(camera,renderer.domElement);
+    controls.target.set(1,1.2,0); controls.enableDamping=true;
+    controls.dampingFactor=0.06; controls.minDistance=4;
+    controls.maxDistance=24; controls.maxPolarAngle=Math.PI/2.05;
+  }
+
+  scene.add(new THREE.HemisphereLight(0xbfd4ff,0x0f172a,0.75));
+  const sun=new THREE.DirectionalLight(0xffffff,1.1);
+  sun.position.set(6,14,5); sun.castShadow=true;
+  sun.shadow.mapSize.width=2048; sun.shadow.mapSize.height=2048;
+  Object.assign(sun.shadow.camera,{left:-20,right:20,top:15,bottom:-15});
+  scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x0284c7,0.38);
+  fill.position.set(-8,5,-5); scene.add(fill);
+  scene.add(Object.assign(new THREE.PointLight(0x1e40af,0.45,28),{position:{x:-10,y:4,z:-4}}));
+
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(50,26),mkMat(0x090e18,0.92,0.05));
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+  const grid=new THREE.GridHelper(50,100,0x1d4ed8,0x111827);
+  grid.position.y=0.005; grid.material.transparent=true; grid.material.opacity=0.18; scene.add(grid);
+
+  const G=new THREE.Group(); scene.add(G);
+  const idleMat=mkMat(0x0ea5e9,0.32,0.5,0x023854,0.28);
+
+  /* ── 1. PAKOWACZKA X=-9 ── */
+  const bagX=-9;
+  const colGeo=new THREE.BoxGeometry(0.07,3.2,0.07);
+  [[-0.55,-0.42],[-0.55,0.42],[0.55,-0.42],[0.55,0.42]].forEach(([dx,dz])=>{
+    const c=new THREE.Mesh(colGeo,mkMat(0x111827,0.45,0.6));
+    c.position.set(bagX+dx,1.6,dz); c.castShadow=true; G.add(c);
+  });
+  const beamGeo=new THREE.BoxGeometry(1.26,0.06,0.06);
+  [1.85,2.9].forEach(by=>[-0.42,0.42].forEach(dz=>{
+    const b=new THREE.Mesh(beamGeo,mkMat(0x334155,0.4,0.8));
+    b.position.set(bagX,by,dz); G.add(b);
+  }));
+  const funnelMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.12,0.45,20),mkMat(0x475569,0.7,0.3));
+  funnelMesh.position.set(bagX,2.55,0); G.add(funnelMesh);
+  const bbBody=new THREE.Mesh(new THREE.BoxGeometry(0.88,1.6,0.88),mkMat(0x1e293b,0.55,0.42));
+  bbBody.position.set(bagX,1.2,0); bbBody.castShadow=true; G.add(bbBody);
+  buildConveyor(G,bagX+1.6,0.82,0,2.2,0.62);
+  buildStation(G,bagX,0,-1.2,idleMat);
+
+  /* ── 2. OBRACAK X=-3.5 ── */
+  const obrX=-3.5;
+  buildConveyor(G,-6.4,0.82,0,4.6,0.62);
+  obracakDisc=new THREE.Mesh(new THREE.CylinderGeometry(0.82,0.82,0.1,48),
+    mkMat(0x475569,0.32,0.68,0x0b1a2e,0.22));
+  obracakDisc.position.set(obrX,0.9,0); obracakDisc.castShadow=true; G.add(obracakDisc);
+  const obrRing=new THREE.Mesh(new THREE.TorusGeometry(0.83,0.028,14,72),
+    mkMat(0x38bdf8,0.2,0.85,0x082a44,0.5));
+  obrRing.rotation.x=Math.PI/2; obrRing.position.set(obrX,0.9,0); G.add(obrRing);
+  const obrStand=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.20,0.82,20),mkMat(0x334155,0.4,0.8));
+  obrStand.position.set(obrX,0.41,0); G.add(obrStand);
+  buildStation(G,obrX,0,-1.1,idleMat);
+
+  /* ── 3. PALETYZATOR X=1 ── */
+  const palX=1;
+  buildConveyor(G,-1.5,0.82,0,3.8,0.62);
+  const mastMesh=new THREE.Mesh(new THREE.BoxGeometry(0.36,3.6,0.36),mkMat(0x111827,0.45,0.6));
+  mastMesh.position.set(palX-1.8,1.8,-1.6); mastMesh.castShadow=true; G.add(mastMesh);
+  const armH=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.22,0.22),mkMat(0x0891b2,0.26,0.72));
+  armH.position.set(palX,3.28,-1.6); armH.castShadow=true; G.add(armH);
+  const armVert=new THREE.Mesh(new THREE.BoxGeometry(0.22,1.4,0.22),mkMat(0xfacc15,0.38,0.42));
+  armVert.position.set(palX-0.12,2.52,-1.6); G.add(armVert);
+  const paddle=new THREE.Mesh(new THREE.BoxGeometry(1.18,0.12,0.78),mkMat(0xfacc15,0.38,0.42));
+  paddle.position.set(palX,1.68,0); paddle.castShadow=true; G.add(paddle);
+  [-0.32,0.32].forEach(dz=>{
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(1.18,0.03,0.42),mkMat(0xcbd5e1,0.18,0.95));
+    plate.position.set(palX,1.62,dz); G.add(plate);
+  });
+  const piston=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,1.5,18),mkMat(0xcbd5e1,0.18,0.95));
+  piston.position.set(palX,0.75,0); G.add(piston);
+  buildConveyor(G,palX+0.8,0.55,0,2.6,0.88);
+  buildStation(G,palX,0,-2.2,idleMat);
+
+  palletGroup=new THREE.Group();
+  const palBase=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.15,0.82),mkMat(0xc8964a,0.85,0.04));
+  palBase.position.y=0; palletGroup.add(palBase);
+  const bagStack=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.8,0.78),
+    new THREE.MeshStandardMaterial({color:0xf8fafc,roughness:0.5,metalness:0.06,transparent:true,opacity:0.88}));
+  bagStack.position.y=0.475; palletGroup.add(bagStack);
+  palletGroup.position.set(palX,0.48,0); G.add(palletGroup);
+
+  /* ── 4. OWIJARKA X=7.5 ── */
+  const owX=7.5;
+  buildConveyor(G,4.6,0.55,0,4.8,0.88);
+  const turntable=new THREE.Mesh(new THREE.CylinderGeometry(1.62,1.62,0.14,72),
+    mkMat(0x334155,0.3,0.72,0x05101e,0.25));
+  turntable.position.set(owX,0.58,0); turntable.castShadow=true; G.add(turntable);
+  scene.userData.turntable=turntable;
+  const ttRing=new THREE.Mesh(new THREE.TorusGeometry(1.63,0.038,16,90),
+    mkMat(0x34d399,0.18,0.88,0x10684f,0.55));
+  ttRing.rotation.x=Math.PI/2; ttRing.position.set(owX,0.58,0); G.add(ttRing);
+  const ttLamp=new THREE.PointLight(0x34d399,0.7,4.5);
+  ttLamp.position.set(owX,1.0,0); G.add(ttLamp);
+  const wrapMast=new THREE.Mesh(new THREE.BoxGeometry(0.28,4.0,0.28),mkMat(0x111827,0.44,0.62));
+  wrapMast.position.set(owX+2.2,2.0,-1.4); wrapMast.castShadow=true; G.add(wrapMast);
+  wrapArm=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.22,3.4),mkMat(0x0891b2,0.25,0.74));
+  wrapArm.position.set(owX+2.2,1.35,0.1); wrapArm.castShadow=true; G.add(wrapArm);
+  const filmRoll=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.45,24),mkMat(0xfacc15,0.38,0.42));
+  filmRoll.position.set(owX+2.2,1.35,1.45); G.add(filmRoll);
+  const clip=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.46,18),mkMat(0x38bdf8,0.25,0.72));
+  clip.position.set(owX+2.2,1.38,1.0); G.add(clip);
+  wrapRingMesh=new THREE.Mesh(new THREE.TorusGeometry(0.78,0.045,18,72),
+    new THREE.MeshStandardMaterial({color:0x7dd3fc,roughness:0.12,metalness:0.85,
+      transparent:true,opacity:0.7,emissive:new THREE.Color(0x075985),emissiveIntensity:0.45}));
+  wrapRingMesh.rotation.x=Math.PI/2; wrapRingMesh.position.set(owX,0.55,0); G.add(wrapRingMesh);
+  buildStation(G,owX,0,-2.4,idleMat);
+
+  /* ── 5. BUFOR ROLKI X=11,13 ── */
+  [11,13].forEach((bx,idx)=>{
+    const bMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,1.3,22),mkMat(0x64748b,0.35,0.84));
+    bMesh.rotation.z=Math.PI/2; bMesh.position.set(bx,0.68,0); bMesh.castShadow=true; G.add(bMesh);
+    const stand=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.58,1.32),mkMat(0x334155,0.4,0.8));
+    stand.position.set(bx,0.29,0); G.add(stand);
+    if(idx===0) bufR1Mesh=bMesh; else bufR2Mesh=bMesh;
+  });
+
+  /* moving bag on infeed */
+  bagMesh=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.26,0.36),mkMat(0xfde68a,0.72,0.06));
+  bagMesh.position.set(bagCurrentX,0.92,0.04); bagMesh.castShadow=true; G.add(bagMesh);
+
+  bindCamButtons();
+  animateLoop();
+  window.addEventListener('resize',onResize);
+}
+
+function bindCamButtons(){
+  document.getElementById('camObrut').addEventListener('click',()=>{
+    autoRotate=!autoRotate;
+    document.getElementById('camObrut').classList.toggle('active-cam',autoRotate);
+  });
+  const goTo=(px,py,pz,tx,ty,tz)=>{
+    camera.position.set(px,py,pz);
+    if(controls){controls.target.set(tx,ty,tz); controls.update();}
+  };
+  document.getElementById('camIso').addEventListener('click',()=>goTo(3,7,13,1,1.2,0));
+  document.getElementById('camTop').addEventListener('click',()=>goTo(1,17,0.1,1,0,0));
+  document.getElementById('camFront').addEventListener('click',()=>goTo(1,2.5,13,1,1.2,0));
+  document.getElementById('camReset').addEventListener('click',()=>{autoRotate=false; goTo(3,7,13,1,1.2,0);});
+  document.getElementById('camZamknij').addEventListener('click',()=>{
+    const w=document.getElementById('sceneCanvasWrap');
+    if(w) w.style.display=w.style.display==='none'?'':'none';
+  });
+}
+
+function onResize(){
+  if(!renderer||!camera) return;
+  const wrap=document.getElementById('sceneCanvasWrap'); if(!wrap) return;
+  const w=wrap.clientWidth||1200, h=wrap.clientHeight||600;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
+}
+
+function applyStationMode(idx,mode){
+  const mesh=stationMeshes[idx], lamp=stationLamps[idx];
+  if(!mesh||!lamp) return;
+  if(mode==='ok'){
+    mesh.material=mkMat(0x22c55e,0.32,0.5,0x052e16,0.32);
+    lamp.color.setHex(0x22c55e); lamp.intensity=0.75;
+  } else if(mode==='warn'){
+    mesh.material=mkMat(0xf59e0b,0.36,0.44,0x5d3a00,0.28);
+    lamp.color.setHex(0xf59e0b); lamp.intensity=0.6;
+  } else if(mode==='off'){
+    mesh.material=mkMat(0xef4444,0.38,0.42,0x5e0808,0.28);
+    lamp.color.setHex(0xef4444); lamp.intensity=0.7;
+  } else {
+    mesh.material=mkMat(0x0ea5e9,0.32,0.5,0x023854,0.28);
+    lamp.color.setHex(0x38bdf8); lamp.intensity=0.5;
+  }
+}
+
+function updateScene(st,pct,wrapPct,connected){
+  Object.assign(LS,{pct,wrapPct,st,connected});
+  applyStationMode(0,statusCode(st.pakowaczka_status));
+  applyStationMode(1,st.obracak_aktywny?'ok':'idle');
+  applyStationMode(2,(st.popychacz_aktywny||Number(st.warstwa||0)>0)?'ok':'idle');
+  applyStationMode(3,(st.oproznianie||st.sygnal_start_owijarki)?'ok':'idle');
+  const r1=!!st.rolki1zajete, r2=!!st.rolki2zajete;
+  if(bufR1Mesh) bufR1Mesh.material.color.setHex(r1?0xf59e0b:0x64748b);
+  if(bufR2Mesh) bufR2Mesh.material.color.setHex(r2?0xf59e0b:0x64748b);
+  bagTargetX=-8.2+clamp(pct/100,0,1)*14.8;
+  wrapRingTargetY=0.55+clamp(wrapPct/100,0,1)*1.3;
+  setText('hPak',st.pakowaczka_status||'IDLE');
+  setText('hObr',st.obracak_aktywny?'PRACA':'IDLE');
+  setText('hPal',(st.popychacz_aktywny||Number(st.warstwa||0)>0)?('W:'+(st.warstwa||0)+' B:'+(st.worek_na_warstwie||0)):'IDLE');
+  setText('hOwi',st.owijarka_status||'IDLE');
+  setText('hBuf',(r1?'R1':'-')+' / '+(r2?'R2':'-')+(st.buforPelny?' PELNY':''));
+  setText('hWrap',Number(wrapPct||0).toFixed(1)+'%');
+}
+
+function animateLoop(){
+  if(!scene||!renderer||!camera) return;
+  raf=requestAnimationFrame(animateLoop);
+  const t=performance.now()*0.001;
+  const st=LS.st||{};
+  bagCurrentX=lerp(bagCurrentX,bagTargetX,0.04);
+  if(bagMesh){bagMesh.position.x=bagCurrentX; bagMesh.position.y=0.92+Math.sin(t*9.5)*0.008;}
+  if(palletGroup){
+    const wn=clamp(LS.wrapPct/100,0,1);
+    palletGroup.position.x=lerp(palletGroup.position.x,1+wn*6.5,0.035);
+    palletGroup.position.y=lerp(palletGroup.position.y,0.48+clamp(LS.pct/100,0,1)*0.5,0.04);
+  }
+  if(obracakDisc&&st.obracak_aktywny) obracakDisc.rotation.y+=0.09;
+  wrapRingCurrentY=lerp(wrapRingCurrentY,wrapRingTargetY,0.06);
+  if(wrapRingMesh){
+    wrapRingMesh.position.y=wrapRingCurrentY; wrapRingMesh.rotation.z+=0.11;
+    if(palletGroup) wrapRingMesh.position.x=palletGroup.position.x;
+  }
+  if(wrapArm){
+    const wrapping=LS.wrapPct>2&&LS.wrapPct<98;
+    wrapArm.position.y=1.35+(wrapping?Math.sin(t*2.8)*0.18:0);
+    wrapArm.material.color.setHex(wrapping?0x22c55e:0x0891b2);
+  }
+  if(scene.userData.turntable&&(LS.wrapPct>2&&LS.wrapPct<98))
+    scene.userData.turntable.rotation.y+=0.012;
+  const rSpd=LS.connected?0.10:0.018;
+  for(const r of trackRollers) r.rotation.x+=rSpd;
+  if(autoRotate&&controls) controls.azimuthalAngle+=0.004;
+  if(controls) controls.update();
+  renderer.render(scene,camera);
+}
+
+function renderErrors(errors){
+  const box=document.getElementById('errorsBox'); if(!box) return;
+  if(!errors||!errors.length){box.innerHTML='<div class="kpi-sub">Brak bledow.</div>'; return;}
+  box.innerHTML=errors.slice(0,6).map(e=>
+    '<div class="err-row"><strong>'+(e.timestamp_iso||'')+'</strong> '+(e.message||e.description||'Brak opisu')+'</div>'
+  ).join('');
+}
+
+async function refreshLive(){
+  try{
+    const res=await fetch(API_URL,{cache:'no-store'});
+    const json=await res.json();
+    if(!json||!json.success) return;
+    const conn=json.broker||{},order=json.order||{},kpi=json.kpi||{},st=json.line_state||{};
+    const connected=!!conn.is_connected;
+    document.getElementById('connDot').className=connected?'dot ok':'dot';
+    setText('connText',connected?'MQTT ONLINE':'MQTT OFFLINE');
+    setText('orderId',order.plan_id||'-'); setText('orderProduct',order.product_name||'-');
+    setText('orderBatch',order.batch_number||'-');
+    setText('kpiBpm',Number(kpi.wydajnosc_bpm||0).toFixed(1));
+    setText('kpiTph',Number(kpi.ton_per_hour||0).toFixed(2));
+    setText('kpiPacked',kpi.ulozone_worki||0); setText('kpiTarget',kpi.target_worki_na_palete||0);
+    setText('kpiProgress',Number(kpi.postep_palety_percent||0).toFixed(1));
+    setText('kpiBags',kpi.worki_licznik_global||0); setText('kpiPallets',kpi.palety_licznik_global||0);
+    setText('kpiMsgs',conn.messages_total||0); setText('topicsCount',(conn.topics_seen||[]).length);
+    setText('ageSec',conn.time_since_update_sec||0); setText('lastTs',json.timestamp_iso||'-');
+    updateScene(st,Number(kpi.postep_palety_percent||0),Number(st.owijanie_postep_percent||0),connected);
+    renderErrors(json.recent_errors||[]);
+  }catch(_){
+    document.getElementById('connDot').className='dot';
+    setText('connText','Blad odswiezania');
+  }
+}
+
+/* same init pattern as maszyny_dashboard: simple timeout lets browser finish layout */
+setTimeout(buildScene, 200);
+setTimeout(onResize, 350);
+const pollTimer=setInterval(refreshLive,3000);
+refreshLive();
+window.addEventListener('beforeunload',()=>{clearInterval(pollTimer); if(raf) cancelAnimationFrame(raf); if(renderer) renderer.dispose();});
+</script>
+{% endblock %}

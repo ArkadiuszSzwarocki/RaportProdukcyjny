@@ -1,0 +1,476 @@
+{% extends "layout.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/process_flow_3d.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<!-- Three.js r128 & OrbitControls from trusted CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<div class="pf-container">
+    <!-- TOP HUD HEADER -->
+    <header class="pf-header">
+        <div class="pf-title-wrap">
+            <div class="pf-glitch-badge">
+                <span class="material-icons" style="font-size: 14px;">view_in_ar</span>
+                MES • 3D DIGITAL TWIN & MQTT PROCESS FLOW
+            </div>
+            <h1 class="pf-title">Centrum Diagnostyki Przepływu Procesu 3D</h1>
+            <p class="pf-subtitle">Interaktywny model trójwymiarowy end-to-end wg specyfikacji MQTT_PROCESS_FLOW.md (Waga Dynamiczna • Obracak • Winda • Owijarka • Bufor)</p>
+        </div>
+
+        <div class="pf-header-actions">
+            <!-- Theme Toggle -->
+            <button type="button" class="pf-btn-action pf-btn-theme" id="pfThemeBtn" title="Przełącz motyw (Ciemny / Jasny)">
+                <span class="material-icons" style="font-size: 16px;">contrast</span>
+                MOTYW
+            </button>
+
+            <!-- Broker Chip -->
+            <div class="pf-chip">
+                <span class="pf-dot online" id="pfBrokerDot"></span>
+                <div>
+                    <div class="pf-chip-label">BROKER MQTT</div>
+                    <div class="pf-chip-val" id="pfBrokerText">ONLINE</div>
+                </div>
+            </div>
+
+            <!-- Signal Latency -->
+            <div class="pf-chip">
+                <span class="material-icons" style="font-size: 18px; color: var(--pf-cyan);">schedule</span>
+                <div>
+                    <div class="pf-chip-label">SYGNAŁ MASZYNY</div>
+                    <div class="pf-chip-val" id="pfLatencyText">0.0s temu</div>
+                </div>
+            </div>
+
+            <!-- Link to 2D Monitor -->
+            <a href="/admin/master/mqtt" class="pf-btn-action">
+                <span class="material-icons" style="font-size: 16px;">list_alt</span>
+                TABELA MQTT
+            </a>
+        </div>
+    </header>
+
+    <!-- STEPPER PROCESS TRACKER (KROK 0 - 9) -->
+    <section class="pf-stepper-card">
+        <div class="pf-stepper-head">
+            <div class="pf-stepper-title">
+                <span class="material-icons" style="font-size: 16px;">linear_scale</span>
+                Sekwencja Procesu MQTT (Krok po Kroku)
+            </div>
+            <div class="pf-stepper-legend">
+                <span class="pf-legend-item"><span class="pf-dot online" style="width:7px;height:7px;"></span> Aktywny Krok</span>
+                <span class="pf-legend-item"><span class="pf-dot" style="width:7px;height:7px;background:#10b981;"></span> Ukończony</span>
+            </div>
+        </div>
+
+        <div class="pf-stepper-track">
+            <!-- KROK 0 -->
+            <div class="pf-step-item" id="pfStep0" title="Warunek startowy i heartbeat MQTT">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K0</span>
+                    <span class="pf-step-pill">START</span>
+                </div>
+                <div class="pf-step-name">Heartbeat</div>
+                <div class="pf-step-topic">&lt; 30s timeout</div>
+            </div>
+
+            <!-- KROK 1 -->
+            <div class="pf-step-item" id="pfStep1" title="Waga dynamiczna i odrzut worka">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K1</span>
+                    <span class="pf-step-pill">WAGA</span>
+                </div>
+                <div class="pf-step-name">Waga & Zrzut</div>
+                <div class="pf-step-topic">agroPakowaczka</div>
+            </div>
+
+            <!-- KROK 2 -->
+            <div class="pf-step-item" id="pfStep2" title="Obracak worka według receptury">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K2</span>
+                    <span class="pf-step-pill">OBROT</span>
+                </div>
+                <div class="pf-step-name">Obracak Worka</div>
+                <div class="pf-step-topic">obracakPraca</div>
+            </div>
+
+            <!-- KROK 3 -->
+            <div class="pf-step-item" id="pfStep3" title="Układanie worka na płycie">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K3</span>
+                    <span class="pf-step-pill">FORM</span>
+                </div>
+                <div class="pf-step-name">Przepychacz</div>
+                <div class="pf-step-topic">popychaczPraca</div>
+            </div>
+
+            <!-- KROK 4 -->
+            <div class="pf-step-item" id="pfStep4" title="Magazynek palet i podawanie">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K4</span>
+                    <span class="pf-step-pill">PALETA</span>
+                </div>
+                <div class="pf-step-name">Magazynek</div>
+                <div class="pf-step-topic">podawaniePalety</div>
+            </div>
+
+            <!-- KROK 5 -->
+            <div class="pf-step-item" id="pfStep5" title="Winda i kompletowanie warstw">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K5</span>
+                    <span class="pf-step-pill">WINDA</span>
+                </div>
+                <div class="pf-step-name">Kompletowanie</div>
+                <div class="pf-step-topic">oproznianie</div>
+            </div>
+
+            <!-- KROK 6 -->
+            <div class="pf-step-item" id="pfStep6" title="Sygnał startu i transfer do owijarki">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K6</span>
+                    <span class="pf-step-pill">TRANS</span>
+                </div>
+                <div class="pf-step-name">Transfer Owij.</div>
+                <div class="pf-step-topic">sygnalDoOwijarki</div>
+            </div>
+
+            <!-- KROK 7 -->
+            <div class="pf-step-item" id="pfStep7" title="Owijanie stretch i kapturek">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K7</span>
+                    <span class="pf-step-pill">STRETCH</span>
+                </div>
+                <div class="pf-step-name">Owijanie Palety</div>
+                <div class="pf-step-topic">postepOwijania</div>
+            </div>
+
+            <!-- KROK 8 -->
+            <div class="pf-step-item" id="pfStep8" title="Sygnał wyjazdu gotowej palety">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K8</span>
+                    <span class="pf-step-pill">WYJAZD</span>
+                </div>
+                <div class="pf-step-name">Wyjazd Palety</div>
+                <div class="pf-step-topic">wyjazdPaleta</div>
+            </div>
+
+            <!-- KROK 9 -->
+            <div class="pf-step-item" id="pfStep9" title="Bufor odbiorczy rolek R1 i R2">
+                <div class="pf-step-top">
+                    <span class="pf-step-num">K9</span>
+                    <span class="pf-step-pill">BUFOR</span>
+                </div>
+                <div class="pf-step-name">Rolotok Odbiór</div>
+                <div class="pf-step-topic">rolki1 / rolki2</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3D DIGITAL TWIN VIEWPORT -->
+    <section class="pf-viewport-card" id="pfViewportCard">
+        <!-- Top Toolbar -->
+        <div class="pf-viewport-toolbar">
+            <div class="pf-cam-group">
+                <button type="button" class="pf-cam-btn active" id="camBtn_iso" title="Widok izometryczny 3D">
+                    <span class="material-icons" style="font-size: 14px;">view_in_ar</span> IZO
+                </button>
+                <button type="button" class="pf-cam-btn" id="camBtn_top" title="Widok z góry">
+                    <span class="material-icons" style="font-size: 14px;">layers</span> GÓRA
+                </button>
+                <button type="button" class="pf-cam-btn" id="camBtn_front" title="Widok z przodu">
+                    <span class="material-icons" style="font-size: 14px;">view_agenda</span> PRZÓD
+                </button>
+                <button type="button" class="pf-cam-btn" id="camBtn_reset" title="Zresetuj pozycję kamery">
+                    <span class="material-icons" style="font-size: 14px;">restart_alt</span> RESET
+                </button>
+            </div>
+
+            <div class="pf-view-actions">
+                <button type="button" class="pf-tool-btn" id="btnAutoRotate3d" title="Włącz / wyłącz automatyczny obrót 360°">
+                    <span class="material-icons" style="font-size: 16px;">sync</span> OBRÓT 360°
+                </button>
+                <button type="button" class="pf-tool-btn" id="btnFullscreen3d" title="Tryb pełnoekranowy">
+                    <span class="material-icons" style="font-size: 16px;">fullscreen</span> PEŁNY EKRAN
+                </button>
+            </div>
+        </div>
+
+        <!-- Three.js Canvas Container -->
+        <div class="pf-canvas-container" id="processFlow3dContainer"></div>
+
+        <!-- Bottom HUD & Station Selector -->
+        <div class="pf-viewport-hud-bottom">
+            <div class="pf-hud-live-stack">
+                <div class="pf-hud-pill" id="pf3dLiveText">
+                    WARSTWA: <strong>0/13</strong> • WOREK: <strong>0/4</strong> • FAZA OWIJARKI: <strong>IDLE</strong> • ROLKI: <strong>R1:0 R2:0</strong>
+                </div>
+            </div>
+
+            <div class="pf-station-selector">
+                <button type="button" class="pf-station-btn" id="btnFocusBagger">Stacja 1: Waga</button>
+                <button type="button" class="pf-station-btn" id="btnFocusPalletizer">Stacja 2-5: Paletyzator</button>
+                <button type="button" class="pf-station-btn" id="btnFocusWrapper">Stacja 7: Owijarka</button>
+                <button type="button" class="pf-station-btn" id="btnFocusBuffer">Stacja 9: Bufor</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- METRICS & CONTROL GRIDS -->
+    <div class="pf-main-grid">
+        <!-- LEFT: TELEMETRY METRIC TILES -->
+        <div class="pf-metrics-grid">
+            <!-- PAKOWACZKA & WAGA DYNAMICZNA -->
+            <div class="pf-card">
+                <div class="pf-card-glow pf-glow-cyan"></div>
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon">scale</span>
+                        <div>
+                            <div class="pf-card-name">Waga Dynamiczna & Zrzut</div>
+                            <div class="pf-card-topic">iot-2/type/cMT2108X2/id/agroPakowaczka</div>
+                        </div>
+                    </div>
+                    <div class="pf-card-status praca" id="pfStatusBagger">PRACA</div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">WYDAJNOŚĆ</span>
+                        <span class="pf-metric-val" id="pfValBpm">0.0 <span class="unit">BPM</span></span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">MASA CHWILOWA</span>
+                        <span class="pf-metric-val" id="pfValTph">0.00 <span class="unit">t/h</span></span>
+                    </div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">OSTATNIA WAGA</span>
+                        <span class="pf-metric-val" id="pfValWeight">25.04 <span class="unit">kg</span></span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">LICZNIK ODRZUTÓW</span>
+                        <span class="pf-metric-val" id="pfValRejects">0 <span class="unit">szt</span></span>
+                    </div>
+                </div>
+
+                <div class="pf-card-header" style="margin-top: 4px;">
+                    <span style="font-size: 0.74rem; color: var(--pf-text-muted);">STAN KLAPY ZRZUTU:</span>
+                    <span class="pf-card-status" id="pfStatusFlap">ZAMKNIĘTY</span>
+                </div>
+            </div>
+
+            <!-- PALETYZATOR 3D & WINDA -->
+            <div class="pf-card">
+                <div class="pf-card-glow pf-glow-emerald"></div>
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon" style="color: var(--pf-emerald);">layers</span>
+                        <div>
+                            <div class="pf-card-name">Robot Paletyzujący & Winda</div>
+                            <div class="pf-card-topic">iot-2/type/cMT2108X2/id/agroPaletyzator</div>
+                        </div>
+                    </div>
+                    <div class="pf-card-status praca" id="pfStatusPalletizer">PRACA</div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">WARSTWA / WOREK</span>
+                        <span class="pf-metric-val" id="pfValLayerBag">W: 0/13 • B: 0/4</span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">POSTĘP PALETY</span>
+                        <span class="pf-metric-val" id="pfValPalProgress">0%</span>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="pf-progress-bar-wrap">
+                        <div class="pf-progress-bar-fill" id="pfPalProgressBar" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">OBRACAK / POPYCHACZ</span>
+                        <span class="pf-metric-val" style="font-size: 0.85rem;" id="pfValTurnerPusher">GOTOWE</span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">MAGAZYNEK PALET</span>
+                        <span class="pf-metric-val" style="font-size: 0.85rem;" id="pfValMagCount">8 szt.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OWIJARKA STRETCH -->
+            <div class="pf-card">
+                <div class="pf-card-glow pf-glow-amber"></div>
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon" style="color: var(--pf-amber);">loop</span>
+                        <div>
+                            <div class="pf-card-name">Owijarka Stretch & Kapturek</div>
+                            <div class="pf-card-topic">iot-2/type/cMT2108X2/id/agroOwijarka</div>
+                        </div>
+                    </div>
+                    <div class="pf-card-status" id="pfStatusWrapper">GOTOWA</div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">POSTĘP OWIJANIA</span>
+                        <span class="pf-metric-val" id="pfValWrapProgress">0%</span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">FAZA / CYKL</span>
+                        <span class="pf-metric-val" style="font-size: 0.85rem;" id="pfValWrapPhase">IDLE</span>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="pf-progress-bar-wrap">
+                        <div class="pf-progress-bar-fill" id="pfWrapProgressBar" style="width: 0%; background: linear-gradient(90deg, var(--pf-amber), var(--pf-rose));"></div>
+                    </div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">OBROTY STOŁU</span>
+                        <span class="pf-metric-val" id="pfValRotations">0 <span class="unit">obr.</span></span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">TOP-SHEET</span>
+                        <span class="pf-metric-val" style="font-size: 0.85rem;" id="pfValTopSheet">OCZEKIWANIE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BUFOR ODBIORCZY ROLEK -->
+            <div class="pf-card">
+                <div class="pf-card-glow pf-glow-violet"></div>
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon" style="color: var(--pf-violet);">view_week</span>
+                        <div>
+                            <div class="pf-card-name">Bufor Odbiorczy (Rolki)</div>
+                            <div class="pf-card-topic">rolki1zajete • rolki2zajete • buforPelny</div>
+                        </div>
+                    </div>
+                    <div class="pf-card-status praca" id="pfStatusBuffer">GOTOWY</div>
+                </div>
+
+                <div class="pf-metric-row">
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">ROLKA 1 (R1)</span>
+                        <span class="pf-metric-val" id="pfValR1">WOLNA</span>
+                    </div>
+                    <div class="pf-metric-tile">
+                        <span class="pf-metric-label">ROLKA 2 (R2)</span>
+                        <span class="pf-metric-val" id="pfValR2">WOLNA</span>
+                    </div>
+                </div>
+
+                <div class="pf-metric-tile">
+                    <span class="pf-metric-label">STATUS WYJAZDU</span>
+                    <span class="pf-metric-val" style="font-size: 0.82rem; color: var(--pf-emerald);">GOTOWY DO ODBIORU WÓZKIEM</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: INTERACTIVE SIMULATOR & SIGNAL CHECKLIST -->
+        <div class="pf-sim-panel">
+            <!-- SIMULATOR CARD -->
+            <div class="pf-card">
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon">tune</span>
+                        <div>
+                            <div class="pf-card-name">Symulator Sygnałów MQTT</div>
+                            <div class="pf-card-topic">Testowanie scenariuszy przepływu</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pf-sim-btn-grid">
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('bag_ok')" title="Wygeneruj worek o wadze prawidłowej">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-emerald);">check_circle</span>
+                        Worek OK (25.0kg)
+                    </button>
+                    <button type="button" class="pf-sim-btn danger" onclick="pfSimulateStep('reject_test')" title="Odrzuć worek z niedowagą">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-rose);">eject</span>
+                        Test Zrzutu
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('turner_cycle')" title="Uruchom obrót obracaka">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-cyan);">rotate_right</span>
+                        Cykl Obracaka
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('pusher_cycle')" title="Przesuń worek przepychaczem">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-amber);">swipe_right</span>
+                        Przepychacz
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('layer_inc')" title="Dodaj worek i zwiększ postęp palety">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-emerald);">add_box</span>
+                        Kolejny Worek
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('transfer_start')" title="Sygnał transferu palety do owijarki">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-cyan);">forward</span>
+                        Transfer do Owij.
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('wrapper_cycle')" title="Przebieg cyklu owijania 0-100%">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-amber);">autorenew</span>
+                        Cykl Owijarki
+                    </button>
+                    <button type="button" class="pf-sim-btn" onclick="pfSimulateStep('buffer_toggle')" title="Zmień zajętość rolek bufora">
+                        <span class="material-icons" style="font-size: 16px; color: var(--pf-violet);">view_column</span>
+                        Stan Bufora
+                    </button>
+                </div>
+            </div>
+
+            <!-- MINIMAL CHECKLIST (SECTION 6) -->
+            <div class="pf-card">
+                <div class="pf-card-header">
+                    <div class="pf-card-title-wrap">
+                        <span class="material-icons pf-card-icon" style="color: var(--pf-emerald);">fact_check</span>
+                        <div>
+                            <div class="pf-card-name">Checklista Poprawności MQTT</div>
+                            <div class="pf-card-topic">5 warunków integralności procesu</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pf-checklist-list">
+                    <div class="pf-check-item">
+                        <span>1. Pakowaczka publikuje wagę i odrzuty</span>
+                        <span class="pf-check-badge ok">AKTYWNY</span>
+                    </div>
+                    <div class="pf-check-item">
+                        <span>2. Paletyzator publikuje nrWarstwy i nrWorka</span>
+                        <span class="pf-check-badge ok">AKTYWNY</span>
+                    </div>
+                    <div class="pf-check-item">
+                        <span>3. Transfer: sygnalDoOwijarkiStart</span>
+                        <span class="pf-check-badge ok">AKTYWNY</span>
+                    </div>
+                    <div class="pf-check-item">
+                        <span>4. Owijarka: postepOwijania i wyjazdPaleta</span>
+                        <span class="pf-check-badge ok">AKTYWNY</span>
+                    </div>
+                    <div class="pf-check-item">
+                        <span>5. Bufor: rolki1, rolki2, buforPelny</span>
+                        <span class="pf-check-badge ok">AKTYWNY</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin/process_flow_3d.js') }}?v={{ static_version }}"></script>
+{% endblock %}

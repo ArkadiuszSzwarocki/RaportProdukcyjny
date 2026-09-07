@@ -126,7 +126,7 @@
         <span>{% if master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path %}open{% endif %}">
+    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path or '/zarzad/live-line' in request.path %}open{% endif %}">
         {% if master_access %}
         <a href="/admin/master/permissions" class="nav-sub-item {% if '/admin/master/permissions' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
@@ -134,8 +134,14 @@
         <a href="/admin/slownik-surowcow" class="nav-sub-item {% if '/admin/slownik-surowcow' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców
         </a>
-        <a href="/admin/master/mqtt" class="nav-sub-item {% if '/admin/master/mqtt' in request.path %}active{% endif %}">
+        <a href="/admin/master/mqtt" class="nav-sub-item {% if request.path == '/admin/master/mqtt' %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
+        </a>
+        <a href="/admin/master/process-flow-3d" class="nav-sub-item {% if '/admin/master/process-flow-3d' in request.path %}active{% endif %}" style="color: #38bdf8; font-weight: 700;">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #38bdf8;">view_in_ar</span> Przepływ 3D (MQTT Flow)
+        </a>
+        <a href="/zarzad/live-line?linia=AGRO" class="nav-sub-item {% if '/zarzad/live-line' in request.path %}active{% endif %}">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">view_in_ar</span> Dashboard Linii LIVE
         </a>
         <a href="javascript:void(0)" onclick="runIntegrityCheck()" class="nav-sub-item">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności

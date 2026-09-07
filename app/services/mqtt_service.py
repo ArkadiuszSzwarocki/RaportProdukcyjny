@@ -23,6 +23,11 @@ _latest_machine_data = {
     "topic_last_update": {},
     "recent_messages": [],
     "recent_errors": [],
+    # Czujniki rolek buforowych
+    "rolki1zajete": False,           # Czujnik rolki 1 (bufor oczekujący)
+    "rolki2zajete": False,           # Czujnik rolki 2 (bufor oczekujący)
+    "buforPelny": False,             # Czy bufor jest pełny?
+    "bagger_jaws_closed": False,     # Szczęki zgrzewające wagopakowaczki (worek zrobiony)
 }
 
 _simulated_offsets = {
@@ -182,6 +187,13 @@ def on_message(client, userdata, msg):
                 receptura_val = _first_or_default(payload_data.get("nazwaReceptury"), "Brak danych")
                 _latest_machine_data["receptura"] = receptura_val or "Brak danych"
 
+                # Form-Fill-Seal Sealing Jaws Telemetry (Szczęki zgrzewające worki)
+                jaws_val = _first_or_default(
+                    payload_data.get("szczekiZamkniete") or payload_data.get("szczeki") or payload_data.get("szczekiZgrzewajace") or payload_data.get("zgrzewanieWorka") or payload_data.get("szczeki_zamkniete"),
+                    False
+                )
+                _latest_machine_data["bagger_jaws_closed"] = bool(jaws_val)
+
                 # Checkweigher (Waga Dynamiczna & Klapa Zrzutu) Telemetry
                 weight_val = _first_or_default(
                     payload_data.get("wagaOstatniegoWorka") or payload_data.get("wagaWorka") or payload_data.get("wagaAktualna") or payload_data.get("waga"),
@@ -298,6 +310,16 @@ def on_message(client, userdata, msg):
                 sygnal_owijarki = _first_or_default(payload_data.get("sygnalDoOwijarkiStart"), False)
                 _latest_machine_data["sygnal_do_owijarki_start"] = bool(sygnal_owijarki)
                 
+                # Czujniki rolek buforowych (transport -> magazyn)
+                rolki1_zajete = _first_or_default(payload_data.get("rolki1zajete"), False)
+                _latest_machine_data["rolki1zajete"] = bool(rolki1_zajete)
+                
+                rolki2_zajete = _first_or_default(payload_data.get("rolki2zajete"), False)
+                _latest_machine_data["rolki2zajete"] = bool(rolki2_zajete)
+                
+                bufor_pelny = _first_or_default(payload_data.get("buforPelny"), False)
+                _latest_machine_data["buforPelny"] = bool(bufor_pelny)
+                
                 # Snapshot values when oproznianie becomes active
                 if oproznianie and "oproznianie_snapshot" not in _latest_machine_data:
                     _latest_machine_data["oproznianie_snapshot"] = {
@@ -398,3 +420,8 @@ def publish_command(topic: str, payload_dict: dict):
         print(f"[MQTT-SERVER] Blad publikacji komendy: {str(e)}")
         _append_error(f"publish_command error: {e}")
         return False
+
+
+def publish_message(topic: str, payload_dict: dict):
+    """Backward-compatible alias used by older production notification paths."""
+    return publish_command(topic, payload_dict)

@@ -51,6 +51,75 @@
         </div>
     </div>
 
+    <!-- MQTT PROCESS FLOW STEPPER (KROK 0 - KROK 9) WG MQTT_PROCESS_FLOW.md -->
+    <div class="mqtt-flow-stepper-card">
+        <div class="mfs-header">
+            <div class="mfs-title">
+                <span class="material-icons" style="font-size: 16px; color: var(--neon-cyan);">timeline</span>
+                PRZEPŁYW PROCESU MQTT — STAN LINII W CZASIE RZECZYWISTYM (KROK 0–9)
+            </div>
+            <div class="mfs-checklist-summary" id="mfsChecklistSummary">
+                <span class="mfs-check-tag ok" id="chk1Tag" title="Krok 1: Waga dynamiczna & licznik odrzutów">K1 Waga OK</span>
+                <span class="mfs-check-tag ok" id="chk2Tag" title="Krok 2-5: Paletyzator (nrWarstwy & nrWorka)">K2-K5 Paletyzator OK</span>
+                <span class="mfs-check-tag ok" id="chk3Tag" title="Krok 6: Sygnał transferu do owijarki">K6 Transfer OK</span>
+                <span class="mfs-check-tag ok" id="chk4Tag" title="Krok 7-8: Owijarka (postęp faz & wyjazd palety)">K7-K8 Owijarka OK</span>
+                <span class="mfs-check-tag ok" id="chk5Tag" title="Krok 9: Bufor odbiorczy (rolki R1/R2 & pełny bufor)">K9 Bufor OK</span>
+            </div>
+        </div>
+        <div class="mfs-steps-track">
+            <div class="mfs-step-item" id="mfsStep0" title="Krok 0: Warunek startowy i heartbeat MQTT (timeout > 30s)">
+                <div class="mfs-step-top"><span class="mfs-num">K0</span><span class="mfs-pill">BROKER</span></div>
+                <div class="mfs-name">Heartbeat</div>
+                <div class="mfs-topic">&lt; 30s timeout</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep1" title="Krok 1: Waga dynamiczna i zrzut wadliwych worków (Pakowaczka)">
+                <div class="mfs-step-top"><span class="mfs-num">K1</span><span class="mfs-pill">WAGA</span></div>
+                <div class="mfs-name">Waga & Zrzut</div>
+                <div class="mfs-topic">agroPakowaczka</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep2" title="Krok 2: Obracak worka pod kąt receptury (Paletyzator)">
+                <div class="mfs-step-top"><span class="mfs-num">K2</span><span class="mfs-pill">OBRÓT</span></div>
+                <div class="mfs-name">Obracak Worka</div>
+                <div class="mfs-topic">obracakPraca</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep3" title="Krok 3: Popychacz układa rzędy na płycie (Paletyzator)">
+                <div class="mfs-step-top"><span class="mfs-num">K3</span><span class="mfs-pill">POPYCHACZ</span></div>
+                <div class="mfs-name">Przepychacz</div>
+                <div class="mfs-topic">popychaczPraca</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep4" title="Krok 4: Magazynek i podawanie palety pustej">
+                <div class="mfs-step-top"><span class="mfs-num">K4</span><span class="mfs-pill">MAGAZYN</span></div>
+                <div class="mfs-name">Podajnik Palet</div>
+                <div class="mfs-topic">podawaniePalety</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep5" title="Krok 5: Winda, układanie warstw i opróżnianie">
+                <div class="mfs-step-top"><span class="mfs-num">K5</span><span class="mfs-pill">WINDA</span></div>
+                <div class="mfs-name">Kompletowanie</div>
+                <div class="mfs-topic">oproznianie</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep6" title="Krok 6: Sygnał do owijarki start i transfer na rolotok">
+                <div class="mfs-step-top"><span class="mfs-num">K6</span><span class="mfs-pill">TRANSFER</span></div>
+                <div class="mfs-name">Start Owijarki</div>
+                <div class="mfs-topic">sygnalDoOwijarki</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep7" title="Krok 7: Owijarka stretch, fazy i kapturek top-sheet">
+                <div class="mfs-step-top"><span class="mfs-num">K7</span><span class="mfs-pill">OWIJANIE</span></div>
+                <div class="mfs-name">Owijarka 0–100%</div>
+                <div class="mfs-topic">postepOwijania</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep8" title="Krok 8: Koniec owijania i gotowość palety">
+                <div class="mfs-step-top"><span class="mfs-num">K8</span><span class="mfs-pill">WYJAZD</span></div>
+                <div class="mfs-name">Wyjazd Palety</div>
+                <div class="mfs-topic">wyjazdPaleta</div>
+            </div>
+            <div class="mfs-step-item" id="mfsStep9" title="Krok 9: Bufor odbiorczy rolek R1 i R2">
+                <div class="mfs-step-top"><span class="mfs-num">K9</span><span class="mfs-pill">BUFOR</span></div>
+                <div class="mfs-name">Rolki R1 / R2</div>
+                <div class="mfs-topic">rolki1zajete</div>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN MACHINE CARDS GRID -->
     <div class="cyber-grid">
         
@@ -65,7 +134,10 @@
                         <div class="machine-name">Pakowaczka Automatyczna</div>
                     </div>
                 </div>
-                <div class="status-pill" id="baggerStatusBadge">OFFLINE</div>
+                <div class="header-actions-flex">
+                    <div class="status-pill" id="baggerJawsBadge">SZCZĘKI: OTWARTE</div>
+                    <div class="status-pill" id="baggerStatusBadge">OFFLINE</div>
+                </div>
             </div>
 
             <div class="gauge-section">
@@ -111,6 +183,7 @@
                         <button type="button" class="btn-cyber-sim" style="padding: 3px 8px; font-size: 10px; border-color: rgba(244, 63, 94, 0.4); color: var(--neon-magenta); background: rgba(244, 63, 94, 0.1);" onclick="simulateRejectTest()" title="Przetestuj zrzut worka z niedowagą">
                             <span class="material-icons" style="font-size: 13px;">eject</span> TEST ZRZUTU
                         </button>
+                        <div class="status-pill" id="scaleBagDetectedBadge">WAGA: BRAK WORKA</div>
                         <div class="status-pill" id="cwFlapStatusBadge">ZAMKNIĘTY</div>
                     </div>
                 </div>
@@ -171,13 +244,25 @@
                     <button type="button" class="btn-3d-tool" id="btnAutoRotate" onclick="toggle3dAutoRotate()" title="Automatyczny obrót 360°">
                         <span class="material-icons">sync</span> OBRÓT
                     </button>
-                    <button type="button" class="btn-3d-tool" onclick="set3dCameraView('iso')" title="Widok izometryczny">
+                    <button type="button" class="btn-3d-tool" id="btnTogglePan" onclick="toggle3dPanMode()" title="Przełącz lewy przycisk myszy: Obracanie / Przesuwanie (Pan)">
+                        <span class="material-icons">pan_tool</span> PRZESUŃ
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="pan3dCamera(-0.75)" title="Przesuń widok w lewo (do magazynu palet i podajnika)">
+                        <span class="material-icons">arrow_back</span> LEWO
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="pan3dCamera(0.75)" title="Przesuń widok w prawo (do windy i wyjazdu)">
+                        <span class="material-icons">arrow_forward</span> PRAWO
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="set3dCameraView('iso')" title="Widok izometryczny (cała linia)">
                         <span class="material-icons">view_in_ar</span> IZO
                     </button>
                     <button type="button" class="btn-3d-tool" onclick="set3dCameraView('top')" title="Widok z góry">
                         <span class="material-icons">layers</span> GÓRA
                     </button>
-                    <button type="button" class="btn-3d-tool" onclick="reset3dCamera()" title="Reset kamery">
+                    <button type="button" class="btn-3d-tool" onclick="set3dCameraView('bagger')" title="Widok Wagopakowaczki i taśmy skośnej">
+                        <span class="material-icons">inventory_2</span> PAKOWACZKA
+                    </button>
+                    <button type="button" class="btn-3d-tool" onclick="reset3dCamera()" title="Reset i wyśrodkowanie widoku">
                         <span class="material-icons">restart_alt</span> RESET
                     </button>
                     <button type="button" class="btn-3d-tool" id="btnPalletFullscreen" onclick="toggle3dFullscreen('pallet3dWrapper', this)" title="Pełny ekran (Fullscreen)">
@@ -192,6 +277,7 @@
                 <div class="pallet-3d-live-badge">
                     <span class="pulse-dot"></span>
                     <span id="pallet3dLiveStatus">WARSTWA: 0 / 12 • WOREK: 0 / 4</span>
+                    <span style="opacity: 0.55; margin-left: 6px; font-size: 10px;">| PPM / Kółko / Shift+LPM: Przesuwanie</span>
                 </div>
             </div>
 
@@ -266,6 +352,9 @@
                     <button type="button" class="btn-3d-tool active" id="btnWrapperAutoRotate" onclick="toggleWrapper3dAutoRotate()" title="Automatyczny obrót stołu">
                         <span class="material-icons">sync</span> OBRÓT
                     </button>
+                    <button type="button" class="btn-3d-tool" id="btnWrapperTogglePan" onclick="toggleWrapper3dPanMode()" title="Przełącz lewy przycisk myszy: Obracanie / Przesuwanie (Pan)">
+                        <span class="material-icons">pan_tool</span> PRZESUŃ
+                    </button>
                     <button type="button" class="btn-3d-tool" onclick="setWrapper3dCameraView('iso')" title="Widok izometryczny">
                         <span class="material-icons">view_in_ar</span> IZO
                     </button>
@@ -287,6 +376,7 @@
                 <div class="pallet-3d-live-badge">
                     <span class="pulse-dot" style="background: var(--neon-emerald); box-shadow: 0 0 6px var(--neon-emerald);"></span>
                     <span id="wrapper3dLiveStatus">ETAP: CZUWANIE • WÓZEK: 0% • OWINIĘCIE: 0%</span>
+                    <span style="opacity: 0.55; margin-left: 6px; font-size: 10px;">| PPM / Kółko / Shift+LPM: Przesuwanie</span>
                 </div>
             </div>
 
@@ -807,6 +897,154 @@ body {
     transform: translateY(-1px);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   MQTT PROCESS FLOW STEPPER (MQTT_PROCESS_FLOW.md)
+   ───────────────────────────────────────────────────────────── */
+.mqtt-flow-stepper-card {
+    background: var(--theme-card-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin-bottom: 22px;
+    box-shadow: var(--theme-card-shadow);
+    backdrop-filter: blur(10px);
+}
+
+.mfs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.mfs-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--neon-cyan);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+}
+
+.mfs-checklist-summary {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.mfs-check-tag {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.mfs-check-tag.ok {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+
+.mfs-check-tag.wait {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+.mfs-steps-track {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+    gap: 8px;
+    overflow-x: auto;
+}
+
+.mfs-step-item {
+    background: var(--theme-box-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.mfs-step-item.active {
+    border-color: var(--neon-cyan);
+    background: rgba(2, 132, 199, 0.18);
+    box-shadow: 0 0 12px rgba(2, 132, 199, 0.25);
+    transform: translateY(-1px);
+}
+
+.mfs-step-item.completed {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.mfs-step-item.ready {
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+.mfs-step-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mfs-num {
+    font-size: 11px;
+    font-weight: 900;
+    font-family: monospace;
+    color: var(--neon-cyan);
+}
+
+.mfs-pill {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.2);
+    color: var(--theme-text-muted);
+}
+
+.mfs-step-item.active .mfs-pill {
+    background: var(--neon-cyan);
+    color: #ffffff;
+}
+
+.mfs-step-item.completed .mfs-pill {
+    background: rgba(16, 185, 129, 0.25);
+    color: #10b981;
+}
+
+.mfs-name {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--theme-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mfs-topic {
+    font-size: 9px;
+    font-family: monospace;
+    color: var(--theme-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* CARDS GRID */
 .cyber-grid {
     display: grid;
@@ -963,6 +1201,24 @@ body {
     background: rgba(16, 185, 129, 0.12);
     color: var(--neon-emerald);
     border-color: rgba(16, 185, 129, 0.35);
+}
+
+.status-pill.ready {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--neon-emerald);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.status-pill.active {
+    background: rgba(2, 132, 199, 0.15);
+    color: var(--neon-cyan);
+    border-color: rgba(2, 132, 199, 0.4);
+}
+
+.status-pill.warn {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.4);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -2185,6 +2441,15 @@ input:checked + .slider:before { transform: translateX(20px); }
     let currentPalletX = 0;
     let rollerMeshes3d = [];
     let lastPalletizer3dState = '';
+    let current3dLayer = 0;
+    let current3dBag = 0;
+    let turnerClampGroup3d = null;
+    let isTurnerActiveAnim = false;
+    let isPusherActiveAnim = false;
+    let isTransferActiveAnim = false;
+    let baggerJawLeft3d = null, baggerJawRight3d = null;
+    let isBaggerJawsClosedAnim = false;
+    let baggerBeaconGreen3d = null;
 
     function init3dScene() {
         const container = document.getElementById('pallet3dCanvasContainer');
@@ -2199,7 +2464,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
         // Camera
         camera3d = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-        camera3d.position.set(2.6, 2.5, 2.8);
+        camera3d.position.set(2.2, 3.8, 6.2);
 
         // Renderer
         renderer3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -2211,15 +2476,27 @@ input:checked + .slider:before { transform: translateX(20px); }
         container.innerHTML = '';
         container.appendChild(renderer3d.domElement);
 
-        // Orbit Controls
+        // Orbit Controls (Pełna swoboda obrotu i przesuwania sceny)
         if (typeof THREE.OrbitControls !== 'undefined') {
             controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
             controls3d.enableDamping = true;
             controls3d.dampingFactor = 0.05;
             controls3d.maxPolarAngle = Math.PI / 2 + 0.05;
-            controls3d.minDistance = 1.4;
-            controls3d.maxDistance = 6.5;
-            controls3d.target.set(0, 0.85, 0);
+            controls3d.minDistance = 1.0;
+            controls3d.maxDistance = 16.0;
+            controls3d.enablePan = true;
+            controls3d.screenSpacePanning = true; // Naturalne przesuwanie w płaszczyźnie ekranu (lewo/prawo/góra/dół)
+            controls3d.panSpeed = 1.2;
+            controls3d.mouseButtons = {
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+            };
+            controls3d.touches = {
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
+            controls3d.target.set(-1.8, 1.0, 0); // Oś obrotu wyśrodkowana na całą linię technologiczną (od pakowaczki po odbiór)
         }
 
         // Lighting
@@ -2237,12 +2514,12 @@ input:checked + .slider:before { transform: translateX(20px); }
         blueFillLight.position.set(-4, 3, -4);
         scene3d.add(blueFillLight);
 
-        // Shadow Plane
-        const shadowPlaneGeo = new THREE.PlaneGeometry(6, 6);
+        // Shadow Plane (Expanded to cover extended floor roller track, infeed span and bagger)
+        const shadowPlaneGeo = new THREE.PlaneGeometry(14, 8);
         const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.15 });
         const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
         shadowPlane.rotation.x = -Math.PI / 2;
-        shadowPlane.position.y = -0.01;
+        shadowPlane.position.set(-1.80, -0.01, 0);
         shadowPlane.receiveShadow = true;
         scene3d.add(shadowPlane);
 
@@ -2259,11 +2536,19 @@ input:checked + .slider:before { transform: translateX(20px); }
 
         build3dPalletizerMachineFrame();
         build3dEuroPallet();
-        rebuild3dBags(current3dLayer, current3dBag, false, 0, null);
+        rebuild3dBags(current3dLayer, current3dBag, false, 0, null, null);
 
         // Animation Loop
         function animate3d() {
             requestAnimationFrame(animate3d);
+
+            // Krok 0: Animated Bagger Sealing Jaws (szczęki zgrzewające worki wg MQTT szczekiZamkniete)
+            if (baggerJawLeft3d && baggerJawRight3d) {
+                const targetLeftX = isBaggerJawsClosedAnim ? -6.22 : -6.32;
+                const targetRightX = isBaggerJawsClosedAnim ? -6.18 : -6.08;
+                baggerJawLeft3d.position.x += (targetLeftX - baggerJawLeft3d.position.x) * 0.18;
+                baggerJawRight3d.position.x += (targetRightX - baggerJawRight3d.position.x) * 0.18;
+            }
 
             // Smooth vertical elevator movement (winda paletyzatora)
             currentPalletY += (targetPalletY - currentPalletY) * 0.08;
@@ -2292,6 +2577,23 @@ input:checked + .slider:before { transform: translateX(20px); }
                 }
             }
 
+            // Krok 2: Animated Bag Turner Clamp rotation (obracakPraca wg MQTT_PROCESS_FLOW.md)
+            if (turnerClampGroup3d && isTurnerActiveAnim) {
+                turnerClampGroup3d.rotation.y += 0.08;
+            } else if (turnerClampGroup3d) {
+                turnerClampGroup3d.rotation.y = 0;
+            }
+
+            // Krok 3: Animated Pusher paddle movement (popychaczPraca wg MQTT_PROCESS_FLOW.md)
+            if (pusherPaddleMesh3d && isPusherActiveAnim) {
+                pusherPaddleMesh3d.position.z = -0.94 + Math.sin(Date.now() * 0.007) * 0.38;
+            }
+
+            // Krok 6: Outfeed transfer rollers rotation when transfer signal is active
+            if (isTransferActiveAnim && rollerMeshes3d && rollerMeshes3d.length > 0) {
+                rollerMeshes3d.forEach(r => { r.rotation.z += 0.06; });
+            }
+
             if (controls3d) {
                 if (autoRotate3d) {
                     palletGroup3d.rotation.y += 0.004;
@@ -2314,6 +2616,139 @@ input:checked + .slider:before { transform: translateX(20px); }
         camera3d.aspect = width / height;
         camera3d.updateProjectionMatrix();
         renderer3d.setSize(width, height);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // PALLETIZER 3D CAMERA & PAN NAVIGATION CONTROLS
+    // ─────────────────────────────────────────────────────────────
+    let is3dPanMode = false;
+
+    window.toggle3dPanMode = function() {
+        if (!controls3d) return;
+        is3dPanMode = !is3dPanMode;
+        const btn = document.getElementById('btnTogglePan');
+        if (is3dPanMode) {
+            controls3d.mouseButtons.LEFT = THREE.MOUSE.PAN;
+            controls3d.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+            if (btn) {
+                btn.classList.add('active');
+                btn.innerHTML = '<span class="material-icons">pan_tool</span> PRZESUŃ (LPM)';
+            }
+        } else {
+            controls3d.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+            controls3d.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+            if (btn) {
+                btn.classList.remove('active');
+                btn.innerHTML = '<span class="material-icons">pan_tool</span> PRZESUŃ';
+            }
+        }
+    };
+
+    window.pan3dCamera = function(deltaX) {
+        if (!controls3d || !camera3d) return;
+        controls3d.target.x += deltaX;
+        camera3d.position.x += deltaX;
+        controls3d.update();
+    };
+
+    window.toggle3dAutoRotate = function() {
+        autoRotate3d = !autoRotate3d;
+        const btn = document.getElementById('btnAutoRotate');
+        if (btn) btn.classList.toggle('active', autoRotate3d);
+    };
+
+    window.set3dCameraView = function(view) {
+        if (!camera3d || !controls3d) return;
+        autoRotate3d = false;
+        const btn = document.getElementById('btnAutoRotate');
+        if (btn) btn.classList.remove('active');
+
+        if (view === 'iso') {
+            camera3d.position.set(2.2, 3.8, 6.2);
+            controls3d.target.set(-1.8, 1.0, 0);
+        } else if (view === 'top') {
+            camera3d.position.set(-1.8, 8.5, 0.01);
+            controls3d.target.set(-1.8, 1.0, 0);
+        } else if (view === 'bagger') {
+            camera3d.position.set(-4.2, 2.2, 2.8);
+            controls3d.target.set(-5.6, 1.1, -0.78);
+        }
+        controls3d.update();
+    };
+
+    window.reset3dCamera = function() {
+        window.set3dCameraView('iso');
+        if (palletGroup3d) palletGroup3d.rotation.y = 0;
+        if (bagsGroup3d) bagsGroup3d.rotation.y = 0;
+    };
+
+    // Creates an authentic, detailed Euro / Industrial wooden pallet with boards, stringers, blocks, and skids
+    function create3dFullEuroPalletMesh(isIndustrial, woodMat) {
+        const pallet = new THREE.Group();
+        const pW = isIndustrial ? 1.0 : 0.8;
+        const pL = 1.2;
+
+        const blockPositionsX = [-0.50, 0, 0.50];
+        const blockPositionsZ = isIndustrial ? [-0.425, 0, 0.425] : [-0.325, 0, 0.325];
+
+        // 1. Bottom Runner Skids (3 boards running along X, length 1.20m, thickness 22mm)
+        const botSkidGeo = new THREE.BoxGeometry(pL, 0.022, 0.145);
+        for (let bz of blockPositionsZ) {
+            const skid = new THREE.Mesh(botSkidGeo, woodMat);
+            skid.position.set(0, 0.011, bz);
+            skid.castShadow = true;
+            skid.receiveShadow = true;
+            pallet.add(skid);
+        }
+
+        // 2. Spacer Blocks (9 blocks 145x78x145mm creating realistic forklift slots)
+        const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
+        for (let bx of blockPositionsX) {
+            for (let bz of blockPositionsZ) {
+                const block = new THREE.Mesh(blockGeo, woodMat);
+                block.position.set(bx, 0.061, bz);
+                block.castShadow = true;
+                block.receiveShadow = true;
+                pallet.add(block);
+            }
+        }
+
+        // 3. Cross Stringer Boards (3 boards running across Z, length pW, thickness 22mm)
+        const crossGeo = new THREE.BoxGeometry(0.145, 0.022, pW);
+        for (let bx of blockPositionsX) {
+            const cross = new THREE.Mesh(crossGeo, woodMat);
+            cross.position.set(bx, 0.111, 0);
+            cross.castShadow = true;
+            cross.receiveShadow = true;
+            pallet.add(cross);
+        }
+
+        // 4. Top Deck Boards (5 for EURO or 7 for Industrial, running along X, length 1.20m)
+        if (isIndustrial) {
+            const topBoardWidths = [0.145, 0.100, 0.100, 0.145, 0.100, 0.100, 0.145];
+            const topBoardZ = [-0.4275, -0.285, -0.1425, 0, 0.1425, 0.285, 0.4275];
+            for (let i = 0; i < 7; i++) {
+                const boardGeo = new THREE.BoxGeometry(pL, 0.022, topBoardWidths[i]);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(0, 0.133, topBoardZ[i]);
+                board.castShadow = true;
+                board.receiveShadow = true;
+                pallet.add(board);
+            }
+        } else {
+            const topBoardWidths = [0.145, 0.100, 0.145, 0.100, 0.145];
+            const topBoardZ = [-0.3275, -0.175, 0, 0.175, 0.3275];
+            for (let i = 0; i < 5; i++) {
+                const boardGeo = new THREE.BoxGeometry(pL, 0.022, topBoardWidths[i]);
+                const board = new THREE.Mesh(boardGeo, woodMat);
+                board.position.set(0, 0.133, topBoardZ[i]);
+                board.castShadow = true;
+                board.receiveShadow = true;
+                pallet.add(board);
+            }
+        }
+
+        return pallet;
     }
 
     // Build Realistic Upper Infeed Conveyor, Bag Turner, Row Pusher, and Split Formation Table
@@ -2343,6 +2778,10 @@ input:checked + .slider:before { transform: translateX(20px); }
             roughness: 0.2,
             metalness: 0.85
         });
+
+        const infeedZ = -0.78;
+        const beltW = 0.60;
+        const halfRail = 0.31; // Guide rail offset from center (clear internal width 0.62m)
 
         // 4 Vertical Heavy Duty Columns (Enclosing infeed staging belt at Z: -0.78 and split plates at Z: 0.18)
         const colGeo = new THREE.BoxGeometry(0.08, 2.3, 0.08);
@@ -2394,37 +2833,242 @@ input:checked + .slider:before { transform: translateX(20px); }
         machineFrameGroup3d.add(palletElevatorPiston3d);
 
         // ─────────────────────────────────────────────────────────────
-        // INFEED CONVEYOR WITH DYNAMIC CHECKWEIGHER & REJECT DROP FLAP
-        // (Moved back to infeedZ = -0.78, widened to 0.60m so rotated 0.54m bags fit inside rails)
+        // 0. WAGOPAKOWACZKA AUTOMATYCZNA (AUTOMATED FORM-FILL-SEAL BAGGING MACHINE)
+        // Positioned on the floor at X: -6.20m, Z: infeedZ (-0.78m)
         // ─────────────────────────────────────────────────────────────
-        const infeedZ = -0.78;
-        const beltW = 0.60;
-        const halfRail = 0.31; // Guide rail offset from center (clear internal width 0.62m)
+        const baggerX = -6.20;
+        const baggerSteelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.5 });
+        const baggerPanelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.4 });
+        const baggerGlassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 });
+        const baggerHeatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.85, roughness: 0.3 });
 
-        // Section 1: Infeed Belt from Bagging Machine (X: -2.40 to -1.90, Z: infeedZ, Y: 1.78)
+        // 4 Vertical Cabinet Columns (Y: 0 to 2.40m)
+        const baggerColGeo = new THREE.BoxGeometry(0.07, 2.40, 0.07);
+        const baggerColPositions = [
+            [baggerX - 0.45, 1.20, infeedZ - 0.45],
+            [baggerX + 0.45, 1.20, infeedZ - 0.45],
+            [baggerX - 0.45, 1.20, infeedZ + 0.45],
+            [baggerX + 0.45, 1.20, infeedZ + 0.45]
+        ];
+        baggerColPositions.forEach(pos => {
+            const col = new THREE.Mesh(baggerColGeo, steelMat);
+            col.position.set(pos[0], pos[1], pos[2]);
+            col.castShadow = true;
+            machineFrameGroup3d.add(col);
+        });
+
+        // Top Frame Horizontal Beams
+        const baggerBeamXGeo = new THREE.BoxGeometry(0.97, 0.07, 0.07);
+        const baggerBeamZGeo = new THREE.BoxGeometry(0.07, 0.07, 0.97);
+        const bbm1 = new THREE.Mesh(baggerBeamXGeo, steelMat); bbm1.position.set(baggerX, 2.37, infeedZ - 0.45);
+        const bbm2 = new THREE.Mesh(baggerBeamXGeo, steelMat); bbm2.position.set(baggerX, 2.37, infeedZ + 0.45);
+        const bbm3 = new THREE.Mesh(baggerBeamZGeo, steelMat); bbm3.position.set(baggerX - 0.45, 2.37, infeedZ);
+        const bbm4 = new THREE.Mesh(baggerBeamZGeo, steelMat); bbm4.position.set(baggerX + 0.45, 2.37, infeedZ);
+        machineFrameGroup3d.add(bbm1, bbm2, bbm3, bbm4);
+
+        // Rear & Side Steel Protective Enclosure Plates
+        const baggerRearPanelGeo = new THREE.BoxGeometry(0.90, 2.30, 0.02);
+        const baggerRearPanel = new THREE.Mesh(baggerRearPanelGeo, baggerSteelMat);
+        baggerRearPanel.position.set(baggerX, 1.15, infeedZ - 0.45);
+        const baggerLeftPanelGeo = new THREE.BoxGeometry(0.02, 2.30, 0.90);
+        const baggerLeftPanel = new THREE.Mesh(baggerLeftPanelGeo, baggerPanelMat);
+        baggerLeftPanel.position.set(baggerX - 0.45, 1.15, infeedZ);
+        machineFrameGroup3d.add(baggerRearPanel, baggerLeftPanel);
+
+        // Front Safety Viewing Glass Door (Okna inspekcyjne komory formowania)
+        const baggerFrontGlassGeo = new THREE.BoxGeometry(0.86, 1.45, 0.02);
+        const baggerFrontGlass = new THREE.Mesh(baggerFrontGlassGeo, baggerGlassMat);
+        baggerFrontGlass.position.set(baggerX, 1.45, infeedZ + 0.45);
+        const baggerLowerDoorGeo = new THREE.BoxGeometry(0.86, 0.65, 0.02);
+        const baggerLowerDoor = new THREE.Mesh(baggerLowerDoorGeo, baggerSteelMat);
+        baggerLowerDoor.position.set(baggerX, 0.35, infeedZ + 0.45);
+        machineFrameGroup3d.add(baggerFrontGlass, baggerLowerDoor);
+
+        // Stainless Steel Infeed Silo Hopper / Feed Funnel on Roof
+        const baggerHopperGeo = new THREE.CylinderGeometry(0.44, 0.20, 0.48, 20);
+        const baggerHopper = new THREE.Mesh(baggerHopperGeo, chromeMat);
+        baggerHopper.position.set(baggerX, 2.64, infeedZ);
+        baggerHopper.castShadow = true;
+        machineFrameGroup3d.add(baggerHopper);
+
+        // Vertical Tubular Former Collar (Tubus formujący rękaw foliowy)
+        const baggerFormerTubeGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.75, 20);
+        const baggerFormerTube = new THREE.Mesh(baggerFormerTubeGeo, chromeMat);
+        baggerFormerTube.position.set(baggerX, 1.55, infeedZ);
+        baggerFormerTube.castShadow = true;
+        machineFrameGroup3d.add(baggerFormerTube);
+
+        // Film Reel Roll Mounted at Rear
+        const baggerFilmRollGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.58, 20);
+        const baggerFilmRollMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, transparent: true, opacity: 0.6 });
+        const baggerFilmRoll = new THREE.Mesh(baggerFilmRollGeo, baggerFilmRollMat);
+        baggerFilmRoll.rotation.z = Math.PI / 2;
+        baggerFilmRoll.position.set(baggerX, 2.05, infeedZ - 0.52);
+        machineFrameGroup3d.add(baggerFilmRoll);
+
+        // ─────────────────────────────────────────────────────────────
+        // PNEUMATIC HEATED SEALING JAWS (SZCZĘKI ZGRZEWAJĄCE WORKI - MQTT szczekiZamkniete)
+        // Positioned at Y: 0.82m inside the bagger tower
+        // ─────────────────────────────────────────────────────────────
+        const jawGeo = new THREE.BoxGeometry(0.05, 0.08, 0.52);
+        const heatFaceGeo = new THREE.BoxGeometry(0.012, 0.035, 0.50);
+
+        // Left Jaw (X: -6.32m when open, moves right to -6.22m when closed)
+        baggerJawLeft3d = new THREE.Group();
+        baggerJawLeft3d.position.set(baggerX - 0.12, 0.82, infeedZ);
+        const jawLMesh = new THREE.Mesh(jawGeo, steelMat);
+        const heatLMesh = new THREE.Mesh(heatFaceGeo, baggerHeatMat); heatLMesh.position.set(0.026, 0, 0);
+        const jawLCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 12), chromeMat);
+        jawLCyl.rotation.z = Math.PI / 2; jawLCyl.position.set(-0.13, 0, 0);
+        baggerJawLeft3d.add(jawLMesh, heatLMesh, jawLCyl);
+        machineFrameGroup3d.add(baggerJawLeft3d);
+
+        // Right Jaw (X: -6.08m when open, moves left to -6.18m when closed)
+        baggerJawRight3d = new THREE.Group();
+        baggerJawRight3d.position.set(baggerX + 0.12, 0.82, infeedZ);
+        const jawRMesh = new THREE.Mesh(jawGeo, steelMat);
+        const heatRMesh = new THREE.Mesh(heatFaceGeo, baggerHeatMat); heatRMesh.position.set(-0.026, 0, 0);
+        const jawRCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 12), chromeMat);
+        jawRCyl.rotation.z = Math.PI / 2; jawRCyl.position.set(0.13, 0, 0);
+        baggerJawRight3d.add(jawRMesh, heatRMesh, jawRCyl);
+        machineFrameGroup3d.add(baggerJawRight3d);
+
+        // Machine Operator HMI Touchscreen Console on Front Column
+        const baggerHmiStandGeo = new THREE.BoxGeometry(0.04, 0.04, 0.14);
+        const baggerHmiStand = new THREE.Mesh(baggerHmiStandGeo, chromeMat);
+        baggerHmiStand.position.set(baggerX + 0.45, 1.45, infeedZ + 0.52);
+        const baggerHmiScreenGeo = new THREE.BoxGeometry(0.24, 0.18, 0.03);
+        const baggerHmiScreenMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.6 });
+        const baggerHmiScreen = new THREE.Mesh(baggerHmiScreenGeo, baggerHmiScreenMat);
+        baggerHmiScreen.position.set(baggerX + 0.45, 1.45, infeedZ + 0.59);
+        machineFrameGroup3d.add(baggerHmiStand, baggerHmiScreen);
+
+        // Tri-Color Andon Signal Tower Beacon on Roof
+        const beaconStemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.18, 12);
+        const beaconStem = new THREE.Mesh(beaconStemGeo, chromeMat);
+        beaconStem.position.set(baggerX - 0.42, 2.48, infeedZ + 0.42);
+        const beaconRed = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 }));
+        beaconRed.position.set(baggerX - 0.42, 2.58, infeedZ + 0.42);
+        const beaconAmber = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 }));
+        beaconAmber.position.set(baggerX - 0.42, 2.62, infeedZ + 0.42);
+        baggerBeaconGreen3d = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.8, roughness: 0.2 }));
+        baggerBeaconGreen3d.position.set(baggerX - 0.42, 2.66, infeedZ + 0.42);
+        machineFrameGroup3d.add(beaconStem, beaconRed, beaconAmber, baggerBeaconGreen3d);
+
+        // ─────────────────────────────────────────────────────────────
+        // 0b. MAŁA TAŚMA POZIOMA POD SZCZĘKAMI (SHORT TAKEAWAY DISCHARGE CONVEYOR)
+        // Spans from X: -6.55m to X: -5.15m at floor level Y: 0.35m
+        // ─────────────────────────────────────────────────────────────
+        const takeawayX = -5.85;
+        const takeawayLength = 1.40;
+        const takeawayBeltGeo = new THREE.BoxGeometry(takeawayLength, 0.05, beltW);
+        const takeawayBeltMesh = new THREE.Mesh(takeawayBeltGeo, beltMat);
+        takeawayBeltMesh.position.set(takeawayX, 0.35, infeedZ);
+        takeawayBeltMesh.castShadow = true;
+        machineFrameGroup3d.add(takeawayBeltMesh);
+
+        // Side Guide Rails on takeaway belt
+        const takeawayRailGeo = new THREE.BoxGeometry(takeawayLength, 0.09, 0.02);
+        const tRail1 = new THREE.Mesh(takeawayRailGeo, yellowMat); tRail1.position.set(takeawayX, 0.40, infeedZ - halfRail);
+        const tRail2 = new THREE.Mesh(takeawayRailGeo, yellowMat); tRail2.position.set(takeawayX, 0.40, infeedZ + halfRail);
+        machineFrameGroup3d.add(tRail1, tRail2);
+
+        // Takeaway Conveyor Floor Support Legs
+        const takeawayLegGeo = new THREE.BoxGeometry(0.05, 0.35, 0.05);
+        for (let tlx of [-6.45, -5.25]) {
+            for (let tlz of [infeedZ - 0.24, infeedZ + 0.24]) {
+                const tLeg = new THREE.Mesh(takeawayLegGeo, steelMat);
+                tLeg.position.set(tlx, 0.175, tlz);
+                machineFrameGroup3d.add(tLeg);
+            }
+        }
+
+        // Takeaway Belt Geared Drive Motor
+        const takeawayMotorGeo = new THREE.BoxGeometry(0.18, 0.14, 0.16);
+        const takeawayMotor = new THREE.Mesh(takeawayMotorGeo, steelMat);
+        takeawayMotor.position.set(-6.50, 0.35, infeedZ - 0.36);
+        machineFrameGroup3d.add(takeawayMotor);
+
+        // ─────────────────────────────────────────────────────────────
+        // 0c. TAŚMA SKOŚNA WZNOSZĄCA (INCLINE CLEATED CONVEYOR BELT)
+        // Runs from X: -5.15m (Y: 0.35m) up to X: -3.75m (Y: 1.78m) - length: 2.00m, angle: ~45.6°
+        // ─────────────────────────────────────────────────────────────
+        const inclineCenterX = -4.45;
+        const inclineCenterY = 1.065;
+        const inclineAngle = 0.796; // +45.6 degrees rotation around Z (rising from takeaway belt to infeed belt)
+        const inclineLength = 2.00;
+
+        const inclineGroup = new THREE.Group();
+        inclineGroup.position.set(inclineCenterX, inclineCenterY, infeedZ);
+        inclineGroup.rotation.z = inclineAngle;
+
+        // Incline Conveyor Bed Belt
+        const inclineBeltGeo = new THREE.BoxGeometry(inclineLength, 0.05, beltW);
+        const inclineBeltMesh = new THREE.Mesh(inclineBeltGeo, beltMat);
+        inclineBeltMesh.castShadow = true;
+        inclineGroup.add(inclineBeltMesh);
+
+        // 8 Cleats / Flights along belt to physically carry sacks uphill (poprzeczne zabieraki gumowe)
+        const cleatGeo = new THREE.BoxGeometry(0.016, 0.035, beltW - 0.04);
+        const cleatMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+        for (let cx = -0.85; cx <= 0.85; cx += 0.22) {
+            const cleat = new THREE.Mesh(cleatGeo, cleatMat);
+            cleat.position.set(cx, 0.035, 0);
+            cleat.castShadow = true;
+            inclineGroup.add(cleat);
+        }
+
+        // Incline Yellow Side Guide Rails (Bandy boczne wznoszące)
+        const inclineRailGeo = new THREE.BoxGeometry(inclineLength, 0.10, 0.02);
+        const iRail1 = new THREE.Mesh(inclineRailGeo, yellowMat); iRail1.position.set(0, 0.055, -halfRail);
+        const iRail2 = new THREE.Mesh(inclineRailGeo, yellowMat); iRail2.position.set(0, 0.055, +halfRail);
+        inclineGroup.add(iRail1, iRail2);
+
+        machineFrameGroup3d.add(inclineGroup);
+
+        // Incline Conveyor Heavy Duty Structural Support Posts down to floor
+        const incLeg1Geo = new THREE.BoxGeometry(0.05, 0.55, 0.05);
+        const incL1 = new THREE.Mesh(incLeg1Geo, steelMat); incL1.position.set(-4.95, 0.275, infeedZ - halfRail);
+        const incL2 = new THREE.Mesh(incLeg1Geo, steelMat); incL2.position.set(-4.95, 0.275, infeedZ + halfRail);
+
+        const incLeg2Geo = new THREE.BoxGeometry(0.05, 1.05, 0.05);
+        const incL3 = new THREE.Mesh(incLeg2Geo, steelMat); incL3.position.set(-4.45, 0.525, infeedZ - halfRail);
+        const incL4 = new THREE.Mesh(incLeg2Geo, steelMat); incL4.position.set(-4.45, 0.525, infeedZ + halfRail);
+
+        const incLeg3Geo = new THREE.BoxGeometry(0.05, 1.55, 0.05);
+        const incL5 = new THREE.Mesh(incLeg3Geo, steelMat); incL5.position.set(-3.95, 0.775, infeedZ - halfRail);
+        const incL6 = new THREE.Mesh(incLeg3Geo, steelMat); incL6.position.set(-3.95, 0.775, infeedZ + halfRail);
+        machineFrameGroup3d.add(incL1, incL2, incL3, incL4, incL5, incL6);
+
+        // Top Head Pulley Geared Electric Drive Motor
+        const inclineMotorGeo = new THREE.BoxGeometry(0.20, 0.16, 0.16);
+        const inclineMotor = new THREE.Mesh(inclineMotorGeo, steelMat);
+        inclineMotor.position.set(-3.75, 1.82, infeedZ - 0.36);
+        machineFrameGroup3d.add(inclineMotor);
+
+        // ─────────────────────────────────────────────────────────────
+        // INFEED CONVEYOR WITH DYNAMIC CHECKWEIGHER & REJECT DROP FLAP
+        // Shifted back by 1.35m (1 pallet + clearance) with added conveyor belt extension
+        // ─────────────────────────────────────────────────────────────
+
+        // Section 1: Infeed Belt from Bagging Machine (Shifted back to X: -3.75 to -3.25, Y: 1.78)
         const infeed1Geo = new THREE.BoxGeometry(0.50, 0.06, beltW);
         const infeed1Mesh = new THREE.Mesh(infeed1Geo, beltMat);
-        infeed1Mesh.position.set(-2.15, 1.78, infeedZ);
+        infeed1Mesh.position.set(-3.50, 1.78, infeedZ);
         infeed1Mesh.castShadow = true;
         machineFrameGroup3d.add(infeed1Mesh);
 
-        // Metal Detector Arch (Bramka detektora metali na wjeździe)
-        const mdArchGeo = new THREE.BoxGeometry(0.08, 0.40, beltW + 0.08);
-        const mdArch = new THREE.Mesh(mdArchGeo, chromeMat);
-        mdArch.position.set(-2.15, 1.96, infeedZ);
-        machineFrameGroup3d.add(mdArch);
-
-        // Section 2: Checkweigher Dynamic Scale Platform (X: -1.90 to -1.45, Y: 1.78, Z: infeedZ)
-        const scaleBedGeo = new THREE.BoxGeometry(0.42, 0.05, beltW);
+        // Section 2: Checkweigher Dynamic Scale Platform (Shifted back to X: -3.25 to -2.81, Y: 1.78)
+        const scaleBedGeo = new THREE.BoxGeometry(0.44, 0.05, beltW);
         const scaleMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.7 });
         const scaleMesh = new THREE.Mesh(scaleBedGeo, scaleMat);
-        scaleMesh.position.set(-1.68, 1.775, infeedZ);
+        scaleMesh.position.set(-3.03, 1.775, infeedZ);
         scaleMesh.castShadow = true;
         machineFrameGroup3d.add(scaleMesh);
 
         // Load cell sensors under scale platform
         const loadCellGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.04, 12);
-        for (let lcx of [-1.82, -1.54]) {
+        for (let lcx of [-3.17, -2.89]) {
             for (let lcz of [infeedZ - 0.24, infeedZ + 0.24]) {
                 const cell = new THREE.Mesh(loadCellGeo, chromeMat);
                 cell.position.set(lcx, 1.73, lcz);
@@ -2433,52 +3077,69 @@ input:checked + .slider:before { transform: translateX(20px); }
         }
 
         // Section 3: Pneumatic Reject Drop Flap / Trapdoor (Klapa Zrzutu Odrzutów)
-        // Hinged at X: -1.45, dropping down at X: -1.25 when reject is active
+        // Shifted back to X: -2.63 (span -2.82 to -2.44)
         const flapGeo = new THREE.BoxGeometry(0.38, 0.03, beltW);
         const flapMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.6 });
         rejectFlapMesh3d = new THREE.Mesh(flapGeo, flapMat);
-        rejectFlapMesh3d.position.set(-1.28, 1.78, infeedZ);
+        rejectFlapMesh3d.position.set(-2.63, 1.78, infeedZ);
         rejectFlapMesh3d.castShadow = true;
         machineFrameGroup3d.add(rejectFlapMesh3d);
 
         // Pneumatic cylinder operating the reject flap
         const rejectCylGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 12);
         const rejectCyl = new THREE.Mesh(rejectCylGeo, chromeMat);
-        rejectCyl.position.set(-1.28, 1.62, infeedZ - 0.28);
+        rejectCyl.position.set(-2.63, 1.62, infeedZ - 0.28);
         machineFrameGroup3d.add(rejectCyl);
 
         // Reject Drop Funnel / Chute (Kosz / rynna zrzutowa na worki z błędem)
         const chuteGeo = new THREE.BoxGeometry(0.42, 1.20, beltW + 0.02);
         const chuteMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6, metalness: 0.3, transparent: true, opacity: 0.65 });
         const chuteMesh = new THREE.Mesh(chuteGeo, chuteMat);
-        chuteMesh.position.set(-1.28, 1.05, infeedZ);
+        chuteMesh.position.set(-2.63, 1.05, infeedZ);
         machineFrameGroup3d.add(chuteMesh);
 
         // Reject Collection Bin Box on Floor (Maintains clear safety margin before roller track)
         const binBoxGeo = new THREE.BoxGeometry(0.55, 0.45, beltW + 0.04);
         const binBoxMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.4 });
         const binBox = new THREE.Mesh(binBoxGeo, binBoxMat);
-        binBox.position.set(-1.28, 0.22, infeedZ);
+        binBox.position.set(-2.63, 0.22, infeedZ);
         binBox.castShadow = true;
 
         // Safety yellow rim on the reject collection bin
         const binRimGeo = new THREE.BoxGeometry(0.57, 0.04, beltW + 0.06);
         const binRim = new THREE.Mesh(binRimGeo, yellowMat);
-        binRim.position.set(-1.28, 0.44, infeedZ);
+        binRim.position.set(-2.63, 0.44, infeedZ);
         machineFrameGroup3d.add(binBox, binRim);
 
-        // Section 4: Lead-in belt to Turner (X: -1.05 to -0.65)
+        // Section 3b: NEW INTERMEDIATE EXTENSION CONVEYOR BELT (Dołożony kawałek taśmy łączący zrzut z podejściem do obracaka)
+        // Spans from X: -2.44 to -1.07 (length: 1.37m, center: -1.755)
+        const extensionBeltGeo = new THREE.BoxGeometry(1.37, 0.06, beltW);
+        const extensionBeltMesh = new THREE.Mesh(extensionBeltGeo, beltMat);
+        extensionBeltMesh.position.set(-1.755, 1.78, infeedZ);
+        extensionBeltMesh.castShadow = true;
+        machineFrameGroup3d.add(extensionBeltMesh);
+
+        // Intermediate belt support roller drive beneath
+        const beltRollerGeo = new THREE.CylinderGeometry(0.04, 0.04, beltW + 0.04, 16);
+        const rollerSub = new THREE.Mesh(beltRollerGeo, chromeMat);
+        rollerSub.rotation.x = Math.PI / 2;
+        rollerSub.position.set(-1.755, 1.73, infeedZ);
+        machineFrameGroup3d.add(rollerSub);
+
+        // Section 4: Lead-in belt to Turner (X: -1.07 to -0.69)
         const leadInGeo = new THREE.BoxGeometry(0.38, 0.06, beltW);
         const leadInMesh = new THREE.Mesh(leadInGeo, beltMat);
         leadInMesh.position.set(-0.88, 1.78, infeedZ);
         leadInMesh.castShadow = true;
         machineFrameGroup3d.add(leadInMesh);
 
-        // Infeed Conveyor Support Legs (X: -2.30, -1.50, -0.75)
+        // Infeed Conveyor Support Legs (Extended to cover full span from -3.65 to -0.75)
         const legGeo = new THREE.BoxGeometry(0.05, 1.78, 0.05);
         const legPositions = [
-            [-2.30, 0.89, infeedZ - 0.28], [-2.30, 0.89, infeedZ + 0.28],
-            [-1.50, 0.89, infeedZ - 0.28], [-1.50, 0.89, infeedZ + 0.28],
+            [-3.65, 0.89, infeedZ - 0.28], [-3.65, 0.89, infeedZ + 0.28],
+            [-2.85, 0.89, infeedZ - 0.28], [-2.85, 0.89, infeedZ + 0.28],
+            [-2.05, 0.89, infeedZ - 0.28], [-2.05, 0.89, infeedZ + 0.28],
+            [-1.30, 0.89, infeedZ - 0.28], [-1.30, 0.89, infeedZ + 0.28],
             [-0.75, 0.89, infeedZ - 0.28], [-0.75, 0.89, infeedZ + 0.28]
         ];
         legPositions.forEach(lp => {
@@ -2487,23 +3148,85 @@ input:checked + .slider:before { transform: translateX(20px); }
             machineFrameGroup3d.add(leg);
         });
 
-        // Infeed Conveyor Side Guide Rails (0.62m internal width to allow rotated 0.54m bag without clipping)
-        const infeedRailGeo = new THREE.BoxGeometry(1.65, 0.09, 0.02);
-        const railBack = new THREE.Mesh(infeedRailGeo, yellowMat); railBack.position.set(-1.48, 1.83, infeedZ - halfRail);
-        const railFront = new THREE.Mesh(infeedRailGeo, yellowMat); railFront.position.set(-1.48, 1.83, infeedZ + halfRail);
+        // Infeed Conveyor Side Guide Rails (Extended length 3.10m from -3.75 to -0.65, center -2.20)
+        const infeedRailGeo = new THREE.BoxGeometry(3.10, 0.09, 0.02);
+        const railBack = new THREE.Mesh(infeedRailGeo, yellowMat); railBack.position.set(-2.20, 1.83, infeedZ - halfRail);
+        const railFront = new THREE.Mesh(infeedRailGeo, yellowMat); railFront.position.set(-2.20, 1.83, infeedZ + halfRail);
         machineFrameGroup3d.add(railBack, railFront);
 
         // Infeed Electric Drive Motor
         const motorGeo = new THREE.BoxGeometry(0.22, 0.16, 0.18);
         const motorMesh = new THREE.Mesh(motorGeo, steelMat);
-        motorMesh.position.set(-2.25, 1.78, infeedZ - 0.38);
+        motorMesh.position.set(-3.60, 1.78, infeedZ - 0.38);
         machineFrameGroup3d.add(motorMesh);
 
-        // Bag Turner (Obracak worków) Mechanism at entry
-        const turnerGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.04, 24);
-        const turnerMesh = new THREE.Mesh(turnerGeo, chromeMat);
-        turnerMesh.position.set(-0.62, 1.81, infeedZ);
-        machineFrameGroup3d.add(turnerMesh);
+        // ─────────────────────────────────────────────────────────────
+        // OVERHEAD CLAMP BAG TURNER (OBRACAK WORKÓW Z DWOMA ŁAPKAMI ŚCISKAJĄCYMI OD GÓRY)
+        // Positioned along the infeed belt at X = -1.05m (ciut dalej przed windą)
+        // ─────────────────────────────────────────────────────────────
+        const turnerX = -1.05;
+
+        // Overhead portal bridge frame across conveyor belt
+        const turnerColGeo = new THREE.BoxGeometry(0.05, 0.46, 0.05);
+        const tCol1 = new THREE.Mesh(turnerColGeo, steelMat);
+        tCol1.position.set(turnerX, 2.01, infeedZ - halfRail - 0.03);
+        const tCol2 = new THREE.Mesh(turnerColGeo, steelMat);
+        tCol2.position.set(turnerX, 2.01, infeedZ + halfRail + 0.03);
+
+        const turnerTopBeamGeo = new THREE.BoxGeometry(0.06, 0.06, (halfRail * 2) + 0.12);
+        const tBeam = new THREE.Mesh(turnerTopBeamGeo, steelMat);
+        tBeam.position.set(turnerX, 2.24, infeedZ);
+        machineFrameGroup3d.add(tCol1, tCol2, tBeam);
+
+        // Fixed vertical rotary actuator cylinder suspended from top beam
+        const rotaryActuatorGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.14, 16);
+        const rotaryActuator = new THREE.Mesh(rotaryActuatorGeo, steelMat);
+        rotaryActuator.position.set(turnerX, 2.14, infeedZ);
+        machineFrameGroup3d.add(rotaryActuator);
+
+        // Rotating Clamp Head Group (Obracająca się głowica z dwoma łapkami zaciskającymi od góry)
+        turnerClampGroup3d = new THREE.Group();
+        turnerClampGroup3d.position.set(turnerX, 2.05, infeedZ);
+
+        // Central vertical chrome shaft connecting actuator to clamp yoke
+        const shaftGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.10, 16);
+        const shaft = new THREE.Mesh(shaftGeo, chromeMat);
+        shaft.position.set(0, 0.01, 0);
+        turnerClampGroup3d.add(shaft);
+
+        // Horizontal cross yoke (Belka nośna łapek zaciskowych)
+        const yokeGeo = new THREE.BoxGeometry(0.08, 0.04, 0.44);
+        const yoke = new THREE.Mesh(yokeGeo, yellowMat);
+        yoke.position.set(0, -0.04, 0);
+        yoke.castShadow = true;
+        turnerClampGroup3d.add(yoke);
+
+        // Two vertical clamping arms ("dwie łapki zciskające od góry") with rubber grip pads
+        const turnerArmGeo = new THREE.BoxGeometry(0.04, 0.18, 0.03);
+        const padGeo = new THREE.BoxGeometry(0.24, 0.07, 0.025);
+        const rubberPadMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+
+        // Left Clamping Arm & Grip Pad
+        const armL = new THREE.Mesh(turnerArmGeo, chromeMat);
+        armL.position.set(0, -0.12, -0.20);
+        const padL = new THREE.Mesh(padGeo, rubberPadMat);
+        padL.position.set(0, -0.17, -0.19);
+        padL.castShadow = true;
+        turnerClampGroup3d.add(armL, padL);
+
+        // Right Clamping Arm & Grip Pad
+        const armR = new THREE.Mesh(turnerArmGeo, chromeMat);
+        armR.position.set(0, -0.12, 0.20);
+        const padR = new THREE.Mesh(padGeo, rubberPadMat);
+        padR.position.set(0, -0.17, 0.19);
+        padR.castShadow = true;
+        turnerClampGroup3d.add(armR, padR);
+
+        machineFrameGroup3d.add(turnerClampGroup3d);
 
         // Internal Receiving / Staging Conveyor & Transfer Bed (Stół buforowy rzędu łączący obracak z płytami rozjazdowymi)
         // Spans from pusher rear Z: -0.98 continuously to the front edge of split formation plates Z: -0.18 (depth 0.80m)
@@ -2556,38 +3279,40 @@ input:checked + .slider:before { transform: translateX(20px); }
         machineFrameGroup3d.add(pusherPaddleMesh3d);
 
         // ─────────────────────────────────────────────────────────────
-        // 1. MOTORIZED FLOOR ROLLER CONVEYOR BED (ROLKOWIEC WZDŁUŻ OSI X POD PŁYTAMI)
+        // 1. MOTORIZED FLOOR ROLLER CONVEYOR BED (EXTENDED WZDŁUŻ OSI X)
+        // Spans from X: -4.00 (under shifted dispenser) to X: +2.45 (outfeed)
         // ─────────────────────────────────────────────────────────────
         const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
         const pWidth = isIndustrial ? 1.0 : 0.8;
         const pLength = 1.2;
         const trackZ = 0.18; // Exactly centered under split formation plates
 
-        // Main structural side rails running from Left Dispenser (X: -2.75) through Stacking (X: 0) to Outfeed (X: +2.45)
-        const trackLengthX = 5.2;
+        // Main structural side rails running from Shifted Dispenser (X: -4.05) through Stacking (X: 0) to Outfeed (X: +2.45)
+        const trackLengthX = 6.50;
+        const trackCenterX = -0.80;
         const sideRailGeo = new THREE.BoxGeometry(trackLengthX, 0.10, 0.06);
         const halfRailZ = (pWidth / 2) + 0.08;
 
         const sideRailRear = new THREE.Mesh(sideRailGeo, steelMat);
-        sideRailRear.position.set(-0.15, 0.05, trackZ - halfRailZ);
+        sideRailRear.position.set(trackCenterX, 0.05, trackZ - halfRailZ);
         sideRailRear.castShadow = true;
 
         const sideRailFront = new THREE.Mesh(sideRailGeo, steelMat);
-        sideRailFront.position.set(-0.15, 0.05, trackZ + halfRailZ);
+        sideRailFront.position.set(trackCenterX, 0.05, trackZ + halfRailZ);
         sideRailFront.castShadow = true;
         machineFrameGroup3d.add(sideRailRear, sideRailFront);
 
         // Safety yellow guide edges on roller track
         const guardEdgeGeo = new THREE.BoxGeometry(trackLengthX, 0.04, 0.02);
-        const guardRear = new THREE.Mesh(guardEdgeGeo, yellowMat); guardRear.position.set(-0.15, 0.10, trackZ - halfRailZ);
-        const guardFront = new THREE.Mesh(guardEdgeGeo, yellowMat); guardFront.position.set(-0.15, 0.10, trackZ + halfRailZ);
+        const guardRear = new THREE.Mesh(guardEdgeGeo, yellowMat); guardRear.position.set(trackCenterX, 0.10, trackZ - halfRailZ);
+        const guardFront = new THREE.Mesh(guardEdgeGeo, yellowMat); guardFront.position.set(trackCenterX, 0.10, trackZ + halfRailZ);
         machineFrameGroup3d.add(guardRear, guardFront);
 
-        // Rotating Cylindrical Steel Rollers along X axis (Rollers span along Z)
+        // Rotating Cylindrical Steel Rollers along X axis (from X: -3.95 to X: 2.35)
         rollerMeshes3d = [];
         const rollerLength = (halfRailZ * 2) - 0.04;
         const rollerGeo = new THREE.CylinderGeometry(0.028, 0.028, rollerLength, 16);
-        for (let rx = -2.65; rx <= 2.35; rx += 0.22) {
+        for (let rx = -3.95; rx <= 2.35; rx += 0.22) {
             const roller = new THREE.Mesh(rollerGeo, chromeMat);
             roller.rotation.x = Math.PI / 2;
             roller.position.set(rx, 0.055, trackZ);
@@ -2599,15 +3324,15 @@ input:checked + .slider:before { transform: translateX(20px); }
         // Roller track drive motors
         const rollerMotorGeo = new THREE.BoxGeometry(0.18, 0.14, 0.18);
         const motor1 = new THREE.Mesh(rollerMotorGeo, steelMat);
-        motor1.position.set(-2.55, 0.07, trackZ + halfRailZ + 0.12);
+        motor1.position.set(-3.85, 0.07, trackZ + halfRailZ + 0.12);
         const motor2 = new THREE.Mesh(rollerMotorGeo, steelMat);
         motor2.position.set(2.25, 0.07, trackZ + halfRailZ + 0.12);
         machineFrameGroup3d.add(motor1, motor2);
 
         // ─────────────────────────────────────────────────────────────
-        // 2. EMPTY PALLET MAGAZINE / DISPENSER (MAGAZYNEK PUSTYCH PALET PO LEWEJ OBOK ZRZUTU)
+        // 2. EMPTY PALLET MAGAZINE / DISPENSER (SHIFTED BACK BY 1 PALLET + CLEARANCE: X: -3.20)
         // ─────────────────────────────────────────────────────────────
-        const dispenserX = -1.85;
+        const dispenserX = -3.20;
         const dispColGeo = new THREE.BoxGeometry(0.06, 1.60, 0.06);
         const dispHalfX = (pLength / 2) + 0.04; // 0.64m
         const dispHalfZ = (pWidth / 2) + 0.04;  // 0.54m or 0.44m
@@ -2637,21 +3362,60 @@ input:checked + .slider:before { transform: translateX(20px); }
         const pawlR = new THREE.Mesh(pawlGeo, chromeMat); pawlR.position.set(dispenserX + dispHalfX - 0.02, 0.22, trackZ);
         machineFrameGroup3d.add(pawlL, pawlR);
 
-        // Stack of 6 Empty Wooden Pallets in Magazine Chute (At dispenserX, trackZ)
+        // Stack of 6 Empty Pełnoprawne Wooden Pallets in Magazine Chute (At dispenserX, trackZ)
         const woodMat = new THREE.MeshStandardMaterial({
             color: 0xc89d66,
             roughness: 0.8,
             metalness: 0.1
         });
 
-        for (let pIdx = 1; pIdx <= 6; pIdx++) {
-            const stackY = 0.08 + (pIdx * 0.144);
-            const stackPalletGeo = new THREE.BoxGeometry(pLength, 0.14, pWidth);
-            const stackPallet = new THREE.Mesh(stackPalletGeo, woodMat);
-            stackPallet.position.set(dispenserX, stackY, trackZ);
-            stackPallet.castShadow = true;
+        for (let pIdx = 0; pIdx < 6; pIdx++) {
+            const stackPallet = create3dFullEuroPalletMesh(isIndustrial, woodMat);
+            stackPallet.position.set(dispenserX, 0.055 + (pIdx * 0.144), trackZ);
             machineFrameGroup3d.add(stackPallet);
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // 3. INTERMEDIATE PALLET WITH CARDBOARD SLIP SHEET (STANOWISKO PRZEKŁADKI)
+        // Positioned in the gap between dispenser (X: -3.20) and elevator (X: 0) at X: -1.60
+        // ─────────────────────────────────────────────────────────────
+        const slipPalletX = -1.60;
+
+        // Base pełnoprawna wooden pallet on roller track
+        const slipPallet = create3dFullEuroPalletMesh(isIndustrial, woodMat);
+        slipPallet.position.set(slipPalletX, 0.055, trackZ);
+        machineFrameGroup3d.add(slipPallet);
+
+        // Cardboard Slip Sheet / Bottom Layer Sheet (Tekturowa przekładka)
+        const cardboardMat = new THREE.MeshStandardMaterial({
+            color: 0xba8c59, // Natural Kraft / Corrugated Cardboard tone
+            roughness: 0.95,
+            metalness: 0.02
+        });
+        const slipSheetGeo = new THREE.BoxGeometry(pLength - 0.04, 0.008, pWidth - 0.04);
+        const slipSheetMesh = new THREE.Mesh(slipSheetGeo, cardboardMat);
+        slipSheetMesh.position.set(slipPalletX, 0.055 + 0.144 + 0.004, trackZ);
+        slipSheetMesh.castShadow = true;
+        machineFrameGroup3d.add(slipSheetMesh);
+
+        // Slip Sheet Applicator Gantry / Vacuum Gripper Beam Overhead (Rama podajnika przekładek)
+        const gantryColGeo = new THREE.BoxGeometry(0.05, 1.40, 0.05);
+        const g1 = new THREE.Mesh(gantryColGeo, steelMat); g1.position.set(slipPalletX - 0.55, 0.70, trackZ - halfRailZ - 0.04);
+        const g2 = new THREE.Mesh(gantryColGeo, steelMat); g2.position.set(slipPalletX + 0.55, 0.70, trackZ - halfRailZ - 0.04);
+        const gantryBeamGeo = new THREE.BoxGeometry(1.20, 0.06, 0.06);
+        const gBeam = new THREE.Mesh(gantryBeamGeo, yellowMat); gBeam.position.set(slipPalletX, 1.35, trackZ - halfRailZ - 0.04);
+        machineFrameGroup3d.add(g1, g2, gBeam);
+
+        // Pneumatic Vacuum Suction Arm extending over pallet center
+        const slipArmGeo = new THREE.BoxGeometry(0.04, 0.04, halfRailZ + 0.06);
+        const slipArmMesh = new THREE.Mesh(slipArmGeo, chromeMat);
+        slipArmMesh.position.set(slipPalletX, 1.35, trackZ - (halfRailZ / 2));
+        const suctionCupGeo = new THREE.CylinderGeometry(0.04, 0.02, 0.04, 12);
+        const suctionCup1 = new THREE.Mesh(suctionCupGeo, steelMat);
+        suctionCup1.position.set(slipPalletX - 0.20, 1.31, trackZ);
+        const suctionCup2 = new THREE.Mesh(suctionCupGeo, steelMat);
+        suctionCup2.position.set(slipPalletX + 0.20, 1.31, trackZ);
+        machineFrameGroup3d.add(slipArmMesh, suctionCup1, suctionCup2);
     }
 
     // Build Realistic Wooden Pallet & Steel Lift Carriage (Industrial 1.0m x 1.2m vs EURO 0.8m x 1.2m) at (X: 0, Z: 0.18)
@@ -2677,13 +3441,11 @@ input:checked + .slider:before { transform: translateX(20px); }
         });
 
         const isIndustrial = !String(currentConfig.pallet_type || '').toUpperCase().includes('EURO');
-        const palletWidth = isIndustrial ? 1.0 : 0.8;
         const forkSpanX = isIndustrial ? 0.35 : 0.28;
 
         // ─────────────────────────────────────────────────────────────
         // STEEL ELEVATOR CARRIAGE FRAME & LIFT FORKS (WÓZEK WINDY PALETYZATORA)
         // ─────────────────────────────────────────────────────────────
-        // Longitudinal steel lift forks supporting pallet skids (Z: -0.63 to +0.63)
         const forkGeo = new THREE.BoxGeometry(0.12, 0.04, 1.26);
         const forkL = new THREE.Mesh(forkGeo, carriageMat);
         forkL.position.set(-forkSpanX, -0.02, 0);
@@ -2710,95 +3472,9 @@ input:checked + .slider:before { transform: translateX(20px); }
         bracketR.castShadow = true;
         palletGroup3d.add(bracketL, bracketR);
 
-        if (isIndustrial) {
-            // INDUSTRIAL 1000 x 1200 mm (7 Top Boards)
-            const topBoardWidths = [0.145, 0.100, 0.100, 0.145, 0.100, 0.100, 0.145];
-            const topBoardX = [-0.4275, -0.285, -0.1425, 0, 0.1425, 0.285, 0.4275];
-            for (let i = 0; i < 7; i++) {
-                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
-                const board = new THREE.Mesh(boardGeo, woodMat);
-                board.position.set(topBoardX[i], 0.133, 0);
-                board.castShadow = true;
-                board.receiveShadow = true;
-                palletGroup3d.add(board);
-            }
-
-            // Cross Stringer Boards (3 boards, 1.0m width)
-            const crossPositions = [-0.5, 0, 0.5];
-            for (let pos of crossPositions) {
-                const crossGeo = new THREE.BoxGeometry(1.0, 0.022, 0.145);
-                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
-                crossBoard.position.set(0, 0.111, pos);
-                crossBoard.castShadow = true;
-                palletGroup3d.add(crossBoard);
-            }
-
-            // Spacer Blocks (9 blocks)
-            const blockX = [-0.425, 0, 0.425];
-            const blockZ = [-0.5, 0, 0.5];
-            for (let bx of blockX) {
-                for (let bz of blockZ) {
-                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
-                    const block = new THREE.Mesh(blockGeo, woodMat);
-                    block.position.set(bx, 0.061, bz);
-                    block.castShadow = true;
-                    palletGroup3d.add(block);
-                }
-            }
-
-            // Bottom Skids (3 boards)
-            for (let bx of blockX) {
-                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
-                const botBoard = new THREE.Mesh(botGeo, woodMat);
-                botBoard.position.set(bx, 0.011, 0);
-                botBoard.castShadow = true;
-                palletGroup3d.add(botBoard);
-            }
-        } else {
-            // EURO / EPAL 800 x 1200 mm (5 Top Boards)
-            const topBoardWidths = [0.145, 0.100, 0.145, 0.100, 0.145];
-            const topBoardX = [-0.3275, -0.175, 0, 0.175, 0.3275];
-            for (let i = 0; i < 5; i++) {
-                const boardGeo = new THREE.BoxGeometry(topBoardWidths[i], 0.022, 1.2);
-                const board = new THREE.Mesh(boardGeo, woodMat);
-                board.position.set(topBoardX[i], 0.133, 0);
-                board.castShadow = true;
-                board.receiveShadow = true;
-                palletGroup3d.add(board);
-            }
-
-            // Cross Stringer Boards (3 boards, 0.8m width)
-            const crossPositions = [-0.5, 0, 0.5];
-            for (let pos of crossPositions) {
-                const crossGeo = new THREE.BoxGeometry(0.8, 0.022, 0.145);
-                const crossBoard = new THREE.Mesh(crossGeo, woodMat);
-                crossBoard.position.set(0, 0.111, pos);
-                crossBoard.castShadow = true;
-                palletGroup3d.add(crossBoard);
-            }
-
-            // Spacer Blocks (9 blocks)
-            const blockX = [-0.325, 0, 0.325];
-            const blockZ = [-0.5, 0, 0.5];
-            for (let bx of blockX) {
-                for (let bz of blockZ) {
-                    const blockGeo = new THREE.BoxGeometry(0.145, 0.078, 0.145);
-                    const block = new THREE.Mesh(blockGeo, woodMat);
-                    block.position.set(bx, 0.061, bz);
-                    block.castShadow = true;
-                    palletGroup3d.add(block);
-                }
-            }
-
-            // Bottom Skids (3 boards)
-            for (let bx of blockX) {
-                const botGeo = new THREE.BoxGeometry(0.145, 0.022, 1.2);
-                const botBoard = new THREE.Mesh(botGeo, woodMat);
-                botBoard.position.set(bx, 0.011, 0);
-                botBoard.castShadow = true;
-                palletGroup3d.add(botBoard);
-            }
-        }
+        // Add authentic full wooden pallet on elevator forks
+        const elevatorPallet = create3dFullEuroPalletMesh(isIndustrial, woodMat);
+        palletGroup3d.add(elevatorPallet);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -3151,7 +3827,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 
     // Rebuilds 3D Stacking: Pallet holds actual completed layers; Upper conveyor and split plate hold active bags
-    function rebuild3dBags(currentLayer, currentBag, isLineRunning, bpm, palletizerData) {
+    function rebuild3dBags(currentLayer, currentBag, isLineRunning, bpm, palletizerData, checkweigherData, baggerData) {
         if (!bagsGroup3d || !upperBagsGroup3d) return;
         bagsGroup3d.clear();
         upperBagsGroup3d.clear();
@@ -3239,24 +3915,75 @@ input:checked + .slider:before { transform: translateX(20px); }
             }
         }
 
-        // 2. RENDER INFEED CONVEYOR BAGS & STAGING (Conditional on real movement / non-empty state)
-        const isBaggerRunning = (bpm !== undefined && bpm > 0) || (palletizerData && (palletizerData.status === 'PRACA' || palletizerData.is_emptying));
-        const hasAccumulated = palletizerData && (palletizerData.accumulated_bags > 0);
-        const hasInfeedBags = Boolean(isLineRunning || isBaggerRunning || currentBag > 0 || currentLayer > 1 || hasAccumulated);
-
+        // 2. RENDER INFEED CONVEYOR BAGS & STAGING (Strictly LIVE based on real-time sensors)
         const infeedZ = -0.78;
-        const upperY = 1.74 + (bagHeight / 2) + 0.015;
         const infeedY = 1.78 + (bagHeight / 2) + 0.02;
 
-        if (hasInfeedBags) {
-            const bagOnEntry = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
-            bagOnEntry.position.set(-2.10, infeedY, infeedZ);
+        const cwWeight = checkweigherData ? (checkweigherData.current_weight_kg || 0) : 0;
+        const isBaggerProducing = Boolean(baggerData && baggerData.is_running && bpm > 0 && isLineRunning);
+        const isJawsClosed = Boolean((baggerData && (baggerData.jaws_closed || baggerData.szczekiZamkniete)) || isBaggerJawsClosedAnim);
+        const isScaleBagDetected = Boolean(checkweigherData && checkweigherData.bag_on_scale && isBaggerProducing);
+        const isRejectActive = Boolean(checkweigherData && checkweigherData.reject_flap_open);
+        const isTurnerActive = Boolean((palletizerData && (palletizerData.turner_active || palletizerData.obracakPraca || palletizerData.obracakAktywny)) || isTurnerActiveAnim);
+        const isBufferOccupied = Boolean(palletizerData && (palletizerData.buffer_occupied || palletizerData.buforPelny));
+
+        // 2a. SACK IN SEALING JAWS OF WAGOPAKOWACZKA (X: -6.20, Y: 0.82)
+        // ONLY rendered while sealing jaws are actively closed (MQTT szczekiZamkniete)
+        if (isJawsClosed) {
+            const bagInJaws = create3dBagMesh(0.36, 0.50, 0.22, true, false);
+            bagInJaws.position.set(-6.20, 0.82, infeedZ);
+            upperBagsGroup3d.add(bagInJaws);
+        }
+
+        // 2b. SACK ON SHORT TAKEAWAY CONVEYOR (X: -5.55, Y: 0.42)
+        // ONLY rendered when actively producing and a sack was just discharged from jaws
+        if (isBaggerProducing && isJawsClosed) {
+            const bagOnTakeaway = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+            bagOnTakeaway.position.set(-5.55, 0.42, infeedZ);
+            upperBagsGroup3d.add(bagOnTakeaway);
+        }
+
+        // 2c. SACK ON INCLINE CONVEYOR BELT (X: -4.45, Y: 1.125, Tilted +45.6°)
+        // ONLY rendered when actively producing at nominal speed
+        if (isBaggerProducing && bpm >= 6) {
+            const bagOnIncline = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+            bagOnIncline.position.set(-4.45, 1.125, infeedZ);
+            bagOnIncline.rotation.z = 0.796;
+            upperBagsGroup3d.add(bagOnIncline);
+        }
+
+        // 2d. SACK ON CHECKWEIGHER SCALE BED (X: -3.45)
+        // ONLY rendered when actively producing and scale detects bag presence
+        if (isScaleBagDetected && !isRejectActive) {
+            const bagOnEntry = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, true, false);
+            bagOnEntry.position.set(-3.45, infeedY, infeedZ);
             upperBagsGroup3d.add(bagOnEntry);
+        }
 
+        // 2e. Rejected bag dropping through chute if reject flap is active (X: -2.63)
+        if (isRejectActive) {
+            const rejectedBag = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, true, false);
+            rejectedBag.rotation.z = -Math.PI / 4;
+            rejectedBag.position.set(-2.63, 1.45, infeedZ);
+            upperBagsGroup3d.add(rejectedBag);
+        }
+
+        // 2f. Intermediate extension belt (X: -1.75) - only if buffer sensor is active or continuous active flow
+        if (isBufferOccupied || (bpm >= 10 && isBaggerProducing && (currentBag > 0 || currentLayer > 0))) {
             const bagOnMiddle = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
-            bagOnMiddle.position.set(-1.45, infeedY, infeedZ);
+            bagOnMiddle.position.set(-1.75, infeedY, infeedZ);
             upperBagsGroup3d.add(bagOnMiddle);
+        }
 
+        // 2g. Lead-in section (X: -1.40) - only in high throughput continuous flow
+        if (bpm >= 14 && isBaggerProducing && currentBag > 0) {
+            const bagOnLeadIn = create3dBagMesh(0.54, bagHeight - 0.008, 0.36, false, false);
+            bagOnLeadIn.position.set(-1.40, infeedY, infeedZ);
+            upperBagsGroup3d.add(bagOnLeadIn);
+        }
+
+        // Bag Turner with Overhead Clamping Jaws (X: -1.05) - strictly when turner is active
+        if (isTurnerActive) {
             const isCurrentEven = (currentLayer % 2 === 0);
             const nextBagIdx = currentBag + 1;
             let turnerShouldRotate = false;
@@ -3271,7 +3998,7 @@ input:checked + .slider:before { transform: translateX(20px); }
                 currentBag === 0,
                 turnerShouldRotate
             );
-            bagOnTurner.position.set(-0.62, infeedY, infeedZ);
+            bagOnTurner.position.set(-1.05, infeedY, infeedZ);
             upperBagsGroup3d.add(bagOnTurner);
         }
 
@@ -3359,8 +4086,20 @@ input:checked + .slider:before { transform: translateX(20px); }
             controlsWrapper3d.enableDamping = true;
             controlsWrapper3d.dampingFactor = 0.05;
             controlsWrapper3d.maxPolarAngle = Math.PI / 2 + 0.05;
-            controlsWrapper3d.minDistance = 1.6;
-            controlsWrapper3d.maxDistance = 6.5;
+            controlsWrapper3d.minDistance = 1.0;
+            controlsWrapper3d.maxDistance = 10.0;
+            controlsWrapper3d.enablePan = true;
+            controlsWrapper3d.screenSpacePanning = true;
+            controlsWrapper3d.panSpeed = 1.2;
+            controlsWrapper3d.mouseButtons = {
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+            };
+            controlsWrapper3d.touches = {
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
             controlsWrapper3d.target.set(0, 0.75, 0);
         }
 
@@ -3813,6 +4552,29 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 
     // Wrapper 3D View Controls
+    let isWrapper3dPanMode = false;
+
+    window.toggleWrapper3dPanMode = function() {
+        if (!controlsWrapper3d) return;
+        isWrapper3dPanMode = !isWrapper3dPanMode;
+        const btn = document.getElementById('btnWrapperTogglePan');
+        if (isWrapper3dPanMode) {
+            controlsWrapper3d.mouseButtons.LEFT = THREE.MOUSE.PAN;
+            controlsWrapper3d.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+            if (btn) {
+                btn.classList.add('active');
+                btn.innerHTML = '<span class="material-icons">pan_tool</span> PRZESUŃ (LPM)';
+            }
+        } else {
+            controlsWrapper3d.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+            controlsWrapper3d.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+            if (btn) {
+                btn.classList.remove('active');
+                btn.innerHTML = '<span class="material-icons">pan_tool</span> PRZESUŃ';
+            }
+        }
+    };
+
     window.toggleWrapper3dAutoRotate = function() {
         autoRotateWrapper3d = !autoRotateWrapper3d;
         const btn = document.getElementById('btnWrapperAutoRotate');
@@ -4166,6 +4928,16 @@ input:checked + .slider:before { transform: translateX(20px); }
             baggerSt.innerText = bagger.status;
             baggerSt.className = 'status-pill' + (bagger.is_running ? ' praca' : '');
         }
+        const baggerJawsBadge = document.getElementById('baggerJawsBadge');
+        if (baggerJawsBadge) {
+            if (bagger.jaws_closed) {
+                baggerJawsBadge.innerText = 'SZCZĘKI: ZAMKNIĘTE (ZGRZEW)';
+                baggerJawsBadge.className = 'status-pill warn';
+            } else {
+                baggerJawsBadge.innerText = 'SZCZĘKI: OTWARTE';
+                baggerJawsBadge.className = 'status-pill ready';
+            }
+        }
         if (baggerBar) {
             const pct = Math.min(100, Math.max(0, (bagger.bpm / 20.0) * 100));
             baggerBar.style.width = pct + '%';
@@ -4177,6 +4949,7 @@ input:checked + .slider:before { transform: translateX(20px); }
         const cwTol = document.getElementById('cwToleranceText');
         const cwRejectCnt = document.getElementById('cwRejectCount');
         const cwFlapBadge = document.getElementById('cwFlapStatusBadge');
+        const scaleBagBadge = document.getElementById('scaleBagDetectedBadge');
 
         if (cwWeight) {
             const curW = checkweigher.current_weight_kg || 0;
@@ -4200,6 +4973,16 @@ input:checked + .slider:before { transform: translateX(20px); }
             } else {
                 cwFlapBadge.innerText = 'ZAMKNIĘTY (OK)';
                 cwFlapBadge.className = 'status-pill ready';
+            }
+        }
+        if (scaleBagBadge) {
+            const curW = checkweigher.current_weight_kg || 0;
+            if (checkweigher.bag_on_scale || curW > 0.5) {
+                scaleBagBadge.innerText = `WAGA: WYKRYTO (${curW.toFixed(2)} kg)`;
+                scaleBagBadge.className = 'status-pill ready';
+            } else {
+                scaleBagBadge.innerText = 'WAGA: BRAK WORKA';
+                scaleBagBadge.className = 'status-pill';
             }
         }
 
@@ -4244,23 +5027,33 @@ input:checked + .slider:before { transform: translateX(20px); }
 
         const newLayer = palletizer.current_layer || 0;
         const newBag = palletizer.current_bag || 0;
-        const isLineRunning = (palletizer.status === 'PRACA' || (bagger && bagger.bpm > 0) || newBag > 0 || newLayer > 0 || (palletizer.accumulated_bags > 0));
         const currentBpm = (bagger && bagger.bpm) ? bagger.bpm : 0;
-        const currentPalletizerStateKey = `${newLayer}_${newBag}_${palletizer.status}_${isLineRunning}_${palletizer.accumulated_bags}_${currentBpm}`;
+        const isBaggerRunning = Boolean(bagger && bagger.is_running && currentBpm > 0);
+        const isPalletizerRunning = Boolean(palletizer && palletizer.status === 'PRACA');
+        const isLineRunning = Boolean(isBaggerRunning || isPalletizerRunning);
+        const cw = machines.checkweigher || {};
+        const cwHasBag = Boolean(cw.bag_on_scale && isBaggerRunning);
+        const cwRejectOpen = Boolean(cw.reject_flap_open);
+        const turnerActive = Boolean(palletizer.turner_active || palletizer.obracakPraca || palletizer.obracakAktywny);
+        const pusherActive = Boolean(palletizer.pusher_active || palletizer.popychaczPraca || palletizer.popychaczAktywny);
+        const baggerJawsClosed = Boolean(bagger && (bagger.jaws_closed || bagger.szczekiZamkniete));
+        const scaleBagDetected = Boolean(cw && cw.bag_on_scale && isBaggerRunning);
 
-        // Update 3D model if layer, bag, status, or running state changed
+        const currentPalletizerStateKey = `${newLayer}_${newBag}_${palletizer.status}_${currentBpm}_${cwHasBag ? 1 : 0}_${cwRejectOpen ? 1 : 0}_${turnerActive ? 1 : 0}_${pusherActive ? 1 : 0}_${palletizer.accumulated_bags}_${baggerJawsClosed ? 1 : 0}_${scaleBagDetected ? 1 : 0}_${isLineRunning ? 1 : 0}`;
+
+        // Update 3D model if layer, bag, status, checkweigher or machine movements changed
         if (typeof lastPalletizer3dState === 'undefined' || currentPalletizerStateKey !== lastPalletizer3dState) {
             lastPalletizer3dState = currentPalletizerStateKey;
             current3dLayer = newLayer;
             current3dBag = newBag;
-            rebuild3dBags(current3dLayer, current3dBag, isLineRunning, currentBpm, palletizer);
+            rebuild3dBags(current3dLayer, current3dBag, isLineRunning, currentBpm, palletizer, cw, bagger);
         }
 
         if (live3dText) {
             const isTop = (current3dLayer > fullLayers);
             const maxB = isTop ? topLayerBags : bagsPerLayer;
-            const hasInfeedBags = Boolean(isLineRunning || currentBpm > 0 || current3dBag > 0 || current3dLayer > 1 || (palletizer.accumulated_bags > 0));
-            const infeedText = hasInfeedBags ? (currentBpm > 0 ? `${Math.min(3, Math.max(1, Math.round(currentBpm / 5)))} szt` : '1 szt') : 'PUSTA';
+            const infeedCount = (cwHasBag ? 1 : 0) + (turnerActive ? 1 : 0) + (isBaggerRunning && currentBpm >= 6 ? 1 : 0);
+            const infeedText = infeedCount > 0 ? `${infeedCount} szt` : 'PUSTA';
             const elevMm = Math.round(currentPalletY * 1000);
             const elevLabel = currentPalletY > 1.2 ? `GÓRA (${elevMm}mm)` : (currentPalletY < 0.2 ? `DÓŁ (${elevMm}mm)` : `${elevMm}mm`);
             const stText = palletizer.status || 'CZUWANIE';
@@ -4309,9 +5102,84 @@ input:checked + .slider:before { transform: translateX(20px); }
         // 5. PALLET LOGISTICS (5-STATION PIPELINE)
         renderPalletStations(data.pallet_stations || []);
 
+        // ── MQTT PROCESS FLOW REAL-TIME STATE TRACKING (MQTT_PROCESS_FLOW.md) ──
+        isBaggerJawsClosedAnim = Boolean(bagger && (bagger.jaws_closed || bagger.szczekiZamkniete));
+        if (baggerBeaconGreen3d && baggerBeaconGreen3d.material) {
+            baggerBeaconGreen3d.material.emissiveIntensity = (bagger.is_running ? 0.9 : 0.1);
+        }
+        isTurnerActiveAnim = Boolean(palletizer.turner_active || palletizer.obracakPraca || palletizer.obracakAktywny);
+        isPusherActiveAnim = Boolean(palletizer.pusher_active || palletizer.popychaczPraca || palletizer.popychaczAktywny);
+        isTransferActiveAnim = Boolean(palletizer.wrapper_start_signal || palletizer.sygnalDoOwijarkiStart || palletizer.is_emptying || palletizer.oproznianie);
+
+        updateMqttProcessFlowStepper(broker, bagger, machines.checkweigher || {}, palletizer, wrapper);
+
         // 6. ERROR LOGS & MQTT MESSAGES
         renderErrors(data.error_logs || []);
         renderLogs(data.recent_messages || []);
+    }
+
+    function updateMqttProcessFlowStepper(broker, bagger, checkweigher, palletizer, wrapper) {
+        const isConn = broker.is_connected !== false && (broker.time_since_update_sec <= 30);
+
+        // K0: Heartbeat
+        setMfsStepState('mfsStep0', isConn ? 'completed' : 'active');
+
+        // K1: Waga Dynamiczna & Zrzut (Pakowaczka -> Mała taśma -> Taśma skośna -> Waga dynamiczna)
+        const k1Active = Boolean(bagger.is_running || checkweigher.reject_flap_open || (bagger.bpm > 0) || bagger.jaws_closed || checkweigher.bag_on_scale);
+        setMfsStepState('mfsStep1', k1Active ? 'active' : (isConn ? 'ready' : ''));
+
+        // K2: Obracak Worka
+        const k2Active = Boolean(palletizer.turner_active || palletizer.obracakPraca || palletizer.obracakAktywny);
+        setMfsStepState('mfsStep2', k2Active ? 'active' : (isConn && palletizer.current_layer > 0 ? 'completed' : ''));
+
+        // K3: Przepychacz Rzędów
+        const k3Active = Boolean(palletizer.pusher_active || palletizer.popychaczPraca || palletizer.popychaczAktywny);
+        setMfsStepState('mfsStep3', k3Active ? 'active' : (isConn && palletizer.current_layer > 0 ? 'completed' : ''));
+
+        // K4: Magazynek Palet
+        const k4Active = Boolean(palletizer.dispenser_active || palletizer.podawaniePalety);
+        setMfsStepState('mfsStep4', k4Active ? 'active' : (isConn ? 'ready' : ''));
+
+        // K5: Winda / Kompletowanie / Opróżnianie
+        const k5Active = Boolean(palletizer.is_emptying || palletizer.oproznianie || (palletizer.current_layer > 0));
+        setMfsStepState('mfsStep5', palletizer.is_emptying ? 'active' : (palletizer.current_layer >= (palletizer.total_layers || 13) ? 'completed' : (k5Active ? 'active' : '')));
+
+        // K6: Transfer do Owijarki
+        const k6Active = Boolean(palletizer.wrapper_start_signal || palletizer.sygnalDoOwijarkiStart);
+        setMfsStepState('mfsStep6', k6Active ? 'active' : '');
+
+        // K7: Owijanie Stretch & Kapturek Top-Sheet
+        const wrapPct = wrapper.progress_percent || 0;
+        const k7Active = Boolean(wrapper.status === 'OWIJANIE' || (wrapPct > 0 && wrapPct < 100));
+        setMfsStepState('mfsStep7', k7Active ? 'active' : (wrapPct >= 100 ? 'completed' : ''));
+
+        // K8: Wyjazd Palety
+        const k8Active = Boolean(wrapper.is_wrapped || wrapper.wyjazdPaletaOwinieta || wrapPct >= 100);
+        setMfsStepState('mfsStep8', k8Active ? 'completed' : '');
+
+        // K9: Bufor Odbiorczy (Rolki)
+        const k9Active = Boolean(palletizer.roller_1_occupied || palletizer.roller_2_occupied || palletizer.buffer_full || palletizer.rolki1zajete || palletizer.rolki2zajete || palletizer.buforPelny);
+        setMfsStepState('mfsStep9', k9Active ? 'active' : (isConn ? 'ready' : ''));
+
+        // 5-point Checklist from Section 6 of MQTT_PROCESS_FLOW.md
+        setMfsCheckTag('chk1Tag', Boolean(bagger.status && bagger.status !== 'OFFLINE'));
+        setMfsCheckTag('chk2Tag', Boolean(palletizer.current_layer !== undefined && palletizer.current_bag !== undefined));
+        setMfsCheckTag('chk3Tag', Boolean(palletizer.wrapper_start_signal !== undefined));
+        setMfsCheckTag('chk4Tag', Boolean(wrapper.progress_percent !== undefined || wrapper.phase_code));
+        setMfsCheckTag('chk5Tag', Boolean(palletizer.roller_1_occupied !== undefined || palletizer.buffer_full !== undefined));
+    }
+
+    function setMfsStepState(stepId, state) {
+        const el = document.getElementById(stepId);
+        if (!el) return;
+        el.classList.remove('active', 'completed', 'ready');
+        if (state) el.classList.add(state);
+    }
+
+    function setMfsCheckTag(tagId, isOk) {
+        const el = document.getElementById(tagId);
+        if (!el) return;
+        el.className = `mfs-check-tag ${isOk ? 'ok' : 'wait'}`;
     }
 
     function renderPalletStations(stations) {

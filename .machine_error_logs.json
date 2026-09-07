@@ -1,5 +1,545 @@
 [
   {
+    "id": "err_1788800784479",
+    "timestamp": 1788800784.4797418,
+    "timestamp_iso": "2026-09-07 19:06:24",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800768550",
+    "timestamp": 1788800768.5509963,
+    "timestamp_iso": "2026-09-07 19:06:08",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800753478",
+    "timestamp": 1788800753.4784741,
+    "timestamp_iso": "2026-09-07 19:05:53",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800737548",
+    "timestamp": 1788800737.5484617,
+    "timestamp_iso": "2026-09-07 19:05:37",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800722514",
+    "timestamp": 1788800722.5140471,
+    "timestamp_iso": "2026-09-07 19:05:22",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800706514",
+    "timestamp": 1788800706.5145066,
+    "timestamp_iso": "2026-09-07 19:05:06",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800691482",
+    "timestamp": 1788800691.4826403,
+    "timestamp_iso": "2026-09-07 19:04:51",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800675514",
+    "timestamp": 1788800675.514386,
+    "timestamp_iso": "2026-09-07 19:04:35",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800659525",
+    "timestamp": 1788800659.5253067,
+    "timestamp_iso": "2026-09-07 19:04:19",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800643564",
+    "timestamp": 1788800643.5648317,
+    "timestamp_iso": "2026-09-07 19:04:03",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800628481",
+    "timestamp": 1788800628.4814034,
+    "timestamp_iso": "2026-09-07 19:03:48",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800612482",
+    "timestamp": 1788800612.4824653,
+    "timestamp_iso": "2026-09-07 19:03:32",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800596549",
+    "timestamp": 1788800596.5493612,
+    "timestamp_iso": "2026-09-07 19:03:16",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800580469",
+    "timestamp": 1788800580.469015,
+    "timestamp_iso": "2026-09-07 19:03:00",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800564549",
+    "timestamp": 1788800564.5497198,
+    "timestamp_iso": "2026-09-07 19:02:44",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800548499",
+    "timestamp": 1788800548.4990287,
+    "timestamp_iso": "2026-09-07 19:02:28",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800532542",
+    "timestamp": 1788800532.5427637,
+    "timestamp_iso": "2026-09-07 19:02:12",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800516502",
+    "timestamp": 1788800516.5027635,
+    "timestamp_iso": "2026-09-07 19:01:56",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800501493",
+    "timestamp": 1788800501.4938624,
+    "timestamp_iso": "2026-09-07 19:01:41",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800485519",
+    "timestamp": 1788800485.5192256,
+    "timestamp_iso": "2026-09-07 19:01:25",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800470486",
+    "timestamp": 1788800470.4868538,
+    "timestamp_iso": "2026-09-07 19:01:10",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800455441",
+    "timestamp": 1788800455.4418826,
+    "timestamp_iso": "2026-09-07 19:00:55",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800439489",
+    "timestamp": 1788800439.4890602,
+    "timestamp_iso": "2026-09-07 19:00:39",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800423503",
+    "timestamp": 1788800423.5030909,
+    "timestamp_iso": "2026-09-07 19:00:23",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800407519",
+    "timestamp": 1788800407.5199387,
+    "timestamp_iso": "2026-09-07 19:00:07",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800391507",
+    "timestamp": 1788800391.5073535,
+    "timestamp_iso": "2026-09-07 18:59:51",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800376453",
+    "timestamp": 1788800376.4536924,
+    "timestamp_iso": "2026-09-07 18:59:36",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800360486",
+    "timestamp": 1788800360.486805,
+    "timestamp_iso": "2026-09-07 18:59:20",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800344508",
+    "timestamp": 1788800344.5089736,
+    "timestamp_iso": "2026-09-07 18:59:04",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800328476",
+    "timestamp": 1788800328.476694,
+    "timestamp_iso": "2026-09-07 18:58:48",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800312503",
+    "timestamp": 1788800312.5039413,
+    "timestamp_iso": "2026-09-07 18:58:32",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800296504",
+    "timestamp": 1788800296.5045874,
+    "timestamp_iso": "2026-09-07 18:58:16",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800281476",
+    "timestamp": 1788800281.4769473,
+    "timestamp_iso": "2026-09-07 18:58:01",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800265522",
+    "timestamp": 1788800265.5224893,
+    "timestamp_iso": "2026-09-07 18:57:45",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800249707",
+    "timestamp": 1788800249.707046,
+    "timestamp_iso": "2026-09-07 18:57:29",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800234507",
+    "timestamp": 1788800234.5071247,
+    "timestamp_iso": "2026-09-07 18:57:14",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800218508",
+    "timestamp": 1788800218.5082495,
+    "timestamp_iso": "2026-09-07 18:56:58",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800203506",
+    "timestamp": 1788800203.5068479,
+    "timestamp_iso": "2026-09-07 18:56:43",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800187509",
+    "timestamp": 1788800187.5092738,
+    "timestamp_iso": "2026-09-07 18:56:27",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800171505",
+    "timestamp": 1788800171.5059144,
+    "timestamp_iso": "2026-09-07 18:56:11",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800155521",
+    "timestamp": 1788800155.5216854,
+    "timestamp_iso": "2026-09-07 18:55:55",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800139508",
+    "timestamp": 1788800139.5085723,
+    "timestamp_iso": "2026-09-07 18:55:39",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800123544",
+    "timestamp": 1788800123.5444179,
+    "timestamp_iso": "2026-09-07 18:55:23",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800107525",
+    "timestamp": 1788800107.5255303,
+    "timestamp_iso": "2026-09-07 18:55:07",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800092479",
+    "timestamp": 1788800092.4791014,
+    "timestamp_iso": "2026-09-07 18:54:52",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800076559",
+    "timestamp": 1788800076.559895,
+    "timestamp_iso": "2026-09-07 18:54:36",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800061543",
+    "timestamp": 1788800061.5436425,
+    "timestamp_iso": "2026-09-07 18:54:21",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800046510",
+    "timestamp": 1788800046.5105605,
+    "timestamp_iso": "2026-09-07 18:54:06",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800030528",
+    "timestamp": 1788800030.5286021,
+    "timestamp_iso": "2026-09-07 18:53:50",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800015483",
+    "timestamp": 1788800015.483526,
+    "timestamp_iso": "2026-09-07 18:53:35",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788800000428",
+    "timestamp": 1788800000.4283154,
+    "timestamp_iso": "2026-09-07 18:53:20",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788799984448",
+    "timestamp": 1788799984.4487755,
+    "timestamp_iso": "2026-09-07 18:53:04",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788799968511",
+    "timestamp": 1788799968.511299,
+    "timestamp_iso": "2026-09-07 18:52:48",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
+    "id": "err_1788799952483",
+    "timestamp": 1788799952.483649,
+    "timestamp_iso": "2026-09-07 18:52:32",
+    "machine": "BROKER_MQTT",
+    "severity": "COMMUNICATION",
+    "code": "MQTT-ERR",
+    "description": "on_message exception: name 'rolki1zajete' is not defined",
+    "raw_data": {}
+  },
+  {
     "id": "err_1788781591354",
     "timestamp": 1788781591.3543258,
     "timestamp_iso": "2026-09-07 13:46:31",

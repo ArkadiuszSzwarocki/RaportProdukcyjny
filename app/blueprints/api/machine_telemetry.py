@@ -46,6 +46,7 @@ def register_api_machine_telemetry_routes(bp: Blueprint):
     @login_required
     def set_palletizer_config():
         from app.services.pallet_pattern_service import PalletPatternService
+        from datetime import datetime
         payload = request.get_json(silent=True) or {}
         result = PalletPatternService.update_config(payload)
         
@@ -53,19 +54,22 @@ def register_api_machine_telemetry_routes(bp: Blueprint):
         if result.success and payload.get('sync_to_machine', True):
             cfg = result.data or {}
             MachineTelemetryService.send_machine_command(
-                topic="agroPaletyzator/setPattern",
+                topic="iot-2/type/cMT2108X2/id/agroPaletyzator/setPattern",
                 command_payload={
-                    "receptura": cfg.get("preset_name", ""),
-                    "typPalety": cfg.get("pallet_type", "INDUSTRIAL_100x120"),
-                    "nazwaPalety": cfg.get("pallet_name", "Paleta Przemysłowa (1000 × 1200 mm)"),
-                    "szerokoscM": cfg.get("pallet_width_m", 1.0),
-                    "dlugoscM": cfg.get("pallet_length_m", 1.2),
-                    "warstwyPelne": cfg.get("full_layers", 12),
-                    "warstwyLacznie": cfg.get("total_layers", 13),
-                    "workiNaWarstwe": cfg.get("bags_per_layer", 4),
-                    "workiSzczyt": cfg.get("top_layer_bags", 2),
-                    "lacznieWorkow": cfg.get("total_bags", 50),
-                    "masaWorkaKg": cfg.get("bag_weight_kg", 25.0)
+                    "d": {
+                        "receptura": cfg.get("preset_name", ""),
+                        "typPalety": cfg.get("pallet_type", "INDUSTRIAL_100x120"),
+                        "nazwaPalety": cfg.get("pallet_name", "Paleta Przemysłowa (1000 × 1200 mm)"),
+                        "szerokoscM": cfg.get("pallet_width_m", 1.0),
+                        "dlugoscM": cfg.get("pallet_length_m", 1.2),
+                        "warstwyPelne": cfg.get("full_layers", 12),
+                        "warstwyLacznie": cfg.get("total_layers", 13),
+                        "workiNaWarstwe": cfg.get("bags_per_layer", 4),
+                        "workiSzczyt": cfg.get("top_layer_bags", 2),
+                        "lacznieWorkow": cfg.get("total_bags", 50),
+                        "masaWorkaKg": cfg.get("bag_weight_kg", 25.0)
+                    },
+                    "ts": datetime.now().isoformat()
                 }
             )
 

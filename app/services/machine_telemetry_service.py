@@ -33,6 +33,8 @@ class MachineTelemetryService:
         if not is_connected:
             bagger_status = "OFFLINE"
 
+        jaws_closed = bool(raw_data.get("bagger_jaws_closed", False))
+
         bagger = {
             "name": "Wagopakowaczka Automatyczna",
             "type": "BAGGER",
@@ -44,6 +46,7 @@ class MachineTelemetryService:
             "counter_local": int(raw_data.get("local_counter") or 0),
             "recipe_name": raw_data.get("receptura", "Brak danych"),
             "bag_nominal_weight_kg": bag_weight_kg,
+            "jaws_closed": jaws_closed,
             "last_seen_sec": time_since_update
         }
 
@@ -54,10 +57,20 @@ class MachineTelemetryService:
         pallet_calc = PalletPatternService.calculate_progress(current_layer, current_bag)
         pattern_cfg = pallet_calc["config"]
 
+        is_palletizer_moving = bool(raw_data.get("turner_active") or raw_data.get("pusher_active") or raw_data.get("dispenser_active") or raw_data.get("sygnal_do_owijarki_start") or raw_data.get("oproznianie"))
+        if not is_connected:
+            pal_status = "OFFLINE"
+        elif is_palletizer_moving or (bagger_status == "PRACA" and bpm > 0):
+            pal_status = "PRACA"
+        elif bagger_status in ("STOP", "PAUZA", "AWARIA"):
+            pal_status = bagger_status
+        else:
+            pal_status = "GOTOWY"
+
         palletizer = {
             "name": "Robot Paletyzujący",
             "type": "PALLETIZER",
-            "status": "PRACA" if (is_connected and (bpm > 0 or current_layer > 0)) else ("OFFLINE" if not is_connected else "GOTOWY"),
+            "status": pal_status,
             "current_layer": current_layer,
             "full_layers": pallet_calc["full_layers"],
             "total_layers": pallet_calc["total_layers"],
@@ -76,7 +89,10 @@ class MachineTelemetryService:
             "turner_active": raw_data.get("turner_active", False),
             "pusher_active": raw_data.get("pusher_active", False),
             "dispenser_pallet_count": int(raw_data.get("dispenser_pallet_count") or 8),
-            "dispenser_active": bool(raw_data.get("dispenser_active", False))
+            "dispenser_active": bool(raw_data.get("dispenser_active", False)),
+            "roller_1_occupied": bool(raw_data.get("rolki1zajete", False)),
+            "roller_2_occupied": bool(raw_data.get("rolki2zajete", False)),
+            "buffer_full": bool(raw_data.get("buforPelny", False))
         }
 
         # 3. OWIJARKA (Stretch Wrapper)
@@ -198,6 +214,7 @@ class MachineTelemetryService:
             "max_tolerance_kg": round(target_w + 0.25, 2),
             "is_in_tolerance": (target_w - 0.25) <= cur_weight <= (target_w + 0.25) if cur_weight > 0 else True,
             "reject_flap_open": reject_flap_open,
+            "bag_on_scale": bool(is_connected and bagger_status == "PRACA" and bpm > 0 and raw_cur_weight is not None and cur_weight > 0.5),
             "reject_count_total": reject_stats["total_rejects"],
             "reject_count_today": reject_stats["today_rejects"],
             "reject_by_reason": reject_stats["by_reason"],
@@ -209,6 +226,9 @@ class MachineTelemetryService:
         is_transferring = palletizer["wrapper_start_signal"]
         is_wrapping = (wrapper["progress_percent"] > 0 and wrapper["progress_percent"] < 100) or wrapper["status"] == "OWIJANIE"
         is_ready_pickup = wrapper["ready_for_pickup"]
+        roller_1_occupied = palletizer["roller_1_occupied"]
+        roller_2_occupied = palletizer["roller_2_occupied"]
+        buffer_full = palletizer["buffer_full"]
 
         disp_count = palletizer["dispenser_pallet_count"]
         disp_active = palletizer["dispenser_active"]
@@ -258,11 +278,15 @@ class MachineTelemetryService:
                 "id": "ST5_PICKUP",
                 "name": "Bufor Odbiorczy",
                 "station_no": 5,
-                "pallet_present": is_ready_pickup,
-                "status": "DO ODBIORU" if is_ready_pickup else "WOLNY",
-                "badge_class": "status-pill ready" if is_ready_pickup else "status-pill",
-                "count": 1 if is_ready_pickup else 0,
-                "description": "Paleta zabezpieczona – odbiór wózkiem widłowym" if is_ready_pickup else "Strefa odbioru wolna"
+                "pallet_present": is_ready_pickup or roller_1_occupied or roller_2_occupied,
+                "status": "PELNY" if buffer_full else ("DO ODBIORU" if (is_ready_pickup or roller_1_occupied or roller_2_occupied) else "WOLNY"),
+                "badge_class": "status-pill off" if buffer_full else ("status-pill ready" if (is_ready_pickup or roller_1_occupied or roller_2_occupied) else "status-pill"),
+                "count": (1 if roller_1_occupied else 0) + (1 if roller_2_occupied else 0),
+                "description": (
+                    f"Rolka1: {'ZAJETA' if roller_1_occupied else 'WOLNA'} • Rolka2: {'ZAJETA' if roller_2_occupied else 'WOLNA'}"
+                    if (roller_1_occupied or roller_2_occupied or buffer_full)
+                    else "Strefa odbioru wolna"
+                )
             }
         ]
 

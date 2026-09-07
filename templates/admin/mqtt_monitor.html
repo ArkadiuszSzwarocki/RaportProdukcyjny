@@ -532,6 +532,10 @@
             </p>
         </div>
         <div class="mqtt-badge-row">
+            <a href="/admin/master/process-flow-3d" class="mqtt-refresh-btn" style="background: rgba(56, 189, 248, 0.25); color: #ffffff; text-decoration: none; border-color: #38bdf8;">
+                <span class="material-icons" style="font-size:16px; color:#38bdf8;">view_in_ar</span>
+                Przepływ 3D Digital Twin
+            </a>
             <div class="mqtt-badge {{ 'connected' if last_update_ts else 'offline' }}" id="connectionBadge">
                 <span class="dot"></span>
                 <span id="connectionText">{{ 'MQTT Online' if last_update_ts else 'Brak danych' }}</span>

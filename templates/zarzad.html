@@ -7,6 +7,7 @@
         <h2 class="header-title">📊 Wyniki Produkcyjne: <strong>{{ tytul }}</strong></h2>
     </div>
     <div class="filters">
+        <a href="/zarzad/live-line?linia={{ linia }}" class="btn btn-primary">LIVE Linia</a>
         <a href="/zarzad?tryb=dzien&data={{ wybrana_data }}" class="btn {% if tryb=='dzien' %}btn-primary{% endif %}">{{
             _('dzien') }}</a>
         <a href="/zarzad?tryb=miesiac&rok={{ wybrany_rok }}&miesiac={{ wybrany_miesiac }}"
