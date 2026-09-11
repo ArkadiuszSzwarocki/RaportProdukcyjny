@@ -321,19 +321,71 @@ class PalletSplitService:
         komentarz: str,
         lokalizacja_zrodlowa: str | None = None,
         lokalizacja_docelowa: str | None = None,
+        nr_palety: str | None = None,
+        data_ruchu: datetime | None = None,
     ) -> None:
         cursor.execute(
             """
             INSERT INTO palety_historia
-                (paleta_id, linia, typ_palety, akcja,
-                 lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (paleta_id, nr_palety, linia, typ_palety, akcja,
+                 lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()))
             """,
             (
-                paleta_id, linia, typ_palety, akcja,
-                lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login,
+                paleta_id, nr_palety, linia, typ_palety, akcja,
+                lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu,
             ),
         )
+
+    @staticmethod
+    def _copy_mother_history(
+        cursor,
+        mother_id: int,
+        mother_sscc: str,
+        new_pallet_id: int,
+        new_sscc: str,
+        linia: str,
+        typ_palety: str,
+    ) -> None:
+        """Kopiuje całą dotychczasową historię palety matki do nowo powstałej palety potomnej."""
+        cursor.execute(
+            """
+            SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa,
+                   komentarz, user_login, data_ruchu
+            FROM palety_historia
+            WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
+            ORDER BY data_ruchu ASC, id ASC
+            """,
+            (mother_id, mother_sscc),
+        )
+        history_rows = cursor.fetchall() or []
+        for h in history_rows:
+            # Obsługa fetchall zwracającego słownik lub krotkę
+            if isinstance(h, dict):
+                h_linia = h.get('linia') or linia
+                h_typ = h.get('typ_palety') or typ_palety
+                h_akcja = h.get('akcja')
+                h_zrodlo = h.get('lokalizacja_zrodlowa')
+                h_cel = h.get('lokalizacja_docelowa')
+                h_kom = h.get('komentarz')
+                h_user = h.get('user_login')
+                h_data = h.get('data_ruchu')
+            else:
+                h_linia, h_typ, h_akcja, h_zrodlo, h_cel, h_kom, h_user, h_data = h
+
+            PalletSplitService._log_historia(
+                cursor=cursor,
+                paleta_id=new_pallet_id,
+                linia=h_linia or linia,
+                typ_palety=h_typ or typ_palety,
+                akcja=h_akcja,
+                user_login=h_user,
+                komentarz=h_kom,
+                lokalizacja_zrodlowa=h_zrodlo,
+                lokalizacja_docelowa=h_cel,
+                nr_palety=new_sscc,
+                data_ruchu=h_data,
+            )
 
     @staticmethod
     def _log_magazyn_ruch(
@@ -418,13 +470,26 @@ class PalletSplitService:
             f"(pobrano {weight_to_take} kg z {current_weight} kg)"
         )
 
+        # Kopiowanie pełnej historii palety matki do nowo powstałej palety potomnej
+        PalletSplitService._copy_mother_history(
+            cursor=cursor,
+            mother_id=mother_id,
+            mother_sscc=mother_sscc,
+            new_pallet_id=new_pallet_id,
+            new_sscc=new_sscc,
+            linia=linia,
+            typ_palety=typ_palety,
+        )
+
         PalletSplitService._log_historia(
             cursor, mother_id, linia, typ_palety, 'PODZIAL_ODJECIE',
             user_login, mother_comment, mother_lokalizacja, mother_lokalizacja,
+            nr_palety=mother_sscc,
         )
         PalletSplitService._log_historia(
             cursor, new_pallet_id, linia, typ_palety, 'PODZIAL_UTWORZENIE',
             user_login, child_comment, child_lokalizacja, child_lokalizacja,
+            nr_palety=new_sscc,
         )
         PalletSplitService._log_magazyn_ruch(
             cursor, linia, mother_id, 'PODZIAL', -weight_to_take, new_weight,
@@ -531,13 +596,26 @@ class PalletSplitService:
             f"(pobrano {weight_to_take} kg). Plan #{plan_id or 'brak'}"
         )
 
+        # Kopiowanie pełnej historii palety matki do nowo powstałej palety potomnej
+        PalletSplitService._copy_mother_history(
+            cursor=cursor,
+            mother_id=mother_hist_id,
+            mother_sscc=mother_sscc,
+            new_pallet_id=new_pallet_id,
+            new_sscc=new_sscc,
+            linia=linia,
+            typ_palety=typ_palety,
+        )
+
         PalletSplitService._log_historia(
             cursor, mother_hist_id, linia, typ_palety, 'PODZIAL_ODJECIE',
             user_login, mother_comment, mother_lokalizacja or None, mother_lokalizacja or None,
+            nr_palety=mother_sscc,
         )
         PalletSplitService._log_historia(
             cursor, new_pallet_id, linia, typ_palety, 'PODZIAL_UTWORZENIE',
             user_login, child_comment, child_lokalizacja, child_lokalizacja,
+            nr_palety=new_sscc,
         )
 
         return {

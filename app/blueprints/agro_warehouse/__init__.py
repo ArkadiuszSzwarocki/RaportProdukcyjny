@@ -8,5 +8,6 @@ from . import api_packaging
 from . import api_deliveries
 from . import api_reports
 from . import api_core
+from . import lp01_routes
 
 __all__ = ['agro_warehouse_bp']

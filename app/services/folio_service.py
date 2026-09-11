@@ -276,6 +276,12 @@ class FolioService:
                     cursor.execute("SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
                     rolka_dane = cursor.fetchone() or {}
 
+                    from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+                    sscc = str(rolka_dane.get('nr_palety') or '').strip()
+                    if not sscc or not is_valid_pallet_id(sscc):
+                        sscc = generate_pallet_id('AGRO', 'opakowanie')
+                        cursor.execute("UPDATE magazyn_opakowania SET nr_palety = %s WHERE id = %s", (sscc, opakowanie_id))
+
                     dp = rolka_dane.get('data_produkcji')
                     dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))
                     dz = rolka_dane.get('data_przydatnosci')
@@ -283,7 +289,8 @@ class FolioService:
 
                     label_data = {
                         "id": opakowanie_id,
-                        "nr_palety": rolka_dane.get('nr_palety') or f"OPK-{opakowanie_id}",
+                        "nr_palety": sscc,
+                        "sscc": sscc,
                         "nazwa": opak_nazwa,
                         "partia": rolka_dane.get('nr_partii') or '---',
                         "data": dp_str,

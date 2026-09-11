@@ -577,20 +577,30 @@ class AgroOpakowaniaPlanRepository:
                             (nowy_stan_poczatkowy, link['id']),
                         )
 
+                    from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
                     cursor.execute(
-                        "SELECT id, stan_magazynowy FROM magazyn_opakowania WHERE nazwa = %s AND lokalizacja = %s LIMIT 1",
+                        "SELECT id, stan_magazynowy, nr_palety FROM magazyn_opakowania WHERE nazwa = %s AND lokalizacja = %s LIMIT 1",
                         (opak_nazwa, final_loc),
                     )
                     existing = cursor.fetchone()
                     if existing:
-                        cursor.execute(
-                            "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, updated_at = NOW() WHERE id = %s",
-                            (ilosc_zwracana, existing['id']),
-                        )
+                        curr_existing_sscc = str(existing.get('nr_palety') or '').strip()
+                        if not curr_existing_sscc or not is_valid_pallet_id(curr_existing_sscc):
+                            curr_existing_sscc = generate_pallet_id('AGRO', 'opakowanie')
+                            cursor.execute(
+                                "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, nr_palety = %s, updated_at = NOW() WHERE id = %s",
+                                (ilosc_zwracana, curr_existing_sscc, existing['id']),
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, updated_at = NOW() WHERE id = %s",
+                                (ilosc_zwracana, existing['id']),
+                            )
                     else:
+                        new_opak_sscc = generate_pallet_id('AGRO', 'opakowanie')
                         cursor.execute(
-                            "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
-                            (opak_nazwa, ilosc_zwracana, final_loc),
+                            "INSERT INTO magazyn_opakowania (nr_palety, nazwa, stan_magazynowy, lokalizacja, created_at, updated_at) VALUES (%s, %s, %s, %s, NOW(), NOW())",
+                            (new_opak_sscc, opak_nazwa, ilosc_zwracana, final_loc),
                         )
 
                     table_ruch = get_table_name('magazyn_ruch', 'AGRO')
@@ -604,10 +614,21 @@ class AgroOpakowaniaPlanRepository:
                     pozostalo_na_rolce = nowy_stan_maszyna
                 else:
                     final_stan = numeric_val
-                    cursor.execute(
-                        "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
-                        (final_stan, final_loc, opakowanie_id),
-                    )
+                    from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+                    cursor.execute("SELECT nr_palety FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+                    curr_p = cursor.fetchone()
+                    curr_sscc = str(curr_p.get('nr_palety') or '').strip() if curr_p else ''
+                    if not curr_sscc or not is_valid_pallet_id(curr_sscc):
+                        curr_sscc = generate_pallet_id('AGRO', 'opakowanie')
+                        cursor.execute(
+                            "UPDATE magazyn_opakowania SET nr_palety = %s, stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
+                            (curr_sscc, final_stan, final_loc, opakowanie_id),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
+                            (final_stan, final_loc, opakowanie_id),
+                        )
 
                     if link:
                         plan_id = link['plan_id']

@@ -338,12 +338,41 @@ class PrintServer:
 
     def build_pallet_label_zpl(self, label_data: dict, copies: int = 1) -> str:
         """Buduje ZPL dla etykiety surowca/opakowania."""
-        nr_palety = str(label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
-        if not nr_palety:
-            from app.utils.pallet_id import generate_pallet_id
-            nr_palety = generate_pallet_id('AGRO', type='surowiec', record_id=label_data.get('id'))
+        from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+        from app.utils.pallet_label import is_packaging_item
 
+        nr_palety = str(label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
         product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
+        jednostka = label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm') or 'kg'
+        linia = str(label_data.get('linia') or 'AGRO').strip()
+
+        is_pkg = is_packaging_item(
+            product_name,
+            unit=jednostka,
+            typ=label_data.get('typ'),
+            pallet_nr=nr_palety
+        )
+
+        if not nr_palety or not is_valid_pallet_id(nr_palety):
+            target_type = 'opakowanie' if is_pkg else (label_data.get('typ') or 'surowiec')
+            nr_palety = generate_pallet_id(linia or 'AGRO', type=target_type, record_id=label_data.get('id'))
+            label_data['nr_palety'] = nr_palety
+            label_data['sscc'] = nr_palety
+            rec_id = label_data.get('id')
+            if rec_id and (isinstance(rec_id, int) or str(rec_id).isdigit()):
+                try:
+                    from app.db import get_db_connection, get_table_name
+                    c_up = get_db_connection()
+                    try:
+                        cur_up = c_up.cursor()
+                        tbl = get_table_name('magazyn_opakowania' if is_pkg else 'magazyn_surowce', linia)
+                        cur_up.execute(f"UPDATE {tbl} SET nr_palety = %s WHERE id = %s", (nr_palety, int(rec_id)))
+                        c_up.commit()
+                    finally:
+                        c_up.close()
+                except Exception:
+                    pass
+
         nr_partii = str(label_data.get('partia') or label_data.get('nr_partii') or '---').strip()
         data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()
         data_przydatnosci = str(label_data.get('termin') or label_data.get('data_przydatnosci') or '---').strip()
@@ -354,8 +383,6 @@ class PrintServer:
             loc_val = str(label_data.get('lokalizacja')).strip().upper()
             if is_production_tank_code(loc_val):
                 zbiornik = loc_val
-
-        linia = str(label_data.get('linia') or '').strip()
 
         # FETCH SYMBOL AND TYPE FROM slownik_surowcow
         symbol = ''

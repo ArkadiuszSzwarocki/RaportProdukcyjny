@@ -55,8 +55,12 @@
             return false;
         }
 
-        // Exclude system search dropdowns or TinyMCE if any
-        if (input.classList.contains('select2-search__field') || input.classList.contains('dt-input')) {
+        // Exclude system search dropdowns, dosypka weight inputs or inputs marked no-kb-icon
+        if (input.classList.contains('select2-search__field') || 
+            input.classList.contains('dt-input') ||
+            input.classList.contains('dosypka-actual-kg') ||
+            input.classList.contains('no-kb-icon') ||
+            input.classList.contains('no-kb-block')) {
             return false;
         }
 

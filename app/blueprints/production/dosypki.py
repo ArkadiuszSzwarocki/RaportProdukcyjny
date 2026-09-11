@@ -51,6 +51,12 @@ def register_production_dosypki_routes(
 
             produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
             role_lc = (session.get('rola') or '').strip().lower()
+            if linia.upper() == 'AGRO' and role_lc == 'lider':
+                if is_ajax:
+                    return "<div style='padding: 24px; text-align: center; color: #dc2626; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 10px; font-weight: 700;'>⚠️ Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.</div>", 403
+                flash('Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.', 'warning')
+                return redirect(bezpieczny_powrot())
+
             if status != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
                 if is_ajax:
                     return f"<div style='padding: 24px; text-align: center; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; font-weight: 700;'>⚠️ Dosypki można dodawać tylko do aktywnego zlecenia (status \"w toku\").<br><span style='font-size: 0.88rem; font-weight: normal; color: #92400e; display: inline-block; margin-top: 6px;'>To zlecenie ma obecnie status: <strong>{status}</strong>.</span></div>"
@@ -199,6 +205,12 @@ def register_production_dosypki_routes(
                 return redirect(bezpieczny_powrot())
 
             role_lc = (session.get('rola') or '').strip().lower()
+            if linia.upper() == 'AGRO' and role_lc == 'lider':
+                if is_ajax:
+                    return jsonify({'success': False, 'message': 'Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.'}), 403
+                flash('Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.', 'warning')
+                return redirect(bezpieczny_powrot())
+
             if r[3] != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
                 if is_ajax:
                     return jsonify({'success': False, 'message': 'Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")'}), 400

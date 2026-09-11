@@ -178,6 +178,11 @@
           <span class="material-icons" style="font-size:22px;">restore</span> Przywróć paletę ze stanu zużycia
         </button>
       </div>
+      <div id="scannerSplitBtnContainer" style="margin-top: 8px; width: 100%; display: none;">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="openScannerSplitModal()" style="background: #0284c7; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px; font-weight: 800; border: none; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); cursor: pointer;">
+          <span class="material-icons" style="font-size:22px;">call_split</span> Podziel paletę (odcięcie z nową etykietą)
+        </button>
+      </div>
       <div style="margin-top: 8px; width: 100%;">
         <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="printLabel('pallet')" style="background:#1e293b; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px;">
           <span class="material-icons" style="font-size:22px;">print</span> Drukuj etykietę ZPL
@@ -244,6 +249,47 @@
     </div>
   </div>
 </div>
+
+<!-- SCANNER SPLIT MODAL -->
+<div class="modal-overlay" id="scannerSplitOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:8px;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:14px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:20px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #334155; padding-bottom:10px;">
+      <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:8px;">
+        <span class="material-icons" style="font-size:1.3em; color:#38bdf8;">call_split</span>
+        Podział palety (nowa etykieta)
+      </h3>
+      <button onclick="closeScannerSplitModal()" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+    
+    <div style="margin-bottom: 14px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #bae6fd;">
+      Odcięta ilość trafi na <strong>nową paletę z nowym SSCC</strong> i automatycznym otwarciem nowej etykiety do druku.
+    </div>
+
+    <div style="margin-bottom: 14px;">
+      <label style="display:block; font-size:12px; font-weight:800; color:#94a3b8; margin-bottom:6px; text-transform:uppercase;">Lokalizacja docelowa odciętej części:</label>
+      <input type="text" id="scannerSplitTargetLoc" placeholder="np. MS01, MP01, Regał..." 
+             style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:16px; font-weight:800; text-transform:uppercase; background:#0f172a; border:2px solid #475569; border-radius:10px; color:#fff;">
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <label style="font-size:12px; font-weight:800; color:#94a3b8; text-transform:uppercase;">Ilość do odcięcia (kg):</label>
+        <span style="font-size:12px; color:#cbd5e1;">Dostępne: <strong id="scannerSplitAvailableQty" style="color:#38bdf8;">0.0</strong> kg</span>
+      </div>
+      <input type="number" id="scannerSplitQty" step="0.1" placeholder="0.0" 
+             style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; font-weight:800; background:#0f172a; border:2px solid #38bdf8; border-radius:10px; color:#fff;">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+      <button type="button" onclick="closeScannerSplitModal()" style="padding:10px 16px; background:#334155; color:#cbd5e1; border:none; border-radius:8px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button type="button" id="btnConfirmScannerSplit" onclick="submitScannerSplit()" style="padding:10px 18px; background:#0284c7; color:#fff; border:none; border-radius:8px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:18px;">print</span>
+        Podziel i drukuj etykietę
+      </button>
+    </div>
+  </div>
+</div>
+
 
 <!-- SCANNER RETURN MODAL -->
 <div class="modal-overlay" id="scannerReturnOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:8px;">
@@ -357,7 +403,50 @@
       <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:8px 16px; font-size:0.9em; border:none; background:#3b82f6; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
       <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:8px 16px; font-size:0.9em; border:none; background:#22c55e; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
     </div>
+  </div>
+</div>
 
+<!-- LP01 MACHINE DISPATCH MODAL -->
+<div class="modal-overlay" id="lp01ModalOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:12px;">
+  <div style="width:100%; max-width:440px; background:#ffffff; border:1px solid #cbd5e1; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); padding:20px; box-sizing:border-box; color:#0f172a; font-family:'Inter', sans-serif;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+      <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:8px;">
+        <span class="material-icons" style="color:#2563eb; font-size:24px;">precision_manufacturing</span>
+        Wydanie na maszynę LP01
+      </h3>
+      <button type="button" onclick="closeLP01Modal()" style="background:none; border:none; color:#94a3b8; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+    </div>
+
+    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px; margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:800; color:#1e40af; text-transform:uppercase;">Materiał eksploatacyjny</div>
+      <div id="lp01ModalMatName" style="font-size:15px; font-weight:800; color:#1e293b; margin-bottom:4px;">-</div>
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:#475569;">
+        <span>Lokalizacja źródłowa: <strong id="lp01ModalSourceLoc" style="color:#0f172a;">-</strong></span>
+        <span>Dostępny stan: <strong id="lp01ModalMaxQty" style="color:#0284c7;">-</strong></span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">Ilość do wydania na maszynę LP01:</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="number" id="lp01ModalQty" step="0.1" min="0.01" class="form-control" style="flex:1; padding:12px; border:2px solid #3b82f6; border-radius:8px; font-size:18px; font-weight:800; box-sizing:border-box; outline:none; text-align:center;" onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); submitLP01Modal();}">
+        <span id="lp01ModalUnit" style="font-size:14px; font-weight:700; color:#64748b; min-width:40px;">szt.</span>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:8px;">
+        <button type="button" onclick="setLP01Qty(1)" style="flex:1; padding:8px 0; border:1px solid #cbd5e1; background:#f8fafc; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">1 szt.</button>
+        <button type="button" onclick="setLP01Qty(2)" style="flex:1; padding:8px 0; border:1px solid #cbd5e1; background:#f8fafc; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">2 szt.</button>
+        <button type="button" onclick="setLP01Qty('max')" style="flex:1; padding:8px 0; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer;">Całość</button>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top:1px solid #e2e8f0; padding-top:14px;">
+      <button type="button" class="btn btn-outline" onclick="closeLP01Modal()" style="padding:10px 18px; border-radius:8px; font-weight:700; border:1px solid #cbd5e1; color:#475569; background:#f8fafc; cursor:pointer;">
+        Anuluj
+      </button>
+      <button type="button" id="btnConfirmLP01" onclick="submitLP01Modal()" style="padding:10px 22px; border-radius:8px; font-weight:800; background:#2563eb; color:#fff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 10px rgba(37,99,235,0.3);">
+        <span class="material-icons" style="font-size:18px;">check</span> Wydaj na LP01
+      </button>
+    </div>
   </div>
 </div>
 
@@ -503,7 +592,7 @@
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260907_history_icon"></script>
+<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260908_lp01_fix2"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260903_0841"></script>
 {% endblock %}
 

@@ -106,6 +106,15 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
 
         return render_template('ustawienia_bugs.html', bugs=bugs, current_sort=sort_by, current_filter=filter_by)
 
+    @admin_bp.route('/admin/zalaczniki/<path:filename>')
+    @login_required
+    def admin_view_attachment(filename):
+        """Bezpieczne serwowanie załączników/zrzutów ekranu ze zgłoszeń (omija filtry adblockerów blokujące ścieżki /bugs/)."""
+        from flask import send_from_directory
+        safe_filename = os.path.basename(filename)
+        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
+        return send_from_directory(upload_dir, safe_filename)
+
     @admin_bp.route('/admin/ustawienia/bugs/respond/<int:bug_id>', methods=['POST'])
     @login_required
     @dynamic_role_required('ustawienia')

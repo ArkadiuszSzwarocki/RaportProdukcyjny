@@ -813,6 +813,8 @@ class AgroTanksRepository:
                 nr_palety = None
                 paleta_id = None
 
+                pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
+
                 # Consume the oldest reserved label first, if available.
                 cursor.execute(
                     f"SELECT id, nr_palety FROM {table_pal} WHERE plan_id = %s AND COALESCE(status, '') = 'rezerwacja' ORDER BY id ASC LIMIT 1",
@@ -822,19 +824,15 @@ class AgroTanksRepository:
 
                 if reserved_row:
                     paleta_id = reserved_row[0]
-                    if is_czyszczenie and nr_palety_czyszczenie:
-                        nr_palety = nr_palety_czyszczenie
-                    else:
-                        nr_palety = reserved_row[1] or generate_pallet_id(linia)
+                    nr_palety = reserved_row[1]
+                    if not nr_palety or (is_czyszczenie and (nr_palety == nr_palety_czyszczenie or not nr_palety.startswith('SUR'))):
+                        nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
                         f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s WHERE id = %s",
                         (waga_input, now_ts, user_login, nr_palety, paleta_id),
                     )
                 else:
-                    if is_czyszczenie and nr_palety_czyszczenie:
-                        nr_palety = nr_palety_czyszczenie
-                    else:
-                        nr_palety = generate_pallet_id(linia)
+                    nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
                         f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
                         (plan_id, waga_input, now_ts, user_login, nr_palety),

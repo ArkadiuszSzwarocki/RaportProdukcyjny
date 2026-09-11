@@ -1,3 +1,4 @@
+import re
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
 from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
@@ -324,16 +325,20 @@ class WarehouseV2Service:
                 cursor = conn.cursor()
                 cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s", (new_location, pallet_id))
                 moved_qty = qty
+            from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
             is_split = amount_to_move < qty
             if not is_split:
                 # Cała paleta przenoszona
                 cursor = conn.cursor()
-                cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
-                new_pallet_id = pallet_id
                 target_pallet_sscc = nr_palety
+                if not target_pallet_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(target_pallet_sscc), re.IGNORECASE):
+                    target_pallet_sscc = generate_pallet_id(linia, pallet_type)
+                    cursor.execute(f"UPDATE {table} SET nr_palety = %s, lokalizacja = %s WHERE id = %s", (target_pallet_sscc, new_location, pallet_id))
+                else:
+                    cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
+                new_pallet_id = pallet_id
             else:
                 # Dzielenie palety (split)
-                from app.utils.pallet_id import generate_pallet_id
                 new_qty_old = qty - amount_to_move
                 cursor = conn.cursor()
                 cursor.execute(f"UPDATE {table} SET {col_qty} = %s WHERE id = %s", (new_qty_old, pallet_id))
@@ -360,14 +365,23 @@ class WarehouseV2Service:
             
             # Zapisz ruch do historii
             table_ruch = get_table_name('magazyn_ruch', linia)
+            mat_name = row.get('nazwa') or row.get('produkt') or ''
+            is_lp01 = (str(new_location).strip().upper() == 'LP01')
+            typ_ruchu_log = 'WYDANIE_NA_MASZYNE' if is_lp01 else 'PRZESUNIECIE'
+            komentarz_lp01 = f"Wydanie materiału na maszynę LP01 z {old_loc or 'Brak'}" + (" (Podział)" if is_split else "")
+            komentarz_ruch = komentarz_lp01 if is_lp01 else (f"Z {old_loc or 'Brak'} do {new_location}" + (" (Podział)" if is_split else ""))
+            
             try:
                 cursor.execute(f"""
                     INSERT INTO {table_ruch} 
-                    (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
-                    VALUES (%s, 'PRZESUNIECIE', 0, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (new_pallet_id, moved_qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}" + (" (Podział)" if is_split else "")))
+                    (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, lokalizacja, status, autor_login, autor_data, komentarz) 
+                    VALUES (%s, %s, %s, %s, %s, %s, 'POTWIERDZONE', %s, %s, %s)
+                """, (new_pallet_id, mat_name, typ_ruchu_log, moved_qty, moved_qty, new_location, worker_login, datetime.now(), komentarz_ruch))
 
-                mother_sscc = nr_palety or f"{pallet_type[:3].upper()}-{pallet_id}"
+                mother_sscc = nr_palety
+                if not mother_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(mother_sscc), re.IGNORECASE):
+                    mother_sscc = generate_pallet_id(linia, pallet_type)
+                    cursor.execute(f"UPDATE {table} SET nr_palety = %s WHERE id = %s", (mother_sscc, pallet_id))
                 now_dt = datetime.now()
 
                 if is_split:
@@ -401,15 +415,16 @@ class WarehouseV2Service:
                     cursor.execute("""
                         INSERT INTO palety_historia
                         (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
-                        VALUES (%s, %s, %s, %s, 'PODZIAL_PALETY', %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         new_pallet_id,
                         target_pallet_sscc,
                         linia,
                         pallet_type.lower(),
+                        typ_ruchu_log if is_lp01 else 'PODZIAL_PALETY',
                         old_loc,
                         new_location,
-                        f"Utworzono z podziału palety matki {mother_sscc} (odcięto {amount_to_move}). Przeniesiono na {new_location}",
+                        f"Utworzono z podziału palety matki {mother_sscc} (odcięto {amount_to_move}). " + (f"Wydano na maszynę LP01" if is_lp01 else f"Przeniesiono na {new_location}"),
                         worker_login,
                         now_dt
                     ))
@@ -426,7 +441,7 @@ class WarehouseV2Service:
                         pallet_type.lower(),
                         old_loc,
                         old_loc,
-                        f"Odcięto {amount_to_move} podczas podziału palety do nowej palety {target_pallet_sscc}",
+                        f"Odcięto {amount_to_move} podczas podziału palety do nowej palety {target_pallet_sscc}" + (f" (Wydanie na maszynę LP01)" if is_lp01 else ""),
                         worker_login,
                         now_dt
                     ))
@@ -435,10 +450,19 @@ class WarehouseV2Service:
                     cursor.execute("""
                         INSERT INTO palety_historia
                         (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                        VALUES (%s, %s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)
-                    """, (new_pallet_id, target_pallet_sscc, linia, pallet_type.lower(), old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}", worker_login))
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        new_pallet_id,
+                        target_pallet_sscc,
+                        linia,
+                        pallet_type.lower(),
+                        typ_ruchu_log,
+                        old_loc,
+                        new_location,
+                        komentarz_lp01 if is_lp01 else f"Przesunięcie z {old_loc or 'Brak'} do {new_location}",
+                        worker_login
+                    ))
             except Exception as e:
-                print("Błąd zapisu ruchu:", e)
                 print("Błąd zapisu ruchu:", e)
             # --- AUTO-AKCEPTACJA DOSTAWY ZEWNĘTRZNEJ ---
             # Jeśli przenoszona paleta wisiała w "Oczekujące na Przyjęcie", zdejmujemy ją stamtąd.
@@ -489,14 +513,30 @@ class WarehouseV2Service:
             except Exception as osip_e:
                 print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
             
+            split_info = {
+                'is_split': bool(is_split),
+                'new_sscc': target_pallet_sscc if is_split else None,
+                'new_pallet_id': new_pallet_id,
+                'mother_sscc': mother_sscc,
+                'mother_pallet_id': pallet_id,
+                'moved_qty': moved_qty,
+                'remaining_qty': (qty - amount_to_move) if is_split else qty,
+                'new_location': new_location,
+                'pallet_type': pallet_type,
+            }
+
             conn.commit()
             if is_in_transfer_acceptance:
-                return True, f"✅ Przyjęto w zleceniu {trf_ref} na regał: {new_location}"
-            return True, "Pomyślnie przeniesiono."
+                return True, f"✅ Przyjęto w zleceniu {trf_ref} na regał: {new_location}", split_info
+            if is_lp01:
+                return True, f"✅ Pomyślnie wydano materiał na maszynę LP01 ({moved_qty} szt/kg).", split_info
+            if is_split:
+                return True, f"✅ Pomyślnie odcięto {moved_qty} kg na nową paletę {target_pallet_sscc} (lokalizacja: {new_location}). Pozostało na matce: {qty - amount_to_move} kg.", split_info
+            return True, "Pomyślnie przeniesiono.", split_info
         except Exception as e:
             if conn: conn.rollback()
             print(f"Error in move_pallet: {e}")
-            return False, f"Błąd: {str(e)}"
+            return False, f"Błąd: {str(e)}", None
         finally:
             if conn: conn.close()
             

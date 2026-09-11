@@ -120,6 +120,7 @@ def api_complete_bucket():
 def api_delete_bucket():
     data = request.get_json(silent=True) or request.form
     bucket_id = data.get('bucket_id')
+    force = bool(data.get('force', False))
     operator_login = session.get('login') or session.get('imie_nazwisko') or 'operator'
 
     if not bucket_id:
@@ -130,7 +131,7 @@ def api_delete_bucket():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Nieprawidłowe ID wiadra'}), 400
 
-    success, msg = BucketMaluchService.delete_bucket(bucket_id, operator_login)
+    success, msg = BucketMaluchService.delete_bucket(bucket_id, operator_login, force=force)
     status_code = 200 if success else 400
     return jsonify({'success': success, 'message': msg}), status_code
 
@@ -176,3 +177,20 @@ def api_get_plan_summary(plan_id: int):
     linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
     summary = BucketMaluchService.get_plan_maluchy_summary(plan_id, linia)
     return jsonify({'success': True, 'data': summary})
+
+
+@maluchy_bp.route('/api/history', methods=['GET'])
+@login_required
+def api_get_buckets_history():
+    linia = request.args.get('linia')
+    if linia and linia.upper() in ('ALL', 'WSZYSTKIE', ''):
+        linia = None
+    active_only = request.args.get('active_only', 'false').lower() in ('1', 'true', 'yes')
+    try:
+        limit = int(request.args.get('limit', 200))
+    except (ValueError, TypeError):
+        limit = 200
+
+    buckets = BucketMaluchService.get_all_buckets_history(linia=linia, active_only=active_only, limit=limit)
+    return jsonify({'success': True, 'buckets': buckets})
+

@@ -713,6 +713,7 @@ def _create_tables(cursor):
             cursor.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa) VALUES (%s)", (loc,))
     else:
         cursor.execute("INSERT IGNORE INTO magazyn_dozwolone_lokalizacje (nazwa, opis) VALUES ('R09', 'Regał Półkowy R09')")
+        cursor.execute("INSERT IGNORE INTO magazyn_dozwolone_lokalizacje (nazwa, opis) VALUES ('LP01', 'Linia Pakowania 01 - Maszyna')")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS mom_pozycje (

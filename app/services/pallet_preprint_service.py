@@ -35,9 +35,13 @@ def preprint_labels(plan_id, count, linia='PSD', user_login='System', auto_print
     if not plan_display_name:
         plan_display_name = f"PLAN-{plan_id}"
 
+    disp_lower = (plan_display_name or '').lower()
+    is_czyszczenie = 'czyszczenie' in disp_lower or 'maka mix do lnu' in disp_lower or 'mąka mix do lnu' in disp_lower
+    pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
+
     try:
         for i in range(int(count)):
-            nr_palety = generate_pallet_id(linia)
+            nr_palety = generate_pallet_id(linia, pallet_type)
             # insert reserved row with zero weight and status 'rezerwacja'
             cur.execute(
                 f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'rezerwacja', %s, %s)",

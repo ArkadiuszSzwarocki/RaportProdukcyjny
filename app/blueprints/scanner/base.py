@@ -214,9 +214,14 @@ def dispatch():
             # 2. Drukowanie etykiety dla zasypanej ilości na zbiornik / stację KO (1 sztuka)
             tank_code = str(extra_data.get('zbiornik') or '').strip().upper()
             tank_label_data = dict(label_data) if label_data else {}
+            from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+            target_sscc = str(extra_data.get('nr_palety') or (label_data.get('nr_palety') if label_data else '') or '').strip()
+            if not target_sscc or not is_valid_pallet_id(target_sscc):
+                target_sscc = generate_pallet_id(linia, 'surowiec')
             tank_label_data.update({
                 'id': str(surowiec_id),
-                'nr_palety': extra_data.get('nr_palety') or (label_data.get('nr_palety') if label_data else ''),
+                'nr_palety': target_sscc,
+                'sscc': target_sscc,
                 'nazwa': extra_data.get('pallet_name') or (label_data.get('nazwa') if label_data else ''),
                 'ilosc': extra_data.get('ilosc_pobrana', 0),
                 'lokalizacja': tank_code,
@@ -261,14 +266,24 @@ def move():
     else:
         pallet_id_val = identifier
 
-    ok, msg = WarehouseV2Service.move_pallet(
+    amount = data.get('amount')
+    if amount is None:
+        amount = data.get('amount_to_move')
+
+    res = WarehouseV2Service.move_pallet(
         pallet_id=pallet_id_val,
         pallet_type=pallet_type,
         new_location=nowa_lokalizacja,
         worker_login=_worker(),
         linia=linia,
+        amount_to_move=float(amount) if amount is not None else None,
     )
-    return jsonify({'success': ok, 'message': msg})
+    if isinstance(res, tuple) and len(res) == 3:
+        ok, msg, split_info = res
+    else:
+        ok, msg = res[0], res[1]
+        split_info = None
+    return jsonify({'success': ok, 'message': msg, 'split_info': split_info})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

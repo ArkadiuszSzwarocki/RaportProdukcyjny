@@ -126,8 +126,13 @@ def move_pallet():
     if not all([pallet_id, pallet_type, new_location]):
         return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
         
-    success, msg = WarehouseV2Service.move_pallet(pallet_id, pallet_type, new_location, worker, linia, amount_to_move=amount)
-    return jsonify({'success': success, 'message': msg})
+    res = WarehouseV2Service.move_pallet(pallet_id, pallet_type, new_location, worker, linia, amount_to_move=amount)
+    if isinstance(res, tuple) and len(res) == 3:
+        success, msg, split_info = res
+    else:
+        success, msg = res[0], res[1]
+        split_info = None
+    return jsonify({'success': success, 'message': msg, 'split_info': split_info})
 
 @warehouse_v2_bp.route('/api/pallet/archive', methods=['POST'])
 def archive_pallet():

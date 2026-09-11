@@ -21,6 +21,7 @@ const ZasypCalculatorModule = (function () {
             .then(function(data) {
                 if (data.success && data.surowce) {
                     _availableSurowce = data.surowce;
+                    populateDatalist();
                 }
             })
             .catch(function(err) {
@@ -28,11 +29,23 @@ const ZasypCalculatorModule = (function () {
             });
     }
 
+    function populateDatalist() {
+        const datalist = document.getElementById('calc-surowce-datalist');
+        if (!datalist) return;
+        datalist.innerHTML = '';
+        _availableSurowce.forEach(function(s) {
+            const opt = document.createElement('option');
+            opt.value = s.nazwa;
+            datalist.appendChild(opt);
+        });
+    }
+
     function openModal() {
         const modal = document.getElementById('zasyp-calculator-modal');
         if (modal) {
             modal.style.display = 'flex';
             resetForm();
+            populateDatalist();
             // Start with one row by default
             addRow();
         }
@@ -59,16 +72,19 @@ const ZasypCalculatorModule = (function () {
     }
 
     function addRow() {
+        populateDatalist();
         const tbody = document.getElementById('calc-items-tbody');
         const template = document.getElementById('calc-row-template').content.cloneNode(true);
-        const select = template.querySelector('.calc-surowiec-select');
-        
-        _availableSurowce.forEach(function(s) {
-            const opt = document.createElement('option');
-            opt.value = s.nazwa;
-            opt.textContent = s.nazwa;
-            select.appendChild(opt);
-        });
+        const row = template.querySelector('tr');
+        const input = row.querySelector('.calc-surowiec-input');
+        const rate = row.querySelector('.calc-rate-input');
+
+        if (input) {
+            input.addEventListener('input', hideResults);
+        }
+        if (rate) {
+            rate.addEventListener('input', hideResults);
+        }
 
         tbody.appendChild(template);
         hideResults(); // Zmieniono dane wejściowe, ukryj wyniki
@@ -86,8 +102,9 @@ const ZasypCalculatorModule = (function () {
         const rows = tbody.querySelectorAll('tr');
 
         rows.forEach(function(row) {
-            const surowiec = row.querySelector('.calc-surowiec-select').value;
-            const rateInput = row.querySelector('.calc-rate-input').value;
+            const inputEl = row.querySelector('.calc-surowiec-input') || row.querySelector('.calc-surowiec-select');
+            const surowiec = inputEl ? inputEl.value.trim() : '';
+            const rateInput = row.querySelector('.calc-rate-input')?.value;
             const rate = parseNum(rateInput);
 
             if (surowiec && rate > 0) {
