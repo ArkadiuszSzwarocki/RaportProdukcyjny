@@ -135,18 +135,47 @@ class WarehousePalletService:
             # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
             try:
                 if paleta_id:
-                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
-                    res_lp = cursor.fetchone()
-                    nr_palety_lp = int(res_lp[0]) if res_lp else 1
-                    try:
-                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
-                        col = cursor.fetchone()
-                        if col:
+                    cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                    col = cursor.fetchone()
+                    if col:
+                        cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
+                        cur_lp = cursor.fetchone()
+                        cur_lp_val = None
+                        if cur_lp and cur_lp[0] is not None:
+                            try:
+                                cur_lp_val = int(cur_lp[0])
+                            except (ValueError, TypeError):
+                                cur_lp_val = None
+
+                        if cur_lp_val is not None and cur_lp_val > 0:
+                            nr_palety_lp = cur_lp_val
+                        else:
+                            cursor.execute(
+                                f"SELECT COALESCE(MAX(nr_palety_lp), 0) FROM {table_pal} WHERE plan_id = %s AND id != %s",
+                                (plan_id, paleta_id),
+                            )
+                            max_res = cursor.fetchone()
+                            max_lp = 0
+                            if max_res and max_res[0] is not None:
+                                try:
+                                    max_lp = int(max_res[0])
+                                except (ValueError, TypeError):
+                                    max_lp = 0
+
+                            if max_lp == 0:
+                                cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                                res_lp = cursor.fetchone()
+                                try:
+                                    nr_palety_lp = int(res_lp[0]) if (res_lp and res_lp[0]) else 1
+                                except (ValueError, TypeError):
+                                    nr_palety_lp = 1
+                            else:
+                                nr_palety_lp = max_lp + 1
                             cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            except Exception as lp_err:
+                current_app.logger.warning("Failed to compute nr_palety_lp: %s", lp_err)
+
+
     
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",
@@ -685,10 +714,33 @@ class WarehousePalletService:
                                 current_app.logger.error('Database error for Czyszczenie dostawa: %s', e)
                         else:
                             try:
-                                cursor.execute(
-                                    f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                    (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
-                                )
+                                pw_lp_val = None
+                                try:
+                                    cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                                    if cursor.fetchone():
+                                        cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
+                                        pw_lp_row = cursor.fetchone()
+                                        pw_lp_val = pw_lp_row[0] if pw_lp_row else None
+                                except Exception:
+                                    pw_lp_val = None
+
+                                has_mag_lp = False
+                                try:
+                                    cursor.execute(f"SHOW COLUMNS FROM {table_mag} LIKE 'nr_palety_lp'")
+                                    has_mag_lp = bool(cursor.fetchone())
+                                except Exception:
+                                    has_mag_lp = False
+
+                                if has_mag_lp:
+                                    cursor.execute(
+                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, nr_palety_lp) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, pw_lp_val),
+                                    )
+                                else:
+                                    cursor.execute(
+                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
+                                    )
                                 mag_id = cursor.lastrowid
                                 
                                 # Log to palety_historia
@@ -698,6 +750,7 @@ class WarehousePalletService:
                                 )
                             except mysql.connector.Error as e:
                                 current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
+
     
                         if cursor.rowcount > 0:
                             current_app.logger.info(

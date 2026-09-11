@@ -1464,6 +1464,23 @@ def _migrate_columns(cursor):
         print(f"[WARN] Failed to add index idx_agro_mix_zuzyte: {e}")
 
     try:
+        cursor.execute("SHOW COLUMNS FROM palety_agro LIKE 'nr_palety_lp'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE palety_agro ADD COLUMN nr_palety_lp INT NULL")
+            print("[OK] Added column nr_palety_lp to palety_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add column nr_palety_lp to palety_agro: {e}")
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM magazyn_palety_agro LIKE 'nr_palety_lp'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE magazyn_palety_agro ADD COLUMN nr_palety_lp INT NULL")
+            print("[OK] Added column nr_palety_lp to magazyn_palety_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add column nr_palety_lp to magazyn_palety_agro: {e}")
+
+
+    try:
         cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'rodzaj_palety'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'")
