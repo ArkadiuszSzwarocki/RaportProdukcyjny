@@ -306,11 +306,11 @@ class BucketMaluchRepository:
 
             query = f"""
                 SELECT b.*, 
-                       COALESCE(pa.produkt, p.produkt, '—') as plan_produkt,
-                       COALESCE(pa.data_planu, p.data_planu) as plan_data
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
                 FROM wiaderka_maluchy b
-                LEFT JOIN plan_produkcji p ON b.plan_id = p.id
-                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
                 {where_str}
                 ORDER BY b.id DESC
                 LIMIT %s

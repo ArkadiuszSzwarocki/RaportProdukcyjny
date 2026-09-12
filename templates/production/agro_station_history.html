@@ -45,16 +45,30 @@
             <label style="font-weight: bold; color: #475569; font-size: 14px; display: flex; align-items: center; gap: 5px;">
                 <span class="material-icons" style="font-size: 18px;">filter_alt</span> Filtruj:
             </label>
-            <select id="historyFilterLinia" class="modern-input" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;">
+            <select id="historyFilterLinia" class="modern-input" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" onchange="fetchStationHistory()">
                 <option value="ALL" selected>Wszystkie linie (ALL)</option>
                 <option value="AGRO">Linia: AGRO</option>
                 <option value="PSD">Linia: PSD</option>
             </select>
-            <input type="date" id="historyFilterDataOd" class="modern-input" style="min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data od">
-            <input type="date" id="historyFilterDataDo" class="modern-input" style="min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data do">
+            <input type="date" id="historyFilterDataOd" class="modern-input" style="min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data od" onchange="fetchStationHistory()">
+            <input type="date" id="historyFilterDataDo" class="modern-input" style="min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Data do" onchange="fetchStationHistory()">
+            <select id="historyFilterTyp" class="modern-input" style="min-width: 160px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 500;" onchange="fetchStationHistory()" title="Typ operacji">
+                <option value="ALL" selected>Wszystkie typy operacji</option>
+                <option value="UTWORZENIE">Utworzenie Palety</option>
+                <option value="PRZYJECIE">Przyjęcie / PW</option>
+                <option value="WYDANIE">Wydanie na prod.</option>
+                <option value="PRZESUNIECIE">Przesunięcie / Ruch</option>
+                <option value="PODZIAL">Podział palety</option>
+                <option value="ZASYP">Zasyp / Dozowanie</option>
+                <option value="DOSYPKA">Dosypka</option>
+                <option value="CZYSZCZENIE">Czyszczenie</option>
+                <option value="USUNIECIE">Usunięcie</option>
+                <option value="INWENTARYZACJA">Inwentaryzacja / Korekta</option>
+                <option value="OPAKOWANIE">Zmiana opakowania</option>
+            </select>
             <input type="text" id="historyFilterSurowiec" class="modern-input" style="flex: 2; min-width: 180px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Wpisz nazwę surowca lub kod SSCC...">
             <input type="text" id="historyFilterStacja" class="modern-input" style="flex: 1; min-width: 130px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Stacja / Lokalizacja (np. BB19, MGW01)">
-            <select id="historyFilterLimit" class="modern-input" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Limit wyników">
+            <select id="historyFilterLimit" class="modern-input" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" title="Limit wyników" onchange="fetchStationHistory()">
                 <option value="50">Limit: 50</option>
                 <option value="100">Limit: 100</option>
                 <option value="200" selected>Limit: 200</option>
@@ -80,8 +94,7 @@
             <thead>
                 <tr>
                     <th>Data</th>
-                    <th>Linia</th>
-                    <th>Stacja</th>
+                    <th>Lokalizacja / Przesunięcie</th>
                     <th>Produkt</th>
                     <th>SSCC / Nr palety</th>
                     <th>Ilość [kg]</th>
@@ -90,7 +103,7 @@
                 </tr>
             </thead>
             <tbody id="stationHistoryTableBody">
-                <tr><td colspan="8" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>
+                <tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>
             </tbody>
         </table>
     </div>
@@ -100,6 +113,17 @@
 {% block footer_scripts %}
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        ['historyFilterSurowiec', 'historyFilterStacja'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        fetchStationHistory();
+                    }
+                });
+            }
+        });
         fetchStationHistory();
     });
 
@@ -114,40 +138,45 @@
             past.setDate(today.getDate() - days);
             document.getElementById('historyFilterDataOd').value = dateToStr(past);
         }
+        fetchStationHistory();
     }
 
     function clearDateFilters() {
         document.getElementById('historyFilterDataOd').value = '';
         document.getElementById('historyFilterDataDo').value = '';
+        fetchStationHistory();
     }
 
     function fetchStationHistory() {
         const linia = document.getElementById('historyFilterLinia').value || 'ALL';
         const dataOd = document.getElementById('historyFilterDataOd').value;
         const dataDo = document.getElementById('historyFilterDataDo').value;
+        const typOperacji = document.getElementById('historyFilterTyp')?.value || 'ALL';
         const surowiec = document.getElementById('historyFilterSurowiec').value;
         const stacja = document.getElementById('historyFilterStacja').value;
         const limit = document.getElementById('historyFilterLimit').value || '200';
         
-        let url = `/warehouse-v2/historia-stacji/data?linia=${encodeURIComponent(linia)}&limit=${limit}`;
+        let url = `/warehouse-v2/historia-stacji/data?linia=${encodeURIComponent(linia)}&limit=${limit}&_t=${Date.now()}`;
         if(dataOd) url += `&dataOd=${dataOd}`;
         if(dataDo) url += `&dataDo=${dataDo}`;
+        if(typOperacji && typOperacji !== 'ALL') url += `&typ_operacji=${encodeURIComponent(typOperacji)}`;
         if(surowiec) url += `&surowiec=${encodeURIComponent(surowiec)}`;
         if(stacja) url += `&stacja=${encodeURIComponent(stacja)}`;
 
         const tbody = document.getElementById('stationHistoryTableBody');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><span class="material-icons spinning" style="vertical-align: middle; margin-right: 8px;">sync</span>Ładowanie danych...</td></tr>';
 
-        fetch(url)
+        fetch(url, { cache: 'no-store' })
             .then(res => res.json())
             .then(data => {
                 if (!data.success) {
-                    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Błąd: ${data.error}</td></tr>`;
+                    const errText = data.error || data.message || 'Wystąpił błąd podczas ładowania danych';
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd: ${errText}</td></tr>`;
                     return;
                 }
                 
                 if (!data.data || data.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #64748b; padding: 30px;">Brak danych w historii stacji dla wybranych filtrów.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 30px;">Brak danych w historii stacji dla wybranych filtrów.</td></tr>';
                     return;
                 }
                 
@@ -155,35 +184,87 @@
                 data.data.forEach(row => {
                     let typeBadge = '';
                     const typLower = (row.typ || '').toLowerCase();
+                    const tooltipText = (row.komentarz && row.komentarz !== '-' ? `${row.typ}: ${row.komentarz}` : (row.typ || ''));
+                    
                     if (typLower.includes('clean') || typLower.includes('czyszcz')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #fee2e2; color: #b91c1c; font-weight:600;">Czyszczenie</span>';
+                        typeBadge = `<span class="status-badge" style="background-color: #fee2e2; color: #b91c1c; font-weight:600;" title="${tooltipText}">Czyszczenie</span>`;
                     } else if (typLower.includes('dosyp')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #dbeafe; color: #1d4ed8; font-weight:600;">Dosypka</span>';
+                        typeBadge = `<span class="status-badge" style="background-color: #dbeafe; color: #1d4ed8; font-weight:600;" title="${tooltipText}">Dosypka</span>`;
                     } else if (typLower.includes('zasyp') || typLower.includes('bufor')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #fef3c7; color: #b45309; font-weight:600;">Zasyp</span>';
+                        typeBadge = `<span class="status-badge" style="background-color: #fef3c7; color: #b45309; font-weight:600;" title="${tooltipText}">Zasyp</span>`;
                     } else if (typLower.includes('usun')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #fecdd3; color: #9f1239; font-weight:600;">Usunięcie</span>';
-                    } else if (typLower.includes('utworz') || typLower.includes('przyjecie')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #dcfce7; color: #15803d; font-weight:600;">Przyjęcie / PW</span>';
+                        typeBadge = `<span class="status-badge" style="background-color: #fecdd3; color: #9f1239; font-weight:600;" title="${tooltipText}">Usunięcie</span>`;
+                    } else if (typLower.includes('przeklasyfik') || typLower.includes('reclass')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #f3e8ff; color: #6b21a8; font-weight:600;" title="${tooltipText}">Przeklasyfikowanie</span>`;
+                    } else if (typLower.includes('przywroc')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #ccfbf1; color: #0f766e; font-weight:600;" title="${tooltipText}">Przywrócenie</span>`;
+                    } else if (typLower.includes('dostawa') || typLower.includes('pz')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #e0f2fe; color: #0369a1; font-weight:600;" title="${tooltipText}">Dostawa / PZ</span>`;
+                    } else if (typLower.includes('utworz')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #fef9c3; color: #854d0e; font-weight:600;" title="${tooltipText}">Utworzenie Palety</span>`;
+                    } else if (typLower.includes('przyjecie') || typLower.includes('pw')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #dcfce7; color: #15803d; font-weight:600;" title="${tooltipText}">Przyjęcie / PW</span>`;
+                    } else if (typLower.includes('podzial_odjecie') || typLower.includes('podział_odjęcie')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #ffedd5; color: #c2410c; font-weight:600;" title="${tooltipText}">Podział (Odcięcie)</span>`;
+                    } else if (typLower.includes('podzial') || typLower.includes('podział')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #f3e8ff; color: #6b21a8; font-weight:600;" title="${tooltipText}">Podział palety</span>`;
+                    } else if (typLower.includes('przesuni') || typLower.includes('transfer') || typLower.includes('relokac') || typLower.includes('ruch')) {
+                        typeBadge = `<span class="status-badge" style="background-color: #ede9fe; color: #5b21b6; font-weight:600;" title="${tooltipText}">Przesunięcie</span>`;
                     } else if (typLower.includes('wydanie') || typLower.includes('produkcja')) {
-                        typeBadge = '<span class="status-badge" style="background-color: #e0e7ff; color: #4338ca; font-weight:600;">Wydanie na prod.</span>';
+                        typeBadge = `<span class="status-badge" style="background-color: #e0e7ff; color: #4338ca; font-weight:600;" title="${tooltipText}">Wydanie na prod.</span>`;
                     } else {
-                        typeBadge = `<span class="status-badge" style="background-color: #f1f5f9; color: #334155;">${row.typ}</span>`;
+                        typeBadge = `<span class="status-badge" style="background-color: #f1f5f9; color: #334155;" title="${tooltipText}">${row.typ}</span>`;
                     }
 
-                    const lineBadge = row.linia === 'AGRO' 
-                        ? '<span style="background:#fef3c7; color:#92400e; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:bold;">AGRO</span>'
-                        : '<span style="background:#e0f2fe; color:#0369a1; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:bold;">PSD</span>';
-                    
+                    const komHtml = (row.komentarz && row.komentarz !== '-') ? `<div style="font-size: 11px; color: #64748b; margin-top: 3px; max-width: 280px; line-height: 1.25;" title="${row.komentarz}">${row.komentarz}</div>` : '';
+
+                    // Format station / relocation (Skąd -> Dokąd)
+                    let stacjaHtml = '';
+                    let sVal = row.stacja || '';
+                    if (!sVal.includes('->') && row.skad && row.dokad && row.skad !== '-' && row.dokad !== '-' && row.skad !== row.dokad) {
+                        sVal = `${row.skad} -> ${row.dokad}`;
+                    }
+                    if (sVal && sVal.includes('->')) {
+                        const parts = sVal.split('->').map(s => s.trim());
+                        let fromStyle = 'background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;';
+                        if (parts[0].toLowerCase().includes('matka')) {
+                            fromStyle = 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-family: monospace;';
+                        } else if (parts[0].toUpperCase() === 'DOSTAWA') {
+                            fromStyle = 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 800;';
+                        } else if (parts[0].toUpperCase() === 'CENTRALA') {
+                            fromStyle = 'background: #ede9fe; color: #6b21a8; border: 1px solid #ddd6fe; font-weight: 800;';
+                        }
+                        let toStyle = 'background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;';
+                        if (parts[1].toLowerCase().includes('potomna') || parts[1].toLowerCase().includes('nowa paleta')) {
+                            toStyle = 'background: #ede9fe; color: #6b21a8; border: 1px solid #ddd6fe; font-family: monospace;';
+                        } else if (/^(BB|MZ|ZB|KO|WZ|MIX)\d*$/i.test(parts[1])) {
+                            toStyle = 'background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 800;';
+                        } else if (parts[1].toUpperCase() === 'OSIP' || parts[1].toUpperCase() === 'BFOS' || /^(OS|A)\d+$/i.test(parts[1])) {
+                            toStyle = 'background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-weight: 800;';
+                        }
+                        stacjaHtml = `
+                            <div style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+                                <span style="${fromStyle} padding: 2px 7px; border-radius: 4px; font-size: 11px;" title="Skąd: ${parts[0]}">${parts[0]}</span>
+                                <span class="material-icons" style="font-size: 14px; color: #0284c7;">arrow_forward</span>
+                                <span style="${toStyle} padding: 2px 7px; border-radius: 4px; font-size: 11px;" title="Dokąd: ${parts[1]}">${parts[1]}</span>
+                            </div>
+                        `;
+                    } else if (sVal && sVal.toLowerCase().includes('zlecenie')) {
+                        stacjaHtml = `<span style="font-weight: 700; color: #6d28d9; background: #f5f3ff; padding: 3px 8px; border-radius: 4px; font-size: 11px; border: 1px solid #ddd6fe; display: inline-block;" title="${sVal}">${sVal}</span>`;
+                    } else {
+                        stacjaHtml = `<span style="font-weight: 700; color: #0284c7;">${sVal || '-'}</span>`;
+                    }
+
+                    const productName = row.nazwa && row.nazwa !== '-' ? row.nazwa : '<span style="color: #94a3b8; font-style: italic;">Nieokreślony</span>';
+
                     html += `
                         <tr>
                             <td>${row.data}</td>
-                            <td style="text-align: center;">${lineBadge}</td>
-                            <td style="font-weight: bold; color: #0284c7;">${row.stacja}</td>
-                            <td style="font-weight: 500; color: #0f172a;">${row.nazwa || '-'}</td>
+                            <td>${stacjaHtml}</td>
+                            <td style="font-weight: 600; color: #0f172a;">${productName}</td>
                             <td style="font-size: 11px; font-family: monospace; font-weight: 600; color: #475569;">${row.nr_palety || '-'}</td>
                             <td style="font-weight: bold; color: #16a34a;">${row.ilosc != null ? parseFloat(row.ilosc).toFixed(2) : '-'}</td>
-                            <td>${typeBadge}</td>
+                            <td>${typeBadge}${komHtml}</td>
                             <td style="color: #64748b;">${row.user || '-'}</td>
                         </tr>
                     `;
@@ -191,7 +272,7 @@
                 tbody.innerHTML = html;
             })
             .catch(err => {
-                document.getElementById('stationHistoryTableBody').innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Błąd komunikacji z serwerem</td></tr>`;
+                document.getElementById('stationHistoryTableBody').innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Błąd komunikacji z serwerem</td></tr>`;
                 console.error(err);
             });
     }

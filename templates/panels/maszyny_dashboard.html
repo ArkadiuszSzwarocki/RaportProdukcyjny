@@ -2835,76 +2835,125 @@ input:checked + .slider:before { transform: translateX(20px); }
         // ─────────────────────────────────────────────────────────────
         // 0. WAGOPAKOWACZKA AUTOMATYCZNA (AUTOMATED FORM-FILL-SEAL BAGGING MACHINE)
         // Positioned on the floor at X: -6.20m, Z: infeedZ (-0.78m)
+        // High-fidelity industrial digital twin matching production line specifications
         // ─────────────────────────────────────────────────────────────
         const baggerX = -6.20;
-        const baggerSteelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.5 });
-        const baggerPanelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.4 });
-        const baggerGlassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 });
-        const baggerHeatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.85, roughness: 0.3 });
+        const baggerDarkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6, metalness: 0.5 });
+        const baggerSteelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.55 });
+        const baggerPanelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.45, metalness: 0.45 });
+        const baggerGlassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.08, metalness: 0.15, transparent: true, opacity: 0.38 });
+        const baggerHeatMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.9, roughness: 0.25 });
+        const baggerHopperMat = new THREE.MeshStandardMaterial({ color: 0x18202f, roughness: 0.75, metalness: 0.25 });
 
-        // 4 Vertical Cabinet Columns (Y: 0 to 2.40m)
-        const baggerColGeo = new THREE.BoxGeometry(0.07, 2.40, 0.07);
+        // 4 Vertical Cabinet Corner Columns (Y: 0 to 2.45m)
+        const baggerColGeo = new THREE.BoxGeometry(0.08, 2.45, 0.08);
         const baggerColPositions = [
-            [baggerX - 0.45, 1.20, infeedZ - 0.45],
-            [baggerX + 0.45, 1.20, infeedZ - 0.45],
-            [baggerX - 0.45, 1.20, infeedZ + 0.45],
-            [baggerX + 0.45, 1.20, infeedZ + 0.45]
+            [baggerX - 0.46, 1.225, infeedZ - 0.46],
+            [baggerX + 0.46, 1.225, infeedZ - 0.46],
+            [baggerX - 0.46, 1.225, infeedZ + 0.46],
+            [baggerX + 0.46, 1.225, infeedZ + 0.46]
         ];
         baggerColPositions.forEach(pos => {
-            const col = new THREE.Mesh(baggerColGeo, steelMat);
+            const col = new THREE.Mesh(baggerColGeo, baggerDarkMat);
             col.position.set(pos[0], pos[1], pos[2]);
             col.castShadow = true;
             machineFrameGroup3d.add(col);
         });
 
-        // Top Frame Horizontal Beams
-        const baggerBeamXGeo = new THREE.BoxGeometry(0.97, 0.07, 0.07);
-        const baggerBeamZGeo = new THREE.BoxGeometry(0.07, 0.07, 0.97);
-        const bbm1 = new THREE.Mesh(baggerBeamXGeo, steelMat); bbm1.position.set(baggerX, 2.37, infeedZ - 0.45);
-        const bbm2 = new THREE.Mesh(baggerBeamXGeo, steelMat); bbm2.position.set(baggerX, 2.37, infeedZ + 0.45);
-        const bbm3 = new THREE.Mesh(baggerBeamZGeo, steelMat); bbm3.position.set(baggerX - 0.45, 2.37, infeedZ);
-        const bbm4 = new THREE.Mesh(baggerBeamZGeo, steelMat); bbm4.position.set(baggerX + 0.45, 2.37, infeedZ);
+        // Top Frame Horizontal Beams (Y: 2.41m)
+        const baggerBeamXGeo = new THREE.BoxGeometry(1.00, 0.08, 0.08);
+        const baggerBeamZGeo = new THREE.BoxGeometry(0.08, 0.08, 1.00);
+        const bbm1 = new THREE.Mesh(baggerBeamXGeo, baggerDarkMat); bbm1.position.set(baggerX, 2.41, infeedZ - 0.46);
+        const bbm2 = new THREE.Mesh(baggerBeamXGeo, baggerDarkMat); bbm2.position.set(baggerX, 2.41, infeedZ + 0.46);
+        const bbm3 = new THREE.Mesh(baggerBeamZGeo, baggerDarkMat); bbm3.position.set(baggerX - 0.46, 2.41, infeedZ);
+        const bbm4 = new THREE.Mesh(baggerBeamZGeo, baggerDarkMat); bbm4.position.set(baggerX + 0.46, 2.41, infeedZ);
         machineFrameGroup3d.add(bbm1, bbm2, bbm3, bbm4);
 
-        // Rear & Side Steel Protective Enclosure Plates
-        const baggerRearPanelGeo = new THREE.BoxGeometry(0.90, 2.30, 0.02);
+        // Roof Top Deck Plate
+        const baggerRoofGeo = new THREE.BoxGeometry(1.00, 0.03, 1.00);
+        const baggerRoof = new THREE.Mesh(baggerRoofGeo, baggerDarkMat);
+        baggerRoof.position.set(baggerX, 2.45, infeedZ);
+        machineFrameGroup3d.add(baggerRoof);
+
+        // Rear & Left Protective Enclosure Steel Panels
+        const baggerRearPanelGeo = new THREE.BoxGeometry(0.92, 2.40, 0.02);
         const baggerRearPanel = new THREE.Mesh(baggerRearPanelGeo, baggerSteelMat);
-        baggerRearPanel.position.set(baggerX, 1.15, infeedZ - 0.45);
-        const baggerLeftPanelGeo = new THREE.BoxGeometry(0.02, 2.30, 0.90);
+        baggerRearPanel.position.set(baggerX, 1.20, infeedZ - 0.46);
+        const baggerLeftPanelGeo = new THREE.BoxGeometry(0.02, 2.40, 0.92);
         const baggerLeftPanel = new THREE.Mesh(baggerLeftPanelGeo, baggerPanelMat);
-        baggerLeftPanel.position.set(baggerX - 0.45, 1.15, infeedZ);
+        baggerLeftPanel.position.set(baggerX - 0.46, 1.20, infeedZ);
         machineFrameGroup3d.add(baggerRearPanel, baggerLeftPanel);
 
-        // Front Safety Viewing Glass Door (Okna inspekcyjne komory formowania)
-        const baggerFrontGlassGeo = new THREE.BoxGeometry(0.86, 1.45, 0.02);
-        const baggerFrontGlass = new THREE.Mesh(baggerFrontGlassGeo, baggerGlassMat);
-        baggerFrontGlass.position.set(baggerX, 1.45, infeedZ + 0.45);
-        const baggerLowerDoorGeo = new THREE.BoxGeometry(0.86, 0.65, 0.02);
+        // Lower Cabinet Base Enclosure (Front & Right)
+        const baggerLowerDoorGeo = new THREE.BoxGeometry(0.88, 0.70, 0.02);
         const baggerLowerDoor = new THREE.Mesh(baggerLowerDoorGeo, baggerSteelMat);
-        baggerLowerDoor.position.set(baggerX, 0.35, infeedZ + 0.45);
-        machineFrameGroup3d.add(baggerFrontGlass, baggerLowerDoor);
+        baggerLowerDoor.position.set(baggerX, 0.35, infeedZ + 0.46);
+        const baggerLowerRightGeo = new THREE.BoxGeometry(0.02, 0.70, 0.88);
+        const baggerLowerRight = new THREE.Mesh(baggerLowerRightGeo, baggerSteelMat);
+        baggerLowerRight.position.set(baggerX + 0.46, 0.35, infeedZ);
+        machineFrameGroup3d.add(baggerLowerDoor, baggerLowerRight);
 
-        // Stainless Steel Infeed Silo Hopper / Feed Funnel on Roof
-        const baggerHopperGeo = new THREE.CylinderGeometry(0.44, 0.20, 0.48, 20);
-        const baggerHopper = new THREE.Mesh(baggerHopperGeo, chromeMat);
-        baggerHopper.position.set(baggerX, 2.64, infeedZ);
+        // Front Safety Viewing Glass Window & Surrounding Frame
+        const baggerFrontGlassGeo = new THREE.BoxGeometry(0.86, 1.55, 0.02);
+        const baggerFrontGlass = new THREE.Mesh(baggerFrontGlassGeo, baggerGlassMat);
+        baggerFrontGlass.position.set(baggerX, 1.525, infeedZ + 0.46);
+        machineFrameGroup3d.add(baggerFrontGlass);
+
+        // Yellow Crossbar / Horizontal Protection Bar across Lower Window
+        const yellowBarGeo = new THREE.BoxGeometry(0.96, 0.045, 0.045);
+        const yellowBarMesh = new THREE.Mesh(yellowBarGeo, yellowMat);
+        yellowBarMesh.position.set(baggerX, 0.78, infeedZ + 0.48);
+        machineFrameGroup3d.add(yellowBarMesh);
+
+        // ─────────────────────────────────────────────────────────────
+        // HOPPER (LEJ ZASYPOWY) - MATTE CHARCOAL SILO FUNNEL ON ROOF
+        // ─────────────────────────────────────────────────────────────
+        const baggerHopperBaseGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.06, 24);
+        const baggerHopperBase = new THREE.Mesh(baggerHopperBaseGeo, baggerSteelMat);
+        baggerHopperBase.position.set(baggerX, 2.48, infeedZ);
+        machineFrameGroup3d.add(baggerHopperBase);
+
+        const baggerHopperGeo = new THREE.CylinderGeometry(0.48, 0.22, 0.50, 24);
+        const baggerHopper = new THREE.Mesh(baggerHopperGeo, baggerHopperMat);
+        baggerHopper.position.set(baggerX, 2.73, infeedZ);
         baggerHopper.castShadow = true;
         machineFrameGroup3d.add(baggerHopper);
 
-        // Vertical Tubular Former Collar (Tubus formujący rękaw foliowy)
-        const baggerFormerTubeGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.75, 20);
-        const baggerFormerTube = new THREE.Mesh(baggerFormerTubeGeo, chromeMat);
+        const baggerHopperRimGeo = new THREE.CylinderGeometry(0.50, 0.50, 0.04, 24);
+        const baggerHopperRim = new THREE.Mesh(baggerHopperRimGeo, baggerDarkMat);
+        baggerHopperRim.position.set(baggerX, 2.98, infeedZ);
+        machineFrameGroup3d.add(baggerHopperRim);
+
+        // ─────────────────────────────────────────────────────────────
+        // VERTICAL FORMING TUBE & FILM SHOULDER (TUBUS FORMUJĄCY)
+        // ─────────────────────────────────────────────────────────────
+        const baggerFormerTubeGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.85, 24);
+        const baggerFormerTubeMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.35, metalness: 0.75 });
+        const baggerFormerTube = new THREE.Mesh(baggerFormerTubeGeo, baggerFormerTubeMat);
         baggerFormerTube.position.set(baggerX, 1.55, infeedZ);
         baggerFormerTube.castShadow = true;
         machineFrameGroup3d.add(baggerFormerTube);
 
-        // Film Reel Roll Mounted at Rear
-        const baggerFilmRollGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.58, 20);
-        const baggerFilmRollMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, transparent: true, opacity: 0.6 });
+        const baggerShoulderGeo = new THREE.CylinderGeometry(0.26, 0.17, 0.20, 24);
+        const baggerShoulder = new THREE.Mesh(baggerShoulderGeo, baggerFormerTubeMat);
+        baggerShoulder.position.set(baggerX, 2.05, infeedZ);
+        machineFrameGroup3d.add(baggerShoulder);
+
+        // ─────────────────────────────────────────────────────────────
+        // HORIZONTAL FILM REEL ROLL ON UPPER RIGHT (ROLKA FOLII)
+        // ─────────────────────────────────────────────────────────────
+        const baggerFilmRollGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.48, 24);
+        const baggerFilmRollMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.25, metalness: 0.2, transparent: true, opacity: 0.85 });
         const baggerFilmRoll = new THREE.Mesh(baggerFilmRollGeo, baggerFilmRollMat);
-        baggerFilmRoll.rotation.z = Math.PI / 2;
-        baggerFilmRoll.position.set(baggerX, 2.05, infeedZ - 0.52);
-        machineFrameGroup3d.add(baggerFilmRoll);
+        baggerFilmRoll.rotation.x = Math.PI / 2;
+        baggerFilmRoll.position.set(baggerX + 0.36, 2.12, infeedZ - 0.10);
+        baggerFilmRoll.castShadow = true;
+
+        const baggerSpoolCoreGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.56, 16);
+        const baggerSpoolCore = new THREE.Mesh(baggerSpoolCoreGeo, chromeMat);
+        baggerSpoolCore.rotation.x = Math.PI / 2;
+        baggerSpoolCore.position.set(baggerX + 0.36, 2.12, infeedZ - 0.10);
+        machineFrameGroup3d.add(baggerFilmRoll, baggerSpoolCore);
 
         // ─────────────────────────────────────────────────────────────
         // PNEUMATIC HEATED SEALING JAWS (SZCZĘKI ZGRZEWAJĄCE WORKI - MQTT szczekiZamkniete)
@@ -2933,26 +2982,26 @@ input:checked + .slider:before { transform: translateX(20px); }
         baggerJawRight3d.add(jawRMesh, heatRMesh, jawRCyl);
         machineFrameGroup3d.add(baggerJawRight3d);
 
-        // Machine Operator HMI Touchscreen Console on Front Column
-        const baggerHmiStandGeo = new THREE.BoxGeometry(0.04, 0.04, 0.14);
+        // Machine Operator HMI Touchscreen Console (Cyan display on front panel)
+        const baggerHmiStandGeo = new THREE.BoxGeometry(0.04, 0.04, 0.12);
         const baggerHmiStand = new THREE.Mesh(baggerHmiStandGeo, chromeMat);
-        baggerHmiStand.position.set(baggerX + 0.45, 1.45, infeedZ + 0.52);
+        baggerHmiStand.position.set(baggerX - 0.25, 1.45, infeedZ + 0.48);
         const baggerHmiScreenGeo = new THREE.BoxGeometry(0.24, 0.18, 0.03);
-        const baggerHmiScreenMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.6 });
+        const baggerHmiScreenMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.75 });
         const baggerHmiScreen = new THREE.Mesh(baggerHmiScreenGeo, baggerHmiScreenMat);
-        baggerHmiScreen.position.set(baggerX + 0.45, 1.45, infeedZ + 0.59);
+        baggerHmiScreen.position.set(baggerX - 0.25, 1.45, infeedZ + 0.54);
         machineFrameGroup3d.add(baggerHmiStand, baggerHmiScreen);
 
-        // Tri-Color Andon Signal Tower Beacon on Roof
+        // Tri-Color Andon Signal Tower Beacon on Roof Corner
         const beaconStemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.18, 12);
         const beaconStem = new THREE.Mesh(beaconStemGeo, chromeMat);
-        beaconStem.position.set(baggerX - 0.42, 2.48, infeedZ + 0.42);
+        beaconStem.position.set(baggerX - 0.42, 2.54, infeedZ + 0.42);
         const beaconRed = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 }));
-        beaconRed.position.set(baggerX - 0.42, 2.58, infeedZ + 0.42);
+        beaconRed.position.set(baggerX - 0.42, 2.64, infeedZ + 0.42);
         const beaconAmber = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 }));
-        beaconAmber.position.set(baggerX - 0.42, 2.62, infeedZ + 0.42);
+        beaconAmber.position.set(baggerX - 0.42, 2.68, infeedZ + 0.42);
         baggerBeaconGreen3d = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.04, 12), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.8, roughness: 0.2 }));
-        baggerBeaconGreen3d.position.set(baggerX - 0.42, 2.66, infeedZ + 0.42);
+        baggerBeaconGreen3d.position.set(baggerX - 0.42, 2.72, infeedZ + 0.42);
         machineFrameGroup3d.add(beaconStem, beaconRed, beaconAmber, baggerBeaconGreen3d);
 
         // ─────────────────────────────────────────────────────────────
@@ -4941,6 +4990,22 @@ input:checked + .slider:before { transform: translateX(20px); }
         if (baggerBar) {
             const pct = Math.min(100, Math.max(0, (bagger.bpm / 20.0) * 100));
             baggerBar.style.width = pct + '%';
+        }
+
+        // Update 3D Wagopakowaczka Signal Tower Beacon & Jaws State
+        isBaggerJawsClosedAnim = Boolean(bagger && (bagger.jaws_closed || bagger.szczekiZamkniete));
+        if (baggerBeaconGreen3d && baggerBeaconGreen3d.material) {
+            if (bagger.is_running || (bagger.bpm && bagger.bpm > 0)) {
+                baggerBeaconGreen3d.material.color.setHex(0x10b981);
+                baggerBeaconGreen3d.material.emissive.setHex(0x059669);
+                baggerBeaconGreen3d.material.emissiveIntensity = 0.95;
+            } else if (bagger.status && (bagger.status.includes('ALARM') || bagger.status.includes('AWARIA'))) {
+                baggerBeaconGreen3d.material.color.setHex(0x334155);
+                baggerBeaconGreen3d.material.emissive.setHex(0x000000);
+            } else {
+                baggerBeaconGreen3d.material.color.setHex(0x334155);
+                baggerBeaconGreen3d.material.emissive.setHex(0x000000);
+            }
         }
 
         // 2b. CHECKWEIGHER & REJECT DROP FLAP

@@ -424,7 +424,18 @@
             </div>
         </div>
         <div class="m-header-right">
-            <span class="m-badge-linia">LINIA: {{ linia }}</span>
+            <div style="display: inline-flex; background: rgba(255,255,255,0.12); padding: 3px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); gap: 4px;">
+                <a href="{{ url_for('maluchy.index', linia='AGRO') }}" 
+                   style="padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 800; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; {% if linia == 'AGRO' %}background: #2563eb; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);{% else %}color: #cbd5e1;{% endif %}">
+                    <span>AGRO</span>
+                    <span style="font-size: 11px; padding: 1px 6px; border-radius: 10px; {% if linia == 'AGRO' %}background: rgba(255,255,255,0.25); color: #fff;{% else %}background: rgba(255,255,255,0.1); color: #94a3b8;{% endif %}">{{ agro_bucket_count }}</span>
+                </a>
+                <a href="{{ url_for('maluchy.index', linia='PSD') }}" 
+                   style="padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 800; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; {% if linia == 'PSD' %}background: #2563eb; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);{% else %}color: #cbd5e1;{% endif %}">
+                    <span>PSD</span>
+                    <span style="font-size: 11px; padding: 1px 6px; border-radius: 10px; {% if linia == 'PSD' %}background: rgba(255,255,255,0.25); color: #fff;{% else %}background: rgba(255,255,255,0.1); color: #94a3b8;{% endif %}">{{ psd_bucket_count }}</span>
+                </a>
+            </div>
             <a href="{{ url_for('main.index', linia=linia, sekcja='Zasyp') }}" class="m-btn-back">
                 ↩ Powrót do Zasypu
             </a>
@@ -447,11 +458,11 @@
                                style="text-transform: uppercase; font-weight: 800; font-size: 16px;" autofocus />
                     </div>
                     <div>
-                        <label class="m-label" for="selectPlanId">Aktywne Zlecenie Zasypu (Ostatnie 7 dni)</label>
+                        <label class="m-label" for="selectPlanId">Zlecenie Zasypu (Planowane / W toku / Zawieszone)</label>
                         <select id="selectPlanId" class="m-select">
                             {% for p in active_plans %}
                             <option value="{{ p.id }}" {% if p.id == selected_plan_id %}selected{% endif %}>
-                                #{{ p.id }} - {{ p.produkt }} ({{ p.data_planu_fmt }}) {% if p.status == 'w toku' %}🔥 [W TOKU]{% endif %}
+                                #{{ p.id }} - {{ p.produkt }} ({{ p.data_planu_fmt }}) {% if p.status == 'w toku' %}🔥 [W TOKU]{% elif p.status == 'zawieszone' %}⏸ [ZAWIESZONE]{% endif %}
                             </option>
                             {% else %}
                             <option value="">Brak zleceń zasypu z ostatnich 7 dni dla linii {{ linia }}</option>
@@ -526,15 +537,15 @@
             <div class="m-card">
                 <div class="m-tabs-nav">
                     <button type="button" class="m-tab-btn active" data-tab="plan" id="tabBtnPlan">
-                        <span>📋 Bieżące zlecenie</span>
+                        <span>📋 Oczekujące (Zlecenie)</span>
                         <span class="m-tab-badge" id="badgePlanCount">0</span>
                     </button>
                     <button type="button" class="m-tab-btn" data-tab="remaining" id="tabBtnRemaining">
-                        <span>🪣 Pozostałe na stanie</span>
+                        <span>🪣 Wszystkie na stanie</span>
                         <span class="m-tab-badge m-tab-badge-amber" id="badgeRemainingCount">0</span>
                     </button>
                     <button type="button" class="m-tab-btn" data-tab="history" id="tabBtnHistory">
-                        <span>📜 Historia</span>
+                        <span>📜 Historia (Wsypane MI01)</span>
                         <span class="m-tab-badge" id="badgeHistoryCount">0</span>
                     </button>
                 </div>
@@ -559,8 +570,13 @@
 
                 <!-- TAB 3: Cała historia -->
                 <div id="tabContentHistory" class="m-tab-pane" style="display: none;">
-                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <input type="text" id="inputFilterHistory" class="m-input" placeholder="🔍 Szukaj wiadra (np. 04), zlecenia, produktu..." style="padding: 7px 12px; font-size: 12px;" />
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                        <select id="selectFilterHistoryLine" class="m-select" style="max-width: 170px; padding: 7px 10px; font-size: 12px; font-weight: 700;">
+                            <option value="ALL">🌐 Wszystkie linie</option>
+                            <option value="AGRO" {% if linia == 'AGRO' %}selected{% endif %}>🌾 Linia AGRO ({{ agro_bucket_count }})</option>
+                            <option value="PSD" {% if linia == 'PSD' %}selected{% endif %}>🏭 Linia PSD ({{ psd_bucket_count }})</option>
+                        </select>
+                        <input type="text" id="inputFilterHistory" class="m-input" placeholder="🔍 Szukaj wiadra (np. 04), zlecenia, produktu..." style="flex: 1; min-width: 180px; padding: 7px 12px; font-size: 12px;" />
                         <button type="button" id="btnRefreshHistory" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; color: #334155; white-space: nowrap;">🔄 Odśwież</button>
                     </div>
                     <div id="historyBucketsList" style="max-height: 480px; overflow-y: auto;">

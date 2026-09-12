@@ -1,0 +1,22 @@
+<!-- MODAL: Raporty -->
+<div id="reportsModal" class="modal-premium-overlay" style="display: none;">
+    <div class="modal-premium-content" style="max-width: 600px;">
+        <div class="modal-premium-header">
+            <h3><span class="material-icons" style="color: #38bdf8;">analytics</span> Centrum Raportów Magazynowych</h3>
+            <button onclick="closeReportsModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button type="button" onclick="printInventorySheet(allWarehouseItems, '{{ linia }}')" class="btn-modal-outline" style="color: #0284c7; border: 2px solid #bae6fd; justify-content: flex-start;">
+                    <span class="material-icons" style="color: #0284c7;">print</span> Arkusz Inwentaryzacyjny (Druk)
+                </button>
+                <a href="/warehouse-v2/psd/raport_palet" class="btn-modal-outline" style="color: #059669; border: 2px solid #a7f3d0; justify-content: flex-start; text-decoration: none;">
+                    <span class="material-icons" style="color: #059669;">summarize</span> Raport Palet i Produkcji
+                </a>
+                <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-modal-outline" style="color: #6366f1; border: 2px solid #c7d2fe; justify-content: flex-start; text-decoration: none;">
+                    <span class="material-icons" style="color: #6366f1;">history</span> Raport Przesunięć i Ruchów
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

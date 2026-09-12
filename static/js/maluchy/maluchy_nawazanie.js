@@ -37,6 +37,7 @@
     const btnRefreshRemaining = document.getElementById('btnRefreshRemaining');
     const btnRefreshHistory = document.getElementById('btnRefreshHistory');
     const inputFilterHistory = document.getElementById('inputFilterHistory');
+    const selectFilterHistoryLine = document.getElementById('selectFilterHistoryLine');
 
     let currentTab = 'plan';
     let cachedHistoryBuckets = [];
@@ -433,6 +434,7 @@
                     <div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="m-bucket-pill" style="font-size: 14px;">Wiadro ${b.kod_wiadra}</span>
+                            <span style="background: ${(b.linia || linia) === 'AGRO' ? '#eff6ff' : '#f0fdf4'}; color: ${(b.linia || linia) === 'AGRO' ? '#1d4ed8' : '#15803d'}; border: 1px solid ${(b.linia || linia) === 'AGRO' ? '#bfdbfe' : '#bbf7d0'}; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">${b.linia || linia}</span>
                             <span style="font-weight: 700; font-size: 13px; color: #1e293b;">${itemsCount} składników</span>
                             <span style="font-size: 12px; color: #2563eb; font-weight: 700;" class="m-toggle-indicator">▾ zawartość</span>
                         </div>
@@ -564,11 +566,22 @@
             if (!res.ok || !data.success) return;
 
             const summary = data.data;
-            const buckets = summary.all_buckets || [];
+            // Only show unconsumed buckets (not yet scanned into MI01)
+            const buckets = (summary.all_buckets || []).filter(b => b.status !== 'wrzucone_do_mieszalnika');
             if (badgePlanCount) badgePlanCount.textContent = buckets.length;
 
             if (buckets.length === 0) {
-                planBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Brak przygotowanych wiaderek dla tego zlecenia.</p>';
+                const dumpedCount = (summary.wrzucone || []).length;
+                const dumpedMsg = dumpedCount > 0
+                    ? `<div style="font-size: 12px; margin-top: 6px; color: #059669; font-weight: 700;">✓ Wszystkie wiaderka tego zlecenia (${dumpedCount} szt.) zostały już zeskanowane na MI01 i przeniesione do Historii.</div>`
+                    : '<div style="font-size: 12px; margin-top: 4px;">Brak przygotowanych wiaderek do wsypania dla tego zlecenia.</div>';
+                planBucketsList.innerHTML = `
+                    <div style="text-align: center; padding: 24px 16px; color: #64748b;">
+                        <div style="font-size: 26px; margin-bottom: 6px;">🪣</div>
+                        <div style="font-weight: 800; font-size: 13px; color: #1e293b;">Brak oczekujących wiaderek</div>
+                        ${dumpedMsg}
+                    </div>
+                `;
                 return;
             }
 
@@ -626,12 +639,27 @@
         }
     }
 
+    // ── UPDATE HISTORY COUNT BADGE ONLY ──
+    async function updateHistoryCount() {
+        try {
+            const filterLine = (selectFilterHistoryLine && selectFilterHistoryLine.value) || 'ALL';
+            const res = await fetch(`/maluchy/api/history?linia=${filterLine}&limit=200`);
+            const data = await res.json();
+            if (res.ok && data.success && badgeHistoryCount) {
+                badgeHistoryCount.textContent = (data.buckets || []).length;
+            }
+        } catch (e) {
+            // silent badge update fail
+        }
+    }
+
     // ── 3. LOAD FULL HISTORY ──
     async function loadHistoryBuckets() {
         if (!historyBucketsList) return;
         try {
             historyBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Ładowanie historii...</p>';
-            const res = await fetch(`/maluchy/api/history?linia=${linia}&limit=200`);
+            const filterLine = (selectFilterHistoryLine && selectFilterHistoryLine.value) || 'ALL';
+            const res = await fetch(`/maluchy/api/history?linia=${filterLine}&limit=200`);
             const data = await res.json();
             if (!res.ok || !data.success) {
                 historyBucketsList.innerHTML = '<p class="text-danger text-center" style="padding: 20px;">Błąd pobierania historii.</p>';
@@ -708,17 +736,27 @@
     if (inputFilterHistory) {
         inputFilterHistory.addEventListener('input', () => renderFilteredHistory());
     }
+    if (selectFilterHistoryLine) {
+        selectFilterHistoryLine.addEventListener('change', () => {
+            loadHistoryBuckets();
+            updateHistoryCount();
+        });
+    }
 
     // On plan change, reload buckets
     if (selectPlanId) {
         selectPlanId.addEventListener('change', function () {
             loadPlanBuckets(this.value);
             updateRemainingCount();
+            updateHistoryCount();
         });
 
         if (selectPlanId.value) {
             loadPlanBuckets(selectPlanId.value);
             updateRemainingCount();
+            updateHistoryCount();
         }
+    } else {
+        updateHistoryCount();
     }
 })();

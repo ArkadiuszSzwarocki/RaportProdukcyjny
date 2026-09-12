@@ -1,0 +1,30 @@
+<!-- MODAL: Zwrot z Produkcji -->
+<div id="returnModal" class="modal-premium-overlay" style="display: none;">
+    <div class="modal-premium-content" style="max-width: 900px;">
+        <div class="modal-premium-header">
+            <h3><span class="material-icons" style="color: #38bdf8;">assignment_return</span> Zwrot surowców na magazyn</h3>
+            <button onclick="closeReturnModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div id="returnTableContainer" style="max-height: 400px; overflow-y: auto; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                <table class="modern-table" style="margin: 0; width: 100%;">
+                    <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc;">
+                        <tr><th></th><th>Surowiec</th><th>Lokalizacja</th><th class="text-right">Pobrano</th><th class="text-right">Zwrócono</th><th class="text-right">Do zwrotu</th><th>Data</th></tr>
+                    </thead>
+                    <tbody id="returnItemsBody"></tbody>
+                </table>
+            </div>
+            <div id="returnFormSection" style="display: none; background: #f0f9ff; padding: 20px; border-radius: 12px; border: 1px solid #bae6fd;">
+                <div class="grid-3 gap-15" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                    <input type="hidden" id="return_ruch_id"><input type="hidden" id="return_surowiec_id"><input type="hidden" id="return_plan_id">
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Nazwa surowca</label><input type="text" id="return_nazwa" class="form-control" readonly style="font-weight: 700;"></div>
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Ilość (kg)</label><input type="number" id="return_ilosc" class="form-control" style="font-weight: 700;"></div>
+                    <div><label class="form-label" style="font-weight: 700; font-size: 12px;">Lokalizacja docelowa</label><input type="text" id="return_lokalizacja" class="form-control" placeholder="Np. R010101" style="font-weight: 700; text-transform: uppercase;"></div>
+                </div>
+                <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
+                    <button type="button" onclick="submitReturn('{{ linia }}')" class="btn-print-action print">Zapisz zwrot</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

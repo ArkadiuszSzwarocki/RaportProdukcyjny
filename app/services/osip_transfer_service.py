@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from app.repositories.osip_transfer_repository import OsipTransferRepository
 from app.models.osip_transfer_model import OsipTransferModel
 from app.core.database import get_db_connection
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 
 class OsipTransferService:
@@ -72,6 +73,18 @@ class OsipTransferService:
                         "UPDATE magazyn_surowce SET lokalizacja = %s WHERE nr_palety = %s",
                         (self.IN_TRANSIT_LOCATION, nr_palety)
                     )
+
+                MovementRecorder.record_movement(
+                    paleta_id=pallet_id,
+                    linia="OSIP",
+                    typ_palety="surowiec",
+                    akcja="TRANSFER",
+                    lokalizacja_zrodlowa=transfer.source_warehouse,
+                    lokalizacja_docelowa=self.IN_TRANSIT_LOCATION,
+                    komentarz=f"Załadunek transferu {transfer.transfer_code or transfer.id}: {transfer.source_warehouse} -> {self.IN_TRANSIT_LOCATION}",
+                    user_login=user_login,
+                    nr_palety=nr_palety
+                )
 
             conn.commit()
         finally:
@@ -182,6 +195,20 @@ class OsipTransferService:
                     "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
                     (matched_item_id,)
                 )
+
+            src_history = transfer.source_warehouse if transfer.source_warehouse else 'CENTRALA'
+            MovementRecorder.record_movement(
+                paleta_id=matched_pallet_id,
+                linia="OSIP",
+                typ_palety="surowiec",
+                akcja="PRZYJECIE",
+                lokalizacja_zrodlowa=src_history,
+                lokalizacja_docelowa=target_loc,
+                komentarz=f"Przyjęcie z transferu {transfer.transfer_code or transfer.id}: {src_history} -> {target_loc}",
+                user_login=user_login,
+                nr_palety=matched_nr_palety
+            )
+
             conn.commit()
         finally:
             cursor.close()

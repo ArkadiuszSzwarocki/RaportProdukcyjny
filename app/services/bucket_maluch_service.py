@@ -261,6 +261,30 @@ class BucketMaluchService:
 
         BucketMaluchRepository.complete_bucket(bucket_id)
         updated = BucketMaluchRepository.find_by_id(bucket_id)
+        
+        # Log to palety_historia for warehouse audit trail
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO palety_historia 
+                (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                VALUES (%s, %s, 'WIADERKO', 'KOMPLETACJA_MALUCHOW', 'KO', %s, %s, %s, NOW())
+                """,
+                (
+                    updated.get('nr_sscc') or f"WIADRO_{updated.get('kod_wiadra')}",
+                    updated.get('linia') or 'AGRO',
+                    f"Wiadro {updated.get('kod_wiadra')}",
+                    f"Skompletowano wiadro {updated.get('kod_wiadra')} (zlecenie #{updated.get('plan_id')}, {len(updated.get('pozycje') or [])} składników)",
+                    operator_login or updated.get('operator_nawazyl_login') or 'operator'
+                )
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
         return True, f"Wiadro {updated['kod_wiadra']} skompletowane!", updated
 
     @classmethod
@@ -397,6 +421,28 @@ class BucketMaluchService:
 
             updated = BucketMaluchRepository.find_by_id(bucket['id'])
             nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"
+
+            # Log to palety_historia
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO palety_historia 
+                    (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                    VALUES (%s, %s, 'WIADERKO', 'ZASYP_MALUCHY', %s, %s, %s, %s, NOW())
+                    """,
+                    (
+                        bucket.get('nr_sscc') or f"WIADRO_{norm_code}",
+                        bucket.get('linia') or linia or 'AGRO',
+                        f"Wiadro {norm_code}",
+                        norm_mixer,
+                        f"Wsypano wiadro {norm_code} do mieszalnika {norm_mixer} (szarża {nr_sz_str}, zlecenie #{plan_id})",
+                        operator_login or 'operator'
+                    )
+                )
+                conn.commit()
+            except Exception:
+                pass
+
             return True, f"Potwierdzono: Wiadro {norm_code} wrzucone do zasypu {nr_sz_str} w mieszalniku {norm_mixer}!", updated
         finally:
             conn.close()

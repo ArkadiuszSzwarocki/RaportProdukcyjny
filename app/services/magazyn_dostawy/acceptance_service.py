@@ -168,28 +168,33 @@ class AcceptanceService:
                 if source_spot and not is_partial and not is_return:
                     actual_source_loc = 'OCZEKUJĄCE' if source_spot == 'DOSTAWA' else source_spot
                     
-                    if source_pallet_id:
+                    if source_pallet_id and source_pallet_id != pallet_id:
                         # Find the pallet at source and zero it EXACTLY by ID
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                    else:
-                        # Fallback for old data without sourcePalletId
+                    elif not source_pallet_id and actual_source_loc not in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE'):
+                        # Fallback for old transfer data without sourcePalletId
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                 
-                    cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
-                        (None, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
-                    )
+                    if source_spot not in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE', 'RAMPA', 'W_TRANZYCIE'):
+                        cursor.execute(
+                            "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)",
+                            (pallet_id, nr_palety, linia, p_type, source_spot, lokalizacja, f"Wydanie do przesunięcia: {product_name}, waga: {qty:.2f} kg -> {lokalizacja}", login)
+                        )
 
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
-                comment_text = f"Przyjęcie zwrotu z produkcji: {product_name} na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}"
+                comment_text = f"Przyjęcie zwrotu z produkcji: {product_name}, waga: {qty:.2f} kg na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, waga: {qty:.2f} kg, partia: {nr_partii}"
+                if is_return:
+                    src_for_history = source_spot or 'PRODUKCJA'
+                else:
+                    src_for_history = source_spot if (source_spot and source_spot not in ('-', 'DOSTAWA')) else 'OCZEKUJĄCE'
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (pallet_id, nr_palety, linia, p_type, action_name, source_spot or 'OCZEKUJACE', lokalizacja, comment_text, login)
+                    (pallet_id, nr_palety, linia, p_type, action_name, src_for_history, lokalizacja, comment_text, login)
                 )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
@@ -550,9 +555,9 @@ class AcceptanceService:
 
                 # 4. Log history
                 cursor.execute("""
-                    INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
-                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
+                    INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                    VALUES (%s, %s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
+                """, (actual_pallet_id, pallet.get('nr_palety'), linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
 
                 conn.commit()
                 

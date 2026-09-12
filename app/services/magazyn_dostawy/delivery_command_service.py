@@ -268,12 +268,33 @@ class DeliveryCommandService:
                         item['unitsPerPallet'] = qty if pkg_form == 'packaging' else 0
 
                         source_pallet_id = item.get('sourcePalletId')
+                        if not source_pallet_id and nr_palety:
+                            cursor.execute(f"SELECT id FROM {target_table} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                            p_exist = cursor.fetchone()
+                            if p_exist:
+                                source_pallet_id = p_exist['id']
+                                item['sourcePalletId'] = source_pallet_id
+
                         if source_pallet_id:
                             # AKTUALIZACJA ISTNIEJĄCEJ PALETY PRZY EDYCJI
-                            cursor.execute(
-                                f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                                (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
-                            )
+                            # Jeśli pozycja została już przyjęta na konkretną lokalizację, NIE wolno jej cofać do OCZEKUJĄCE
+                            if item.get('accepted'):
+                                target_loc = item.get('lokalizacja_przyjecia') or item.get('targetSpot')
+                                if target_loc and target_loc != 'OCZEKUJĄCE':
+                                    cursor.execute(
+                                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
+                                        (product_name, qty, target_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                                    )
+                                else:
+                                    cursor.execute(
+                                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
+                                        (product_name, qty, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                                    )
+                            else:
+                                cursor.execute(
+                                    f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
+                                    (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                                )
                             pallet_id = source_pallet_id
                         else:
                             # DB INSERT DLA NOWEJ PALETY
@@ -550,10 +571,16 @@ class DeliveryCommandService:
                                     try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
                                     except Exception: pass
 
+                            # Prevent duplicate history entry for the same order_ref and pallet upon re-saving/editing
                             cursor.execute(
-                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
-                                (p_id, linia, p_type, source_spot, lokalizacja_do, f"Zlecenie przesunięcia {order_ref}: {source_spot} -> {lokalizacja_do}", login)
+                                "SELECT id FROM palety_historia WHERE (paleta_id = %s OR nr_palety = %s) AND komentarz LIKE %s LIMIT 1",
+                                (p_id, p_nr or '-', f"%{order_ref}%")
                             )
+                            if not cursor.fetchone():
+                                cursor.execute(
+                                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
+                                    (p_id, p_nr, linia, p_type, source_spot, lokalizacja_do, f"Zlecenie przesunięcia {order_ref}: {source_spot} -> {lokalizacja_do}", login)
+                                )
                         updated_items.append(item)
                     
                     items = updated_items

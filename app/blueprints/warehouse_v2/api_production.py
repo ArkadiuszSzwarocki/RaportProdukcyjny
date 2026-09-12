@@ -69,6 +69,7 @@ def get_station_history():
     data_do = request.args.get('dataDo')
     surowiec = request.args.get('surowiec')
     stacja = request.args.get('stacja')
+    typ_operacji = request.args.get('typ_operacji') or request.args.get('typ')
     try:
         limit = min(max(int(request.args.get('limit', 150)), 10), 1000)
     except (ValueError, TypeError):
@@ -80,7 +81,12 @@ def get_station_history():
         data_do=data_do,
         surowiec=surowiec,
         stacja=stacja,
+        typ_operacji=typ_operacji,
         limit=limit
     )
-    return jsonify({'success': True, 'data': data})
+    resp = jsonify({'success': True, 'data': data})
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
