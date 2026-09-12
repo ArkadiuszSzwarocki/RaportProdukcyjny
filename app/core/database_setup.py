@@ -303,12 +303,14 @@ def _create_tables(cursor):
     cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_opakowania ("
                    "id INT AUTO_INCREMENT PRIMARY KEY,"
                    "nazwa VARCHAR(255) NOT NULL,"
+                   "typ_opakowania VARCHAR(50) DEFAULT 'Karton',"
                    "stan_magazynowy FLOAT DEFAULT 0,"
                    "lokalizacja VARCHAR(64) DEFAULT NULL,"
                    "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
                    "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                    "INDEX idx_magazyn_opakowania_nazwa (nazwa(250)),"
-                   "INDEX idx_magazyn_opakowania_lokal (lokalizacja)"
+                   "INDEX idx_magazyn_opakowania_lokal (lokalizacja),"
+                   "INDEX idx_magazyn_opakowania_typ (typ_opakowania)"
                    ")")
 
     cursor.execute("""
@@ -1286,7 +1288,9 @@ def _migrate_columns(cursor):
         _add_column_if_missing(cursor, tbl, "nr_partii", "VARCHAR(100) NULL", f"Dodawanie kolumny 'nr_partii' do {tbl}")
         _add_column_if_missing(cursor, tbl, "data_produkcji", "DATE NULL", f"Dodawanie kolumny 'data_produkcji' do {tbl}")
         _add_column_if_missing(cursor, tbl, "data_przydatnosci", "DATE NULL", f"Dodawanie kolumny 'data_przydatnosci' do {tbl}")
-        _add_column_if_missing(cursor, tbl, "typ_opakowania", "VARCHAR(50) DEFAULT 'bags'", f"Dodawanie kolumny 'typ_opakowania' do {tbl}")
+        # For opakowania table, use 'Karton' as default, for others use 'bags'
+        typ_default = "VARCHAR(50) DEFAULT 'Karton'" if tbl.endswith('opakowania') else "VARCHAR(50) DEFAULT 'bags'"
+        _add_column_if_missing(cursor, tbl, "typ_opakowania", typ_default, f"Dodawanie kolumny 'typ_opakowania' do {tbl}")
         _add_column_if_missing(cursor, tbl, "is_blocked", "BOOLEAN DEFAULT 0", f"Dodawanie kolumny 'is_blocked' do {tbl}")
     
     # Inwentaryzacja wpisy packaging type

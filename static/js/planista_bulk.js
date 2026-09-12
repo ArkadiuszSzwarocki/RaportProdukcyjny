@@ -2,6 +2,17 @@
     const globalOpakowania = window.PlanistaBulkConfig.data.opakowania;
     const globalEtykiety = window.PlanistaBulkConfig.data.etykiety;
 
+    // Ensure report modal is closed on page load
+    setTimeout(() => {
+      const raportDniaModalBackdrop = document.getElementById('raportDniaModalBackdrop');
+      const raportDniaModal = document.getElementById('raportDniaModal');
+      if(raportDniaModalBackdrop) raportDniaModalBackdrop.style.display = 'none';
+      if(raportDniaModal) {
+        raportDniaModal.style.display = 'none';
+        raportDniaModal.style.flexDirection = 'column';
+      }
+    }, 100);
+
     function getStripeBadgeHtml(name) {
       if (!name || name === '-' || name === '-- Brak / Nie określono --') return '';
       let color = '';
@@ -28,12 +39,6 @@
       return `<span class="stripe-badge" style="background-color: ${color}; border: ${border}; display: inline-block; width: 30px; height: 12px; border-radius: 2px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15); vertical-align: middle; margin-left: 6px;"></span>`;
     }
 
-    // Initialize searchable selects for packaging & labels
-    setTimeout(function() {
-      initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', globalOpakowania, false);
-      initSearchableSelect('inpEtykieta', 'inpEtykieta_search', 'inpEtykieta_dropdown', 'inpEtykieta_indicator', globalEtykiety, true);
-    }, 100);
-
     const tbody = document.querySelector('#bulkTable tbody');
     const bulkTable = document.querySelector('#bulkTable');
     const emptyState = document.querySelector('#emptyState');
@@ -53,6 +58,7 @@
     const agroFieldsContainer = document.getElementById('agroFieldsContainer');
     const packagingTypeRow = document.getElementById('packagingTypeRow');
     const inpTypOpakowania = document.getElementById('inpTypOpakowania');
+    const inpTypOpakowaniaMagazyn = document.getElementById('inpTypOpakowaniaMagazyn');
     const inpTermin = document.getElementById('inpTermin');
     const customTerminContainer = document.getElementById('customTerminContainer');
 
@@ -453,10 +459,14 @@
       const typOpakowania = inpTypOpakowania ? inpTypOpakowania.value : 'worki';
       
       // Dla big bag ukrywamy pola opakowanie i etykieta
+      // Dla wszystkiego innego (worki i puste) pokazujemy
       if (typOpakowania === 'bigbag') {
         agroFieldsContainer.style.display = 'none';
       } else if (isAgro && !isCzyszczenie) {
+        // Pokazuj dla AGRO jeśli nie big bag
         agroFieldsContainer.style.display = 'block';
+      } else {
+        agroFieldsContainer.style.display = 'none';
       }
     }
 
@@ -480,6 +490,7 @@
       
       if (agroFieldsContainer) {
         if (isAgro && !isCzyszczenie) {
+          agroFieldsContainer.style.display = 'block';
           togglePackagingFields(); // Kontroluj widoczność na podstawie typu opakowania
           
           // Re-trigger autofill when section changes to Agro
@@ -517,14 +528,29 @@
       }
     }
 
+    // Initialize searchable selects for packaging & labels
+    setTimeout(function() {
+      initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', globalOpakowania, false);
+      initSearchableSelect('inpEtykieta', 'inpEtykieta_search', 'inpEtykieta_dropdown', 'inpEtykieta_indicator', globalEtykiety, true);
+    }, 100);
+
     if (sekcjaSelect) {
       sekcjaSelect.addEventListener('change', toggleAgroFields);
-      // Run immediately on page load to set correct initial state
       setTimeout(toggleAgroFields, 50);
     }
     
     if (inpTypOpakowania) {
       inpTypOpakowania.addEventListener('change', togglePackagingFields);
+    }
+
+    if (inpTypOpakowaniaMagazyn) {
+      inpTypOpakowaniaMagazyn.addEventListener('change', function() {
+        const selectedType = this.value;
+        const filteredOpakowania = selectedType
+          ? globalOpakowania.filter(o => o.typ_opakowania === selectedType)
+          : globalOpakowania;
+        initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', filteredOpakowania, false);
+      });
     }
 
     const addRow = () => {

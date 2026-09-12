@@ -811,6 +811,110 @@ class WarehouseV2Service:
             conn.close()
 
     @staticmethod
+    def update_material_type(pallet_id, pallet_type, new_material_type, worker_login, linia='PSD'):
+        """Aktualizuje typ materiału opakowania (Karton / Taśma) w typ_opakowania."""
+        import sys
+        print(f"[SERVICE] update_material_type: pallet_id={pallet_id}, type={pallet_type}, new_material={new_material_type}, linia={linia}", file=sys.stderr)
+        
+        if not new_material_type or new_material_type not in ('Karton', 'Taśma'):
+            return False, "Błędny typ materiału. Wybierz 'Karton' lub 'Taśma'."
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            if pallet_type == 'Surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+            elif pallet_type == 'Opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+            else:
+                return False, "Zmiana typu materiału dostępna tylko dla opakowań i surowców."
+
+            print(f"[SERVICE] Table: {table}", file=sys.stderr)
+            cursor.execute(f"SELECT id, nr_palety, typ_opakowania FROM {table} WHERE id = %s", (pallet_id,))
+            row = cursor.fetchone()
+            if not row:
+                print(f"[SERVICE] Paleta nie znaleziona w tabeli {table}", file=sys.stderr)
+                return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje."
+
+            old_material = row.get('typ_opakowania') or 'Karton'
+            print(f"[SERVICE] Przed: {old_material}, Po: {new_material_type}", file=sys.stderr)
+            cursor.execute(f"UPDATE {table} SET typ_opakowania = %s WHERE id = %s", (new_material_type, pallet_id))
+            print(f"[SERVICE] UPDATE rowcount: {cursor.rowcount}", file=sys.stderr)
+
+            # Audit history log
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, 'ZMIANA_TYPU_MATERIALU', %s, %s)",
+                    (pallet_id, row.get('nr_palety'), linia, pallet_type.lower(), f"Zmiana typu materiału: {old_material} -> {new_material_type}", worker_login)
+                )
+            except Exception as e:
+                print(f"Błąd logowania historii zmiany typu materiału: {e}")
+
+            conn.commit()
+            print(f"[SERVICE] Commit OK", file=sys.stderr)
+            return True, f"Typ materiału został zmieniony na '{new_material_type}'."
+        except Exception as e:
+            if conn: conn.rollback()
+            print(f"[SERVICE] Exception: {str(e)}", file=sys.stderr)
+            return False, f"Błąd bazy danych: {str(e)}"
+        finally:
+            conn.close()
+
+    @staticmethod
+    def bulk_update_material_type(pallet_ids: list, pallet_type: str, new_material_type: str, worker_login: str, linia: str = 'PSD') -> tuple[bool, str, int]:
+        """Zbiorczo zmienia typ materiału dla wielu opakowań naraz."""
+        if not pallet_ids or not new_material_type or new_material_type not in ('Karton', 'Taśma'):
+            return False, "Błędne parametry", 0
+
+        conn = get_db_connection()
+        updated_count = 0
+        try:
+            cursor = conn.cursor(dictionary=True)
+            if pallet_type == 'Surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+            elif pallet_type == 'Opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+            else:
+                return False, "Zmiana typu materiału dostępna tylko dla opakowań i surowców.", 0
+
+            # Przygotuj listę ID dla zapytania
+            id_placeholders = ','.join(['%s'] * len(pallet_ids))
+            
+            # Pobierz wszystkie rekordy do zalogowania
+            cursor.execute(f"SELECT id, nr_palety, typ_opakowania FROM {table} WHERE id IN ({id_placeholders})", pallet_ids)
+            rows = cursor.fetchall()
+            
+            if not rows:
+                return False, "Nie znaleziono opakowań o podanych ID.", 0
+            
+            # Zaktualizuj wszystkie rekordy
+            cursor.execute(
+                f"UPDATE {table} SET typ_opakowania = %s WHERE id IN ({id_placeholders})",
+                [new_material_type] + pallet_ids
+            )
+            updated_count = cursor.rowcount
+            
+            # Zaloguj każdą zmianę do historii
+            try:
+                for row in rows:
+                    old_material = row.get('typ_opakowania') or 'Karton'
+                    cursor.execute(
+                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, 'ZMIANA_TYPU_MATERIALU_BULK', %s, %s)",
+                        (row['id'], row.get('nr_palety'), linia, pallet_type.lower(), 
+                         f"Zmiana typu materiału (bulk): {old_material} -> {new_material_type}", worker_login)
+                    )
+            except Exception as e:
+                print(f"Błąd logowania historii zmiany zbiorczej: {e}")
+            
+            conn.commit()
+            return True, f"Zmieniono typ materiału na '{new_material_type}' dla {updated_count} opakowań.", updated_count
+        except Exception as e:
+            if conn: conn.rollback()
+            return False, f"Błąd bazy danych: {str(e)}", 0
+        finally:
+            conn.close()
+
+    @staticmethod
     def restore_pallet_from_archive(archive_id: int = None, nr_palety: str = None, new_weight: float = None, new_location: str = None, user_login: str = 'admin') -> tuple[bool, str, dict]:
         """Przywraca paletę z tabeli magazyn_archiwum z powrotem do aktywnego magazynu."""
         conn = get_db_connection()

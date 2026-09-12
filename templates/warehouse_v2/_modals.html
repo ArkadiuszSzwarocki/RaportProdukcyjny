@@ -464,6 +464,13 @@
                 </button>
             </div>
 
+            <!-- MATERIAL TYPE BUTTON (Opakowanie only) -->
+            <div id="materialTypeBtnContainer" style="display: none; margin-top: 10px;">
+                <button type="button" id="changeMaterialTypeBtn" onclick="openMaterialTypeModal(currentPallet.id, currentPallet.type, currentPallet.linia)" class="btn-modal-action" style="width: 100%; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none;">
+                    <span class="material-icons" style="font-size: 18px;">category</span> ZMIEŃ TYP MATERIAŁU (KARTON / TAŚMA)
+                </button>
+            </div>
+
             <!-- MODUŁ DRUKOWANIA ETYKIETY (RESPONSIVE) -->
             <div class="modal-print-box">
                 <div class="modal-print-header">
@@ -521,6 +528,38 @@
     </div>
 </div>
 
+<!-- MODAL: Zmiana typu materiału (Karton / Taśma) -->
+<div id="changeMaterialTypeModal" class="modal-premium-overlay" style="display: none; z-index: 2100;">
+    <div class="modal-premium-content" style="max-width: 480px;">
+        <div class="modal-premium-header">
+            <h3>
+                <span class="material-icons" style="color: #f59e0b; font-size: 22px;">category</span> Zmień Typ Materiału
+            </h3>
+            <button onclick="closeMaterialTypeModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <p style="font-size: 13px; color: #475569; margin-top: 0; margin-bottom: 18px; line-height: 1.5;">
+                Wybierz typ materiału opakowania. Wpłynie to na dostępne opcje przy planowaniu produkcji i przyjęciach magazynowych.
+            </p>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Typ materiału:</label>
+                <select id="materialTypeSelect" class="form-control" style="width: 100%; font-size: 15px; font-weight: 700; padding: 12px 14px; border: 2px solid #cbd5e1; border-radius: 12px; color: #0f172a; outline: none; background: #ffffff;">
+                    <option value="Karton">📦 Karton (opakowanie zbiorcze)</option>
+                    <option value="Taśma">📋 Taśma (tasma do pakowania)</option>
+                </select>
+            </div>
+
+            <div id="changeMaterialTypeError" style="color: #dc2626; font-size: 13px; margin-bottom: 14px; display: none; font-weight: 700; padding: 8px 12px; background: #fee2e2; border-radius: 8px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                <button type="button" onclick="closeMaterialTypeModal()" class="btn-print-action preview" style="padding: 10px 18px;">Anuluj</button>
+                <button type="button" onclick="submitMaterialTypeChange()" class="btn-print-action print" style="padding: 10px 24px;">Zapisz</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL: Zmiana rodzaju opakowania (Enlarged & Responsive) -->
 <div id="changePackagingModal" class="modal-premium-overlay" style="display: none; z-index: 2100;">
     <div class="modal-premium-content" style="max-width: 520px;">
@@ -543,6 +582,7 @@
                     <option value="Worek (50kg)">📦 Worek (50kg) [Ciężki worek]</option>
                     <option value="Worek (20kg)">📦 Worek (20kg)</option>
                     <option value="Karton">📦 Karton / Opakowanie zbiorcze</option>
+                    <option value="Taśma">📋 Taśma / Taśma do pakowania</option>
                     <option value="Rolka / Folia">📜 Rolka / Kalka / Folia stretch</option>
                     <option value="Wiadro">🪣 Wiadro plastikowe</option>
                     <option value="Kanister / Beczka">🛢️ Kanister / Beczka</option>

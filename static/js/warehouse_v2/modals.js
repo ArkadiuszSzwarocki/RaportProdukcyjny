@@ -39,6 +39,7 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
                     currentPallet.location = p.location;
                     currentPallet.productName = p.productName;
                     if (p.packaging_type) currentPallet.packaging_type = p.packaging_type;
+                    if (p.raw_packaging_type) currentPallet.raw_packaging_type = p.raw_packaging_type;
 
                     setEl('modalBatch', p.batch);
                     setEl('modalDateProd', p.date_prod);
@@ -78,6 +79,16 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
         returnBtn.style.display = (type === 'Wyrób Gotowy') ? 'flex' : 'none';
     }
     
+    const materialBtn = document.getElementById('changeMaterialTypeBtn');
+    const materialBtnContainer = document.getElementById('materialTypeBtnContainer');
+    
+    if (materialBtn && materialBtnContainer) {
+        // Show material type button only for Opakowanie type
+        const isOpakowanie = type && String(type).trim().toLowerCase() === 'opakowanie';
+        materialBtnContainer.style.display = isOpakowanie ? 'block' : 'none';
+        console.log('[Material Button] Type:', type, 'Is Opakowanie:', isOpakowanie, 'Display:', materialBtnContainer.style.display);
+    }
+    
     const histContainer = document.getElementById('modalHistoryContainer');
     const histList = document.getElementById('modalHistoryList');
     if (histContainer) histContainer.style.display = 'none';
@@ -106,6 +117,117 @@ function closePalletModal() {
         modal.style.display = 'none';
         currentPallet = {};
     }, 200); 
+}
+
+// ─────────────────────────────────────────────────────────────
+// ZMIANA TYPU MATERIAŁU (KARTON / TAŚMA)
+// ─────────────────────────────────────────────────────────────
+function openMaterialTypeModal(palletId, type, linia) {
+    if (!palletId) {
+        console.error('Brak ID palety');
+        return;
+    }
+
+    currentPallet = currentPallet || {};
+    currentPallet.id = palletId;
+    currentPallet.type = type || currentPallet.type;
+    currentPallet.linia = linia || currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
+
+    const select = document.getElementById('materialTypeSelect');
+    if (!select) {
+        console.error('materialTypeSelect element not found!');
+        return;
+    }
+
+    // Set current value from database (raw_packaging_type = typ_opakowania column)
+    console.log('[openMaterialTypeModal] Setting select value to:', currentPallet.raw_packaging_type || 'Karton');
+    select.value = currentPallet.raw_packaging_type || 'Karton';
+
+    const modal = document.getElementById('changeMaterialTypeModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const errorEl = document.getElementById('changeMaterialTypeError');
+        if (errorEl) errorEl.style.display = 'none';
+    }
+}
+
+function closeMaterialTypeModal() {
+    const modal = document.getElementById('changeMaterialTypeModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function submitMaterialTypeChange() {
+    if (!currentPallet || !currentPallet.id) {
+        console.error('currentPallet or id not set');
+        return;
+    }
+
+    const select = document.getElementById('materialTypeSelect');
+    if (!select) {
+        console.error('materialTypeSelect not found');
+        return;
+    }
+
+    const newMaterialType = select.value;
+    const errorEl = document.getElementById('changeMaterialTypeError');
+
+    console.log('[submitMaterialTypeChange] Sending:', {
+        id: currentPallet.id,
+        type: currentPallet.type || 'Opakowanie',
+        material_type: newMaterialType,
+        linia: currentPallet.linia || 'PSD'
+    });
+
+    fetch('/warehouse-v2/api/pallet/update-material-type', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: currentPallet.id,
+            type: currentPallet.type || 'Opakowanie',
+            material_type: newMaterialType,
+            linia: currentPallet.linia || 'PSD'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        console.log('[submitMaterialTypeChange] Response:', data);
+        if (data.success) {
+            if (typeof showToast === 'function') {
+                showToast(data.message || 'Typ materiału zmieniony!', 'success');
+            }
+            currentPallet.material_type = newMaterialType;
+            closeMaterialTypeModal();
+            
+            // Refresh modal if open
+            if (currentPallet.id && currentPallet.type) {
+                console.log('[submitMaterialTypeChange] Refresh modal for ID:', currentPallet.id);
+                const detailsBtn = document.querySelector(`[onclick*="${currentPallet.id}"]`);
+                if (detailsBtn) {
+                    detailsBtn.click();
+                }
+            }
+        } else {
+            if (errorEl) {
+                errorEl.textContent = data.error || data.message || 'Błąd!';
+                errorEl.style.display = 'block';
+            }
+            if (typeof showToast === 'function') {
+                showToast(data.error || data.message || 'Błąd przy zmianie typu', 'error');
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Błąd:', err);
+        if (errorEl) {
+            errorEl.textContent = 'Błąd sieci';
+            errorEl.style.display = 'block';
+        }
+        if (typeof showToast === 'function') {
+            showToast('Błąd sieci', 'error');
+        }
+    });
 }
 
 // ─────────────────────────────────────────────────────────────

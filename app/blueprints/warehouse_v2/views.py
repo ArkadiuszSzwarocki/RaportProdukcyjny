@@ -65,6 +65,13 @@ def classify_packaging_type(product_name: str, type_str: str, amount: float = 0,
     t_str = str(type_str or '').upper()
     pkg_raw = str(raw_pkg or '').upper()
     
+    # PRIORITIZE raw_packaging_type (typ_opakowania) - if it's set to Taśma or Karton, use it
+    if pkg_raw == 'TAŚMA' or pkg_raw == 'TASMA':
+        return 'Taśma (taśma do pakowania)'
+    if pkg_raw == 'KARTON':
+        return 'Karton (opakowanie zbiorcze)'
+    
+    # Otherwise, classify by product name and other hints
     if 'BIG' in pkg_raw or 'BB' in pkg_raw or 'BIG BAG' in p_name or 'BIGBAG' in p_name or ' BB' in p_name or '1000KG' in p_name or '1000 KG' in p_name or 'WAPNO BB' in p_name:
         return 'Big Bag (1000kg)'
     if '25KG' in p_name or '25 KG' in p_name or 'WOREK' in pkg_raw or 'WORKI' in pkg_raw or 'WOREK' in p_name or 'WORK' in p_name:
@@ -122,6 +129,7 @@ def index():
                 row['unit'] = 'kg'
                 row['is_blocked'] = row.get('is_blocked', 0)
                 row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
+                row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                 items.append(row)
         except Exception as e:
             print(f"Error fetching surowce: {e}")
@@ -141,6 +149,7 @@ def index():
                 row['unit'] = 'szt'
                 row['is_blocked'] = row.get('is_blocked', 0)
                 row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
+                row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                 items.append(row)
         except Exception as e:
             print(f"Error fetching opakowania: {e}")
@@ -182,6 +191,7 @@ def index():
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
                     row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
+                    row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
 
                     # Przypisz lokalizację MGW01/MGW02 dla wyrobów gotowych jeśli nie mają
                     if not row['location']:
@@ -205,6 +215,7 @@ def index():
                 row['unit'] = 'kg'
                 row['is_blocked'] = row.get('is_blocked', 0)
                 row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
+                row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                 items.append(row)
         except Exception as e:
             print(f"Error fetching dodatki: {e}")

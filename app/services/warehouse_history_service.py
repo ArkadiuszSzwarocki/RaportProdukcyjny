@@ -70,7 +70,7 @@ class WarehouseHistoryService:
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Filtry dat i tekstu
+            # Date and filter parameters
             date_cond_ph = ""
             date_cond_psd = ""
             date_cond_agro = ""
@@ -111,9 +111,11 @@ class WarehouseHistoryService:
                 stacja_cond_legacy = " AND (r.zbiornik LIKE %s OR r.lokalizacja LIKE %s OR r.komentarz LIKE %s)"
                 stacja_params_legacy = [f"%{stacja}%", f"%{stacja}%", f"%{stacja}%"]
             else:
-                # Domyślny filtr dla stanowisk / ruchów
+                # No station filter - show all movements
                 stacja_cond_ph = ""
-                stacja_cond_legacy = " AND (r.lokalizacja LIKE 'BB%%' OR r.lokalizacja LIKE 'MZ%%' OR r.lokalizacja LIKE 'WZ%%' OR r.lokalizacja LIKE 'KO%%' OR r.lokalizacja LIKE 'ZB%%' OR r.lokalizacja LIKE 'MIX%%' OR r.zbiornik LIKE 'BB%%' OR r.zbiornik LIKE 'MZ%%' OR r.zbiornik LIKE 'WZ%%' OR r.zbiornik LIKE 'KO%%' OR r.zbiornik LIKE 'ZB%%' OR r.zbiornik LIKE 'MIX%%' OR r.komentarz LIKE '%do BB%' OR r.komentarz LIKE '%do MZ%' OR r.komentarz LIKE '%do WZ%' OR r.komentarz LIKE '%do KO%' OR r.komentarz LIKE '%do ZB%' OR r.komentarz LIKE '%do MIX%' OR r.komentarz LIKE '%-> BB%' OR r.komentarz LIKE '%-> MZ%' OR r.komentarz LIKE '%-> WZ%' OR r.komentarz LIKE '%-> KO%' OR r.komentarz LIKE '%-> ZB%' OR r.komentarz LIKE '%-> MIX%')"
+                stacja_params_ph = []
+                stacja_cond_legacy = ""
+                stacja_params_legacy = []
 
             sur_cond_ph = ""
             sur_params_ph = []
@@ -122,19 +124,19 @@ class WarehouseHistoryService:
             if surowiec:
                 sur_pattern = f"%{surowiec}%"
                 sur_cond_ph = """ AND (
+                    ph.nr_palety LIKE %s OR
                     sur.nazwa LIKE %s OR sur.nr_palety LIKE %s OR
-                    opk.nazwa LIKE %s OR opk.nr_palety LIKE %s OR
-                    dod.nazwa LIKE %s OR dod.nr_palety LIKE %s OR
+                    sur_agro.nazwa LIKE %s OR sur_agro.nr_palety LIKE %s OR
                     pal.produkt LIKE %s OR pal.nr_palety LIKE %s OR
                     pal_agro.produkt LIKE %s OR pal_agro.nr_palety LIKE %s OR
                     arch.nazwa LIKE %s OR arch.nr_palety LIKE %s OR
                     ph.komentarz LIKE %s
                 )"""
-                sur_params_ph = [sur_pattern] * 13
+                sur_params_ph = [sur_pattern] * 12
                 sur_cond_legacy = " AND (r.surowiec_nazwa LIKE %s OR pal.nazwa LIKE %s OR pal.nr_palety LIKE %s OR r.komentarz LIKE %s)"
                 sur_params_legacy = [sur_pattern, sur_pattern, sur_pattern, sur_pattern]
 
-            # 1. Pobierz z palety_historia
+            # 1. Fetch from palety_historia using SSCC (nr_palety) first, scoped by domain/table
             query_ph = f"""
                 SELECT 
                     ph.id, 
@@ -147,16 +149,58 @@ class WarehouseHistoryService:
                     ph.komentarz,
                     ph.user_login as autor_login,
                     ph.data_ruchu as created_at,
-                    COALESCE(NULLIF(sur.nazwa, ''), NULLIF(opk.nazwa, ''), NULLIF(dod.nazwa, ''), NULLIF(pal.produkt, ''), NULLIF(pal_agro.produkt, ''), NULLIF(arch.nazwa, ''), '') as surowiec_nazwa,
-                    COALESCE(NULLIF(ph.nr_palety, ''), NULLIF(sur.nr_palety, ''), NULLIF(opk.nr_palety, ''), NULLIF(dod.nr_palety, ''), NULLIF(pal.nr_palety, ''), NULLIF(pal_agro.nr_palety, ''), NULLIF(arch.nr_palety, ''), '') as nr_palety,
-                    COALESCE(sur.stan_magazynowy, opk.stan_magazynowy, dod.stan_magazynowy, pal.waga_netto, pal_agro.waga_netto, arch.waga_ostatnia, 0) as waga_ref
+                    ph.nr_palety as ph_nr_palety,
+                    COALESCE(
+                        NULLIF(pal_agro.produkt, ''),
+                        NULLIF(pal.produkt, ''),
+                        NULLIF(sur_agro.nazwa, ''),
+                        NULLIF(sur.nazwa, ''),
+                        NULLIF(opk.nazwa, ''),
+                        NULLIF(dod.nazwa, ''),
+                        NULLIF(arch.nazwa, ''),
+                        ''
+                    ) as surowiec_nazwa,
+                    COALESCE(
+                        NULLIF(ph.nr_palety, ''),
+                        NULLIF(pal_agro.nr_palety, ''),
+                        NULLIF(pal.nr_palety, ''),
+                        NULLIF(sur_agro.nr_palety, ''),
+                        NULLIF(sur.nr_palety, ''),
+                        NULLIF(opk.nr_palety, ''),
+                        NULLIF(dod.nr_palety, ''),
+                        NULLIF(arch.nr_palety, ''),
+                        ''
+                    ) as nr_palety,
+                    COALESCE(pal_agro.waga_netto, pal.waga_netto, sur_agro.stan_magazynowy, sur.stan_magazynowy, arch.waga_ostatnia, 0) as waga_ref
                 FROM palety_historia ph
-                LEFT JOIN magazyn_surowce sur ON ph.paleta_id = sur.id
-                LEFT JOIN magazyn_opakowania opk ON ph.paleta_id = opk.id
-                LEFT JOIN magazyn_dodatki dod ON ph.paleta_id = dod.id
-                LEFT JOIN magazyn_palety pal ON ph.paleta_id = pal.id
-                LEFT JOIN magazyn_palety_agro pal_agro ON ph.paleta_id = pal_agro.id
-                LEFT JOIN magazyn_archiwum arch ON (ph.paleta_id = arch.original_id OR ph.paleta_id = arch.id)
+                LEFT JOIN magazyn_palety_agro pal_agro ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = pal_agro.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = pal_agro.id AND ph.typ_palety IN ('wyrob_gotowy', 'wyrób gotowy', 'paleta') AND ph.linia = 'AGRO')
+                )
+                LEFT JOIN magazyn_palety pal ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = pal.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = pal.id AND ph.typ_palety IN ('wyrob_gotowy', 'wyrób gotowy', 'paleta') AND ph.linia != 'AGRO')
+                )
+                LEFT JOIN magazyn_agro_surowce sur_agro ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = sur_agro.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = sur_agro.id AND ph.typ_palety = 'surowiec' AND ph.linia = 'AGRO')
+                )
+                LEFT JOIN magazyn_surowce sur ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = sur.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = sur.id AND ph.typ_palety = 'surowiec' AND ph.linia != 'AGRO')
+                )
+                LEFT JOIN magazyn_opakowania opk ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = opk.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = opk.id AND ph.typ_palety = 'opakowanie')
+                )
+                LEFT JOIN magazyn_dodatki dod ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = dod.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND ph.paleta_id = dod.id AND ph.typ_palety = 'dodatek')
+                )
+                LEFT JOIN magazyn_archiwum arch ON (
+                    (ph.nr_palety IS NOT NULL AND ph.nr_palety != '' AND ph.nr_palety = arch.nr_palety)
+                    OR (ph.paleta_id IS NOT NULL AND (ph.paleta_id = arch.original_id OR ph.paleta_id = arch.id))
+                )
                 WHERE 1=1
                   {line_cond_ph}
                   {date_cond_ph}
@@ -167,7 +211,7 @@ class WarehouseHistoryService:
             cursor.execute(query_ph, tuple(line_params_ph + date_params_ph + stacja_params_ph + sur_params_ph))
             rows_ph = cursor.fetchall()
 
-            # 2. Pobierz z legacy magazyn_ruch (PSD)
+            # 2. Fetch from legacy magazyn_ruch (PSD)
             rows_psd = []
             if linia in ('ALL', 'PSD'):
                 query_psd = f"""
@@ -187,7 +231,7 @@ class WarehouseHistoryService:
                         ABS(COALESCE(r.ilosc, r.ilosc_po, 0)) as waga_ref
                     FROM magazyn_ruch r
                     LEFT JOIN magazyn_surowce pal ON r.surowiec_id = pal.id
-                    WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA')
+                    WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA', 'WYDANIE_PRODUKCJA')
                       {stacja_cond_legacy}
                       {date_cond_psd}
                       {sur_cond_legacy}
@@ -196,7 +240,7 @@ class WarehouseHistoryService:
                 cursor.execute(query_psd, tuple(stacja_params_legacy + date_params_psd + sur_params_legacy))
                 rows_psd = cursor.fetchall()
 
-            # 3. Pobierz z legacy magazyn_agro_ruch (AGRO)
+            # 3. Fetch from legacy magazyn_agro_ruch (AGRO)
             rows_agro = []
             if linia in ('ALL', 'AGRO'):
                 query_agro = f"""
@@ -215,8 +259,8 @@ class WarehouseHistoryService:
                         COALESCE(pal.nr_palety, '') as nr_palety,
                         ABS(COALESCE(r.ilosc, r.ilosc_po, 0)) as waga_ref
                     FROM magazyn_agro_ruch r
-                    LEFT JOIN magazyn_surowce pal ON r.surowiec_id = pal.id
-                    WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA')
+                    LEFT JOIN magazyn_agro_surowce pal ON r.surowiec_id = pal.id
+                    WHERE r.typ_ruchu IN ('PRODUKCJA', 'PRZESUNIECIE', 'dosypka', 'bufor_zasyp', 'cleaning', 'PRZYJECIE', 'WYDANIE_PRZESUNIECIE', 'KOREKTA', 'INWENTARYZACJA', 'WYDANIE_PRODUKCJA')
                       {stacja_cond_legacy}
                       {date_cond_agro}
                       {sur_cond_legacy}
@@ -227,7 +271,7 @@ class WarehouseHistoryService:
 
             all_rows = rows_ph + rows_psd + rows_agro
 
-            # Sortowanie po dacie i deduplikacja
+            # Parse date helper
             def parse_dt(r):
                 dt = r.get('created_at')
                 if isinstance(dt, datetime):
@@ -244,24 +288,38 @@ class WarehouseHistoryService:
             for r in all_rows:
                 dt = parse_dt(r)
                 dt_key = dt.strftime('%Y-%m-%d %H:%M') if dt != datetime.min else '-'
-                key = f"{dt_key}_{r.get('paleta_id')}_{r.get('typ_ruchu')}_{r.get('lokalizacja_docelowa')}_{r.get('autor_login')}"
+                key = f"{dt_key}_{r.get('paleta_id')}_{r.get('nr_palety')}_{r.get('typ_ruchu')}_{r.get('lokalizacja_docelowa')}_{r.get('autor_login')}"
                 if key in seen:
                     continue
                 seen.add(key)
 
                 stacja_val = r.get('lokalizacja_docelowa') or r.get('lokalizacja_zrodlowa') or '-'
-                nazwa_val = r.get('surowiec_nazwa') or '-'
+                nazwa_val = r.get('surowiec_nazwa') or ''
                 koment = str(r.get('komentarz') or '')
 
-                if not nazwa_val or nazwa_val == '-':
-                    if ':' in koment:
-                        nazwa_val = koment.split(':')[1].split('->')[0].split(',')[0].strip()
-                
-                # Wyciągnij ilość z komentarza lub waga_ref
+                # Extract SSCC from comment if missing
+                nr_p_val = r.get('nr_palety') or ''
+                if not nr_p_val or nr_p_val == '-':
+                    if koment:
+                        import re
+                        m_sscc = re.search(r'\b(SUR\d{8,20}|AGR\d{8,20}|PSD\d{8,20}|\d{18,20})\b', koment)
+                        if m_sscc:
+                            nr_p_val = m_sscc.group(1)
+
+                # Extract product name from comment when missing or generic
+                if not nazwa_val or nazwa_val == '-' or nazwa_val.lower() in ('surowiec', 'produkt nieznany'):
+                    if koment:
+                        import re
+                        m_prod = re.search(r'(?:paletę|paleta|surowiec|surowca|produkt):\s*([^,;->]+)', koment, re.IGNORECASE)
+                        if m_prod:
+                            nazwa_val = m_prod.group(1).strip()
+                        elif ':' in koment:
+                            nazwa_val = koment.split(':')[1].split('->')[0].split(',')[0].strip()
+
+                # Extract quantity from comment or fallback to waga_ref
                 ilosc_val = float(r.get('waga_ref') or 0.0)
                 if koment:
                     import re
-                    # Szukanie wag w różnych wzorcach
                     m_kw = re.search(r'(?:ilość|ilosc|waga ost\.?|waga|stan|przeniesiono|odjęto|odjeto):\s*([\d\.]+)', koment, re.IGNORECASE)
                     if m_kw:
                         try: ilosc_val = float(m_kw.group(1))
@@ -277,13 +335,16 @@ class WarehouseHistoryService:
                                 try: ilosc_val = float(m_kg.group(1))
                                 except Exception: pass
 
-                nr_p_val = r.get('nr_palety') or ''
-                if not nr_p_val or nr_p_val == '-':
-                    if koment:
-                        import re
-                        m_sscc = re.search(r'\b(SUR\d{15,20}|AGR\d{15,20}|PSD\d{15,20}|\d{18,20})\b', koment)
-                        if m_sscc:
-                            nr_p_val = m_sscc.group(1)
+                # Determine station name from comment if station column is empty or generic
+                if stacja_val == '-' and koment:
+                    import re
+                    m_st = re.search(r'\b(BB\d+|MZ\d+|WZ\d+|KO\d+|ZB\d+|MIX\d*|MGW\d*|Workowanie\s+\w+)\b', koment, re.IGNORECASE)
+                    if m_st:
+                        stacja_val = m_st.group(1).upper()
+
+                # Better station / location description
+                if r.get('lokalizacja_zrodlowa') and r.get('lokalizacja_docelowa') and r.get('lokalizacja_zrodlowa') != r.get('lokalizacja_docelowa'):
+                    stacja_val = f"{r.get('lokalizacja_zrodlowa')} -> {r.get('lokalizacja_docelowa')}"
 
                 deduped.append({
                     'id': r['id'],
@@ -298,7 +359,60 @@ class WarehouseHistoryService:
                     'komentarz': koment or '-'
                 })
 
-            return deduped[:limit]
+            result_slice = deduped[:limit]
+
+            # Batch lookup for any unresolved SSCC codes to ensure 100% correct product names
+            missing_ssccs = [x['nr_palety'] for x in result_slice if x['nr_palety'] and x['nr_palety'] != '-' and (not x['nazwa'] or x['nazwa'] == '-' or x['nazwa'].lower() in ('surowiec', 'produkt nieznany'))]
+            if missing_ssccs:
+                sscc_product_map = {}
+                placeholders = ', '.join(['%s'] * len(missing_ssccs))
+                # 1. Check magazyn_palety_agro
+                try:
+                    cursor.execute(f"SELECT nr_palety, produkt as nazwa, waga_netto as waga FROM magazyn_palety_agro WHERE nr_palety IN ({placeholders})", tuple(missing_ssccs))
+                    for m_row in cursor.fetchall():
+                        sscc_product_map[m_row['nr_palety']] = (m_row['nazwa'], float(m_row.get('waga') or 0.0))
+                except Exception: pass
+                # 2. Check magazyn_palety
+                rem = [s for s in missing_ssccs if s not in sscc_product_map]
+                if rem:
+                    try:
+                        cursor.execute(f"SELECT nr_palety, produkt as nazwa, waga_netto as waga FROM magazyn_palety WHERE nr_palety IN ({placeholders[:len(rem)*4-2]})", tuple(rem))
+                        for m_row in cursor.fetchall():
+                            sscc_product_map[m_row['nr_palety']] = (m_row['nazwa'], float(m_row.get('waga') or 0.0))
+                    except Exception: pass
+                # 3. Check magazyn_agro_surowce
+                rem = [s for s in missing_ssccs if s not in sscc_product_map]
+                if rem:
+                    try:
+                        cursor.execute(f"SELECT nr_palety, nazwa, stan_magazynowy as waga FROM magazyn_agro_surowce WHERE nr_palety IN ({placeholders[:len(rem)*4-2]})", tuple(rem))
+                        for m_row in cursor.fetchall():
+                            sscc_product_map[m_row['nr_palety']] = (m_row['nazwa'], float(m_row.get('waga') or 0.0))
+                    except Exception: pass
+                # 4. Check magazyn_surowce
+                rem = [s for s in missing_ssccs if s not in sscc_product_map]
+                if rem:
+                    try:
+                        cursor.execute(f"SELECT nr_palety, nazwa, stan_magazynowy as waga FROM magazyn_surowce WHERE nr_palety IN ({placeholders[:len(rem)*4-2]})", tuple(rem))
+                        for m_row in cursor.fetchall():
+                            sscc_product_map[m_row['nr_palety']] = (m_row['nazwa'], float(m_row.get('waga') or 0.0))
+                    except Exception: pass
+                # 5. Check magazyn_archiwum
+                rem = [s for s in missing_ssccs if s not in sscc_product_map]
+                if rem:
+                    try:
+                        cursor.execute(f"SELECT nr_palety, nazwa, waga_ostatnia as waga FROM magazyn_archiwum WHERE nr_palety IN ({placeholders[:len(rem)*4-2]})", tuple(rem))
+                        for m_row in cursor.fetchall():
+                            sscc_product_map[m_row['nr_palety']] = (m_row['nazwa'], float(m_row.get('waga') or 0.0))
+                    except Exception: pass
+
+                # Apply found names
+                for item in result_slice:
+                    if item['nr_palety'] in sscc_product_map:
+                        item['nazwa'] = sscc_product_map[item['nr_palety']][0]
+                        if item['ilosc'] == 0.0 and sscc_product_map[item['nr_palety']][1] > 0:
+                            item['ilosc'] = sscc_product_map[item['nr_palety']][1]
+
+            return result_slice
         except Exception as e:
             print(f"[WarehouseHistoryService] Błąd pobierania historii: {e}")
             return []

@@ -126,9 +126,11 @@ def register_planista_bulk_routes(planista_bp):
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
-                SELECT id, nazwa, stan_magazynowy 
+                SELECT id, nazwa, typ_opakowania, stan_magazynowy 
                 FROM magazyn_opakowania 
-                ORDER BY CASE WHEN stan_magazynowy > 0 THEN 0 ELSE 1 END, id DESC
+                WHERE stan_magazynowy > 0 
+                AND nazwa NOT LIKE '%Etykieta%'
+                ORDER BY typ_opakowania, id DESC
             """)
             raw_opakowania = cursor.fetchall()
             seen_names = set()
@@ -138,7 +140,11 @@ def register_planista_bulk_routes(planista_bp):
                 name_key = name_clean.lower()
                 if name_key and name_key not in seen_names:
                     seen_names.add(name_key)
-                    opakowania.append({'id': o['id'], 'nazwa': name_clean})
+                    opakowania.append({
+                        'id': o['id'], 
+                        'nazwa': name_clean,
+                        'typ_opakowania': o.get('typ_opakowania') or 'Karton'
+                    })
             cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
             etykiety = cursor.fetchall()
         except Exception as e:

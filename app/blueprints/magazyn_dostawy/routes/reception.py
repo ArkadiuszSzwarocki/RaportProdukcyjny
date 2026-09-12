@@ -50,7 +50,7 @@ def reception_edit(dostawa_id=None):
         for query, p in [
             ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
             (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
-            (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
+            (f"SELECT DISTINCT nazwa, typ_opakowania FROM {table_opk} WHERE stan_magazynowy > 0", ()),
             ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
         ]:
             try:

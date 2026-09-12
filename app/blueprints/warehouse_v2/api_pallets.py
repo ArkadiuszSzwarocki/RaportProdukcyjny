@@ -89,7 +89,7 @@ def get_pallet_details():
             'type': t_type,
             'is_blocked': row.get('is_blocked', 0),
             'packaging_type': pkg_formatted,
-            'raw_packaging_type': row.get('typ_opakowania') or ''
+            'raw_packaging_type': row.get('typ_opakowania') or 'Karton'
         }
         return jsonify({'success': True, 'pallet': details})
     except Exception as e:
@@ -111,6 +111,52 @@ def update_packaging():
         
     success, msg = WarehouseV2Service.update_packaging_type(pallet_id, pallet_type, new_packaging, worker, linia)
     return jsonify({'success': success, 'message': msg})
+
+@warehouse_v2_bp.route('/api/pallet/update-material-type', methods=['POST'])
+def update_material_type():
+    data = request.get_json() or {}
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    new_material_type = data.get('material_type')  # 'Karton' lub 'Taśma'
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    # DEBUG LOGGING
+    import sys
+    print(f"[UPDATE-MATERIAL-TYPE] ID={pallet_id}, Type={pallet_type}, NewMaterial={new_material_type}, Linia={linia}, Worker={worker}", file=sys.stderr)
+    
+    if not all([pallet_id, pallet_type, new_material_type]):
+        return jsonify({'success': False, 'error': 'Brak parametrów (id, type, material_type)'}), 400
+    
+    # Material type only for Opakowanie and Surowiec
+    if pallet_type not in ('Opakowanie', 'Surowiec'):
+        return jsonify({'success': False, 'error': 'Zmiana typu materiału dostępna tylko dla opakowań i surowców'}), 400
+    
+    success, msg = WarehouseV2Service.update_material_type(pallet_id, pallet_type, new_material_type, worker, linia)
+    print(f"[UPDATE-MATERIAL-TYPE] Result: success={success}, msg={msg}", file=sys.stderr)
+    return jsonify({'success': success, 'message': msg})
+
+@warehouse_v2_bp.route('/api/pallet/bulk-update-material-type', methods=['POST'])
+def bulk_update_material_type():
+    """Bulk update typu materiału dla wielu opakowań naraz."""
+    data = request.get_json() or {}
+    pallet_ids = data.get('ids', [])  # Lista ID
+    new_material_type = data.get('material_type')  # 'Karton' lub 'Taśma'
+    pallet_type = data.get('type', 'Opakowanie')
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    if not pallet_ids or not new_material_type:
+        return jsonify({'success': False, 'error': 'Brak parametrów (ids, material_type)'}), 400
+    
+    if new_material_type not in ('Karton', 'Taśma'):
+        return jsonify({'success': False, 'error': 'Błędny typ materiału. Wybierz Karton lub Taśma'}), 400
+    
+    if pallet_type not in ('Opakowanie', 'Surowiec'):
+        return jsonify({'success': False, 'error': 'Zmiana typu materiału dostępna tylko dla opakowań i surowców'}), 400
+    
+    success, msg, count = WarehouseV2Service.bulk_update_material_type(pallet_ids, pallet_type, new_material_type, worker, linia)
+    return jsonify({'success': success, 'message': msg, 'updated_count': count})
 
 
 @warehouse_v2_bp.route('/api/pallet/move', methods=['POST'])

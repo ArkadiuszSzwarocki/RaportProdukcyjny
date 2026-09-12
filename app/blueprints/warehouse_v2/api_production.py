@@ -69,6 +69,10 @@ def get_station_history():
     data_do = request.args.get('dataDo')
     surowiec = request.args.get('surowiec')
     stacja = request.args.get('stacja')
+    try:
+        limit = min(max(int(request.args.get('limit', 150)), 10), 1000)
+    except (ValueError, TypeError):
+        limit = 150
     
     data = WarehouseHistoryService.get_unified_station_and_movement_history(
         linia=linia,
@@ -76,7 +80,7 @@ def get_station_history():
         data_do=data_do,
         surowiec=surowiec,
         stacja=stacja,
-        limit=500
+        limit=limit
     )
     return jsonify({'success': True, 'data': data})
 
