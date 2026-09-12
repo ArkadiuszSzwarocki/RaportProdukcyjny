@@ -96,15 +96,17 @@ class WarehousePalletService:
             reserved_row = WarehousePalletRepository.find_reserved_pallet(plan_id, linia, lock_for_update=True, conn=conn)
     
             nr_palety_czyszczenie = None
-            if plan_produkt and 'czyszczenie' in plan_produkt.lower():
+            is_czyszczenie = (plan_sekcja == 'Czyszczenie' or (plan_produkt and ('czyszczenie' in plan_produkt.lower() or 'maka mix do lnu' in plan_produkt.lower() or 'mąka mix do lnu' in plan_produkt.lower())))
+            if is_czyszczenie:
                 nr_palety_czyszczenie = WarehousePalletRepository.find_cleaning_sscc(plan_id, plan_zasyp_id, linia, conn=conn)
-    
+
+            pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
+
             if reserved_row:
                 paleta_id = reserved_row.get('id')
-                if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
-                    nr_palety = nr_palety_czyszczenie
-                else:
-                    nr_palety = reserved_row.get('nr_palety') or generate_pallet_id(linia)
+                nr_palety = reserved_row.get('nr_palety')
+                if not nr_palety or (is_czyszczenie and (nr_palety == nr_palety_czyszczenie or not nr_palety.startswith('SUR'))):
+                    nr_palety = generate_pallet_id(linia, pallet_type)
                 
                 WarehousePalletRepository.update_reserved_pallet(
                     pallet_id=paleta_id,
@@ -117,10 +119,7 @@ class WarehousePalletService:
                     conn=conn
                 )
             else:
-                if plan_produkt and 'czyszczenie' in plan_produkt.lower() and nr_palety_czyszczenie:
-                    nr_palety = nr_palety_czyszczenie
-                else:
-                    nr_palety = generate_pallet_id(linia)
+                nr_palety = generate_pallet_id(linia, pallet_type)
                 
                 paleta_id = WarehousePalletRepository.insert_new_pallet(
                     plan_id=plan_id,
@@ -136,18 +135,47 @@ class WarehousePalletService:
             # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
             try:
                 if paleta_id:
-                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
-                    res_lp = cursor.fetchone()
-                    nr_palety_lp = int(res_lp[0]) if res_lp else 1
-                    try:
-                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
-                        col = cursor.fetchone()
-                        if col:
+                    cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                    col = cursor.fetchone()
+                    if col:
+                        cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
+                        cur_lp = cursor.fetchone()
+                        cur_lp_val = None
+                        if cur_lp and cur_lp[0] is not None:
+                            try:
+                                cur_lp_val = int(cur_lp[0])
+                            except (ValueError, TypeError):
+                                cur_lp_val = None
+
+                        if cur_lp_val is not None and cur_lp_val > 0:
+                            nr_palety_lp = cur_lp_val
+                        else:
+                            cursor.execute(
+                                f"SELECT COALESCE(MAX(nr_palety_lp), 0) FROM {table_pal} WHERE plan_id = %s AND id != %s",
+                                (plan_id, paleta_id),
+                            )
+                            max_res = cursor.fetchone()
+                            max_lp = 0
+                            if max_res and max_res[0] is not None:
+                                try:
+                                    max_lp = int(max_res[0])
+                                except (ValueError, TypeError):
+                                    max_lp = 0
+
+                            if max_lp == 0:
+                                cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                                res_lp = cursor.fetchone()
+                                try:
+                                    nr_palety_lp = int(res_lp[0]) if (res_lp and res_lp[0]) else 1
+                                except (ValueError, TypeError):
+                                    nr_palety_lp = 1
+                            else:
+                                nr_palety_lp = max_lp + 1
                             cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            except Exception as lp_err:
+                current_app.logger.warning("Failed to compute nr_palety_lp: %s", lp_err)
+
+
     
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",
@@ -185,9 +213,12 @@ class WarehousePalletService:
                     external_conn=conn
                 )
     
+                hist_comment = f"Utworzono paletę: {nazwa_do_historii}, waga: {waga_input} kg"
+                if is_original_czyszczenie and nr_palety_czyszczenie:
+                    hist_comment += f" (Paleta matka: {nr_palety_czyszczenie})"
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s)",
-                    (paleta_id, linia, f"Utworzono paletę: {nazwa_do_historii}, waga: {waga_input} kg", user_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s)",
+                    (paleta_id, nr_palety, linia, hist_comment, user_login)
                 )
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
@@ -578,7 +609,27 @@ class WarehousePalletService:
                             from datetime import datetime
                             from app.utils.pallet_label import lookup_raw_material_details_by_sscc, _format_date
 
-                            orig_meta = lookup_raw_material_details_by_sscc(cursor, nr_palety)
+                            # Get mother pallet SSCC from plan
+                            mother_sscc = None
+                            try:
+                                cursor.execute(
+                                    f"SELECT skan_sscc FROM {table_plan} WHERE (id = %s OR id = (SELECT COALESCE(zasyp_id, -1) FROM {table_plan} WHERE id = %s)) AND skan_sscc IS NOT NULL AND TRIM(skan_sscc) <> '' LIMIT 1",
+                                    (plan_id, plan_id)
+                                )
+                                sscc_row = cursor.fetchone()
+                                if sscc_row and sscc_row[0]:
+                                    mother_sscc = str(sscc_row[0]).strip()
+                            except Exception as sscc_err:
+                                current_app.logger.warning('Failed to find mother skan_sscc for plan %s: %s', plan_id, sscc_err)
+
+                            # Output raw material (Mąka mix do Lnu) MUST have its own unique SSCC, NEVER the mother pallet SSCC!
+                            child_sscc = nr_palety
+                            if not child_sscc or child_sscc == mother_sscc:
+                                child_sscc = generate_pallet_id(linia, 'surowiec')
+                                cursor.execute(f"UPDATE {table_pal} SET nr_palety=%s WHERE id=%s", (child_sscc, paleta_id))
+                                nr_palety = child_sscc
+
+                            orig_meta = lookup_raw_material_details_by_sscc(cursor, mother_sscc or nr_palety)
                             orig_partia = str(orig_meta.get('nr_partii') or request.form.get('nr_partii') or '').strip()
                             orig_data_prod = _format_date(orig_meta.get('data_produkcji')) or data_produkcji
                             orig_data_przyd = _format_date(orig_meta.get('data_przydatnosci')) or request.form.get('data_przydatnosci') or ''
@@ -597,7 +648,7 @@ class WarehousePalletService:
                                 "unit": "kg",
                                 "confirmed": False,
                                 "nr_palety": nr_palety,
-                                "sourcePalletNo": nr_palety,
+                                "sourcePalletNo": mother_sscc or nr_palety,
                                 "nr_partii": orig_partia,
                                 "data_produkcji": orig_data_prod,
                                 "data_przydatnosci": orig_data_przyd
@@ -615,18 +666,81 @@ class WarehousePalletService:
                                 # Update status to przeklasyfikowana
                                 cursor.execute(f"UPDATE {table_pal} SET status='przeklasyfikowana' WHERE id=%s", (paleta_id,))
                                 
+                                # Copy history from mother pallet into palety_historia for new pallet
+                                if mother_sscc:
+                                    try:
+                                        cursor.execute("""
+                                            SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu
+                                            FROM palety_historia
+                                            WHERE (nr_palety IS NOT NULL AND nr_palety = %s)
+                                            ORDER BY data_ruchu ASC, id ASC
+                                        """, (mother_sscc,))
+                                        mother_history = cursor.fetchall() or []
+                                        for h in mother_history:
+                                            h_linia = (h.get('linia') if isinstance(h, dict) else h[0]) or linia
+                                            h_typ = (h.get('typ_palety') if isinstance(h, dict) else h[1]) or 'surowiec'
+                                            h_akcja = (h.get('akcja') if isinstance(h, dict) else h[2])
+                                            h_zrodlo = (h.get('lokalizacja_zrodlowa') if isinstance(h, dict) else h[3])
+                                            h_cel = (h.get('lokalizacja_docelowa') if isinstance(h, dict) else h[4])
+                                            h_kom = (h.get('komentarz') if isinstance(h, dict) else h[5])
+                                            h_user = (h.get('user_login') if isinstance(h, dict) else h[6])
+                                            h_data = (h.get('data_ruchu') if isinstance(h, dict) else h[7]) or datetime.now()
+                                            cursor.execute("""
+                                                INSERT INTO palety_historia
+                                                (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                            """, (
+                                                paleta_id, nr_palety, h_linia, h_typ, h_akcja,
+                                                h_zrodlo, h_cel, h_kom, h_user, h_data
+                                            ))
+                                    except Exception as hist_copy_err:
+                                        current_app.logger.warning('Failed to copy mother pallet history for %s: %s', nr_palety, hist_copy_err)
+
+                                reclass_comment = f"Przeklasyfikowano na surowiec: {item_name} z palety matki {mother_sscc}. Oczekuje w dostawach" if mother_sscc else f"Przeklasyfikowano na surowiec: {item_name}. Oczekuje w dostawach"
                                 cursor.execute(
-                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'PRZEKLASYFIKOWANIE', %s, %s, %s)",
-                                    (paleta_id, linia, lokalizacja, f"Przeklasyfikowano na surowiec: {item_name}, Oczekuje w dostawach", user_login)
+                                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'surowiec', 'PRZEKLASYFIKOWANIE', %s, %s, %s)",
+                                    (paleta_id, nr_palety, linia, lokalizacja, reclass_comment, user_login)
                                 )
+
+                                if mother_sscc:
+                                    try:
+                                        cursor.execute(
+                                            "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'PRZEKLASYFIKOWANIE_POTOMNA', %s, %s)",
+                                            (mother_sscc, linia, f"Wykorzystano do czyszczenia w zleceniu #{plan_id}. Nowa paleta potomna: {nr_palety} ({item_name}, {final_amount} kg)", user_login)
+                                        )
+                                    except Exception as m_log_err:
+                                        current_app.logger.warning('Failed to log child link on mother pallet %s: %s', mother_sscc, m_log_err)
                             except Exception as e:
                                 current_app.logger.error('Database error for Czyszczenie dostawa: %s', e)
                         else:
                             try:
-                                cursor.execute(
-                                    f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                    (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
-                                )
+                                pw_lp_val = None
+                                try:
+                                    cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                                    if cursor.fetchone():
+                                        cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
+                                        pw_lp_row = cursor.fetchone()
+                                        pw_lp_val = pw_lp_row[0] if pw_lp_row else None
+                                except Exception:
+                                    pw_lp_val = None
+
+                                has_mag_lp = False
+                                try:
+                                    cursor.execute(f"SHOW COLUMNS FROM {table_mag} LIKE 'nr_palety_lp'")
+                                    has_mag_lp = bool(cursor.fetchone())
+                                except Exception:
+                                    has_mag_lp = False
+
+                                if has_mag_lp:
+                                    cursor.execute(
+                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, nr_palety_lp) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, pw_lp_val),
+                                    )
+                                else:
+                                    cursor.execute(
+                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
+                                    )
                                 mag_id = cursor.lastrowid
                                 
                                 # Log to palety_historia
@@ -636,6 +750,7 @@ class WarehousePalletService:
                                 )
                             except mysql.connector.Error as e:
                                 current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
+
     
                         if cursor.rowcount > 0:
                             current_app.logger.info(

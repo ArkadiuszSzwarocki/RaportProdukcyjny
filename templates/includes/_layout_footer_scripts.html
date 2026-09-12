@@ -1281,6 +1281,11 @@
                 if (currentSum !== sessionStateSum) {
                     sessionStateSum = currentSum;
                     
+                    // Nie odświeżaj widoków 3D / telemetrii maszyn
+                    if (window.location.pathname.startsWith('/maszyny') || document.getElementById('telemetryAppRoot') || document.querySelector('[data-no-autorefresh]')) {
+                        return;
+                    }
+
                     // Ciche odświeżenie (tylko na stronach które to obsługują, np. dashboard)
                     if (typeof window.performPartialReload === 'function') {
                         window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });

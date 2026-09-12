@@ -5114,7 +5114,7 @@ input:checked + .slider:before { transform: translateX(20px); }
         updateMqttProcessFlowStepper(broker, bagger, machines.checkweigher || {}, palletizer, wrapper);
 
         // 6. ERROR LOGS & MQTT MESSAGES
-        renderErrors(data.error_logs || []);
+        renderErrors(data.recent_errors || data.error_logs || []);
         renderLogs(data.recent_messages || []);
     }
 
@@ -5638,7 +5638,10 @@ input:checked + .slider:before { transform: translateX(20px); }
     setTimeout(init3dScene, 100);
     setTimeout(initWrapper3dScene, 150);
     fetchTelemetry();
-    setInterval(fetchTelemetry, 1000);
+    if (window.__maszynyTelemetryInterval) {
+        clearInterval(window.__maszynyTelemetryInterval);
+    }
+    window.__maszynyTelemetryInterval = setInterval(fetchTelemetry, 1000);
 })();
 </script>
 {% endblock %}

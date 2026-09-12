@@ -715,8 +715,8 @@ class ScannerService:
         if results:
             return results
 
-        # Nowa obsługa dla stacji zasypowych - zwraca listę
-        if not is_sscc_flag and location_code.startswith(('OS', 'BB', 'MZ', 'KO', 'PSD', 'MIX', 'BF_')):
+        # Nowa obsługa dla stacji zasypowych i maszyn (np. LP01) - zwraca listę
+        if not is_sscc_flag and (location_code.startswith(('OS', 'BB', 'MZ', 'KO', 'PSD', 'MIX', 'BF_', 'LP')) or location_code == 'MASZYNA'):
             conn = get_db_connection()
             try:
                 cur = conn.cursor(dictionary=True)
@@ -1199,7 +1199,7 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
@@ -1208,6 +1208,13 @@ class ScannerService:
 
             if pallet.get('is_blocked') or str(pallet.get('lokalizacja') or '').upper().startswith('OCZEK'):
                 return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Nie można jej wydać na produkcję dopóki nie zostanie przyjęta na magazyn docelowy!", None
+
+            from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+            pallet_sscc = str(pallet.get('nr_palety') or '').strip()
+            if not pallet_sscc or not is_valid_pallet_id(pallet_sscc):
+                pallet_sscc = generate_pallet_id(linia, pallet_type)
+                cur.execute(f"UPDATE {table_surowce} SET nr_palety = %s WHERE id = %s", (pallet_sscc, surowiec_id))
+                pallet['nr_palety'] = pallet_sscc
 
             stan = float(pallet['stan_magazynowy'] or 0)
             if ilosc > stan:
@@ -1275,10 +1282,10 @@ class ScannerService:
             # Zapisz także do palety_historia
             try:
                 cur.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
-                    "VALUES (%s, %s, %s, 'WYDANIE_PRODUKCJA', %s, %s, %s, %s)",
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
+                    "VALUES (%s, %s, %s, %s, 'WYDANIE_PRODUKCJA', %s, %s, %s, %s)",
                     (
-                        surowiec_id, linia, pallet_type.lower(),
+                        surowiec_id, pallet_sscc, linia, pallet_type.lower(),
                         lokalizacja_zrodlowa or 'Magazyn', zbiornik_val,
                         f"Wydanie do stacji {zbiornik_val} (ilość: {ilosc:.1f} kg)",
                         worker_login
@@ -1295,7 +1302,7 @@ class ScannerService:
                 'ilosc_pobrana': ilosc,
                 'zbiornik': zbiornik_val,
                 'pallet_name': pallet['nazwa'],
-                'nr_palety': pallet.get('nr_palety') or f"{pallet_type[:3].upper()}-{surowiec_id}",
+                'nr_palety': pallet_sscc,
                 'lokalizacja_zrodlowa': lokalizacja_zrodlowa,
                 'id': surowiec_id
             }
@@ -1549,7 +1556,11 @@ class ScannerService:
 
     @staticmethod
     def _build_label_dict(cur, row: dict, linia: str, prefix: str, typ_name: str, is_fg: bool) -> dict:
-        nr_palety = (row.get('nr_palety') or '').strip() or f"{prefix}-{row['id']}"
+        from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+        nr_palety = (row.get('nr_palety') or '').strip()
+        if not nr_palety or not is_valid_pallet_id(nr_palety):
+            nr_palety = generate_pallet_id(linia, typ_name.lower())
+            row['nr_palety'] = nr_palety
         qty = float(row.get('stan_magazynowy') or 0)
         
         # Jeśli surowiec jest na stacji produkcyjnej, sprawdź aktualny stan ze stacji

@@ -47,6 +47,11 @@
             style="color: #0284c7; font-weight: 700;">
             🤖 Maszyny & Telemetria 3D
         </a>
+        <a href="{{ url_for('agro_warehouse.lp01_view', linia='AGRO') }}"
+            class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}"
+            style="color: #0d9488; font-weight: 700;">
+            📦 Maszyna LP01 (Materiały)
+        </a>
         <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
             class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
             ⚠️ Przestoje AGRO

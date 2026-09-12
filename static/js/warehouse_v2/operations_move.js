@@ -34,9 +34,41 @@ function promptMoveLocation() {
 
     const input = document.getElementById('newLocationInput');
     const errEl = document.getElementById('moveLocationError');
+    const amtInput = document.getElementById('moveAmountInput');
+    const currentQtyText = document.getElementById('moveCurrentQtyText');
+    const splitNotice = document.getElementById('moveSplitNotice');
+    const splitNoticeText = document.getElementById('moveSplitNoticeText');
+
+    const totalQty = parseFloat(currentPallet.amount || 0);
+
     if(input) {
         input.value = ''; // okno ma być puste
         if(errEl) errEl.style.display = 'none';
+    }
+
+    if(currentQtyText) {
+        currentQtyText.textContent = totalQty.toFixed(2);
+    }
+
+    const updateSplitNotice = () => {
+        if(!amtInput || !splitNotice) return;
+        const val = parseFloat(amtInput.value);
+        if(!isNaN(val) && val > 0 && val < totalQty) {
+            const remaining = (totalQty - val).toFixed(2);
+            if(splitNoticeText) {
+                splitNoticeText.textContent = `Częściowe przesunięcie (podział): ${val.toFixed(2)} kg zostanie przeniesione na nową paletę z nowym kodem SSCC i pełną historią matki. Na obecnej palecie pozostanie ${remaining} kg.`;
+            }
+            splitNotice.style.display = 'block';
+        } else {
+            splitNotice.style.display = 'none';
+        }
+    };
+
+    if(amtInput) {
+        amtInput.value = totalQty > 0 ? totalQty : '';
+        amtInput.max = totalQty;
+        amtInput.oninput = updateSplitNotice;
+        updateSplitNotice();
     }
     
     const modal = document.getElementById('moveLocationModal');
@@ -55,7 +87,9 @@ function submitMoveLocation() {
         return;
     }
     const input = document.getElementById('newLocationInput');
+    const amtInput = document.getElementById('moveAmountInput');
     const errEl = document.getElementById('moveLocationError');
+    const btnSubmit = document.getElementById('btnSubmitMove');
     let newLoc = input ? input.value.trim().toUpperCase() : '';
     
     if(!newLoc) {
@@ -66,7 +100,31 @@ function submitMoveLocation() {
         return;
     }
 
+    const totalQty = parseFloat(currentPallet.amount || 0);
+    let amountToMove = totalQty;
+    if(amtInput && amtInput.value !== '') {
+        amountToMove = parseFloat(amtInput.value);
+        if(isNaN(amountToMove) || amountToMove <= 0) {
+            if(errEl) {
+                errEl.textContent = 'Podaj poprawną ilość do przeniesienia (większą od 0)!';
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+        if(totalQty > 0 && amountToMove > totalQty) {
+            if(errEl) {
+                errEl.textContent = `Ilość do przeniesienia (${amountToMove} kg) nie może przekraczać dostępnej masy palety (${totalQty} kg)!`;
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+    }
+
     if(errEl) errEl.style.display = 'none';
+    if(btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Przenoszenie...';
+    }
 
     fetch('/warehouse-v2/api/pallet/move', {
         method: 'POST',
@@ -75,11 +133,28 @@ function submitMoveLocation() {
             id: currentPallet.id,
             type: currentPallet.type,
             location: newLoc,
-            linia: currentPallet.linia || 'PSD'
+            linia: currentPallet.linia || 'PSD',
+            amount: amountToMove
         })
     }).then(r => r.json()).then(data => {
+        if(btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Przenieś';
+        }
         if(data.success) {
-            showToast("Przeniesiono pomyślnie na: " + newLoc, 'success');
+            const isSplit = (data.split_info && data.split_info.is_split) || (totalQty > 0 && amountToMove < totalQty);
+            const newSSCC = data.split_info && data.split_info.new_sscc;
+            const movedQty = (data.split_info && data.split_info.moved_qty) || amountToMove;
+            const remainingQty = data.split_info && data.split_info.remaining_qty;
+
+            if (isSplit && newSSCC) {
+                showToast(`✅ Odcięto ${movedQty} kg na nową paletę (SSCC: ${newSSCC}). Pozostało: ${remainingQty} kg. Otwieram nową etykietę...`, 'success');
+                window.open(`/agro/scanner/label/${encodeURIComponent(newSSCC)}?linia=${encodeURIComponent(currentPallet.linia || 'PSD')}&autoprint=1`, '_blank');
+            } else if (isSplit) {
+                showToast(`Pomyślnie odcięto ${amountToMove} kg na nową paletę na lokalizację: ${newLoc}`, 'success');
+            } else {
+                showToast(`Przeniesiono pomyślnie na: ${newLoc}`, 'success');
+            }
             const targetId = currentPallet.id;
             const targetType = currentPallet.type;
             const targetDisplayId = currentPallet.displayId;
@@ -87,20 +162,29 @@ function submitMoveLocation() {
             closeMoveLocationModal();
             closePalletModal();
 
-            allWarehouseItems.forEach(x => {
-                if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
-                    x.location = newLoc;
+            if(isSplit) {
+                // Przy podziale odświeżamy dane z serwera, bo zmieniły się wagi i powstała nowa paleta
+                if (typeof loadWarehouseData === 'function') {
+                    loadWarehouseData();
+                } else {
+                    location.reload();
                 }
-            });
-            if (typeof currentFilteredItems !== 'undefined') {
-                currentFilteredItems.forEach(x => {
+            } else {
+                allWarehouseItems.forEach(x => {
                     if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
                         x.location = newLoc;
                     }
                 });
-            }
-            if (typeof filterTable === 'function') {
-                filterTable();
+                if (typeof currentFilteredItems !== 'undefined') {
+                    currentFilteredItems.forEach(x => {
+                        if ((String(x.id) === String(targetId) && x.type === targetType) || (x.displayId && x.displayId === targetDisplayId)) {
+                            x.location = newLoc;
+                        }
+                    });
+                }
+                if (typeof filterTable === 'function') {
+                    filterTable();
+                }
             }
         } else {
             if(errEl) {
@@ -111,6 +195,10 @@ function submitMoveLocation() {
             }
         }
     }).catch(e => {
+        if(btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Przenieś';
+        }
         if(errEl) {
             errEl.textContent = "Błąd połączenia z serwerem.";
             errEl.style.display = 'block';

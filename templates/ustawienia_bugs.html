@@ -541,8 +541,8 @@
                     </div>
                     <div class="bug-images-container">
                         {% for img in bug.zalaczniki %}
-                        <div class="bug-image-thumb" onclick="openOverlay('{{ url_for('static', filename='uploads/bugs/' + img) }}')" title="Kliknij, aby powiększyć zdjęcie">
-                            <img src="{{ url_for('static', filename='uploads/bugs/' + img) }}" alt="Zrzut ekranu">
+                        <div class="bug-image-thumb" onclick="openOverlay('{{ url_for('admin.admin_view_attachment', filename=img) }}')" title="Kliknij, aby powiększyć zdjęcie">
+                            <img src="{{ url_for('admin.admin_view_attachment', filename=img) }}" alt="Zrzut ekranu" onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/bugs/' + img) }}';">
                             <span class="thumb-zoom-badge">🔍 Powiększ</span>
                         </div>
                         {% endfor %}

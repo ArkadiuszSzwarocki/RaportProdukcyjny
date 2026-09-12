@@ -21,6 +21,9 @@
             <div class="flex gap-20">
                 <a href="{{ url_for('agro_warehouse.index', linia=linia) }}" class="tab-btn text-muted pb-10 px-4">Suma surowców</a>
                 <button class="tab-btn active border-b-2 border-primary pb-10 px-4 font-bold">Magazyn Opakowań</button>
+                <a href="{{ url_for('agro_warehouse.lp01_view', linia=linia) }}" class="tab-btn text-muted pb-10 px-4" style="color: #0d9488; font-weight: 700;">
+                    <span class="material-icons" style="font-size: 16px; vertical-align: middle;">precision_manufacturing</span> Stanowisko Maszyny LP01
+                </a>
             </div>
             
             <div class="search-wrapper" style="position:relative; min-width:320px; margin-bottom:10px;">

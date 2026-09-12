@@ -357,6 +357,56 @@
         align-items: center;
         justify-content: center;
     }
+
+    /* ── TABS ── */
+    .m-tabs-nav {
+        display: flex;
+        gap: 6px;
+        background: #f1f5f9;
+        padding: 5px;
+        border-radius: 12px;
+        margin-bottom: 14px;
+    }
+    .m-tab-btn {
+        flex: 1;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 800;
+        border: none;
+        background: transparent;
+        color: #64748b;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    .m-tab-btn:hover {
+        color: #1e293b;
+    }
+    .m-tab-btn.active {
+        background: #ffffff;
+        color: #1e3a8a;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+    .m-tab-badge {
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        background: #e2e8f0;
+        color: #334155;
+        font-weight: 800;
+    }
+    .m-tab-btn.active .m-tab-badge {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    .m-tab-badge-amber {
+        background: #fef3c7 !important;
+        color: #b45309 !important;
+    }
 </style>
 {% endblock %}
 
@@ -472,13 +522,50 @@
                 </div>
             </div>
 
-            <!-- Lista wiaderek dla zlecenia -->
+            <!-- Lista wiaderek / Pozostałe na stanie / Historia -->
             <div class="m-card">
-                <div class="m-card-title">
-                    <span>📋 Przygotowane Wiaderka dla Zlecenia</span>
+                <div class="m-tabs-nav">
+                    <button type="button" class="m-tab-btn active" data-tab="plan" id="tabBtnPlan">
+                        <span>📋 Bieżące zlecenie</span>
+                        <span class="m-tab-badge" id="badgePlanCount">0</span>
+                    </button>
+                    <button type="button" class="m-tab-btn" data-tab="remaining" id="tabBtnRemaining">
+                        <span>🪣 Pozostałe na stanie</span>
+                        <span class="m-tab-badge m-tab-badge-amber" id="badgeRemainingCount">0</span>
+                    </button>
+                    <button type="button" class="m-tab-btn" data-tab="history" id="tabBtnHistory">
+                        <span>📜 Historia</span>
+                        <span class="m-tab-badge" id="badgeHistoryCount">0</span>
+                    </button>
                 </div>
-                <div id="planBucketsList" style="max-height: 380px; overflow-y: auto;">
-                    <p class="text-muted text-center" style="padding: 20px;">Ładowanie listy wiaderek...</p>
+
+                <!-- TAB 1: Zlecenie bieżące -->
+                <div id="tabContentPlan" class="m-tab-pane">
+                    <div id="planBucketsList" style="max-height: 480px; overflow-y: auto;">
+                        <p class="text-muted text-center" style="padding: 20px;">Ładowanie listy wiaderek...</p>
+                    </div>
+                </div>
+
+                <!-- TAB 2: Pozostałe na stanie (niewsypane) -->
+                <div id="tabContentRemaining" class="m-tab-pane" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px;">
+                        <span style="font-size: 12px; font-weight: 800; color: #b45309;">⚠️ Wiaderka skompletowane / w toku, jeszcze niewsypane do mieszalnika:</span>
+                        <button type="button" id="btnRefreshRemaining" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; color: #334155;">🔄 Odśwież</button>
+                    </div>
+                    <div id="remainingBucketsList" style="max-height: 480px; overflow-y: auto;">
+                        <p class="text-muted text-center" style="padding: 20px;">Ładowanie wiaderek na stanie...</p>
+                    </div>
+                </div>
+
+                <!-- TAB 3: Cała historia -->
+                <div id="tabContentHistory" class="m-tab-pane" style="display: none;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <input type="text" id="inputFilterHistory" class="m-input" placeholder="🔍 Szukaj wiadra (np. 04), zlecenia, produktu..." style="padding: 7px 12px; font-size: 12px;" />
+                        <button type="button" id="btnRefreshHistory" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; color: #334155; white-space: nowrap;">🔄 Odśwież</button>
+                    </div>
+                    <div id="historyBucketsList" style="max-height: 480px; overflow-y: auto;">
+                        <p class="text-muted text-center" style="padding: 20px;">Ładowanie historii...</p>
+                    </div>
                 </div>
             </div>
         </div>

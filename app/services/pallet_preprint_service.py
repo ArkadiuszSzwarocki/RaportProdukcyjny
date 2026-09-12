@@ -35,9 +35,13 @@ def preprint_labels(plan_id, count, linia='PSD', user_login='System', auto_print
     if not plan_display_name:
         plan_display_name = f"PLAN-{plan_id}"
 
+    disp_lower = (plan_display_name or '').lower()
+    is_czyszczenie = 'czyszczenie' in disp_lower or 'maka mix do lnu' in disp_lower or 'mąka mix do lnu' in disp_lower
+    pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
+
     try:
         for i in range(int(count)):
-            nr_palety = generate_pallet_id(linia)
+            nr_palety = generate_pallet_id(linia, pallet_type)
             # insert reserved row with zero weight and status 'rezerwacja'
             cur.execute(
                 f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'rezerwacja', %s, %s)",
@@ -46,18 +50,26 @@ def preprint_labels(plan_id, count, linia='PSD', user_login='System', auto_print
             pid = cur.lastrowid if hasattr(cur, 'lastrowid') else None
             # compute nr_palety_lp
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, pid))
-                res = cur.fetchone()
-                nr_palety_lp = int(res[0]) if res else None
-                # update if column exists
-                try:
-                    cur.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
-                    if cur.fetchone():
-                        cur.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, pid))
-                except Exception:
-                    pass
+                cur.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                if cur.fetchone():
+                    cur.execute(
+                        f"SELECT COALESCE(MAX(nr_palety_lp), 0) FROM {table_pal} WHERE plan_id = %s AND id != %s",
+                        (plan_id, pid),
+                    )
+                    max_res = cur.fetchone()
+                    max_lp = int(max_res[0]) if (max_res and max_res[0] is not None) else 0
+                    if max_lp == 0:
+                        cur.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, pid))
+                        res = cur.fetchone()
+                        nr_palety_lp = int(res[0]) if (res and res[0]) else 1
+                    else:
+                        nr_palety_lp = max_lp + 1
+                    cur.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, pid))
+                else:
+                    nr_palety_lp = None
             except Exception:
                 nr_palety_lp = None
+
 
             created.append({
                 'id': pid,

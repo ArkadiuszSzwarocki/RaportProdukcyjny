@@ -264,12 +264,12 @@ class BucketMaluchService:
         return True, f"Wiadro {updated['kod_wiadra']} skompletowane!", updated
 
     @classmethod
-    def delete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None) -> Tuple[bool, str]:
-        """Deletes a bucket in progress or completed before dumping."""
+    def delete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
+        """Deletes a bucket in progress or completed before dumping, or force deletes if requested."""
         bucket = BucketMaluchRepository.find_by_id(bucket_id)
         if not bucket:
             return False, "Wiadro nie istnieje"
-        if bucket['status'] == 'wrzucone_do_mieszalnika':
+        if bucket['status'] == 'wrzucone_do_mieszalnika' and not force:
             return False, "Nie można usunąć wiadra, które zostało już wsypane do mieszalnika!"
 
         kod = bucket.get('kod_wiadra', '')
@@ -428,3 +428,9 @@ class BucketMaluchService:
             'total_ready_kg': total_ready_kg,
             'all_buckets': buckets,
         }
+
+    @classmethod
+    def get_all_buckets_history(cls, linia: Optional[str] = None, active_only: bool = False, limit: int = 200) -> List[Dict[str, Any]]:
+        """Zwraca globalną historię lub aktualnie oczekujące wiaderka dla całej linii / systemu."""
+        return BucketMaluchRepository.get_all_buckets(linia=linia, active_only=active_only, limit=limit)
+

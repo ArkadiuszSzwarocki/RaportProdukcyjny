@@ -87,6 +87,11 @@
                 </div>
             </div>
 
+            <!-- DATALIST SUROWCÓW -->
+            <datalist id="calc-surowce-datalist">
+                <!-- Opcje wypełniane dynamicznie w JS -->
+            </datalist>
+
         </div>
     </div>
 </div>
@@ -94,13 +99,13 @@
 <template id="calc-row-template">
     <tr style="border-bottom: 1px solid #f1f5f9;">
         <td style="padding: 8px;">
-            <select class="calc-surowiec-select" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
-                <option value="">-- Wybierz --</option>
-            </select>
+            <div style="position: relative;">
+                <input type="text" class="calc-surowiec-input" list="calc-surowce-datalist" placeholder="Wpisz lub wybierz surowiec..." style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-weight: 600; color: #1e293b;" autocomplete="off" onfocus="this.select()">
+            </div>
         </td>
         <td style="padding: 8px;">
             <div style="position: relative;">
-                <input type="text" inputmode="decimal" class="calc-rate-input" placeholder="np. 20" style="width: 100%; padding: 8px 50px 8px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
+                <input type="text" inputmode="decimal" class="calc-rate-input" placeholder="np. 20" style="width: 100%; padding: 8px 50px 8px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-weight: 600;">
                 <span style="position: absolute; right: 10px; top: 9px; font-size: 12px; color: #94a3b8; font-weight: bold;">kg/1t</span>
             </div>
         </td>

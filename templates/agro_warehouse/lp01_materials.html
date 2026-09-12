@@ -1,0 +1,811 @@
+{% extends 'layout.html' %}
+{% block title %}Stanowisko Maszyny LP01 - AGROMES{% endblock %}
+
+{% block content %}
+<style>
+.lp01-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 10px 20px 40px;
+}
+.lp01-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.lp01-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.lp01-kpi-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lp01-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+.lp01-kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+}
+.lp01-kpi-val {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #1e293b;
+}
+.lp01-kpi-lbl {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+
+.lp01-tab-nav {
+    display: flex;
+    gap: 12px;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 20px;
+}
+.lp01-tab-btn {
+    padding: 12px 20px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #64748b;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+.lp01-tab-btn.active {
+    color: #0284c7;
+    border-bottom-color: #0284c7;
+}
+.lp01-tab-badge {
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+.lp01-tab-btn.active .lp01-tab-badge {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+.lp01-table-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    overflow: hidden;
+}
+.lp01-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.lp01-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+.lp01-table td {
+    padding: 14px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.92rem;
+    color: #1e293b;
+    vertical-align: middle;
+}
+.lp01-table tr:hover td {
+    background: #f8fafc;
+}
+
+.badge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.badge-warning { background: #fef3c7; color: #b45309; }
+.badge-info { background: #e0f2fe; color: #0369a1; }
+.badge-success { background: #dcfce7; color: #15803d; }
+.badge-primary { background: #ede9fe; color: #6d28d9; }
+.badge-secondary { background: #f1f5f9; color: #475569; }
+.badge-danger { background: #fee2e2; color: #b91c1c; }
+
+.modal-backdrop-lp01 {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.modal-box-lp01 {
+    background: #ffffff;
+    border-radius: 14px;
+    max-width: 520px;
+    width: 90%;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    overflow: hidden;
+    animation: modalFadeIn 0.2s ease-out;
+}
+@keyframes modalFadeIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.modal-head-lp01 {
+    padding: 16px 22px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+}
+.modal-body-lp01 {
+    padding: 22px;
+}
+.modal-foot-lp01 {
+    padding: 14px 22px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: #f8fafc;
+}
+</style>
+
+<div class="lp01-container">
+    <!-- Header -->
+    <div class="lp01-header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span class="badge-pill badge-primary" style="font-size: 0.85rem; padding: 4px 12px;">
+                    <span class="material-icons" style="font-size: 16px;">precision_manufacturing</span>
+                    Stanowisko Maszyny LP01
+                </span>
+                <span class="text-muted" style="font-size: 0.85rem;">Linia: <strong>{{ linia }}</strong></span>
+            </div>
+            <h1 class="text-2xl font-bold" style="color: #0f172a; margin: 0;">Materiały Eksploatacyjne na Maszynie LP01</h1>
+            <p class="text-muted small" style="margin-top: 4px;">
+                Wgląd w podpięte materiały (folia, etykiety, kalka, włóknina SMS), czas dostarczenia oraz archiwizowanie zużyć.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-outline btn-sm" onclick="location.reload()" title="Odśwież stan">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">refresh</span> Odśwież
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openDispatchModal()" style="background: #0284c7; border-color: #0284c7;">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add_shopping_cart</span> Wydaj z magazynu na LP01
+            </button>
+            <a href="{{ url_for('agro_warehouse.opakowania') }}" class="btn btn-secondary btn-sm">
+                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">inventory</span> Magazyn Opakowań
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="lp01-kpi-grid">
+        <div class="lp01-kpi-card">
+            <div class="lp01-kpi-icon" style="background: #e0f2fe; color: #0284c7;">
+                <span class="material-icons">precision_manufacturing</span>
+            </div>
+            <div>
+                <div class="lp01-kpi-val" id="kpiTotalActive">{{ kpis.total_active }}</div>
+                <div class="lp01-kpi-lbl">Na maszynie (aktywne)</div>
+            </div>
+        </div>
+        <div class="lp01-kpi-card">
+            <div class="lp01-kpi-icon" style="background: #fef3c7; color: #b45309;">
+                <span class="material-icons">label</span>
+            </div>
+            <div>
+                <div class="lp01-kpi-val" id="kpiLabels">{{ kpis.labels_count }}</div>
+                <div class="lp01-kpi-lbl">Etykiety</div>
+            </div>
+        </div>
+        <div class="lp01-kpi-card">
+            <div class="lp01-kpi-icon" style="background: #dcfce7; color: #15803d;">
+                <span class="material-icons">layers</span>
+            </div>
+            <div>
+                <div class="lp01-kpi-val" id="kpiSmsKalka">{{ kpis.sms_count + kpis.kalka_count }}</div>
+                <div class="lp01-kpi-lbl">Włóknina & Kalka</div>
+            </div>
+        </div>
+        <div class="lp01-kpi-card">
+            <div class="lp01-kpi-icon" style="background: #ede9fe; color: #6d28d9;">
+                <span class="material-icons">album</span>
+            </div>
+            <div>
+                <div class="lp01-kpi-val" id="kpiFolia">{{ kpis.folia_count }}</div>
+                <div class="lp01-kpi-lbl">Folia & Rolki</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="lp01-tab-nav">
+        <button class="lp01-tab-btn active" id="tabBtnActive" onclick="switchTab('active')">
+            <span class="material-icons" style="font-size: 20px;">layers</span>
+            Aktualnie na maszynie LP01
+            <span class="lp01-tab-badge" id="badgeActiveCount">{{ active_items|length }}</span>
+        </button>
+        <button class="lp01-tab-btn" id="tabBtnHistory" onclick="switchTab('history')">
+            <span class="material-icons" style="font-size: 20px;">history</span>
+            Historia & Archiwum zużyć
+            <span class="lp01-tab-badge" id="badgeHistoryCount">{{ history|length }}</span>
+        </button>
+    </div>
+
+    <!-- TAB 1: ACTIVE MATERIALS ON LP01 -->
+    <div id="tabContentActive">
+        <div class="lp01-table-card">
+            <div class="table-responsive">
+                <table class="lp01-table">
+                    <thead>
+                        <tr>
+                            <th>Kategoria</th>
+                            <th>Nazwa materiału</th>
+                            <th>Numer SSCC / Partia</th>
+                            <th>Ilość na maszynie</th>
+                            <th>Kiedy trafiło na LP01</th>
+                            <th>Kto dostarczył</th>
+                            <th>Skąd pobrano</th>
+                            <th style="text-align: right;">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeItemsTbody">
+                        {% for it in active_items %}
+                        <tr id="row-item-{{ it.id }}">
+                            <td>
+                                <span class="badge-pill {{ it.badge_class }}">
+                                    <span class="material-icons" style="font-size: 14px;">{{ it.icon }}</span>
+                                    {{ it.kategoria }}
+                                </span>
+                            </td>
+                            <td>
+                                <strong style="color: #0f172a; font-size: 1rem;">{{ it.nazwa }}</strong>
+                                <div style="font-size: 0.75rem; color: #64748b;">ID w bazie: #{{ it.id }}</div>
+                            </td>
+                            <td>
+                                {% if it.nr_palety %}
+                                    <code style="background: #f1f5f9; padding: 3px 6px; border-radius: 4px; font-weight: bold; color: #0369a1;">{{ it.nr_palety }}</code>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                                {% if it.nr_partii and it.nr_partii != '—' %}
+                                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Partia: {{ it.nr_partii }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: #0284c7;">
+                                    {{ it.stan_magazynowy|int if (it.stan_magazynowy % 1 == 0) else it.stan_magazynowy }}
+                                </span>
+                                <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">szt/kg</span>
+                            </td>
+                            <td>
+                                <div style="font-weight: 600; color: #1e293b;">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; color: #0284c7;">schedule</span>
+                                    {{ it.dostarczono_at }}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge-pill badge-secondary">
+                                    <span class="material-icons" style="font-size: 14px;">person</span>
+                                    {{ it.dostarczyl_user }}
+                                </span>
+                            </td>
+                            <td>
+                                <span style="font-weight: 600; color: #475569;">{{ it.lokalizacja_zrodlowa }}</span>
+                            </td>
+                            <td style="text-align: right; white-space: nowrap;">
+                                <button class="btn btn-sm btn-danger" onclick="openArchiveModal({{ it.id }}, '{{ it.nazwa|escape }}', {{ it.stan_magazynowy }}, '{{ it.typ }}', '{{ it.nr_palety or '' }}')" style="background: #ef4444; border-color: #ef4444;" title="Zarchiwizuj jako zużyte">
+                                    <span class="material-icons" style="font-size: 16px; vertical-align: middle;">archive</span> Zarchiwizuj / Zużyte
+                                </button>
+                                <button class="btn btn-sm btn-outline" onclick="openReturnModal({{ it.id }}, '{{ it.nazwa|escape }}', {{ it.stan_magazynowy }}, '{{ it.typ }}')" style="margin-left: 6px;" title="Zwróć materiał z maszyny z powrotem na regał">
+                                    <span class="material-icons" style="font-size: 16px; vertical-align: middle;">keyboard_return</span> Zwróć
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                <span class="material-icons" style="font-size: 48px; color: #cbd5e1; display: block; margin-bottom: 8px;">inventory_2</span>
+                                Brak aktywnych materiałów na maszynie LP01.<br>
+                                Aby wydać materiał na maszynę, użyj skanera (skanuj kod materiału i lokalizację <strong>LP01</strong>) lub kliknij przycisk powyżej: <em>"Wydaj z magazynu na LP01"</em>.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: HISTORY & ARCHIVE -->
+    <div id="tabContentHistory" style="display: none;">
+        <div class="lp01-table-card">
+            <div style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                    <span class="material-icons" style="font-size: 18px; color: #64748b;">history</span>
+                    Ostatnie zdarzenia na stanowisku LP01
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="historyFilterInput" onkeyup="filterHistoryTable()" placeholder="Filtruj historię..." class="form-control" style="width: 240px; height: 36px; font-size: 0.88rem;">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="lp01-table" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Status / Zdarzenie</th>
+                            <th>Materiał</th>
+                            <th>Nr Palety / SSCC</th>
+                            <th>Ilość</th>
+                            <th>Data i czas</th>
+                            <th>Użytkownik</th>
+                            <th>Komentarz / Przebieg</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr>
+                            <td>
+                                <span class="badge-pill {{ h.status_badge }}">
+                                    <span class="material-icons" style="font-size: 14px;">{{ h.icon }}</span>
+                                    {{ h.typ_zdarzenia }}
+                                </span>
+                            </td>
+                            <td>
+                                <strong>{{ h.nazwa }}</strong>
+                            </td>
+                            <td>
+                                {% if h.nr_palety and h.nr_palety != '—' %}
+                                    <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #0369a1;">{{ h.nr_palety }}</code>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if h.ilosc and h.ilosc > 0 %}
+                                    <span style="font-weight: bold; color: #0284c7;">{{ h.ilosc|int if (h.ilosc % 1 == 0) else h.ilosc }}</span> szt/kg
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td style="white-space: nowrap; color: #64748b; font-size: 0.85rem;">
+                                {{ h.data }}
+                            </td>
+                            <td>
+                                <span class="badge-pill badge-secondary">
+                                    <span class="material-icons" style="font-size: 12px;">person</span>
+                                    {{ h.user }}
+                                </span>
+                            </td>
+                            <td style="color: #475569; font-size: 0.85rem;">
+                                {{ h.komentarz }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 30px; color: #94a3b8;">
+                                Brak wpisów w historii stanowiska LP01.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: ARCHIVE MATERIAL -->
+<div class="modal-backdrop-lp01" id="archiveModalBackdrop">
+    <div class="modal-box-lp01">
+        <div class="modal-head-lp01">
+            <h4 style="margin: 0; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #ef4444;">archive</span>
+                Zarchiwizuj zużyty materiał
+            </h4>
+            <button onclick="closeArchiveModal()" style="border:none; background:none; font-size: 22px; cursor: pointer; color: #94a3b8;">&times;</button>
+        </div>
+        <div class="modal-body-lp01">
+            <input type="hidden" id="archItemId">
+            <input type="hidden" id="archItemType">
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
+                <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Materiał na maszynie:</div>
+                <div id="archItemName" style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-top: 2px;"></div>
+                <div id="archItemSSCC" style="font-size: 0.85rem; color: #0369a1; margin-top: 2px;"></div>
+            </div>
+
+            <div class="form-group mb-15">
+                <label class="form-label" style="font-weight: 600; color: #1e293b; display: flex; justify-content: space-between;">
+                    <span>Ilość zużyta do archiwizacji:</span>
+                    <span id="archMaxQtyLbl" style="color: #64748b; font-weight: normal;"></span>
+                </label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" step="any" min="0.01" id="archQtyInput" class="form-control" style="font-size: 1.1rem; font-weight: bold;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFullArchiveQty()">Całość</button>
+                </div>
+                <small class="text-muted" style="display: block; margin-top: 4px;">
+                    Możesz zarchiwizować całą pozycję lub wskazać ilość częściowo zużytą.
+                </small>
+            </div>
+
+            <div class="form-group mb-0">
+                <label class="form-label" style="font-weight: 600; color: #1e293b;">Komentarz / Notatka (opcjonalnie):</label>
+                <input type="text" id="archCommentInput" class="form-control" placeholder="np. Zużycie podczas zlecenia #1234, zmiana rolki">
+            </div>
+        </div>
+        <div class="modal-foot-lp01">
+            <button class="btn btn-outline" onclick="closeArchiveModal()">Anuluj</button>
+            <button class="btn btn-danger" id="archConfirmBtn" onclick="submitArchiveItem()" style="background: #ef4444; border-color: #ef4444;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check</span> Zarchiwizuj
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: DISPATCH FROM WAREHOUSE TO LP01 -->
+<div class="modal-backdrop-lp01" id="dispatchModalBackdrop">
+    <div class="modal-box-lp01" style="max-width: 580px;">
+        <div class="modal-head-lp01">
+            <h4 style="margin: 0; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #0284c7;">add_shopping_cart</span>
+                Wydaj materiał z magazynu na LP01
+            </h4>
+            <button onclick="closeDispatchModal()" style="border:none; background:none; font-size: 22px; cursor: pointer; color: #94a3b8;">&times;</button>
+        </div>
+        <div class="modal-body-lp01">
+            <div class="form-group mb-15">
+                <label class="form-label" style="font-weight: 600; color: #1e293b;">Wybierz materiał z magazynu:</label>
+                <select id="dispatchSelectMat" class="form-control" onchange="onDispatchSelectChange()" style="font-size: 0.95rem;">
+                    <option value="">-- Wybierz materiał --</option>
+                    {% for it in available_stock %}
+                    <option value="{{ it.id }}" 
+                            data-name="{{ it.nazwa }}" 
+                            data-qty="{{ it.stan_magazynowy }}" 
+                            data-loc="{{ it.lokalizacja }}" 
+                            data-sscc="{{ it.nr_palety or '' }}"
+                            data-type="Opakowanie">
+                        [{{ it.kategoria }}] {{ it.nazwa }} — {{ it.stan_magazynowy|int }} szt. (Lokalizacja: {{ it.lokalizacja }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="dispatchInfoBox" style="display: none; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                <div style="font-size: 0.85rem; color: #0369a1;">
+                    Dostępny stan na regale: <strong id="dispStockQty">0</strong> szt/kg | Lokalizacja źródłowa: <strong id="dispSourceLoc">—</strong>
+                </div>
+            </div>
+
+            <div class="form-group mb-0">
+                <label class="form-label" style="font-weight: 600; color: #1e293b;">Ilość do wydania na maszynę LP01:</label>
+                <input type="number" step="any" min="0.01" id="dispatchQtyInput" class="form-control" placeholder="np. 500 lub 1">
+                <small class="text-muted" style="display: block; margin-top: 4px;">
+                    Wydanie tej ilości natychmiast pomniejszy stan na regale magazynowym i przypisze materiał do stanowiska LP01.
+                </small>
+            </div>
+        </div>
+        <div class="modal-foot-lp01">
+            <button class="btn btn-outline" onclick="closeDispatchModal()">Anuluj</button>
+            <button class="btn btn-primary" id="dispConfirmBtn" onclick="submitDispatchToLp01()" style="background: #0284c7; border-color: #0284c7;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">send</span> Wydaj na LP01
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: RETURN TO WAREHOUSE RACK -->
+<div class="modal-backdrop-lp01" id="returnModalBackdrop">
+    <div class="modal-box-lp01">
+        <div class="modal-head-lp01">
+            <h4 style="margin: 0; font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #d97706;">keyboard_return</span>
+                Zwróć materiał z maszyny na regał magazynowy
+            </h4>
+            <button onclick="closeReturnModal()" style="border:none; background:none; font-size: 22px; cursor: pointer; color: #94a3b8;">&times;</button>
+        </div>
+        <div class="modal-body-lp01">
+            <input type="hidden" id="retItemId">
+            <input type="hidden" id="retItemType">
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
+                <div id="retItemName" style="font-size: 1.05rem; font-weight: 800; color: #0f172a;"></div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">Dostępna ilość na maszynie: <strong id="retAvailableQty">0</strong></div>
+            </div>
+
+            <div class="form-group mb-15">
+                <label class="form-label" style="font-weight: 600; color: #1e293b;">Docelowa lokalizacja w magazynie (np. R090101, MOP01):</label>
+                <input type="text" id="retTargetLocInput" class="form-control" placeholder="Wpisz lub zeskanuj kod regału">
+            </div>
+
+            <div class="form-group mb-0">
+                <label class="form-label" style="font-weight: 600; color: #1e293b;">Ilość do zwrotu:</label>
+                <input type="number" step="any" min="0.01" id="retQtyInput" class="form-control">
+            </div>
+        </div>
+        <div class="modal-foot-lp01">
+            <button class="btn btn-outline" onclick="closeReturnModal()">Anuluj</button>
+            <button class="btn btn-warning" id="retConfirmBtn" onclick="submitReturnFromLp01()" style="background: #d97706; border-color: #d97706; color: #fff;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check</span> Potwierdź zwrot
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMaxArchQty = 0;
+
+function switchTab(tabName) {
+    const tabActive = document.getElementById('tabContentActive');
+    const tabHistory = document.getElementById('tabContentHistory');
+    const btnActive = document.getElementById('tabBtnActive');
+    const btnHistory = document.getElementById('tabBtnHistory');
+
+    if (tabName === 'active') {
+        tabActive.style.display = 'block';
+        tabHistory.style.display = 'none';
+        btnActive.classList.add('active');
+        btnHistory.classList.remove('active');
+    } else {
+        tabActive.style.display = 'none';
+        tabHistory.style.display = 'block';
+        btnActive.classList.remove('active');
+        btnHistory.classList.add('active');
+    }
+}
+
+// ── ARCHIVE MODAL ─────────────────────────────────────────────────────────────
+function openArchiveModal(id, name, maxQty, type, sscc) {
+    document.getElementById('archItemId').value = id;
+    document.getElementById('archItemType').value = type || 'Opakowanie';
+    document.getElementById('archItemName').textContent = name;
+    document.getElementById('archItemSSCC').textContent = sscc ? 'SSCC: ' + sscc : '';
+    document.getElementById('archMaxQtyLbl').textContent = `Maksymalnie: ${maxQty} szt/kg`;
+    document.getElementById('archQtyInput').value = maxQty;
+    document.getElementById('archCommentInput').value = '';
+    currentMaxArchQty = parseFloat(maxQty);
+    document.getElementById('archiveModalBackdrop').style.display = 'flex';
+}
+
+function setFullArchiveQty() {
+    document.getElementById('archQtyInput').value = currentMaxArchQty;
+}
+
+function closeArchiveModal() {
+    document.getElementById('archiveModalBackdrop').style.display = 'none';
+}
+
+function submitArchiveItem() {
+    const id = document.getElementById('archItemId').value;
+    const type = document.getElementById('archItemType').value;
+    const qty = parseFloat(document.getElementById('archQtyInput').value);
+    const comment = document.getElementById('archCommentInput').value;
+    const btn = document.getElementById('archConfirmBtn');
+
+    if (isNaN(qty) || qty <= 0 || qty > currentMaxArchQty) {
+        alert(`Podaj prawidłową ilość (od 0.01 do ${currentMaxArchQty})!`);
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size:16px;">hourglass_top</span> Archiwizowanie...';
+
+    fetch('/api/lp01/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: id,
+            type: type,
+            consumed_qty: qty,
+            komentarz: comment,
+            linia: '{{ linia }}'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">check</span> Zarchiwizuj';
+        if (data.success) {
+            closeArchiveModal();
+            location.reload();
+        } else {
+            alert(data.error || data.message || 'Błąd archiwizacji');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">check</span> Zarchiwizuj';
+        alert('Błąd sieci: ' + err);
+    });
+}
+
+// ── DISPATCH MODAL ────────────────────────────────────────────────────────────
+function openDispatchModal() {
+    document.getElementById('dispatchSelectMat').value = '';
+    document.getElementById('dispatchQtyInput').value = '';
+    document.getElementById('dispatchInfoBox').style.display = 'none';
+    document.getElementById('dispatchModalBackdrop').style.display = 'flex';
+}
+
+function closeDispatchModal() {
+    document.getElementById('dispatchModalBackdrop').style.display = 'none';
+}
+
+function onDispatchSelectChange() {
+    const sel = document.getElementById('dispatchSelectMat');
+    const opt = sel.options[sel.selectedIndex];
+    const infoBox = document.getElementById('dispatchInfoBox');
+    if (!sel.value) {
+        infoBox.style.display = 'none';
+        return;
+    }
+    const qty = opt.getAttribute('data-qty');
+    const loc = opt.getAttribute('data-loc');
+    document.getElementById('dispStockQty').textContent = qty;
+    document.getElementById('dispSourceLoc').textContent = loc;
+    document.getElementById('dispatchQtyInput').value = qty;
+    infoBox.style.display = 'block';
+}
+
+function submitDispatchToLp01() {
+    const sel = document.getElementById('dispatchSelectMat');
+    if (!sel.value) {
+        alert('Wybierz materiał z listy!');
+        return;
+    }
+    const opt = sel.options[sel.selectedIndex];
+    const maxQty = parseFloat(opt.getAttribute('data-qty') || 0);
+    const qty = parseFloat(document.getElementById('dispatchQtyInput').value);
+    const type = opt.getAttribute('data-type') || 'Opakowanie';
+    const btn = document.getElementById('dispConfirmBtn');
+
+    if (isNaN(qty) || qty <= 0 || (maxQty > 0 && qty > maxQty)) {
+        alert(`Podaj poprawną ilość (maksymalnie ${maxQty})!`);
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size:16px;">hourglass_top</span> Wydawanie...';
+
+    fetch('/api/lp01/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: sel.value,
+            type: type,
+            amount: qty,
+            linia: '{{ linia }}'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">send</span> Wydaj na LP01';
+        if (data.success) {
+            closeDispatchModal();
+            location.reload();
+        } else {
+            alert(data.error || data.message || 'Błąd wydania');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">send</span> Wydaj na LP01';
+        alert('Błąd sieci: ' + err);
+    });
+}
+
+// ── RETURN MODAL ──────────────────────────────────────────────────────────────
+function openReturnModal(id, name, maxQty, type) {
+    document.getElementById('retItemId').value = id;
+    document.getElementById('retItemType').value = type || 'Opakowanie';
+    document.getElementById('retItemName').textContent = name;
+    document.getElementById('retAvailableQty').textContent = maxQty + ' szt/kg';
+    document.getElementById('retQtyInput').value = maxQty;
+    document.getElementById('retTargetLocInput').value = '';
+    document.getElementById('returnModalBackdrop').style.display = 'flex';
+}
+
+function closeReturnModal() {
+    document.getElementById('returnModalBackdrop').style.display = 'none';
+}
+
+function submitReturnFromLp01() {
+    const id = document.getElementById('retItemId').value;
+    const type = document.getElementById('retItemType').value;
+    const loc = (document.getElementById('retTargetLocInput').value || '').trim();
+    const qty = parseFloat(document.getElementById('retQtyInput').value);
+    const btn = document.getElementById('retConfirmBtn');
+
+    if (!loc) {
+        alert('Podaj docelową lokalizację magazynową (regał)!');
+        return;
+    }
+    if (isNaN(qty) || qty <= 0) {
+        alert('Podaj prawidłową ilość do zwrotu!');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size:16px;">hourglass_top</span> Zwracanie...';
+
+    fetch('/api/lp01/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: id,
+            type: type,
+            location: loc,
+            amount: qty,
+            linia: '{{ linia }}'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">check</span> Potwierdź zwrot';
+        if (data.success) {
+            closeReturnModal();
+            location.reload();
+        } else {
+            alert(data.error || data.message || 'Błąd zwrotu');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:16px;">check</span> Potwierdź zwrot';
+        alert('Błąd sieci: ' + err);
+    });
+}
+
+function filterHistoryTable() {
+    const q = (document.getElementById('historyFilterInput').value || '').toLowerCase();
+    const rows = document.querySelectorAll('#historyTable tbody tr');
+    rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

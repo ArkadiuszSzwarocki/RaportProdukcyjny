@@ -189,14 +189,16 @@ class WarehouseOrderRepository:
         try:
             cursor = conn.cursor(dictionary=True)
             
+            # Ograniczenie magazynów do: regałów (R*), MP01 oraz BF_MP01
             query = """
                 SELECT nazwa, SUM(stan_magazynowy) as total_stan
                 FROM magazyn_surowce
-                WHERE LOWER(TRIM(COALESCE(lokalizacja, ''))) NOT IN ('ms01', 'psd01', 'psd')
-                  AND LOWER(COALESCE(lokalizacja, '')) NOT LIKE 'buf%%'
-                  AND LOWER(COALESCE(lokalizacja, '')) NOT LIKE 'bf_%%'
-                  AND LOWER(COALESCE(lokalizacja, '')) NOT LIKE '%%bufor%%'
-                  AND COALESCE(is_blocked, 0) = 0
+                WHERE (
+                    LOWER(TRIM(COALESCE(lokalizacja, ''))) = 'mp01'
+                    OR LOWER(TRIM(COALESCE(lokalizacja, ''))) IN ('bf_mp01', 'bfmp01')
+                    OR LOWER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'r%%'
+                )
+                AND COALESCE(is_blocked, 0) = 0
                 GROUP BY nazwa
             """
             

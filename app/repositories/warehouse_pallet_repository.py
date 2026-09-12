@@ -58,7 +58,7 @@ class WarehousePalletRepository:
         should_close = conn is None
 
         cursor.execute(
-            f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL LIMIT 1",
+            f"SELECT skan_sscc FROM {table_plan} WHERE id IN (%s, %s) AND skan_sscc IS NOT NULL AND TRIM(skan_sscc) <> '' LIMIT 1",
             (plan_id, zasyp_id or -1)
         )
         row = cursor.fetchone()
@@ -66,7 +66,7 @@ class WarehousePalletRepository:
 
         if should_close:
             connection.close()
-        return row[0] if (row and row[0]) else None
+        return str(row[0]).strip() if (row and row[0] and str(row[0]).strip()) else None
 
     @staticmethod
     def update_reserved_pallet(

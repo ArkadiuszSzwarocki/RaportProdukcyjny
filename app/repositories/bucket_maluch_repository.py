@@ -286,3 +286,45 @@ class BucketMaluchRepository:
             return buckets
         finally:
             conn.close()
+
+    @staticmethod
+    def get_all_buckets(linia: Optional[str] = None, active_only: bool = False, limit: int = 200) -> List[Dict[str, Any]]:
+        """Zwraca wszystkie wiaderka z systemu wraz z informacją o zleceniu i pozycjami."""
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            where_clauses = []
+            params = []
+            if linia:
+                where_clauses.append("b.linia = %s")
+                params.append(linia.upper())
+            if active_only:
+                where_clauses.append("b.status IN ('w_trakcie_nawazania', 'skompletowane')")
+
+            where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            params.append(limit)
+
+            query = f"""
+                SELECT b.*, 
+                       COALESCE(pa.produkt, p.produkt, '—') as plan_produkt,
+                       COALESCE(pa.data_planu, p.data_planu) as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id
+                {where_str}
+                ORDER BY b.id DESC
+                LIMIT %s
+            """
+            cur.execute(query, tuple(params))
+            buckets = cur.fetchall() or []
+            for b in buckets:
+                b['pozycje'] = BucketMaluchRepository.get_items_for_bucket(b['id'])
+                for dt_col in ['data_produkcji', 'data_przydatnosci', 'data_rozpoczecia', 'data_skompletowania', 'data_zasypania', 'created_at']:
+                    if b.get(dt_col) and hasattr(b[dt_col], 'strftime'):
+                        b[dt_col] = b[dt_col].strftime('%Y-%m-%d %H:%M')
+                if b.get('plan_data') and hasattr(b['plan_data'], 'strftime'):
+                    b['plan_data'] = b['plan_data'].strftime('%Y-%m-%d')
+            return buckets
+        finally:
+            conn.close()
+

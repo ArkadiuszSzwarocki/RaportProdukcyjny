@@ -54,6 +54,7 @@
         {% endif %}
         {% if role_has_access('magazyn.agro_packaging') %}
         <a href="{{ url_for('agro_warehouse.opakowania') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.opakowania' %}active{% endif %}">Opakowania Agro</a>
+        <a href="{{ url_for('agro_warehouse.lp01_view') }}" class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}" style="color: #0d9488; font-weight: 700;">🏭 Stanowisko LP01</a>
         {% endif %}
         
         {% if role_has_access('magazyn.mom') %}

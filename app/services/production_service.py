@@ -433,9 +433,13 @@ class ProductionService:
             else:
                 table_details = get_table_name('palety_workowanie', linia)
                 # Ujednolicony kształt dla widoku kart dashboardu:
-                # [0]=waga, [1]=godzina, [2]=paleta_id, [3]=lista_dodatkowa, [4]=status, [5]=autor, [6]=uwagi
+                # [0]=waga, [1]=godzina, [2]=paleta_id, [3]=lista_dodatkowa, [4]=status, [5]=autor, [6]=uwagi, [7]=nr_palety_lp, [8]=nr_palety
+                cursor.execute(f"SHOW COLUMNS FROM {table_details} LIKE 'nr_palety_lp'")
+                has_lp_col = bool(cursor.fetchone())
+                lp_field = "COALESCE(nr_palety_lp, 0)" if has_lp_col else "0"
+
                 cursor.execute(
-                    f"SELECT plan_id, id, waga, DATE_FORMAT(data_dodania, '%Y-%m-%d %H:%i'), status, COALESCE(dodal_login, '') "
+                    f"SELECT plan_id, id, waga, DATE_FORMAT(data_dodania, '%Y-%m-%d %H:%i'), status, COALESCE(dodal_login, ''), {lp_field}, nr_palety "
                     f"FROM {table_details} WHERE plan_id IN ({fmt_ids}) ORDER BY id ASC",
                     plan_ids,
                 )
@@ -452,8 +456,11 @@ class ProductionService:
                             row[4] or '',
                             row[5] or '',
                             '',
+                            int(row[6] or 0),
+                            str(row[7] or ''),
                         ]
                     )
+
 
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 

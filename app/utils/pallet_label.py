@@ -351,7 +351,19 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
             produkt = 'Mąka mix do Lnu'
             is_surowiec = True
             if not nr_partii_db or str(nr_partii_db) in ('None', ''):
-                orig_meta = lookup_raw_material_details_by_sscc(cursor, nr_palety)
+                mother_sscc = None
+                if plan_id:
+                    try:
+                        cursor.execute(
+                            f"SELECT skan_sscc FROM {table_plan} WHERE (id = %s OR id = (SELECT COALESCE(zasyp_id, -1) FROM {table_plan} WHERE id = %s)) AND skan_sscc IS NOT NULL AND TRIM(skan_sscc) <> '' LIMIT 1",
+                            (plan_id, plan_id)
+                        )
+                        s_row = cursor.fetchone()
+                        if s_row:
+                            mother_sscc = _get_val(s_row, 'skan_sscc', 0)
+                    except Exception:
+                        pass
+                orig_meta = lookup_raw_material_details_by_sscc(cursor, mother_sscc or nr_palety)
                 if orig_meta.get('nr_partii'):
                     nr_partii_db = orig_meta.get('nr_partii')
                 if orig_meta.get('data_produkcji'):
@@ -458,7 +470,19 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         produkt = 'Mąka mix do Lnu'
         is_surowiec = True
         if not nr_partii_db or str(nr_partii_db) in ('None', ''):
-            orig_meta = lookup_raw_material_details_by_sscc(cursor, nr_palety)
+            mother_sscc = None
+            if plan_id:
+                try:
+                    cursor.execute(
+                        f"SELECT skan_sscc FROM {table_plan} WHERE (id = %s OR id = (SELECT COALESCE(zasyp_id, -1) FROM {table_plan} WHERE id = %s)) AND skan_sscc IS NOT NULL AND TRIM(skan_sscc) <> '' LIMIT 1",
+                        (plan_id, plan_id)
+                    )
+                    s_row = cursor.fetchone()
+                    if s_row:
+                        mother_sscc = _get_val(s_row, 'skan_sscc', 0)
+                except Exception:
+                    pass
+            orig_meta = lookup_raw_material_details_by_sscc(cursor, mother_sscc or nr_palety)
             if orig_meta.get('nr_partii'):
                 nr_partii_db = orig_meta.get('nr_partii')
             if orig_meta.get('data_produkcji'):

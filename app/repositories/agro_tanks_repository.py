@@ -39,17 +39,18 @@ def _is_additive_material(material_name, material_location=None):
     return bool(_DODATEK_NAME_REGEX.search(name))
 
 def _get_auto_pallet_cooldown_seconds():
-    """Return cooldown for auto pallet registration (seconds)."""
-    raw_value = os.getenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', '0')
+    """Return cooldown for auto pallet registration (seconds). Defaults to 60s to prevent duplicates."""
+    raw_value = os.getenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', '60')
     try:
         parsed = float(raw_value)
     except (TypeError, ValueError):
         logger.warning(
-            "Invalid AGRO_AUTO_PALLET_COOLDOWN_SECONDS=%r. Falling back to 0s.",
+            "Invalid AGRO_AUTO_PALLET_COOLDOWN_SECONDS=%r. Falling back to 60s.",
             raw_value,
         )
-        return 0.0
-    return max(0.0, parsed)
+        return 60.0
+    return max(30.0, parsed)
+
 
 def _select_preferred_printer(cursor):
     """Pick production printer first, then fallback to any active printer."""
@@ -813,6 +814,8 @@ class AgroTanksRepository:
                 nr_palety = None
                 paleta_id = None
 
+                pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
+
                 # Consume the oldest reserved label first, if available.
                 cursor.execute(
                     f"SELECT id, nr_palety FROM {table_pal} WHERE plan_id = %s AND COALESCE(status, '') = 'rezerwacja' ORDER BY id ASC LIMIT 1",
@@ -822,19 +825,15 @@ class AgroTanksRepository:
 
                 if reserved_row:
                     paleta_id = reserved_row[0]
-                    if is_czyszczenie and nr_palety_czyszczenie:
-                        nr_palety = nr_palety_czyszczenie
-                    else:
-                        nr_palety = reserved_row[1] or generate_pallet_id(linia)
+                    nr_palety = reserved_row[1]
+                    if not nr_palety or (is_czyszczenie and (nr_palety == nr_palety_czyszczenie or not nr_palety.startswith('SUR'))):
+                        nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
                         f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s WHERE id = %s",
                         (waga_input, now_ts, user_login, nr_palety, paleta_id),
                     )
                 else:
-                    if is_czyszczenie and nr_palety_czyszczenie:
-                        nr_palety = nr_palety_czyszczenie
-                    else:
-                        nr_palety = generate_pallet_id(linia)
+                    nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
                         f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
                         (plan_id, waga_input, now_ts, user_login, nr_palety),
@@ -868,17 +867,46 @@ class AgroTanksRepository:
                 # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
                 try:
                     if paleta_id:
-                        cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
-                        res_lp = cursor.fetchone()
-                        nr_palety_lp = int(res_lp[0]) if res_lp else 1
-                        try:
-                            cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
-                            if cursor.fetchone():
+                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                        if cursor.fetchone():
+                            cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
+                            cur_lp = cursor.fetchone()
+                            cur_lp_val = None
+                            if cur_lp and cur_lp[0] is not None:
+                                try:
+                                    cur_lp_val = int(cur_lp[0])
+                                except (ValueError, TypeError):
+                                    cur_lp_val = None
+
+                            if cur_lp_val is not None and cur_lp_val > 0:
+                                nr_palety_lp = cur_lp_val
+                            else:
+                                cursor.execute(
+                                    f"SELECT COALESCE(MAX(nr_palety_lp), 0) FROM {table_pal} WHERE plan_id = %s AND id != %s",
+                                    (plan_id, paleta_id),
+                                )
+                                max_res = cursor.fetchone()
+                                max_lp = 0
+                                if max_res and max_res[0] is not None:
+                                    try:
+                                        max_lp = int(max_res[0])
+                                    except (ValueError, TypeError):
+                                        max_lp = 0
+
+                                if max_lp == 0:
+                                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                                    res_lp = cursor.fetchone()
+                                    try:
+                                        nr_palety_lp = int(res_lp[0]) if (res_lp and res_lp[0]) else 1
+                                    except (ValueError, TypeError):
+                                        nr_palety_lp = 1
+                                else:
+                                    nr_palety_lp = max_lp + 1
                                 cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                except Exception as lp_err:
+                    logger.warning("Failed to compute nr_palety_lp: %s", lp_err)
+
+
                 
                 conn.commit()
                 

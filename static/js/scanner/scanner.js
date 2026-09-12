@@ -101,7 +101,7 @@ function isPalletCode(code) {
   if (/^PAL-?\d+/i.test(s) || /^SUR-?\d+/i.test(s) || /^OPA-?\d+/i.test(s) || /^DOD-?\d+/i.test(s)) return true;
   
   // Locations regex - if matched, it is a target warehouse/station location
-  const isLocation = /^(R0[1-7]\d{4}|BB\d{2}|MZ\d{2}|WZ\d{2}|CZ\d{2}|KO\d{2}|OS\d{2}|MS\d{2}|MP\d{2}|MD\d{2}|MOP\d{2}|MDM\d{2}|PSD\d{0,2}|AGR\d{0,2}|RAMPA|MIX\d{0,2}|BF_)/i.test(s);
+  const isLocation = /^(R0[1-7]\d{4}|BB\d{2}|MZ\d{2}|WZ\d{2}|CZ\d{2}|KO\d{2}|OS\d{2}|MS\d{2}|MP\d{2}|MD\d{2}|MOP\d{2}|MDM\d{2}|PSD\d{0,2}|AGR\d{0,2}|RAMPA|MIX\d{0,2}|BF_|LP\d{0,2}|MASZYNA)/i.test(s);
   if (isLocation) return false;
   // 6-digit rack code like 020701
   if (/^0[1-7]\d{4}$/.test(s)) return false;
@@ -133,6 +133,7 @@ function resetScanner() {
 }
 
 function triggerScan() {
+  clearTimeout(scanTimeout);
   const rawCode = scanInput.value.trim();
   const code = extractSSCCFromScan(rawCode);
   if (code !== rawCode) {
@@ -147,6 +148,10 @@ function triggerScan() {
         doMoveFromMainInput(code);
       }
     } else {
+      const upper = code.toUpperCase();
+      if (upper === 'LP01' || upper === 'MASZYNA') {
+        showToast('ℹ️ Wyświetlono stację LP01. Aby wydać materiał na LP01, najpierw zeskanuj paletę/materiał.', 'info');
+      }
       lookupPallet(code);
     }
   } else {
@@ -160,6 +165,7 @@ function triggerScan() {
 }
 
 let pendingProductionLoc = null;
+let pendingLP01Loc = 'LP01';
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
@@ -264,6 +270,13 @@ async function doMoveFromMainInput(loc) {
     document.getElementById('dispatchModalQty').value = currentPallet.stan_magazynowy;
     document.getElementById('dispatchOverlay').style.display = 'flex';
   } else {
+    const isLP01 = (loc === 'LP01' || loc === 'MASZYNA');
+    if (isLP01) {
+      openLP01Modal(loc);
+      return;
+    }
+
+    const amountToMove = null;
     fetch('/agro/scanner/move', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -272,13 +285,18 @@ async function doMoveFromMainInput(loc) {
         nr_palety: currentPallet.nr_palety || currentPallet.sscc,
         type: currentPallet.inventory_type,
         lokalizacja: loc,
-        linia: LINIA
+        linia: LINIA,
+        amount_to_move: amountToMove
       })
     })
     .then(r => r.json())
     .then(d => {
       showToast(d.message, d.success ? 'success' : 'danger');
       if (d.success) {
+        if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
+          showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
+          window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+        }
         window.hideAfterLoad = true;
         lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
         
@@ -369,8 +387,118 @@ function closeDispatchModal() {
   scanInput.focus();
 }
 
-// Skanery Zebra (DataWedge) na Androidzie często lepiej reagują na 'keyup'
-scanInput.addEventListener('keyup', function(e) {
+function openLP01Modal(loc) {
+  if (!currentPallet) return;
+  scanInput.value = '';
+  pendingLP01Loc = loc || 'LP01';
+  const overlay = document.getElementById('lp01ModalOverlay');
+  if (!overlay) return;
+
+  const matNameEl = document.getElementById('lp01ModalMatName');
+  const sourceLocEl = document.getElementById('lp01ModalSourceLoc');
+  const maxQtyEl = document.getElementById('lp01ModalMaxQty');
+  const qtyInput = document.getElementById('lp01ModalQty');
+  const unitEl = document.getElementById('lp01ModalUnit');
+
+  const maxQty = parseFloat(currentPallet.stan_magazynowy || 0);
+  const unit = currentPallet.jednostka || currentPallet.unit || 'szt.';
+
+  if (matNameEl) matNameEl.textContent = currentPallet.nazwa || currentPallet.produkt || 'Materiał';
+  if (sourceLocEl) sourceLocEl.textContent = currentPallet.lokalizacja || 'Magazyn';
+  if (maxQtyEl) maxQtyEl.textContent = `${maxQty} ${unit}`;
+  if (unitEl) unitEl.textContent = unit;
+  if (qtyInput) {
+    const defaultQty = (currentPallet.inventory_type === 'Opakowanie' && maxQty >= 1) ? 1 : maxQty;
+    qtyInput.value = defaultQty;
+    qtyInput.max = maxQty;
+  }
+
+  overlay.style.display = 'flex';
+  setTimeout(() => {
+    if (qtyInput) {
+      qtyInput.focus();
+      qtyInput.select();
+    }
+  }, 100);
+}
+
+function closeLP01Modal() {
+  const overlay = document.getElementById('lp01ModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+  scanInput.value = '';
+  scanInput.focus();
+}
+
+function setLP01Qty(val) {
+  const qtyInput = document.getElementById('lp01ModalQty');
+  if (!qtyInput || !currentPallet) return;
+  const maxQty = parseFloat(currentPallet.stan_magazynowy || 0);
+  if (val === 'max') {
+    qtyInput.value = maxQty;
+  } else {
+    const num = parseFloat(val);
+    if (!isNaN(num) && num > 0) {
+      qtyInput.value = Math.min(num, maxQty);
+    }
+  }
+}
+
+function submitLP01Modal() {
+  if (!currentPallet) return;
+  const qtyInput = document.getElementById('lp01ModalQty');
+  const maxQty = parseFloat(currentPallet.stan_magazynowy || 0);
+  const parsedQty = parseFloat(qtyInput ? qtyInput.value : 0);
+
+  if (isNaN(parsedQty) || parsedQty <= 0 || (maxQty > 0 && parsedQty > maxQty)) {
+    showToast(`Nieprawidłowa ilość (dozwolone od 0.01 do ${maxQty})`, 'danger');
+    if (qtyInput) qtyInput.focus();
+    return;
+  }
+
+  const btn = document.getElementById('btnConfirmLP01');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Trwa wydanie...';
+  }
+
+  fetch('/agro/scanner/move', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      surowiec_id: currentPallet.id,
+      nr_palety: currentPallet.nr_palety || currentPallet.sscc,
+      type: currentPallet.inventory_type,
+      lokalizacja: pendingLP01Loc || 'LP01',
+      linia: LINIA,
+      amount_to_move: parsedQty
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    showToast(d.message, d.success ? 'success' : 'danger');
+    closeLP01Modal();
+    if (d.success) {
+      if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
+        showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
+        window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+      }
+      window.hideAfterLoad = true;
+      lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+    }
+  })
+  .catch(e => {
+    showToast('Błąd połączenia: ' + e, 'danger');
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons" style="font-size:18px;">check</span> Wydaj na LP01';
+    }
+  });
+}
+
+// Obsługa Enter dla skanerów sprzętowych (Zebra DataWedge) i klawiatur
+scanInput.addEventListener('keydown', function(e) {
   if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
     e.preventDefault();
     triggerScan();
@@ -388,11 +516,15 @@ scanInput.addEventListener('input', function(e) {
   clearTimeout(scanTimeout);
   scanTimeout = setTimeout(() => {
     const code = this.value.trim();
-    if (code && code.length >= 5 && !document.getElementById('palletCard').classList.contains('visible')) {
-      // Wywołaj automatycznie jeśli skaner Zebra po prostu wrzuca tekst
+    if (!code) return;
+    // Jeśli paleta jest już na ekranie i wpisano/zeskanowano lokalizację (np. LP01, MP01, R030101):
+    if (currentPallet && code.length >= 3) {
+      triggerScan();
+    } else if (!currentPallet && code.length >= 4) {
+      // Jeśli brak załadowanej palety:
       triggerScan();
     }
-  }, 1200);
+  }, 600);
 });
 
 scanInput.addEventListener('paste', function(e) {
@@ -580,6 +712,13 @@ function showPallet(p) {
   if (restoreBtn) {
     const canRestore = Boolean((typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
     restoreBtn.style.display = canRestore ? 'block' : 'none';
+  }
+
+  // Obsługa przycisku podziału palety (odcięcie z nową etykietą)
+  const splitBtn = document.getElementById('scannerSplitBtnContainer');
+  if (splitBtn) {
+    const canSplit = !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
+    splitBtn.style.display = canSplit ? 'block' : 'none';
   }
 
   document.getElementById('palletCard').classList.add('visible');
@@ -1061,6 +1200,98 @@ function submitScannerReturn() {
   .catch(e => {
     console.error('Błąd zwrotu:', e);
     showToast('Błąd połączenia z serwerem', 'danger');
+  });
+}
+
+/* ─── Scanner Pallet Split (Odcięcie z nową etykietą) ──────── */
+function openScannerSplitModal() {
+  if (!currentPallet) return;
+  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+  const availEl = document.getElementById('scannerSplitAvailableQty');
+  if (availEl) availEl.textContent = maxQty.toFixed(1);
+  const qtyInput = document.getElementById('scannerSplitQty');
+  if (qtyInput) qtyInput.value = '';
+  const locInput = document.getElementById('scannerSplitTargetLoc');
+  if (locInput) locInput.value = '';
+  const overlay = document.getElementById('scannerSplitOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  setTimeout(() => {
+    if (locInput) locInput.focus();
+  }, 100);
+}
+
+function closeScannerSplitModal() {
+  const overlay = document.getElementById('scannerSplitOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (scanInput) scanInput.focus();
+}
+
+function submitScannerSplit() {
+  if (!currentPallet) return;
+  const locInput = document.getElementById('scannerSplitTargetLoc');
+  const targetLoc = locInput ? locInput.value.trim().toUpperCase() : '';
+  const qtyInput = document.getElementById('scannerSplitQty');
+  const qty = parseFloat(qtyInput.value);
+  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+
+  if (!targetLoc) {
+    showToast('Wpisz lub zeskanuj lokalizację docelową!', 'warn');
+    if (locInput) locInput.focus();
+    return;
+  }
+  if (isNaN(qty) || qty <= 0) {
+    showToast('Podaj wagę do odcięcia większą od 0!', 'warn');
+    if (qtyInput) qtyInput.focus();
+    return;
+  }
+  if (qty >= maxQty) {
+    showToast(`Ilość do odcięcia (${qty} kg) musi być mniejsza niż dostępna masa (${maxQty} kg). Aby przenieść całość, użyj zwykłego przesunięcia.`, 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('btnConfirmScannerSplit');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Trwa podział...';
+  }
+
+  fetch('/agro/scanner/move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      surowiec_id: currentPallet.id,
+      nr_palety: currentPallet.nr_palety || currentPallet.sscc,
+      type: currentPallet.inventory_type || 'Surowiec',
+      lokalizacja: targetLoc,
+      linia: LINIA,
+      amount_to_move: qty
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      closeScannerSplitModal();
+      if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
+        showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram nową etykietę...`, 'success');
+        window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+      } else {
+        showToast(d.message || 'Podzielono paletę', 'success');
+      }
+      // Odśwież widok palety matki z pomniejszoną ilością
+      window.hideAfterLoad = true;
+      lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+    } else {
+      showToast(d.message || d.error || 'Błąd podziału palety', 'danger');
+    }
+  })
+  .catch(e => {
+    showToast('Błąd połączenia z serwerem: ' + e, 'danger');
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span> Podziel i drukuj etykietę';
+    }
   });
 }
 

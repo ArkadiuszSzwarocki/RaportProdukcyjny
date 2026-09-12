@@ -26,6 +26,21 @@
     const inputStacjaKod = document.getElementById('inputStacjaKod');
     const planBucketsList = document.getElementById('planBucketsList');
 
+    // Tab navigation & lists
+    const tabBtns = document.querySelectorAll('.m-tab-btn');
+    const tabPanes = document.querySelectorAll('.m-tab-pane');
+    const badgePlanCount = document.getElementById('badgePlanCount');
+    const badgeRemainingCount = document.getElementById('badgeRemainingCount');
+    const badgeHistoryCount = document.getElementById('badgeHistoryCount');
+    const remainingBucketsList = document.getElementById('remainingBucketsList');
+    const historyBucketsList = document.getElementById('historyBucketsList');
+    const btnRefreshRemaining = document.getElementById('btnRefreshRemaining');
+    const btnRefreshHistory = document.getElementById('btnRefreshHistory');
+    const inputFilterHistory = document.getElementById('inputFilterHistory');
+
+    let currentTab = 'plan';
+    let cachedHistoryBuckets = [];
+
     // ── TOAST NOTIFICATIONS (Zero alert()) ──
     function showToast(message, type = 'info') {
         const toastContainer = document.getElementById('mToastContainer');
@@ -368,120 +383,134 @@
         });
     }
 
-    // ── LOAD PLAN BUCKETS ──
-    async function loadPlanBuckets(planId) {
-        if (!planId) {
-            planBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Wybierz aktywne zlecenie, aby zobaczyć wiaderka.</p>';
-            return;
-        }
-        try {
-            const res = await fetch(`/maluchy/api/plan/${planId}?linia=${linia}`);
-            const data = await res.json();
-            if (!res.ok || !data.success) return;
+    // ── BUCKET CARD HTML RENDERER ──
+    function renderBucketCardHtml(b, showPlan = false) {
+        const badgeClass = 'status-' + b.status;
+        const statusLabel = b.status === 'wrzucone_do_mieszalnika'
+            ? `✓ Wsypano (${b.mieszalnik_kod || 'MI01'})`
+            : (b.status === 'skompletowane' ? '📦 Skompletowane' : '⏳ W trakcie');
+        const items = b.pozycje || [];
+        const itemsCount = items.length;
+        const canDelete = b.status !== 'wrzucone_do_mieszalnika';
+        const deleteBtn = canDelete
+            ? `<button type="button" class="btn-delete-bucket" data-bucket-id="${b.id}" data-bucket-code="${b.kod_wiadra}" data-plan-id="${b.plan_id || ''}" 
+                      title="Usuń wiadro ${b.kod_wiadra} z systemu"
+                      style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 8px;">🗑 Usuń</button>`
+            : '';
 
-            const summary = data.data;
-            const buckets = summary.all_buckets || [];
+        const canResume = b.status === 'w_trakcie_nawazania' && selectPlanId && String(selectPlanId.value) === String(b.plan_id);
+        const resumeBtn = canResume
+            ? `<button type="button" class="btn-resume-bucket" data-bucket-id="${b.id}"
+                      style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 6px;">▶ Wznów</button>`
+            : '';
 
-            if (buckets.length === 0) {
-                planBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Brak przygotowanych wiaderek dla tego zlecenia.</p>';
-                return;
-            }
+        const planBadge = showPlan && b.plan_id
+            ? `<div style="font-size: 12px; font-weight: 800; color: #1e3a8a; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                 <span>📋 Zlecenie #${b.plan_id}</span>
+                 <span style="color: #475569; font-weight: 600;">${b.plan_produkt || '—'}</span>
+               </div>`
+            : '';
 
-            planBucketsList.innerHTML = buckets.map(b => {
-                const badgeClass = 'status-' + b.status;
-                const statusLabel = b.status === 'wrzucone_do_mieszalnika' 
-                    ? `✓ Wsypano (${b.mieszalnik_kod || 'MI01'})` 
-                    : (b.status === 'skompletowane' ? '📦 Skompletowane' : '⏳ W trakcie');
-                const items = b.pozycje || [];
-                const itemsCount = items.length;
-                const canDelete = b.status !== 'wrzucone_do_mieszalnika';
-                const deleteBtn = canDelete
-                    ? `<button type="button" class="btn-delete-plan-bucket" data-bucket-id="${b.id}" data-bucket-code="${b.kod_wiadra}" 
-                              title="Usuń wiadro ${b.kod_wiadra}"
-                              style="background: none; border: none; color: #dc2626; font-size: 15px; cursor: pointer; padding: 4px 6px; margin-left: 6px;">🗑</button>`
-                    : '';
+        const itemsHtml = items.length > 0
+            ? items.map(p => `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
+                    <span style="font-weight: 800; color: #1e3a8a; font-size: 13px;">${p.stacja_kod}</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 10px; flex: 1; font-size: 13px;">${p.surowiec_nazwa}</span>
+                </div>
+            `).join('')
+            : '<div style="color: #94a3b8; font-style: italic; font-size: 12px;">Brak składników w wiadrze</div>';
 
-                const itemsHtml = items.length > 0 
-                    ? items.map(p => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
-                            <span style="font-weight: 800; color: #1e3a8a; font-size: 13px;">${p.stacja_kod}</span>
-                            <span style="font-weight: 700; color: #0f172a; margin-left: 10px; flex: 1; font-size: 13px;">${p.surowiec_nazwa}</span>
+        const ssccInfo = b.nr_sscc ? `<div style="font-family: monospace; font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-weight: 700;">SSCC: ${b.nr_sscc}</div>` : '';
+        const prodDate = b.data_produkcji || b.data_rozpoczecia || '—';
+        const expDate = b.data_przydatnosci || '— (+24h)';
+        const dumpedInfo = b.status === 'wrzucone_do_mieszalnika' && b.data_zasypania
+            ? `<div style="font-size: 11px; color: #047857; font-weight: 700; margin-top: 2px;">Wsypano: ${b.data_zasypania} (${b.mieszalnik_kod || 'MI01'}) przez ${b.operator_zasypania || '—'}</div>`
+            : '';
+
+        return `
+            <div class="m-plan-bucket-card" data-bucket-id="${b.id}" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="m-bucket-pill" style="font-size: 14px;">Wiadro ${b.kod_wiadra}</span>
+                            <span style="font-weight: 700; font-size: 13px; color: #1e293b;">${itemsCount} składników</span>
+                            <span style="font-size: 12px; color: #2563eb; font-weight: 700;" class="m-toggle-indicator">▾ zawartość</span>
                         </div>
-                    `).join('')
-                    : '<div style="color: #94a3b8; font-style: italic; font-size: 12px;">Brak składników w wiadrze</div>';
-
-                const ssccInfo = b.nr_sscc ? `<div style="font-family: monospace; font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-weight: 700;">SSCC: ${b.nr_sscc}</div>` : '';
-                const prodDate = b.data_produkcji || b.data_rozpoczecia || '—';
-                const expDate = b.data_przydatnosci || '— (+24h)';
-
-                return `
-                    <div class="m-plan-bucket-card" data-bucket-id="${b.id}" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <span class="m-bucket-pill" style="font-size: 14px;">${b.kod_wiadra}</span>
-                                <span style="font-weight: 700; margin-left: 8px; font-size: 13px; color: #1e293b;">${itemsCount} składników</span>
-                                <span style="font-size: 12px; color: #2563eb; margin-left: 6px; font-weight: 700;" class="m-toggle-indicator">▾ zawartość</span>
-                                <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
-                                    Prod: ${prodDate} | Ważność: ${expDate}
-                                </div>
-                            </div>
-                            <div style="display: flex; align-items: center;">
-                                <span class="status-badge ${badgeClass}">${statusLabel}</span>
-                                ${deleteBtn}
-                            </div>
+                        ${planBadge}
+                        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
+                            Data: ${prodDate} ${expDate !== '—' ? '| Ważność: ' + expDate : ''}
                         </div>
-                        <div class="m-bucket-items-preview" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
-                            ${ssccInfo}
-                            <div style="font-weight: 800; color: #475569; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
-                                Składniki w wiadrze ${b.kod_wiadra}:
-                            </div>
-                            ${itemsHtml}
-                        </div>
+                        ${dumpedInfo}
                     </div>
-                `;
-            }).join('');
+                    <div style="display: flex; align-items: center;">
+                        <span class="status-badge ${badgeClass}">${statusLabel}</span>
+                        ${resumeBtn}
+                        ${deleteBtn}
+                    </div>
+                </div>
+                <div class="m-bucket-items-preview" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                    ${ssccInfo}
+                    <div style="font-weight: 800; color: #475569; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
+                        Składniki w wiadrze ${b.kod_wiadra}:
+                    </div>
+                    ${itemsHtml}
+                </div>
+            </div>
+        `;
+    }
 
-            // Attach card click to toggle preview of items directly underneath
-            document.querySelectorAll('.m-plan-bucket-card').forEach(card => {
-                card.addEventListener('click', function (e) {
-                    if (e.target.closest('.btn-delete-plan-bucket')) return;
-                    if (e.target.closest('.btn-resume-bucket')) return;
+    // ── ATTACH BUCKET CARD EVENTS (Toggle, Resume, Delete) ──
+    function attachBucketCardEvents(containerEl, bucketsList = []) {
+        if (!containerEl) return;
 
-                    const previewEl = this.querySelector('.m-bucket-items-preview');
-                    const indicator = this.querySelector('.m-toggle-indicator');
-                    if (previewEl) {
-                        const isHidden = previewEl.style.display === 'none';
-                        previewEl.style.display = isHidden ? 'block' : 'none';
-                        if (indicator) {
-                            indicator.textContent = isHidden ? '▴ zwiń' : '▾ zawartość';
-                        }
+        // Toggle card preview
+        containerEl.querySelectorAll('.m-plan-bucket-card').forEach(card => {
+            card.addEventListener('click', function (e) {
+                if (e.target.closest('.btn-delete-bucket')) return;
+                if (e.target.closest('.btn-resume-bucket')) return;
+
+                const previewEl = this.querySelector('.m-bucket-items-preview');
+                const indicator = this.querySelector('.m-toggle-indicator');
+                if (previewEl) {
+                    const isHidden = previewEl.style.display === 'none';
+                    previewEl.style.display = isHidden ? 'block' : 'none';
+                    if (indicator) {
+                        indicator.textContent = isHidden ? '▴ zwiń' : '▾ zawartość';
                     }
-                });
+                }
             });
+        });
 
-            // Attach resume button for in-progress buckets
-            document.querySelectorAll('.btn-resume-bucket').forEach(btn => {
-                btn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    const bId = parseInt(this.getAttribute('data-bucket-id'), 10);
-                    const selected = buckets.find(b => b.id === bId);
-                    if (selected && selected.status === 'w_trakcie_nawazania') {
-                        currentBucket = selected;
-                        renderActiveBucket(selected);
-                        if (inputStacjaKod) inputStacjaKod.focus();
-                    }
-                });
+        // Resume in-progress bucket
+        containerEl.querySelectorAll('.btn-resume-bucket').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const bId = parseInt(this.getAttribute('data-bucket-id'), 10);
+                const selected = bucketsList.find(b => b.id === bId);
+                if (selected && selected.status === 'w_trakcie_nawazania') {
+                    currentBucket = selected;
+                    renderActiveBucket(selected);
+                    if (inputStacjaKod) inputStacjaKod.focus();
+                }
             });
+        });
 
-            // Attach delete buttons in list
-            document.querySelectorAll('.btn-delete-plan-bucket').forEach(btn => {
-                btn.addEventListener('click', async function (e) {
-                    e.stopPropagation();
-                    const bId = this.getAttribute('data-bucket-id');
-                    const bCode = this.getAttribute('data-bucket-code');
-                    const conf = await showConfirm('Usuwanie wiadra', `Czy na pewno usunąć wiadro ${bCode}?`);
-                    if (!conf) return;
+        // Delete bucket from system
+        containerEl.querySelectorAll('.btn-delete-bucket').forEach(btn => {
+            btn.addEventListener('click', async function (e) {
+                e.stopPropagation();
+                const bId = this.getAttribute('data-bucket-id');
+                const bCode = this.getAttribute('data-bucket-code');
+                const pId = this.getAttribute('data-plan-id');
+                const planMsg = pId ? ` ze zlecenia #${pId}` : '';
 
+                const conf = await showConfirm(
+                    'Usuwanie wiadra z systemu',
+                    `Czy na pewno chcesz bezpowrotnie usunąć wiadro ${bCode}${planMsg} z systemu? Kod wiadra zostanie zwolniony.`
+                );
+                if (!conf) return;
+
+                try {
                     const res = await fetch('/maluchy/api/delete', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -495,25 +524,201 @@
                             cardNawazanie.style.display = 'none';
                             cardBucketDetails.style.display = 'none';
                         }
-                        loadPlanBuckets(selectPlanId.value);
+                        refreshAllBucketsViews();
                     } else {
                         showToast(data.message || 'Błąd usuwania wiadra', 'error');
                     }
-                });
+                } catch (err) {
+                    console.error('Error deleting bucket:', err);
+                    showToast('Błąd połączenia z serwerem', 'error');
+                }
             });
+        });
+    }
+
+    // ── REFRESH ALL BUCKET VIEWS & BADGES ──
+    function refreshAllBucketsViews() {
+        if (selectPlanId && selectPlanId.value) {
+            loadPlanBuckets(selectPlanId.value);
+        }
+        updateRemainingCount();
+        if (currentTab === 'remaining') {
+            loadRemainingBuckets();
+        } else if (currentTab === 'history') {
+            loadHistoryBuckets();
+        }
+    }
+
+    // ── 1. LOAD PLAN BUCKETS ──
+    async function loadPlanBuckets(planId) {
+        if (!planId) {
+            if (planBucketsList) {
+                planBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Wybierz aktywne zlecenie, aby zobaczyć wiaderka.</p>';
+            }
+            if (badgePlanCount) badgePlanCount.textContent = '0';
+            return;
+        }
+        try {
+            const res = await fetch(`/maluchy/api/plan/${planId}?linia=${linia}`);
+            const data = await res.json();
+            if (!res.ok || !data.success) return;
+
+            const summary = data.data;
+            const buckets = summary.all_buckets || [];
+            if (badgePlanCount) badgePlanCount.textContent = buckets.length;
+
+            if (buckets.length === 0) {
+                planBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Brak przygotowanych wiaderek dla tego zlecenia.</p>';
+                return;
+            }
+
+            planBucketsList.innerHTML = buckets.map(b => renderBucketCardHtml(b, false)).join('');
+            attachBucketCardEvents(planBucketsList, buckets);
         } catch (e) {
             console.error('Error loading plan buckets:', e);
         }
+    }
+
+    // ── 2. LOAD REMAINING UNCONSUMED BUCKETS ──
+    async function loadRemainingBuckets() {
+        if (!remainingBucketsList) return;
+        try {
+            remainingBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Ładowanie wiaderek na stanie...</p>';
+            const res = await fetch(`/maluchy/api/history?linia=${linia}&active_only=true`);
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                remainingBucketsList.innerHTML = '<p class="text-danger text-center" style="padding: 20px;">Błąd pobierania wiaderek na stanie.</p>';
+                return;
+            }
+
+            const buckets = data.buckets || [];
+            if (badgeRemainingCount) badgeRemainingCount.textContent = buckets.length;
+
+            if (buckets.length === 0) {
+                remainingBucketsList.innerHTML = `
+                    <div style="text-align: center; padding: 28px 16px; color: #64748b;">
+                        <div style="font-size: 28px; margin-bottom: 8px;">✅</div>
+                        <div style="font-weight: 800; font-size: 14px; color: #0f172a;">Brak oczekujących wiaderek na stanie</div>
+                        <div style="font-size: 12px; margin-top: 4px;">Wszystkie dotychczas przygotowane wiaderka zostały już wsypane do mieszalnika.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            remainingBucketsList.innerHTML = buckets.map(b => renderBucketCardHtml(b, true)).join('');
+            attachBucketCardEvents(remainingBucketsList, buckets);
+        } catch (e) {
+            console.error('Error loading remaining buckets:', e);
+            remainingBucketsList.innerHTML = '<p class="text-danger text-center" style="padding: 20px;">Błąd połączenia z serwerem.</p>';
+        }
+    }
+
+    // ── UPDATE REMAINING COUNT BADGE ONLY ──
+    async function updateRemainingCount() {
+        try {
+            const res = await fetch(`/maluchy/api/history?linia=${linia}&active_only=true&limit=100`);
+            const data = await res.json();
+            if (res.ok && data.success && badgeRemainingCount) {
+                badgeRemainingCount.textContent = (data.buckets || []).length;
+            }
+        } catch (e) {
+            // silent badge update fail
+        }
+    }
+
+    // ── 3. LOAD FULL HISTORY ──
+    async function loadHistoryBuckets() {
+        if (!historyBucketsList) return;
+        try {
+            historyBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Ładowanie historii...</p>';
+            const res = await fetch(`/maluchy/api/history?linia=${linia}&limit=200`);
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                historyBucketsList.innerHTML = '<p class="text-danger text-center" style="padding: 20px;">Błąd pobierania historii.</p>';
+                return;
+            }
+
+            cachedHistoryBuckets = data.buckets || [];
+            if (badgeHistoryCount) badgeHistoryCount.textContent = cachedHistoryBuckets.length;
+            renderFilteredHistory();
+        } catch (e) {
+            console.error('Error loading history buckets:', e);
+            historyBucketsList.innerHTML = '<p class="text-danger text-center" style="padding: 20px;">Błąd połączenia z serwerem.</p>';
+        }
+    }
+
+    function renderFilteredHistory() {
+        if (!historyBucketsList) return;
+        const query = (inputFilterHistory && inputFilterHistory.value ? inputFilterHistory.value.trim().toLowerCase() : '');
+
+        const filtered = cachedHistoryBuckets.filter(b => {
+            if (!query) return true;
+            const code = String(b.kod_wiadra || '').toLowerCase();
+            const plan = String(b.plan_id || '').toLowerCase();
+            const prod = String(b.plan_produkt || '').toLowerCase();
+            const sscc = String(b.nr_sscc || '').toLowerCase();
+            const status = String(b.status || '').toLowerCase();
+            return code.includes(query) || plan.includes(query) || prod.includes(query) || sscc.includes(query) || status.includes(query);
+        });
+
+        if (filtered.length === 0) {
+            historyBucketsList.innerHTML = '<p class="text-muted text-center" style="padding: 24px;">Brak wyników spełniających kryteria wyszukiwania.</p>';
+            return;
+        }
+
+        historyBucketsList.innerHTML = filtered.map(b => renderBucketCardHtml(b, true)).join('');
+        attachBucketCardEvents(historyBucketsList, filtered);
+    }
+
+    // ── TAB SWITCHING ──
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const target = this.getAttribute('data-tab');
+            currentTab = target;
+
+            tabBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            tabPanes.forEach(pane => {
+                pane.style.display = 'none';
+            });
+
+            if (target === 'plan') {
+                const p = document.getElementById('tabContentPlan');
+                if (p) p.style.display = 'block';
+                if (selectPlanId && selectPlanId.value) loadPlanBuckets(selectPlanId.value);
+            } else if (target === 'remaining') {
+                const r = document.getElementById('tabContentRemaining');
+                if (r) r.style.display = 'block';
+                loadRemainingBuckets();
+            } else if (target === 'history') {
+                const h = document.getElementById('tabContentHistory');
+                if (h) h.style.display = 'block';
+                loadHistoryBuckets();
+            }
+        });
+    });
+
+    if (btnRefreshRemaining) {
+        btnRefreshRemaining.addEventListener('click', () => loadRemainingBuckets());
+    }
+    if (btnRefreshHistory) {
+        btnRefreshHistory.addEventListener('click', () => loadHistoryBuckets());
+    }
+    if (inputFilterHistory) {
+        inputFilterHistory.addEventListener('input', () => renderFilteredHistory());
     }
 
     // On plan change, reload buckets
     if (selectPlanId) {
         selectPlanId.addEventListener('change', function () {
             loadPlanBuckets(this.value);
+            updateRemainingCount();
         });
 
         if (selectPlanId.value) {
             loadPlanBuckets(selectPlanId.value);
+            updateRemainingCount();
         }
     }
 })();
