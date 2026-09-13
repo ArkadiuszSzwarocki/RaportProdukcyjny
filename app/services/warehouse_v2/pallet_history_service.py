@@ -1,4 +1,5 @@
 import re
+import json
 from datetime import datetime
 from app.db import get_db_connection
 
@@ -50,87 +51,195 @@ class PalletHistoryService:
                 id_candidates.append(target_id)
             if real_id is not None and real_id not in id_candidates:
                 id_candidates.append(real_id)
+
+            # Resolve all pallet IDs associated with this SSCC across warehouse inventory
+            if target_sscc:
+                for tbl in search_tables:
+                    try:
+                        cursor.execute(f"SELECT id FROM {tbl} WHERE nr_palety = %s", (target_sscc,))
+                        for r_row in cursor.fetchall():
+                            rid = r_row.get('id')
+                            if rid is not None and rid not in id_candidates:
+                                id_candidates.append(rid)
+                    except Exception:
+                        pass
             
             id_ph_clause = "paleta_id = -1"
             if id_candidates:
                 placeholders = ', '.join(['%s'] * len(id_candidates))
                 id_ph_clause = f"paleta_id IN ({placeholders})"
 
-            expected_type_pattern = '%wyrob%' if is_finished_good else ('%surow%' if 'surow' in p_type_norm else ('%opakow%' if 'opakow' in p_type_norm else '%dodat%'))
+            type_params = []
+            if is_finished_good:
+                type_filter_clause = "(typ_palety IN (%s, %s, %s, %s) OR typ_palety IS NULL OR typ_palety = '')"
+                type_params = ['wyrob_gotowy', 'wyrób gotowy', 'polprodukt', 'półprodukt']
+            elif 'surow' in p_type_norm:
+                type_filter_clause = "(typ_palety = %s OR typ_palety IS NULL OR typ_palety = '')"
+                type_params = ['surowiec']
+            elif 'opakow' in p_type_norm:
+                type_filter_clause = "(typ_palety = %s OR typ_palety IS NULL OR typ_palety = '')"
+                type_params = ['opakowanie']
+            else:
+                type_filter_clause = "(typ_palety = %s OR typ_palety IS NULL OR typ_palety = '')"
+                type_params = ['dodatek']
 
-            # 1. Fetch from palety_historia
-            query_ph_params = [target_sscc] + id_candidates + [target_sscc, expected_type_pattern, f"%{target_sscc}%", expected_type_pattern]
-            cursor.execute(f"""
-                SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
-                       lokalizacja_zrodlowa, lokalizacja_docelowa
-                FROM palety_historia
-                WHERE (
-                    nr_palety = %s 
-                    OR ({id_ph_clause} AND (nr_palety IS NULL OR nr_palety = '' OR nr_palety = %s) AND (typ_palety LIKE %s OR typ_palety IS NULL))
-                    OR (komentarz LIKE %s AND (typ_palety LIKE %s OR typ_palety IS NULL))
-                )
-                ORDER BY data_ruchu DESC
-            """, tuple(query_ph_params))
+            # 1. Fetch from palety_historia strictly by SSCC (nr_palety)
+            if target_sscc:
+                sql_q = f"""
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa
+                    FROM palety_historia
+                    WHERE {type_filter_clause} AND (
+                        nr_palety = %s OR komentarz LIKE %s
+                    )
+                    ORDER BY data_ruchu DESC
+                """
+                cursor.execute(sql_q, tuple(type_params + [target_sscc, f"%{target_sscc}%"]))
+            else:
+                sql_q = f"""
+                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa
+                    FROM palety_historia
+                    WHERE {type_filter_clause} AND {id_ph_clause}
+                    ORDER BY data_ruchu DESC
+                """
+                cursor.execute(sql_q, tuple(type_params + list(id_candidates)))
             historia_nowa = cursor.fetchall() or []
 
             # 2. Fetch from legacy movement tables (magazyn_ruch / magazyn_agro_ruch)
             historia_stara = []
-            if not is_finished_good and id_candidates:
+            if not is_finished_good:
                 for t_ruch in ['magazyn_ruch', 'magazyn_agro_ruch']:
                     try:
-                        cursor.execute(f"""
-                            SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
-                                   NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa
-                            FROM {t_ruch} 
-                            WHERE surowiec_id IN ({', '.join(['%s'] * len(id_candidates))}) OR komentarz LIKE %s
-                            ORDER BY id DESC
-                        """, tuple(id_candidates + [f"%{target_sscc}%"]))
+                        if target_sscc:
+                            cursor.execute(f"""
+                                SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
+                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa
+                                FROM {t_ruch} 
+                                WHERE komentarz LIKE %s
+                                ORDER BY id DESC
+                            """, (f"%{target_sscc}%",))
+                        elif id_candidates:
+                            cursor.execute(f"""
+                                SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
+                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa
+                                FROM {t_ruch} 
+                                WHERE surowiec_id IN ({', '.join(['%s'] * len(id_candidates))})
+                                ORDER BY id DESC
+                            """, tuple(id_candidates))
                         historia_stara.extend(cursor.fetchall() or [])
                     except Exception:
                         pass
 
-            # 3. Fetch finished goods confirmation events
-            if is_finished_good and id_candidates:
+            # 3. Fetch finished goods confirmation events strictly by SSCC
+            if is_finished_good:
                 for t_pal in ['magazyn_palety', 'magazyn_palety_agro']:
                     try:
-                        cursor.execute(f"""
-                            SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu,
-                                   CONCAT('Rejestracja wyrobu (oczekuje na przyjęcie)', IF(lokalizacja IS NOT NULL AND lokalizacja != '' AND lokalizacja != 'OCZEKUJĄCE', CONCAT(' -> ', lokalizacja), '')) as komentarz,
-                                   'Produkcja' as lokalizacja_zrodlowa, COALESCE(NULLIF(lokalizacja, ''), 'OCZEKUJĄCE') as lokalizacja_docelowa
-                            FROM {t_pal} 
-                            WHERE (id IN ({', '.join(['%s'] * len(id_candidates))}) OR nr_palety = %s) AND data_potwierdzenia IS NOT NULL
-                        """, tuple(id_candidates + [target_sscc]))
+                        if target_sscc:
+                            cursor.execute(f"""
+                                SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu,
+                                       CONCAT('Rejestracja wyrobu (oczekuje na przyjęcie)', IF(lokalizacja IS NOT NULL AND lokalizacja != '' AND lokalizacja != 'OCZEKUJĄCE', CONCAT(' -> ', lokalizacja), '')) as komentarz,
+                                       'Produkcja' as lokalizacja_zrodlowa, COALESCE(NULLIF(lokalizacja, ''), 'OCZEKUJĄCE') as lokalizacja_docelowa
+                                FROM {t_pal} 
+                                WHERE nr_palety = %s AND data_potwierdzenia IS NOT NULL
+                            """, (target_sscc,))
+                        elif id_candidates:
+                            cursor.execute(f"""
+                                SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu,
+                                       CONCAT('Rejestracja wyrobu (oczekuje na przyjęcie)', IF(lokalizacja IS NOT NULL AND lokalizacja != '' AND lokalizacja != 'OCZEKUJĄCE', CONCAT(' -> ', lokalizacja), '')) as komentarz,
+                                       'Produkcja' as lokalizacja_zrodlowa, COALESCE(NULLIF(lokalizacja, ''), 'OCZEKUJĄCE') as lokalizacja_docelowa
+                                FROM {t_pal} 
+                                WHERE id IN ({', '.join(['%s'] * len(id_candidates))}) AND data_potwierdzenia IS NOT NULL
+                            """, tuple(id_candidates))
                         row_c = cursor.fetchone()
                         if row_c and row_c.get('autor_data'):
+                            curr_loc = (row_c.get('lokalizacja_docelowa') or '').strip()
+                            if historia_nowa:
+                                earliest_src = None
+                                for h_n in reversed(historia_nowa):
+                                    s_cand = (h_n.get('lokalizacja_zrodlowa') or '').strip()
+                                    if s_cand and s_cand not in ('Produkcja', 'Zlecenie', '-'):
+                                        earliest_src = s_cand
+                                        break
+                                default_buffer = 'MGW02' if 'agro' in t_pal else 'MGW01'
+                                init_loc = earliest_src or default_buffer
+                                row_c['lokalizacja_docelowa'] = init_loc
+                                row_c['komentarz'] = f"Rejestracja wyrobu (przyjęcie na stan) -> {init_loc}"
                             historia_stara.append(row_c)
                     except Exception:
                         pass
 
-                # 4. Fetch creation events from bagging / orders
+                # 4. Fetch creation events from bagging / orders strictly by SSCC
                 for t_work, t_plan in [('palety_workowanie', 'plan_produkcji'), ('palety_agro', 'plan_produkcji_agro')]:
                     try:
-                        work_cond = "pw.nr_palety = %s"
-                        work_params = [target_sscc]
-                        if pw_id:
-                            work_cond = "(pw.id = %s OR pw.nr_palety = %s)"
-                            work_params = [pw_id, target_sscc]
-
-                        cursor.execute(f"""
-                            SELECT pw.data_dodania as autor_data, pw.dodal_login as autor_login, 'UTWORZENIE' as typ_ruchu,
-                                   CONCAT('Utworzenie palety podczas produkcji: ', COALESCE(plan.produkt, 'Wyrób gotowy'), ', waga: ', COALESCE(pw.waga, 0), ' kg') as komentarz,
-                                   CONCAT('Zlecenie #', COALESCE(pw.plan_id, '-')) as lokalizacja_zrodlowa, 'BUFOR_WORKOWANIE' as lokalizacja_docelowa
-                            FROM {t_work} pw
-                            LEFT JOIN {t_plan} plan ON pw.plan_id = plan.id
-                            WHERE {work_cond} AND pw.data_dodania IS NOT NULL
-                            LIMIT 1
-                        """, tuple(work_params))
+                        if target_sscc:
+                            cursor.execute(f"""
+                                SELECT pw.data_dodania as autor_data, pw.dodal_login as autor_login, 'UTWORZENIE' as typ_ruchu,
+                                       CONCAT('Utworzenie palety podczas produkcji: ', COALESCE(plan.produkt, 'Wyrób gotowy'), ', waga: ', COALESCE(pw.waga, 0), ' kg') as komentarz,
+                                       CONCAT('Zlecenie #', COALESCE(pw.plan_id, '-')) as lokalizacja_zrodlowa, 'BUFOR_WORKOWANIE' as lokalizacja_docelowa
+                                FROM {t_work} pw
+                                LEFT JOIN {t_plan} plan ON pw.plan_id = plan.id
+                                WHERE pw.nr_palety = %s AND pw.data_dodania IS NOT NULL
+                                LIMIT 1
+                            """, (target_sscc,))
+                        elif pw_id:
+                            cursor.execute(f"""
+                                SELECT pw.data_dodania as autor_data, pw.dodal_login as autor_login, 'UTWORZENIE' as typ_ruchu,
+                                       CONCAT('Utworzenie palety podczas produkcji: ', COALESCE(plan.produkt, 'Wyrób gotowy'), ', waga: ', COALESCE(pw.waga, 0), ' kg') as komentarz,
+                                       CONCAT('Zlecenie #', COALESCE(pw.plan_id, '-')) as lokalizacja_zrodlowa, 'BUFOR_WORKOWANIE' as lokalizacja_docelowa
+                                FROM {t_work} pw
+                                LEFT JOIN {t_plan} plan ON pw.plan_id = plan.id
+                                WHERE pw.id = %s AND pw.data_dodania IS NOT NULL
+                                LIMIT 1
+                            """, (pw_id,))
                         row_w = cursor.fetchone()
                         if row_w and row_w.get('autor_data'):
                             historia_stara.append(row_w)
                     except Exception:
                         pass
 
-            combined = historia_nowa + historia_stara
+            # 5. Fetch delivery creation and reception events directly from magazyn_dostawy
+            historia_dostawy = []
+            if not is_finished_good and target_sscc:
+                try:
+                    cursor.execute(
+                        "SELECT id, supplier, order_ref, status, items, created_by, created_at FROM magazyn_dostawy WHERE items LIKE %s",
+                        (f"%{target_sscc}%",)
+                    )
+                    for d_row in cursor.fetchall() or []:
+                        raw_items_str = d_row.get('items') or '[]'
+                        d_items = json.loads(raw_items_str) if isinstance(raw_items_str, str) else raw_items_str
+                        for it in d_items:
+                            if isinstance(it, dict) and it.get('nr_palety') == target_sscc:
+                                p_sup = d_row.get('supplier') or 'Dostawca zewnętrzny'
+                                p_wz = d_row.get('order_ref') or f"#{d_row.get('id')}"
+                                p_user = it.get('accepted_by') or d_row.get('created_by') or 'system'
+                                p_date = it.get('accepted_at') or d_row.get('created_at')
+                                p_loc = it.get('lokalizacja_przyjecia') or 'OSIP'
+                                p_name = it.get('productName') or 'Surowiec'
+                                p_partia = it.get('nr_partii') or '-'
+                                if it.get('accepted'):
+                                    historia_dostawy.append({
+                                        'typ_ruchu': 'PRZYJECIE',
+                                        'autor_login': p_user,
+                                        'autor_data': p_date,
+                                        'lokalizacja_zrodlowa': 'OCZEKUJĄCE',
+                                        'lokalizacja_docelowa': p_loc,
+                                        'komentarz': f"Przyjęcie z dostawy: {p_name}, partia: {p_partia} (WZ: {p_wz})"
+                                    })
+                                else:
+                                    historia_dostawy.append({
+                                        'typ_ruchu': 'DOSTAWA_PRZYJECIE',
+                                        'autor_login': d_row.get('created_by') or 'system',
+                                        'autor_data': d_row.get('created_at'),
+                                        'lokalizacja_zrodlowa': 'DOSTAWA',
+                                        'lokalizacja_docelowa': 'OCZEKUJĄCE',
+                                        'komentarz': f"Przyjęcie zewnętrzne z {p_sup} - WZ: {p_wz}"
+                                    })
+                except Exception:
+                    pass
+
+            combined = historia_nowa + historia_stara + historia_dostawy
 
             def get_dt(x):
                 dt = x.get('autor_data')
@@ -166,10 +275,11 @@ class PalletHistoryService:
                     t_key = t_raw
 
                 u_key = str(h.get('autor_login') or '').strip().lower()
+                dt_key = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
                 key = f"{dt_key}_{t_key}_{u_key}"
                 if key not in seen:
                     seen.add(key)
-                    h['autor_data'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
+                    h['autor_data'] = dt_key if dt != datetime.min else str(h.get('autor_data', ''))
                     
                     src = str(h.get('lokalizacja_zrodlowa') or '').strip()
                     dst = str(h.get('lokalizacja_docelowa') or '').strip()

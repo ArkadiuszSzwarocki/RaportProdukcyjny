@@ -20,9 +20,10 @@ def _generate_and_print_thread(plan_id, printer_name_or_ip):
         
         # Determine the URL for the report
         # We need to render the report without navbar and extra UI elements.
-        # The raport_palet page has CSS for print: @media print.
         protocol = "https" if str(os.environ.get('USE_SSL', 'false')).lower() == 'true' else "http"
-        report_url = f"{protocol}://127.0.0.1:8082/agro/raport_palet?plan_id={plan_id}&internal_print=1"
+        from app.utils.security_tokens import generate_internal_print_token
+        print_token = generate_internal_print_token('/agro/raport_palet')
+        report_url = f"{protocol}://127.0.0.1:8082/agro/raport_palet?plan_id={plan_id}&internal_print=1&print_token={print_token}"
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=['--no-proxy-server'])
@@ -139,7 +140,15 @@ def _generate_and_print_url_thread(report_url, printer_name_or_ip, prefix="rapor
     parsed = urllib.parse.urlparse(report_url)
     if parsed.netloc:
         protocol = "https" if str(os.environ.get('USE_SSL', 'false')).lower() == 'true' else parsed.scheme
-        report_url = parsed._replace(netloc="127.0.0.1:8082", scheme=protocol).geturl()
+        query_dict = urllib.parse.parse_qs(parsed.query)
+        if 'print_token' not in query_dict:
+            from app.utils.security_tokens import generate_internal_print_token
+            token = generate_internal_print_token(parsed.path)
+            sep = '&' if parsed.query else ''
+            new_query = f"{parsed.query}{sep}print_token={token}"
+        else:
+            new_query = parsed.query
+        report_url = parsed._replace(netloc="127.0.0.1:8082", scheme=protocol, query=new_query).geturl()
 
     fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix=prefix)
     os.close(fd)

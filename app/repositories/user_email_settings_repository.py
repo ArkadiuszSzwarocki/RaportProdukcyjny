@@ -6,16 +6,19 @@ from app.db import get_db_connection
 from app.models.user_email_settings_model import UserEmailSettingsModel
 
 
+import os
+
+
 class UserEmailSettingsRepository:
     """Obsługa operacji CRUD na tabeli uzytkownik_email_settings dla kont użytkowników oraz konta systemowego (user_id=0)."""
 
     DEFAULT_SYSTEM_CONFIG = {
-        'smtp_server': 'smtp.wp.pl',
-        'smtp_port': 465,
-        'smtp_security': 'SSL',
-        'smtp_username': 'Arkadiusz.szwarocki@wp.pl',
-        'smtp_password': 'FILIPINKA2025',
-        'sender_name': 'Raport Produkcyjny AGRO'
+        'smtp_server': os.getenv('SMTP_SERVER', 'smtp.wp.pl'),
+        'smtp_port': int(os.getenv('SMTP_PORT', 465)),
+        'smtp_security': os.getenv('SMTP_SECURITY', 'SSL'),
+        'smtp_username': os.getenv('SMTP_USERNAME', 'Arkadiusz.szwarocki@wp.pl'),
+        'smtp_password': os.getenv('SMTP_PASSWORD', ''),
+        'sender_name': os.getenv('SMTP_SENDER_NAME', 'Raport Produkcyjny AGRO')
     }
 
     def get_system_config(self) -> UserEmailSettingsModel:

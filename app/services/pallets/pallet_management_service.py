@@ -105,9 +105,16 @@ class PalletManagementService:
             # Log to palety_historia
             try:
                 old_waga = result.get('old_waga', 0)
+                nr_pal = result.get('nr_palety')
+                if not nr_pal:
+                    t_pal = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+                    cursor.execute(f"SELECT nr_palety FROM {t_pal} WHERE id=%s", (paleta_id,))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        nr_pal = p_row[0] if isinstance(p_row, (list, tuple)) else p_row.get('nr_palety')
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
-                    (paleta_id, linia, f"Zmieniono wagę: {old_waga} kg → {waga} kg", user_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
+                    (paleta_id, nr_pal, linia, f"Zmieniono wagę: {old_waga} kg → {waga} kg", user_login)
                 )
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for edited paleta %s: %s', paleta_id, hist_err)

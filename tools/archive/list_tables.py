@@ -7,7 +7,7 @@ load_dotenv(override=True)
 host = os.getenv('DB_HOST', 'raportprodukcji.mycloudnas.com')
 port = int(os.getenv('DB_PORT', 3307))
 user = os.getenv('DB_USER', 'biblioteka')
-password = os.getenv('DB_PASSWORD', 'Filipinka2025')
+password = os.getenv('DB_PASSWORD', '')
 
 try:
     conn = mysql.connector.connect(

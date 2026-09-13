@@ -221,12 +221,13 @@ class ProductionConsumptionService:
             try:
                 cursor.execute("""
                     INSERT INTO palety_historia (
-                        paleta_id, linia, typ_palety, akcja, 
+                        paleta_id, nr_palety, linia, typ_palety, akcja, 
                         lokalizacja_zrodlowa, lokalizacja_docelowa, 
                         komentarz, user_login
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     pallet_id,
+                    pallet_sscc,
                     pallet_line,
                     pallet_type.lower(),
                     'ZUZYCIE_PRODUKCJA',

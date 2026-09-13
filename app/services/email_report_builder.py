@@ -263,7 +263,7 @@ class EmailReportBuilder:
                 <!-- FOOTER -->
                 <tr>
                     <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 30px; font-size: 12px; color: #64748b; text-align: center;">
-                        Wiadomość wygenerowana automatycznie przez <strong>Raport Produkcyjny AGRO</strong>.<br>
+                        Wiadomość wygenerowana automatycznie przez <strong>Raport Produkcyjny {linia}</strong>.<br>
                         Data wysyłki: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
                     </td>
                 </tr>

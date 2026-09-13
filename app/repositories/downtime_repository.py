@@ -120,26 +120,42 @@ class DowntimeRepository:
         finally:
             conn.close()
 
-    def get_downtimes(self, linia: str, data_od: str, data_do: str, sekcja: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_downtimes(self, linia: str, data_od: str, data_do: str, sekcja: Optional[str] = None, exclude_system_bugs: bool = True) -> List[Dict[str, Any]]:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             results = []
             
+            bug_sql_filter = ""
+            if exclude_system_bugs and str(linia).strip().upper() == 'PSD':
+                bug_sql_filter = " AND (zdjecie_url IS NULL OR zdjecie_url NOT LIKE '%/bugs/%') AND kategoria NOT LIKE '%Błąd systemu%' AND LOWER(kategoria) != 'it'"
+
             if sekcja and sekcja.strip().lower() in ('zasyp', 'workowanie'):
                 table = self.get_table_name_by_section(sekcja)
-                query = f"SELECT * FROM {table} WHERE linia = %s AND data_przestoju BETWEEN %s AND %s ORDER BY data_przestoju DESC, godzina_start DESC"
+                query = f"SELECT * FROM {table} WHERE linia = %s AND data_przestoju BETWEEN %s AND %s{bug_sql_filter} ORDER BY data_przestoju DESC, godzina_start DESC"
                 cursor.execute(query, (linia, data_od, data_do))
                 results = cursor.fetchall() or []
             else:
-                q1 = f"SELECT * FROM przestoje_produkcyjne WHERE linia = %s AND data_przestoju BETWEEN %s AND %s"
-                q2 = f"SELECT * FROM przestoje_zasyp WHERE linia = %s AND data_przestoju BETWEEN %s AND %s"
+                q1 = f"SELECT * FROM przestoje_produkcyjne WHERE linia = %s AND data_przestoju BETWEEN %s AND %s{bug_sql_filter}"
+                q2 = f"SELECT * FROM przestoje_zasyp WHERE linia = %s AND data_przestoju BETWEEN %s AND %s{bug_sql_filter}"
                 cursor.execute(q1, (linia, data_od, data_do))
                 r1 = cursor.fetchall() or []
                 cursor.execute(q2, (linia, data_od, data_do))
                 r2 = cursor.fetchall() or []
                 results = r1 + r2
                 results.sort(key=lambda x: (x.get('data_przestoju') or date.min, str(x.get('godzina_start') or '')), reverse=True)
+
+            if exclude_system_bugs and str(linia).strip().upper() == 'PSD':
+                cleaned = []
+                for r in results:
+                    zdj = str(r.get('zdjecie_url') or '').lower()
+                    kat = str(r.get('kategoria') or '').strip().lower()
+                    if 'bugs' in zdj or '/uploads/bugs/' in zdj:
+                        continue
+                    if 'błąd systemu' in kat or 'blad systemu' in kat or kat == 'it':
+                        continue
+                    cleaned.append(r)
+                results = cleaned
 
             return results
         finally:

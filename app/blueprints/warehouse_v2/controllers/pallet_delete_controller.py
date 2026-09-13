@@ -54,8 +54,8 @@ class PalletDeleteController:
             
             try:
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
-                    (pallet_id, linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", session.get('login', 'admin'))
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
+                    (pallet_id, row.get('nr_palety'), linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", session.get('login', 'admin'))
                 )
             except Exception as hist_err:
                 print(f"History log warning: {hist_err}")

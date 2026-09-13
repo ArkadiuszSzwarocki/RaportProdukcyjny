@@ -6,6 +6,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
+from email.header import Header
+from email.utils import formataddr
 from email import encoders
 from typing import List, Optional, Tuple, Dict, Any
 
@@ -121,10 +123,12 @@ class EmailService:
         try:
             # Tworzenie wiadomości MIME
             msg = MIMEMultipart()
-            sender_str = f"{config['sender_name']} <{config['username']}>" if config.get('sender_name') else config['username']
-            msg['From'] = sender_str
+            if config.get('sender_name'):
+                msg['From'] = formataddr((str(Header(config['sender_name'], 'utf-8')), config['username']))
+            else:
+                msg['From'] = config['username']
             msg['To'] = ", ".join(to_emails)
-            msg['Subject'] = subject
+            msg['Subject'] = Header(subject, 'utf-8')
 
             # Dodanie treści HTML
             msg.attach(MIMEText(body_html, 'html', 'utf-8'))

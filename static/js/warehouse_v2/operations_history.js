@@ -54,7 +54,10 @@ function fetchHistory() {
                 let badgeStyle = 'background: #f1f5f9; color: #475569;';
                 let label = h.typ_ruchu || 'RUCH';
 
-                if (typ.includes('UTWORZ')) {
+                if (typ.includes('DOSTAWA')) {
+                    badgeStyle = 'background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;';
+                    label = 'Dostawa Zewnętrzna';
+                } else if (typ.includes('UTWORZ')) {
                     badgeStyle = 'background: #fef9c3; color: #854d0e; border: 1px solid #fef08a;';
                     label = 'Utworzenie Palety';
                 } else if (typ.includes('POTWIERDZ') || typ.includes('PRZYJECIE') || typ.includes('PW')) {

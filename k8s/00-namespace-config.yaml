@@ -30,9 +30,9 @@ metadata:
   namespace: raportprodukcyjny
 type: Opaque
 stringData:
-  SECRET_KEY: "change-me-in-production"
+  SECRET_KEY: "CHANGE_THIS_TO_RANDOM_SECRET_KEY_MIN_32_CHARACTERS"
   DB_USER: "biblioteka"
-  DB_PASSWORD: "Filipinka2025"
+  DB_PASSWORD: "CHANGE_THIS_TO_YOUR_DB_PASSWORD"
   INITIAL_ADMIN_PASSWORD: "change-me-admin"
 
 ---

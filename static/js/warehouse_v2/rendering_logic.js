@@ -29,20 +29,21 @@ function populateLocationFilter() {
     
     const uniqueLocations = [...uniqueLocationsSet].sort((a, b) => a.localeCompare(b));
     
-    // Odczytaj zapisane lokalizacje z localStorage
+    // Read saved locations from localStorage
     const savedLocs = localStorage.getItem('warehouse_locations');
-    if (savedLocs) {
+    if (savedLocs !== null) {
         try {
             const parsed = JSON.parse(savedLocs);
             if (Array.isArray(parsed)) {
                 selectedLocations = parsed;
+            } else {
+                selectedLocations = [...uniqueLocations];
             }
         } catch (e) {
-            console.warn("Błąd parsowania warehouse_locations z localStorage:", e);
+            console.warn("Error parsing warehouse_locations from localStorage:", e);
+            selectedLocations = [...uniqueLocations];
         }
-    }
-    
-    if (!selectedLocations || selectedLocations.length === 0) {
+    } else {
         selectedLocations = [...uniqueLocations];
     }
     
@@ -64,13 +65,18 @@ function updateLocationDropdownLabel(totalUnique) {
     const labelEl = document.getElementById('locationDropdownLabel');
     if (!labelEl) return;
     
-    const total = totalUnique || document.querySelectorAll('.loc-checkbox').length;
-    if (selectedLocations.length === total || total === 0) {
+    const checkboxes = document.querySelectorAll('.loc-checkbox');
+    const total = (typeof totalUnique === 'number' && totalUnique > 0) ? totalUnique : checkboxes.length;
+    const count = Array.isArray(selectedLocations) ? selectedLocations.length : 0;
+    
+    if (total === 0) {
         labelEl.textContent = 'Filtruj Lokacje';
-    } else if (selectedLocations.length === 0) {
-        labelEl.textContent = 'Żadna Lokacja (0)';
+    } else if (count === total) {
+        labelEl.textContent = 'Wszystkie Lokacje';
+    } else if (count === 0) {
+        labelEl.textContent = 'Brak Lokacji (0)';
     } else {
-        labelEl.textContent = `Lokacje (${selectedLocations.length}/${total})`;
+        labelEl.textContent = `Lokacje (${count}/${total})`;
     }
 }
 
@@ -221,6 +227,28 @@ function loadMoreItems() {
     const tbody = document.querySelector(".list-view-wrapper tbody");
     const grid = document.getElementById('palletGridContainer');
     if (!tbody || !grid) return;
+
+    if (currentFilteredItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 48px 16px; color: #64748b;">
+            <span class="material-icons" style="font-size: 44px; color: #94a3b8; display: block; margin-bottom: 8px;">filter_alt_off</span>
+            <div style="font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 4px;">Brak palet dla wybranych lokalizacji / filtrów</div>
+            <div style="font-size: 13px; color: #64748b;">Zaznacz inne magazyny/regały w menu lub kliknij „Wszystkie”, aby wyświetlić pozycje.</div>
+        </td></tr>`;
+        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 48px 16px; color: #64748b;">
+            <span class="material-icons" style="font-size: 44px; color: #94a3b8; display: block; margin-bottom: 8px;">filter_alt_off</span>
+            <div style="font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 4px;">Brak palet dla wybranych lokalizacji / filtrów</div>
+            <div style="font-size: 13px; color: #64748b;">Zaznacz inne magazyny/regały w menu lub kliknij „Wszystkie”, aby wyświetlić pozycje.</div>
+        </div>`;
+        const loadMoreContainer = document.getElementById('loadMoreContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = 'none';
+        }
+        requestAnimationFrame(() => {
+            tbody.style.opacity = '1';
+            grid.style.opacity = '1';
+        });
+        return;
+    }
 
     const start = currentRenderedCount;
     const end = Math.min(start + PAGE_SIZE, currentFilteredItems.length);

@@ -50,13 +50,14 @@ def lookup():
 @scanner_bp.route('/pallet/history', methods=['GET'])
 def get_pallet_history():
     pallet_id = request.args.get('id')
+    sscc = request.args.get('sscc') or (pallet_id if pallet_id and not str(pallet_id).isdigit() else None)
     pallet_type = request.args.get('type') or 'Surowiec'
     linia = request.args.get('linia') or _linia() or 'AGRO'
     
-    if not pallet_id:
+    if not pallet_id and not sscc:
         return jsonify({'success': False, 'error': 'Brak ID lub numeru palety'}), 400
         
-    history = WarehouseV2Service.get_pallet_history(pallet_id, pallet_type, linia)
+    history = WarehouseV2Service.get_pallet_history(pallet_id, pallet_type, linia, sscc=sscc)
     return jsonify({'success': True, 'history': history})
 
 

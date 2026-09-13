@@ -74,15 +74,35 @@ def create_app(config_secret_key=None, init_db=True):
     # Configure with secret key – always load from environment first so
     # container restarts (Watchtower) do not invalidate existing session cookies.
     _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
-    app.secret_key = _secret_key
+    _is_prod = str(os.environ.get('FLASK_ENV', '')).lower() == 'production' or str(os.environ.get('ENV', '')).lower() == 'production'
+    _insecure_keys = (
+        'tajnyKluczAgronetzwerk', 'dev-secret-key', 'test-secret',
+        'change-me-in-production', 'your-secret-key-here-min-32-chars',
+        'CHANGE_THIS_TO_RANDOM_SECRET_KEY_MIN_32_CHARACTERS'
+    )
 
-    # Check for default or insecure secret key
-    if _secret_key in ('tajnyKluczAgronetzwerk', 'dev-secret-key', 'test-secret', 'change-me-in-production'):
-        import logging
-        logging.getLogger('app.security').warning(
-            "SECURITY WARNING: Running with default or insecure SECRET_KEY (%s). Please set a strong SECRET_KEY in .env for production!",
-            _secret_key
-        )
+    if _is_prod:
+        if not _secret_key or _secret_key in _insecure_keys or len(_secret_key) < 32:
+            import logging
+            logging.getLogger('app.security').critical(
+                "CRITICAL SECURITY ERROR: Invalid or missing SECRET_KEY in production! "
+                "Application startup aborted. Please set a unique, random SECRET_KEY (min 32 chars) in .env."
+            )
+            raise RuntimeError(
+                "CRITICAL SECURITY ERROR: Production requires a secure SECRET_KEY (min 32 characters). "
+                "Startup aborted."
+            )
+    else:
+        if not _secret_key or _secret_key in _insecure_keys:
+            import secrets
+            import logging
+            _secret_key = secrets.token_hex(32)
+            logging.getLogger('app.security').warning(
+                "SECURITY WARNING: Running without configured SECRET_KEY in development! "
+                "Generated temporary random secret key for this session."
+            )
+
+    app.secret_key = _secret_key
 
     # Configure session to ensure cookies are properly set
     cookie_secure_env = str(os.environ.get('SESSION_COOKIE_SECURE', 'false')).strip().lower()
@@ -192,6 +212,13 @@ def create_app(config_secret_key=None, init_db=True):
     
     # Poinstruowanie aplikacji, aby czytała oryginalne nagłówki przekazane przez Nginxa:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+    # Register admin CLI commands
+    try:
+        from app.cli import register_cli_commands
+        register_cli_commands(app)
+    except Exception as e:
+        app.logger.warning('Failed to register CLI commands: %s', e)
 
     return app
 

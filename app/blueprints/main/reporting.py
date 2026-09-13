@@ -236,6 +236,11 @@ def register_main_reporting_routes(main_bp):
             flash("❌ Musisz podać co najmniej jeden adres e-mail odbiorcy.", "danger")
             return redirect(url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=date_str))
 
+        from app.services.auto_report_service import AutoReportService
+        if not AutoReportService.has_report_data(linia, date_str):
+            flash("⚠️ Raport dla wybranej linii i daty nie zawiera żadnych danych produkcyjnych ani przestojów. Wysyłka została anulowana.", "warning")
+            return redirect(url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=date_str))
+
         # Załączniki zaznaczone przez użytkownika
         selected_attachments = request.form.getlist('attachments')
         valid_attachments = [p for p in selected_attachments if os.path.exists(p)]
@@ -445,8 +450,9 @@ def register_main_reporting_routes(main_bp):
         finally:
             conn.close()
 
-        # 2. Jeśli zgłoszenie dotyczy hali produkcyjnej (AGRO lub PSD) i jest to awaria/przestój -> dodaj do raportu produkcyjnego danej hali
-        if hala in ('AGRO', 'PSD'):
+        # 2. Zgłoszenia z formularza "Robaczek" (błędy systemu / IT / usterki) NIE trafiają do raportu produkcyjnego PSD.
+        # Jedynie opcjonalnie dla AGRO, jeśli wyraźnie wskazano tę halę w dedykowanym formularzu awarii.
+        if hala == 'AGRO' and request.form.get('hala'):
             try:
                 from app.repositories.downtime_repository import DowntimeRepository
                 downtime_repo = DowntimeRepository()

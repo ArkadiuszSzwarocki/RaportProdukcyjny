@@ -78,7 +78,7 @@ class WarehousePageController:
             {'id': 'all', 'name': 'Wszystkie Magazyny'},
             {'id': 'MS01', 'name': 'Magazyn Surowcowy (MS01)'},
             {'id': 'MP01', 'name': 'Magazyn Produkcyjny (MP01)'},
-            {'id': 'OSIP', 'name': 'Magazyn OSIP (OSIP)'},
+            {'id': 'OSIP', 'name': 'Magazyn Centralny', 'code': 'CENTRALNY'},
             {'id': 'PSD01', 'name': 'Magazyn Produkcyjny (PSD01)'},
             {'id': 'MDO01', 'name': 'Magazyn Dodatków (MDO01)'},
             {'id': 'MOP01', 'name': 'Magazyn Opakowań (MOP01)'},

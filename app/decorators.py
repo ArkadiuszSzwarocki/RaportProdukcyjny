@@ -5,8 +5,12 @@ from flask import session, redirect, request, jsonify, current_app, render_templ
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if request.remote_addr == '127.0.0.1' and request.args.get('internal_print') == '1':
-            return f(*args, **kwargs)
+        # Allow internal print rendering ONLY when bearing a valid cryptographic HMAC token
+        print_token = request.args.get('print_token')
+        if print_token:
+            from app.utils.security_tokens import verify_internal_print_token
+            if verify_internal_print_token(request.path, print_token):
+                return f(*args, **kwargs)
             
         if 'zalogowany' not in session:
             # If request looks like AJAX/JSON (X-Requested-With or Accepts JSON), return 401 JSON

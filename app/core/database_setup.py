@@ -1517,6 +1517,29 @@ def _migrate_columns(cursor):
     except Exception as e:
         print(f"[WARN] Failed to add column nr_palety to palety_historia: {e}")
 
+    # Clean up any past bug reports ("Robaczek") from downtime tables for PSD line
+    try:
+        cursor.execute("""
+            DELETE FROM przestoje_produkcyjne 
+            WHERE linia = 'PSD' AND (
+                zdjecie_url LIKE '%/bugs/%' 
+                OR kategoria LIKE '%Błąd systemu%'
+                OR kategoria LIKE '%systemu / IT%'
+                OR LOWER(kategoria) = 'it'
+            )
+        """)
+        cursor.execute("""
+            DELETE FROM przestoje_zasyp 
+            WHERE linia = 'PSD' AND (
+                zdjecie_url LIKE '%/bugs/%' 
+                OR kategoria LIKE '%Błąd systemu%'
+                OR kategoria LIKE '%systemu / IT%'
+                OR LOWER(kategoria) = 'it'
+            )
+        """)
+    except Exception as e:
+        print(f"[WARN] Failed to purge bug reports from PSD downtimes: {e}")
+
 def _seed_default_users(cursor):
     """Create default users if they don't exist."""
     # Migrate plaintext passwords to hashed
@@ -1545,15 +1568,9 @@ def _seed_default_users(cursor):
         else:
             print("[SECURITY] No INITIAL_ADMIN_PASSWORD provided; skipping creation of default 'admin' account.")
     
-    # Create default planista account
-    cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123', method='pbkdf2:sha256'), 'planista'))
-
-    # Create default GontaArt account (Magazynier OSIP)
-    cursor.execute("SELECT id FROM uzytkownicy WHERE login='GontaArt'")
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", ('GontaArt', generate_password_hash('Artur2026', method='pbkdf2:sha256'), 'magazynier', 'OSIP'))
+    # Non-admin users (planista, magazynier, etc.) must be created securely
+    # via CLI command `flask admin create-user` or through Admin Panel.
+    # Automatic creation with default/hardcoded passwords has been disabled for security.
 
 def _table_has_column(cursor, table_name, column_name):
     try:

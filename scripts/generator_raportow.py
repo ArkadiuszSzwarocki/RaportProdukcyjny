@@ -3,11 +3,24 @@ import os
 from pathlib import Path
 from datetime import datetime
 from app.db import get_db_connection, get_table_name
+from scripts.raporty import fix_mojibake
 import logging
 
 logger = logging.getLogger(__name__)
 
+def clean_dataframe_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """Sanitizes string columns in DataFrame from mojibake and encoding anomalies."""
+    if df is None or df.empty:
+        return df
+    df_clean = df.copy()
+    for col in df_clean.columns:
+        if df_clean[col].dtype == 'object':
+            df_clean[col] = df_clean[col].apply(lambda val: fix_mojibake(str(val)) if val is not None and not pd.isna(val) else val)
+    return df_clean
+
 def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PSD'):
+    uwagi_lidera = fix_mojibake(uwagi_lidera or '')
+    lider_name = fix_mojibake(lider_name or '')
     logger.info(f"[GENERATOR] Starting report generation for {data_raportu} line {linia}")
     logger.info(f"[GENERATOR] Lider: {lider_name}, Uwagi length: {len(uwagi_lidera)}")
     print(f"[GENERATOR] ===== REPORT GENERATION START =====")
@@ -79,7 +92,33 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     # Awarie i przestoje: pobieramy z DowntimeRepository (przestoje_zasyp + przestoje_produkcyjne)
     try:
         from app.repositories.downtime_repository import DowntimeRepository
-        dts = DowntimeRepository().get_downtimes(linia, data_raportu, data_raportu)
+        dts = DowntimeRepository().get_downtimes(linia, data_raportu, data_raportu, exclude_system_bugs=True)
+
+        # Dla linii PSD bezwzględnie filtrujemy wszelkie wpisy pochodzące ze zgłoszeń w "Robaczku"
+        if str(linia).strip().upper() == 'PSD':
+            try:
+                c_bugs = conn.cursor()
+                c_bugs.execute("SELECT opis FROM zgloszenia_bledow WHERE DATE(timestamp) = %s", (data_raportu,))
+                bug_rows = c_bugs.fetchall() or []
+                c_bugs.close()
+                bug_descriptions = [str(r[0] or '').strip().lower() for r in bug_rows]
+            except Exception:
+                bug_descriptions = []
+
+            filtered_dts = []
+            for d in dts:
+                zdj = str(d.get('zdjecie_url') or '').lower()
+                kat = str(d.get('kategoria') or '').strip().lower()
+                opis_raw = str(d.get('opis') or d.get('problem') or '').strip().lower()
+                if 'bugs' in zdj or '/uploads/bugs/' in zdj:
+                    continue
+                if 'błąd systemu' in kat or 'blad systemu' in kat or kat == 'it':
+                    continue
+                if opis_raw and any(opis_raw in bd for bd in bug_descriptions):
+                    continue
+                filtered_dts.append(d)
+            dts = filtered_dts
+
         awarie_records = []
         for d in dts:
             sek = d.get('sekcja') or 'Zasyp'
@@ -310,6 +349,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     folder = 'raporty_temp'
     if not os.path.exists(folder): os.makedirs(folder)
     logger.info(f"[GENERATOR] Output folder: {os.path.abspath(folder)}")
+
+    # Sanitize string data in DataFrames from mojibake before export
+    df_plan = clean_dataframe_strings(df_plan)
+    df_awarie = clean_dataframe_strings(df_awarie)
+    df_hr = clean_dataframe_strings(df_hr)
+    df_obsada = clean_dataframe_strings(df_obsada)
+    df_nieobecni = clean_dataframe_strings(df_nieobecni)
+    df_bufor = clean_dataframe_strings(df_bufor)
+    df_nadgodziny = clean_dataframe_strings(df_nadgodziny)
 
     # 1. Excel
     xls_path = os.path.join(folder, f"Raport_{linia}_{data_raportu}.xlsx")

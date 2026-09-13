@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 # w środowisku (np. w CI).
 load_dotenv(override=False)
 
-# Klucz do sesji (pobierany z .env, a jeśli brak - używa domyślnego)
-SECRET_KEY = os.getenv('SECRET_KEY', 'tajnyKluczAgronetzwerk')
+# Klucz do sesji (wymagany ze zmiennych środowiskowych)
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # Dane do bazy - teraz pobierane bezpiecznie z .env
 DB_CONFIG = {

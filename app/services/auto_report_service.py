@@ -316,7 +316,7 @@ class AutoReportService:
 
     @classmethod
     def is_report_sent(cls, linia: str, date_str: str, typ_raportu: str = '15:00') -> bool:
-        """Bezwzględnie sprawdza, czy raport danego typu został już wysłany w danym dniu."""
+        """Bezwzględnie sprawdza, czy raport danego typu został już wysłany (lub pominięty z braku danych) w danym dniu."""
         conn = None
         try:
             conn = get_db_connection()
@@ -325,7 +325,7 @@ class AutoReportService:
             cursor.execute(
                 """
                 SELECT id FROM auto_report_history 
-                WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s AND status = 'SENT'
+                WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s AND status IN ('SENT', 'SKIPPED_EMPTY')
                 LIMIT 1
                 """,
                 (date_str, linia, typ_raportu)
@@ -342,7 +342,7 @@ class AutoReportService:
 
     @classmethod
     def is_1500_report_sent(cls, linia: str, date_str: str) -> bool:
-        """Sprawdza czy raport o 15:00 został już dzisiaj wysłany."""
+        """Sprawdza czy raport o 15:00 został już dzisiaj wysłany lub pominięty."""
         return cls.is_report_sent(linia, date_str, '15:00')
 
     @classmethod
@@ -350,7 +350,7 @@ class AutoReportService:
         """
         Atomowo rezerwuje prawo do wykonania i wysyłki raportu.
         Gwarantuje bezwzględnie jednorazową wysyłkę:
-        - Jeśli status to 'SENT', ZAWSZE zwraca False (żadnych ponownych wysyłek).
+        - Jeśli status to 'SENT' lub 'SKIPPED_EMPTY', ZAWSZE zwraca False.
         - Jeśli status to 'IN_PROGRESS', blokuje współbieżne wykonania.
         - Jeśli status to 'FAILED', nie ponawia automatycznie co 10 minut w pętli.
         """
@@ -364,7 +364,7 @@ class AutoReportService:
                 SELECT id, status, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
                 FROM auto_report_history
                 WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s
-                ORDER BY CASE WHEN status = 'SENT' THEN 0 ELSE 1 END, id DESC
+                ORDER BY CASE WHEN status IN ('SENT', 'SKIPPED_EMPTY') THEN 0 ELSE 1 END, id DESC
                 LIMIT 1
                 FOR UPDATE
                 """,
@@ -375,7 +375,7 @@ class AutoReportService:
             if row:
                 st = str(row.get('status') or '').upper()
                 age_min = int(row.get('age_min') or 0)
-                if st == 'SENT':
+                if st in ('SENT', 'SKIPPED_EMPTY'):
                     cursor.close()
                     return False
                 if st == 'IN_PROGRESS' and age_min < 30:
@@ -469,6 +469,112 @@ class AutoReportService:
             cursor.close()
         except Exception as e:
             logger.error("[AUTO_REPORT] Błąd zapisu błędu do auto_report_history: %s", e)
+        finally:
+            if conn:
+                conn.close()
+
+    @classmethod
+    def mark_report_skipped_empty(cls, linia: str, date_str: str, typ_raportu: str, reason: str = 'Brak danych produkcyjnych'):
+        """Oznacza próbę wysłania raportu jako pominiętą ze względu na brak danych (status SKIPPED_EMPTY)."""
+        conn = None
+        try:
+            conn = get_db_connection()
+            cls._ensure_history_table(conn)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO auto_report_history (data_raportu, linia, typ_raportu, odbiorcy, status, created_at)
+                VALUES (%s, %s, %s, %s, 'SKIPPED_EMPTY', NOW())
+                ON DUPLICATE KEY UPDATE
+                    odbiorcy = IF(status = 'SENT', odbiorcy, VALUES(odbiorcy)),
+                    status = IF(status = 'SENT', 'SENT', 'SKIPPED_EMPTY'),
+                    created_at = IF(status = 'SENT', created_at, NOW())
+                """,
+                (date_str, linia, typ_raportu, str(reason)[:255])
+            )
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            logger.error("[AUTO_REPORT] Błąd zapisu pominięcia pustego raportu: %s", e)
+        finally:
+            if conn:
+                conn.close()
+
+    @classmethod
+    def has_report_data(cls, linia: str = 'AGRO', date_str: Optional[str] = None) -> bool:
+        """
+        Weryfikuje, czy raport dla danej linii i daty zawiera jakiekolwiek dane produkcyjne, awarie lub notatki.
+        Zwraca False, gdy w danym dniu nie rejestrowano żadnej produkcji ani zdarzeń dla tej linii.
+        """
+        if not date_str:
+            date_str = str(date.today())
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
+            table_dosypki = 'dosypki_agro' if linia == 'AGRO' else 'dosypki'
+            table_palety = get_table_name('palety_workowanie', linia)
+
+            # 1. Sprawdź wytworzone szarże zasypu
+            cursor.execute(f"SELECT id FROM {table_szarze} WHERE DATE(data_dodania) = %s LIMIT 1", (date_str,))
+            if cursor.fetchone():
+                cursor.close()
+                return True
+
+            # 2. Sprawdź spakowane palety workowania
+            cursor.execute(
+                f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s LIMIT 1",
+                (date_str, date_str)
+            )
+            if cursor.fetchone():
+                cursor.close()
+                return True
+
+            # 3. Sprawdź potwierdzone dosypki
+            cursor.execute(
+                f"SELECT id FROM {table_dosypki} WHERE (DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s) AND (anulowana = 0 OR anulowana IS NULL) LIMIT 1",
+                (date_str, date_str)
+            )
+            if cursor.fetchone():
+                cursor.close()
+                return True
+
+            # 4. Sprawdź zlecenia w planie (rozpoczęte/zakończone dzisiaj LUB zaplanowane z tonażem)
+            cursor.execute(
+                f"""SELECT id FROM {table_plan} 
+                    WHERE ((data_planu = %s AND tonaz > 0)
+                       OR DATE(real_start) = %s 
+                       OR DATE(real_stop) = %s
+                       OR (data_planu = %s AND tonaz_rzeczywisty > 0))
+                       AND is_deleted = 0
+                    LIMIT 1
+                """,
+                (date_str, date_str, date_str, date_str)
+            )
+            if cursor.fetchone():
+                cursor.close()
+                return True
+
+            cursor.close()
+
+            # 5. Sprawdź przestoje i awarie
+            downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
+            if downtimes and len(downtimes) > 0:
+                return True
+
+            # 6. Sprawdź notatki zmianowe lidera
+            from app.services.shift_close_service import _load_shift_notes
+            notes = _load_shift_notes(date_str, linia=linia)
+            if notes and str(notes).strip():
+                return True
+
+            return False
+        except Exception as e:
+            logger.error("[AUTO_REPORT] Błąd sprawdzania czy raport posiada dane: %s", e)
+            return True
         finally:
             if conn:
                 conn.close()
@@ -719,6 +825,12 @@ class AutoReportService:
             logger.info("[AUTO_REPORT] %s", msg)
             return True, msg
 
+        if not force and not cls.has_report_data(linia, date_str):
+            msg = f"Automatyczny raport o 15:00 dla linii {linia} w dniu {date_str} pominięty — raport nie zawiera żadnych danych produkcyjnych ani przestojów."
+            logger.info("[AUTO_REPORT] %s", msg)
+            cls.mark_report_skipped_empty(linia, date_str, '15:00', msg)
+            return True, msg
+
         to_emails = cls.get_default_recipients(linia)
         if not to_emails:
             msg = f"Brak skonfigurowanych odbiorcow e-mail dla linii {linia}. Anulowano wysylke o 15:00."
@@ -825,6 +937,12 @@ class AutoReportService:
 
         if not to_emails:
             return False, "Brak odbiorców e-mail dla raportu po 15:00."
+
+        if not cls.has_report_data(linia, date_str):
+            msg = f"Raport po 15:00 dla linii {linia} w dniu {date_str} pominięty — raport nie zawiera żadnych danych produkcyjnych ani przestojów."
+            logger.info("[AUTO_REPORT] %s", msg)
+            cls.mark_report_skipped_empty(linia, date_str, 'po_15:00', msg)
+            return True, msg
 
         if not cls.claim_report_execution(linia, date_str, 'po_15:00'):
             return True, f"Raport po 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."

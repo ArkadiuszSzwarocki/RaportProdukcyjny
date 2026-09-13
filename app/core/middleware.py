@@ -61,9 +61,12 @@ def enforce_csrf_origin_check(app):
         if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
             return
 
-        # Exclude local printing bridge or internal testing calls
-        if request.remote_addr in ('127.0.0.1', '::1') and request.args.get('internal_print') == '1':
-            return
+        # Exclude internal print rendering ONLY when bearing a valid cryptographic HMAC token
+        print_token = request.args.get('print_token')
+        if print_token:
+            from app.utils.security_tokens import verify_internal_print_token
+            if verify_internal_print_token(request.path, print_token):
+                return
 
         origin = request.headers.get('Origin')
         referer = request.headers.get('Referer')

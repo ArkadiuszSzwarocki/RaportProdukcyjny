@@ -45,13 +45,13 @@
                     {% set racks = [
                         ('all', 'Wszystkie Lokalizacje'), 
                         ('bufory', '📦 Wszystkie Bufory (BF, MGW, MS, MP)'),
-                        ('BFOS', '📦 Bufor OSIP (BFOS)'),
+                        ('BFOS', '📦 Bufor Centralny (BFOS)'),
                         ('MGW01', '📦 Bufor Workowania (MGW01)'),
                         ('MGW02', '📦 Bufor Workowania (MGW02)'),
                         ('MP01', '📦 Bufor Podłoga (MP01)'),
                         ('MS01', '📦 Bufor Surowce (MS01)'),
-                        ('A01-A99', 'Hala OSIP (A01–A99)'),
-                        ('OS01-77', 'Hala OSIP (OS01–OS77)'),
+                        ('A01-A99', 'Magazyn Centralny (A01–A99)'),
+                        ('OS01-77', 'Magazyn Centralny (OS01–OS77)'),
                         ('R01', 'Regał R01'), 
                         ('R02', 'Regał R02'), 
                         ('R03', 'Regał R03'), 
@@ -88,7 +88,7 @@
                                {% if tab.id == aktywna_zakladka %}checked{% endif %} 
                                onchange="updateWhLabel('{{ tab.name }}'); switchWarehouse('{{ tab.id }}')">
                         <label for="radio-{{ tab.id }}" class="list-item-btn warehouse-item">
-                            <span class="item-id">{{ tab.id|upper }}</span>
+                            <span class="item-id">{{ tab.code if tab.code else tab.id|upper }}</span>
                             <span class="item-name">{{ tab.name }}</span>
                             <span class="material-icons radio-indicator">radio_button_unchecked</span>
                         </label>

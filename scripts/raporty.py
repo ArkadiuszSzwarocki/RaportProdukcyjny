@@ -28,33 +28,70 @@ def format_godziny(wartosc):
     except Exception:
         return f"{wartosc}h"
 
+import re
+
+MOJIBAKE_MAP = {
+    'Ä…': 'a', 'Ä„': 'A',
+    'Ä‡': 'c', 'Ä†': 'C',
+    'Ä™': 'e', 'Ä˜': 'E',
+    'Å‚': 'l', 'Å': 'L', 'Å?': 'l',
+    'Å„': 'n', 'Åƒ': 'N',
+    'Ã³': 'o', 'Ã“': 'O',
+    'Å›': 's', 'Åš': 'S',
+    'Åº': 'z', 'Å¹': 'Z',
+    'Å¼': 'z', 'Å»': 'Z',
+    'Ä?': 'e',
+    'â€“': '-', 'â€”': '-', 'â€ž': '"', 'â€': '"', 'â€˜': "'", 'â€™': "'",
+}
+
+POLISH_ASCII_MAP = {
+    'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+    'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+    '\u2013': '-', '\u2014': '-', '\u2015': '-', '\u2212': '-',
+    '\u201c': '"', '\u201d': '"', '\u201e': '"', '\u201f': '"',
+    '”': '"', '„': '"', '’': "'", '‘': "'", '‚': "'", '«': '"', '»': '"',
+    '…': '...', '\u2026': '...',
+    '•': '*', '\u2022': '*',
+    '–': '-', '—': '-',
+    '\u00a0': ' ', '\u202f': ' ', '\ufeff': ''
+}
+
+def fix_mojibake(text):
+    """Repairs double-encoded UTF-8 strings (mojibake) and replaces broken multi-byte sequences."""
+    if text is None:
+        return ""
+    text = str(text)
+    if not text:
+        return ""
+    for k, v in MOJIBAKE_MAP.items():
+        if k in text:
+            text = text.replace(k, v)
+    return text
+
 def polskie_znaki_pdf(text):
     """
-    Podmienia polskie znaki i znaki specjalne dla biblioteki FPDF.
-    Zapobiega błędom 'UnicodeEncodeError'.
+    Sanitizes Polish diacritics, mojibake and special typographic characters for FPDF.
+    Guarantees clean output without 'robaczki' and avoids UnicodeEncodeError.
     """
-    if text is None: return ""
+    if text is None:
+        return ""
     text = str(text)
+    if not text:
+        return ""
     
-    # 1. Mapa zamienników (Polskie znaki + znaki typograficzne z Worda/Excela)
-    replacements = {
-        # Polskie
-        'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
-        'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
-        # Specjalne (To one powodowały błąd!)
-        '\u2013': '-',  # Półpauza (Długi myślnik)
-        '\u2014': '-',  # Pauza (Bardzo długi myślnik)
-        '\u201c': '"',  # Cudzysłów otwierający
-        '\u201d': '"',  # Cudzysłów zamykający
-        '”': '"', '„': '"', '’': "'"
-    }
+    # 1. First step: fix known mojibake artifacts
+    text = fix_mojibake(text)
     
-    for k, v in replacements.items():
-        text = text.replace(k, v)
+    # 2. Second step: replace Polish diacritics and typography
+    for k, v in POLISH_ASCII_MAP.items():
+        if k in text:
+            text = text.replace(k, v)
+            
+    # 3. Third step: remove or normalize emojis
+    text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+    text = re.sub(r'[\u2600-\u27bf]', '', text)
     
-    # 2. OSTATNIA DESKA RATUNKU
-    # Jeśli jakiś znak nadal nie pasuje do Latin-1 (np. emotikona), zamień go na "?"
-    # Dzięki temu system NIGDY się nie wyłączy przez błąd czcionki.
+    # 4. Final safety net: strictly encode into latin-1
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
@@ -689,15 +726,15 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(23, 32, 42)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 7, "NADGODZINY", ln=1, fill=True)
+        pdf.cell(0, 7, polskie_znaki_pdf("NADGODZINY"), ln=1, fill=True)
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", size=9)
         pdf.set_fill_color(220, 220, 220)
         pdf.set_font("Arial", 'B', 9)
-        pdf.cell(70, 7, "Pracownik", 1, 0, 'L', True)
-        pdf.cell(20, 7, "Godz.", 1, 0, 'C', True)
-        pdf.cell(30, 7, "Status", 1, 0, 'C', True)
-        pdf.cell(70, 7, "Powod", 1, 1, 'L', True)
+        pdf.cell(70, 7, polskie_znaki_pdf("Pracownik"), 1, 0, 'L', True)
+        pdf.cell(20, 7, polskie_znaki_pdf("Godz."), 1, 0, 'C', True)
+        pdf.cell(30, 7, polskie_znaki_pdf("Status"), 1, 0, 'C', True)
+        pdf.cell(70, 7, polskie_znaki_pdf("Powód"), 1, 1, 'L', True)
         pdf.set_font("Arial", size=9)
         fill = False
         for r in nadgodziny_rows:

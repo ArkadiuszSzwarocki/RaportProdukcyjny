@@ -889,8 +889,8 @@ class InwentaryzacjaService:
                 # Log in history for both new and updated
                 p_id = e['paleta_id'] or cursor.lastrowid
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'INWENTARYZACJA_KOREKTA', %s, %s, %s)",
-                    (p_id, linia_e, e['typ_palety'], e['lokalizacja'], f"Korekta inwentaryzacyjna: {e['waga_systemowa']} -> {e['waga_faktyczna']}", user_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'INWENTARYZACJA_KOREKTA', %s, %s, %s)",
+                    (p_id, e.get('nr_palety'), linia_e, e['typ_palety'], e['lokalizacja'], f"Korekta inwentaryzacyjna: {e['waga_systemowa']} -> {e['waga_faktyczna']}", user_login)
                 )
 
             

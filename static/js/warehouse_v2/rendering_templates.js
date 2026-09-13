@@ -296,7 +296,6 @@ function generateGridCard(item) {
 }
 
 function _updateFilterBanner(filter, visible, total) {
-    // Znajdź lub stwórz banner
     let banner = document.getElementById('filterStatusBanner');
     const tableWrapper = document.querySelector('.list-view-wrapper');
     if (!tableWrapper) return;
@@ -304,10 +303,12 @@ function _updateFilterBanner(filter, visible, total) {
     const hasSearch = filter && filter.length > 0;
     const hasWarehouse = currentWarehouseId && currentWarehouseId !== 'all';
     const hasRack = currentSubWarehouseId && currentSubWarehouseId !== 'all';
-    const isFiltered = hasSearch || hasWarehouse || hasRack;
+    const checkboxes = document.querySelectorAll('.loc-checkbox');
+    const totalCheckboxes = checkboxes.length;
+    const hasLocationFilter = Array.isArray(selectedLocations) && totalCheckboxes > 0 && selectedLocations.length < totalCheckboxes;
+    const isFiltered = Boolean(hasSearch || hasWarehouse || hasRack || hasLocationFilter || visible < total);
 
     if (!isFiltered) {
-        // Ukryj banner gdy brak filtra
         if (banner) banner.style.display = 'none';
         return;
     }
@@ -316,35 +317,37 @@ function _updateFilterBanner(filter, visible, total) {
         banner = document.createElement('div');
         banner.id = 'filterStatusBanner';
         banner.style.cssText = [
-            'display:flex', 'align-items:center', 'gap:6px',
-            'padding:6px 10px', 'margin-bottom:8px',
+            'display:flex', 'align-items:center', 'gap:8px',
+            'padding:8px 12px', 'margin-bottom:10px',
             'background:#eff6ff',
-            'border-radius:8px',
-            'font-size:12px', 'font-weight:500', 'color:#1d4ed8',
+            'border:1px solid #bfdbfe',
+            'border-radius:10px',
+            'font-size:13px', 'font-weight:500', 'color:#1e40af',
             'flex-wrap:wrap', 'justify-content:space-between'
         ].join(';');
         tableWrapper.insertAdjacentElement('beforebegin', banner);
     }
 
-    // Buduj treść bannera
+    // Build filter badges
     const parts = [];
-    if (hasSearch) parts.push(`<strong>"${filter}"</strong>`);
+    if (hasSearch) parts.push(`Szukaj: <strong>"${filter}"</strong>`);
     if (hasWarehouse) parts.push(`Magazyn: <strong>${currentWarehouseId}</strong>`);
     if (hasRack) parts.push(`Regał: <strong>${currentSubWarehouseId}</strong>`);
+    if (hasLocationFilter) parts.push(`Wybrane lokacje: <strong>${selectedLocations.length}/${totalCheckboxes}</strong>`);
 
     const hidden = total - visible;
     const resultInfo = hidden > 0
-        ? `<span style="background:#1d4ed8;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${visible} z ${total}</span>`
-        : `<span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">Wszystkie ${total}</span>`;
+        ? `<span style="background:#1d4ed8;color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">Wyświetlono ${visible} z ${total} palet (${hidden} ukrytych)</span>`
+        : `<span style="background:#10b981;color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">Wszystkie ${total} palet</span>`;
 
     banner.style.display = 'flex';
     banner.innerHTML = `
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <span>Przefiltrowano: ${parts.join(', ')}</span>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span>${parts.length > 0 ? parts.join(' | ') : 'Filtrowanie aktywne'}</span>
             ${resultInfo}
         </div>
-        <button onclick="clearAllFilters()" style="border:none;background:none;cursor:pointer;color:#64748b;font-size:16px;padding:0 4px;line-height:1;display:flex;align-items:center;" title="Wyczyść filtry">
-            <span class="material-icons" style="font-size:16px;">close</span>
+        <button onclick="clearAllFilters()" style="border:none;background:none;cursor:pointer;color:#64748b;font-size:16px;padding:2px 6px;line-height:1;display:flex;align-items:center;border-radius:4px;" title="Wyczyść wszystkie filtry">
+            <span class="material-icons" style="font-size:18px;">close</span>
         </button>
     `;
 }
@@ -403,11 +406,23 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
 
     if (!(textMatch || slotMatch)) return false;
     
-    if (Array.isArray(locationFiltersArray) && locationFiltersArray.length > 0) {
-        if (!locText) return false;
-        const upLoc = locText.toUpperCase().trim();
-        const matched = locationFiltersArray.some(f => upLoc === f || upLoc.startsWith(f));
-        if (!matched) return false;
+    if (Array.isArray(locationFiltersArray)) {
+        if (locationFiltersArray.length === 0) {
+            return false;
+        }
+        const upLoc = (locText || '').toUpperCase().trim();
+        if (!upLoc) {
+            const allowsEmpty = locationFiltersArray.includes('BRAK') || 
+                                locationFiltersArray.includes('OCZEKUJĄCE') ||
+                                locationFiltersArray.includes('BEZ LOKACJI');
+            if (!allowsEmpty) return false;
+        } else {
+            const matched = locationFiltersArray.some(f => {
+                const uf = (f || '').toUpperCase().trim();
+                return upLoc === uf || upLoc.startsWith(uf);
+            });
+            if (!matched) return false;
+        }
     }
 
     const locNormalized = normalizeLocationCode(locText);
@@ -434,7 +449,7 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
             return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || !locText || upLoc.trim() === '';
         }
         if (subUpper === 'BFOS') {
-            return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP');
+            return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP') || upLoc.includes('BUFOR CENTR');
         }
         if (subUpper === 'MGW01') {
             return upLoc.includes('MGW01') || upLoc.startsWith('MGW01');
