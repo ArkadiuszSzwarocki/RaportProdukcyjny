@@ -159,6 +159,9 @@
                 <button type="button" onclick="closeOrReturnReport()" style="padding:8px 14px;background:#475569;color:#fff;border-radius:6px;border:none;cursor:pointer;margin-left:12px;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Zamknij raport i wróć do pulpitu">
                     ⬅️ Wróć / Zamknij
                 </button>
+                <a href="{{ url_for('main.index', linia='AGRO', sekcja='Magazyn') }}" style="padding:8px 14px;background:#059669;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Powrót do Magazynu AGRO">
+                    📦 Magazyn AGRO
+                </a>
                 <a href="{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}" style="padding:8px 14px;background:#0f172a;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;font-weight:bold;display:inline-flex;align-items:center;gap:4px;" title="Powrót do pulpitu AGRO">
                     🏠 Pulpit AGRO
                 </a>
@@ -481,6 +484,9 @@
         <button type="button" onclick="closeOrReturnReport()" class="btn-print" style="background-color: #475569; border: none; margin-right: 10px; cursor: pointer; display: inline-block;">
             ⬅️ Wróć / Zamknij
         </button>
+        <a href="{{ url_for('main.index', linia='AGRO', sekcja='Magazyn') }}" class="btn-print" style="background-color: #059669; text-decoration: none; margin-right: 15px; display: inline-block;">
+            📦 Magazyn AGRO
+        </a>
         <a href="{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}" class="btn-print" style="background-color: #0f172a; text-decoration: none; margin-right: 15px; display: inline-block;">
             🏠 Pulpit AGRO
         </a>
@@ -490,11 +496,25 @@
     </div>
     <script>
         function closeOrReturnReport(){
-            window.close();
-            setTimeout(function(){
-                window.location.href = "{{ url_for('main.index', linia='AGRO', sekcja='Workowanie') }}";
-            }, 120);
+            if (window.opener && window.opener !== window) {
+                window.close();
+                return;
+            }
+            if (window.history.length > 1) {
+                window.history.back();
+                return;
+            }
+            window.location.href = "{{ url_for('main.index', linia='AGRO', sekcja='Magazyn') }}";
         }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('autoprint') === '1' || urlParams.get('print') === '1') {
+                setTimeout(function() {
+                    window.print();
+                }, 400);
+            }
+        });
 
         function changeReportDate(){
             try{

@@ -8,6 +8,17 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 from app.services.magazyn_dostawy.location_service import LocationService
 
+class AcceptanceResult(tuple):
+    def __new__(cls, success, message, open_report_url=None, plan_id=None, is_last_pallet=False):
+        return super().__new__(cls, (success, message))
+    
+    def __init__(self, success, message, open_report_url=None, plan_id=None, is_last_pallet=False):
+        self.success = success
+        self.message = message
+        self.open_report_url = open_report_url
+        self.plan_id = plan_id
+        self.is_last_pallet = is_last_pallet
+
 class AcceptanceService:
 
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
@@ -556,47 +567,58 @@ class AcceptanceService:
 
                 conn.commit()
                 
-                # --- AUTO DRUKOWANIE RAPORTU BIUROWEGO PO PRZYJĘCIU OSTATNIEJ PALETY ---
+                # --- AUTO DRUKOWANIE RAPORTU BIUROWEGO I OTWARCIE RAPORTU DLA MAGAZYNIERA ---
+                open_report_url = None
+                is_last_pallet = False
                 try:
                     plan_id = pallet.get('plan_id')
                     if plan_id:
                         if linia == 'AGRO':
                             # Check if plan is 'zakonczone'
-                            cursor.execute("SELECT status FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                            cursor.execute("SELECT status, sekcja FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
                             plan_status_row = cursor.fetchone()
-                            if plan_status_row and plan_status_row.get('status') == 'zakonczone':
-                                # Count total pallets and received pallets
-                                cursor.execute("SELECT COUNT(*) as total FROM palety_agro WHERE plan_id = %s", (plan_id,))
-                                total_pallets = cursor.fetchone()['total']
-                                
-                                cursor.execute("SELECT COUNT(*) as received FROM palety_agro WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
-                                received_pallets = cursor.fetchone()['received']
-                                
-                                if total_pallets > 0 and total_pallets == received_pallets:
-                                    from app.services.office_print_service import trigger_office_print
-                                    print(f"Wszystkie {total_pallets} palet dla zlecenia AGRO {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
-                                    trigger_office_print(plan_id, typ_raportu='raport_palet_agro')
+                            if plan_status_row:
+                                plan_st = str(plan_status_row.get('status') or '').strip().lower()
+                                if plan_st in ('zakonczone', 'zakończone', 'zakonczony', 'zakończony'):
+                                    # Count total pallets and received pallets
+                                    cursor.execute("SELECT COUNT(*) as total FROM palety_agro WHERE plan_id = %s", (plan_id,))
+                                    total_pallets = cursor.fetchone()['total']
                                     
+                                    cursor.execute("SELECT COUNT(*) as received FROM palety_agro WHERE plan_id = %s AND status IN ('przyjeta', 'w_magazynie')", (plan_id,))
+                                    received_pallets = cursor.fetchone()['received']
+                                    
+                                    if total_pallets > 0 and total_pallets == received_pallets:
+                                        is_last_pallet = True
+                                        from app.services.office_print_service import trigger_office_print
+                                        print(f"Wszystkie {total_pallets} palet dla zlecenia AGRO {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                        trigger_office_print(plan_id, typ_raportu='raport_palet_agro')
+                                        open_report_url = f"/agro/raport_palet?plan_id={plan_id}&autoprint=1"
+                                        
                         elif linia == 'PSD':
-                            cursor.execute("SELECT status FROM plan_produkcji WHERE id = %s", (plan_id,))
+                            cursor.execute("SELECT status, sekcja FROM plan_produkcji WHERE id = %s", (plan_id,))
                             plan_status_row = cursor.fetchone()
-                            if plan_status_row and plan_status_row.get('status') == 'zakonczone':
-                                cursor.execute("SELECT COUNT(*) as total FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
-                                total_pallets = cursor.fetchone()['total']
-                                
-                                cursor.execute("SELECT COUNT(*) as received FROM palety_workowanie WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
-                                received_pallets = cursor.fetchone()['received']
-                                
-                                if total_pallets > 0 and total_pallets == received_pallets:
-                                    from app.services.office_print_service import trigger_office_print
-                                    print(f"Wszystkie {total_pallets} palet dla zlecenia PSD {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
-                                    # Assuming there might be a PSD report type later, for now we can just log it or trigger 'raport_palet_psd'
-                                    trigger_office_print(plan_id, typ_raportu='raport_palet_psd')
+                            if plan_status_row:
+                                plan_st = str(plan_status_row.get('status') or '').strip().lower()
+                                if plan_st in ('zakonczone', 'zakończone', 'zakonczony', 'zakończony'):
+                                    cursor.execute("SELECT COUNT(*) as total FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
+                                    total_pallets = cursor.fetchone()['total']
+                                    
+                                    cursor.execute("SELECT COUNT(*) as received FROM palety_workowanie WHERE plan_id = %s AND status IN ('przyjeta', 'w_magazynie')", (plan_id,))
+                                    received_pallets = cursor.fetchone()['received']
+                                    
+                                    if total_pallets > 0 and total_pallets == received_pallets:
+                                        is_last_pallet = True
+                                        from app.services.office_print_service import trigger_office_print
+                                        print(f"Wszystkie {total_pallets} palet dla zlecenia PSD {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                        # Assuming there might be a PSD report type later, for now we can just log it or trigger 'raport_palet_psd'
+                                        trigger_office_print(plan_id, typ_raportu='raport_palet_psd')
+                                        open_report_url = f"/warehouse-v2/psd/raport_palet?plan_id={plan_id}&autoprint=1"
                 except Exception as pe:
                     print(f"Błąd przy próbie automatycznego wydruku raportu biurowego: {pe}")
                 # --- KONIEC AUTO DRUKOWANIA RAPORTU ---
 
-                return True, "Paleta została przyjęta do magazynu."
+                msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport z produkcji został otwarty do wydruku." if is_last_pallet else "Paleta została przyjęta do magazynu."
+                return AcceptanceResult(True, msg, open_report_url=open_report_url, plan_id=plan_id, is_last_pallet=is_last_pallet)
             except Exception as e:
                 return False, str(e)
             finally:

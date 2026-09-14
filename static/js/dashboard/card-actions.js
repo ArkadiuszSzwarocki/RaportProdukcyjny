@@ -203,15 +203,23 @@
             })
                 .then(function (response) {
                     if (response.ok) {
-                        notify('Potwierdzono paletę', 'success');
-                        var item = form.closest('li');
-                        if (item) {
-                            item.remove();
-                        }
-                        global.setTimeout(function () {
-                            global.location.href = global.location.href;
-                        }, 300);
-                        return;
+                        return response.json().catch(function () { return {}; }).then(function (data) {
+                            notify((data && data.message) ? data.message : 'Potwierdzono paletę', 'success');
+                            if (data && data.open_report_url) {
+                                var win = global.open(data.open_report_url, '_blank');
+                                if (!win || win.closed || typeof win.closed === 'undefined') {
+                                    global.location.href = data.open_report_url;
+                                    return;
+                                }
+                            }
+                            var item = form.closest('li');
+                            if (item) {
+                                item.remove();
+                            }
+                            global.setTimeout(function () {
+                                global.location.href = global.location.href;
+                            }, 300);
+                        });
                     }
 
                     if (attempts < maxAttempts) {

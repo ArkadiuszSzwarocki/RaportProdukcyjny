@@ -431,6 +431,8 @@ class WarehousePalletService:
         force_accept_request = False
         status_updated = False
         error_message = None
+        open_report_url = None
+        is_last_pallet = False
     
         conn = get_db_connection()
         try:
@@ -771,10 +773,10 @@ class WarehousePalletService:
                         )
                         conn.commit()
                         
-                        # --- Automatyczny wydruk raportu na drukarce biurowej, jeśli to ostatnia paleta w zakończonym zleceniu ---
+                        # --- Automatyczny wydruk raportu na drukarce biurowej i otwarcie raportu dla magazyniera, jeśli to ostatnia paleta w zakończonym zleceniu ---
                         printed_msg = None
                         try:
-                            cursor.execute(f"SELECT status FROM {table_plan} WHERE id=%s", (plan_id,))
+                            cursor.execute(f"SELECT status, sekcja FROM {table_plan} WHERE id=%s", (plan_id,))
                             plan_status_row = cursor.fetchone()
                             if plan_status_row and str(plan_status_row[0]).strip().lower() in ('zakończone', 'zakończony', 'zakonczone'):
                                 cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s", (plan_id,))
@@ -784,11 +786,24 @@ class WarehousePalletService:
                                 accepted_pallets = cursor.fetchone()[0] or 0
                                 
                                 if total_pallets > 0 and total_pallets == accepted_pallets:
-                                    current_app.logger.info("Magazynier przyjął ostatnią paletę zlecenia %s. Wyzwalanie wydruku biurowego.", plan_id)
+                                    is_last_pallet = True
+                                    current_app.logger.info("Magazynier przyjął ostatnią paletę zlecenia %s (%s). Wyzwalanie wydruku biurowego i raportu.", plan_id, linia)
                                     from app.services.office_print_service import trigger_office_print
-                                    trigger_office_print(plan_id)
-                                    printed_msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport został wysłany na drukarkę."
-                                    # flash(printed_msg, 'success')
+                                    typ = 'raport_palet_agro' if linia == 'AGRO' else 'raport_palet_psd'
+                                    trigger_office_print(plan_id, typ_raportu=typ)
+                                    printed_msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport z produkcji został otwarty do wydruku."
+                                    if linia == 'AGRO':
+                                        try:
+                                            from flask import url_for
+                                            open_report_url = url_for('agro_warehouse.raport_palet', plan_id=plan_id, autoprint=1)
+                                        except Exception:
+                                            open_report_url = f"/agro/raport_palet?plan_id={plan_id}&autoprint=1"
+                                    else:
+                                        try:
+                                            from flask import url_for
+                                            open_report_url = url_for('warehouse_v2.raport_palet', linia='PSD', plan_id=plan_id, autoprint=1)
+                                        except Exception:
+                                            open_report_url = f"/warehouse-v2/psd/raport_palet?plan_id={plan_id}&autoprint=1"
                         except Exception as print_err:
                             current_app.logger.error('Failed to check/trigger auto-print for plan %s: %s', plan_id, print_err)
                         # ---------------------------------------------------------------------------------------------------------
@@ -819,12 +834,18 @@ class WarehousePalletService:
                 response_data = {'success': True, 'paleta_id': paleta_id}
                 if 'printed_msg' in locals() and printed_msg:
                     response_data['message'] = printed_msg
+                if open_report_url:
+                    response_data['open_report_url'] = open_report_url
+                    response_data['is_last_pallet'] = is_last_pallet
+                    response_data['plan_id'] = plan_id
                 if has_weight_difference and not force_accept_request:
                     response_data['has_difference'] = True
                     response_data['difference'] = weight_difference
                 return (response_data, 200, None)
         except Exception:
             pass
+        if open_report_url:
+            return ('OK', 302, open_report_url)
         return ('OK', 302, safe_return_url)
 
     @staticmethod
