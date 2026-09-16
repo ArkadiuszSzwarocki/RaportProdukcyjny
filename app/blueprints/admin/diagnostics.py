@@ -394,6 +394,19 @@ def register_admin_diagnostics_routes(admin_bp):
             'last_update_ts': last_update,
         })
 
+    @admin_bp.route('/admin/master/signal-trap/api')
+    @masteradmin_required
+    def admin_master_signal_trap_api():
+        """JSON endpoint returning recent signals and traps from PakowaczkaSignalTrapService."""
+        from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+        limit = request.args.get('limit', 100, type=int)
+        signals = PakowaczkaSignalTrapService.get_recent_signals(limit=limit)
+        return jsonify({
+            'success': True,
+            'signals': signals,
+            'total': len(signals),
+        })
+
     @admin_bp.route('/admin/master/verify')
     @masteradmin_required
     def admin_master_verify():

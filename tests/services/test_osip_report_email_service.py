@@ -442,3 +442,81 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert success is False
             assert "został już wcześniej wysłany" in msg
             mock_smtp_ssl.assert_not_called()
+
+    def test_daily_summary_excludes_osip_deliveries_and_transfers(self):
+        """Testuje wykluczenie dostaw do OSIP oraz przesunięć/wywozów z OSIP w raporcie dziennym o 15:00."""
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Symulacja 4 dokumentów w magazyn_dostawy:
+        # 1. Dostawa Centrala (musi być uwzględniona)
+        # 2. Dostawa OSIP (musi być wykluczona)
+        # 3. Przesunięcie MM w Centrali (musi być uwzględnione)
+        # 4. Przesunięcie MM do OSIP / wywóz (musi być wykluczone)
+        mock_cursor.fetchall.return_value = [
+            {
+                'id': 1,
+                'order_ref': 'WZ-CENT-01',
+                'supplier': 'Cukrownia',
+                'lokalizacja_z': '',
+                'lokalizacja_do': 'MS01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 10, 0),
+                'items': '[{"productName": "Cukier 25kg", "nr_palety": "P1", "quantity": 1000, "accepted": true, "lokalizacja_przyjecia": "MS01"}]'
+            },
+            {
+                'id': 2,
+                'order_ref': 'WZ-OSIP-01',
+                'supplier': 'Hurtownia',
+                'lokalizacja_z': '',
+                'lokalizacja_do': 'OSIP',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 11, 0),
+                'items': '[{"productName": "Worki OSIP", "nr_palety": "P2", "quantity": 500, "accepted": true, "lokalizacja_przyjecia": "OS01"}]'
+            },
+            {
+                'id': 3,
+                'order_ref': 'MM-CENT-01',
+                'supplier': '',
+                'lokalizacja_z': 'MS01',
+                'lokalizacja_do': 'MGW01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 12, 0),
+                'items': '[{"productName": "Paleta WG", "nr_palety": "P3", "quantity": 800, "accepted": true, "lokalizacja_przyjecia": "MGW01"}]'
+            },
+            {
+                'id': 4,
+                'order_ref': 'MM-WYWOZ-OSIP',
+                'supplier': '',
+                'lokalizacja_z': 'MS01',
+                'lokalizacja_do': 'OSIP',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 13, 0),
+                'items': '[{"productName": "Towar do OSIP", "nr_palety": "P4", "quantity": 300, "accepted": true, "lokalizacja_przyjecia": "OS02"}]'
+            }
+        ]
+
+        with patch('app.services.osip_report_email_service.get_db_connection', return_value=mock_conn):
+            activity = service.get_daily_warehouse_activity('2026-09-16', central_only=True)
+
+            # Powinno być: 1 dostawa (WZ-CENT-01) i 1 przesunięcie (MM-CENT-01)
+            assert activity['deliveries_count'] == 1
+            assert activity['deliveries'][0]['order_ref'] == 'WZ-CENT-01'
+
+            assert activity['transfers_count'] == 1
+            assert activity['transfers'][0]['order_ref'] == 'MM-CENT-01'
+
+            assert activity['total_pallets'] == 2
+            assert activity['has_activity'] is True
+

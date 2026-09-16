@@ -282,6 +282,14 @@
         var timeoutId = global.setTimeout(restoreOverlays, 3000);
         global.sessionStorage.setItem('skip_open_stop', '1');
 
+        if (typeof global.workowaniePopulatePrinter === 'function') {
+            try {
+                global.workowaniePopulatePrinter(form);
+            } catch (printerErr) {
+                console.warn('workowaniePopulatePrinter failed', printerErr);
+            }
+        }
+
         fetch(form.getAttribute('action'), {
             method: 'POST',
             body: new FormData(form),
@@ -342,7 +350,7 @@
         }
 
         var config = document.getElementById('dashboard-config');
-        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+        var linia = (config && config.getAttribute('data-linia')) || global.LINIA || (new URLSearchParams(global.location.search)).get('linia') || 'PSD';
 
         fetch('/api/edytuj_palete_ajax', {
             method: 'POST',

@@ -128,6 +128,7 @@
                                 <form action="/start_zlecenie/{{ p[0] }}" method="POST" {% if p[3] in ['zawieszone', 'wstrzymane'] %}data-confirm="Czy na pewno chcesz wznowić to zlecenie?"{% else %}onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')"{% endif %}>
                                     <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                     <input type="hidden" name="linia" value="{{ linia }}">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                     <button type="submit" class="btn-start">▶ {% if p[3] in ['zawieszone', 'wstrzymane'] %}WZNÓW{% else %}START{% endif %}</button>
                                 </form>
                             {% else %}

@@ -37,16 +37,18 @@ def _resolve_pallet_counter_action(last_cnt, current_cnt):
 
 
 def _get_auto_pallet_max_catchup():
-    """Return maximum number of pallets to recover after a counter jump."""
-    raw_value = os.getenv('AGRO_AUTO_PALLET_MAX_CATCHUP', '4')
+    """Return maximum number of pallets to recover after a counter jump.
+    Defaults to 1 to prevent burst duplicate auto-pallets on packaging lines.
+    """
+    raw_value = os.getenv('AGRO_AUTO_PALLET_MAX_CATCHUP', '1')
     try:
         parsed = int(raw_value)
     except (TypeError, ValueError):
         _safe_log_warning(
-            "Invalid AGRO_AUTO_PALLET_MAX_CATCHUP=%r. Falling back to 4.",
+            "Invalid AGRO_AUTO_PALLET_MAX_CATCHUP=%r. Falling back to 1.",
             raw_value,
         )
-        return 4
+        return 1
     return max(1, parsed)
 
 
@@ -817,152 +819,120 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     if active_plan:
                         plan_id = active_plan['id']
                         
-                        # Get latest telemetry
+                        # Pobranie najnowszych danych telemetrycznych
                         data = get_latest_data()
-                        current_pallet_cnt = data.get('pallet_counter', 0)
+                        pakowaczka_counter = data.get('counter', 0)
+                        local_bag_counter = data.get('local_counter', 0)
+                        palletizer_cnt = data.get('pallet_counter', 0)
+                        bpm = data.get('bpm', 0.0)
+                        mach_status = data.get('status')
                         current_wrapped = bool(data.get('is_wrapped'))
-                        heartbeat_note = f'plan={plan_id};counter={current_pallet_cnt};wrapped={int(current_wrapped)}'
+                        
+                        # Określenie liczby worków na 1 pełną paletę (1000 kg)
+                        typ_prod = str(active_plan.get('typ_produkcji') or '').lower()
+                        if '20' in typ_prod:
+                            bags_per_pallet = 50
+                        elif '50' in typ_prod:
+                            bags_per_pallet = 20
+                        else:
+                            bags_per_pallet = 40
 
-                        if current_pallet_cnt > 0:
-                            # If we haven't tracked this plan yet, initialize it
-                            if plan_id not in plan_counters:
-                                # Self-healing: if start_pallet_counter in database is 0, update it
-                                if not active_plan.get('start_pallet_counter'):
-                                    try:
-                                        from app.db import get_db_connection
-                                        conn = get_db_connection()
-                                        cursor = conn.cursor()
-                                        cursor.execute(
-                                            "UPDATE plan_produkcji_agro SET start_pallet_counter = %s WHERE id = %s",
-                                            (current_pallet_cnt, plan_id)
-                                        )
-                                        conn.commit()
-                                        conn.close()
-                                        _safe_log_info("Initialized start_pallet_counter to %s for plan ID=%s", current_pallet_cnt, plan_id)
-                                    except Exception as db_err:
-                                        _safe_log_warning("Failed to initialize start_pallet_counter: %s", db_err)
-                                
-                                plan_counters[plan_id] = current_pallet_cnt
-                                _safe_log_info(
-                                    "Tracking palletizer counter for plan ID=%s. Initial value: %s (instance=%s)",
-                                    plan_id,
-                                    current_pallet_cnt,
-                                    _INSTANCE_ID,
-                                )
-                            
-                            # Detect increment
-                            last_cnt = plan_counters[plan_id]
-                            current_oproznianie = bool(data.get('oproznianie'))
-                            
-                            oproznianie_snap = data.get('oproznianie_snapshot')
-                            recent_oproznianie = False
-                            if oproznianie_snap and oproznianie_snap.get('timestamp'):
-                                snap_ts = oproznianie_snap.get('timestamp')
-                                if (time.time() * 1000 - snap_ts) < 90000:  # 90 seconds
-                                    recent_oproznianie = True
+                        heartbeat_note = f'plan={plan_id};pakowaczka={pakowaczka_counter};paletyzator={palletizer_cnt};bpm={bpm}'
 
-                            if current_pallet_cnt > last_cnt and (current_oproznianie or recent_oproznianie):
-                                _safe_log_warning(
-                                    "Opróżnianie aktywne lub niedawne. Ignorowanie sygnału wyjazdu z paletyzatora (licznika) dla plan ID=%s. Przesuwanie bazy na %s.",
-                                    plan_id,
-                                    current_pallet_cnt,
-                                )
-                                plan_counters[plan_id] = current_pallet_cnt
-                                continue
-
-                            action = _resolve_pallet_counter_action(last_cnt, current_pallet_cnt)
-
-                            if action == 'reset':
-                                _safe_log_warning(
-                                    "Palletizer counter moved backwards from %s to %s for plan ID=%s. Resyncing baseline without auto-register.",
-                                    last_cnt,
-                                    current_pallet_cnt,
-                                    plan_id,
-                                )
-                                plan_counters[plan_id] = current_pallet_cnt
-                            elif action in ('register_single', 'jump'):
-                                diff = current_pallet_cnt - last_cnt
-                                max_catchup = _get_auto_pallet_max_catchup()
-                                registrations_to_run = _resolve_pallet_counter_registrations(
-                                    last_cnt,
-                                    current_pallet_cnt,
-                                    max_catchup,
-                                )
-
-                                if registrations_to_run <= 0:
-                                    _safe_log_warning(
-                                        "Palletizer counter changed from %s to %s (diff=%s) for plan ID=%s but no registrations were resolved. Keeping baseline unchanged for retry (instance=%s).",
-                                        last_cnt,
-                                        current_pallet_cnt,
-                                        diff,
-                                        plan_id,
-                                        _INSTANCE_ID,
+                        if pakowaczka_counter > 0:
+                            # Inicjalizacja licznika początkowego zlecenia w bazie jeśli nie ustawiony
+                            start_machine_cnt = active_plan.get('start_machine_counter')
+                            if not start_machine_cnt or int(start_machine_cnt) <= 0:
+                                try:
+                                    from app.db import get_db_connection
+                                    conn_init = get_db_connection()
+                                    cur_init = conn_init.cursor()
+                                    cur_init.execute(
+                                        "UPDATE plan_produkcji_agro SET start_machine_counter = %s WHERE id = %s",
+                                        (pakowaczka_counter, plan_id)
                                     )
-                                    plan_counters[plan_id] = last_cnt
-                                    continue
+                                    conn_init.commit()
+                                    conn_init.close()
+                                    start_machine_cnt = pakowaczka_counter
+                                    active_plan['start_machine_counter'] = pakowaczka_counter
+                                    _safe_log_info("Initialized start_machine_counter to %s for plan ID=%s", pakowaczka_counter, plan_id)
+                                except Exception as init_err:
+                                    _safe_log_warning("Failed to initialize start_machine_counter: %s", init_err)
+                                    start_machine_cnt = pakowaczka_counter
 
-                                if action == 'register_single':
+                            # Obliczenie ile pełnych palet powstało na podstawie worków z pakowaczki
+                            bags_produced = max(0, pakowaczka_counter - int(start_machine_cnt or 0))
+                            expected_pallets = bags_produced // bags_per_pallet
+                            
+                            # Pobranie aktualnej liczby zarejestrowanych palet w bazie
+                            db_pallets_count = 0
+                            try:
+                                from app.db import get_db_connection
+                                conn_cnt = get_db_connection()
+                                cur_cnt = conn_cnt.cursor()
+                                cur_cnt.execute(
+                                    "SELECT COUNT(*) FROM palety_agro WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')",
+                                    (plan_id,)
+                                )
+                                row_cnt = cur_cnt.fetchone()
+                                db_pallets_count = int(row_cnt[0]) if row_cnt else 0
+                                conn_cnt.close()
+                            except Exception as db_cnt_err:
+                                _safe_log_warning("Failed to query db_pallets_count: %s", db_cnt_err)
+
+                            # Sprawdzenie czy pakowaczka zakończyła kolejną pełną paletę
+                            if expected_pallets > db_pallets_count:
+                                _safe_log_info(
+                                    "Pakowaczka wyprodukowała %s worków (%s/%s pełnych palet, w bazie: %s). Rejestracja palety #%s.",
+                                    bags_produced,
+                                    expected_pallets,
+                                    expected_pallets,
+                                    db_pallets_count,
+                                    db_pallets_count + 1,
+                                )
+                                
+                                success = AgroTanksService.auto_register_pallet(
+                                    plan_id,
+                                    linia='AGRO',
+                                    source_instance=_INSTANCE_ID,
+                                )
+                                if success:
                                     _safe_log_info(
-                                        "Palletizer counter incremented from %s to %s (diff=%s) for plan ID=%s. Triggering single auto-pallet registration (instance=%s).",
-                                        last_cnt,
-                                        current_pallet_cnt,
-                                        diff,
-                                        plan_id,
+                                        'Pomyślnie zarejestrowano paletę #%s na podstawie sygnału z pakowaczki (instance=%s)',
+                                        db_pallets_count + 1,
                                         _INSTANCE_ID,
                                     )
                                 else:
                                     _safe_log_warning(
-                                        "Palletizer counter jump detected from %s to %s (diff=%s) for plan ID=%s. Running catch-up auto-register for %s pallets (limit=%s, instance=%s).",
-                                        last_cnt,
-                                        current_pallet_cnt,
-                                        diff,
-                                        plan_id,
-                                        registrations_to_run,
-                                        max_catchup,
+                                        'Rejestracja palety na podstawie pakowaczki wstrzymana przez cooldown/pułapkę (instance=%s)',
                                         _INSTANCE_ID,
                                     )
-
-                                successful_regs = 0
-                                for step_idx in range(1, registrations_to_run + 1):
-                                    success = AgroTanksService.auto_register_pallet(
-                                        plan_id,
-                                        linia='AGRO',
-                                        source_instance=_INSTANCE_ID,
-                                    )
-                                    if not success:
-                                        _safe_log_warning(
-                                            'Failed or skipped auto-registering pallet for plan ID=%s during step %s/%s (instance=%s)',
-                                            plan_id,
-                                            step_idx,
-                                            registrations_to_run,
-                                            _INSTANCE_ID,
+                            else:
+                                # Stan napełniania bieżącej palety – pułapka na nadmiarowe sygnały
+                                current_pallet_bags = bags_produced % bags_per_pallet
+                                try:
+                                    # Loguj do pułapki tylko jeśli zmienił się stan licznika pakowaczki
+                                    last_tracked_cnt = plan_counters.get(plan_id, 0)
+                                    if pakowaczka_counter != last_tracked_cnt and (pakowaczka_counter % 10 == 0 or current_pallet_bags in (1, 25, bags_per_pallet - 1)):
+                                        from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+                                        PakowaczkaSignalTrapService.log_signal(
+                                            decision='ACCUMULATING_BAGS',
+                                            source_machine='PAKOWACZKA',
+                                            plan_id=plan_id,
+                                            produkt=active_plan.get('produkt'),
+                                            global_counter=pakowaczka_counter,
+                                            local_counter=local_bag_counter,
+                                            pallet_counter=palletizer_cnt,
+                                            delta_counter=pakowaczka_counter - (last_tracked_cnt or pakowaczka_counter),
+                                            bpm=bpm,
+                                            status_text=mach_status,
+                                            details=f"Postęp pakowaczki: {current_pallet_bags}/{bags_per_pallet} worków na paletę #{db_pallets_count + 1}. Zarejestrowanych palet: {db_pallets_count}.",
+                                            instance_id=_INSTANCE_ID,
                                         )
-                                        break
-                                    successful_regs += 1
+                                except Exception:
+                                    pass
 
-                                if successful_regs > 0:
-                                    _safe_log_info(
-                                        'Auto-registered %s/%s pallet(s) for plan ID=%s (instance=%s)',
-                                        successful_regs,
-                                        registrations_to_run,
-                                        plan_id,
-                                        _INSTANCE_ID,
-                                    )
-
-                                # Advance only by successfully inserted pallets.
-                                # This keeps remaining counter increments pending for next loop,
-                                # including jumps bigger than the per-loop catch-up limit.
-                                plan_counters[plan_id] = last_cnt + successful_regs
-
-                                if plan_counters[plan_id] < current_pallet_cnt:
-                                    _safe_log_warning(
-                                        'Counter baseline partially advanced to %s for plan ID=%s (target counter=%s, remaining=%s, instance=%s).',
-                                        plan_counters[plan_id],
-                                        plan_id,
-                                        current_pallet_cnt,
-                                        current_pallet_cnt - plan_counters[plan_id],
-                                        _INSTANCE_ID,
-                                    )
+                            plan_counters[plan_id] = pakowaczka_counter
                         # Initialize wrapped baseline for new plans, then only print on False->True transitions.
                         if plan_id not in plan_wrap_states:
                             plan_wrap_states[plan_id] = current_wrapped

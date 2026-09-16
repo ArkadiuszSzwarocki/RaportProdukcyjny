@@ -751,7 +751,10 @@ class AgroTanksRepository:
                 if not lock_res or lock_res[0] != 1:
                     return False
                 
-                # Reset transaction snapshot so we see the latest committed data in repeatable-read isolation
+                try:
+                    cursor.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                except Exception:
+                    pass
                 conn.commit()
                 
                 # Fetch plan info
@@ -768,32 +771,45 @@ class AgroTanksRepository:
                 now_ts = datetime.datetime.now()
                 user_login = 'System'
                 source_instance = str(source_instance or 'unknown')[:120]
-                cooldown_seconds = _get_auto_pallet_cooldown_seconds()
+                cooldown_seconds = max(60.0, _get_auto_pallet_cooldown_seconds())
                 
-                # Optional cooldown can be used as an emergency guard against hardware bit flickering.
-                if cooldown_seconds > 0:
-                    cursor.execute(
-                        f"SELECT MAX(data_dodania) FROM {table_pal} WHERE plan_id = %s",
-                        (plan_id,)
-                    )
-                    latest_row = cursor.fetchone()
-                    if latest_row and latest_row[0]:
-                        latest_date = latest_row[0]
-                        if isinstance(latest_date, str):
-                            try:
-                                latest_date = datetime.strptime(latest_date, '%Y-%m-%d %H:%M:%S')
-                            except Exception:
-                                pass
-
-                        time_diff = (now_ts - latest_date).total_seconds()
+                # Check DB-level time difference using MySQL server time to eliminate clock skew between instances
+                cursor.execute(
+                    f"SELECT id, data_dodania, nr_palety, nr_palety_lp FROM {table_pal} "
+                    f"WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja') "
+                    f"ORDER BY id DESC LIMIT 1 FOR UPDATE",
+                    (plan_id,)
+                )
+                last_pallet_row = cursor.fetchone()
+                if last_pallet_row and last_pallet_row[1] is not None:
+                    last_pal_id, last_data_dodania, last_nr_pal, last_lp = last_pallet_row
+                    cursor.execute("SELECT ABS(TIMESTAMPDIFF(SECOND, %s, NOW()))", (last_data_dodania,))
+                    diff_res = cursor.fetchone()
+                    if diff_res and diff_res[0] is not None:
+                        time_diff = float(diff_res[0])
                         if time_diff < cooldown_seconds:
                             logger.warning(
-                                "[COOLDOWN] Skipped auto-registering pallet for plan_id=%s. "
-                                "Last pallet added %.1fs ago (cooldown %.1fs).",
+                                "[COOLDOWN / TRAP] Skipped auto-registering pallet for plan_id=%s (source=%s). "
+                                "Last pallet #%s (%s) added %.1fs ago (min cooldown %.1fs).",
                                 plan_id,
+                                source_instance,
+                                last_lp or last_pal_id,
+                                last_nr_pal,
                                 time_diff,
                                 cooldown_seconds,
                             )
+                            try:
+                                from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+                                PakowaczkaSignalTrapService.log_signal(
+                                    decision='TRAPPED_COOLDOWN',
+                                    source_machine='PAKOWACZKA',
+                                    plan_id=plan_id,
+                                    produkt=plan_produkt,
+                                    details=f"Zablokowano duplikat: ostatnia paleta #{last_lp or last_pal_id} dodana {time_diff:.1f}s temu (wymagane min. {cooldown_seconds:.0f}s)",
+                                    instance_id=source_instance,
+                                )
+                            except Exception:
+                                pass
                             return False
                 
                 nr_palety_czyszczenie = None
@@ -961,7 +977,22 @@ class AgroTanksRepository:
                             source_instance,
                             print_err,
                         )
-                    
+                try:
+                    from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+                    PakowaczkaSignalTrapService.log_signal(
+                        decision='REGISTERED_PALLET',
+                        source_machine='PAKOWACZKA',
+                        plan_id=plan_id,
+                        produkt=plan_produkt,
+                        pallet_id=paleta_id,
+                        nr_palety=nr_palety,
+                        nr_palety_lp=nr_palety_lp,
+                        details=f"Pomyślnie zarejestrowano paletę #{nr_palety_lp} ({nr_palety}) 1000kg",
+                        instance_id=source_instance,
+                    )
+                except Exception:
+                    pass
+
                 audit_log(
                     'System: Automatycznie dodano paletę',
                     f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg, source_instance={source_instance}',

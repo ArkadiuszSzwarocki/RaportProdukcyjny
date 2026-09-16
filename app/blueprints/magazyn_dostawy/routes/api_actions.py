@@ -59,7 +59,7 @@ def przyjmij_pozycje(dostawa_id):
         chk_d = cursor.fetchone()
         if chk_d and chk_d.get('lokalizacja_z'): # to jest przesunięcie wewnętrzne
             user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
-            if user_role not in ['masteradmin', 'admin', 'zarzad']:
+            if user_role not in ['masteradmin', 'admin', 'zarzad', 'kierownik', 'lider', 'magazynier']:
                 return jsonify({'success': False, 'error': 'Brak uprawnień. W przesunięciu magazynowym przyjęcie jest możliwe wyłącznie poprzez zeskanowanie palety skanerem.'}), 403
     finally:
         conn.close()

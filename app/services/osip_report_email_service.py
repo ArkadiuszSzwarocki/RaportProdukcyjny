@@ -1380,9 +1380,11 @@ class OsipReportEmailService:
             with self._dispatch_lock:
                 self._active_dispatches.discard(dispatch_key)
 
-    def get_daily_warehouse_activity(self, date_str: str) -> Dict[str, Any]:
+    def get_daily_warehouse_activity(self, date_str: str, central_only: bool = True) -> Dict[str, Any]:
         """
         Pobiera wszystkie zrealizowane w danym dniu dostawy zewnętrzne oraz przesunięcia MM / transfery.
+        Domyślnie (central_only=True) filtruje i uwzględnia wyłącznie operacje Magazynu Centralnego,
+        wykluczając dostawy na OSIP oraz wywozy/transfery z i do OSIP.
         Zwraca ustrukturyzowane dane z wyraźnym podziałem na Dostawy oraz Przesunięcia.
         """
         conn = get_db_connection()
@@ -1404,38 +1406,41 @@ class OsipReportEmailService:
             """, (date_str, date_str, date_str))
             dostawy_rows = cursor.fetchall() or []
 
-            # 2. Pobierz transfery z osip_transfers
-            try:
-                cursor.execute("""
-                    SELECT * FROM osip_transfers 
-                    WHERE status = 'COMPLETED'
-                      AND (
-                          DATE(completed_at) = %s 
-                          OR (completed_at IS NULL AND DATE(created_at) = %s)
-                      )
-                    ORDER BY created_at ASC
-                """, (date_str, date_str))
-                osip_transfers_rows = cursor.fetchall() or []
+            # 2. Pobierz transfery z osip_transfers (tylko jeśli nie wymuszono wyłącznie Centrali)
+            if not central_only:
+                try:
+                    cursor.execute("""
+                        SELECT * FROM osip_transfers 
+                        WHERE status = 'COMPLETED'
+                          AND (
+                              DATE(completed_at) = %s 
+                              OR (completed_at IS NULL AND DATE(created_at) = %s)
+                          )
+                        ORDER BY created_at ASC
+                    """, (date_str, date_str))
+                    osip_transfers_rows = cursor.fetchall() or []
 
-                if osip_transfers_rows:
-                    t_ids = [t['id'] for t in osip_transfers_rows]
-                    placeholders = ','.join(['%s'] * len(t_ids))
-                    cursor.execute(f"""
-                        SELECT * FROM osip_transfer_items 
-                        WHERE transfer_id IN ({placeholders})
-                        ORDER BY id ASC
-                    """, tuple(t_ids))
-                    all_it_rows = cursor.fetchall() or []
-                    for it in all_it_rows:
-                        tid = it['transfer_id']
-                        if tid not in osip_items_by_transfer:
-                            osip_items_by_transfer[tid] = []
-                        osip_items_by_transfer[tid].append(it)
-            except Exception:
-                osip_transfers_rows = []
-            finally:
-                cursor.close()
+                    if osip_transfers_rows:
+                        t_ids = [t['id'] for t in osip_transfers_rows]
+                        placeholders = ','.join(['%s'] * len(t_ids))
+                        cursor.execute(f"""
+                            SELECT * FROM osip_transfer_items 
+                            WHERE transfer_id IN ({placeholders})
+                            ORDER BY id ASC
+                        """, tuple(t_ids))
+                        all_it_rows = cursor.fetchall() or []
+                        for it in all_it_rows:
+                            tid = it['transfer_id']
+                            if tid not in osip_items_by_transfer:
+                                osip_items_by_transfer[tid] = []
+                            osip_items_by_transfer[tid].append(it)
+                except Exception:
+                    osip_transfers_rows = []
         finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
             conn.close()
 
         deliveries = []
@@ -1454,6 +1459,16 @@ class OsipReportEmailService:
                 raw_items = []
             
             cat = self.categorize_delivery_doc(d, raw_items)
+
+            # Filtrowanie OSIP dla raportu dziennego Magazynu Centralnego
+            if central_only:
+                is_osip = (
+                    cat.get('is_osip')
+                    or cat.get('doc_type_code') == 'DOSTAWA_OSIP'
+                    or self.is_osip_involved(d.get('lokalizacja_z') or cat.get('source_value'), d.get('lokalizacja_do') or cat.get('dest_value'), raw_items)
+                )
+                if is_osip:
+                    continue
             doc_items = []
             doc_summary_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
@@ -1536,13 +1551,16 @@ class OsipReportEmailService:
             else:
                 transfers.append(doc_entry)
 
-        # Przetwarzanie osip_transfers
+        # Przetwarzanie osip_transfers (jeśli nie wykluczone)
         for tr in osip_transfers_rows:
             tr_id = tr.get('id')
             raw_t_items = osip_items_by_transfer.get(tr_id, [])
             code = tr.get('transfer_code') or f"TR-{tr_id}"
             source = tr.get('source_warehouse') or 'Centrala'
             dest = tr.get('destination_warehouse') or 'OSIP'
+
+            if central_only and self.is_osip_involved(source, dest, raw_t_items):
+                continue
             created_by = tr.get('created_by') or 'System'
             completed_by = tr.get('completed_by') or tr.get('updated_by') or '-'
             created_at = tr.get('created_at')
@@ -1766,9 +1784,9 @@ class OsipReportEmailService:
                 
                 <!-- Hero Header -->
                 <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; color: #ffffff;">
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">Magazyn • Dzienny Raport Zbiorczy</div>
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">Magazyn Centralny • Dzienny Raport Zbiorczy</div>
                     <div style="font-size: 24px; font-weight: 900; margin-top: 6px;">📋 Raport Zbiorczy Dostaw i Przesunięć</div>
-                    <div style="font-size: 14px; opacity: 0.9; margin-top: 6px;">Dzień: <strong>{date_str}</strong> | Wygenerowano: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M')}</strong></div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-top: 6px;">Dzień: <strong>{date_str}</strong> | Zakres: <strong>Magazyn Centralny</strong> | Wygenerowano: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M')}</strong></div>
                 </div>
 
                 <!-- KPI Banner -->
@@ -2089,11 +2107,11 @@ class OsipReportEmailService:
 <body>
     <div class="header-box">
         <div class="doc-title">
-            <span>DZIENNY RAPORT ZBIORCZY: DOSTAWY I PRZESUNIĘCIA</span>
+            <span>DZIENNY RAPORT ZBIORCZY: DOSTAWY I PRZESUNIĘCIA (MAGAZYN CENTRALNY)</span>
             <span style="font-size: 12px; color: #2563eb;">{date_str}</span>
         </div>
         <div class="doc-meta">
-            Raport wygenerowano: <strong>{gen_now}</strong> | System RaportProdukcyjny (Moduł Magazynowy)
+            Raport wygenerowano: <strong>{gen_now}</strong> | System RaportProdukcyjny (Magazyn Centralny)
         </div>
         <div class="kpi-grid">
             <div class="kpi-item">
@@ -2199,7 +2217,7 @@ class OsipReportEmailService:
             if not activity_data['has_activity'] and not force:
                 return False, f"Brak zarejestrowanych dostaw i przesunięć w dniu {date_str} - raport nie został wysłany."
 
-            subject = f"📋 Raport Dzienny Dostaw i Przesunięć: {date_str} (Dostawy: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
+            subject = f"📋 Raport Dzienny Dostaw i Przesunięć (Magazyn Centralny): {date_str} (Dostawy: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
             body_html = self.build_daily_summary_report_html(date_str, activity_data)
 
             pdf_path = None

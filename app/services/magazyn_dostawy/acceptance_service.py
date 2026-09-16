@@ -86,6 +86,7 @@ class AcceptanceService:
 
                 table_sur = get_table_name('magazyn_surowce', linia)
                 table_opk = get_table_name('magazyn_opakowania', linia)
+                table_got = get_table_name('magazyn_palety', linia)
 
                 product_name = target.get('productName') or 'Brak nazwy'
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
@@ -105,6 +106,8 @@ class AcceptanceService:
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w opakowaniach!", None
                     cursor.execute(f"SELECT 1 FROM magazyn_dodatki WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w dodatkach!", None
+                    cursor.execute(f"SELECT 1 FROM {table_got} WHERE lokalizacja = %s AND waga_netto > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
                 p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
 
@@ -116,6 +119,32 @@ class AcceptanceService:
                     qty = float(target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
                     p_type = 'dodatek'
+                elif p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja']:
+                    qty = float(target.get('netWeight') or target.get('quantity') or 0)
+                    p_type = 'wyrob_gotowy'
+                    source_pid = target.get('sourcePalletId')
+                    exist_got = None
+                    if source_pid:
+                        cursor.execute(f"SELECT id FROM {table_got} WHERE id = %s LIMIT 1", (source_pid,))
+                        exist_got = cursor.fetchone()
+                    if not exist_got and nr_palety:
+                        cursor.execute(f"SELECT id FROM {table_got} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_got = cursor.fetchone()
+
+                    if exist_got:
+                        pallet_id = exist_got['id']
+                        cursor.execute(f"""
+                            UPDATE {table_got}
+                            SET lokalizacja = %s, waga_netto = %s, is_blocked = 0, is_loaded = 0
+                            WHERE id = %s
+                        """, (lokalizacja, qty, pallet_id))
+                    else:
+                        target_linia = linia if linia in ['PSD', 'AGRO'] else 'PSD'
+                        cursor.execute(f"""
+                            INSERT INTO {table_got} (nr_palety, produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, is_blocked, is_loaded, linia)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, %s)
+                        """, (nr_palety, product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, target_linia))
+                        pallet_id = cursor.lastrowid
                 else:
                     qty = float(target.get('netWeight') or 0)
                     p_type = 'surowiec'
@@ -137,8 +166,9 @@ class AcceptanceService:
 
                 # Get the ID of the pallet (new or existing) if not resolved yet
                 if not pallet_id or pallet_id == 0:
-                    table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)
-                    cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja,))
+                    table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else (table_got if p_type == 'wyrob_gotowy' else table_sur))
+                    col_st = 'waga_netto' if p_type == 'wyrob_gotowy' else 'stan_magazynowy'
+                    cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND {col_st} > 0 LIMIT 1", (lokalizacja,))
                     p_row = cursor.fetchone()
                     pallet_id = p_row['id'] if p_row else None
 
@@ -184,11 +214,15 @@ class AcceptanceService:
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
+                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
+                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE id = %s", (source_pallet_id,))
                     else:
                         # Fallback for old data without sourcePalletId
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
+                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
+                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (actual_source_loc, product_name))
                 
                     cursor.execute(
                         "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",

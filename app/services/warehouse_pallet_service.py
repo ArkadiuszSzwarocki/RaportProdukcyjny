@@ -922,48 +922,198 @@ class WarehousePalletService:
 
     @staticmethod
     def edytuj_palete(paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return_url):
-        """Edit paleta weight (netto)."""
-        linia = str(linia).upper()
+        """Edit paleta weight (netto) in buffer or warehouse."""
+        linia_input = str(linia or 'PSD').upper()
+        lines_to_try = [linia_input]
+        other_line = 'AGRO' if linia_input == 'PSD' else 'PSD'
+        lines_to_try.append(other_line)
+
         conn = None
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-    
+
             try:
-                waga = int(float(waga_palety.replace(',', '.')))
+                waga = int(float(str(waga_palety).replace(',', '.')))
             except Exception:
                 waga = 0
-    
-            result = update_paleta_workowanie(cursor, paleta_id, waga, linia=linia)
-            if not result.get('found'):
+
+            target_found = False
+            effective_line = linia_input
+            updated_info = {}
+
+            for line in lines_to_try:
+                table_mag = get_table_name('magazyn_palety', line)
+                table_pal = get_table_name('palety_workowanie', line)
+                table_plan = get_table_name('plan_produkcji', line)
+
+                # 1. Check if paleta_id matches magazyn_palety by primary key ID (e.g. from warehouse table)
+                cursor.execute(
+                    f"SELECT id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara FROM {table_mag} WHERE id=%s LIMIT 1",
+                    (paleta_id,)
+                )
+                mag_row = cursor.fetchone()
+                if mag_row:
+                    mag_id, work_id, plan_id, old_netto, nr_palety, tara = mag_row
+                    tara_val = float(tara or 0.0)
+                    new_brutto = float(waga) + tara_val
+
+                    # Update magazyn_palety
+                    cursor.execute(
+                        f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE id=%s",
+                        (waga, new_brutto, mag_id)
+                    )
+
+                    # Update palety_workowanie / palety_agro if linked
+                    if work_id:
+                        cursor.execute(
+                            f"UPDATE {table_pal} SET waga_potwierdzona=%s, waga=%s WHERE id=%s",
+                            (waga, waga, work_id)
+                        )
+
+                    # Update tonaz_rzeczywisty in plan
+                    if plan_id:
+                        cursor.execute(
+                            f"""
+                            UPDATE {table_plan} pp
+                            SET tonaz_rzeczywisty = (
+                                SELECT COALESCE(SUM(mp.waga_netto), 0)
+                                FROM {table_mag} mp
+                                WHERE mp.plan_id = pp.id
+                            )
+                            WHERE pp.id = %s
+                            """,
+                            (plan_id,)
+                        )
+
+                    target_found = True
+                    effective_line = line
+                    updated_info = {
+                        'type': 'magazyn',
+                        'mag_id': mag_id,
+                        'work_id': work_id,
+                        'nr_palety': nr_palety,
+                        'old_waga': old_netto,
+                        'new_waga': waga,
+                        'plan_id': plan_id
+                    }
+                    break
+
+                # 2. Check if paleta_id matches palety_workowanie / palety_agro by primary key ID
+                cursor.execute(
+                    f"SELECT id, plan_id, waga, waga_potwierdzona, status, nr_palety, tara FROM {table_pal} WHERE id=%s LIMIT 1",
+                    (paleta_id,)
+                )
+                pal_row = cursor.fetchone()
+                if pal_row:
+                    p_id = pal_row[0]
+                    plan_id = pal_row[1] if len(pal_row) > 1 else None
+                    old_w = pal_row[2] if len(pal_row) > 2 else 0
+                    old_conf = pal_row[3] if len(pal_row) > 3 else None
+                    status = pal_row[4] if len(pal_row) > 4 else ''
+                    nr_palety = pal_row[5] if len(pal_row) > 5 else None
+                    p_tara = pal_row[6] if len(pal_row) > 6 else 0.0
+                    status_str = status or ''
+
+                    if status_str in ('przyjeta', 'w_magazynie'):
+                        cursor.execute(
+                            f"UPDATE {table_pal} SET waga_potwierdzona=%s, waga=%s WHERE id=%s",
+                            (waga, waga, p_id)
+                        )
+                        old_val = old_conf or old_w
+
+                        # Also sync linked magazyn_palety if exists
+                        tara_val = float(p_tara or 0.0)
+                        new_brutto = float(waga) + tara_val
+                        cursor.execute(
+                            f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s",
+                            (waga, new_brutto, p_id)
+                        )
+                    else:
+                        cursor.execute(
+                            f"UPDATE {table_pal} SET waga=%s WHERE id=%s",
+                            (waga, p_id)
+                        )
+                        old_val = old_w
+
+                    if plan_id:
+                        if status_str in ('przyjeta', 'w_magazynie'):
+                            cursor.execute(
+                                f"""
+                                UPDATE {table_plan} pp
+                                SET tonaz_rzeczywisty = (
+                                    SELECT COALESCE(SUM(mp.waga_netto), 0)
+                                    FROM {table_mag} mp
+                                    WHERE mp.plan_id = pp.id
+                                )
+                                WHERE pp.id = %s
+                                """,
+                                (plan_id,)
+                            )
+                        else:
+                            cursor.execute(
+                                f"""
+                                UPDATE {table_plan}
+                                SET tonaz_rzeczywisty = (
+                                    SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s
+                                )
+                                WHERE id = %s
+                                """,
+                                (plan_id, plan_id)
+                            )
+
+                    target_found = True
+                    effective_line = line
+                    updated_info = {
+                        'type': 'workowanie',
+                        'work_id': p_id,
+                        'nr_palety': nr_palety,
+                        'old_waga': old_val,
+                        'new_waga': waga,
+                        'plan_id': plan_id
+                    }
+                    break
+
+            if not target_found:
                 msg = f'Paleta ID={paleta_id} nie istnieje'
                 current_app.logger.warning('[WAREHOUSE-EDIT] %s', msg)
-                # flash(msg, 'warning')
+                if is_ajax:
+                    return ({'success': False, 'message': msg}, 404, None)
+                flash(msg, 'warning')
                 return ('OK', 302, safe_return_url)
-            
-            # Log to palety_historia - edycja wagi
+
+            # Log history in palety_historia
+            old_waga = updated_info.get('old_waga', 0)
+            hist_pal_id = updated_info.get('work_id') or updated_info.get('mag_id') or paleta_id
+            nr_pal_str = updated_info.get('nr_palety') or f"ID={paleta_id}"
             try:
-                old_waga = result.get('old_waga', 0)
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
-                    (paleta_id, linia, f"Zmieniono wagę: {old_waga} kg → {waga} kg", user_login)
+                    (hist_pal_id, effective_line, f"Zmieniono wagę palety {nr_pal_str}: {old_waga} kg → {waga} kg", user_login)
                 )
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for edited paleta %s: %s', paleta_id, hist_err)
-    
+
             conn.commit()
-            current_app.logger.info('Edytowano paletę ID=%s, waga=%s kg, użytkownik=%s', paleta_id, waga, user_login)
-            audit_log('Edytował paletę', f'ID={paleta_id}, waga={waga} kg')
-            # flash(f'Paleta zaktualizowana (waga={waga}kg)', 'success')
+            current_app.logger.info('Edytowano paletę %s (%s), waga=%s kg, użytkownik=%s', nr_pal_str, effective_line, waga, user_login)
+            audit_log('Edytował paletę', f'Paleta={nr_pal_str}, linia={effective_line}, waga={waga} kg')
+
+            msg = f'Paleta zaktualizowana (waga={waga} kg)'
+            if is_ajax:
+                return ({'success': True, 'message': msg}, 200, None)
+            flash(msg, 'success')
+            return ('OK', 302, safe_return_url)
+
         except Exception as error:
             current_app.logger.error('[WAREHOUSE-EDIT] Failed to edit paleta %s: %s', paleta_id, error, exc_info=True)
-            # flash(f'Błąd przy edytowaniu palety: {str(error)}', 'danger')
+            if is_ajax:
+                return ({'success': False, 'message': f'Błąd przy edytowaniu palety: {str(error)}'}), 500, None
+            flash(f'Błąd przy edytowaniu palety: {str(error)}', 'danger')
+            return ('OK', 302, safe_return_url)
         finally:
             if conn:
                 try:
                     conn.close()
                 except Exception:
                     pass
-    
-        return ('OK', 302, safe_return_url)
 

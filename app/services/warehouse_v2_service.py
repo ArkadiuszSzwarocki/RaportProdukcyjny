@@ -287,15 +287,17 @@ class WarehouseV2Service:
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
+            actual_pallet_id = int(row['id'])
+            mother_sscc = nr_palety
             
             # --- PRZYJĘCIE W LOCIE DLA PALETY W ZLECENIU PRZESUNIĘCIA LUB BLOKADA JAKOŚCIOWA ---
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
-            in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)
+            in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=actual_pallet_id, nr_palety=nr_palety)
             is_in_transfer_acceptance = bool(in_transfer)
 
             # Zwykła blokada jakościowa/ręczna (jeśli paleta NIE bierze udziału w otwartym zleceniu przesunięcia)
             if row.get('is_blocked') and not is_in_transfer_acceptance:
-                return False, f"BŁĄD: Paleta {nr_palety or pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!"
+                return False, f"BŁĄD: Paleta {nr_palety or actual_pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!"
 
             # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
             if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
@@ -305,7 +307,7 @@ class WarehouseV2Service:
                 is_trf_valid, trf_err_msg = validate_centrala_osip_move(
                     source_location=old_loc,
                     target_location=new_location,
-                    pallet_id=pallet_id,
+                    pallet_id=actual_pallet_id,
                     nr_palety=nr_palety
                 )
                 if not is_trf_valid:
@@ -320,11 +322,6 @@ class WarehouseV2Service:
             if amount_to_move <= 0:
                 return False, "Ilość do przeniesienia musi być większa od zera."
                 
-            if amount_to_move >= qty:
-                # Przenosimy całą paletę
-                cursor = conn.cursor()
-                cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s", (new_location, pallet_id))
-                moved_qty = qty
             from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
             is_split = amount_to_move < qty
             if not is_split:
@@ -333,15 +330,16 @@ class WarehouseV2Service:
                 target_pallet_sscc = nr_palety
                 if not target_pallet_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(target_pallet_sscc), re.IGNORECASE):
                     target_pallet_sscc = generate_pallet_id(linia, pallet_type)
-                    cursor.execute(f"UPDATE {table} SET nr_palety = %s, lokalizacja = %s WHERE id = %s", (target_pallet_sscc, new_location, pallet_id))
+                    cursor.execute(f"UPDATE {table} SET nr_palety = %s, lokalizacja = %s, is_blocked = 0, is_loaded = 0 WHERE id = %s", (target_pallet_sscc, new_location, actual_pallet_id))
                 else:
-                    cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
-                new_pallet_id = pallet_id
+                    cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0, is_loaded = 0 WHERE id = %s", (new_location, actual_pallet_id))
+                new_pallet_id = actual_pallet_id
+                moved_qty = qty
             else:
                 # Dzielenie palety (split)
                 new_qty_old = qty - amount_to_move
                 cursor = conn.cursor()
-                cursor.execute(f"UPDATE {table} SET {col_qty} = %s WHERE id = %s", (new_qty_old, pallet_id))
+                cursor.execute(f"UPDATE {table} SET {col_qty} = %s WHERE id = %s", (new_qty_old, actual_pallet_id))
                 
                 # Utwórz nową paletę z odciętą ilością i nowym numerem SSCC
                 insert_data = dict(row)
@@ -349,6 +347,7 @@ class WarehouseV2Service:
                 insert_data['lokalizacja'] = new_location
                 insert_data[col_qty] = amount_to_move
                 insert_data['is_blocked'] = 0
+                insert_data['is_loaded'] = 0
                 
                 # Generujemy nowy unikalny numer SSCC
                 new_sscc = generate_pallet_id(linia, pallet_type)
@@ -378,10 +377,9 @@ class WarehouseV2Service:
                     VALUES (%s, %s, %s, %s, %s, %s, 'POTWIERDZONE', %s, %s, %s)
                 """, (new_pallet_id, mat_name, typ_ruchu_log, moved_qty, moved_qty, new_location, worker_login, datetime.now(), komentarz_ruch))
 
-                mother_sscc = nr_palety
                 if not mother_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(mother_sscc), re.IGNORECASE):
                     mother_sscc = generate_pallet_id(linia, pallet_type)
-                    cursor.execute(f"UPDATE {table} SET nr_palety = %s WHERE id = %s", (mother_sscc, pallet_id))
+                    cursor.execute(f"UPDATE {table} SET nr_palety = %s WHERE id = %s", (mother_sscc, actual_pallet_id))
                 now_dt = datetime.now()
 
                 if is_split:
@@ -392,7 +390,7 @@ class WarehouseV2Service:
                         FROM palety_historia
                         WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
                         ORDER BY data_ruchu ASC, id ASC
-                    """, (pallet_id, mother_sscc))
+                    """, (actual_pallet_id, mother_sscc))
                     for h in cur_h.fetchall() or []:
                         cursor.execute("""
                             INSERT INTO palety_historia
@@ -435,7 +433,7 @@ class WarehouseV2Service:
                         (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
                         VALUES (%s, %s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s, %s)
                     """, (
-                        pallet_id,
+                        actual_pallet_id,
                         mother_sscc,
                         linia,
                         pallet_type.lower(),
@@ -518,7 +516,7 @@ class WarehouseV2Service:
                 'new_sscc': target_pallet_sscc if is_split else None,
                 'new_pallet_id': new_pallet_id,
                 'mother_sscc': mother_sscc,
-                'mother_pallet_id': pallet_id,
+                'mother_pallet_id': actual_pallet_id,
                 'moved_qty': moved_qty,
                 'remaining_qty': (qty - amount_to_move) if is_split else qty,
                 'new_location': new_location,
