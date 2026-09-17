@@ -366,8 +366,10 @@ def api_workflow_etykiety(dostawa_id):
         for it in items:
             if it.get('rejected'):
                 continue
+            pkg_val = str(it.get('packageForm') or '').strip().lower()
+            unit_val = str(it.get('unit') or '').strip().lower()
+            p_type = 'opakowanie' if pkg_val in ('packaging', 'tasma', 'taśma', 'karton') or unit_val == 'szt' else 'surowiec'
             if not it.get('nr_palety'):
-                p_type = 'opakowanie' if it.get('packageForm') == 'packaging' else 'surowiec'
                 it['nr_palety'] = generate_pallet_id(linia, type=p_type)
             it['sscc_generated_at'] = now_str
             it['sscc_generated_by'] = login
@@ -377,11 +379,11 @@ def api_workflow_etykiety(dostawa_id):
             if nr_p:
                 cursor.execute(
                     "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PZ_STREFA_PRZYJEC', %s, %s, %s, %s)",
-                    (nr_p, linia, 'surowiec', 'DOSTAWA', strefa, f"Przyjęcie z dostawy do strefy przyjęć: {strefa}", login)
+                    (nr_p, linia, p_type, 'DOSTAWA', strefa, f"Przyjęcie z dostawy do strefy przyjęć: {strefa}", login)
                 )
                 cursor.execute(
                     "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'SSCC_NADANIE', %s, %s, %s, %s)",
-                    (nr_p, linia, 'surowiec', strefa, strefa, f"Nadanie SSCC: {nr_p}, strefa: {strefa}", login)
+                    (nr_p, linia, p_type, strefa, strefa, f"Nadanie SSCC: {nr_p}, strefa: {strefa}", login)
                 )
 
         cursor.execute("""
@@ -401,9 +403,12 @@ def api_workflow_etykiety(dostawa_id):
                     continue
                 try:
                     qty = float(it.get('quantity') or it.get('netWeight') or 0)
+                    it_pkg = str(it.get('packageForm') or '').strip().lower()
+                    it_unit = str(it.get('unit') or '').strip().lower()
+                    p_type_print = 'opakowanie' if it_pkg in ('packaging', 'tasma', 'taśma', 'karton') or it_unit == 'szt' else 'surowiec'
                     payload = PalletPrintDispatcher.build_pallet_payload(
                         printer_name, printer_ip,
-                        'opakowanie' if it.get('packageForm') == 'packaging' else 'surowiec',
+                        p_type_print,
                         it, qty
                     )
                     print_payloads.append(payload)

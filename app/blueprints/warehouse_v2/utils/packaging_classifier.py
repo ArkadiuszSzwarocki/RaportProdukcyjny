@@ -5,7 +5,7 @@ def classify_packaging_type(product_name: str, type_str: str, amount: float = 0,
     pkg_raw = str(raw_pkg or '').upper()
     
     # PRIORITIZE raw_packaging_type (typ_opakowania) - if it's set to Taśma or Karton, use it
-    if pkg_raw == 'TAŚMA' or pkg_raw == 'TASMA':
+    if pkg_raw in ('TAŚMA', 'TASMA') or 'TAŚM' in p_name or 'TASM' in p_name:
         return 'Taśma (taśma do pakowania)'
     if pkg_raw == 'KARTON':
         return 'Karton (opakowanie zbiorcze)'

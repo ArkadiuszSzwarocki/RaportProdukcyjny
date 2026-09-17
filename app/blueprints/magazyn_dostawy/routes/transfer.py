@@ -81,7 +81,7 @@ def oczekujace():
 
                 nr_palety = item.get('nr_palety') or item.get('sourcePalletNo')
                 if not nr_palety:
-                    p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
+                    p_type = 'opakowanie' if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit')).lower() == 'szt' else 'surowiec'
                     item['nr_palety'] = generate_pallet_id(linia, type=p_type)
                     nr_palety = item.get('nr_palety')
                     delivery_changed = True
@@ -104,7 +104,7 @@ def oczekujace():
                     'data_produkcji': _safe_date(item.get('data_produkcji')),
                     'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
                     'qty': qty,
-                    'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+                    'p_type': 'packaging' if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit')).lower() == 'szt' else 'surowiec',
                     'pallet_status': stage_code,
                     'workflow_mode': workflow_mode,
                     'workflow_stage_label': stage_label,
@@ -241,7 +241,7 @@ def przyjecie_ruchu(dostawa_id):
             if item.get('nr_palety') or item.get('sourcePalletNo'):
                 continue
 
-            p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
+            p_type = 'opakowanie' if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit')).lower() == 'szt' else 'surowiec'
             item['nr_palety'] = generate_pallet_id(linia, type=p_type)
             items_changed = True
 
@@ -307,7 +307,7 @@ def przyjecie_ruchu(dostawa_id):
             'data_produkcji': _safe_date(item.get('data_produkcji')),
             'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
             'qty': qty,
-            'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+            'p_type': 'packaging' if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit')).lower() == 'szt' else 'surowiec',
             'accepted': bool(item.get('accepted')),
         })
 
@@ -382,11 +382,11 @@ def raport_przesuniecia(dostawa_id):
             nr_palet_sur = []
             nr_palet_opk = []
             nr_palet_got = []
-            for it in items:
-                nr = it.get('nr_palety')
+            for item in items:
+                nr = item.get('nr_palety')
                 if nr:
-                    scanned_t = str(it.get('scannedType') or it.get('type') or '').lower()
-                    if it.get('packageForm') == 'packaging' or scanned_t == 'opakowanie':
+                    scanned_t = str(item.get('scannedType') or item.get('type') or '').lower()
+                    if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or scanned_t == 'opakowanie' or str(item.get('unit')).lower() == 'szt':
                         nr_palet_opk.append(nr)
                     elif scanned_t in ['wyrob_gotowy', 'magazyn', 'produkcja']:
                         nr_palet_got.append(nr)
@@ -439,7 +439,7 @@ def raport_przesuniecia(dostawa_id):
         for idx, item in enumerate(items, start=1):
             qty_raw = item.get('quantity') or item.get('netWeight') or item.get('unitsPerPallet') or 0
             qty = _safe_float(qty_raw)
-            unit = 'szt' if item.get('packageForm') == 'packaging' else 'kg'
+            unit = 'szt' if item.get('packageForm') in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit')).lower() == 'szt' else 'kg'
             product_name = (item.get('productName') or 'Brak nazwy').strip() or 'Brak nazwy'
             source_location = item.get('sourceSpot') or dostawa.get('lokalizacja_z') or '-'
             target_location = item.get('lokalizacja_przyjecia') or dostawa.get('lokalizacja_do') or '-'

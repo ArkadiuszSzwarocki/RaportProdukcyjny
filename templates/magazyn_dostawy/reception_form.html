@@ -1079,6 +1079,18 @@
             inputEl.value = canonical;
             updateItem(index, 'productName', canonical);
             inputEl.style.borderColor = '#94a3b8';
+            const lower = canonical.toLowerCase();
+            if (lower.includes('taśm') || lower.includes('tasm')) {
+                updateItem(index, 'packageForm', 'tasma');
+                updateItem(index, 'unit', 'szt');
+                const row = document.querySelector(`#itemsTable tbody tr.pallet-row[data-index="${index}"]`);
+                if (row) {
+                    const pkgSel = row.querySelector('.field-packageForm');
+                    if (pkgSel) pkgSel.value = 'tasma';
+                    const unitSel = row.querySelector('.field-unit');
+                    if (unitSel) unitSel.value = 'szt';
+                }
+            }
         } else {
             inputEl.value = '';
             updateItem(index, 'productName', '');
@@ -1125,8 +1137,8 @@
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
                     <select class="field-unit" onchange="updateItem(${index}, 'unit', this.value)" style="${inputStyle}">
-                        <option value="kg" ${item.unit === 'kg' || (!item.unit && item.packageForm !== 'packaging') ? 'selected' : ''}>kg</option>
-                        <option value="szt" ${item.unit === 'szt' || item.packageForm === 'packaging' ? 'selected' : ''}>szt</option>
+                        <option value="kg" ${item.unit === 'kg' || (!item.unit && item.packageForm !== 'packaging' && item.packageForm !== 'tasma') ? 'selected' : ''}>kg</option>
+                        <option value="szt" ${item.unit === 'szt' || item.packageForm === 'packaging' || item.packageForm === 'tasma' ? 'selected' : ''}>szt</option>
                     </select>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
@@ -1134,6 +1146,7 @@
                         <option value="bags" ${item.packageForm === 'bags' ? 'selected' : ''}>Worek</option>
                         <option value="big_bag" ${item.packageForm === 'big_bag' ? 'selected' : ''}>Big-Bag</option>
                         <option value="packaging" ${item.packageForm === 'packaging' ? 'selected' : ''}>Opakowanie</option>
+                        <option value="tasma" ${item.packageForm === 'tasma' ? 'selected' : ''}>Taśma</option>
                     </select>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
@@ -1214,8 +1227,27 @@
         if (!items[index]) return;
         items[index][key] = value;
         const it = items[index];
+        if (key === 'packageForm') {
+            if (value === 'tasma' || value === 'packaging') {
+                it.unit = 'szt';
+                const row = document.querySelector(`#itemsTable tbody tr.pallet-row[data-index="${index}"]`);
+                if (row) {
+                    const unitSel = row.querySelector('.field-unit');
+                    if (unitSel) unitSel.value = 'szt';
+                }
+            } else if (value === 'bags' || value === 'big_bag') {
+                if (it.unit === 'szt') {
+                    it.unit = 'kg';
+                    const row = document.querySelector(`#itemsTable tbody tr.pallet-row[data-index="${index}"]`);
+                    if (row) {
+                        const unitSel = row.querySelector('.field-unit');
+                        if (unitSel) unitSel.value = 'kg';
+                    }
+                }
+            }
+        }
         const q = parseFloat(it.quantity) || 0;
-        if (it.unit === 'szt' || it.packageForm === 'packaging') {
+        if (it.unit === 'szt' || it.packageForm === 'packaging' || it.packageForm === 'tasma') {
             it.unitsPerPallet = q;
             it.netWeight = 0;
         } else {
@@ -1346,7 +1378,7 @@
             if (eDate) items[idx].data_przydatnosci = eDate.value.trim();
 
             const q = parseFloat(items[idx].quantity) || 0;
-            if (items[idx].unit === 'szt' || items[idx].packageForm === 'packaging') {
+            if (items[idx].unit === 'szt' || items[idx].packageForm === 'packaging' || items[idx].packageForm === 'tasma') {
                 items[idx].unitsPerPallet = q;
                 items[idx].netWeight = 0;
             } else {
@@ -1402,7 +1434,7 @@
             const canonical = findCanonicalProductName(it.productName);
             if (canonical) it.productName = canonical;
             const q = parseFloat(it.quantity) || parseFloat(it.netWeight) || parseFloat(it.unitsPerPallet) || 0;
-            if (it.unit === 'szt' || it.packageForm === 'packaging') {
+            if (it.unit === 'szt' || it.packageForm === 'packaging' || it.packageForm === 'tasma') {
                 it.unitsPerPallet = q;
                 it.netWeight = 0;
             } else {

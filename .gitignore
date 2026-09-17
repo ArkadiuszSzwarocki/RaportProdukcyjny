@@ -77,7 +77,8 @@ raporty_temp/
 raporty/*.pdf
 raporty/*.html
 raporty/*.txt
-reports/
+/reports/
+!scripts/reports/
 oracleJdk-25/
 openJdk-*/
 

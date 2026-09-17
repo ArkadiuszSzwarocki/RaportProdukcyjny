@@ -147,7 +147,9 @@ class WarehouseActivityQueryService:
                 prod_date = it.get('data_produkcji') or '-'
                 exp_date = it.get('data_przydatnosci') or '-'
                 qty = cls.extract_item_qty(it)
-                unit = ('szt' if it.get('packageForm') == 'packaging' else 'kg').strip().lower()
+                it_pkg = str(it.get('packageForm') or '').strip().lower()
+                it_unit = str(it.get('unit') or '').strip().lower()
+                unit = ('szt' if it_pkg in ('packaging', 'tasma', 'taśma', 'karton') or it_unit == 'szt' else 'kg').strip().lower()
                 source_spot = it.get('sourceSpot') or cat['source_value']
                 target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
                 

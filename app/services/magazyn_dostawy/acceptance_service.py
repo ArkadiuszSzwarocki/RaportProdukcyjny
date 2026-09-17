@@ -89,9 +89,21 @@ class AcceptanceService:
                 table_got = get_table_name('magazyn_palety', linia)
 
                 product_name = target.get('productName') or 'Brak nazwy'
+                p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
+                pkg_form_raw = str(target.get('packageForm') or '').strip().lower()
+                unit_raw = str(target.get('unit') or '').strip().lower()
+                is_opk_pkg = pkg_form_raw in ('packaging', 'tasma', 'taśma', 'karton') or unit_raw == 'szt' or p_type_scanned == 'opakowanie'
+
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
-                nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if target.get('packageForm') == 'packaging' else 'surowiec'))
-                pkg_form = target.get('packageForm', 'bags') # bags or big_bag
+                nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if is_opk_pkg else 'surowiec'))
+                if pkg_form_raw in ('tasma', 'taśma') or 'taśm' in product_name.lower() or 'tasm' in product_name.lower():
+                    pkg_form = 'Taśma'
+                elif pkg_form_raw == 'karton':
+                    pkg_form = 'Karton'
+                elif pkg_form_raw == 'packaging':
+                    pkg_form = 'Opakowanie'
+                else:
+                    pkg_form = target.get('packageForm', 'bags') # bags or big_bag
                 nr_partii = nr_partii or target.get('nr_partii') or None
                 data_produkcji = data_produkcji or _clean_date(target.get('data_produkcji'))
                 data_przydatnosci = data_przydatnosci or _clean_date(target.get('data_przydatnosci'))
@@ -109,11 +121,10 @@ class AcceptanceService:
                     cursor.execute(f"SELECT 1 FROM {table_got} WHERE lokalizacja = %s AND waga_netto > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
-                p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
                 pallet_id = None
 
-                if target.get('packageForm') == 'packaging' or p_type_scanned == 'opakowanie':
-                    qty = float(target.get('unitsPerPallet') or 0)
+                if is_opk_pkg:
+                    qty = float(target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                     pallet_id = cursor.lastrowid
                     if not pallet_id or pallet_id == 0:
@@ -381,8 +392,9 @@ class AcceptanceService:
                 pallet_no = str(target.get('sourcePalletNo') or target.get('nr_palety') or '').strip()
                 scanned_type = str(target.get('scannedType') or '').strip().lower()
                 package_form = str(target.get('packageForm') or '').strip().lower()
+                unit_type = str(target.get('unit') or '').strip().lower()
 
-                default_is_packaging = scanned_type == 'opakowanie' or package_form == 'packaging'
+                default_is_packaging = scanned_type == 'opakowanie' or package_form in ('packaging', 'tasma', 'taśma', 'karton') or unit_type == 'szt'
                 default_table = table_opk if default_is_packaging else table_sur
                 fallback_table = table_sur if default_is_packaging else table_opk
                 restored = False

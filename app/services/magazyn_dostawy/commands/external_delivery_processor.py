@@ -20,8 +20,8 @@ class ExternalDeliveryProcessor:
             for old_it in old_items:
                 old_pid = old_it.get('sourcePalletId')
                 if old_pid and old_pid not in new_pallet_ids and not old_it.get('accepted'):
-                    old_src = str(old_it.get('source') or old_it.get('scannedType') or old_it.get('type') or '').lower()
-                    del_table = table_opk if old_src == 'opakowanie' or old_it.get('packageForm') == 'packaging' else table_sur
+                    old_pkg = str(old_it.get('packageForm') or '').lower()
+                    del_table = table_opk if old_src == 'opakowanie' or old_pkg in ('packaging', 'tasma', 'taśma', 'karton') or str(old_it.get('unit')).lower() == 'szt' else table_sur
                     try:
                         cursor.execute(f"DELETE FROM {del_table} WHERE id = %s", (old_pid,))
                     except Exception:
@@ -37,11 +37,20 @@ class ExternalDeliveryProcessor:
             data_produkcji = item.get('data_produkcji') or None
             data_przydatnosci = item.get('data_przydatnosci') or None
 
-            if item.get('packageForm') == 'packaging':
+            pkg_val = str(item.get('packageForm') or '').strip().lower()
+            unit_val = str(item.get('unit') or '').strip().lower()
+            is_packaging = pkg_val in ('packaging', 'tasma', 'taśma', 'karton') or unit_val == 'szt'
+
+            if is_packaging:
                 qty = float(item.get('quantity') or item.get('unitsPerPallet') or 0)
                 pallet_type = 'opakowanie'
                 target_table = table_opk
-                pkg_form = 'packaging'
+                if pkg_val in ('tasma', 'taśma') or 'taśm' in product_name.lower() or 'tasm' in product_name.lower():
+                    pkg_form = 'Taśma'
+                elif pkg_val == 'karton':
+                    pkg_form = 'Karton'
+                else:
+                    pkg_form = 'Opakowanie'
             else:
                 qty = float(item.get('quantity') or item.get('netWeight') or 0)
                 pallet_type = 'surowiec'
@@ -54,8 +63,9 @@ class ExternalDeliveryProcessor:
             item['data_produkcji'] = str(data_produkcji) if data_produkcji else ''
             item['data_przydatnosci'] = str(data_przydatnosci) if data_przydatnosci else ''
             item['quantity'] = qty
-            item['netWeight'] = qty
-            item['unitsPerPallet'] = qty if pkg_form == 'packaging' else 0
+            item['netWeight'] = qty if pallet_type == 'surowiec' else 0
+            item['unitsPerPallet'] = qty if pallet_type == 'opakowanie' else 0
+            item['typ_opakowania'] = pkg_form
             item['pallet_status'] = 'AWAITING_LABEL'
 
             source_pallet_id = item.get('sourcePalletId')

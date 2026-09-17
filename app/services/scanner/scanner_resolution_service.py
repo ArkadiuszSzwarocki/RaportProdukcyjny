@@ -165,7 +165,8 @@ class ScannerResolutionService:
             p_name = it.get('productName') or it.get('product_name') or it.get('nazwa') or f"Transfer {transfer_info.get('transfer_code')}"
             pkg_form = str(it.get('packageForm') or '').lower()
             scanned_t = str(it.get('scannedType') or it.get('type') or '').lower()
-            is_pkg = pkg_form == 'packaging' or scanned_t == 'opakowanie'
+            unit_val = str(it.get('unit') or '').lower()
+            is_pkg = pkg_form in ('packaging', 'tasma', 'taśma', 'karton') or scanned_t == 'opakowanie' or unit_val == 'szt'
             is_dodatek = scanned_t == 'dodatek'
             inv_type = 'Opakowanie' if is_pkg else ('Dodatek' if is_dodatek else 'Surowiec')
             unit = 'szt.' if is_pkg else (it.get('unit') or 'kg')

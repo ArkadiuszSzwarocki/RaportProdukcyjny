@@ -137,7 +137,8 @@ class WarehousePendingItemsService:
                     )
                     raw_type = str(it.get('scannedType') or it.get('type') or '').lower()
                     pkg_form = str(it.get('packageForm') or '').lower()
-                    if pkg_form == 'packaging' or raw_type == 'opakowanie':
+                    unit_val = str(it.get('unit') or '').lower()
+                    if pkg_form in ('packaging', 'tasma', 'taśma', 'karton') or raw_type == 'opakowanie' or unit_val == 'szt':
                         inv_type = 'Opakowanie'
                         unit = 'szt'
                     elif raw_type == 'dodatek':
@@ -168,7 +169,14 @@ class WarehousePendingItemsService:
                     date_exp = compute_expiry_date(it.get('data_przydatnosci'), it.get('data_produkcji'))
                     date_added = format_date_val(order.get('created_at'), '%Y-%m-%d %H:%M')
                     batch = it.get('nr_partii') or '-'
-                    raw_pkg = it.get('packageForm') or it.get('typ_opakowania') or 'Karton'
+                    if pkg_form in ('tasma', 'taśma') or 'taśm' in product_name.lower() or 'tasm' in product_name.lower():
+                        raw_pkg = 'Taśma'
+                    elif pkg_form == 'karton':
+                        raw_pkg = 'Karton'
+                    elif pkg_form == 'packaging':
+                        raw_pkg = 'Opakowanie'
+                    else:
+                        raw_pkg = it.get('typ_opakowania') or it.get('packageForm') or 'Karton'
                     pkg_type = classify_packaging_type(product_name, inv_type, qty, unit, raw_pkg)
 
                     row = {

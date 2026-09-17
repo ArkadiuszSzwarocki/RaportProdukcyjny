@@ -1,0 +1,487 @@
+{% extends "layout.html" %}
+
+{% block title %}Raport Zasypów i Dosypek — AgroMES{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-container {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 20px 16px 40px;
+    }
+
+    .report-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+    }
+
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(56, 189, 248, 0.15);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+    }
+
+    .filter-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .kpi-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .kpi-icon.blue { background: #eff6ff; color: #2563eb; }
+    .kpi-icon.emerald { background: #ecfdf5; color: #059669; }
+    .kpi-icon.amber { background: #fffbeb; color: #d97706; }
+    .kpi-icon.purple { background: #faf5ff; color: #9333ea; }
+
+    .kpi-label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .kpi-value {
+        font-size: 22px;
+        font-weight: 900;
+        color: #0f172a;
+        line-height: 1;
+    }
+
+    .table-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+    .table-toolbar {
+        padding: 14px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+
+    .report-table th {
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 12px 14px;
+        border-bottom: 1px solid #cbd5e1;
+        white-space: nowrap;
+    }
+
+    .report-table td {
+        padding: 12px 14px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #1e293b;
+        vertical-align: top;
+    }
+
+    .report-table tr:hover td {
+        background: #f8fafc;
+    }
+
+    .badge-line {
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        display: inline-block;
+    }
+    .badge-line.psd { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .badge-line.agro { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+
+    .dosypka-item {
+        background: #fefce8;
+        border: 1px solid #fef08a;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin-bottom: 4px;
+        font-size: 12px;
+    }
+    .dosypka-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .dosypka-name {
+        font-weight: 800;
+        color: #854d0e;
+    }
+
+    .dosypka-meta {
+        font-size: 10px;
+        color: #713f12;
+        margin-top: 2px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+    .status-pill.ok { background: #dcfce7; color: #166534; }
+    .status-pill.pending { background: #fef3c7; color: #92400e; }
+
+    @media print {
+        body {
+            background: #ffffff !important;
+            color: #000000 !important;
+        }
+
+        .report-hero,
+        .filter-card,
+        .table-toolbar,
+        .navbar,
+        .sidebar,
+        #sidebar,
+        .app-header,
+        .no-print {
+            display: none !important;
+        }
+
+        .report-container {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .table-card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .report-table th,
+        .report-table td {
+            padding: 6px 8px !important;
+            font-size: 10px !important;
+            border-bottom: 1px solid #cbd5e1 !important;
+        }
+
+        .print-header {
+            display: block !important;
+            margin-bottom: 16px;
+        }
+    }
+
+    .print-header {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    
+    <!-- PRINT ONLY HEADER -->
+    <div class="print-header">
+        <h2 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 800;">Raport Zasypów i Dosypek Produkcyjnych</h2>
+        <div style="font-size: 12px; color: #475569;">
+            Zakres: <strong>{{ start_date }}</strong> do <strong>{{ end_date }}</strong> | Linia: <strong>{{ linia }}</strong> | Wygenerowano: <strong>{{ now().strftime('%Y-%m-%d %H:%M') if now is defined else '' }}</strong>
+        </div>
+        <hr style="margin: 10px 0 16px; border: 0; border-top: 1px solid #000;">
+    </div>
+
+    <!-- HERO HEADER -->
+    <div class="report-hero">
+        <div class="hero-badge">
+            <span class="material-icons" style="font-size: 14px;">analytics</span>
+            PRODUKCJA & KONTROLA SUROWCÓW
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1 style="margin: 0 0 6px 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">
+                    Raport Zasypów i Dosypek
+                </h1>
+                <p style="margin: 0; color: #94a3b8; font-size: 14px; max-width: 680px;">
+                    Zestawienie szarż produkcyjnych, wag zasypowych oraz zarejestrowanych i potwierdzonych dosypek dla Hal PSD i AGRO.
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="window.print()" class="btn btn-light fw-bold" style="border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;">
+                    <span class="material-icons" style="font-size: 18px;">print</span> Drukuj raport (A4)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTRY -->
+    <div class="filter-card">
+        <form method="GET" action="{{ url_for('production.raport_zasypy_dosypki') }}" style="display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap;">
+            
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Linia produkcyjna:</label>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('production.raport_zasypy_dosypki', linia='WSZYSTKO', start_date=start_date, end_date=end_date) }}" 
+                       class="btn btn-sm {% if linia == 'WSZYSTKO' %}btn-primary fw-bold{% else %}btn-outline-secondary{% endif %}">
+                        🌐 Wszystkie
+                    </a>
+                    <a href="{{ url_for('production.raport_zasypy_dosypki', linia='PSD', start_date=start_date, end_date=end_date) }}" 
+                       class="btn btn-sm {% if linia == 'PSD' %}btn-primary fw-bold{% else %}btn-outline-secondary{% endif %}">
+                        🏭 PSD
+                    </a>
+                    <a href="{{ url_for('production.raport_zasypy_dosypki', linia='AGRO', start_date=start_date, end_date=end_date) }}" 
+                       class="btn btn-sm {% if linia == 'AGRO' %}btn-primary fw-bold{% else %}btn-outline-secondary{% endif %}">
+                        🌾 AGRO
+                    </a>
+                </div>
+            </div>
+
+            <input type="hidden" name="linia" value="{{ linia }}">
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Data od:</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm" style="border-radius: 8px; font-weight: 700;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Data do:</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm" style="border-radius: 8px; font-weight: 700;">
+            </div>
+
+            <div>
+                <button type="submit" class="btn btn-sm btn-primary fw-bold" style="border-radius: 8px; padding: 6px 18px; display: inline-flex; align-items: center; gap: 6px;">
+                    <span class="material-icons" style="font-size: 16px;">search</span> Filtruj
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- OBLICZENIE KPI -->
+    {% set ns = namespace(total_zasypy=0, total_waga_zasypy=0, total_dosypki=0, total_waga_dosypki=0) %}
+    {% for row in raport_data %}
+        {% set ns.total_zasypy = ns.total_zasypy + 1 %}
+        {% set ns.total_waga_zasypy = ns.total_waga_zasypy + (row.waga_zasypu or 0) %}
+        {% if row.dosypki %}
+            {% for d in row.dosypki %}
+                {% set ns.total_dosypki = ns.total_dosypki + 1 %}
+                {% set ns.total_waga_dosypki = ns.total_waga_dosypki + (d.waga or 0) %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+
+    <!-- KPI WIDGETS -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon blue">
+                <span class="material-icons">inventory</span>
+            </div>
+            <div>
+                <div class="kpi-label">Liczba szarż / zasypów</div>
+                <div class="kpi-value">{{ ns.total_zasypy }}</div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon emerald">
+                <span class="material-icons">scale</span>
+            </div>
+            <div>
+                <div class="kpi-label">Waga zasypana łącznie</div>
+                <div class="kpi-value">{{ '%.2f'|format(ns.total_waga_zasypy) }} <small style="font-size: 13px; font-weight: 700; color: #64748b;">kg</small></div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon amber">
+                <span class="material-icons">add_circle</span>
+            </div>
+            <div>
+                <div class="kpi-label">Zarejestrowane dosypki</div>
+                <div class="kpi-value">{{ ns.total_dosypki }} <small style="font-size: 13px; font-weight: 700; color: #64748b;">pozycji</small></div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon purple">
+                <span class="material-icons">grain</span>
+            </div>
+            <div>
+                <div class="kpi-label">Waga dosypek łącznie</div>
+                <div class="kpi-value">{{ '%.2f'|format(ns.total_waga_dosypki) }} <small style="font-size: 13px; font-weight: 700; color: #64748b;">kg</small></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABELA DANYCH -->
+    <div class="table-card">
+        <div class="table-toolbar">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #2563eb;">format_list_bulleted</span>
+                <span style="font-weight: 800; font-size: 14px; color: #0f172a;">Szczegóły szarż i dosypek</span>
+                <span class="badge bg-secondary text-white rounded-pill">{{ raport_data|length }}</span>
+            </div>
+            <div>
+                <input type="text" id="tableSearchInput" onkeyup="filterReportTable()" class="form-control form-control-sm" placeholder="Szybkie szukanie (produkt, szarża, pracownik)..." style="min-width: 280px; border-radius: 8px;">
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="report-table" id="reportTable">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Lp.</th>
+                        <th>Linia</th>
+                        <th>Data zasypu</th>
+                        <th>Produkt / Zlecenie</th>
+                        <th>Szarża / Zasyp</th>
+                        <th style="text-align: right;">Waga zasypu</th>
+                        <th>Operator</th>
+                        <th>Dosypki i korekty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in raport_data %}
+                    <tr>
+                        <td style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                        <td>
+                            <span class="badge-line {{ row.linia|lower }}">{{ row.linia }}</span>
+                        </td>
+                        <td style="white-space: nowrap;">
+                            <div style="font-weight: 800;">
+                                {{ row.data_zasypu.strftime('%Y-%m-%d') if row.data_zasypu else '-' }}
+                            </div>
+                            <div style="font-size: 11px; color: #64748b;">
+                                {{ row.data_zasypu.strftime('%H:%M:%S') if row.data_zasypu else '' }}
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 800; color: #0f172a;">{{ row.produkt or 'Brak nazwy produktu' }}</div>
+                            <div style="font-size: 11px; color: #64748b; font-family: monospace;">Zlecenie: {{ row.nazwa_zlecenia or ('Plan #' ~ row.plan_id) }}</div>
+                        </td>
+                        <td>
+                            <div style="font-family: monospace; font-weight: 800; color: #2563eb;">Szarża #{{ row.nr_szarzy or '-' }}</div>
+                            <div style="font-size: 11px; color: #64748b;">Zasyp nr: {{ row.nr_zasypu or '-' }}</div>
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            <span style="font-size: 15px; font-weight: 900; color: #0f172a;">{{ '%.2f'|format(row.waga_zasypu or 0) }}</span>
+                            <span style="font-size: 11px; font-weight: 700; color: #64748b;">kg</span>
+                        </td>
+                        <td>
+                            <div style="font-weight: 700; color: #334155;">{{ row.zasyp_pracownik or 'System / Brak' }}</div>
+                        </td>
+                        <td>
+                            {% if row.dosypki and row.dosypki|length > 0 %}
+                                {% for d in row.dosypki %}
+                                <div class="dosypka-item">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                                        <span class="dosypka-name">{{ d.nazwa or 'Składnik dosypki' }}</span>
+                                        <span style="font-weight: 900; color: #854d0e;">+{{ '%.2f'|format(d.waga or 0) }} kg</span>
+                                    </div>
+                                    <div class="dosypka-meta">
+                                        Zlecił: <strong>{{ d.zlecil or '-' }}</strong>
+                                        {% if d.potwierdzone %}
+                                            | <span class="status-pill ok"><span class="material-icons" style="font-size: 11px;">check_circle</span> Potwierdził: {{ d.potwierdzil or '-' }} ({{ d.data_potwierdzenia.strftime('%H:%M') if d.data_potwierdzenia else '' }})</span>
+                                        {% else %}
+                                            | <span class="status-pill pending"><span class="material-icons" style="font-size: 11px;">schedule</span> Oczekuje na potwierdzenie</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <span style="font-size: 11px; color: #94a3b8; font-style: italic;">Brak dosypek</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            <span class="material-icons" style="font-size: 36px; display: block; margin-bottom: 8px; color: #cbd5e1;">inbox</span>
+                            Brak zarejestrowanych zasypów w wybranym przedziale czasowym ({{ start_date }} do {{ end_date }}).
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterReportTable() {
+    const input = document.getElementById('tableSearchInput');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById('reportTable');
+    const trs = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+    for (let i = 0; i < trs.length; i++) {
+        const rowText = trs[i].textContent || trs[i].innerText;
+        if (rowText.toLowerCase().indexOf(filter) > -1) {
+            trs[i].style.display = '';
+        } else {
+            trs[i].style.display = 'none';
+        }
+    }
+}
+</script>
+{% endblock %}
