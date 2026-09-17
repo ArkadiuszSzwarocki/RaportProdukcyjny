@@ -44,9 +44,21 @@ def oczekujace():
     try:
         cursor = conn.cursor(dictionary=True)
         items_changed = False
+
+        def _item_stage(delivery_status: str, item: dict):
+            pallet_status = str(item.get('pallet_status') or '').upper()
+            if str(delivery_status).upper() == 'PUTAWAY_IN_PROGRESS' or pallet_status == 'PUTAWAY_PENDING':
+                return 'PUTAWAY_PENDING', 'PUTAWAY', 'Oczekuje na skan lokalizacji docelowej'
+            if pallet_status == 'IN_RECEPTION_ZONE':
+                return 'IN_RECEPTION_ZONE', 'PRZYJECIE', 'W strefie przyjęć'
+            if pallet_status == 'AWAITING_LABEL':
+                return 'AWAITING_LABEL', 'ETYKIETY', 'Oczekuje na etykietę SSCC'
+            return pallet_status or 'PENDING', 'PRZYJECIE', 'Oczekuje na przyjęcie'
+
         for d in dostawy.get('dostawy', []) or []:
             items = d.get('items_parsed') or []
             delivery_changed = False
+            delivery_status = str(d.get('status') or '').upper()
 
             for idx, item in enumerate(items):
                 if not isinstance(item, dict):
@@ -60,7 +72,11 @@ def oczekujace():
             for item in items:
                 if not isinstance(item, dict):
                     continue
-                if item.get('accepted') or item.get('rejected'):
+                if item.get('rejected'):
+                    continue
+                if delivery_status == 'PUTAWAY_IN_PROGRESS' and item.get('putaway_confirmed_at'):
+                    continue
+                if delivery_status != 'PUTAWAY_IN_PROGRESS' and item.get('accepted'):
                     continue
 
                 nr_palety = item.get('nr_palety') or item.get('sourcePalletNo')
@@ -74,11 +90,13 @@ def oczekujace():
 
                 qty_raw = item.get('netWeight') if item.get('netWeight') not in (None, '') else item.get('unitsPerPallet')
                 qty = _safe_float(qty_raw) if qty_raw not in (None, '') else 0
+                stage_code, workflow_mode, stage_label = _item_stage(delivery_status, item)
 
                 pending_scan_items.append({
                     'dostawa_id': d.get('id'),
                     'order_ref': d.get('order_ref') or '',
                     'lokalizacja_do': d.get('lokalizacja_do') or '',
+                    'delivery_status': delivery_status,
                     'item_id': item.get('id'),
                     'nr_palety': str(nr_palety).strip().upper(),
                     'product_name': item.get('productName') or '',
@@ -87,6 +105,10 @@ def oczekujace():
                     'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
                     'qty': qty,
                     'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+                    'pallet_status': stage_code,
+                    'workflow_mode': workflow_mode,
+                    'workflow_stage_label': stage_label,
+                    'putaway_suggested_location': item.get('putaway_suggested_location') or '',
                 })
 
             if delivery_changed:

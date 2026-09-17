@@ -724,8 +724,10 @@
     {% set total_wg = dostawy.wg|length %}
     {% set ns_stats = namespace(total_pallets=0, total_kg=0.0) %}
     {% for d in dostawy.dostawy %}
+        {% set delivery_status = (d.status or '')|upper %}
         {% for item in d.items_parsed %}
-            {% if not item.accepted and not item.rejected %}
+            {% set putaway_pending = delivery_status == 'PUTAWAY_IN_PROGRESS' and not item.putaway_confirmed_at %}
+            {% if not item.rejected and (not item.accepted or putaway_pending) %}
                 {% set ns_stats.total_pallets = ns_stats.total_pallets + 1 %}
                 {% set ns_stats.total_kg = ns_stats.total_kg + ((item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float) %}
             {% endif %}
@@ -804,8 +806,10 @@
                     <tbody>
                         {% for d in dostawy.dostawy %}
                         {% set ns = namespace(pending=0, kg=0.0, pallets=[]) %}
+                        {% set delivery_status = (d.status or '')|upper %}
                         {% for item in d.items_parsed %}
-                            {% if not item.accepted and not item.rejected %}
+                            {% set putaway_pending = delivery_status == 'PUTAWAY_IN_PROGRESS' and not item.putaway_confirmed_at %}
+                            {% if not item.rejected and (not item.accepted or putaway_pending) %}
                                 {% set item_w = (item.netWeight or item.amount or item.quantity or item.unitsPerPallet or 0)|float %}
                                 {% set item_pname = item.productName or item.name or '' %}
                                 {% set ns.pending = ns.pending + 1 %}
@@ -955,6 +959,9 @@
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/wg_acceptance.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_logic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/location_suggestions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/transfers_search.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/scanner_logic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/pallet_preview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/polling_refresh.js') }}"></script>
 <script src="{{ url_for('static', filename='js/magazyn_dostawy/oczekujace/init.js') }}"></script>

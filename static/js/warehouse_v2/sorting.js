@@ -98,13 +98,19 @@ function sortWarehouseItems(items, colIndex, dir) {
             return isAsc ? typA.localeCompare(typB) : typB.localeCompare(typA);
         }
 
-        if (colIndex === 8) { // Produkcja
+        if (colIndex === 8) { // Zlecenie / Dokument
+            const docA = String(a.order_doc_label || a.order_ref || '').toUpperCase();
+            const docB = String(b.order_doc_label || b.order_ref || '').toUpperCase();
+            return isAsc ? docA.localeCompare(docB) : docB.localeCompare(docA);
+        }
+
+        if (colIndex === 9) { // Produkcja
             const dateA = String(a.date_prod || '');
             const dateB = String(b.date_prod || '');
             return isAsc ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
         }
 
-        if (colIndex === 9) { // Ważność
+        if (colIndex === 10) { // Ważność
             const expA = (a.date_exp && a.date_exp !== '-') ? a.date_exp : '9999-99-99';
             const expB = (b.date_exp && b.date_exp !== '-') ? b.date_exp : '9999-99-99';
             return isAsc ? expA.localeCompare(expB) : expB.localeCompare(expA);

@@ -76,13 +76,17 @@ function performSilentRefresh() {
                 });
             }
 
-            // Aktualizacja badge'a w nawigacji
-            const newBadge = doc.querySelector('.nav-pending-badge');
-            const oldBadge = document.querySelector('.nav-pending-badge');
-            if (newBadge && oldBadge) {
-                oldBadge.innerHTML = newBadge.innerHTML;
-            } else if (!newBadge && oldBadge) {
-                oldBadge.remove();
+            // Aktualizacja pozycji menu "Oczekujące Przyjęcia" wraz ze stackiem badge
+            const oldPendingLink = Array.from(document.querySelectorAll('.nav-sub-item')).find((el) => {
+                const href = el.getAttribute('href') || '';
+                return href.includes('/magazyn-dostawy/oczekujace');
+            });
+            const newPendingLink = Array.from(doc.querySelectorAll('.nav-sub-item')).find((el) => {
+                const href = el.getAttribute('href') || '';
+                return href.includes('/magazyn-dostawy/oczekujace');
+            });
+            if (oldPendingLink && newPendingLink) {
+                oldPendingLink.innerHTML = newPendingLink.innerHTML;
             }
 
             // Aktualizacja dataset i listy palet dla skanera w pamięci JS

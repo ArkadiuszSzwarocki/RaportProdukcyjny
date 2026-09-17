@@ -116,6 +116,69 @@
     margin-top: 8px;
 }
 
+.workflow-stepper {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.workflow-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.workflow-step.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.workflow-step.done {
+    border-color: #22c55e;
+    background: #ecfdf5;
+    color: #166534;
+}
+
+.workflow-actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.workflow-btn {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #1e293b;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.workflow-btn.is-disabled {
+    opacity: 0.55;
+}
+
+.workflow-btn.primary {
+    border-color: #1d4ed8;
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+}
+
 .delivery-date-card {
     min-width: 205px;
     border: 1px solid #d8e4f7;
@@ -224,6 +287,9 @@
     .btn-cancel-reception,
     .btn-save-reception {
         width: 100%;
+    }
+    .workflow-stepper {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -345,7 +411,7 @@
             Wyczyść i zacznij od nowa
         </button>
     </div>
-    <form id="receptionForm" onsubmit="event.preventDefault(); openPrinterModal();">
+    <form id="receptionForm" onsubmit="event.preventDefault(); saveDostawa(null);">
     <div class="delivery-hero">
         <div class="delivery-hero-head">
             <div>
@@ -358,6 +424,32 @@
                     <span class="material-icons" style="font-size: 16px;">playlist_add_check</span>
                     Przyjęcie zewnętrznej dostawy
                 </span>
+                {% if dostawa %}
+                <div class="workflow-stepper">
+                    {% set current_step = workflow_meta.step if workflow_meta else 0 %}
+                    {% for step in workflow_steps %}
+                    {% set step_no = loop.index %}
+                    <div class="workflow-step {% if current_step > step_no %}done{% elif current_step == step_no %}active{% endif %}">
+                        <span class="material-icons" style="font-size: 16px;">{{ step.icon }}</span>
+                        <span>{{ loop.index }}. {{ step.label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="workflow-actions">
+                    <button type="button" class="workflow-btn primary {% if not can_awizuj %}is-disabled{% endif %}" onclick="runWorkflowAction('awizuj', {{ 'true' if can_awizuj else 'false' }})">
+                        <span class="material-icons" style="font-size: 16px;">fact_check</span>
+                        Krok 1: Awizuj
+                    </button>
+                    <button type="button" class="workflow-btn primary {% if not can_etykiety %}is-disabled{% endif %}" onclick="runWorkflowAction('etykiety', {{ 'true' if can_etykiety else 'false' }})">
+                        <span class="material-icons" style="font-size: 16px;">qr_code_2</span>
+                        Krok 2: Etykiety
+                    </button>
+                    <button type="button" class="workflow-btn {% if not can_assign_putaway %}is-disabled{% endif %}" onclick="runWorkflowAction('putaway', {{ 'true' if can_assign_putaway else 'false' }})">
+                        <span class="material-icons" style="font-size: 16px;">forklift</span>
+                        Krok 3/4: Putaway
+                    </button>
+                </div>
+                {% endif %}
             </div>
             
             <div class="delivery-date-card">
@@ -492,12 +584,42 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal Drukarki dla Kroku 2 -->
+    <div id="step2PrinterModal" class="premium-modal" style="display: none;">
+        <div class="premium-modal-content" style="max-width: 540px;">
+            <div class="premium-modal-header">
+                <h3>Krok 2: Etykiety SSCC</h3>
+                <button class="close-btn" onclick="closeStep2PrinterModal()">&times;</button>
+            </div>
+            <div class="premium-modal-body" style="text-align: left;">
+                <p>Wybierz drukarkę etykiet (opcjonalnie).</p>
+                <div style="margin-top: 12px;">
+                    <label style="font-size: 11px; font-weight: 700; color: #475569;">DRUKARKA ETYKIET (ZPL)</label>
+                    <select id="step2PrinterSelect" class="premium-select">
+                        <option value="">Brak wydruku (tylko nadanie SSCC)</option>
+                        {% for printer in printers %}
+                            <option value="{{ printer.id }}">{{ printer.nazwa }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="premium-modal-footer">
+                <button class="btn-cancel" onclick="closeStep2PrinterModal()">Anuluj</button>
+                <button class="btn-confirm-print" onclick="confirmStep2PrinterAndRun()">
+                    <span class="material-icons" style="font-size: 18px;">play_arrow</span>
+                    Uruchom Krok 2
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/pl.js"></script>
 <script>
     const todayStr = new Date().toISOString().slice(0, 10);
+    const workflowCurrentStep = {{ (workflow_meta.step if workflow_meta else 0)|int }};
 
     function parseDateParts(val) {
         if (!val) return null;
@@ -1148,7 +1270,7 @@
     function confirmExpiredAndContinue() {
         document.getElementById('expiredModal').style.display = 'none';
         expiredConfirmed = true;
-        openPrinterModal();
+        saveDostawa(null);
     }
 
     function closePrinterModal() {
@@ -1200,6 +1322,35 @@
 
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
 
+        const missingName = items.some(it => !it.productName || !it.productName.trim());
+        if (missingName) return showToast('Wypełnij nazwę produktu dla wszystkich pozycji!', 'warning');
+
+        const dateErrors = [];
+        items.forEach((it, idx) => {
+            if (it.data_produkcji && !validateProductionDate(it.data_produkcji)) {
+                dateErrors.push(`Pozycja ${idx + 1}: Data produkcji (${it.data_produkcji}) jest późniejsza niż dzisiejsza data.`);
+            }
+            if (!validateExpiryVsProduction(it.data_przydatnosci, it.data_produkcji)) {
+                dateErrors.push(`Pozycja ${idx + 1}: Data przydatności (${it.data_przydatnosci}) jest wcześniejsza niż data produkcji (${it.data_produkcji}).`);
+            }
+        });
+
+        if (dateErrors.length > 0) {
+            showToast(dateErrors[0], 'warning');
+            return;
+        }
+
+        const expiredItems = items
+            .map((it, idx) => ({ ...it, _index: idx }))
+            .filter(it => it.data_przydatnosci && it.data_przydatnosci < todayStr);
+
+        if (expiredItems.length > 0 && !expiredConfirmed) {
+            showExpiredModal(expiredItems);
+            return;
+        }
+
+        expiredConfirmed = false;
+
         items.forEach(it => {
             const q = parseFloat(it.quantity) || parseFloat(it.netWeight) || parseFloat(it.unitsPerPallet) || 0;
             if (it.unit === 'szt' || it.packageForm === 'packaging') {
@@ -1219,7 +1370,7 @@
             lokalizacja_do: document.getElementById('default_loc').value,
             linia: "{{ linia }}",
             items: items,
-            status: "OCZEKUJE",
+            status: "SZKIC",
             printer_id: printerId || null
         };
 
@@ -1234,6 +1385,32 @@
                 formSavedSuccessfully = true;
                 clearDraftStorage();
                 showToast('Zapisano pomyślnie!', 'success');
+
+                const isExternalDelivery = Boolean((payload.supplier || '').trim());
+                if (isExternalDelivery && data.id) {
+                    const step1Result = await executeWorkflowAction(
+                        'awizuj',
+                        { awizacja_ref: orderRef, linia: "{{ linia }}" },
+                        {
+                            deliveryId: data.id,
+                            reloadOnSuccess: false,
+                            suppressSuccessToast: true,
+                            suppressMissingIdToast: true
+                        }
+                    );
+
+                    if (step1Result && step1Result.success) {
+                        showToast('Etap 1 zatwierdzony. Otwieram dostawę do kroku etykiet.', 'success');
+                    } else {
+                        showToast('Dostawa zapisana, ale nie udało się automatycznie zatwierdzić etapu 1.', 'warning');
+                    }
+
+                    setTimeout(() => {
+                        location.href = `/magazyn-dostawy/przyjecie/${encodeURIComponent(data.id)}?linia={{ linia }}`;
+                    }, 300);
+                    return;
+                }
+
                 setTimeout(() => {
                     location.href = `/magazyn-dostawy/oczekujace?linia={{ linia }}`;
                 }, 500);
@@ -1274,5 +1451,140 @@
         loadDraftFromStorage();
         renderItems();
     });
+
+    function closeStep2PrinterModal() {
+        const modal = document.getElementById('step2PrinterModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function openStep2PrinterModal() {
+        const modal = document.getElementById('step2PrinterModal');
+        if (modal) modal.style.display = 'block';
+    }
+
+    function getUnavailableStepMessage(action) {
+        if (action === 'awizuj') {
+            if (workflowCurrentStep >= 1) {
+                return 'Krok 1 jest już wykonany.';
+            }
+            return 'Krok 1 jest chwilowo niedostępny.';
+        }
+        if (action === 'etykiety') {
+            if (workflowCurrentStep < 1) {
+                return 'Krok 2 jest niedostępny. Najpierw wykonaj krok 1: Awizuj.';
+            }
+            if (workflowCurrentStep >= 2) {
+                return 'Krok 2 jest już wykonany dla tej dostawy.';
+            }
+            return 'Krok 2 jest chwilowo niedostępny.';
+        }
+        if (action === 'putaway') {
+            if (workflowCurrentStep < 2) {
+                return 'Krok 3/4 jest niedostępny. Najpierw wykonaj krok 2: Etykiety.';
+            }
+            if (workflowCurrentStep >= 3) {
+                return 'Krok 3/4 jest już rozpoczęty dla tej dostawy.';
+            }
+            return 'Krok 3/4 jest chwilowo niedostępny.';
+        }
+        return 'Ten krok jest obecnie niedostępny dla statusu tej dostawy.';
+    }
+
+    async function executeWorkflowAction(action, body, options = {}) {
+        const deliveryId = options.deliveryId || {{ (dostawa.id if dostawa else '')|tojson }};
+        if (!deliveryId) {
+            if (!options.suppressMissingIdToast) {
+                showToast('Najpierw zapisz dostawę.', 'warning');
+            }
+            return { success: false, error: 'missing_delivery_id' };
+        }
+
+        const url = action === 'putaway'
+            ? `/magazyn-dostawy/api/workflow/putaway/${encodeURIComponent(deliveryId)}`
+            : `/magazyn-dostawy/przyjecie/${encodeURIComponent(deliveryId)}/${action}`;
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body || {})
+            });
+            const data = await res.json();
+            if (!data.success) {
+                showToast(data.error || 'Operacja nie powiodła się.', 'danger');
+                return { success: false, error: data.error || 'Operacja nie powiodła się.' };
+            }
+            if (!options.suppressSuccessToast) {
+                showToast(data.message || 'Krok workflow wykonany.', 'success');
+            }
+            if (options.reloadOnSuccess !== false) {
+                window.location.reload();
+            }
+            return { success: true, data };
+        } catch (e) {
+            showToast('Błąd połączenia z API workflow.', 'danger');
+            return { success: false, error: 'network_error' };
+        }
+    }
+
+    async function confirmStep2PrinterAndRun() {
+        const printerEl = document.getElementById('step2PrinterSelect');
+        const printerId = printerEl ? (printerEl.value || null) : null;
+        closeStep2PrinterModal();
+
+        const step2Result = await executeWorkflowAction(
+            'etykiety',
+            { printer_id: printerId, linia: "{{ linia }}" },
+            { reloadOnSuccess: false }
+        );
+        if (!step2Result || !step2Result.success) {
+            return;
+        }
+
+        const step3Result = await executeWorkflowAction(
+            'putaway',
+            { linia: "{{ linia }}" },
+            { reloadOnSuccess: false, suppressSuccessToast: true }
+        );
+        if (!step3Result || !step3Result.success) {
+            showToast('Etykiety wygenerowane. Krok 3 uruchom ręcznie.', 'warning');
+            return;
+        }
+
+        showToast('Krok 3 zatwierdzony. Przechodzę do głównego skanera.', 'success');
+        setTimeout(() => {
+            window.location.href = `/agro/scanner/ui?linia={{ linia }}`;
+        }, 300);
+    }
+
+    async function runWorkflowAction(action, isAllowed) {
+        const deliveryId = {{ (dostawa.id if dostawa else '')|tojson }};
+        if (!deliveryId) {
+            showToast('Najpierw zapisz dostawę.', 'warning');
+            return;
+        }
+
+        if (!isAllowed) {
+            showToast(getUnavailableStepMessage(action), 'warning');
+            return;
+        }
+
+        if (action === 'putaway') {
+            await executeWorkflowAction('putaway', { linia: "{{ linia }}" });
+            setTimeout(() => {
+                window.location.href = `/magazyn-dostawy/oczekujace?linia={{ linia }}`;
+            }, 300);
+            return;
+        }
+
+        if (action === 'etykiety') {
+            openStep2PrinterModal();
+            return;
+        }
+
+        const body = action === 'awizuj'
+            ? { awizacja_ref: document.getElementById('order_ref').value.trim(), linia: "{{ linia }}" }
+            : {};
+        await executeWorkflowAction(action, body);
+    }
 </script>
 {% endblock %}

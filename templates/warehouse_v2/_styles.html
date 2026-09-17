@@ -310,8 +310,8 @@
         /* Hide unneeded columns */
         table#magazynyTable.compact-mobile td:nth-child(1), /* Lp */
         table#magazynyTable.compact-mobile td:nth-child(3), /* Desktop SSCC (moved into row 2) */
-        table#magazynyTable.compact-mobile td:nth-child(7), /* Typ */
-        table#magazynyTable.compact-mobile td:nth-child(8)  /* Data produkcji */
+        table#magazynyTable.compact-mobile td:nth-child(8), /* Typ */
+        table#magazynyTable.compact-mobile td:nth-child(10) /* Data produkcji */
         {
             display: none !important;
         }
@@ -406,7 +406,7 @@
         }
 
         /* Row 3, Col 1: Location Box (e.g. 📍 OCZEKUJĄCE / R01 01 01) */
-        table#magazynyTable.compact-mobile td:nth-child(6) {
+        table#magazynyTable.compact-mobile td:nth-child(7) {
             grid-column: 1 !important;
             grid-row: 3 !important;
             display: inline-flex !important;
@@ -415,7 +415,7 @@
             min-height: 38px !important;
             box-sizing: border-box !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(6) .location-box-inner {
+        table#magazynyTable.compact-mobile td:nth-child(7) .location-box-inner {
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -429,12 +429,12 @@
             box-sizing: border-box !important;
             white-space: nowrap !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(6) .location-box-inner .material-icons {
+        table#magazynyTable.compact-mobile td:nth-child(7) .location-box-inner .material-icons {
             font-size: 14px !important;
             color: #2563eb !important;
             line-height: 1 !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(6) .loc-text {
+        table#magazynyTable.compact-mobile td:nth-child(7) .loc-text {
             font-size: 11px !important;
             font-weight: 800 !important;
             font-family: ui-monospace, monospace !important;
@@ -444,7 +444,7 @@
         }
 
         /* Row 3, Col 2: Amount Box (e.g. 47 / kg) */
-        table#magazynyTable.compact-mobile td:nth-child(5) {
+        table#magazynyTable.compact-mobile td:nth-child(6) {
             grid-column: 2 !important;
             grid-row: 3 !important;
             display: inline-flex !important;
@@ -453,7 +453,7 @@
             min-height: 38px !important;
             box-sizing: border-box !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(5) .amount-box-inner {
+        table#magazynyTable.compact-mobile td:nth-child(6) .amount-box-inner {
             display: inline-flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -467,13 +467,13 @@
             box-sizing: border-box !important;
             line-height: 1.1 !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(5) .amount-val {
+        table#magazynyTable.compact-mobile td:nth-child(6) .amount-val {
             font-size: 13px !important;
             font-weight: 800 !important;
             color: #0f172a !important;
             line-height: 1.1 !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(5) .amount-unit {
+        table#magazynyTable.compact-mobile td:nth-child(6) .amount-unit {
             font-size: 10px !important;
             font-weight: 700 !important;
             color: #64748b !important;
@@ -481,7 +481,7 @@
         }
 
         /* Row 3, Col 3: Expiration Date (clean date only, status pill moved to top header) */
-        table#magazynyTable.compact-mobile td:nth-child(9) {
+        table#magazynyTable.compact-mobile td:nth-child(11) {
             grid-column: 3 !important;
             grid-row: 3 !important;
             display: flex !important;
@@ -490,24 +490,30 @@
             padding-left: 6px !important;
             box-sizing: border-box !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(9)::before {
+        table#magazynyTable.compact-mobile td:nth-child(11)::before {
             display: none !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(9) .expiry-box-inner {
+        table#magazynyTable.compact-mobile td:nth-child(11) .expiry-box-inner {
             display: flex !important;
             align-items: center !important;
             justify-content: flex-start !important;
             line-height: 1.1 !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(9) .expiry-date-val {
+        table#magazynyTable.compact-mobile td:nth-child(11) .expiry-date-val {
             font-size: 12px !important;
             font-weight: 700 !important;
             font-family: ui-monospace, monospace !important;
             line-height: 1.1 !important;
         }
-        table#magazynyTable.compact-mobile td:nth-child(9) .expiry-status-pill,
-        table#magazynyTable.compact-mobile td:nth-child(9) .desktop-only-expiry-pill {
+        table#magazynyTable.compact-mobile td:nth-child(11) .expiry-status-pill,
+        table#magazynyTable.compact-mobile td:nth-child(11) .desktop-only-expiry-pill {
             display: none !important;
+        }
+
+        /* Order / Document cell on mobile */
+        table#magazynyTable.compact-mobile td:nth-child(9) {
+            grid-column: 1 / -1 !important;
+            display: block !important;
         }
     }
 </style>

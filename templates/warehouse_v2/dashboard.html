@@ -62,8 +62,9 @@
                     <th style="cursor: pointer;" onclick="sortTable(5)">⚖️ Ilość ↕</th>
                     <th style="cursor: pointer;" onclick="sortTable(6)">📍 Lokalizacja ↕</th>
                     <th style="cursor: pointer;" onclick="sortTable(7)">🏷️ Typ ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(8)">📅 Produkcja ↕</th>
-                    <th style="cursor: pointer;" onclick="sortTable(9)">⌛ Ważność ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(8)">📄 Zlecenie / Dok. ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(9)">📅 Produkcja ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(10)">⌛ Ważność ↕</th>
                 </tr>
             </thead>
             <tbody id="palletTableBody" style="opacity:0; transition: opacity 0.15s ease;">
@@ -110,7 +111,14 @@ var allWarehouseItems = [
             date_exp: {{ (item.date_exp or '-')|tojson }},
             date_added: {{ (item.date_added or '-')|tojson }},
             unit: {{ item.unit|tojson }},
-            is_blocked: {{ 1 if item.is_blocked else 0 }}
+            is_blocked: {{ 1 if item.is_blocked else 0 }},
+            order_id: {{ (item.order_id or '')|tojson }},
+            order_ref: {{ (item.order_ref or '')|tojson }},
+            order_doc_type: {{ (item.order_doc_type or '')|tojson }},
+            order_doc_label: {{ (item.order_doc_label or '')|tojson }},
+            order_source: {{ (item.order_source or '')|tojson }},
+            order_dest: {{ (item.order_dest or '')|tojson }},
+            order_date: {{ (item.order_date or '')|tojson }}
         }{% if not loop.last %},{% endif %}
         {% endfor %}
     {% endif %}

@@ -396,22 +396,37 @@ def inject_delivery_counters():
     conn = None
     try:
         if not session.get('zalogowany'):
-            return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0})
+            return dict(
+                pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_transfer_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_transfer_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_external_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_external_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+            )
 
         from app.db import get_db_connection
         conn = get_db_connection()
         cursor = conn.cursor()
         counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        transfer_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        transfer_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        external_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        external_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         total_pending = 0
         total_pallets = 0
+        total_transfer_orders = 0
+        total_transfer_pallets = 0
+        total_external_orders = 0
+        total_external_pallets = 0
 
         # 1) Oczekujące dostawy/przesunięcia z modułu magazyn_dostawy
         cursor.execute(
             """
-            SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, items
+            SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, items, lokalizacja_z
             FROM magazyn_dostawy
-            WHERE UPPER(TRIM(COALESCE(status, ''))) IN ('OCZEKUJE', 'PENDING')
+            WHERE UPPER(TRIM(COALESCE(status, ''))) IN ('OCZEKUJE', 'PENDING', 'PUTAWAY_IN_PROGRESS')
             """
         )
         import json
@@ -425,11 +440,15 @@ def inject_delivery_counters():
                 counts[l] = qty
                 
             items_json = row[1]
+            source_location = str(row[2] or '').strip()
             pallets_in_order = 0
             if items_json:
                 try:
                     items_arr = json.loads(items_json)
-                    pallets_in_order = sum(1 for item in items_arr if not item.get('accepted') and not item.get('rejected'))
+                    pallets_in_order = sum(
+                        1 for item in items_arr
+                        if not item.get('rejected') and (not item.get('accepted') or not item.get('putaway_confirmed_at'))
+                    )
                 except:
                     pass
             
@@ -439,12 +458,50 @@ def inject_delivery_counters():
             else:
                 pallet_counts[l] = pallets_in_order
 
+            is_transfer = bool(source_location)
+            if is_transfer:
+                total_transfer_orders += 1
+                total_transfer_pallets += pallets_in_order
+                if l in transfer_counts:
+                    transfer_counts[l] += 1
+                    transfer_pallet_counts[l] += pallets_in_order
+                else:
+                    transfer_counts[l] = 1
+                    transfer_pallet_counts[l] = pallets_in_order
+            else:
+                total_external_orders += 1
+                total_external_pallets += pallets_in_order
+                if l in external_counts:
+                    external_counts[l] += 1
+                    external_pallet_counts[l] += pallets_in_order
+                else:
+                    external_counts[l] = 1
+                    external_pallet_counts[l] = pallets_in_order
+
         counts['ALL'] = total_pending
         pallet_counts['ALL'] = total_pallets
+        transfer_counts['ALL'] = total_transfer_orders
+        transfer_pallet_counts['ALL'] = total_transfer_pallets
+        external_counts['ALL'] = total_external_orders
+        external_pallet_counts['ALL'] = total_external_pallets
 
-        return dict(pending_deliveries=counts, pending_pallets=pallet_counts)
+        return dict(
+            pending_deliveries=counts,
+            pending_pallets=pallet_counts,
+            pending_transfer_orders=transfer_counts,
+            pending_transfer_pallets=transfer_pallet_counts,
+            pending_external_orders=external_counts,
+            pending_external_pallets=external_pallet_counts
+        )
     except Exception:
-        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}, pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0})
+        return dict(
+            pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+            pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+            pending_transfer_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+            pending_transfer_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+            pending_external_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+            pending_external_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        )
     finally:
         try:
             if conn:

@@ -125,6 +125,55 @@ function formatPackagingBadge(pkgType, palletId, type, linia) {
     </span>`;
 }
 
+function formatOrderBadge(item) {
+    if (!item.order_doc_label && !item.order_ref && !item.order_id) {
+        return '<span style="color: #94a3b8; font-size: 11px;">—</span>';
+    }
+
+    const docType = String(item.order_doc_type || 'MM').toUpperCase();
+    const docLabel = item.order_doc_label || (docType + ': #' + String(item.order_id || '').substring(0, 8));
+    const source = item.order_source || '';
+
+    let badgeBg = '#f1f5f9';
+    let badgeColor = '#475569';
+    let borderColor = '#cbd5e1';
+    let iconName = 'description';
+
+    if (docType === 'PZ') {
+        badgeBg = '#dbeafe';
+        badgeColor = '#1e40af';
+        borderColor = '#93c5fd';
+        iconName = 'archive'; // Przyjęcie z zewnątrz
+    } else if (docType === 'MM') {
+        badgeBg = '#fef3c7';
+        badgeColor = '#b45309';
+        borderColor = '#fde68a';
+        iconName = 'swap_horiz'; // Przesunięcie wewnętrzne
+    } else if (docType === 'WZ') {
+        badgeBg = '#fee2e2';
+        badgeColor = '#991b1b';
+        borderColor = '#fca5a5';
+        iconName = 'unarchive'; // Wydanie
+    } else if (docType === 'PROD') {
+        badgeBg = '#ede9fe';
+        badgeColor = '#6d28d9';
+        borderColor = '#ddd6fe';
+        iconName = 'precision_manufacturing'; // Produkcja / Plan
+    }
+
+    const dateStr = item.order_date ? `<span style="color: #475569; font-weight: 600;">${item.order_date}</span>` : '';
+    const sourceStr = source ? `z: <strong style="color: #334155;">${source}</strong>` : '';
+    const subInfo = [dateStr, sourceStr].filter(Boolean).join(' • ');
+    const sourceHtml = subInfo ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px; white-space: nowrap;">${subInfo}</div>` : '';
+
+    return `<div style="display: inline-flex; flex-direction: column; align-items: flex-start;">
+        <span class="badge" style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${borderColor}; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+            <span class="material-icons" style="font-size: 11px;">${iconName}</span> ${docLabel}
+        </span>
+        ${sourceHtml}
+    </div>`;
+}
+
 function generateTableRow(item, index) {
     const expiry = getExpiryStatus(item.date_exp);
     const isExpired = Boolean(expiry.isExpired);
@@ -212,6 +261,9 @@ function generateTableRow(item, index) {
         <td data-label="Typ">
             <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">${item.type}</span>
         </td>
+        <td data-label="Zlecenie / Dok." class="order-doc-cell">
+            ${formatOrderBadge(item)}
+        </td>
         <td data-label="Produkcja" class="time-display">${item.date_prod}</td>
         <td data-label="Ważność" class="time-display expiry-cell" style="white-space: nowrap;">
             <div class="expiry-box-inner">
@@ -288,8 +340,11 @@ function generateGridCard(item) {
                 <span>Ważn: <strong style="color: ${expiry.textColor};">${item.date_exp}</strong> ${expiry.label ? `<span class="badge" style="background: ${expiry.badgeBg}; color: ${expiry.badgeColor}; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 2px;">${expiry.label}</span>` : ''}</span>
             </div>
         </div>
-        <div class="card-footer">
-            <span class="type-label">${item.type}</span>
+        <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span class="type-label">${item.type}</span>
+                ${(item.order_doc_label || item.order_ref || item.order_id) ? formatOrderBadge(item) : ''}
+            </div>
             ${icon}
         </div>
     </div>`;
@@ -445,8 +500,11 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
     // 1. Jeśli wybrano konkretny regał/podlokalizację lub bufor - to jest priorytet
     if (currentSubWarehouseId && currentSubWarehouseId !== 'all') {
         const subUpper = currentSubWarehouseId.toUpperCase();
+        if (subUpper === 'OCZEKUJĄCE' || subUpper === 'OCZEKUJACE') {
+            return upLoc.includes('OCZEKUJ');
+        }
         if (subUpper === 'BUFORY' || subUpper === 'BUFOR') {
-            return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || !locText || upLoc.trim() === '';
+            return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || upLoc.includes('OCZEKUJ') || !locText || upLoc.trim() === '';
         }
         if (subUpper === 'BFOS') {
             return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP') || upLoc.includes('BUFOR CENTR');
@@ -479,22 +537,19 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
 
     // 2. Jeśli nie wybrano regału, filtrujemy po magazynie głównym
     if (!currentWarehouseId || currentWarehouseId === 'all') {
-        if (isOsip) {
-            return false;
-        }
+        // "Wszystkie Magazyny" must include every location, including OSIP (A*/OS*/BFOS).
         return true;
     }
     
     if (currentWarehouseId === 'MS01') {
-        // MS01 shows its floor, surowce and racks R04-R07, R09
-        return locText.includes('MS01') || allText.includes('SUROWIEC') ||
-               ['R04', 'R05', 'R06', 'R07', 'R09'].some(r => (locParts ? locParts.rack === r : locText.includes(r)));
+        // MS01 to magazyn surowcowy - miejsca podłogowe MS01
+        return locText.includes('MS01') || (!['R01','R02','R03','R04','R05','R06','R07','R09'].some(r => (locParts ? locParts.rack === r : locText.includes(r))) && allText.includes('SUROWIEC'));
     }
     
     if (currentWarehouseId === 'MP01') {
-        // MP01 shows its floor and racks R01-R03
+        // MP01 to magazyn produkcyjny z regałami R01-R07 i R09 oraz strefą podłogową
         return locText.includes('MP01') || locText.includes('PODŁOGA') || 
-               ['R01', 'R02', 'R03'].some(r => (locParts ? locParts.rack === r : locText.includes(r)));
+               ['R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R09'].some(r => (locParts ? locParts.rack === r : locText.includes(r)));
     }
 
     // Inne magazyny (MGW, PSD, MDO, MOP)

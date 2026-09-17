@@ -69,12 +69,80 @@ def reception_edit(dostawa_id=None):
     finally:
         conn.close()
 
+    workflow_steps = [
+        {'label': 'Awizacja', 'icon': 'fact_check', 'status': 'AWIZOWANE'},
+        {'label': 'Etykiety SSCC', 'icon': 'qr_code_2', 'status': 'W_STREFIE_PRZYJEC'},
+        {'label': 'Zadanie Putaway', 'icon': 'forklift', 'status': 'PUTAWAY_IN_PROGRESS'},
+        {'label': 'Skan Lokalizacji', 'icon': 'where_to_vote', 'status': 'COMPLETED'},
+    ]
+
+    workflow_meta = None
+    can_awizuj = False
+    can_etykiety = False
+    can_assign_putaway = False
+    if dostawa:
+        from app.services.magazyn_dostawy.commands.delivery_reception_workflow import (
+            DeliveryReceptionWorkflow, DeliveryStatus
+        )
+        current_status = str(dostawa.get('status') or 'SZKIC').upper()
+        workflow_meta = DeliveryReceptionWorkflow.get_status_meta(current_status)
+        can_awizuj = DeliveryReceptionWorkflow.can_transition(current_status, DeliveryStatus.AWIZOWANE)
+        can_etykiety = DeliveryReceptionWorkflow.can_transition(current_status, DeliveryStatus.W_STREFIE_PRZYJEC)
+        can_assign_putaway = DeliveryReceptionWorkflow.can_transition(current_status, DeliveryStatus.PUTAWAY_IN_PROGRESS)
+
     return render_template(
         'magazyn_dostawy/reception_form.html',
         dostawa=dostawa, linia=linia,
         wszystkie_produkty=wszystkie_produkty,
         lokalizacje=['BFOS'] + [f'A{str(i+1).zfill(2)}' for i in range(99)] if linia == 'OSIP' else BUFORY,
         printers=printers,
-        now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        workflow_steps=workflow_steps,
+        workflow_meta=workflow_meta,
+        can_awizuj=can_awizuj,
+        can_etykiety=can_etykiety,
+        can_assign_putaway=can_assign_putaway,
     )
+
+
+@magazyn_dostawy_bp.route('/przyjecie/<dostawa_id>/awizuj', methods=['POST'])
+def reception_awizuj(dostawa_id):
+    """Step 1 web route: proxy to workflow API for awization confirmation."""
+    from .api_actions import api_workflow_awizuj
+    return api_workflow_awizuj(dostawa_id)
+
+
+@magazyn_dostawy_bp.route('/przyjecie/<dostawa_id>/etykiety', methods=['POST'])
+def reception_etykiety(dostawa_id):
+    """Step 2 web route: proxy to workflow API for SSCC generation and printing."""
+    from .api_actions import api_workflow_etykiety
+    return api_workflow_etykiety(dostawa_id)
+
+
+@magazyn_dostawy_bp.route('/przyjecie/<dostawa_id>/putaway')
+def reception_putaway(dostawa_id):
+    """Step 3/4 web view for forklift operator putaway confirmation."""
+    linia = request.args.get('linia', 'PSD').upper()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+        dostawa = cursor.fetchone()
+        if not dostawa:
+            return redirect(url_for('magazyn_dostawy.reception_view', linia=linia))
+
+        items = json.loads(dostawa.get('items') or '[]')
+        active_items = [it for it in items if not it.get('rejected') and not it.get('putaway_confirmed_at')]
+        completed_items = [it for it in items if it.get('putaway_confirmed_at')]
+
+        return render_template(
+            'magazyn_dostawy/putaway_task.html',
+            dostawa=dostawa,
+            linia=linia,
+            items=active_items,
+            completed_count=len(completed_items),
+            total_count=len([it for it in items if not it.get('rejected')]),
+        )
+    finally:
+        conn.close()
 

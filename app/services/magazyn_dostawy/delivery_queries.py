@@ -38,11 +38,11 @@ class DeliveryQueries:
                 # 1. Pending Raw Materials / Transfers
                 if str(linia).upper() == 'ALL':
                     cursor.execute(
-                        "SELECT * FROM magazyn_dostawy WHERE status = 'OCZEKUJE' ORDER BY created_at DESC"
+                        "SELECT * FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'PUTAWAY_IN_PROGRESS') ORDER BY created_at DESC"
                     )
                 else:
                     cursor.execute(
-                        "SELECT * FROM magazyn_dostawy WHERE status = 'OCZEKUJE' AND UPPER(linia) = %s ORDER BY created_at DESC",
+                        "SELECT * FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'PUTAWAY_IN_PROGRESS') AND UPPER(linia) = %s ORDER BY created_at DESC",
                         (str(linia).upper(),)
                     )
                 dostawy = cursor.fetchall()

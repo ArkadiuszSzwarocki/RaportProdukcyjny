@@ -112,7 +112,7 @@ function filterTable() {
 
     // 1. Filter JavaScript Array instead of DOM
     let filtered = allWarehouseItems.filter(item => {
-        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location}`.toUpperCase();
+        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}`.toUpperCase();
         return isMatch(allText, item.location || '', filter, selectedLocations);
     });
 
@@ -287,6 +287,11 @@ function formatLocation(loc) {
                     <span class="location-part-place">${loc_code.substring(3,5)}</span>
                     <span class="location-separator"> </span>
                     <span class="location-part-row">${loc_code.substring(5,7)}</span>
+                </span>`;
+    }
+    if (loc_code.startsWith('OCZEKUJ')) {
+        return `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;">
+                    <span class="material-icons" style="font-size: 13px; color: #3b82f6;">hourglass_top</span> ${loc}
                 </span>`;
     }
     return loc || 'Brak';

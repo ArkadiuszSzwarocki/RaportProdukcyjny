@@ -591,8 +591,13 @@
     {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='js/scanner/scanner.js') }}?v=20260908_lp01_fix2"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v=20260917"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v=20260917"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260903_0841"></script>
 {% endblock %}
 

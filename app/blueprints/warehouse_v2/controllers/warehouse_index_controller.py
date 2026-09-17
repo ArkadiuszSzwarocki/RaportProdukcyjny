@@ -4,6 +4,7 @@ from app.db import get_db_connection, get_table_name
 from app.blueprints.warehouse_v2.utils.date_formatters import format_date_val, compute_expiry_date
 from app.blueprints.warehouse_v2.utils.packaging_classifier import classify_packaging_type
 from app.services.dashboard_service import DashboardService
+from app.services.warehouse_v2.warehouse_pending_items_service import WarehousePendingItemsService
 
 class WarehouseIndexController:
     @staticmethod
@@ -69,24 +70,33 @@ class WarehouseIndexController:
             for linia_palety in palety_linie:
                 table_palety = get_table_name('magazyn_palety', linia_palety)
                 table_plan = get_table_name('plan_produkcji', linia_palety)
+                alt_linia = 'AGRO' if linia_palety == 'PSD' else 'PSD'
+                table_plan_alt = get_table_name('plan_produkcji', alt_linia)
                 line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if table_palety == 'magazyn_palety' else ""
                 try:
                     cursor.execute(
                         f"""
                         SELECT m.id, m.nr_palety, 
-                               COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
+                               COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, plan_pw.produkt, plan_alt.produkt, plan_pw_alt.produkt, 'Nieznany produkt') as productName, 
                                COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') as location, 
                                m.waga_netto as amount, 
                                'Wyrób Gotowy' as type, 
-                               COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji, 
-                               COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci, 
+                               COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, plan_pw.data_produkcji, m.data_planu, plan.data_planu, plan_pw.data_planu) as data_produkcji, 
+                               COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci, plan_pw.termin_przydatnosci) as data_przydatnosci, 
                                COALESCE(NULLIF(TRIM(m.linia), ''), '{linia_palety}') as linia, 
-                               COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii, 
+                               COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, plan_pw.nr_partii) as nr_partii, 
                                m.is_blocked, 
                                COALESCE(m.created_at, m.data_potwierdzenia) as created_at,
-                               COALESCE(m.typ_opakowania, plan.typ_opakowania, '') as typ_opakowania
+                               COALESCE(m.typ_opakowania, plan.typ_opakowania, plan_pw.typ_opakowania, '') as typ_opakowania,
+                               COALESCE(m.plan_id, pw.plan_id) as effective_plan_id,
+                               COALESCE(plan.data_planu, plan_pw.data_planu, plan_alt.data_planu, plan_pw_alt.data_planu) as plan_order_date,
+                               COALESCE(NULLIF(plan.nazwa_zlecenia, ''), NULLIF(plan_pw.nazwa_zlecenia, ''), NULLIF(plan_alt.nazwa_zlecenia, ''), NULLIF(plan_pw_alt.nazwa_zlecenia, ''), NULLIF(plan.typ_zlecenia, ''), NULLIF(plan_pw.typ_zlecenia, '')) as plan_order_name
                         FROM {table_palety} m
+                        LEFT JOIN palety_workowanie pw ON m.paleta_workowanie_id = pw.id
                         LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
+                        LEFT JOIN {table_plan} plan_pw ON pw.plan_id = plan_pw.id
+                        LEFT JOIN {table_plan_alt} plan_alt ON m.plan_id = plan_alt.id
+                        LEFT JOIN {table_plan_alt} plan_pw_alt ON pw.plan_id = plan_pw_alt.id
                         WHERE m.waga_netto > 0 AND (m.is_loaded = 0 OR m.is_loaded IS NULL) {line_condition}
                         """
                     )
@@ -106,6 +116,20 @@ class WarehouseIndexController:
 
                         if not row['location']:
                             row['location'] = 'OCZEKUJĄCE'
+
+                        # Attach production plan order details
+                        plan_id = row.get('effective_plan_id')
+                        plan_date_raw = row.get('plan_order_date')
+                        plan_date_str = format_date_val(plan_date_raw) if plan_date_raw else ''
+                        if plan_id:
+                            row['order_id'] = f"PLAN-{plan_id}"
+                            row['order_ref'] = f"Plan #{plan_id}"
+                            row['order_doc_type'] = 'PROD'
+                            row['order_doc_label'] = f"PROD: #{plan_id}"
+                            row['order_date'] = plan_date_str
+                            row['order_source'] = f"Linia {row['linia']}"
+                        elif plan_date_str:
+                            row['order_date'] = plan_date_str
 
                         items.append(row)
                 except Exception as e:
@@ -129,6 +153,12 @@ class WarehouseIndexController:
                     items.append(row)
             except Exception as e:
                 print(f"Error fetching dodatki: {e}")
+
+            # 5. Oczekujące pozycje ze zleceń i dostaw (deduplikacja + wzbogacenie o dane PZ/MM/WZ)
+            try:
+                WarehousePendingItemsService.enrich_and_append_pending(items, linia)
+            except Exception as e:
+                print(f"Error enriching pending items: {e}")
 
         except Exception as e:
             print(f"Error in dashboard: {e}")
@@ -158,14 +188,14 @@ class WarehouseIndexController:
 
         magazyny_zakladki = [
             {'id': 'all', 'name': 'Wszystkie Magazyny'},
-            {'id': 'MS01', 'name': 'Magazyn Surowcowy (MS01)'},
             {'id': 'MP01', 'name': 'Magazyn Produkcyjny (MP01)'},
-            {'id': 'OSIP', 'name': 'Magazyn Centralny', 'code': 'CENTRALNY'},
+            {'id': 'MS01', 'name': 'Magazyn Surowcowy (MS01)'},
+            {'id': 'OSIP', 'name': 'Magazyn Zewnętrzny (OSIP)', 'code': 'ZEWNĘTRZNY'},
             {'id': 'PSD01', 'name': 'Magazyn Produkcyjny (PSD01)'},
             {'id': 'MDO01', 'name': 'Magazyn Dodatków (MDO01)'},
             {'id': 'MOP01', 'name': 'Magazyn Opakowań (MOP01)'},
-            {'id': 'MGW01', 'name': 'Wyroby Gotowe (MGW01)'},
-            {'id': 'MGW02', 'name': 'Wyroby Gotowe (MGW02)'},
+            {'id': 'MGW01', 'name': 'Magazyn Wyrobów Gotowych 1 (MGW01)'},
+            {'id': 'MGW02', 'name': 'Magazyn Wyrobów Gotowych 2 (MGW02)'},
             {'id': 'BF_MS01', 'name': 'BUFOR MS01'},
             {'id': 'BF_MP01', 'name': 'BUFOR MP01'}
         ]

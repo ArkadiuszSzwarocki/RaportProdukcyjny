@@ -146,6 +146,19 @@
     z-index: 2;
 }
 
+.nav-pending-badges-stack {
+    margin-left: auto;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 3px;
+}
+
+.nav-pending-badge-delivery {
+    background: #f59e0b;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
 .nav-draft-badge {
     position: static;
     margin-left: auto;

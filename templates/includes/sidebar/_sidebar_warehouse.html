@@ -41,8 +41,23 @@
                 <span class="nav-sub-text">Oczekujące Przyjęcia</span>
                 {% set pallet_map = pending_pallets if pending_pallets is defined else {'PSD': 0, 'AGRO': 0} %}
                 {% set pending_pallets_for_hall = (pallet_map.get('ALL', (pallet_map.get('PSD', 0) + pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else pallet_map.get(hall_key, 0))|int %}
+                {% set transfer_order_map = pending_transfer_orders if pending_transfer_orders is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0} %}
+                {% set transfer_pallet_map = pending_transfer_pallets if pending_transfer_pallets is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0} %}
+                {% set external_order_map = pending_external_orders if pending_external_orders is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0} %}
+                {% set external_pallet_map = pending_external_pallets if pending_external_pallets is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0} %}
+                {% set transfer_orders_for_hall = (transfer_order_map.get('ALL', (transfer_order_map.get('PSD', 0) + transfer_order_map.get('AGRO', 0))) if hall_key == 'ALL' else transfer_order_map.get(hall_key, 0))|int %}
+                {% set transfer_pallets_for_hall = (transfer_pallet_map.get('ALL', (transfer_pallet_map.get('PSD', 0) + transfer_pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else transfer_pallet_map.get(hall_key, 0))|int %}
+                {% set external_orders_for_hall = (external_order_map.get('ALL', (external_order_map.get('PSD', 0) + external_order_map.get('AGRO', 0))) if hall_key == 'ALL' else external_order_map.get(hall_key, 0))|int %}
+                {% set external_pallets_for_hall = (external_pallet_map.get('ALL', (external_pallet_map.get('PSD', 0) + external_pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else external_pallet_map.get(hall_key, 0))|int %}
                 {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
-                <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_for_hall > 99 else pending_for_hall }}/{{ '99+' if pending_pallets_for_hall > 99 else pending_pallets_for_hall }}</span>
+                <span class="nav-pending-badges-stack" aria-label="Są oczekujące przyjęcia">
+                    {% if external_orders_for_hall > 0 %}
+                    <span class="nav-pending-badge nav-pending-badge-delivery">{{ '99+' if external_orders_for_hall > 99 else external_orders_for_hall }}/{{ '99+' if external_pallets_for_hall > 99 else external_pallets_for_hall }}</span>
+                    {% endif %}
+                    {% if transfer_orders_for_hall > 0 %}
+                    <span class="nav-pending-badge">{{ '99+' if transfer_orders_for_hall > 99 else transfer_orders_for_hall }}/{{ '99+' if transfer_pallets_for_hall > 99 else transfer_pallets_for_hall }}</span>
+                    {% endif %}
+                </span>
                 {% endif %}
             </span>
         </a>
@@ -127,8 +142,19 @@
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text"><i class="fas fa-clock mr-1" style="font-size:12px;"></i> Oczekujące Przyjęcia</span>
+                {% set transfer_orders_osip = (pending_transfer_orders.get('OSIP', 0) if pending_transfer_orders is defined else 0)|int %}
+                {% set transfer_pallets_osip = (pending_transfer_pallets.get('OSIP', 0) if pending_transfer_pallets is defined else 0)|int %}
+                {% set external_orders_osip = (pending_external_orders.get('OSIP', 0) if pending_external_orders is defined else 0)|int %}
+                {% set external_pallets_osip = (pending_external_pallets.get('OSIP', 0) if pending_external_pallets is defined else 0)|int %}
                 {% if pending_osip > 0 %}
-                <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_osip > 99 else pending_osip }}/{{ '99+' if pending_pallets_osip > 99 else pending_pallets_osip }}</span>
+                <span class="nav-pending-badges-stack" aria-label="Są oczekujące przyjęcia">
+                    {% if external_orders_osip > 0 %}
+                    <span class="nav-pending-badge nav-pending-badge-delivery">{{ '99+' if external_orders_osip > 99 else external_orders_osip }}/{{ '99+' if external_pallets_osip > 99 else external_pallets_osip }}</span>
+                    {% endif %}
+                    {% if transfer_orders_osip > 0 %}
+                    <span class="nav-pending-badge">{{ '99+' if transfer_orders_osip > 99 else transfer_orders_osip }}/{{ '99+' if transfer_pallets_osip > 99 else transfer_pallets_osip }}</span>
+                    {% endif %}
+                </span>
                 {% endif %}
             </span>
         </a>

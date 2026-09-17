@@ -5,6 +5,19 @@ from app.db import get_db_connection
 
 class PalletHistoryService:
     @staticmethod
+    def _parse_datetime(dt_val):
+        """Convert various datetime formats to a datetime object."""
+        if isinstance(dt_val, datetime):
+            return dt_val
+        if isinstance(dt_val, str):
+            for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+                try:
+                    return datetime.strptime(dt_val, fmt)
+                except (ValueError, TypeError):
+                    continue
+        return datetime.min
+
+    @staticmethod
     def get_pallet_history(pallet_id, pallet_type, linia='PSD', sscc=None):
         """Fetch comprehensive pallet movement and lifecycle history from all sources."""
         conn = get_db_connection()
@@ -203,54 +216,119 @@ class PalletHistoryService:
             if not is_finished_good and target_sscc:
                 try:
                     cursor.execute(
-                        "SELECT id, supplier, order_ref, status, items, created_by, created_at FROM magazyn_dostawy WHERE items LIKE %s",
+                        "SELECT id, supplier, order_ref, status, items, created_by, created_at, lokalizacja_z, lokalizacja_do FROM magazyn_dostawy WHERE items LIKE %s",
                         (f"%{target_sscc}%",)
                     )
                     for d_row in cursor.fetchall() or []:
                         raw_items_str = d_row.get('items') or '[]'
                         d_items = json.loads(raw_items_str) if isinstance(raw_items_str, str) else raw_items_str
+                        sup_raw = (d_row.get('supplier') or '').strip()
+                        loc_z = (d_row.get('lokalizacja_z') or '').strip()
+                        # If supplier is empty/null and has source location, it's an internal transfer (MM), NOT a delivery (PZ)
+                        is_internal_transfer = bool(loc_z and loc_z.upper() != 'DOSTAWA') or not sup_raw
+
                         for it in d_items:
                             if isinstance(it, dict) and it.get('nr_palety') == target_sscc:
-                                p_sup = d_row.get('supplier') or 'Dostawca zewnętrzny'
+                                p_sup = sup_raw or 'Dostawca zewnętrzny'
                                 p_wz = d_row.get('order_ref') or f"#{d_row.get('id')}"
                                 p_user = it.get('accepted_by') or d_row.get('created_by') or 'system'
                                 p_date = it.get('accepted_at') or d_row.get('created_at')
                                 p_loc = it.get('lokalizacja_przyjecia') or 'OSIP'
                                 p_name = it.get('productName') or 'Surowiec'
                                 p_partia = it.get('nr_partii') or '-'
-                                if it.get('accepted'):
+                                is_rejected = bool(it.get('rejected'))
+
+                                if is_rejected:
+                                    rej_by = it.get('rejected_by') or d_row.get('potwierdzone_przez') or 'magazynier'
+                                    rej_at = it.get('rejected_at') or d_row.get('potwierdzone_at') or d_row.get('created_at')
+                                    rej_reason = it.get('rejected_reason') or 'Odrzucona pozycja'
                                     historia_dostawy.append({
-                                        'typ_ruchu': 'PRZYJECIE',
-                                        'autor_login': p_user,
-                                        'autor_data': p_date,
-                                        'lokalizacja_zrodlowa': 'OCZEKUJĄCE',
-                                        'lokalizacja_docelowa': p_loc,
-                                        'komentarz': f"Przyjęcie z dostawy: {p_name}, partia: {p_partia} (WZ: {p_wz})"
+                                        'typ_ruchu': 'ODRZUCENIE_MM' if is_internal_transfer else 'ODRZUCENIE_PZ',
+                                        'autor_login': rej_by,
+                                        'autor_data': rej_at,
+                                        'lokalizacja_zrodlowa': it.get('sourceSpot') or loc_z or 'SKANER',
+                                        'lokalizacja_docelowa': 'ODRZUCONE',
+                                        'komentarz': f"Odrzucenie palety ze zlecenia #{p_wz}: {rej_reason}"
                                     })
-                                else:
+                                elif is_internal_transfer:
+                                    # For internal transfers, accepted movements are ALREADY logged in palety_historia as PRZESUNIECIE.
+                                    # MM flow: paleta goes FROM regał TO OCZEKUJĄCE (auto-buffer), then receiver picks FROM OCZEKUJĄCE.
+                                    mm_source = it.get('sourceSpot') or loc_z or 'REGAŁ'
                                     historia_dostawy.append({
-                                        'typ_ruchu': 'DOSTAWA_PRZYJECIE',
+                                        'typ_ruchu': 'ZLECENIE_MM',
                                         'autor_login': d_row.get('created_by') or 'system',
                                         'autor_data': d_row.get('created_at'),
-                                        'lokalizacja_zrodlowa': 'DOSTAWA',
+                                        'lokalizacja_zrodlowa': mm_source,
                                         'lokalizacja_docelowa': 'OCZEKUJĄCE',
-                                        'komentarz': f"Przyjęcie zewnętrzne z {p_sup} - WZ: {p_wz}"
+                                        'komentarz': f"Zgłoszenie zlecenia przesunięcia (MM: #{p_wz}){' — zrealizowane' if it.get('accepted') else ' — oczekuje'}",
+                                        '_mm_original_source': mm_source
                                     })
+                                else:
+                                    # External delivery (PZ)
+                                    strefa_przyjec = d_row.get('strefa_przyjec') or 'STREFA_PRZYJEC_01'
+                                    if it.get('accepted'):
+                                        p_date_dt = PalletHistoryService._parse_datetime(p_date) if p_date else None
+                                        already_moved = False
+                                        if p_date_dt and p_date_dt != datetime.min:
+                                            already_moved = any(
+                                                (h.get('lokalizacja_docelowa') == p_loc or str(h.get('typ_ruchu', '')).upper() == 'PRZESUNIECIE') and
+                                                abs((PalletHistoryService._parse_datetime(h.get('autor_data')) - p_date_dt).total_seconds()) < 60
+                                                for h in historia_nowa
+                                                if PalletHistoryService._parse_datetime(h.get('autor_data')) != datetime.min
+                                            )
+
+                                        if not already_moved:
+                                            historia_dostawy.append({
+                                                'typ_ruchu': 'PRZYJECIE',
+                                                'autor_login': p_user,
+                                                'autor_data': p_date,
+                                                'lokalizacja_zrodlowa': 'OCZEKUJĄCE',
+                                                'lokalizacja_docelowa': p_loc,
+                                                'komentarz': f"Przyjęcie z dostawy: {p_name}, partia: {p_partia} (WZ: {p_wz})"
+                                            })
+                                    elif it.get('sscc_generated_at'):
+                                        historia_dostawy.append({
+                                            'typ_ruchu': 'PZ_STREFA_PRZYJEC',
+                                            'autor_login': it.get('sscc_generated_by') or d_row.get('created_by') or 'system',
+                                            'autor_data': it.get('sscc_generated_at') or d_row.get('created_at'),
+                                            'lokalizacja_zrodlowa': 'DOSTAWA',
+                                            'lokalizacja_docelowa': strefa_przyjec,
+                                            'komentarz': f"Przyjęcie z dostawy do strefy przyjęć (WZ: {p_wz})"
+                                        })
+                                    else:
+                                        historia_dostawy.append({
+                                            'typ_ruchu': 'DOSTAWA_PRZYJECIE',
+                                            'autor_login': d_row.get('created_by') or 'system',
+                                            'autor_data': d_row.get('created_at'),
+                                            'lokalizacja_zrodlowa': 'DOSTAWA',
+                                            'lokalizacja_docelowa': 'OCZEKUJĄCE',
+                                            'komentarz': f"Dostawa zewnętrzna z {p_sup} - WZ: {p_wz}"
+                                        })
                 except Exception:
                     pass
+
+            # Post-process: rewrite PRZESUNIECIE source when a matching ZLECENIE_MM exists.
+            # Business rule: MM order puts pallet into OCZEKUJĄCE buffer, so the physical
+            # PRZESUNIECIE (acceptance) picks FROM OCZEKUJĄCE, not from the original regał.
+            mm_sources = set()
+            for ev in historia_dostawy:
+                if str(ev.get('typ_ruchu', '')).upper() == 'ZLECENIE_MM':
+                    s = (ev.get('_mm_original_source') or '').strip().upper()
+                    if s:
+                        mm_sources.add(s)
+
+            if mm_sources:
+                for ev in historia_nowa:
+                    t = str(ev.get('typ_ruchu', '')).upper()
+                    if t in ('PRZESUNIECIE', 'RELOKACJA', 'RUCH'):
+                        src = str(ev.get('lokalizacja_zrodlowa') or '').strip().upper()
+                        if src in mm_sources:
+                            ev['lokalizacja_zrodlowa'] = 'OCZEKUJĄCE'
 
             combined = historia_nowa + historia_stara + historia_dostawy
 
             def get_dt(x):
-                dt = x.get('autor_data')
-                if isinstance(dt, datetime):
-                    return dt
-                if isinstance(dt, str):
-                    try: return datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
-                    except Exception: pass
-                    try: return datetime.strptime(dt, '%Y-%m-%d %H:%M')
-                    except Exception: pass
-                return datetime.min
+                return PalletHistoryService._parse_datetime(x.get('autor_data'))
 
             combined.sort(key=get_dt, reverse=True)
 
@@ -261,15 +339,29 @@ class PalletHistoryService:
                 dt = get_dt(h)
                 t_raw = str(h.get('typ_ruchu') or '').upper().strip()
                 c_raw = str(h.get('komentarz') or '').lower()
-                if any(k in t_raw for k in ('PRZYJ', 'PW', 'PZ', 'POTWIERDZ', 'DOSTAWA')):
+                if 'ODRZU' in t_raw:
+                    t_key = 'REJECTION'
+                elif 'ZLECENIE' in t_raw and 'PUTAWAY' not in t_raw:
+                    t_key = 'ORDER'
+                elif 'AWIZACJA' in t_raw:
+                    t_key = 'AVIZATION'
+                elif 'SSCC' in t_raw or 'NADANIE' in t_raw:
+                    t_key = 'SSCC_LABEL'
+                elif 'PUTAWAY_POTW' in t_raw:
+                    t_key = 'PUTAWAY_CONFIRM'
+                elif 'PUTAWAY' in t_raw:
+                    t_key = 'PUTAWAY_ORDER'
+                elif 'PZ_STREFA_PRZYJEC' in t_raw:
+                    t_key = 'PZ_RECEPTION_ZONE'
+                elif any(k in t_raw for k in ('PRZYJ', 'PW', 'PZ', 'POTWIERDZ', 'DOSTAWA')):
                     t_key = 'RECEPTION'
-                elif any(k in t_raw for k in ('WYDA', 'PROD', 'RW', 'POBRANIE')):
+                elif any(k in t_raw for k in ('ZUZYCIE', 'WYDA', 'PROD', 'RW', 'POBRANIE')):
                     t_key = 'DISPATCH'
                 elif any(k in t_raw for k in ('PRZESUN', 'TRANSF', 'RELOKAC', 'RUCH', 'MM')):
                     t_key = 'RELOCATION'
                 elif any(k in t_raw for k in ('UTWORZ',)):
                     t_key = 'CREATION'
-                elif any(k in t_raw for k in ('USUN',)):
+                elif any(k in t_raw for k in ('USUN', 'ARCHIW')):
                     t_key = 'DELETION'
                 else:
                     t_key = t_raw
@@ -342,6 +434,36 @@ class PalletHistoryService:
                             else:
                                 src = src if (src and src not in ('-', 'None', 'null', 'brak', 'OCZEKUJACE', 'OCZEKUJĄCE')) else 'DOSTAWA'
                                 dst = dst or 'OCZEKUJĄCE'
+                        h['lokalizacja_zrodlowa'] = src
+                        h['lokalizacja_docelowa'] = dst
+                        h['stacja_trasa'] = f"{src} -> {dst}" if src != dst else dst
+
+                    elif t_key == 'PZ_RECEPTION_ZONE':
+                        src = src if (src and src != '-') else 'DOSTAWA'
+                        dst = dst if (dst and dst != '-') else 'STREFA_PRZYJEC_01'
+                        h['lokalizacja_zrodlowa'] = src
+                        h['lokalizacja_docelowa'] = dst
+                        h['stacja_trasa'] = f"{src} -> {dst}" if src != dst else dst
+
+                    elif t_key == 'SSCC_LABEL':
+                        if 'stref' in kom_h and ('sscc' in kom_h or 'nadanie' in kom_h):
+                            zone = dst if (dst and 'STREFA' in str(dst).upper()) else (src if (src and 'STREFA' in str(src).upper()) else 'STREFA_PRZYJEC_01')
+                            src = zone
+                            dst = zone
+                            h['lokalizacja_zrodlowa'] = src
+                            h['lokalizacja_docelowa'] = dst
+                            h['stacja_trasa'] = f"{src} -> {dst}" if src != dst else dst
+
+                    elif t_key == 'PUTAWAY_ORDER':
+                        src = src if (src and src != '-') else 'STREFA_PRZYJEC_01'
+                        dst = 'OCZEKUJĄCE'
+                        h['lokalizacja_zrodlowa'] = src
+                        h['lokalizacja_docelowa'] = dst
+                        h['stacja_trasa'] = f"{src} -> {dst}" if src != dst else dst
+
+                    elif t_key == 'PUTAWAY_CONFIRM':
+                        src = 'OCZEKUJĄCE'
+                        dst = dst if (dst and dst != '-') else 'MAGAZYN'
                         h['lokalizacja_zrodlowa'] = src
                         h['lokalizacja_docelowa'] = dst
                         h['stacja_trasa'] = f"{src} -> {dst}" if src != dst else dst

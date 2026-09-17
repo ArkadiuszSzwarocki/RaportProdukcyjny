@@ -1,0 +1,296 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<style>
+.putaway-screen {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+.putaway-hero {
+    background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 60%, #ffffff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 18px;
+}
+.putaway-hero h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #1e1b4b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.putaway-subtitle {
+    margin: 6px 0 0;
+    color: #475569;
+    font-size: 0.92rem;
+}
+.putaway-kpis {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.putaway-kpi {
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 10px 12px;
+}
+.putaway-kpi .lbl {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: #64748b;
+}
+.putaway-kpi .val {
+    margin-top: 4px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+.putaway-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+.btn-putaway {
+    border: 1px solid #1d4ed8;
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-putaway-secondary {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #1e293b;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 9px 14px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.putaway-list {
+    display: grid;
+    gap: 12px;
+}
+.putaway-item {
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 14px;
+}
+.putaway-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.putaway-item-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+.putaway-item-meta {
+    color: #475569;
+    font-size: 0.84rem;
+}
+.suggestion-badge {
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+}
+.putaway-form-row {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+}
+.putaway-input {
+    height: 40px;
+    border: 1px solid #94a3b8;
+    border-radius: 10px;
+    padding: 0 12px;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+}
+.empty-state {
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    padding: 26px;
+    text-align: center;
+    color: #475569;
+    background: #f8fafc;
+}
+@media (max-width: 920px) {
+    .putaway-kpis {
+        grid-template-columns: 1fr;
+    }
+    .putaway-form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="logistyka-container p-20 putaway-screen">
+    <div class="putaway-hero">
+        <h1>
+            <span class="material-icons" style="font-size: 24px; color: #4338ca;">forklift</span>
+            Zadania Putaway
+        </h1>
+        <p class="putaway-subtitle">Krok 3 i 4: sugerowana lokalizacja oraz skan fizycznego odstawienia palety.</p>
+
+        <div class="putaway-kpis">
+            <div class="putaway-kpi">
+                <div class="lbl">Referencja dostawy</div>
+                <div class="val">{{ dostawa.order_ref or dostawa.id }}</div>
+            </div>
+            <div class="putaway-kpi">
+                <div class="lbl">Postęp</div>
+                <div class="val">{{ completed_count }} / {{ total_count }}</div>
+            </div>
+            <div class="putaway-kpi">
+                <div class="lbl">Status</div>
+                <div class="val">{{ dostawa.status }}</div>
+            </div>
+        </div>
+
+        <div class="putaway-actions">
+            <button type="button" class="btn-putaway" onclick="assignPutaway()">
+                <span class="material-icons" style="font-size:18px;">playlist_add_check</span>
+                Generuj / odśwież sugestie
+            </button>
+            <a href="{{ url_for('magazyn_dostawy.reception_edit', dostawa_id=dostawa.id, linia=linia) }}" class="btn-putaway-secondary">
+                <span class="material-icons" style="font-size:18px;">arrow_back</span>
+                Powrót do przyjęcia
+            </a>
+        </div>
+    </div>
+
+    {% if items and items|length > 0 %}
+    <div class="putaway-list">
+        {% for item in items %}
+        <div class="putaway-item" id="putaway-item-{{ loop.index0 }}">
+            <div class="putaway-item-head">
+                <div>
+                    <div class="putaway-item-title">{{ item.productName or item.name or 'Brak nazwy' }}</div>
+                    <div class="putaway-item-meta">
+                        SSCC: <strong>{{ item.nr_palety or 'BRAK - najpierw wygeneruj etykiety' }}</strong>
+                        {% if item.quantity %}| Ilość: <strong>{{ item.quantity }}</strong>{% endif %}
+                    </div>
+                </div>
+                <span class="suggestion-badge">
+                    Sugestia: {{ item.putaway_suggested_location or 'MANUAL' }}
+                </span>
+            </div>
+
+            <div class="putaway-form-row">
+                <input
+                    id="scan-loc-{{ loop.index0 }}"
+                    class="putaway-input"
+                    type="text"
+                    placeholder="Zeskanuj lokalizację, np. R010101"
+                    value="{{ item.putaway_suggested_location or '' }}"
+                >
+                <button
+                    type="button"
+                    class="btn-putaway"
+                    onclick='confirmPutaway({{ item.id|tojson }}, "scan-loc-{{ loop.index0 }}")'
+                >
+                    <span class="material-icons" style="font-size:18px;">where_to_vote</span>
+                    Potwierdź lokalizację
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div style="font-weight: 800; font-size: 1rem; margin-bottom: 6px;">Brak aktywnych palet do putaway</div>
+        <div>Wszystkie pozycje zostały rozmieszczone lub dostawa nie ma wygenerowanych zadań.</div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const PUTAWAY_CFG = {
+    deliveryId: {{ dostawa.id|tojson }},
+    linia: {{ linia|tojson }}
+};
+
+function notify(msg, type = 'info') {
+    if (typeof showToast === 'function') {
+        showToast(msg, type);
+    } else {
+        alert(msg);
+    }
+}
+
+async function assignPutaway() {
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/workflow/putaway/${encodeURIComponent(PUTAWAY_CFG.deliveryId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (!data.success) {
+            notify(data.error || 'Nie udało się wygenerować zadań putaway.', 'danger');
+            return;
+        }
+        notify(data.message || 'Zadania putaway wygenerowane.', 'success');
+        window.location.reload();
+    } catch (err) {
+        notify('Błąd połączenia z API putaway.', 'danger');
+    }
+}
+
+async function confirmPutaway(itemId, inputId) {
+    const input = document.getElementById(inputId);
+    const loc = (input && input.value ? input.value : '').trim().toUpperCase();
+    if (!loc) {
+        notify('Zeskanuj lokalizację docelową.', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/dostawy/${encodeURIComponent(PUTAWAY_CFG.deliveryId)}/confirm-putaway`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item_id: itemId,
+                lokalizacja: loc,
+                strict_mode: false
+            })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            notify(data.error || 'Nie udało się potwierdzić putaway.', 'danger');
+            return;
+        }
+        notify(data.message || 'Putaway potwierdzony.', 'success');
+        window.location.reload();
+    } catch (err) {
+        notify('Błąd połączenia z API confirm-putaway.', 'danger');
+    }
+}
+</script>
+{% endblock %}

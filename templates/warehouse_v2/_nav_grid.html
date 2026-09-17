@@ -44,22 +44,23 @@
                 <div class="vertical-list-menu">
                     {% set racks = [
                         ('all', 'Wszystkie Lokalizacje'), 
-                        ('bufory', '📦 Wszystkie Bufory (BF, MGW, MS, MP)'),
-                        ('BFOS', '📦 Bufor Centralny (BFOS)'),
-                        ('MGW01', '📦 Bufor Workowania (MGW01)'),
-                        ('MGW02', '📦 Bufor Workowania (MGW02)'),
-                        ('MP01', '📦 Bufor Podłoga (MP01)'),
-                        ('MS01', '📦 Bufor Surowce (MS01)'),
-                        ('A01-A99', 'Magazyn Centralny (A01–A99)'),
-                        ('OS01-77', 'Magazyn Centralny (OS01–OS77)'),
-                        ('R01', 'Regał R01'), 
-                        ('R02', 'Regał R02'), 
-                        ('R03', 'Regał R03'), 
-                        ('R04', 'Regał R04'), 
-                        ('R05', 'Regał R05'), 
-                        ('R06', 'Regał R06'),
-                        ('R07', 'Regał R07'),
-                        ('R09', 'Regał Półkowy R09')
+                        ('OCZEKUJĄCE', '⏳ Oczekujące (W tranzycie / Bufor)'),
+                        ('bufory', '📦 Wszystkie Miejsca Buforowe i Podłogowe'),
+                        ('MP01', '🏢 Magazyn Produkcyjny – Podłoga (MP01)'),
+                        ('MS01', '🏢 Magazyn Surowcowy – Podłoga (MS01)'),
+                        ('MGW01', '🏭 Magazyn Wyrobów Gotowych 1 (MGW01)'),
+                        ('MGW02', '🏭 Magazyn Wyrobów Gotowych 2 (MGW02)'),
+                        ('R01', 'Regał R01 (MP01)'), 
+                        ('R02', 'Regał R02 (MP01)'), 
+                        ('R03', 'Regał R03 (MP01)'), 
+                        ('R04', 'Regał R04 (MP01)'), 
+                        ('R05', 'Regał R05 (MP01)'), 
+                        ('R06', 'Regał R06 (MP01)'), 
+                        ('R07', 'Regał R07 (MP01)'), 
+                        ('R09', 'Regał Półkowy R09 (MP01)'),
+                        ('BFOS', '📦 Bufor Zewnętrzny (BFOS)'),
+                        ('A01-A99', 'Magazyn Zewnętrzny OSIP (A01–A99)'),
+                        ('OS01-77', 'Magazyn Zewnętrzny OSIP (OS01–OS77)')
                     ] %}
                     {% for rid, rname in racks %}
                     <div class="nav-item-row nav-item-row-rack" data-rack-id="{{ rid }}">

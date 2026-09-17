@@ -42,7 +42,10 @@ function handleGlobalScannerSubmit() {
             input.setAttribute('list', 'locationSuggestionsList');
             queueLocationSuggestions('');
             input.focus();
-            updateGlobalScanHint(`Zeskanowano paletę z DOSTAWY. Teraz zeskanuj lokalizację docelową.`, 'success');
+            const stageLabel = activeTransferItem.workflow_stage_label || 'Oczekuje na przyjęcie';
+            const suggestedLocation = normalizeLocationCode(activeTransferItem.putaway_suggested_location || '');
+            const suggestedSuffix = suggestedLocation ? ` Sugestia: ${suggestedLocation}.` : '';
+            updateGlobalScanHint(`Etap palety: ${stageLabel}. Zeskanuj lokalizację docelową.${suggestedSuffix}`, 'success');
             return;
         }
 
@@ -95,18 +98,30 @@ async function handleGlobalLocationScanSubmit(rawLocationCode) {
     try {
         let resp;
         if (activeGlobalItemType === 'transfer') {
-            resp = await fetch(`/magazyn-dostawy/api/przyjmij-pozycje/${encodeURIComponent(activeTransferItem.dostawa_id)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    item_id: activeTransferItem.item_id,
-                    lokalizacja: lok,
-                    nr_partii: activeTransferItem.nr_partii || null,
-                    data_produkcji: activeTransferItem.data_produkcji || null,
-                    data_przydatnosci: activeTransferItem.data_przydatnosci || null,
-                    printer_id: null
-                })
-            });
+            const isPutawayFlow = String(activeTransferItem.workflow_mode || '').toUpperCase() === 'PUTAWAY';
+            const transferPayload = {
+                item_id: activeTransferItem.item_id,
+                lokalizacja: lok,
+                nr_partii: activeTransferItem.nr_partii || null,
+                data_produkcji: activeTransferItem.data_produkcji || null,
+                data_przydatnosci: activeTransferItem.data_przydatnosci || null,
+                printer_id: null
+            };
+
+            if (isPutawayFlow) {
+                transferPayload.strict_mode = false;
+                resp = await fetch(`/magazyn-dostawy/api/dostawy/${encodeURIComponent(activeTransferItem.dostawa_id)}/confirm-putaway`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(transferPayload)
+                });
+            } else {
+                resp = await fetch(`/magazyn-dostawy/api/przyjmij-pozycje/${encodeURIComponent(activeTransferItem.dostawa_id)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(transferPayload)
+                });
+            }
         } else if (activeGlobalItemType === 'wg') {
             const parsedWaga = parseWeightValue(activeTransferItem.waga);
             resp = await fetch('/magazyn-dostawy/api/przyjmij-wg', {

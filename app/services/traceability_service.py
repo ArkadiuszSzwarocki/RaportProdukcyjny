@@ -40,7 +40,12 @@ class TraceabilityService:
             if not pallet:
                 return {"error": "Paleta nie została znaleziona"}
                 
+            from app.services.warehouse_v2.pallet_history_service import PalletHistoryService
             from app.services.warehouse_history_service import WarehouseHistoryService
+            
+            p_raw_type = (pallet.get('type') or 'surowiec').lower()
+            p_type_tag = 'surowiec' if p_raw_type in ('archiwum', 'w_workowaniu') else p_raw_type
+            timeline = PalletHistoryService.get_pallet_history(pallet.get('id'), p_type_tag, linia=pallet.get('linia', 'AGRO'), sscc=nr_palety)
             lifecycle = WarehouseHistoryService.get_unified_station_and_movement_history(linia='ALL', surowiec=nr_palety, limit=100)
 
             plan_id = pallet.get('plan_id')
@@ -51,6 +56,7 @@ class TraceabilityService:
                     "materials": [],
                     "receptura": [],
                     "lifecycle": lifecycle,
+                    "timeline": timeline,
                     "message": "Paleta materiałowa / surowcowa (pełny cykl życia w historii)."
                 }
             
@@ -244,6 +250,7 @@ class TraceabilityService:
                 "receptura": receptura,
                 "nr_receptury": nr_receptury_plan,
                 "lifecycle": lifecycle,
+                "timeline": timeline,
             }
         finally:
             cursor.close()
