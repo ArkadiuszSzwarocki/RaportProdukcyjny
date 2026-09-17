@@ -167,6 +167,41 @@ class DeliveryCommandService:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
+
+                # Walidacja produktów z listy słownikowej
+                table_sur = get_table_name('magazyn_surowce', linia)
+                table_opk = get_table_name('magazyn_opakowania', linia)
+                table_wg = get_table_name('magazyn_palety', linia)
+
+                valid_dict_map = {}
+                dict_queries = [
+                    ("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+                    (f"SELECT DISTINCT nazwa FROM {table_sur} WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+                    (f"SELECT DISTINCT nazwa FROM {table_opk} WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+                    ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+                    (f"SELECT DISTINCT produkt as nazwa FROM {table_wg} WHERE produkt IS NOT NULL AND TRIM(produkt) != ''", ()),
+                ]
+                for dq, dparams in dict_queries:
+                    try:
+                        cursor.execute(dq, dparams)
+                        for dr in cursor.fetchall():
+                            dn = (dr.get('nazwa') or '').strip()
+                            if dn:
+                                valid_dict_map[dn.lower()] = dn
+                    except Exception:
+                        pass
+
+                if items and valid_dict_map:
+                    for idx, it in enumerate(items):
+                        p_name = str(it.get('productName') or it.get('nazwa') or '').strip()
+                        if not p_name:
+                            return False, f"Pozycja {idx + 1}: Brak nazwy produktu. Wybierz produkt z listy."
+
+                        canonical = valid_dict_map.get(p_name.lower())
+                        if not canonical:
+                            return False, f"Pozycja {idx + 1}: Produkt '{p_name}' nie istnieje w słowniku. Wybierz poprawną nazwę z listy."
+                        it['productName'] = canonical
+
                 cursor.execute("SELECT status, items, lokalizacja_z FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
                 old_data = cursor.fetchone()
                 old_status = old_data['status'] if old_data else None
