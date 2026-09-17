@@ -242,6 +242,48 @@ class TestOsipInvolvementValidation(unittest.TestCase):
         assert cat['created_by'] == 'WydajacyAdam'
         assert cat['accepted_by'] == 'PrzyjmujacyPawel'
 
+    def test_is_allowed_central_warehouse_location(self):
+        """Testuje białą listę dozwolonych regałów i buforów Magazynu Centralnego."""
+        # Dozwolone regały
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("R010101") is True
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("R020603") is True
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("R-01-01-01") is True
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("RR030602") is True
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("010102") is True
+
+        # Dozwolone bufory i strefy magazynu
+        for loc in ['mp01', 'mpo1', 'bfmp01', 'bf_mp01', 'bfms01', 'bf_ms01', 'ms01', 'psd', 'psd01', 'mgw01', 'mgw02', 'mop01', 'mo01', 'mdo01', 'md01', 'mdm01']:
+            assert OsipReportEmailService.is_allowed_central_warehouse_location(loc) is True, f"Failed for {loc}"
+            assert OsipReportEmailService.is_allowed_central_warehouse_location(loc.upper()) is True, f"Failed for {loc.upper()}"
+
+        # Niedozwolone lokalizacje (OSIP, produkcja, nieautoryzowane)
+        for loc in ['OSIP', 'OS01', 'OS02', 'W_TRANZYCIE_OSIP', 'BB01', 'MZ23', 'KO19', 'LP01', 'MS02', 'MGW03', 'BF_MF01', 'Podłoga 3', 'Maszyna']:
+            assert OsipReportEmailService.is_allowed_central_warehouse_location(loc) is False, f"Should be False for {loc}"
+
+        # Puste / None
+        assert OsipReportEmailService.is_allowed_central_warehouse_location("") is False
+        assert OsipReportEmailService.is_allowed_central_warehouse_location(None) is False
+
+    def test_is_allowed_central_transfer(self):
+        """Testuje walidację przesunięć wewnętrznych tylko pomiędzy dozwolonymi strefami Centrali."""
+        # Prawidłowe przesunięcia wewnątrz Magazynu Centralnego
+        assert OsipReportEmailService.is_allowed_central_transfer("R010101", "MP01") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("MS01", "BF_MS01") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("PSD01", "MS01") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("MGW01", "MOP01") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("MD01", "R020101") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("WIELE", "MS01") is True
+        assert OsipReportEmailService.is_allowed_central_transfer("MS01", "") is True
+
+        # Nieprawidłowe przesunięcia (ruch do/z OSIP, produkcji lub innych stref)
+        assert OsipReportEmailService.is_allowed_central_transfer("MS01", "OSIP") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("OS01", "MP01") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("R010101", "MZ23") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("Podłoga 3", "MS01") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("BB01", "MP01") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("MS01", "MGW03") is False
+        assert OsipReportEmailService.is_allowed_central_transfer("", "") is False
+
 
 class TestOsipReportEmailServiceSending(unittest.TestCase):
     """Testy logiki wysyłania e-maili po przyjęciu i izolacji od poczty systemowej."""
@@ -442,3 +484,164 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert success is False
             assert "został już wcześniej wysłany" in msg
             mock_smtp_ssl.assert_not_called()
+
+    def test_daily_summary_excludes_osip_deliveries_and_transfers(self):
+        """Testuje wykluczenie dostaw do OSIP oraz przesunięć/wywozów z OSIP w raporcie dziennym o 15:00."""
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Symulacja 4 dokumentów w magazyn_dostawy:
+        # 1. Dostawa Centrala (musi być uwzględniona)
+        # 2. Dostawa OSIP (musi być wykluczona)
+        # 3. Przesunięcie MM w Centrali (musi być uwzględnione)
+        # 4. Przesunięcie MM do OSIP / wywóz (musi być wykluczone)
+        mock_cursor.fetchall.return_value = [
+            {
+                'id': 1,
+                'order_ref': 'WZ-CENT-01',
+                'supplier': 'Cukrownia',
+                'lokalizacja_z': '',
+                'lokalizacja_do': 'MS01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 10, 0),
+                'items': '[{"productName": "Cukier 25kg", "nr_palety": "P1", "quantity": 1000, "accepted": true, "lokalizacja_przyjecia": "MS01"}]'
+            },
+            {
+                'id': 2,
+                'order_ref': 'WZ-OSIP-01',
+                'supplier': 'Hurtownia',
+                'lokalizacja_z': '',
+                'lokalizacja_do': 'OSIP',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 11, 0),
+                'items': '[{"productName": "Worki OSIP", "nr_palety": "P2", "quantity": 500, "accepted": true, "lokalizacja_przyjecia": "OS01"}]'
+            },
+            {
+                'id': 3,
+                'order_ref': 'MM-CENT-01',
+                'supplier': '',
+                'lokalizacja_z': 'MS01',
+                'lokalizacja_do': 'MGW01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 12, 0),
+                'items': '[{"productName": "Paleta WG", "nr_palety": "P3", "quantity": 800, "accepted": true, "lokalizacja_przyjecia": "MGW01"}]'
+            },
+            {
+                'id': 4,
+                'order_ref': 'MM-WYWOZ-OSIP',
+                'supplier': '',
+                'lokalizacja_z': 'MS01',
+                'lokalizacja_do': 'OSIP',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 13, 0),
+                'items': '[{"productName": "Towar do OSIP", "nr_palety": "P4", "quantity": 300, "accepted": true, "lokalizacja_przyjecia": "OS02"}]'
+            }
+        ]
+
+        with patch('app.services.osip_report_email_service.get_db_connection', return_value=mock_conn):
+            activity = service.get_daily_warehouse_activity('2026-09-16', central_only=True)
+
+            # Powinno być: 1 dostawa (WZ-CENT-01) i 1 przesunięcie (MM-CENT-01)
+            assert activity['deliveries_count'] == 1
+            assert activity['deliveries'][0]['order_ref'] == 'WZ-CENT-01'
+
+            assert activity['transfers_count'] == 1
+            assert activity['transfers'][0]['order_ref'] == 'MM-CENT-01'
+
+            assert activity['total_pallets'] == 2
+            assert activity['has_activity'] is True
+
+    def test_daily_summary_strictly_whitelists_central_transfers(self):
+        """Testuje że do raportu 15:00 trafiają przesunięcia wyłącznie z dozwolonych regałów i buforów (MP01, BFMP01, BFMS01, MS01, PSD, PSD01, MGW01, MGW02, MOP01, MDO01)."""
+        service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_cursor.fetchall.return_value = [
+            # 1. Poprawne przesunięcie między regałem a buforem
+            {
+                'id': 10,
+                'order_ref': 'MM-R01-MP01',
+                'supplier': '',
+                'lokalizacja_z': 'R010101',
+                'lokalizacja_do': 'MP01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 10, 0),
+                'items': '[{"productName": "Premiks A", "nr_palety": "P10", "quantity": 1000, "accepted": true, "sourceSpot": "R010101", "lokalizacja_przyjecia": "MP01"}]'
+            },
+            # 2. Poprawne przesunięcie między buforami (PSD01 -> BF_MS01)
+            {
+                'id': 11,
+                'order_ref': 'MM-PSD-BFMS',
+                'supplier': '',
+                'lokalizacja_z': 'PSD01',
+                'lokalizacja_do': 'BF_MS01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 11, 0),
+                'items': '[{"productName": "Premiks B", "nr_palety": "P11", "quantity": 500, "accepted": true, "sourceSpot": "PSD01", "lokalizacja_przyjecia": "BF_MS01"}]'
+            },
+            # 3. Nieprawidłowe przesunięcie: produkcja / mieszalnik (MZ23 -> MP01) - musi być wykluczone
+            {
+                'id': 12,
+                'order_ref': 'MM-MZ23',
+                'supplier': '',
+                'lokalizacja_z': 'MZ23',
+                'lokalizacja_do': 'MP01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 12, 0),
+                'items': '[{"productName": "Zasyp MZ", "nr_palety": "P12", "quantity": 300, "accepted": true, "sourceSpot": "MZ23", "lokalizacja_przyjecia": "MP01"}]'
+            },
+            # 4. Nieprawidłowe przesunięcie: linia produkcyjna / naważanie (R010101 -> KO19) - musi być wykluczone
+            {
+                'id': 13,
+                'order_ref': 'MM-KO19',
+                'supplier': '',
+                'lokalizacja_z': 'R010101',
+                'lokalizacja_do': 'KO19',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 13, 0),
+                'items': '[{"productName": "Zasyp KO", "nr_palety": "P13", "quantity": 400, "accepted": true, "sourceSpot": "R010101", "lokalizacja_przyjecia": "KO19"}]'
+            },
+            # 5. Nieprawidłowe przesunięcie: nieautoryzowany bufor (MGW03 -> MS01) - musi być wykluczone
+            {
+                'id': 14,
+                'order_ref': 'MM-MGW03',
+                'supplier': '',
+                'lokalizacja_z': 'MGW03',
+                'lokalizacja_do': 'MS01',
+                'status': 'COMPLETED',
+                'created_by': 'Admin',
+                'potwierdzone_przez': 'Jan',
+                'potwierdzone_at': datetime(2026, 9, 16, 14, 0),
+                'items': '[{"productName": "Towar MGW03", "nr_palety": "P14", "quantity": 200, "accepted": true, "sourceSpot": "MGW03", "lokalizacja_przyjecia": "MS01"}]'
+            }
+        ]
+
+        with patch('app.services.osip_report_email_service.get_db_connection', return_value=mock_conn):
+            activity = service.get_daily_warehouse_activity('2026-09-16', central_only=True)
+
+            assert activity['transfers_count'] == 2
+            assert [t['order_ref'] for t in activity['transfers']] == ['MM-R01-MP01', 'MM-PSD-BFMS']
+            assert activity['total_pallets'] == 2
+

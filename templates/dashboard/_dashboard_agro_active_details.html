@@ -37,6 +37,15 @@
                 <div class="active-order-szarze-line">
                     <div class="active-order-szarze-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
                         <span>#{{ disp_lp }} • {{ pal[1] }}</span>
+                        {% if pal|length > 8 and pal[8] %}
+                            {% set raw_sscc = pal[8]|string|trim %}
+                            {% if raw_sscc %}
+                                {% set sscc_suffix = raw_sscc[-6:] if raw_sscc|length >= 6 else raw_sscc %}
+                                <span class="badge-sscc" style="font-family: monospace; font-weight: 800; font-size: 0.82em; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" onclick="navigator.clipboard.writeText('{{ raw_sscc }}'); if(typeof showToast==='function') showToast('Skopiowano SSCC: {{ raw_sscc }}', 'success');" title="Pełny SSCC: {{ raw_sscc }} (kliknij, aby skopiować)">
+                                    <span style="font-size: 0.85em; opacity: 0.7; font-weight: 600;">SSCC:</span> {{ sscc_suffix }}
+                                </span>
+                            {% endif %}
+                        {% endif %}
                         {% if pal|length>4 and pal[4] %}
                         {% set raw_status = pal[4]|upper %}
                         {% set disp_status = 'W_MAGAZYNIE' if raw_status in ['PRZYJETA', 'PRZYJĘTA'] else raw_status %}

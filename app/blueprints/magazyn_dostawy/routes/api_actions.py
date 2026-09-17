@@ -59,7 +59,7 @@ def przyjmij_pozycje(dostawa_id):
         chk_d = cursor.fetchone()
         if chk_d and chk_d.get('lokalizacja_z'): # to jest przesunięcie wewnętrzne
             user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
-            if user_role not in ['masteradmin', 'admin', 'zarzad']:
+            if user_role not in ['masteradmin', 'admin', 'zarzad', 'kierownik', 'lider', 'magazynier']:
                 return jsonify({'success': False, 'error': 'Brak uprawnień. W przesunięciu magazynowym przyjęcie jest możliwe wyłącznie poprzez zeskanowanie palety skanerem.'}), 403
     finally:
         conn.close()
@@ -133,14 +133,29 @@ def przyjmij_wg():
         if waga <= 0:
             return jsonify({"success": False, "error": "Waga palety musi być większa od zera."}), 400
 
-    success, msg = AcceptanceService.accept_production_pallet(
+    res = AcceptanceService.accept_production_pallet(
         pallet_id,
         lokalizacja,
         linia=data.get('linia', 'PSD').upper(),
         login=session.get('login', 'system'),
         confirmed_weight=waga,
     )
-    return jsonify({"success": success, "message": msg if success else None, "error": msg if not success else None})
+    success = res[0]
+    msg = res[1]
+    open_report_url = getattr(res, 'open_report_url', None)
+    is_last_pallet = getattr(res, 'is_last_pallet', False)
+    plan_id = getattr(res, 'plan_id', None)
+
+    resp = {
+        "success": success,
+        "message": msg if success else None,
+        "error": msg if not success else None
+    }
+    if open_report_url:
+        resp["open_report_url"] = open_report_url
+        resp["is_last_pallet"] = is_last_pallet
+        resp["plan_id"] = plan_id
+    return jsonify(resp)
 
 @magazyn_dostawy_bp.route('/api/anuluj/<dostawa_id>', methods=['POST'])
 def anuluj_dostawe(dostawa_id):

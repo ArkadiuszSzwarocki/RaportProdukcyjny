@@ -184,14 +184,110 @@ def lookup_raw_material_details_by_sscc(cursor, sscc_code):
 
     return {}
 
+def _lookup_material_label_data(cursor, paleta_id, linia='PSD'):
+    pal_str = str(paleta_id).strip()
+    is_numeric = pal_str.isdigit()
+    num_id = int(pal_str) if is_numeric else None
+
+    mat_candidates = [
+        ('magazyn_surowce', 'SUROWIEC', 'kg', 'PSD'),
+        ('magazyn_agro_surowce', 'SUROWIEC', 'kg', 'AGRO'),
+        ('magazyn_opakowania', 'OPAKOWANIE', 'szt.', 'PSD'),
+        ('magazyn_agro_opakowania', 'OPAKOWANIE', 'szt.', 'AGRO'),
+        ('magazyn_dodatki', 'DODATEK', 'kg', linia)
+    ]
+    if linia == 'AGRO' or pal_str.upper().startswith('AGR'):
+        mat_candidates = [
+            ('magazyn_agro_surowce', 'SUROWIEC', 'kg', 'AGRO'),
+            ('magazyn_agro_opakowania', 'OPAKOWANIE', 'szt.', 'AGRO'),
+            ('magazyn_surowce', 'SUROWIEC', 'kg', 'PSD'),
+            ('magazyn_opakowania', 'OPAKOWANIE', 'szt.', 'PSD'),
+            ('magazyn_dodatki', 'DODATEK', 'kg', linia)
+        ]
+
+    for tbl, def_typ, def_unit, tbl_linia in mat_candidates:
+        try:
+            if num_id is not None:
+                cursor.execute(
+                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, nr_partii, data_produkcji, data_przydatnosci, lokalizacja "
+                    f"FROM {tbl} WHERE id = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1",
+                    (num_id, pal_str)
+                )
+            else:
+                cursor.execute(
+                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, nr_partii, data_produkcji, data_przydatnosci, lokalizacja "
+                    f"FROM {tbl} WHERE nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1",
+                    (pal_str,)
+                )
+            mat_row = cursor.fetchone()
+            if mat_row:
+                m_id = _get_val(mat_row, 'id', 0)
+                m_nr_palety = _get_val(mat_row, 'nr_palety', 1) or pal_str
+                m_nazwa = _get_val(mat_row, 'nazwa', 2) or 'Surowiec'
+                m_stan = float(_get_val(mat_row, 'stan_magazynowy', 3) or 0)
+                m_partia = _get_val(mat_row, 'nr_partii', 4) or '---'
+                m_data_prod = _get_val(mat_row, 'data_produkcji', 5)
+                m_data_przyd = _get_val(mat_row, 'data_przydatnosci', 6)
+                m_lok = _get_val(mat_row, 'lokalizacja', 7)
+
+                data_str = _format_date(m_data_prod) or datetime.now().strftime('%Y-%m-%d')
+                przydatnosc_str = calculate_expiry_date(m_data_przyd, data_str)
+
+                is_pkg = is_packaging_item(m_nazwa, unit=def_unit, typ=def_typ, pallet_nr=m_nr_palety)
+                final_unit = 'szt.' if is_pkg else def_unit
+                final_typ = 'OPAKOWANIE' if is_pkg else def_typ
+
+                return {
+                    'id': m_id,
+                    'nrPalety': m_nr_palety,
+                    'nr_palety': m_nr_palety,
+                    'nazwa': m_nazwa,
+                    'produkt': m_nazwa,
+                    'ilosc': m_stan,
+                    'waga_netto': m_stan,
+                    'data': data_str,
+                    'data_produkcji': data_str,
+                    'data_przydatnosci': przydatnosc_str,
+                    'termin_przydatnosci': przydatnosc_str,
+                    'termin': przydatnosc_str,
+                    'partia': m_partia,
+                    'nr_partii': m_partia,
+                    'nr_szarzy': '1',
+                    'plan_id': None,
+                    'nr_palety_lp': 1,
+                    'nr_plomby': None,
+                    'is_surowiec': not is_pkg and final_typ == 'SUROWIEC',
+                    'typ': final_typ,
+                    'jednostka': final_unit,
+                    'lokalizacja': m_lok,
+                    'linia': tbl_linia
+                }
+        except Exception:
+            pass
+
+    return None
+
 def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=None, source_table=None):
     """
-    Unifies finish-product label generation data between Flask routes
+    Unifies finish-product and raw material label generation data between Flask routes
     (manual printing and dodaj_palete) and the PLC daemon.
     
     Supports dictionary cursors (used in daemon) and tuple cursors (used in Flask).
     """
+    is_code = isinstance(paleta_id, str) and not str(paleta_id).isdigit()
+    clean_code = str(paleta_id or '').strip().upper()
+    if clean_code.startswith('AGR'):
+        linia = 'AGRO'
+    elif clean_code.startswith('PSD'):
+        linia = 'PSD'
     linia = str(linia).upper()
+
+    # Prioritize material lookup for explicit prefixes or source_table
+    if (is_code and clean_code.startswith(('SUR', 'DOD', 'OPK', 'OPA'))) or (str(source_table or '').lower() in ('surowiec', 'surowce', 'opakowanie', 'opakowania', 'dodatek', 'dodatki')):
+        mat_res = _lookup_material_label_data(cursor, paleta_id, linia)
+        if mat_res:
+            return mat_res
+
     table_plan = get_table_name('plan_produkcji', linia)
     table_pal = get_table_name('palety_workowanie', linia)
     table_mag = get_table_name('magazyn_palety', linia)
@@ -222,7 +318,12 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     params = []
     where_parts = []
 
-    if source_table == 'magazyn':
+    if is_code:
+        where_parts.append("(mp.nr_palety = %s OR pw.nr_palety = %s)")
+        params.extend([paleta_id, paleta_id])
+        order_clause = "ORDER BY mp.id DESC"
+        order_params = []
+    elif source_table == 'magazyn':
         where_parts.append("mp.id = %s")
         params.append(paleta_id)
         order_clause = ""
@@ -395,17 +496,20 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else f"(SELECT COUNT(*) FROM {table_pal} sub WHERE sub.plan_id = pw.plan_id AND sub.id <= pw.id) AS nr_palety_lp"
 
     partia_select_pw = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
+    where_pw = "WHERE pw.nr_palety = %s" if is_code else "WHERE pw.id = %s"
     cursor.execute(f"""
         SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, {przyd_plan_select}) AS data_przydatnosci
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id
-        WHERE pw.id = %s
+        {where_pw}
+        ORDER BY pw.id DESC LIMIT 1
     """, (paleta_id,))
     pw_row = cursor.fetchone()
     
     if not pw_row:
-        return None
+        # Fallback to materials / packaging / additives
+        return _lookup_material_label_data(cursor, paleta_id, linia)
         
     plan_id = _get_val(pw_row, 'plan_id', 0)
     waga = _get_val(pw_row, 'waga', 1)

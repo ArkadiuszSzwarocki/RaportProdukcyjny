@@ -110,10 +110,25 @@ function isPositiveNumber(value) {
         return !Number.isNaN(parsed) && parsed > 0;
     }
 
+function findCanonicalProductName(name) {
+    if (!name) return null;
+    const clean = String(name).trim().toLowerCase();
+    if (!clean) return null;
+    const list = Array.isArray(typeof wszystkieProdukty !== 'undefined' ? wszystkieProdukty : null)
+        ? wszystkieProdukty
+        : (Array.isArray(window.EdycjaConfig && window.EdycjaConfig.wszystkieProdukty) ? window.EdycjaConfig.wszystkieProdukty : []);
+    return list.find(p => String(p).trim().toLowerCase() === clean) || null;
+}
+
+function isKnownProductName(name) {
+    return Boolean(findCanonicalProductName(name));
+}
+
 function isItemComplete(item) {
         const bypassLookup = isWarehouseLookupBypassed();
         return (
             isFilled(item && item.productName)
+            && isKnownProductName(item && item.productName)
             && (bypassLookup || isFilled(item && item.sourceSpot))
             && isFilled(getItemUnit(item))
             && isPositiveNumber(getItemQuantity(item))
@@ -226,8 +241,10 @@ function getItemValidationMap(item, targetLoc) {
             || (!bypassLookup && isFilled(sourceLoc) && !isKnownSourceLocation(sourceLoc))
             || isRouteConflictLocation(sourceLoc, targetLoc);
 
+        const prodValid = isFilled(item && item.productName) && isKnownProductName(item && item.productName);
+
         return {
-            productName: !isFilled(item && item.productName),
+            productName: !prodValid,
             sourceSpot: sourceInvalid,
             quantity: !isPositiveNumber(quantity),
             unit: !isFilled(unit),
@@ -345,6 +362,13 @@ function getSaveBlockers() {
             const preview = unknownSourceLocations.slice(0, 3).join(', ');
             const suffix = unknownSourceLocations.length > 3 ? ', ...' : '';
             blockers.push(`Nieznane lokalizacje źródłowe: ${preview}${suffix}. Popraw lokalizacje przed zapisem.`);
+        }
+
+        const unknownProducts = items.filter(item => isFilled(item && item.productName) && !isKnownProductName(item.productName));
+        if (unknownProducts.length > 0) {
+            const preview = unknownProducts.map(it => it.productName).slice(0, 3).join(', ');
+            const suffix = unknownProducts.length > 3 ? ', ...' : '';
+            blockers.push(`Nieprawidłowe produkty: ${preview}${suffix}. Wszystkie pozycje muszą być wybrane ze słownika.`);
         }
 
         const incompleteCount = items.filter(item => !isItemComplete(item)).length;

@@ -119,6 +119,12 @@ function submitWgAccept() {
       showToast('✅ Paleta przyjęta pomyślnie na ' + loc, 'success');
       closeWgAcceptModal();
       hidePallet();
+      if (d.open_report_url) {
+        var win = window.open(d.open_report_url, '_blank');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+          window.location.href = d.open_report_url;
+        }
+      }
     } else {
       showToast('❌ ' + (d.error || d.message || 'Błąd zapisu'), 'danger');
     }

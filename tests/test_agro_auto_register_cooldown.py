@@ -1,19 +1,25 @@
 from app.repositories.agro_tanks_repository import _get_auto_pallet_cooldown_seconds
 
 
-def test_auto_pallet_cooldown_defaults_to_zero(monkeypatch):
+def test_auto_pallet_cooldown_defaults_to_sixty(monkeypatch):
     monkeypatch.delenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', raising=False)
 
-    assert _get_auto_pallet_cooldown_seconds() == 0.0
+    assert _get_auto_pallet_cooldown_seconds() == 60.0
 
 
 def test_auto_pallet_cooldown_reads_positive_value(monkeypatch):
+    monkeypatch.setenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', '90.0')
+
+    assert _get_auto_pallet_cooldown_seconds() == 90.0
+
+
+def test_auto_pallet_cooldown_enforces_minimum_thirty(monkeypatch):
     monkeypatch.setenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', '7.5')
 
-    assert _get_auto_pallet_cooldown_seconds() == 7.5
+    assert _get_auto_pallet_cooldown_seconds() == 30.0
 
 
-def test_auto_pallet_cooldown_invalid_value_falls_back_to_zero(monkeypatch):
+def test_auto_pallet_cooldown_invalid_value_falls_back_to_sixty(monkeypatch):
     monkeypatch.setenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', 'abc')
 
-    assert _get_auto_pallet_cooldown_seconds() == 0.0
+    assert _get_auto_pallet_cooldown_seconds() == 60.0

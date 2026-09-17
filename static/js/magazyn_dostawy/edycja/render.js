@@ -9,6 +9,30 @@ function notifyReadOnly() {
         }
     }
 
+function handleProductNameBlur(index, inputEl) {
+    if (!inputEl) return;
+    const rawVal = (inputEl.value || '').trim();
+    if (!rawVal) {
+        updateItem(index, 'productName', '');
+        return;
+    }
+    const canonical = typeof findCanonicalProductName === 'function' ? findCanonicalProductName(rawVal) : null;
+    if (canonical) {
+        inputEl.value = canonical;
+        updateItem(index, 'productName', canonical);
+    } else {
+        inputEl.value = '';
+        updateItem(index, 'productName', '');
+        if (typeof AppDialog !== 'undefined' && AppDialog.toast) {
+            AppDialog.toast(`Produkt "${rawVal}" nie istnieje w słowniku! Wybierz produkt z listy.`, 'danger');
+        } else if (typeof showToast === 'function') {
+            showToast(`Produkt "${rawVal}" nie istnieje w słowniku! Wybierz produkt z listy.`, 'warning');
+        } else {
+            alert(`Produkt "${rawVal}" nie istnieje w słowniku! Wybierz produkt z listy.`);
+        }
+    }
+}
+
 function toggleFlowHelp() {
         const panel = document.getElementById('flowHelpPanel');
         if (!panel) {
@@ -236,9 +260,11 @@ function renderItems() {
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">
                     ${copiedFromNumber ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>` : ''}
-                    ${showWarning(validation.productName)}
-                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.productName || '')}" oninput="updateItem(${index}, 'productName', this.value)" onchange="updateItem(${index}, 'productName', this.value)"
-                           list="productsList" placeholder="Wybierz produkt"
+                    <input type="text" ${itemDisabledAttr} value="${escapeAttr(item.productName || '')}" 
+                           oninput="updateItem(${index}, 'productName', this.value)" 
+                           onchange="handleProductNameBlur(${index}, this)"
+                           onblur="handleProductNameBlur(${index}, this)"
+                           list="productsList" placeholder="Wybierz produkt z listy"
                            style="width: 100%; height: 34px; ${productBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">

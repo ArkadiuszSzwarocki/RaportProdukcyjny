@@ -79,6 +79,8 @@ async function printCurrentPallet(triggerBtn) {
 
         const requestBody = {
             id: currentPallet.id,
+            nr_palety: currentPallet.displayId || currentPallet.nr_palety || '',
+            display_id: currentPallet.displayId || '',
             type: currentPallet.type,
             linia: currentPallet.linia,
             printer_id: printerId

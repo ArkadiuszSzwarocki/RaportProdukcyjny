@@ -1,4 +1,5 @@
 from app.core.daemon import (
+    _get_auto_pallet_max_catchup,
     _is_rising_edge,
     _is_transient_db_connectivity_error,
     _resolve_pallet_counter_action,
@@ -22,8 +23,17 @@ def test_counter_action_backward_resets_baseline():
     assert _resolve_pallet_counter_action(120, 10) == 'reset'
 
 
+def test_get_auto_pallet_max_catchup_defaults_to_one(monkeypatch):
+    monkeypatch.delenv('AGRO_AUTO_PALLET_MAX_CATCHUP', raising=False)
+    assert _get_auto_pallet_max_catchup() == 1
+
+
 def test_counter_registrations_single_increment():
     assert _resolve_pallet_counter_registrations(100, 101, 4) == 1
+
+
+def test_counter_registrations_jump_with_default_catchup():
+    assert _resolve_pallet_counter_registrations(100, 103, 1) == 1
 
 
 def test_counter_registrations_jump_within_limit():

@@ -250,7 +250,7 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         return redirect(redirect_url or safe_return())
 
     @warehouse_bp.route('/edytuj_palete/<int:paleta_id>', methods=['POST'])
-    @roles_required('magazynier', 'lider', 'admin')
+    @roles_required('magazynier', 'produkcja', 'lider', 'admin', 'masteradmin')
     def edytuj_palete(paleta_id):
         """Edit paleta weight."""
         from app.services.warehouse_pallet_service import WarehousePalletService
@@ -267,17 +267,23 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
             flash(result, 'error' if status_code >= 400 else 'success')
         return redirect(redirect_url or safe_return())
 
+    @warehouse_bp.route('/api/edytuj_palete_ajax', methods=['POST'])
     @warehouse_bp.route('/api/edytuj_palete_ajax/<int:paleta_id>', methods=['POST'])
-    @roles_required('magazynier', 'produkcja', 'lider', 'admin')
-    def edytuj_palete_ajax(paleta_id):
+    @roles_required('magazynier', 'produkcja', 'lider', 'admin', 'masteradmin')
+    def edytuj_palete_ajax(paleta_id=None):
         """Edit paleta weight (AJAX)."""
         from app.services.warehouse_pallet_service import WarehousePalletService
-        linia = resolve_request_linia()
         try:
-            req_data = request.get_json() or {}
+            req_data = request.get_json(silent=True) or {}
         except Exception:
             req_data = {}
-        waga_palety = req_data.get('waga_palety', '0')
+
+        paleta_id = paleta_id or req_data.get('id') or req_data.get('paleta_id')
+        if not paleta_id:
+            return jsonify({'success': False, 'message': 'Brak ID palety'}), 400
+
+        linia = req_data.get('linia') or resolve_request_linia()
+        waga_palety = req_data.get('waga') or req_data.get('waga_palety') or request.form.get('waga_palety') or '0'
         user_login = session.get('login', 'System')
         is_ajax = True
         
@@ -285,10 +291,12 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
             paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return()
         )
         
+        if isinstance(result, dict):
+            return jsonify(result), status_code
         return jsonify({'success': status_code < 400, 'message': result}), status_code
 
     @warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
-    @roles_required('produkcja', 'lider', 'admin')
+    @roles_required('produkcja', 'lider', 'admin', 'masteradmin')
     def usun_palete_ajax():
         """Delete paleta (AJAX)."""
         from flask import request

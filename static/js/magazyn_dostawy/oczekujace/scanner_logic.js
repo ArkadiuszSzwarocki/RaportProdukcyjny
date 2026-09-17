@@ -153,6 +153,12 @@ async function handleGlobalLocationScanSubmit(rawLocationCode) {
             }
 
             performSilentRefresh();
+            if (data.open_report_url) {
+                var win = window.open(data.open_report_url, '_blank');
+                if (!win || win.closed || typeof win.closed === 'undefined') {
+                    window.location.href = data.open_report_url;
+                }
+            }
             return;
         }
 

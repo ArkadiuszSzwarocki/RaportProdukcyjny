@@ -1243,10 +1243,12 @@
         if (!isUserLoggedIn) return;
 
         let sessionStateSum = 0;
-        const linia = "{{ session.get('selected_hall_view')|default('PSD') }}";
 
         function checkSystemState() {
-            fetch('/api/system_state?linia=' + linia, {
+            const urlParams = new URLSearchParams(window.location.search);
+            const configEl = document.getElementById('dashboard-config');
+            const linia = (configEl && configEl.getAttribute('data-linia')) || urlParams.get('linia') || (window.LINIA ? String(window.LINIA) : null) || "{{ session.get('selected_hall_view')|default('PSD') }}";
+            fetch('/api/system_state?linia=' + encodeURIComponent(linia), {
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
                 silent: true

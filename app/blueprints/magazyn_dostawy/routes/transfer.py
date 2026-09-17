@@ -131,7 +131,6 @@ def oczekujace():
 
 @magazyn_dostawy_bp.route('/nowa')
 @magazyn_dostawy_bp.route('/edycja/<dostawa_id>')
-@magazyn_dostawy_bp.route('/<dostawa_id>')
 def edycja_dostawy(dostawa_id=None):
     linia = request.args.get('linia', 'PSD').upper()
     conn = get_db_connection()
@@ -378,14 +377,19 @@ def raport_przesuniecia(dostawa_id):
             from app.db import get_table_name
             table_sur = get_table_name('magazyn_surowce', linia)
             table_opk = get_table_name('magazyn_opakowania', linia)
+            table_got = get_table_name('magazyn_palety', linia)
             
             nr_palet_sur = []
             nr_palet_opk = []
+            nr_palet_got = []
             for it in items:
                 nr = it.get('nr_palety')
                 if nr:
-                    if it.get('packageForm') == 'packaging' or it.get('scannedType') == 'opakowanie':
+                    scanned_t = str(it.get('scannedType') or it.get('type') or '').lower()
+                    if it.get('packageForm') == 'packaging' or scanned_t == 'opakowanie':
                         nr_palet_opk.append(nr)
+                    elif scanned_t in ['wyrob_gotowy', 'magazyn', 'produkcja']:
+                        nr_palet_got.append(nr)
                     else:
                         nr_palet_sur.append(nr)
             
@@ -407,9 +411,17 @@ def raport_przesuniecia(dostawa_id):
                         actual_times[row['nr_palety']] = row['updated_at']
                         if row['lokalizacja'] == 'OCZEKUJĄCE':
                             still_pending = True
+                if nr_palet_got:
+                    placeholders = ','.join(['%s']*len(nr_palet_got))
+                    cursor.execute(f"SELECT nr_palety, lokalizacja, created_at AS updated_at FROM {table_got} WHERE nr_palety IN ({placeholders}) AND waga_netto > 0", tuple(nr_palet_got))
+                    for row in cursor.fetchall():
+                        actual_locations[row['nr_palety']] = row['lokalizacja']
+                        actual_times[row['nr_palety']] = row['updated_at']
+                        if row['lokalizacja'] == 'OCZEKUJĄCE':
+                            still_pending = True
                 
                 is_external = bool(str(dostawa.get('supplier') or '').strip())
-                if is_external and dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk):
+                if is_external and dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk or nr_palet_got):
                     # Zmieniamy tymczasowo dla raportu (lub można zupdatować w DB)
                     dostawa['status'] = 'COMPLETED'
                     cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))

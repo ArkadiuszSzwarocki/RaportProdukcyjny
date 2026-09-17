@@ -117,6 +117,24 @@
           } catch(e) {
             console.error('Failed to immediately disable parent row:', e);
           }
+          if (j.open_report_url) {
+            if (j.message) {
+              try {
+                if (typeof showToast === 'function') {
+                  showToast(j.message, 'success');
+                } else if (typeof notify === 'function') {
+                  notify(j.message, 'success');
+                }
+              } catch(e){}
+            }
+            var win = window.open(j.open_report_url, '_blank');
+            if (!win || win.closed || typeof win.closed === 'undefined') {
+              window.location.href = j.open_report_url;
+            } else {
+              closePopupAndReload();
+            }
+            return;
+          }
           if (j.message) {
             alert(j.message);
           }

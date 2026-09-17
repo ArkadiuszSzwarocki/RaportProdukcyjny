@@ -177,6 +177,13 @@ function updateItem(index, key, value) {
             value = typeof extractSSCCFromScan === 'function' ? extractSSCCFromScan(value) : value;
         }
 
+        if (key === 'productName' && value) {
+            const canonical = typeof findCanonicalProductName === 'function' ? findCanonicalProductName(value) : null;
+            if (canonical) {
+                value = canonical;
+            }
+        }
+
         items[index][key] = value;
         saveDraftState();
         renderItems();

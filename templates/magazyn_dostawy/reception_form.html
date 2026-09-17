@@ -1060,6 +1060,33 @@
     let items = {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }};
     const wszystkieProdukty = {{ wszystkie_produkty|tojson|safe }};
 
+    function findCanonicalProductName(name) {
+        if (!name) return null;
+        const clean = String(name).trim().toLowerCase();
+        if (!clean) return null;
+        return (wszystkieProdukty || []).find(p => String(p).trim().toLowerCase() === clean) || null;
+    }
+
+    function handleProductNameChange(index, inputEl) {
+        const rawVal = (inputEl.value || '').trim();
+        if (!rawVal) {
+            updateItem(index, 'productName', '');
+            inputEl.style.borderColor = '#dc2626';
+            return;
+        }
+        const canonical = findCanonicalProductName(rawVal);
+        if (canonical) {
+            inputEl.value = canonical;
+            updateItem(index, 'productName', canonical);
+            inputEl.style.borderColor = '#94a3b8';
+        } else {
+            inputEl.value = '';
+            updateItem(index, 'productName', '');
+            inputEl.style.borderColor = '#dc2626';
+            showToast(`Produkt "${rawVal}" nie istnieje w słowniku! Wybierz produkt z listy.`, 'danger');
+        }
+    }
+
     function renderItems() {
         const tbody = document.querySelector('#itemsTable tbody');
         const noItems = document.getElementById('noItemsMsg');
@@ -1084,8 +1111,11 @@
             row1.innerHTML = `
                 <td style="padding: 10px 10px; font-size: 13px; color: #64748b; vertical-align: middle;">${index + 1}</td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" class="field-productName" value="${item.productName || ''}" oninput="updateItem(${index}, 'productName', this.value)" onchange="updateItem(${index}, 'productName', this.value)"
-                           list="productsList" placeholder="Wybierz produkt"
+                    <input type="text" class="field-productName" value="${item.productName || ''}" 
+                           oninput="updateItem(${index}, 'productName', this.value)" 
+                           onchange="handleProductNameChange(${index}, this)"
+                           onblur="handleProductNameChange(${index}, this)"
+                           list="productsList" placeholder="Wybierz produkt z listy..."
                            style="${inputStyle}" required>
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
@@ -1219,6 +1249,18 @@
         const missingName = items.some(it => !it.productName || !it.productName.trim());
         if (missingName) return showToast('Wypełnij nazwę produktu dla wszystkich pozycji!', 'warning');
 
+        const invalidProduct = items.find(it => !it.productName || !findCanonicalProductName(it.productName));
+        if (invalidProduct) {
+            const badName = invalidProduct.productName || 'Brak nazwy';
+            return showToast(`Produkt "${badName}" nie istnieje w słowniku! Wybierz produkt z listy słownikowej.`, 'danger');
+        }
+
+        // Snap all products to canonical names
+        items.forEach(it => {
+            const canonical = findCanonicalProductName(it.productName);
+            if (canonical) it.productName = canonical;
+        });
+
         const dateErrors = [];
         items.forEach((it, idx) => {
             if (it.data_produkcji && !validateProductionDate(it.data_produkcji)) {
@@ -1322,6 +1364,12 @@
 
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
 
+        const invalidProduct = items.find(it => !it.productName || !findCanonicalProductName(it.productName));
+        if (invalidProduct) {
+            const badName = invalidProduct.productName || 'Brak nazwy';
+            return showToast(`Produkt "${badName}" nie istnieje w słowniku! Wybierz produkt z listy słownikowej.`, 'danger');
+        }
+
         const missingName = items.some(it => !it.productName || !it.productName.trim());
         if (missingName) return showToast('Wypełnij nazwę produktu dla wszystkich pozycji!', 'warning');
 
@@ -1350,8 +1398,9 @@
         }
 
         expiredConfirmed = false;
-
         items.forEach(it => {
+            const canonical = findCanonicalProductName(it.productName);
+            if (canonical) it.productName = canonical;
             const q = parseFloat(it.quantity) || parseFloat(it.netWeight) || parseFloat(it.unitsPerPallet) || 0;
             if (it.unit === 'szt' || it.packageForm === 'packaging') {
                 it.unitsPerPallet = q;

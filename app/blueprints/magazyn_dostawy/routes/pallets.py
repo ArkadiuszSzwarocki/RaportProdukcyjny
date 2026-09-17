@@ -20,13 +20,43 @@ from ..base import magazyn_dostawy_bp
 @magazyn_dostawy_bp.route('/podglad-etykiety', methods=['GET', 'POST'])
 def podglad_etykiety():
     nr_palety = str(request.args.get('nr_palety', '') or '').strip() or '---'
-    product_name = str(request.args.get('product_name', '') or '').strip() or 'Brak nazwy'
-    nr_partii = str(request.args.get('nr_partii', '') or '').strip() or '---'
-    data_produkcji = str(request.args.get('data_produkcji', '') or '').strip() or '---'
-    data_przydatnosci = str(request.args.get('data_przydatnosci', '') or '').strip() or '---'
-    typ_surowca = str(request.args.get('p_type', 'surowiec') or 'surowiec').strip().lower()
+    product_name = str(request.args.get('product_name', '') or request.args.get('nazwa', '') or '').strip()
+    nr_partii = str(request.args.get('nr_partii', '') or request.args.get('partia', '') or '').strip()
+    data_produkcji = str(request.args.get('data_produkcji', '') or request.args.get('data', '') or '').strip()
+    data_przydatnosci = str(request.args.get('data_przydatnosci', '') or request.args.get('termin', '') or '').strip()
+    typ_surowca = str(request.args.get('p_type', request.args.get('typ', 'surowiec')) or 'surowiec').strip().lower()
     linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
-    qty = _safe_float(request.args.get('qty', 0))
+    qty = _safe_float(request.args.get('qty', request.args.get('waga', request.args.get('stan_magazynowy', request.args.get('amount', 0)))))
+
+    if nr_palety != '---' and (qty <= 0 or not product_name or product_name == 'Brak nazwy' or not nr_partii or nr_partii == '---'):
+        try:
+            conn_p = get_db_connection()
+            try:
+                cur_p = conn_p.cursor(dictionary=True)
+                db_data = prepare_pallet_label_data(cur_p, nr_palety, linia=linia)
+                if db_data:
+                    if qty <= 0:
+                        qty = _safe_float(db_data.get('ilosc') or db_data.get('waga_netto'))
+                    if not product_name or product_name == 'Brak nazwy':
+                        product_name = db_data.get('nazwa') or db_data.get('produkt') or product_name
+                    if not nr_partii or nr_partii == '---':
+                        nr_partii = db_data.get('partia') or db_data.get('nr_partii') or nr_partii
+                    if not data_produkcji or data_produkcji == '---':
+                        data_produkcji = db_data.get('data_produkcji') or db_data.get('data') or data_produkcji
+                    if not data_przydatnosci or data_przydatnosci == '---':
+                        data_przydatnosci = db_data.get('data_przydatnosci') or db_data.get('termin') or data_przydatnosci
+                    if db_data.get('typ'):
+                        typ_surowca = str(db_data.get('typ')).lower()
+            finally:
+                conn_p.close()
+        except Exception:
+            pass
+
+    product_name = product_name or 'Brak nazwy'
+    nr_partii = nr_partii or '---'
+    data_produkcji = data_produkcji or '---'
+    data_przydatnosci = data_przydatnosci or '---'
+    nr_upper = nr_palety.upper()
 
     from app.utils.pallet_label import is_packaging_item
     is_pkg = is_packaging_item(product_name, unit=typ_surowca, typ=typ_surowca, pallet_nr=nr_palety)
@@ -537,26 +567,36 @@ def dodruk_etykiet():
                 continue
             nr_p = it.get('nr_palety') or it.get('nrPalety') or it.get('sscc')
             if nr_p and str(nr_p).strip() not in ('', '-', '---'):
+                raw_q = (
+                    it.get('qty') or it.get('currentWeight') or it.get('waga') or 
+                    it.get('waga_netto') or it.get('stan_magazynowy') or it.get('amount') or 
+                    it.get('weight') or it.get('quantity') or it.get('netWeight') or it.get('ilosc') or 0.0
+                )
                 items_to_print.append({
                     'nr_palety': str(nr_p).strip(),
-                    'product_name': str(it.get('product_name') or it.get('productName') or 'Brak nazwy').strip(),
-                    'nr_partii': str(it.get('nr_partii') or it.get('batchNumber') or it.get('batch') or '---').strip(),
-                    'data_produkcji': str(it.get('data_produkcji') or it.get('productionDate') or '---').strip(),
-                    'data_przydatnosci': str(it.get('data_przydatnosci') or it.get('expiryDate') or '---').strip(),
-                    'qty': float(it.get('qty') or it.get('currentWeight') or 0.0),
-                    'p_type': str(it.get('p_type') or 'surowiec').strip()
+                    'product_name': str(it.get('product_name') or it.get('productName') or it.get('nazwa') or '').strip(),
+                    'nr_partii': str(it.get('nr_partii') or it.get('batchNumber') or it.get('batch') or it.get('partia') or '').strip(),
+                    'data_produkcji': str(it.get('data_produkcji') or it.get('productionDate') or it.get('data') or '').strip(),
+                    'data_przydatnosci': str(it.get('data_przydatnosci') or it.get('expiryDate') or it.get('termin') or '').strip(),
+                    'qty': _safe_float(raw_q),
+                    'p_type': str(it.get('p_type') or it.get('typ') or 'surowiec').strip()
                 })
     else:
-        nr_palety = data.get('nr_palety')
+        nr_palety = data.get('nr_palety') or data.get('nrPalety') or data.get('sscc')
         if nr_palety and str(nr_palety).strip() not in ('', '-', '---'):
+            raw_q = (
+                data.get('qty') or data.get('currentWeight') or data.get('waga') or 
+                data.get('waga_netto') or data.get('stan_magazynowy') or data.get('amount') or 
+                data.get('weight') or data.get('quantity') or data.get('netWeight') or data.get('ilosc') or 0.0
+            )
             items_to_print.append({
                 'nr_palety': str(nr_palety).strip(),
-                'product_name': str(data.get('product_name') or 'Brak nazwy').strip(),
-                'nr_partii': str(data.get('nr_partii') or '---').strip(),
-                'data_produkcji': str(data.get('data_produkcji') or '---').strip(),
-                'data_przydatnosci': str(data.get('data_przydatnosci') or '---').strip(),
-                'qty': float(data.get('qty') or 0.0),
-                'p_type': str(data.get('p_type') or 'surowiec').strip()
+                'product_name': str(data.get('product_name') or data.get('productName') or data.get('nazwa') or '').strip(),
+                'nr_partii': str(data.get('nr_partii') or data.get('batchNumber') or data.get('batch') or data.get('partia') or '').strip(),
+                'data_produkcji': str(data.get('data_produkcji') or data.get('productionDate') or data.get('data') or '').strip(),
+                'data_przydatnosci': str(data.get('data_przydatnosci') or data.get('expiryDate') or data.get('termin') or '').strip(),
+                'qty': _safe_float(raw_q),
+                'p_type': str(data.get('p_type') or data.get('typ') or 'surowiec').strip()
             })
 
     if not items_to_print or not printer_id:
@@ -572,6 +612,36 @@ def dodruk_etykiet():
             
         printer_ip = printer_row['ip']
         printer_name = printer_row['nazwa']
+
+        # Enrich missing weights / attributes from database
+        for it in items_to_print:
+            if it['qty'] <= 0 or not it['product_name'] or it['product_name'] == 'Brak nazwy' or not it['nr_partii'] or it['nr_partii'] == '---':
+                try:
+                    db_data = prepare_pallet_label_data(cursor, it['nr_palety'])
+                    if db_data:
+                        if it['qty'] <= 0:
+                            it['qty'] = float(db_data.get('ilosc') or db_data.get('waga_netto') or 0.0)
+                        if not it['product_name'] or it['product_name'] == 'Brak nazwy':
+                            it['product_name'] = str(db_data.get('nazwa') or db_data.get('produkt') or 'Brak nazwy').strip()
+                        if not it['nr_partii'] or it['nr_partii'] == '---':
+                            it['nr_partii'] = str(db_data.get('partia') or db_data.get('nr_partii') or '---').strip()
+                        if not it['data_produkcji'] or it['data_produkcji'] == '---':
+                            it['data_produkcji'] = str(db_data.get('data_produkcji') or db_data.get('data') or '---').strip()
+                        if not it['data_przydatnosci'] or it['data_przydatnosci'] == '---':
+                            it['data_przydatnosci'] = str(db_data.get('data_przydatnosci') or db_data.get('termin') or '---').strip()
+                        if db_data.get('typ'):
+                            it['p_type'] = str(db_data.get('typ')).lower()
+                except Exception:
+                    pass
+
+            if not it['product_name']:
+                it['product_name'] = 'Brak nazwy'
+            if not it['nr_partii']:
+                it['nr_partii'] = '---'
+            if not it['data_produkcji']:
+                it['data_produkcji'] = '---'
+            if not it['data_przydatnosci']:
+                it['data_przydatnosci'] = '---'
     finally:
         conn.close()
         

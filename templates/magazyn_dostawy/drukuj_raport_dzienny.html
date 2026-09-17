@@ -1,0 +1,236 @@
+{% extends 'layout.html' %}
+{% block title %}Centrum Drukowania Raportów Dziennych ({{ date_str }}){% endblock %}
+
+{% block content %}
+<div style="max-width: 1280px; margin: 0 auto; padding: 20px 16px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+
+    <!-- Nagłówek główny -->
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 16px; padding: 24px 28px; color: #ffffff; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12); margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">
+                <span>🖨️</span> Centrum Druku Magazynu Centralnego
+            </div>
+            <h1 style="font-size: 26px; font-weight: 900; margin: 6px 0 4px 0; color: #ffffff;">
+                Drukuj Raporty i Załączniki z Dnia: <span style="color: #60a5fa;">{{ date_str }}</span>
+            </h1>
+            <div style="font-size: 13px; opacity: 0.85; margin-top: 4px;">
+                Wybierz poniżej dokumenty, które chcesz wydrukować za jednym kliknięciem.
+            </div>
+        </div>
+
+        <!-- Zmiana daty -->
+        <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); padding: 10px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); display: flex; align-items: center; gap: 10px;">
+            <label for="datePicker" style="font-size: 12px; font-weight: 700; color: #e2e8f0;">Zmień dzień:</label>
+            <input type="date" id="datePicker" value="{{ date_str }}" onchange="changeDate(this.value)"
+                   style="background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-weight: 700; font-size: 13px; outline: none; cursor: pointer;">
+        </div>
+    </div>
+
+    <!-- Podsumowanie KPI -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #1e40af;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Dostawy PZ</div>
+            <div style="font-size: 24px; font-weight: 900; color: #1e3a8a; margin-top: 4px;">{{ deliveries_count }}</div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #065f46;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Przesunięcia MM</div>
+            <div style="font-size: 24px; font-weight: 900; color: #065f46; margin-top: 4px;">{{ transfers_count }}</div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #0284c7;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Łącznie Palet</div>
+            <div style="font-size: 24px; font-weight: 900; color: #0284c7; margin-top: 4px;">{{ total_pallets }}</div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-left: 4px solid #16a34a;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Załączniki PDF</div>
+            <div style="font-size: 24px; font-weight: 900; color: #166534; margin-top: 4px;">{{ 1 + deliveries_count + transfers_count }} szt.</div>
+        </div>
+    </div>
+
+    <!-- Pasek akcji i wybór załączników -->
+    <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 16px; padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); margin-bottom: 24px;">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px;">
+            <div>
+                <h2 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0;">
+                    📋 Wybierz załączniki do wydrukowania:
+                </h2>
+                <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
+                    Zaznacz pola przy dokumentach, które chcesz uwzględnić na wydruku (domyślnie zaznaczone są wszystkie).
+                </div>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button type="button" onclick="selectAll(true)" 
+                        style="padding: 7px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer;">
+                    ✓ Zaznacz wszystkie
+                </button>
+                <button type="button" onclick="selectAll(false)" 
+                        style="padding: 7px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer;">
+                    ✕ Odznacz wszystkie
+                </button>
+            </div>
+        </div>
+
+        <!-- Lista dokumentów w formie kafelków wyboru -->
+        <form id="printForm" style="display: flex; flex-direction: column; gap: 12px;">
+
+            <!-- 1. Główny raport zbiorczy -->
+            <label class="doc-select-card" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border: 2px solid #3b82f6; border-radius: 12px; background: #eff6ff; cursor: pointer; transition: all 0.15s ease;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <input type="checkbox" name="selected_docs" value="summary" checked onchange="updateButtonCount()"
+                           style="width: 20px; height: 20px; accent-color: #2563eb; cursor: pointer;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #1e40af; color: #ffffff; font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 6px; text-transform: uppercase;">GŁÓWNY RAPORT</span>
+                            <span style="font-size: 15px; font-weight: 900; color: #0f172a;">Raport Zbiorczy Wszystkich Operacji (PZ i MM razem)</span>
+                        </div>
+                        <div style="font-size: 12px; color: #475569; margin-top: 3px;">
+                            Zawiera Rejestr Zbiorczy (wszystkie {{ total_pallets }} palet), karty dokumentów oraz podsumowanie asortymentu.
+                        </div>
+                    </div>
+                </div>
+                <div style="text-align: right; font-size: 12px; font-weight: 700; color: #1e40af;">
+                    1 wydruk A4
+                </div>
+            </label>
+
+            <!-- 2. Poszczególne przyjęcia PZ -->
+            {% if deliveries %}
+            <div style="font-size: 13px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px;">
+                📦 Przyjęcia Dostaw (PZ) — pojedyncze karty ({{ deliveries|length }} szt.):
+            </div>
+            {% for d in deliveries %}
+            <label class="doc-select-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; cursor: pointer; transition: all 0.15s ease;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <input type="checkbox" name="selected_docs" value="PZ_{{ d.order_ref }}" checked onchange="updateButtonCount()"
+                           style="width: 19px; height: 19px; accent-color: #2563eb; cursor: pointer;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">PZ</span>
+                            <span style="font-size: 14px; font-weight: 800; color: #0f172a;">Dokument: {{ d.order_ref }}</span>
+                            <span style="font-size: 12px; color: #64748b;">(Dostawca: <strong>{{ d.source }}</strong> ➔ <strong>{{ d.destination }}</strong>)</span>
+                        </div>
+                        <div style="font-size: 12px; color: #475569; margin-top: 2px;">
+                            Palet: <strong>{{ d.items_count }} szt.</strong> | Wprowadził: <strong>{{ d.created_by }}</strong> | Przyjął: <strong style="color: #166534;">{{ d.accepted_by }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div style="text-align: right; font-size: 11px; font-weight: 700; color: #64748b;">
+                    Osobny dokument
+                </div>
+            </label>
+            {% endfor %}
+            {% endif %}
+
+            <!-- 3. Poszczególne przesunięcia MM -->
+            {% if transfers %}
+            <div style="font-size: 13px; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px;">
+                🔄 Przesunięcia Magazynowe (MM) — pojedyncze karty ({{ transfers|length }} szt.):
+            </div>
+            {% for t in transfers %}
+            <label class="doc-select-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff; cursor: pointer; transition: all 0.15s ease;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <input type="checkbox" name="selected_docs" value="MM_{{ t.order_ref }}" checked onchange="updateButtonCount()"
+                           style="width: 19px; height: 19px; accent-color: #059669; cursor: pointer;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #dcfce7; color: #166534; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;">MM</span>
+                            <span style="font-size: 14px; font-weight: 800; color: #0f172a;">Dokument: {{ t.order_ref }}</span>
+                            <span style="font-size: 12px; color: #64748b;">(Skąd: <strong>{{ t.source }}</strong> ➔ Dokąd: <strong style="color: #2563eb;">{{ t.destination }}</strong>)</span>
+                        </div>
+                        <div style="font-size: 12px; color: #475569; margin-top: 2px;">
+                            Palet: <strong>{{ t.items_count }} szt.</strong> | Wydał: <strong>{{ t.created_by }}</strong> | Przyjął: <strong style="color: #166534;">{{ t.accepted_by }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div style="text-align: right; font-size: 11px; font-weight: 700; color: #64748b;">
+                    Osobny dokument
+                </div>
+            </label>
+            {% endfor %}
+            {% endif %}
+
+        </form>
+
+        <!-- Przyciski akcji głównej -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 2px solid #f1f5f9;">
+            <div style="font-size: 13px; font-weight: 700; color: #334155;" id="selectionStatus">
+                Zaznaczono wszystkie dokumenty
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <a href="{{ url_for('magazyn_dostawy.download_daily_report_pdf', data=date_str) }}" target="_blank"
+                   style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 12px; color: #0f172a; font-weight: 800; font-size: 14px; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+                    <span>📥</span> Pobierz Zbiorczy PDF
+                </a>
+
+                <button type="button" onclick="executePrint()" id="printBtn"
+                        style="display: inline-flex; align-items: center; gap: 10px; padding: 14px 28px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border: none; border-radius: 12px; color: #ffffff; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); transition: transform 0.1s ease;">
+                    <span>🖨️</span> <span id="printBtnText">DRUKUJ ZAZNACZONE (WSZYSTKO)</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Ukryty Iframe do automatycznego wywołania okna druku przeglądarki -->
+    <iframe id="printIframe" style="display: none; width: 0; height: 0; border: none;"></iframe>
+
+</div>
+
+<script>
+function changeDate(newDate) {
+    if (newDate) {
+        window.location.href = "{{ url_for('magazyn_dostawy.print_daily_report_center') }}?data=" + newDate;
+    }
+}
+
+function selectAll(check) {
+    const checkboxes = document.querySelectorAll('input[name="selected_docs"]');
+    checkboxes.forEach(cb => cb.checked = check);
+    updateButtonCount();
+}
+
+function updateButtonCount() {
+    const checkboxes = document.querySelectorAll('input[name="selected_docs"]');
+    const checked = Array.from(checkboxes).filter(cb => cb.checked);
+    const count = checked.length;
+    const total = checkboxes.length;
+
+    const btnText = document.getElementById('printBtnText');
+    const statusText = document.getElementById('selectionStatus');
+
+    if (count === total) {
+        btnText.innerText = "DRUKUJ ZAZNACZONE (WSZYSTKO)";
+        statusText.innerHTML = "Zaznaczono <strong>wszystkie załączniki (" + count + "/" + total + ")</strong>";
+    } else if (count === 0) {
+        btnText.innerText = "WYBIERZ MINIMUM 1 DOKUMENT";
+        statusText.innerHTML = "<span style='color: #dc2626;'>Nie wybrano żadnego dokumentu</span>";
+    } else {
+        btnText.innerText = "DRUKUJ WYBRANE (" + count + " DOKUMENTÓW)";
+        statusText.innerHTML = "Zaznaczono <strong>" + count + " z " + total + "</strong> dokumentów";
+    }
+}
+
+function executePrint() {
+    const checkboxes = document.querySelectorAll('input[name="selected_docs"]:checked');
+    if (checkboxes.length === 0) {
+        alert("Wybierz przynajmniej jeden dokument lub załącznik do wydruku!");
+        return;
+    }
+
+    const selectedKeys = Array.from(checkboxes).map(cb => cb.value).join(',');
+    const printUrl = "{{ url_for('magazyn_dostawy.print_daily_report_stream') }}?data={{ date_str }}&docs=" + encodeURIComponent(selectedKeys) + "&autoprint=1";
+
+    // Otwieramy podgląd wydruku w nowej karcie / oknie drukowania
+    const printWindow = window.open(printUrl, '_blank');
+    if (!printWindow) {
+        // Jeśli przeglądarka zablokowała popup, użyj ukrytego iframe
+        const iframe = document.getElementById('printIframe');
+        iframe.src = printUrl;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', updateButtonCount);
+</script>
+{% endblock %}

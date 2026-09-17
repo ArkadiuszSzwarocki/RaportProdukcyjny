@@ -175,6 +175,11 @@ async function savePrzesuniecie() {
             return showToast('Uzupełnij wszystkie pola w każdej palecie.', 'warning');
         }
 
+        let printerId = null;
+        try {
+            printerId = localStorage.getItem('selected_warehouse_printer') || null;
+        } catch (e) {}
+
         const payload = {
             id: window.EdycjaConfig.dostawaId,
             order_ref: orderRef,
@@ -182,6 +187,7 @@ async function savePrzesuniecie() {
             linia: window.EdycjaConfig.linia,
             items: items,
             skip_warehouse_lookup: isWarehouseLookupBypassed(),
+            printer_id: printerId,
             status: "OCZEKUJE"
         };
 

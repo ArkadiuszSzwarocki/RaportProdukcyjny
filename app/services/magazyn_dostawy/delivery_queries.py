@@ -264,16 +264,16 @@ class DeliveryQueries:
                     for l_code in ['PSD', 'AGRO']:
                         for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
                             if pid:
-                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (pid,))
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE id = %s", (pid,))
                                 except Exception: pass
                             if pnr:
-                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE nr_palety = %s", (pnr,))
                                 except Exception: pass
                         if pid:
-                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (pid,))
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE id = %s", (pid,))
                             except Exception: pass
                         if pnr:
-                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (pnr,))
+                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE nr_palety = %s", (pnr,))
                             except Exception: pass
             conn.commit()
         except Exception as e:
