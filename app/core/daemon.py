@@ -839,100 +839,119 @@ def start_daemon_threads(app, cleanup_enabled=False):
 
                         heartbeat_note = f'plan={plan_id};pakowaczka={pakowaczka_counter};paletyzator={palletizer_cnt};bpm={bpm}'
 
-                        if pakowaczka_counter > 0:
-                            # Inicjalizacja licznika początkowego zlecenia w bazie jeśli nie ustawiony
-                            start_machine_cnt = active_plan.get('start_machine_counter')
-                            if not start_machine_cnt or int(start_machine_cnt) <= 0:
-                                try:
-                                    from app.db import get_db_connection
-                                    conn_init = get_db_connection()
-                                    cur_init = conn_init.cursor()
-                                    cur_init.execute(
-                                        "UPDATE plan_produkcji_agro SET start_machine_counter = %s WHERE id = %s",
-                                        (pakowaczka_counter, plan_id)
-                                    )
-                                    conn_init.commit()
-                                    conn_init.close()
-                                    start_machine_cnt = pakowaczka_counter
-                                    active_plan['start_machine_counter'] = pakowaczka_counter
-                                    _safe_log_info("Initialized start_machine_counter to %s for plan ID=%s", pakowaczka_counter, plan_id)
-                                except Exception as init_err:
-                                    _safe_log_warning("Failed to initialize start_machine_counter: %s", init_err)
-                                    start_machine_cnt = pakowaczka_counter
-
-                            # Obliczenie ile pełnych palet powstało na podstawie worków z pakowaczki
-                            bags_produced = max(0, pakowaczka_counter - int(start_machine_cnt or 0))
-                            expected_pallets = bags_produced // bags_per_pallet
-                            
-                            # Pobranie aktualnej liczby zarejestrowanych palet w bazie
-                            db_pallets_count = 0
+                        # Inicjalizacja licznika początkowego paletyzatora w bazie jeśli nie ustawiony
+                        start_pallet_cnt = active_plan.get('start_pallet_counter')
+                        if palletizer_cnt > 0 and (not start_pallet_cnt or int(start_pallet_cnt) <= 0):
                             try:
                                 from app.db import get_db_connection
-                                conn_cnt = get_db_connection()
-                                cur_cnt = conn_cnt.cursor()
-                                cur_cnt.execute(
-                                    "SELECT COUNT(*) FROM palety_agro WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')",
-                                    (plan_id,)
+                                conn_init = get_db_connection()
+                                cur_init = conn_init.cursor()
+                                cur_init.execute(
+                                    "UPDATE plan_produkcji_agro SET start_pallet_counter = %s WHERE id = %s",
+                                    (palletizer_cnt, plan_id)
                                 )
-                                row_cnt = cur_cnt.fetchone()
-                                db_pallets_count = int(row_cnt[0]) if row_cnt else 0
-                                conn_cnt.close()
-                            except Exception as db_cnt_err:
-                                _safe_log_warning("Failed to query db_pallets_count: %s", db_cnt_err)
+                                conn_init.commit()
+                                conn_init.close()
+                                start_pallet_cnt = palletizer_cnt
+                                active_plan['start_pallet_counter'] = palletizer_cnt
+                                _safe_log_info("Initialized start_pallet_counter to %s for plan ID=%s", palletizer_cnt, plan_id)
+                            except Exception as init_err:
+                                _safe_log_warning("Failed to initialize start_pallet_counter: %s", init_err)
+                                start_pallet_cnt = palletizer_cnt
 
-                            # Sprawdzenie czy pakowaczka zakończyła kolejną pełną paletę
-                            if expected_pallets > db_pallets_count:
+                        # Inicjalizacja licznika początkowego pakowaczki w bazie jeśli nie ustawiony (do statystyk i folii)
+                        start_machine_cnt = active_plan.get('start_machine_counter')
+                        if pakowaczka_counter > 0 and (not start_machine_cnt or int(start_machine_cnt) <= 0):
+                            try:
+                                from app.db import get_db_connection
+                                conn_init = get_db_connection()
+                                cur_init = conn_init.cursor()
+                                cur_init.execute(
+                                    "UPDATE plan_produkcji_agro SET start_machine_counter = %s WHERE id = %s",
+                                    (pakowaczka_counter, plan_id)
+                                )
+                                conn_init.commit()
+                                conn_init.close()
+                                start_machine_cnt = pakowaczka_counter
+                                active_plan['start_machine_counter'] = pakowaczka_counter
+                                _safe_log_info("Initialized start_machine_counter to %s for plan ID=%s", pakowaczka_counter, plan_id)
+                            except Exception as init_err:
+                                _safe_log_warning("Failed to initialize start_machine_counter: %s", init_err)
+                                start_machine_cnt = pakowaczka_counter
+
+                        # Obliczenie ile pełnych palet ukończył paletyzator (po zjechaniu pełnej palety w dół z windy)
+                        completed_pallets = max(0, palletizer_cnt - int(start_pallet_cnt or 0)) if (palletizer_cnt > 0 and int(start_pallet_cnt or 0) > 0) else 0
+                        bags_produced = max(0, pakowaczka_counter - int(start_machine_cnt or 0)) if (pakowaczka_counter > 0 and int(start_machine_cnt or 0) > 0) else 0
+
+                        # Pobranie aktualnej liczby zarejestrowanych palet w bazie
+                        db_pallets_count = 0
+                        try:
+                            from app.db import get_db_connection
+                            conn_cnt = get_db_connection()
+                            cur_cnt = conn_cnt.cursor()
+                            cur_cnt.execute(
+                                "SELECT COUNT(*) FROM palety_agro WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')",
+                                (plan_id,)
+                            )
+                            row_cnt = cur_cnt.fetchone()
+                            db_pallets_count = int(row_cnt[0]) if row_cnt else 0
+                            conn_cnt.close()
+                        except Exception as db_cnt_err:
+                            _safe_log_warning("Failed to query db_pallets_count: %s", db_cnt_err)
+
+                        # Sprawdzenie czy paletyzator ukończył nową pełną paletę (zjazd z windy)
+                        if palletizer_cnt > 0 and int(start_pallet_cnt or 0) > 0 and completed_pallets > db_pallets_count:
+                            _safe_log_info(
+                                "Paletyzator zjechał z windą w dół i ukończył paletę! Licznik palet: %s (start: %s, ukończonych: %s, w bazie: %s). Rejestracja palety #%s.",
+                                palletizer_cnt,
+                                start_pallet_cnt,
+                                completed_pallets,
+                                db_pallets_count,
+                                db_pallets_count + 1,
+                            )
+                            
+                            success = AgroTanksService.auto_register_pallet(
+                                plan_id,
+                                linia='AGRO',
+                                source_instance=_INSTANCE_ID,
+                            )
+                            if success:
                                 _safe_log_info(
-                                    "Pakowaczka wyprodukowała %s worków (%s/%s pełnych palet, w bazie: %s). Rejestracja palety #%s.",
-                                    bags_produced,
-                                    expected_pallets,
-                                    expected_pallets,
-                                    db_pallets_count,
+                                    'Pomyślnie zarejestrowano paletę #%s na podstawie zjazdu z windy paletyzatora (instance=%s)',
                                     db_pallets_count + 1,
+                                    _INSTANCE_ID,
                                 )
-                                
-                                success = AgroTanksService.auto_register_pallet(
-                                    plan_id,
-                                    linia='AGRO',
-                                    source_instance=_INSTANCE_ID,
-                                )
-                                if success:
-                                    _safe_log_info(
-                                        'Pomyślnie zarejestrowano paletę #%s na podstawie sygnału z pakowaczki (instance=%s)',
-                                        db_pallets_count + 1,
-                                        _INSTANCE_ID,
-                                    )
-                                else:
-                                    _safe_log_warning(
-                                        'Rejestracja palety na podstawie pakowaczki wstrzymana przez cooldown/pułapkę (instance=%s)',
-                                        _INSTANCE_ID,
-                                    )
                             else:
-                                # Stan napełniania bieżącej palety – pułapka na nadmiarowe sygnały
-                                current_pallet_bags = bags_produced % bags_per_pallet
-                                try:
-                                    # Loguj do pułapki tylko jeśli zmienił się stan licznika pakowaczki
-                                    last_tracked_cnt = plan_counters.get(plan_id, 0)
-                                    if pakowaczka_counter != last_tracked_cnt and (pakowaczka_counter % 10 == 0 or current_pallet_bags in (1, 25, bags_per_pallet - 1)):
-                                        from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
-                                        PakowaczkaSignalTrapService.log_signal(
-                                            decision='ACCUMULATING_BAGS',
-                                            source_machine='PAKOWACZKA',
-                                            plan_id=plan_id,
-                                            produkt=active_plan.get('produkt'),
-                                            global_counter=pakowaczka_counter,
-                                            local_counter=local_bag_counter,
-                                            pallet_counter=palletizer_cnt,
-                                            delta_counter=pakowaczka_counter - (last_tracked_cnt or pakowaczka_counter),
-                                            bpm=bpm,
-                                            status_text=mach_status,
-                                            details=f"Postęp pakowaczki: {current_pallet_bags}/{bags_per_pallet} worków na paletę #{db_pallets_count + 1}. Zarejestrowanych palet: {db_pallets_count}.",
-                                            instance_id=_INSTANCE_ID,
-                                        )
-                                except Exception:
-                                    pass
+                                _safe_log_warning(
+                                    'Rejestracja palety na podstawie paletyzatora wstrzymana przez cooldown/pułapkę (instance=%s)',
+                                    _INSTANCE_ID,
+                                )
+                        else:
+                            # Stan pracy paletyzatora / pakowaczki – rejestr diagnostyczny do pułapki sygnałów
+                            try:
+                                last_tracked_cnt = plan_counters.get(plan_id, 0)
+                                last_tracked_pal = plan_counters.get(f"{plan_id}_pal", 0)
+                                if pakowaczka_counter != last_tracked_cnt and (pakowaczka_counter % 10 == 0 or palletizer_cnt != last_tracked_pal):
+                                    from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+                                    PakowaczkaSignalTrapService.log_signal(
+                                        decision='TRACKING_PALETYZATOR',
+                                        source_machine='PALETYZATOR',
+                                        plan_id=plan_id,
+                                        produkt=active_plan.get('produkt'),
+                                        global_counter=pakowaczka_counter,
+                                        local_counter=local_bag_counter,
+                                        pallet_counter=palletizer_cnt,
+                                        delta_counter=pakowaczka_counter - (last_tracked_cnt or pakowaczka_counter),
+                                        bpm=bpm,
+                                        status_text=mach_status,
+                                        details=f"Paletyzator: {completed_pallets} palet ukończonych (start={start_pallet_cnt}, bieżący={palletizer_cnt}). Pakowaczka: {bags_produced} worków. Zarejestrowanych palet w bazie: {db_pallets_count}.",
+                                        instance_id=_INSTANCE_ID,
+                                    )
+                            except Exception:
+                                pass
 
-                            plan_counters[plan_id] = pakowaczka_counter
+                        plan_counters[plan_id] = pakowaczka_counter
+                        plan_counters[f"{plan_id}_pal"] = palletizer_cnt
                         # Initialize wrapped baseline for new plans, then only print on False->True transitions.
                         if plan_id not in plan_wrap_states:
                             plan_wrap_states[plan_id] = current_wrapped
