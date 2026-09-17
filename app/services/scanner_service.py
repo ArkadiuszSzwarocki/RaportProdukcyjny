@@ -1519,11 +1519,11 @@ class ScannerService:
             ]
 
             mat_configs = [
-                ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO') if is_agro else ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD'),
-                ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO') if is_agro else ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD'),
+                ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO') if is_agro else ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD'),
+                ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO') if is_agro else ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD'),
                 ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'DODATEK', 'DOD', linia),
-                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD') if is_agro else ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO'),
-                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD') if is_agro else ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO'),
+                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD') if is_agro else ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO'),
+                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD') if is_agro else ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO'),
             ]
 
             # KROK A: Szukaj BEZWZGLĘDNIE po SSCC / nr_palety (jeśli podano SSCC)
@@ -1539,7 +1539,7 @@ class ScannerService:
                             f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
                             f"FROM {mag_tbl} m "
                             f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id "
-                            f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.id DESC LIMIT 1"
+                            f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.waga_netto > 0 DESC, m.id DESC LIMIT 1"
                         )
                         cur.execute(sql, (sscc_code.upper(),))
                         row = cur.fetchone()
@@ -1559,7 +1559,7 @@ class ScannerService:
                             f"plan.termin_przydatnosci AS data_przydatnosci "
                             f"FROM {prod_tbl} p "
                             f"LEFT JOIN {plan_tbl} plan ON p.plan_id = plan.id "
-                            f"WHERE UPPER(COALESCE(p.nr_palety, '')) = %s ORDER BY p.id DESC LIMIT 1"
+                            f"WHERE UPPER(COALESCE(p.nr_palety, '')) = %s ORDER BY p.waga > 0 DESC, p.id DESC LIMIT 1"
                         )
                         cur.execute(sql, (sscc_code.upper(),))
                         row = cur.fetchone()
@@ -1576,7 +1576,7 @@ class ScannerService:
                             f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
                             f"COALESCE(nr_partii, '') AS nr_partii, "
                             f"data_produkcji, data_przydatnosci "
-                            f"FROM {mat_tbl} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY id DESC LIMIT 1"
+                            f"FROM {mat_tbl} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
                         )
                         cur.execute(sql, (sscc_code.upper(),))
                         row = cur.fetchone()
@@ -1615,7 +1615,7 @@ class ScannerService:
                             f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
                             f"COALESCE(nr_partii, '') AS nr_partii, "
                             f"data_produkcji, data_przydatnosci "
-                            f"FROM {mat_tbl} WHERE id = %s LIMIT 1"
+                            f"FROM {mat_tbl} WHERE id = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
                         )
                         cur.execute(sql, (numeric_id,))
                         row = cur.fetchone()

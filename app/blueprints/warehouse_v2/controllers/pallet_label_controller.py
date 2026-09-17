@@ -41,14 +41,71 @@ class PalletLabelController:
         try:
             cursor = conn.cursor(dictionary=True)
 
-            # 1. Targeted lookup based on type
-            if pallet_type.lower() in ('surowiec', 'raw_material', 'surowce') or search_sscc.upper().startswith('SUR'):
-                tables = ['magazyn_surowce', 'magazyn_surowce_agro'] if linia != 'AGRO' else ['magazyn_surowce_agro', 'magazyn_surowce']
-                for tbl in tables:
+            # 1. Primary lookup using unified prepare_pallet_label_data
+            try:
+                label_data = prepare_pallet_label_data(cursor, search_sscc or search_id, linia=linia)
+            except Exception:
+                label_data = None
+
+            # 2. Targeted lookup based on type if not yet resolved
+            if not label_data:
+                if pallet_type.lower() in ('surowiec', 'raw_material', 'surowce') or search_sscc.upper().startswith('SUR'):
+                    tables = ['magazyn_surowce', 'magazyn_agro_surowce'] if linia != 'AGRO' else ['magazyn_agro_surowce', 'magazyn_surowce']
+                    for tbl in tables:
+                        cursor.execute(
+                            f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
+                            f"data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} "
+                            f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1",
+                            (search_id, search_id, search_sscc)
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            label_data = {
+                                'id': row['id'],
+                                'nr_palety': row.get('nr_palety') or search_sscc,
+                                'nazwa': row.get('nazwa') or 'Surowiec',
+                                'ilosc': float(row.get('waga_netto') or 0),
+                                'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                                'termin': str(row.get('data_przydatnosci') or ''),
+                                'partia': row.get('nr_partii') or '---',
+                                'jednostka': 'kg',
+                                'typ': 'SUROWIEC',
+                                'linia': linia
+                            }
+                            resolved_type = 'Surowiec'
+                            break
+
+                elif pallet_type.lower() in ('opakowanie', 'packaging', 'opakowania') or search_sscc.upper().startswith(('OPK', 'OPA')):
+                    tables = ['magazyn_opakowania', 'magazyn_agro_opakowania'] if linia != 'AGRO' else ['magazyn_agro_opakowania', 'magazyn_opakowania']
+                    for tbl in tables:
+                        cursor.execute(
+                            f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
+                            f"data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} "
+                            f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1",
+                            (search_id, search_id, search_sscc)
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            label_data = {
+                                'id': row['id'],
+                                'nr_palety': row.get('nr_palety') or search_sscc,
+                                'nazwa': row.get('nazwa') or 'Opakowanie',
+                                'ilosc': float(row.get('waga_netto') or 0),
+                                'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
+                                'termin': str(row.get('data_przydatnosci') or ''),
+                                'partia': row.get('nr_partii') or '---',
+                                'jednostka': 'szt.',
+                                'typ': 'OPAKOWANIE',
+                                'linia': linia
+                            }
+                            resolved_type = 'Opakowanie'
+                            break
+
+                elif pallet_type.lower() in ('dodatek', 'dodatki') or search_sscc.upper().startswith('DOD'):
                     cursor.execute(
-                        f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
-                        f"data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} "
-                        f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                        "SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
+                        "data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM magazyn_dodatki "
+                        "WHERE id = %s OR nr_palety = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1",
                         (search_id, search_id, search_sscc)
                     )
                     row = cursor.fetchone()
@@ -56,81 +113,24 @@ class PalletLabelController:
                         label_data = {
                             'id': row['id'],
                             'nr_palety': row.get('nr_palety') or search_sscc,
-                            'nazwa': row.get('nazwa') or 'Surowiec',
+                            'nazwa': row.get('nazwa') or 'Dodatek',
                             'ilosc': float(row.get('waga_netto') or 0),
                             'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
                             'termin': str(row.get('data_przydatnosci') or ''),
                             'partia': row.get('nr_partii') or '---',
                             'jednostka': 'kg',
-                            'typ': 'SUROWIEC',
+                            'typ': 'DODATEK',
                             'linia': linia
                         }
-                        resolved_type = 'Surowiec'
-                        break
+                        resolved_type = 'Dodatek'
 
-            elif pallet_type.lower() in ('opakowanie', 'packaging', 'opakowania') or search_sscc.upper().startswith(('OPK', 'OPA')):
-                tables = ['magazyn_opakowania', 'magazyn_opakowania_agro'] if linia != 'AGRO' else ['magazyn_opakowania_agro', 'magazyn_opakowania']
-                for tbl in tables:
-                    cursor.execute(
-                        f"SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
-                        f"data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM {tbl} "
-                        f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
-                        (search_id, search_id, search_sscc)
-                    )
-                    row = cursor.fetchone()
-                    if row:
-                        label_data = {
-                            'id': row['id'],
-                            'nr_palety': row.get('nr_palety') or search_sscc,
-                            'nazwa': row.get('nazwa') or 'Opakowanie',
-                            'ilosc': float(row.get('waga_netto') or 0),
-                            'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
-                            'termin': str(row.get('data_przydatnosci') or ''),
-                            'partia': row.get('nr_partii') or '---',
-                            'jednostka': 'szt.',
-                            'typ': 'OPAKOWANIE',
-                            'linia': linia
-                        }
-                        resolved_type = 'Opakowanie'
-                        break
-
-            elif pallet_type.lower() in ('dodatek', 'dodatki') or search_sscc.upper().startswith('DOD'):
-                cursor.execute(
-                    "SELECT id, nazwa, stan_magazynowy as waga_netto, nr_partii, "
-                    "data_produkcji, data_przydatnosci, nr_palety, lokalizacja FROM magazyn_dodatki "
-                    "WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
-                    (search_id, search_id, search_sscc)
-                )
-                row = cursor.fetchone()
-                if row:
-                    label_data = {
-                        'id': row['id'],
-                        'nr_palety': row.get('nr_palety') or search_sscc,
-                        'nazwa': row.get('nazwa') or 'Dodatek',
-                        'ilosc': float(row.get('waga_netto') or 0),
-                        'data': str(row.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')),
-                        'termin': str(row.get('data_przydatnosci') or ''),
-                        'partia': row.get('nr_partii') or '---',
-                        'jednostka': 'kg',
-                        'typ': 'DODATEK',
-                        'linia': linia
-                    }
-                    resolved_type = 'Dodatek'
-
-            # 2. Finished Product lookup if not yet found
-            if not label_data:
-                try:
-                    label_data = prepare_pallet_label_data(cursor, search_id, linia, source_table='magazyn')
-                except Exception:
-                    label_data = None
-
-            # 3. Fallback scan across all tables
+            # 3. Fallback scan across all tables if still not found
             if not label_data:
                 all_candidate_tables: List[Tuple[str, str, str]] = [
                     ('magazyn_surowce', 'SUROWIEC', 'kg'),
-                    ('magazyn_surowce_agro', 'SUROWIEC', 'kg'),
+                    ('magazyn_agro_surowce', 'SUROWIEC', 'kg'),
                     ('magazyn_opakowania', 'OPAKOWANIE', 'szt.'),
-                    ('magazyn_opakowania_agro', 'OPAKOWANIE', 'szt.'),
+                    ('magazyn_agro_opakowania', 'OPAKOWANIE', 'szt.'),
                     ('magazyn_dodatki', 'DODATEK', 'kg'),
                     ('magazyn_palety', 'WYRÓB GOTOWY', 'kg'),
                     ('magazyn_palety_agro', 'WYRÓB GOTOWY', 'kg')
@@ -142,7 +142,7 @@ class PalletLabelController:
                         cursor.execute(
                             f"SELECT id, {col_name} as nazwa, {col_qty} as waga_netto, nr_partii, "
                             f"data_produkcji, data_przydatnosci, nr_palety FROM {tbl} "
-                            f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s LIMIT 1",
+                            f"WHERE id = %s OR nr_palety = %s OR nr_palety = %s ORDER BY {col_qty} > 0 DESC, id DESC LIMIT 1",
                             (search_id, search_id, search_sscc)
                         )
                         row = cursor.fetchone()

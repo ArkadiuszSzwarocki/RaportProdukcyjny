@@ -51,43 +51,52 @@ class PalletPrintController:
             if not printer_ip:
                 return jsonify({'success': False, 'error': 'Nieprawidłowa lub nieaktywna drukarka w systemie'}), 404
                 
-            if pallet_type == 'Wyrób Gotowy':
-                table_mag = 'magazyn_palety'
-                cursor.execute(f"SELECT id, produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
-            elif pallet_type == 'Surowiec':
-                table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
-                cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
-            elif pallet_type == 'Opakowanie':
-                table = 'magazyn_opakowania' if linia == 'PSD' else 'magazyn_opakowania_agro'
-                cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
-            elif pallet_type == 'Dodatek':
-                cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM magazyn_dodatki WHERE id = %s OR nr_palety = %s", (pallet_id, str(pallet_id)))
-            else:
-                return jsonify({'success': False, 'error': 'Nieznany typ palety'}), 400
-                
-            row = cursor.fetchone()
-            if not row:
-                return jsonify({'success': False, 'error': 'Nie znaleziono palety w bazie'}), 404
-                
+            # 1. Primary lookup via prepare_pallet_label_data
             from app.services.print_server import get_printer
             from app.utils.pallet_label import prepare_pallet_label_data
 
-            if pallet_type == 'Wyrób Gotowy':
-                try:
-                    label_data = prepare_pallet_label_data(row.get('nr_palety') or row.get('id') or pallet_id, linia=linia, printer_name=printer_name)
-                except Exception:
-                    label_data = None
-            else:
+            try:
+                label_data = prepare_pallet_label_data(cursor, pallet_id, linia=linia)
+            except Exception:
                 label_data = None
 
             if not label_data:
+                row = None
+                if pallet_type == 'Wyrób Gotowy':
+                    table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
+                    cursor.execute(f"SELECT id, produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s OR nr_palety = %s ORDER BY waga_netto > 0 DESC, id DESC LIMIT 1", (pallet_id, str(pallet_id)))
+                    row = cursor.fetchone()
+                elif pallet_type == 'Surowiec':
+                    table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_agro_surowce'
+                    cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1", (pallet_id, str(pallet_id)))
+                    row = cursor.fetchone()
+                elif pallet_type == 'Opakowanie':
+                    table = 'magazyn_opakowania' if linia == 'PSD' else 'magazyn_agro_opakowania'
+                    cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1", (pallet_id, str(pallet_id)))
+                    row = cursor.fetchone()
+                elif pallet_type == 'Dodatek':
+                    cursor.execute(f"SELECT id, nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety FROM magazyn_dodatki WHERE id = %s OR nr_palety = %s ORDER BY stan_magazynowy > 0 DESC, id DESC LIMIT 1", (pallet_id, str(pallet_id)))
+                    row = cursor.fetchone()
+
+                if not row:
+                    return jsonify({'success': False, 'error': 'Nie znaleziono palety w bazie'}), 404
+
+                prod_date_val = row.get('date_prod') or datetime.now()
+                prod_date_str = prod_date_val.strftime('%Y-%m-%d') if hasattr(prod_date_val, 'strftime') else str(prod_date_val)[:10]
+                exp_date_val = row.get('data_przydatnosci')
+                exp_date_str = exp_date_val.strftime('%Y-%m-%d') if hasattr(exp_date_val, 'strftime') else (str(exp_date_val)[:10] if exp_date_val else None)
+
                 label_data = {
                     'id': row.get('id') or pallet_id,
-                    'nr_palety': row.get('nr_palety') or '',
+                    'nr_palety': row.get('nr_palety') or str(pallet_id),
+                    'nrPalety': row.get('nr_palety') or str(pallet_id),
                     'nazwa': row.get('productName') or row.get('nazwa') or '',
-                    'ilosc': row.get('amount') or 0,
-                    'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
-                    'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else None,
+                    'ilosc': float(row.get('amount') or 0),
+                    'waga_netto': float(row.get('amount') or 0),
+                    'data': prod_date_str,
+                    'data_produkcji': prod_date_str,
+                    'data_przydatnosci': exp_date_str,
+                    'termin_przydatnosci': exp_date_str,
                     'nr_partii': row.get('batch') or '',
                     'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
                     'linia': linia,

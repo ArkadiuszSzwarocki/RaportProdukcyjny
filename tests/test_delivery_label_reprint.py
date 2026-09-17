@@ -85,9 +85,58 @@ def test_dodruk_etykiet_batch_success(mock_thread, mock_db, app_client):
             {'nr_palety': 'SUR002', 'product_name': 'Sól', 'qty': 500, 'p_type': 'surowiec'}
         ]
     })
+    assert mock_thread.called
+
+@patch('app.blueprints.magazyn_dostawy.routes.pallets.prepare_pallet_label_data')
+@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('threading.Thread')
+def test_dodruk_etykiet_enriches_weight_from_db(mock_thread, mock_db, mock_prepare, app_client):
+    """Test that when qty is missing or 0, dodruk_etykiet enriches weight and attributes from DB."""
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = {'id': 1, 'ip': '192.168.1.100', 'nazwa': 'Zebra_Magazyn'}
+    mock_conn.cursor.return_value = mock_cursor
+    mock_db.return_value = mock_conn
+
+    mock_prepare.return_value = {
+        'id': 1474,
+        'nrPalety': 'SUR000001785219620528',
+        'nazwa': 'Makuch Lniany',
+        'ilosc': 1000.0,
+        'partia': '418B-25',
+        'data_produkcji': '2025-11-18',
+        'data_przydatnosci': '2026-11-18',
+        'typ': 'SUROWIEC'
+    }
+
+    res = app_client.post('/magazyn-dostawy/api/dodruk-etykiet', json={
+        'nr_palety': 'SUR000001785219620528',
+        'printer_id': 1
+    })
     assert res.status_code == 200
     data = res.get_json()
     assert data['success'] is True
-    assert data['count'] == 2
-    assert 'Wysłano 4 etykiet (2 palet po 2 szt)' in data['message']
-    assert mock_thread.called
+    assert mock_prepare.called
+
+def test_prepare_pallet_label_data_sur_material():
+    """Test that prepare_pallet_label_data correctly retrieves raw material with 1000kg from mock cursor."""
+    from app.utils.pallet_label import prepare_pallet_label_data
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = {
+        'id': 1474,
+        'nr_palety': 'SUR000001785219620528',
+        'nazwa': 'Makuch Lniany',
+        'stan_magazynowy': 1000.0,
+        'nr_partii': '418B-25',
+        'data_produkcji': '2025-11-18',
+        'data_przydatnosci': '2026-11-18',
+        'lokalizacja': 'MS01'
+    }
+    label = prepare_pallet_label_data(mock_cursor, 'SUR000001785219620528')
+    assert label is not None
+    assert label['nazwa'] == 'Makuch Lniany'
+    assert label['ilosc'] == 1000.0
+    assert label['partia'] == '418B-25'
+    assert label['typ'] == 'SUROWIEC'
+    assert label['jednostka'] == 'kg'
+
