@@ -8,6 +8,17 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 from app.services.magazyn_dostawy.location_service import LocationService
 
+class AcceptanceResult(tuple):
+    def __new__(cls, success, message, open_report_url=None, plan_id=None, is_last_pallet=False):
+        return super().__new__(cls, (success, message))
+    
+    def __init__(self, success, message, open_report_url=None, plan_id=None, is_last_pallet=False):
+        self.success = success
+        self.message = message
+        self.open_report_url = open_report_url
+        self.plan_id = plan_id
+        self.is_last_pallet = is_last_pallet
+
 class AcceptanceService:
 
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
@@ -75,6 +86,7 @@ class AcceptanceService:
 
                 table_sur = get_table_name('magazyn_surowce', linia)
                 table_opk = get_table_name('magazyn_opakowania', linia)
+                table_got = get_table_name('magazyn_palety', linia)
 
                 product_name = target.get('productName') or 'Brak nazwy'
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
@@ -94,6 +106,8 @@ class AcceptanceService:
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w opakowaniach!", None
                     cursor.execute(f"SELECT 1 FROM magazyn_dodatki WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w dodatkach!", None
+                    cursor.execute(f"SELECT 1 FROM {table_got} WHERE lokalizacja = %s AND waga_netto > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
                 p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
 
@@ -105,6 +119,32 @@ class AcceptanceService:
                     qty = float(target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
                     p_type = 'dodatek'
+                elif p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja']:
+                    qty = float(target.get('netWeight') or target.get('quantity') or 0)
+                    p_type = 'wyrob_gotowy'
+                    source_pid = target.get('sourcePalletId')
+                    exist_got = None
+                    if source_pid:
+                        cursor.execute(f"SELECT id FROM {table_got} WHERE id = %s LIMIT 1", (source_pid,))
+                        exist_got = cursor.fetchone()
+                    if not exist_got and nr_palety:
+                        cursor.execute(f"SELECT id FROM {table_got} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_got = cursor.fetchone()
+
+                    if exist_got:
+                        pallet_id = exist_got['id']
+                        cursor.execute(f"""
+                            UPDATE {table_got}
+                            SET lokalizacja = %s, waga_netto = %s, is_blocked = 0, is_loaded = 0
+                            WHERE id = %s
+                        """, (lokalizacja, qty, pallet_id))
+                    else:
+                        target_linia = linia if linia in ['PSD', 'AGRO'] else 'PSD'
+                        cursor.execute(f"""
+                            INSERT INTO {table_got} (nr_palety, produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, is_blocked, is_loaded, linia)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, %s)
+                        """, (nr_palety, product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, target_linia))
+                        pallet_id = cursor.lastrowid
                 else:
                     qty = float(target.get('netWeight') or 0)
                     p_type = 'surowiec'
@@ -126,8 +166,9 @@ class AcceptanceService:
 
                 # Get the ID of the pallet (new or existing) if not resolved yet
                 if not pallet_id or pallet_id == 0:
-                    table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)
-                    cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja,))
+                    table_name = table_opk if p_type == 'opakowanie' else ('magazyn_dodatki' if p_type == 'dodatek' else (table_got if p_type == 'wyrob_gotowy' else table_sur))
+                    col_st = 'waga_netto' if p_type == 'wyrob_gotowy' else 'stan_magazynowy'
+                    cursor.execute(f"SELECT id FROM {table_name} WHERE lokalizacja = %s AND {col_st} > 0 LIMIT 1", (lokalizacja,))
                     p_row = cursor.fetchone()
                     pallet_id = p_row['id'] if p_row else None
 
@@ -168,33 +209,32 @@ class AcceptanceService:
                 if source_spot and not is_partial and not is_return:
                     actual_source_loc = 'OCZEKUJĄCE' if source_spot == 'DOSTAWA' else source_spot
                     
-                    if source_pallet_id and source_pallet_id != pallet_id:
+                    if source_pallet_id:
                         # Find the pallet at source and zero it EXACTLY by ID
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                    elif not source_pallet_id and actual_source_loc not in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE'):
-                        # Fallback for old transfer data without sourcePalletId
+                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
+                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE id = %s", (source_pallet_id,))
+                    else:
+                        # Fallback for old data without sourcePalletId
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
+                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
+                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (actual_source_loc, product_name))
                 
-                    if source_spot not in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE', 'RAMPA', 'W_TRANZYCIE'):
-                        cursor.execute(
-                            "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)",
-                            (pallet_id, nr_palety, linia, p_type, source_spot, lokalizacja, f"Wydanie do przesunięcia: {product_name}, waga: {qty:.2f} kg -> {lokalizacja}", login)
-                        )
+                    cursor.execute(
+                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
+                        (None, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
+                    )
 
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
-                comment_text = f"Przyjęcie zwrotu z produkcji: {product_name}, waga: {qty:.2f} kg na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, waga: {qty:.2f} kg, partia: {nr_partii}"
-                if is_return:
-                    src_for_history = source_spot or 'PRODUKCJA'
-                else:
-                    src_for_history = source_spot if (source_spot and source_spot not in ('-', 'DOSTAWA')) else 'OCZEKUJĄCE'
+                comment_text = f"Przyjęcie zwrotu z produkcji: {product_name} na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}"
                 cursor.execute(
                     "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (pallet_id, nr_palety, linia, p_type, action_name, src_for_history, lokalizacja, comment_text, login)
+                    (pallet_id, nr_palety, linia, p_type, action_name, source_spot or 'OCZEKUJACE', lokalizacja, comment_text, login)
                 )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
@@ -555,53 +595,64 @@ class AcceptanceService:
 
                 # 4. Log history
                 cursor.execute("""
-                    INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                    VALUES (%s, %s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
-                """, (actual_pallet_id, pallet.get('nr_palety'), linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
+                    INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
+                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
 
                 conn.commit()
                 
-                # --- AUTO DRUKOWANIE RAPORTU BIUROWEGO PO PRZYJĘCIU OSTATNIEJ PALETY ---
+                # --- AUTO DRUKOWANIE RAPORTU BIUROWEGO I OTWARCIE RAPORTU DLA MAGAZYNIERA ---
+                open_report_url = None
+                is_last_pallet = False
                 try:
                     plan_id = pallet.get('plan_id')
                     if plan_id:
                         if linia == 'AGRO':
                             # Check if plan is 'zakonczone'
-                            cursor.execute("SELECT status FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                            cursor.execute("SELECT status, sekcja FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
                             plan_status_row = cursor.fetchone()
-                            if plan_status_row and plan_status_row.get('status') == 'zakonczone':
-                                # Count total pallets and received pallets
-                                cursor.execute("SELECT COUNT(*) as total FROM palety_agro WHERE plan_id = %s", (plan_id,))
-                                total_pallets = cursor.fetchone()['total']
-                                
-                                cursor.execute("SELECT COUNT(*) as received FROM palety_agro WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
-                                received_pallets = cursor.fetchone()['received']
-                                
-                                if total_pallets > 0 and total_pallets == received_pallets:
-                                    from app.services.office_print_service import trigger_office_print
-                                    print(f"Wszystkie {total_pallets} palet dla zlecenia AGRO {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
-                                    trigger_office_print(plan_id, typ_raportu='raport_palet_agro')
+                            if plan_status_row:
+                                plan_st = str(plan_status_row.get('status') or '').strip().lower()
+                                if plan_st in ('zakonczone', 'zakończone', 'zakonczony', 'zakończony'):
+                                    # Count total pallets and received pallets
+                                    cursor.execute("SELECT COUNT(*) as total FROM palety_agro WHERE plan_id = %s", (plan_id,))
+                                    total_pallets = cursor.fetchone()['total']
                                     
+                                    cursor.execute("SELECT COUNT(*) as received FROM palety_agro WHERE plan_id = %s AND status IN ('przyjeta', 'w_magazynie')", (plan_id,))
+                                    received_pallets = cursor.fetchone()['received']
+                                    
+                                    if total_pallets > 0 and total_pallets == received_pallets:
+                                        is_last_pallet = True
+                                        from app.services.office_print_service import trigger_office_print
+                                        print(f"Wszystkie {total_pallets} palet dla zlecenia AGRO {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                        trigger_office_print(plan_id, typ_raportu='raport_palet_agro')
+                                        open_report_url = f"/agro/raport_palet?plan_id={plan_id}&autoprint=1"
+                                        
                         elif linia == 'PSD':
-                            cursor.execute("SELECT status FROM plan_produkcji WHERE id = %s", (plan_id,))
+                            cursor.execute("SELECT status, sekcja FROM plan_produkcji WHERE id = %s", (plan_id,))
                             plan_status_row = cursor.fetchone()
-                            if plan_status_row and plan_status_row.get('status') == 'zakonczone':
-                                cursor.execute("SELECT COUNT(*) as total FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
-                                total_pallets = cursor.fetchone()['total']
-                                
-                                cursor.execute("SELECT COUNT(*) as received FROM palety_workowanie WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
-                                received_pallets = cursor.fetchone()['received']
-                                
-                                if total_pallets > 0 and total_pallets == received_pallets:
-                                    from app.services.office_print_service import trigger_office_print
-                                    print(f"Wszystkie {total_pallets} palet dla zlecenia PSD {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
-                                    # Assuming there might be a PSD report type later, for now we can just log it or trigger 'raport_palet_psd'
-                                    trigger_office_print(plan_id, typ_raportu='raport_palet_psd')
+                            if plan_status_row:
+                                plan_st = str(plan_status_row.get('status') or '').strip().lower()
+                                if plan_st in ('zakonczone', 'zakończone', 'zakonczony', 'zakończony'):
+                                    cursor.execute("SELECT COUNT(*) as total FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
+                                    total_pallets = cursor.fetchone()['total']
+                                    
+                                    cursor.execute("SELECT COUNT(*) as received FROM palety_workowanie WHERE plan_id = %s AND status IN ('przyjeta', 'w_magazynie')", (plan_id,))
+                                    received_pallets = cursor.fetchone()['received']
+                                    
+                                    if total_pallets > 0 and total_pallets == received_pallets:
+                                        is_last_pallet = True
+                                        from app.services.office_print_service import trigger_office_print
+                                        print(f"Wszystkie {total_pallets} palet dla zlecenia PSD {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                        # Assuming there might be a PSD report type later, for now we can just log it or trigger 'raport_palet_psd'
+                                        trigger_office_print(plan_id, typ_raportu='raport_palet_psd')
+                                        open_report_url = f"/warehouse-v2/psd/raport_palet?plan_id={plan_id}&autoprint=1"
                 except Exception as pe:
                     print(f"Błąd przy próbie automatycznego wydruku raportu biurowego: {pe}")
                 # --- KONIEC AUTO DRUKOWANIA RAPORTU ---
 
-                return True, "Paleta została przyjęta do magazynu."
+                msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport z produkcji został otwarty do wydruku." if is_last_pallet else "Paleta została przyjęta do magazynu."
+                return AcceptanceResult(True, msg, open_report_url=open_report_url, plan_id=plan_id, is_last_pallet=is_last_pallet)
             except Exception as e:
                 return False, str(e)
             finally:

@@ -203,15 +203,23 @@
             })
                 .then(function (response) {
                     if (response.ok) {
-                        notify('Potwierdzono paletę', 'success');
-                        var item = form.closest('li');
-                        if (item) {
-                            item.remove();
-                        }
-                        global.setTimeout(function () {
-                            global.location.href = global.location.href;
-                        }, 300);
-                        return;
+                        return response.json().catch(function () { return {}; }).then(function (data) {
+                            notify((data && data.message) ? data.message : 'Potwierdzono paletę', 'success');
+                            if (data && data.open_report_url) {
+                                var win = global.open(data.open_report_url, '_blank');
+                                if (!win || win.closed || typeof win.closed === 'undefined') {
+                                    global.location.href = data.open_report_url;
+                                    return;
+                                }
+                            }
+                            var item = form.closest('li');
+                            if (item) {
+                                item.remove();
+                            }
+                            global.setTimeout(function () {
+                                global.location.href = global.location.href;
+                            }, 300);
+                        });
                     }
 
                     if (attempts < maxAttempts) {
@@ -274,6 +282,14 @@
         var timeoutId = global.setTimeout(restoreOverlays, 3000);
         global.sessionStorage.setItem('skip_open_stop', '1');
 
+        if (typeof global.workowaniePopulatePrinter === 'function') {
+            try {
+                global.workowaniePopulatePrinter(form);
+            } catch (printerErr) {
+                console.warn('workowaniePopulatePrinter failed', printerErr);
+            }
+        }
+
         fetch(form.getAttribute('action'), {
             method: 'POST',
             body: new FormData(form),
@@ -334,7 +350,7 @@
         }
 
         var config = document.getElementById('dashboard-config');
-        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+        var linia = (config && config.getAttribute('data-linia')) || global.LINIA || (new URLSearchParams(global.location.search)).get('linia') || 'PSD';
 
         fetch('/api/edytuj_palete_ajax', {
             method: 'POST',

@@ -268,33 +268,12 @@ class DeliveryCommandService:
                         item['unitsPerPallet'] = qty if pkg_form == 'packaging' else 0
 
                         source_pallet_id = item.get('sourcePalletId')
-                        if not source_pallet_id and nr_palety:
-                            cursor.execute(f"SELECT id FROM {target_table} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                            p_exist = cursor.fetchone()
-                            if p_exist:
-                                source_pallet_id = p_exist['id']
-                                item['sourcePalletId'] = source_pallet_id
-
                         if source_pallet_id:
                             # AKTUALIZACJA ISTNIEJĄCEJ PALETY PRZY EDYCJI
-                            # Jeśli pozycja została już przyjęta na konkretną lokalizację, NIE wolno jej cofać do OCZEKUJĄCE
-                            if item.get('accepted'):
-                                target_loc = item.get('lokalizacja_przyjecia') or item.get('targetSpot')
-                                if target_loc and target_loc != 'OCZEKUJĄCE':
-                                    cursor.execute(
-                                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                                        (product_name, qty, target_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
-                                    )
-                                else:
-                                    cursor.execute(
-                                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                                        (product_name, qty, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
-                                    )
-                            else:
-                                cursor.execute(
-                                    f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                                    (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
-                                )
+                            cursor.execute(
+                                f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
+                                (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                            )
                             pallet_id = source_pallet_id
                         else:
                             # DB INSERT DLA NOWEJ PALETY
@@ -306,8 +285,8 @@ class DeliveryCommandService:
                             item['sourcePalletId'] = pallet_id
                             
                             cursor.execute(
-                                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
-                                (pallet_id, nr_palety, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
+                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
+                                (pallet_id, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
                             )
                         
                         # Trigger physical printing for this pallet in the background!
@@ -378,6 +357,9 @@ class DeliveryCommandService:
                     def toggle_block(item_list, blocked_val):
                         if not item_list: return
                         for it in item_list:
+                            # Paleta matka przy wydaniu częściowym NIE powinna być blokowana
+                            if it.get('is_partial') and blocked_val == 1:
+                                continue
                             pid = it.get('sourcePalletId')
                             pnr = it.get('sourcePalletNo') or it.get('nr_palety')
                             if not pid and not pnr: continue
@@ -401,9 +383,10 @@ class DeliveryCommandService:
                         toggle_block(old_items, 0)
                     
                     # 2. Nakładamy blokadę na aktualne palety w dokumencie (ponieważ status to nie zakończone/anulowane)
-                    if status not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE']:
+                    if str(status).upper() not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE', 'COMPLETED']:
                         toggle_block(items, 1)
 
+                partial_print_items = []
                 # 2. Handle item resolution and keep transfer in OCZEKUJE for internal transfers
                 if not is_external_reception:
                     table_sur = get_table_name('magazyn_surowce', linia)
@@ -552,34 +535,116 @@ class DeliveryCommandService:
                             item['scannedType'] = p_type
                             if p_nr:
                                 item['sourcePalletNo'] = p_nr
-                                item['nr_palety'] = p_nr
                             item['accepted'] = False
 
-                            # Block the pallet so it cannot be moved or used elsewhere while pending in transfer
-                            for l_code in ['PSD', 'AGRO']:
-                                for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                            # Sprawdzamy czy to wydanie częściowe (część wagi z palety matki)
+                            source_stock = float(p_res.get('stan_magazynowy') or 0.0)
+                            transfer_qty = 0.0
+                            if item.get('packageForm') == 'packaging' or p_type == 'opakowanie':
+                                transfer_qty = float(item.get('unitsPerPallet') or item.get('quantity') or 0.0)
+                            else:
+                                transfer_qty = float(item.get('netWeight') or item.get('quantity') or 0.0)
+
+                            is_already_split = bool(item.get('is_partial') and item.get('nr_palety') and item.get('nr_palety') != p_nr)
+                            is_partial_transfer = (not is_already_split) and (0 < transfer_qty < source_stock)
+
+                            if is_partial_transfer:
+                                # --- WYDANIE CZĘŚCIOWE Z PALETY MATKI ---
+                                remaining_stock = round(source_stock - transfer_qty, 3)
+                                child_sscc = generate_pallet_id(linia, type=p_type)
+
+                                # 1. Pomniejszamy paletę matkę i NIE blokujemy jej
+                                tbl_sur = get_table_name('magazyn_surowce', linia)
+                                tbl_opk = get_table_name('magazyn_opakowania', linia)
+                                tbl_got = get_table_name('magazyn_palety', linia)
+
+                                if p_type == 'surowiec':
+                                    cursor.execute(f"UPDATE {tbl_sur} SET stan_magazynowy = %s, is_blocked = 0, updated_at = NOW() WHERE id = %s", (remaining_stock, p_id))
+                                elif p_type == 'opakowanie':
+                                    cursor.execute(f"UPDATE {tbl_opk} SET stan_magazynowy = %s, is_blocked = 0 WHERE id = %s", (remaining_stock, p_id))
+                                elif p_type == 'dodatek':
+                                    cursor.execute("UPDATE magazyn_dodatki SET stan_magazynowy = %s, is_blocked = 0 WHERE id = %s", (remaining_stock, p_id))
+                                elif p_type == 'wyrob_gotowy':
+                                    cursor.execute(f"UPDATE {tbl_got} SET waga_netto = %s, is_blocked = 0 WHERE id = %s", (remaining_stock, p_id))
+
+                                # 2. Historia i ruch magazynowy dla palety matki
+                                cursor.execute(
+                                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
+                                    "VALUES (%s, %s, %s, %s, 'WYDANIE_PRZESUNIECIE_CZESCIOWE', %s, %s, %s, %s)",
+                                    (p_id, p_nr, linia, p_type, source_spot, source_spot,
+                                     f"Wydanie częściowe {transfer_qty} kg na zlecenie przesunięcia {order_ref}. Na palecie matce pozostaje {remaining_stock} kg.", login)
+                                )
+                                table_ruch = get_table_name('magazyn_ruch', linia)
+                                cursor.execute(
+                                    f"INSERT INTO {table_ruch} (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, lokalizacja, status, autor_login, autor_data, komentarz) "
+                                    f"VALUES (%s, %s, 'PRZESUNIECIE', %s, %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                                    (p_id, p_name, -transfer_qty, remaining_stock, source_spot, login, f"Wydanie częściowe ze zlecenia przesunięcia {order_ref}")
+                                )
+
+                                # 3. Konfiguracja pozycji przesunięcia z NOWYM SSCC
+                                item['nr_palety'] = child_sscc
+                                item['sourcePalletNo'] = p_nr
+                                item['sourcePalletId'] = p_id
+                                item['is_partial'] = True
+                                item['motherWeightBefore'] = source_stock
+                                item['motherWeightAfter'] = remaining_stock
+                                item['netWeight'] = transfer_qty
+
+                                cursor.execute(
+                                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
+                                    "VALUES (%s, %s, %s, %s, 'UTWORZENIE_Z_PODZIALU', %s, %s, %s, %s)",
+                                    (None, child_sscc, linia, p_type, source_spot, lokalizacja_do,
+                                     f"Utworzono z wydania częściowego palety matki {p_nr} ({transfer_qty} kg) dla zlecenia przesunięcia {order_ref}", login)
+                                )
+
+                                # 4. Kolejkowanie wydruku DWÓCH etykiet: paleta matka (pomniejszona) + nowe przesunięcie (nowy SSCC)
+                                partial_print_items.append({
+                                    'mother_sscc': p_nr,
+                                    'child_sscc': child_sscc,
+                                    'product_name': p_name,
+                                    'mother_weight': remaining_stock,
+                                    'child_weight': transfer_qty,
+                                    'nr_partii': item.get('nr_partii'),
+                                    'data_produkcji': item.get('data_produkcji'),
+                                    'data_przydatnosci': item.get('data_przydatnosci'),
+                                    'linia': linia,
+                                    'p_type': p_type
+                                })
+                            elif is_already_split:
+                                # Paleta już wcześniej podzielona w tym dokumencie, zachowujemy nr_palety (child_sscc) i is_partial
+                                item['is_partial'] = True
+                                if p_id:
+                                    for l_code in ['PSD', 'AGRO']:
+                                        for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (p_id,))
+                                            except Exception: pass
+                                        try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 0 WHERE id = %s", (p_id,))
+                                        except Exception: pass
+                            else:
+                                # --- PEŁNE PRZESUNIĘCIE CAŁEJ PALETY ---
+                                if p_nr:
+                                    item['nr_palety'] = p_nr
+                                item['is_partial'] = False
+
+                                # Ustawiamy status OCZEKUJĄCE oraz blokadę całej palety do czasu przyjęcia
+                                for l_code in ['PSD', 'AGRO']:
+                                    for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
+                                        if p_id:
+                                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE id = %s", (p_id,))
+                                            except Exception: pass
+                                        if p_nr:
+                                            try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE nr_palety = %s", (p_nr,))
+                                            except Exception: pass
                                     if p_id:
-                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE id = %s", (p_id,))
+                                        try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE id = %s", (p_id,))
                                         except Exception: pass
                                     if p_nr:
-                                        try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
+                                        try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE nr_palety = %s", (p_nr,))
                                         except Exception: pass
-                                if p_id:
-                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE id = %s", (p_id,))
-                                    except Exception: pass
-                                if p_nr:
-                                    try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1 WHERE nr_palety = %s", (p_nr,))
-                                    except Exception: pass
 
-                            # Prevent duplicate history entry for the same order_ref and pallet upon re-saving/editing
-                            cursor.execute(
-                                "SELECT id FROM palety_historia WHERE (paleta_id = %s OR nr_palety = %s) AND komentarz LIKE %s LIMIT 1",
-                                (p_id, p_nr or '-', f"%{order_ref}%")
-                            )
-                            if not cursor.fetchone():
                                 cursor.execute(
-                                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
-                                    (p_id, p_nr, linia, p_type, source_spot, lokalizacja_do, f"Zlecenie przesunięcia {order_ref}: {source_spot} -> {lokalizacja_do}", login)
+                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s, %s)",
+                                    (p_id, linia, p_type, source_spot, lokalizacja_do, f"Zlecenie przesunięcia {order_ref}: {source_spot} -> {lokalizacja_do}", login)
                                 )
                         updated_items.append(item)
                     
@@ -608,6 +673,84 @@ class DeliveryCommandService:
                           lokalizacja_z, lokalizacja_do))
 
                 conn.commit()
+
+                # Automatyczny wydruk etykiet dla wydań częściowych (matka + dziecko)
+                if partial_print_items:
+                    try:
+                        from app.services.print_server import PrintServer
+                        ps = PrintServer()
+
+                        # Wybór drukarki
+                        target_ip = data.get('printer_ip')
+                        target_name = data.get('printer_name')
+                        if not target_ip and data.get('printer_id'):
+                            cursor.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s", (data['printer_id'],))
+                            p_row = cursor.fetchone()
+                            if p_row:
+                                target_ip = p_row.get('ip')
+                                target_name = p_row.get('nazwa')
+
+                        if not target_ip:
+                            cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 ORDER BY id ASC LIMIT 1")
+                            p_row = cursor.fetchone()
+                            if p_row:
+                                target_ip = p_row.get('ip')
+                                target_name = p_row.get('nazwa')
+
+                        print_bridge_payloads = []
+                        for p_info in partial_print_items:
+                            zpl_m = ps.build_finished_product_label_zpl({
+                                'nr_palety': p_info['mother_sscc'],
+                                'nazwa': p_info['product_name'],
+                                'ilosc': p_info['mother_weight'],
+                                'partia': p_info['nr_partii'] or '---',
+                                'data': str(p_info['data_produkcji'] or ''),
+                                'termin': str(p_info['data_przydatnosci'] or ''),
+                                'linia': p_info['linia'],
+                                'is_surowiec': (p_info['p_type'] == 'surowiec'),
+                                'typ': p_info['p_type']
+                            }, copies=2)
+
+                            zpl_c = ps.build_finished_product_label_zpl({
+                                'nr_palety': p_info['child_sscc'],
+                                'nazwa': p_info['product_name'],
+                                'ilosc': p_info['child_weight'],
+                                'partia': p_info['nr_partii'] or '---',
+                                'data': str(p_info['data_produkcji'] or ''),
+                                'termin': str(p_info['data_przydatnosci'] or ''),
+                                'linia': p_info['linia'],
+                                'is_surowiec': (p_info['p_type'] == 'surowiec'),
+                                'typ': p_info['p_type']
+                            }, copies=2)
+
+                            cursor.execute("""
+                                INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)
+                                VALUES (%s, %s, %s, 'PENDING')
+                            """, (target_ip, target_name, zpl_m))
+                            cursor.execute("""
+                                INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)
+                                VALUES (%s, %s, %s, 'PENDING')
+                            """, (target_ip, target_name, zpl_c))
+
+                            print_bridge_payloads.append({'drukarka': target_name, 'ip': target_ip, 'dane': zpl_m, 'copies': 2})
+                            print_bridge_payloads.append({'drukarka': target_name, 'ip': target_ip, 'dane': zpl_c, 'copies': 2})
+
+                        conn.commit()
+
+                        if print_bridge_payloads:
+                            import threading
+                            def _send_bridge(payloads):
+                                import requests, time
+                                for p in payloads:
+                                    try:
+                                        requests.post("http://127.0.0.1:3001/drukuj-zpl", json=p, timeout=4)
+                                    except Exception:
+                                        pass
+                                    time.sleep(0.1)
+                            threading.Thread(target=_send_bridge, args=(print_bridge_payloads,), daemon=True).start()
+                    except Exception as pe:
+                        print(f"Błąd wydruku etykiet przy podziale: {pe}")
+
                 return True, dostawa_id
             except Exception as e:
                 return False, str(e)
@@ -649,10 +792,32 @@ class DeliveryCommandService:
                                 (None, linia, 'mix', curr_loc, orig_loc, f"Anulowanie przesunięcia {order_ref}", login)
                             )
 
-                # Zwalnianie blokad na paletach przy anulowaniu
+                # Zwalnianie blokad na paletach przy anulowaniu i przywracanie wagi dla wydań częściowych
                 for it in items:
                     pid = it.get('sourcePalletId')
                     pnr = it.get('sourcePalletNo') or it.get('nr_palety')
+
+                    # Przywracanie wagi palecie matce jeśli było to wydanie częściowe
+                    if it.get('is_partial'):
+                        p_type = it.get('scannedType') or 'surowiec'
+                        qty_to_restore = float(it.get('netWeight') or it.get('quantity') or 0.0)
+                        if qty_to_restore > 0 and (pid or pnr):
+                            if p_type == 'surowiec':
+                                cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = stan_magazynowy + %s, is_blocked = 0, updated_at = NOW() WHERE (id = %s OR nr_palety = %s)", (qty_to_restore, pid, pnr))
+                            elif p_type == 'opakowanie':
+                                cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = stan_magazynowy + %s, is_blocked = 0 WHERE (id = %s OR nr_palety = %s)", (qty_to_restore, pid, pnr))
+                            elif p_type == 'dodatek':
+                                cursor.execute("UPDATE magazyn_dodatki SET stan_magazynowy = stan_magazynowy + %s, is_blocked = 0 WHERE (id = %s OR nr_palety = %s)", (qty_to_restore, pid, pnr))
+                            elif p_type == 'wyrob_gotowy':
+                                table_got = get_table_name('magazyn_palety', linia)
+                                cursor.execute(f"UPDATE {table_got} SET waga_netto = waga_netto + %s, is_blocked = 0 WHERE (id = %s OR nr_palety = %s)", (qty_to_restore, pid, pnr))
+
+                            cursor.execute(
+                                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
+                                "VALUES (%s, %s, %s, %s, 'ANULOWANIE_PODZIALU', %s, %s, %s, %s)",
+                                (pid, pnr, linia, p_type, it.get('sourceSpot'), it.get('sourceSpot'), f"Zwrot wagi {qty_to_restore} kg z anulowanego przesunięcia częściowego {order_ref}", login)
+                            )
+
                     if not pid and not pnr: continue
                     for l_code in ['PSD', 'AGRO']:
                         for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:

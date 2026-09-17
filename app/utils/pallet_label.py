@@ -191,6 +191,12 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     
     Supports dictionary cursors (used in daemon) and tuple cursors (used in Flask).
     """
+    if isinstance(paleta_id, str):
+        clean_code = paleta_id.strip().upper()
+        if clean_code.startswith('AGR'):
+            linia = 'AGRO'
+        elif clean_code.startswith('PSD'):
+            linia = 'PSD'
     linia = str(linia).upper()
     table_plan = get_table_name('plan_produkcji', linia)
     table_pal = get_table_name('palety_workowanie', linia)
@@ -222,7 +228,13 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     params = []
     where_parts = []
 
-    if source_table == 'magazyn':
+    is_code = isinstance(paleta_id, str) and not str(paleta_id).isdigit()
+    if is_code:
+        where_parts.append("(mp.nr_palety = %s OR pw.nr_palety = %s)")
+        params.extend([paleta_id, paleta_id])
+        order_clause = "ORDER BY mp.id DESC"
+        order_params = []
+    elif source_table == 'magazyn':
         where_parts.append("mp.id = %s")
         params.append(paleta_id)
         order_clause = ""
@@ -395,12 +407,14 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
     lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else f"(SELECT COUNT(*) FROM {table_pal} sub WHERE sub.plan_id = pw.plan_id AND sub.id <= pw.id) AS nr_palety_lp"
 
     partia_select_pw = "pp.nr_partii" if has_nr_partii else "NULL AS nr_partii"
+    where_pw = "WHERE pw.nr_palety = %s" if is_code else "WHERE pw.id = %s"
     cursor.execute(f"""
         SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, {przyd_plan_select}) AS data_przydatnosci
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id
-        WHERE pw.id = %s
+        {where_pw}
+        ORDER BY pw.id DESC LIMIT 1
     """, (paleta_id,))
     pw_row = cursor.fetchone()
     

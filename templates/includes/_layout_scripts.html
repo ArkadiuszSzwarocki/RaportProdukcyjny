@@ -513,33 +513,117 @@
             existingOverlay.remove();
         }
 
+        var isZasypOrCzyszczenie = (sekcja === 'Zasyp' || sekcja === 'Czyszczenie');
+
         var overlay = document.createElement('div');
         overlay.id = 'czyszczenie-packaging-overlay';
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
         var panel = document.createElement('div');
-        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+        panel.style.cssText = 'width:100%;max-width:440px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:20px;';
 
         var title = document.createElement('h3');
         title.textContent = 'Rozpoczęcie Czyszczenia';
-        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.2rem;color:#102a43;font-weight:700;';
 
         var subtitle = document.createElement('p');
-        subtitle.textContent = (sekcja === 'Zasyp') ? 'Podaj kod SSCC (jeśli dotyczy):' : 'Wybierz w co pakujesz produkt:';
-        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+        subtitle.textContent = isZasypOrCzyszczenie ? 'Podaj dane palety i ilość surowca do zużycia:' : 'Wybierz w co pakujesz produkt:';
+        subtitle.style.cssText = 'margin:0 0 14px 0;color:#334e68;font-size:0.92rem;';
 
-        // SSCC Input (Zasyp)
+        // SSCC & Waga Container (Zasyp / Czyszczenie)
         var ssccContainer = document.createElement('div');
         var ssccInput = document.createElement('input');
-        if (sekcja === 'Zasyp') {
+        var wagaInput = document.createElement('input');
+        var palletInfoBox = document.createElement('div');
+        var availablePalletStock = null;
+
+        if (isZasypOrCzyszczenie) {
             var ssccLabel = document.createElement('label');
-            ssccLabel.textContent = 'Zeskanuj kod SSCC:';
+            ssccLabel.textContent = 'Zeskanuj lub wpisz kod SSCC palety:';
             ssccLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;font-weight:bold;';
+
             ssccInput.type = 'text';
             ssccInput.name = 'skan_sscc';
-            ssccInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+            ssccInput.placeholder = 'np. SUR000001788508286570';
+            ssccInput.autocomplete = 'off';
+            ssccInput.style.cssText = 'width:100%;padding:9px 12px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:6px;font-size:1rem;box-sizing:border-box;';
+
+            palletInfoBox.style.cssText = 'display:none;margin-bottom:12px;padding:8px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4;';
+
+            var wagaLabel = document.createElement('label');
+            wagaLabel.textContent = 'Ilość do zużycia z palety (kg):';
+            wagaLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;font-weight:bold;';
+
+            wagaInput.type = 'number';
+            wagaInput.step = 'any';
+            wagaInput.min = '0.1';
+            wagaInput.name = 'skan_sscc_waga';
+            wagaInput.placeholder = 'np. 300';
+            wagaInput.style.cssText = 'width:100%;padding:9px 12px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:4px;font-size:1rem;box-sizing:border-box;';
+
+            var wagaHelp = document.createElement('small');
+            wagaHelp.textContent = 'Wpisana ilość zostanie odjęta z magazynu po uruchomieniu zlecenia.';
+            wagaHelp.style.cssText = 'display:block;color:#627d98;font-size:0.78rem;margin-bottom:14px;';
+
             ssccContainer.appendChild(ssccLabel);
             ssccContainer.appendChild(ssccInput);
+            ssccContainer.appendChild(palletInfoBox);
+            ssccContainer.appendChild(wagaLabel);
+            ssccContainer.appendChild(wagaInput);
+            ssccContainer.appendChild(wagaHelp);
+
+            var lookupTimeout = null;
+            function checkPalletStock() {
+                var code = ssccInput.value.trim();
+                if (!code || code.length < 5) {
+                    palletInfoBox.style.display = 'none';
+                    availablePalletStock = null;
+                    return;
+                }
+
+                var liniaInput = (form && form.querySelector('input[name="linia"]')) ? form.querySelector('input[name="linia"]').value : (window.LINIA || 'AGRO');
+
+                palletInfoBox.style.display = 'block';
+                palletInfoBox.style.background = '#f0f4f8';
+                palletInfoBox.style.color = '#486581';
+                palletInfoBox.style.border = '1px solid #d9e2ec';
+                palletInfoBox.textContent = '🔍 Sprawdzanie palety w magazynie...';
+
+                fetch('/api/zuzycie/lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, linia: liniaInput })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.pallet) {
+                        var p = data.pallet;
+                        availablePalletStock = parseFloat(p.amount) || 0;
+                        palletInfoBox.style.background = '#e0f2fe';
+                        palletInfoBox.style.color = '#0369a1';
+                        palletInfoBox.style.border = '1px solid #bae6fd';
+                        palletInfoBox.innerHTML = '<strong>' + (p.productName || 'Paleta') + '</strong><br>' +
+                            'Stan na palecie: <strong>' + availablePalletStock + ' ' + (p.unit || 'kg') + '</strong>' +
+                            (p.location ? ' | Lok: <strong>' + p.location + '</strong>' : '');
+                    } else {
+                        availablePalletStock = null;
+                        palletInfoBox.style.background = '#fffbeb';
+                        palletInfoBox.style.color = '#b45309';
+                        palletInfoBox.style.border = '1px solid #fef3c7';
+                        palletInfoBox.textContent = '⚠️ ' + (data.message || 'Nie znaleziono palety w magazynie. Upewnij się, że kod jest poprawny.');
+                    }
+                })
+                .catch(function(err) {
+                    console.warn('Pallet lookup error:', err);
+                    palletInfoBox.style.display = 'none';
+                });
+            }
+
+            ssccInput.addEventListener('input', function() {
+                clearTimeout(lookupTimeout);
+                lookupTimeout = setTimeout(checkPalletStock, 400);
+            });
+            ssccInput.addEventListener('change', checkPalletStock);
         }
 
         // Typ pakowania (Workowanie)
@@ -626,13 +710,54 @@
         confirmBtn.textContent = 'Zatwierdź';
         confirmBtn.style.cssText = 'padding:8px 16px;border:none;background:#102a43;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
         confirmBtn.addEventListener('click', function() {
-            if (sekcja === 'Zasyp' && (!ssccInput.value || ssccInput.value.trim() === '')) {
-                errorBox.textContent = 'Proszę zeskanować kod SSCC!';
-                errorBox.style.display = 'block';
-                return;
-            }
+            errorBox.style.display = 'none';
 
-            if (sekcja !== 'Zasyp') {
+            if (isZasypOrCzyszczenie) {
+                var ssccVal = ssccInput.value.trim();
+                var wagaVal = wagaInput.value.trim();
+
+                if (!ssccVal) {
+                    var proceedWithout = window.confirm('Nie podano kodu SSCC palety.\n\nCzy na pewno chcesz uruchomić czyszczenie bez pobierania surowca z palety?');
+                    if (!proceedWithout) {
+                        ssccInput.focus();
+                        return;
+                    }
+                } else {
+                    if (!wagaVal || isNaN(parseFloat(wagaVal)) || parseFloat(wagaVal) <= 0) {
+                        errorBox.textContent = 'Podaj poprawną ilość kg do zużycia z palety!';
+                        errorBox.style.display = 'block';
+                        wagaInput.focus();
+                        return;
+                    }
+
+                    var parsedWaga = parseFloat(wagaVal);
+                    if (availablePalletStock !== null && parsedWaga > availablePalletStock) {
+                        var proceedExcess = window.confirm(
+                            '⚠️ UWAGA: Wpisana ilość (' + parsedWaga + ' kg) przekracza stan magazynowy palety (' + availablePalletStock + ' kg)!\n\nCzy na pewno chcesz kontynuować?'
+                        );
+                        if (!proceedExcess) {
+                            wagaInput.focus();
+                            return;
+                        }
+                    }
+                }
+
+                if (ssccVal) {
+                    var hiddenSscc = document.createElement('input');
+                    hiddenSscc.type = 'hidden';
+                    hiddenSscc.name = 'skan_sscc';
+                    hiddenSscc.value = ssccVal;
+                    form.appendChild(hiddenSscc);
+
+                    if (wagaVal) {
+                        var hiddenWaga = document.createElement('input');
+                        hiddenWaga.type = 'hidden';
+                        hiddenWaga.name = 'skan_sscc_waga';
+                        hiddenWaga.value = wagaVal;
+                        form.appendChild(hiddenWaga);
+                    }
+                }
+            } else {
                 if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
                     errorBox.textContent = 'Wybierz folię przed startem w workach!';
                     errorBox.style.display = 'block';
@@ -643,15 +768,7 @@
                     errorBox.style.display = 'block';
                     return;
                 }
-            }
 
-            if (sekcja === 'Zasyp') {
-                var hiddenSscc = document.createElement('input');
-                hiddenSscc.type = 'hidden';
-                hiddenSscc.name = 'skan_sscc';
-                hiddenSscc.value = ssccInput.value.trim();
-                form.appendChild(hiddenSscc);
-            } else {
                 var hiddenTyp = document.createElement('input');
                 hiddenTyp.type = 'hidden';
                 hiddenTyp.name = 'typ_pakowania';
@@ -690,7 +807,7 @@
 
         panel.appendChild(title);
         panel.appendChild(subtitle);
-        if (sekcja === 'Zasyp') {
+        if (isZasypOrCzyszczenie) {
             panel.appendChild(ssccContainer);
         } else {
             panel.appendChild(typSelect);
@@ -703,7 +820,7 @@
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
 
-        if (sekcja === 'Zasyp') {
+        if (isZasypOrCzyszczenie) {
             setTimeout(function() { ssccInput.focus(); }, 100);
         }
     }
@@ -859,7 +976,9 @@
             if (!confirmed) return false;
         }
 
-        if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
+        var isCzyszczenieOrder = (productName || '').toLowerCase().includes('czyszczenie') ||
+                                 (sekcja || '').toLowerCase().includes('czyszczenie');
+        if (isCzyszczenieOrder) {
             openCzyszczeniePackagingModal(form, planId, sekcja);
             return false;
         }

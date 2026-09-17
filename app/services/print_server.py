@@ -112,6 +112,9 @@ class PrintServer:
             alt_base = f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}".rstrip('/')
             _append(alt_base)
 
+        for local_cand in ('http://127.0.0.1:3001', 'https://127.0.0.1:3001', 'http://localhost:3001', 'https://localhost:3001'):
+            _append(local_cand)
+
         return candidates
 
     def _request_bridge(self, method: str, path: str, **kwargs):
@@ -637,16 +640,72 @@ class PrintServer:
         
         return self.queue_print_job(zpl, self.printer_ip, self.printer_name)
 
+    def send_direct_tcp(self, zpl: str, ip: str, port: int = 9100, timeout: float = 3.0) -> tuple[bool, str]:
+        """Bezpośrednia wysyłka surowego ZPL przez TCP socket na port drukarki (np. 9100)."""
+        if not ip or str(ip).strip().upper() == 'USB' or str(ip).strip().lower().startswith('usb'):
+            return False, "Brak adresu IP (drukarka USB / Spooler)"
+        
+        target_ip = str(ip).strip()
+        target_port = port
+        if ':' in target_ip:
+            parts = target_ip.split(':', 1)
+            target_ip = parts[0].strip()
+            try:
+                target_port = int(parts[1].strip())
+            except Exception:
+                target_port = port
+
+        try:
+            data = zpl if zpl.endswith('\n') else (zpl + '\r\n')
+            with socket.create_connection((target_ip, target_port), timeout=timeout) as sock:
+                sock.sendall(data.encode('utf-8'))
+                time.sleep(0.1)
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+            return True, f"Wydrukowano bezpośrednio przez TCP ({target_ip}:{target_port})"
+        except Exception as tcp_err:
+            return False, f"Błąd bezpośredniego połączenia TCP ({target_ip}:{target_port}): {tcp_err}"
+
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         target_name = payload.get('drukarka') or self.printer_name
         target_ip = payload.get('ip') or self.printer_ip
+        zpl_data = payload.get('dane') or payload.get('zpl') or ''
         target_hint = f"drukarka={target_name}, ip={target_ip}"
+        
         ok, message, bridge_unreachable = self._send_to_bridge_once(payload, target_hint)
         if ok:
             return True, message
 
+        # FALLBACK: Jeśli mostek nie odpowiada lub zwrócił błąd, a mamy adres IP drukarki sieciowej
+        if target_ip and str(target_ip).strip().upper() != 'USB' and not str(target_ip).strip().lower().startswith('usb') and zpl_data:
+            direct_ok, direct_msg = self.send_direct_tcp(zpl_data, str(target_ip).strip())
+            if direct_ok:
+                return True, f"{direct_msg} [fallback z mostka]"
+
+        # Jeśli drukarka to USB / Windows Spooler, próba win32print na maszynach Windows
+        if os.name == 'nt' and (str(target_ip).strip().upper() == 'USB' or (target_name and 'usb' in str(target_name).lower())):
+            try:
+                import win32print
+                win_target = target_name if (target_name and target_name.upper() != 'USB') else win32print.GetDefaultPrinter()
+                hprinter = win32print.OpenPrinter(win_target)
+                try:
+                    doc_info = ("Etykieta ZPL", None, "RAW")
+                    win32print.StartDocPrinter(hprinter, 1, doc_info)
+                    win32print.StartPagePrinter(hprinter)
+                    data_win = zpl_data if zpl_data.endswith('\n') else (zpl_data + '\r\n')
+                    win32print.WritePrinter(hprinter, data_win.encode('utf-8'))
+                    win32print.EndPagePrinter(hprinter)
+                    win32print.EndDocPrinter(hprinter)
+                    return True, f"Wysłano przez Windows Spooler do {win_target}"
+                finally:
+                    win32print.ClosePrinter(hprinter)
+            except Exception as win_err:
+                pass
+
         if bridge_unreachable:
-            return False, f"{message} | Mostek (printer microservice) nie odpowiada."
+            return False, f"{message} | Mostek nie odpowiada, bezpośredni fallback TCP nie powiódł się."
 
         return False, message
 

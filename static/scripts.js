@@ -348,13 +348,6 @@
         if (hasBlockingOverlayOpen()) return true;
         if (hasActiveSearch()) return true;
 
-        // Check for any expanded rows in tables (this indicates user is looking at details)
-        const visibleDetails = Array.from(document.querySelectorAll('.expanded-content.show, .details-row')).some(el => {
-            if (el.classList.contains('expanded-content')) return true;
-            return el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
-        });
-        if (visibleDetails) return true;
-
         // Wyłącz auto-refresh na stronach z formularzami oraz widokach 3D WebGL
         try {
             if (document.getElementById('wh3dCanvasStage') || document.querySelector('.wh3d-root')) return true;
@@ -370,12 +363,31 @@
     let lastKnownSystemState = null;
     let smartPollingTimer = null;
 
+    function getCurrentLine() {
+        try {
+            const config = document.getElementById('dashboard-config');
+            if (config && config.getAttribute('data-linia')) {
+                return String(config.getAttribute('data-linia')).trim().toUpperCase();
+            }
+            if (window.LINIA) {
+                return String(window.LINIA).trim().toUpperCase();
+            }
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('linia')) {
+                return String(params.get('linia')).trim().toUpperCase();
+            }
+            return 'PSD';
+        } catch (e) {
+            return 'PSD';
+        }
+    }
+
     async function checkSystemState() {
         if (partialReloadInFlight) return;
         if (shouldSkipAutoRefresh()) return;
 
         try {
-            const linia = getCurrentSection() || 'PSD';
+            const linia = getCurrentLine();
             const resp = await fetch(`/api/system_state?linia=${encodeURIComponent(linia)}`, { 
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -398,7 +410,15 @@
                     newState.last_move !== lastKnownSystemState.last_move ||
                     newState.last_plan !== lastKnownSystemState.last_plan ||
                     newState.last_notif !== lastKnownSystemState.last_notif ||
-                    newState.last_station_change !== lastKnownSystemState.last_station_change
+                    newState.last_station_change !== lastKnownSystemState.last_station_change ||
+                    newState.last_pallet_agro !== lastKnownSystemState.last_pallet_agro ||
+                    newState.last_pallet_psd !== lastKnownSystemState.last_pallet_psd ||
+                    newState.last_pallet !== lastKnownSystemState.last_pallet ||
+                    newState.last_zasyp_agro !== lastKnownSystemState.last_zasyp_agro ||
+                    newState.last_zasyp_psd !== lastKnownSystemState.last_zasyp_psd ||
+                    newState.last_dosypka_agro !== lastKnownSystemState.last_dosypka_agro ||
+                    newState.last_dosypka_psd !== lastKnownSystemState.last_dosypka_psd ||
+                    newState.state_dosypka !== lastKnownSystemState.state_dosypka
                 );
 
                 if (changed) {

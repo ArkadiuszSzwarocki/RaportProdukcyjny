@@ -90,7 +90,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     'bigbag' in str(produkt or '').lower()
                 )
 
-                if is_czyszczenie and linia == 'AGRO':
+                if is_czyszczenie:
                     typ_pakowania = request.form.get('typ_pakowania')
                     if typ_pakowania == 'Worki':
                         nowe_opakowanie_id = request.form.get('opakowanie_id')
@@ -101,11 +101,103 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             flash('❌ Start zablokowany: dla Czyszczenia w workach musisz wybrać rolkę folii.', 'error')
                             return redirect(bezpieczny_powrot())
 
-                    if sekcja == 'Zasyp':
-                        skan_sscc = request.form.get('skan_sscc')
-                        if skan_sscc and skan_sscc.strip():
-                            cursor.execute(f"UPDATE {table_plan} SET skan_sscc=%s WHERE id=%s", (skan_sscc.strip(), id))
-                            current_app.logger.info('Ustawiono skan_sscc %s dla zlecenia %s', skan_sscc.strip(), id)
+                    skan_sscc = request.form.get('skan_sscc')
+                    skan_sscc_waga = request.form.get('skan_sscc_waga')
+                    if skan_sscc and skan_sscc.strip():
+                        sscc_clean = skan_sscc.strip()
+                        waga_val = None
+                        if skan_sscc_waga:
+                            try:
+                                waga_val = float(str(skan_sscc_waga).replace(',', '.').strip())
+                            except (ValueError, TypeError):
+                                waga_val = None
+
+                        if waga_val is not None and waga_val > 0:
+                            cursor.execute(
+                                f"UPDATE {table_plan} SET skan_sscc=%s, tonaz_rzeczywisty=%s WHERE id=%s",
+                                (sscc_clean, waga_val, id)
+                            )
+                            current_app.logger.info(
+                                'Ustawiono skan_sscc %s oraz tonaz_rzeczywisty %s dla zlecenia %s',
+                                sscc_clean, waga_val, id
+                            )
+
+                            # Automatyczne odliczenie kg z palety w magazynie
+                            try:
+                                from app.services.production_consumption_service import ProductionConsumptionService
+                                pallet_info = ProductionConsumptionService.lookup_pallet_for_consumption(sscc_clean, preferred_line=linia)
+                                worker_login = session.get('login') or session.get('username') or session.get('user') or 'produkcja'
+
+                                if pallet_info:
+                                    p_id = pallet_info['id']
+                                    p_type = pallet_info.get('type')
+                                    p_linia = pallet_info.get('linia') or linia
+                                    p_name = pallet_info.get('productName') or 'Surowiec'
+                                    p_loc = pallet_info.get('location') or ''
+                                    p_amount = float(pallet_info.get('amount') or 0.0)
+                                    new_amount = max(0.0, round(p_amount - waga_val, 2))
+
+                                    if p_type == 'Surowiec':
+                                        cursor.execute("UPDATE magazyn_surowce SET stan_magazynowy = %s WHERE id = %s", (new_amount, p_id))
+                                        
+                                        cursor.execute(
+                                            """INSERT INTO magazyn_ruch 
+                                            (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, lokalizacja)
+                                            VALUES (%s, %s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s, NOW(), %s, %s, %s)""",
+                                            (p_id, p_name, -waga_val, new_amount, worker_login, worker_login, id, f"Zużycie na czyszczenie (zlecenie #{id})", p_loc)
+                                        )
+
+                                        cursor.execute(
+                                            """INSERT INTO palety_historia 
+                                            (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                                            VALUES (%s, %s, %s, 'surowiec', 'ROZLICZENIE_CZYSZCZENIA', %s, %s, %s, %s)""",
+                                            (p_id, sscc_clean, p_linia, p_loc, p_loc, f"Pobrano {waga_val} kg na czyszczenie w zleceniu #{id}. Na palecie pozostaje {new_amount} kg.", worker_login)
+                                        )
+                                        flash(f"✅ Pobrano {waga_val} kg z palety {sscc_clean} ({p_name}). Na stanie magazynowym pozostało: {new_amount} kg.", "info")
+
+                                    elif p_type in ('Wyrób gotowy', 'Paleta'):
+                                        t_pal = get_table_name('magazyn_palety', p_linia)
+                                        cursor.execute(f"UPDATE {t_pal} SET waga_netto = %s WHERE id = %s", (new_amount, p_id))
+
+                                        cursor.execute(
+                                            """INSERT INTO palety_historia 
+                                            (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                                            VALUES (%s, %s, %s, 'wyrób gotowy', 'ROZLICZENIE_CZYSZCZENIA', %s, %s, %s, %s)""",
+                                            (p_id, sscc_clean, p_linia, p_loc, p_loc, f"Pobrano {waga_val} kg na czyszczenie w zleceniu #{id}. Na palecie pozostaje {new_amount} kg.", worker_login)
+                                        )
+                                        flash(f"✅ Pobrano {waga_val} kg z palety {sscc_clean}. Na stanie magazynowym pozostało: {new_amount} kg.", "info")
+                                    else:
+                                        current_app.logger.warning("Nieobsługiwany typ palety do rozliczenia czyszczenia: %s", p_type)
+                                else:
+                                    # Fallback bezpośrednio w magazyn_surowce
+                                    cursor.execute("SELECT id, nazwa, stan_magazynowy, lokalizacja FROM magazyn_surowce WHERE nr_palety = %s LIMIT 1", (sscc_clean,))
+                                    s_row = cursor.fetchone()
+                                    if s_row:
+                                        s_id, s_nazwa, s_stan, s_loc = s_row
+                                        new_amount = max(0.0, round(float(s_stan or 0.0) - waga_val, 2))
+                                        cursor.execute("UPDATE magazyn_surowce SET stan_magazynowy = %s WHERE id = %s", (new_amount, s_id))
+
+                                        cursor.execute(
+                                            """INSERT INTO magazyn_ruch 
+                                            (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, lokalizacja)
+                                            VALUES (%s, %s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s, NOW(), %s, %s, %s)""",
+                                            (s_id, s_nazwa, -waga_val, new_amount, worker_login, worker_login, id, f"Zużycie na czyszczenie (zlecenie #{id})", s_loc)
+                                        )
+
+                                        cursor.execute(
+                                            """INSERT INTO palety_historia 
+                                            (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
+                                            VALUES (%s, %s, %s, 'surowiec', 'ROZLICZENIE_CZYSZCZENIA', %s, %s, %s, %s)""",
+                                            (s_id, sscc_clean, linia, s_loc, s_loc, f"Pobrano {waga_val} kg na czyszczenie w zleceniu #{id}. Na palecie pozostaje {new_amount} kg.", worker_login)
+                                        )
+                                        flash(f"✅ Pobrano {waga_val} kg z palety {sscc_clean} ({s_nazwa}). Na stanie magazynowym pozostało: {new_amount} kg.", "info")
+                                    else:
+                                        flash(f"⚠️ Zapisano kod SSCC {sscc_clean}, lecz nie odnaleziono palety w magazynie do odliczenia wagi.", "warning")
+                            except Exception as ex_deduct:
+                                current_app.logger.error("Błąd podczas rozliczania palety do czyszczenia: %s", ex_deduct, exc_info=True)
+                        else:
+                            cursor.execute(f"UPDATE {table_plan} SET skan_sscc=%s WHERE id=%s", (sscc_clean, id))
+                            current_app.logger.info('Ustawiono skan_sscc %s dla zlecenia %s (bez podania wagi)', sscc_clean, id)
 
                 if sekcja in ('Workowanie', 'Czyszczenie'):
                     cursor.execute(

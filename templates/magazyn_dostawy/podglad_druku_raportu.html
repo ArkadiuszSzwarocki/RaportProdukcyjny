@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <title>Wydruk Raportów Magazynowych — {{ date_str }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 10mm 10mm 12mm 10mm;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 20px;
+            font-size: 10px;
+            line-height: 1.25;
+            background: #f8fafc;
+        }
+        .no-print-bar {
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .print-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 14px;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .doc-page {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 18px 22px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            page-break-after: always;
+            break-after: page;
+        }
+        .doc-page:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
+            margin-bottom: 0;
+        }
+        .header-box {
+            border: 2px solid #0f172a;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            background: #f8fafc;
+        }
+        .doc-title {
+            font-size: 15px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 4px 0;
+            color: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .doc-meta {
+            font-size: 9.5px;
+            color: #475569;
+        }
+        .grid-meta {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #cbd5e1;
+        }
+        .meta-item {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 4px 6px;
+        }
+        .meta-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: 1px;
+        }
+        .meta-val {
+            font-size: 9.5px;
+            font-weight: 800;
+            color: #0f172a;
+            word-break: break-word;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            font-size: 9px;
+        }
+        .report-table th, .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 4px 5px;
+        }
+        .report-table th {
+            background: #f1f5f9;
+            color: #334155;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 8px;
+            letter-spacing: 0.3px;
+        }
+        .report-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        .section-title {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 12px 0 6px 0;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #0f172a;
+        }
+        .footer-note {
+            margin-top: 10px;
+            font-size: 8px;
+            color: #64748b;
+            text-align: center;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 6px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .no-print-bar {
+                display: none !important;
+            }
+            .doc-page {
+                border: none;
+                box-shadow: none;
+                padding: 0;
+                margin-bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Pasek sterowania drukiem (niewidoczny na wydruku) -->
+    <div class="no-print-bar">
+        <div>
+            <h2 style="margin: 0; font-size: 16px; font-weight: 900; color: #0f172a;">
+                🖨️ Gotowe do wydruku (Dzień: {{ date_str }})
+            </h2>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                Dokumenty zostały sformatowane w układzie A4. Każdy załącznik rozpocznie się na nowej stronie.
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="print-btn" onclick="window.print()">
+                <span>🖨️</span> Drukuj teraz (Ctrl+P)
+            </button>
+            <button onclick="window.close()" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; color: #475569;">
+                Zamknij
+            </button>
+        </div>
+    </div>
+
+    <!-- 1. GŁÓWNY RAPORT ZBIORCZY (JEŚLI WYBRANO) -->
+    {% if include_summary %}
+    <div class="doc-page">
+        <div class="header-box">
+            <div class="doc-title">
+                <span>DZIENNY RAPORT ZBIORCZY: PRZYJĘCIA PZ I PRZESUNIĘCIA MM</span>
+                <span style="color: #2563eb;">{{ date_str }}</span>
+            </div>
+            <div class="doc-meta">
+                System RaportProdukcyjny (Magazyn Centralny) • Zbiorczy rejestr operacji
+            </div>
+            <div class="grid-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Dostawy PZ</div>
+                    <div class="meta-val" style="color: #1e3a8a;">{{ deliveries|length }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Przesunięcia MM</div>
+                    <div class="meta-val" style="color: #065f46;">{{ transfers|length }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Palety łącznie</div>
+                    <div class="meta-val" style="color: #0284c7;">
+                        {% set total_p = namespace(count=0) %}
+                        {% for d in deliveries %}{% set total_p.count = total_p.count + d.items_count %}{% endfor %}
+                        {% for t in transfers %}{% set total_p.count = total_p.count + t.items_count %}{% endfor %}
+                        {{ total_p.count }} szt.
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Status</div>
+                    <div class="meta-val" style="color: #166534;">ZATWIERDZONY</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">1. Rejestr Wszystkich Pozycji (PZ i MM razem)</div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 20px; text-align: center;">Lp</th>
+                    <th style="width: 30px; text-align: center;">Typ</th>
+                    <th style="width: 70px; text-align: center;">Dokument</th>
+                    <th style="text-align: left;">Produkt / Surowiec</th>
+                    <th style="width: 85px; text-align: center;">Nr Palety</th>
+                    <th style="width: 60px; text-align: center;">Partia</th>
+                    <th style="width: 65px; text-align: right;">Ilość</th>
+                    <th style="width: 45px; text-align: center;">Skąd</th>
+                    <th style="width: 50px; text-align: center;">Dokąd</th>
+                    <th style="width: 55px; text-align: center;">Wydał</th>
+                    <th style="width: 55px; text-align: center;">Przyjął</th>
+                    <th style="width: 50px; text-align: center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set lp_c = namespace(val=1) %}
+                {% for d in deliveries %}
+                    {% for it in d.items %}
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">{{ lp_c.val }}</td>
+                        <td style="text-align: center;"><span style="font-weight: 800; color: #1e40af;">PZ</span></td>
+                        <td style="text-align: center; font-weight: 800;">{{ d.order_ref }}</td>
+                        <td><strong>{{ it.product_name }}</strong></td>
+                        <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
+                        <td style="text-align: center;">{{ it.nr_partii }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
+                        <td style="text-align: center;">{{ it.source_spot or d.source }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #1e40af;">{{ it.target_spot or d.destination }}</td>
+                        <td style="text-align: center;">{{ d.created_by }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #166534;">{{ d.accepted_by }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #166534;">{{ it.status }}</td>
+                    </tr>
+                    {% set lp_c.val = lp_c.val + 1 %}
+                    {% endfor %}
+                {% endfor %}
+                {% for t in transfers %}
+                    {% for it in t.items %}
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">{{ lp_c.val }}</td>
+                        <td style="text-align: center;"><span style="font-weight: 800; color: #166534;">MM</span></td>
+                        <td style="text-align: center; font-weight: 800;">{{ t.order_ref }}</td>
+                        <td><strong>{{ it.product_name }}</strong></td>
+                        <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
+                        <td style="text-align: center;">{{ it.nr_partii }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
+                        <td style="text-align: center;">{{ it.source_spot or t.source }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #1e40af;">{{ it.target_spot or t.destination }}</td>
+                        <td style="text-align: center;">{{ t.created_by }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #166534;">{{ t.accepted_by }}</td>
+                        <td style="text-align: center; font-weight: 700; color: #166534;">{{ it.status }}</td>
+                    </tr>
+                    {% set lp_c.val = lp_c.val + 1 %}
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="footer-note">
+            Strona 1 • Główny Raport Zbiorczy • Wygenerowano z systemu RaportProdukcyjny
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 2. POSZCZEGÓLNE DOSTAWY PZ -->
+    {% for d in deliveries %}
+    <div class="doc-page">
+        <div class="header-box" style="border-color: #1e3a8a;">
+            <div class="doc-title" style="color: #1e3a8a;">
+                <span>📦 PRZYJĘCIE ZEWNĘTRZNE (PZ): {{ d.order_ref }}</span>
+                <span style="font-size: 11px; color: #475569;">Data: {{ date_str }}</span>
+            </div>
+            <div class="grid-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Dostawca</div>
+                    <div class="meta-val">{{ d.source }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Lokalizacja docelowa</div>
+                    <div class="meta-val" style="color: #1e40af;">{{ d.destination }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Wprowadził</div>
+                    <div class="meta-val">{{ d.created_by }} ({{ d.created_str }})</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Przyjął / Zatwierdził</div>
+                    <div class="meta-val" style="color: #166534;">{{ d.accepted_by }} ({{ d.accepted_str }})</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
+            Pozycje dokumentu PZ ({{ d.items_count }} palet):
+        </div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 25px; text-align: center;">Lp</th>
+                    <th style="text-align: left;">Produkt</th>
+                    <th style="width: 90px; text-align: center;">Nr Palety</th>
+                    <th style="width: 80px; text-align: center;">Partia</th>
+                    <th style="width: 75px; text-align: center;">Data Prod.</th>
+                    <th style="width: 75px; text-align: center;">Data Ważn.</th>
+                    <th style="width: 85px; text-align: right;">Ilość</th>
+                    <th style="width: 70px; text-align: center;">Lokalizacja</th>
+                    <th style="width: 70px; text-align: center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in d.items %}
+                <tr>
+                    <td style="text-align: center;">{{ loop.index }}</td>
+                    <td><strong>{{ it.product_name }}</strong></td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
+                    <td style="text-align: center;">{{ it.nr_partii }}</td>
+                    <td style="text-align: center;">{{ it.data_produkcji }}</td>
+                    <td style="text-align: center;">{{ it.data_przydatnosci }}</td>
+                    <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
+                    <td style="text-align: center; font-weight: 700; color: #1e40af;">{{ it.target_spot or d.destination }}</td>
+                    <td style="text-align: center; font-weight: 700; color: #166534;">{{ it.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="footer-note">
+            Dokument Przyjęcia Dostawy PZ • {{ d.order_ref }}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- 3. POSZCZEGÓLNE PRZESUNIĘCIA MM -->
+    {% for t in transfers %}
+    <div class="doc-page">
+        <div class="header-box" style="border-color: #065f46;">
+            <div class="doc-title" style="color: #065f46;">
+                <span>🔄 PRZESUNIĘCIE MAGAZYNOWE (MM): {{ t.order_ref }}</span>
+                <span style="font-size: 11px; color: #475569;">Data: {{ date_str }}</span>
+            </div>
+            <div class="grid-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Skąd (Źródło)</div>
+                    <div class="meta-val">{{ t.source }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Dokąd (Cel)</div>
+                    <div class="meta-val" style="color: #065f46;">{{ t.destination }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Wydał</div>
+                    <div class="meta-val">{{ t.created_by }} ({{ t.created_str }})</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Przyjął / Zatwierdził</div>
+                    <div class="meta-val" style="color: #166534;">{{ t.accepted_by }} ({{ t.accepted_str }})</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
+            Pozycje dokumentu MM ({{ t.items_count }} palet):
+        </div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 25px; text-align: center;">Lp</th>
+                    <th style="text-align: left;">Produkt</th>
+                    <th style="width: 90px; text-align: center;">Nr Palety</th>
+                    <th style="width: 80px; text-align: center;">Partia</th>
+                    <th style="width: 75px; text-align: center;">Data Prod.</th>
+                    <th style="width: 75px; text-align: center;">Data Ważn.</th>
+                    <th style="width: 85px; text-align: right;">Ilość</th>
+                    <th style="width: 70px; text-align: center;">Skąd</th>
+                    <th style="width: 70px; text-align: center;">Dokąd</th>
+                    <th style="width: 70px; text-align: center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in t.items %}
+                <tr>
+                    <td style="text-align: center;">{{ loop.index }}</td>
+                    <td><strong>{{ it.product_name }}</strong></td>
+                    <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
+                    <td style="text-align: center;">{{ it.nr_partii }}</td>
+                    <td style="text-align: center;">{{ it.data_produkcji }}</td>
+                    <td style="text-align: center;">{{ it.data_przydatnosci }}</td>
+                    <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
+                    <td style="text-align: center;">{{ it.source_spot or t.source }}</td>
+                    <td style="text-align: center; font-weight: 700; color: #065f46;">{{ it.target_spot or t.destination }}</td>
+                    <td style="text-align: center; font-weight: 700; color: #166534;">{{ it.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="footer-note">
+            Dokument Przesunięcia Magazynowego MM • {{ t.order_ref }}
+        </div>
+    </div>
+    {% endfor %}
+
+    <script>
+        {% if auto_print %}
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.print();
+            }, 350);
+        });
+        {% endif %}
+    </script>
+</body>
+</html>

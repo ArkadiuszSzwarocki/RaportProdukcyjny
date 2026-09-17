@@ -217,7 +217,7 @@ class ScannerService:
         table_plan = get_table_name('plan_produkcji', linia)
         
         select_clause = (
-            f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
+            f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
             f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
             f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci, "
             f"COALESCE(m.is_blocked, 0) AS is_blocked, '{linia}' AS linia "
@@ -261,7 +261,7 @@ class ScannerService:
 
         try:
             cur.execute(
-                select_clause + f"WHERE UPPER(COALESCE(m.lokalizacja, 'MGW01')) = %s AND COALESCE(m.waga_netto, 0) > 0 "
+                select_clause + f"WHERE UPPER(COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE')) = %s AND COALESCE(m.waga_netto, 0) > 0 "
                 "ORDER BY COALESCE(m.data_potwierdzenia, m.created_at) DESC, m.id DESC LIMIT 1",
                 (normalized_location,),
             )
@@ -577,7 +577,7 @@ class ScannerService:
                     ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
                     ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
                     ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
-                    ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
+                    ('magazyn_palety', 'waga_netto', 'produkt', 'Wyrób Gotowy', 'PAL', False, False, True),
                 ]
                 for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources_shelf:
                     table_name = get_table_name(base_table, linia)
@@ -636,7 +636,7 @@ class ScannerService:
             cur = conn.cursor(dictionary=True)
             inventory_sources = [
                 ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
-                ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
+                ('magazyn_palety', 'waga_netto', 'produkt', 'Wyrób Gotowy', 'PAL', False, False, True),
                 ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
                 ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
             ]
@@ -644,12 +644,26 @@ class ScannerService:
             for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                 table_name = get_table_name(base_table, linia)
                 try:
-                    sql = (
-                        f"SELECT id, {qty_col} AS ilosc, {name_col} AS nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
-                        f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                        f"data_produkcji, data_przydatnosci "
-                        f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} DESC, id DESC"
-                    )
+                    if base_table == 'magazyn_palety':
+                        plan_table = get_table_name('plan_produkcji', linia)
+                        sql = (
+                            f"SELECT m.id, m.{qty_col} AS ilosc, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(m.nr_palety, '') AS nr_palety, "
+                            f"COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, '') AS nr_partii, "
+                            f"COALESCE(m.data_produkcji, plan.data_produkcji, m.data_planu, plan.data_planu) AS data_produkcji, "
+                            f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
+                            f"FROM {table_name} m "
+                            f"LEFT JOIN {plan_table} plan ON m.plan_id = plan.id "
+                            f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.{qty_col} DESC, m.id DESC"
+                        )
+                    else:
+                        sql = (
+                            f"SELECT id, {qty_col} AS ilosc, {name_col} AS nazwa, COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} DESC, id DESC"
+                        )
                     cur.execute(sql, (normalized_for_lookup,))
                     rows = cur.fetchall()
                     for row in rows:
@@ -667,6 +681,7 @@ class ScannerService:
                             can_dispatch=can_dispatch,
                             can_split=can_split,
                             can_print_label=can_print,
+                            location_fallback='OCZEKUJĄCE',
                         ))
                 except Exception:
                     pass
@@ -887,7 +902,7 @@ class ScannerService:
                             can_dispatch=False,
                             can_split=False,
                             can_print_label=False,
-                            location_fallback='MGW01',
+                            location_fallback='OCZEKUJĄCE',
                         ))
 
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
@@ -953,7 +968,7 @@ class ScannerService:
                         can_dispatch=False,
                         can_split=False,
                         can_print_label=False,
-                        location_fallback='MGW01',
+                        location_fallback='OCZEKUJĄCE',
                     )
                     results.append(val)
                     if not is_sscc:
@@ -1011,7 +1026,7 @@ class ScannerService:
                         can_dispatch=False,
                         can_split=False,
                         can_print_label=False,
-                        location_fallback='MGW01',
+                        location_fallback='OCZEKUJĄCE',
                     )
                     results.append(val)
                     if not is_sscc:
@@ -1051,7 +1066,7 @@ class ScannerService:
                         can_dispatch=False,
                         can_split=False,
                         can_print_label=False,
-                        location_fallback='MGW01',
+                        location_fallback='OCZEKUJĄCE',
                     )
             # 4) Sprawdzenie w magazyn_archiwum (dla zużytych/zarchiwizowanych palet)
             if not results and (is_sscc or is_partial_sscc or prefixed_type or numeric_id):
@@ -1489,64 +1504,143 @@ class ScannerService:
             except Exception:
                 pass
 
-            # 2. Definicja tabel i priorytetów wyszukiwania
-            tables = [
-                # Linia bieżąca
-                (get_table_name('magazyn_palety', linia), 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
-                (get_table_name('magazyn_surowce', linia), 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
-                (get_table_name('magazyn_opakowania', linia), 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
-                ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'DODATEK', 'DOD', False),
-                # Alternatywne linie i tabele produkcyjne
-                ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
-                ('magazyn_palety_agro', 'waga_netto', 'COALESCE(produkt, nazwa)', 'WYRÓB GOTOWY', 'PAL', True),
-                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
-                ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', False),
-                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
-                ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', False),
-                ('palety_agro', 'waga', 'produkt', 'WYRÓB GOTOWY', 'PAL', True),
-                ('palety_workowanie', 'waga', 'produkt', 'WYRÓB GOTOWY', 'PAL', True)
+            # 2. Definicja konfiguracji wyszukiwania dla etykiet
+            is_agro = (str(linia).upper() == 'AGRO') or (sscc_code and sscc_code.upper().startswith('AGR'))
+
+            # Finished goods: łączymy m z plan_produkcji, aby mieć nazwę, partię i termin przydatności
+            fg_configs = [
+                ('magazyn_palety_agro', 'plan_produkcji_agro', 'AGRO') if is_agro else ('magazyn_palety', 'plan_produkcji', 'PSD'),
+                ('magazyn_palety', 'plan_produkcji', 'PSD') if is_agro else ('magazyn_palety_agro', 'plan_produkcji_agro', 'AGRO'),
             ]
 
-            seen_tables = set()
+            prod_configs = [
+                ('palety_agro', 'plan_produkcji_agro', 'AGRO') if is_agro else ('palety_workowanie', 'plan_produkcji', 'PSD'),
+                ('palety_workowanie', 'plan_produkcji', 'PSD') if is_agro else ('palety_agro', 'plan_produkcji_agro', 'AGRO'),
+            ]
+
+            mat_configs = [
+                ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO') if is_agro else ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD'),
+                ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO') if is_agro else ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD'),
+                ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'DODATEK', 'DOD', linia),
+                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD') if is_agro else ('magazyn_surowce_agro', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO'),
+                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD') if is_agro else ('magazyn_opakowania_agro', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO'),
+            ]
 
             # KROK A: Szukaj BEZWZGLĘDNIE po SSCC / nr_palety (jeśli podano SSCC)
             if sscc_code:
-                for table_name, qty_col, name_col, typ_name, prefix, is_fg in tables:
-                    if table_name in seen_tables:
-                        continue
-                    seen_tables.add(table_name)
+                # 1. Wyroby gotowe w magazynie
+                for mag_tbl, plan_tbl, item_line in fg_configs:
                     try:
                         sql = (
-                            f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, "
-                            f"COALESCE(lokalizacja, '') as lokalizacja, COALESCE(nr_partii, '') as nr_partii, "
-                            f"data_produkcji, data_przydatnosci "
-                            f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY id DESC LIMIT 1"
+                            f"SELECT m.id, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"m.waga_netto AS stan_magazynowy, COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, '') AS nr_partii, "
+                            f"COALESCE(m.data_produkcji, plan.data_produkcji, m.data_planu, plan.data_planu) AS data_produkcji, "
+                            f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
+                            f"FROM {mag_tbl} m "
+                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id "
+                            f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.id DESC LIMIT 1"
                         )
                         cur.execute(sql, (sscc_code.upper(),))
                         row = cur.fetchone()
                         if row:
-                            return ScannerService._build_label_dict(cur, row, linia, prefix, typ_name, is_fg)
+                            return ScannerService._build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
 
-            # KROK B: Jeśli nie znaleziono po SSCC, sprawdź po ID w tabeli wskazanej przez pallet_type lub domyślnej
-            if numeric_id is not None:
-                seen_tables.clear()
-                for table_name, qty_col, name_col, typ_name, prefix, is_fg in tables:
-                    if table_name in seen_tables:
-                        continue
-                    seen_tables.add(table_name)
+                # 2. Palety produkcyjne niezatwierdzone
+                for prod_tbl, plan_tbl, item_line in prod_configs:
                     try:
                         sql = (
-                            f"SELECT id, nr_palety, {name_col} as nazwa, {qty_col} as stan_magazynowy, "
-                            f"COALESCE(lokalizacja, '') as lokalizacja, COALESCE(nr_partii, '') as nr_partii, "
+                            f"SELECT p.id, p.nr_palety, COALESCE(plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"p.waga AS stan_magazynowy, 'PRODUKCJA' AS lokalizacja, "
+                            f"COALESCE(plan.nr_partii, '') AS nr_partii, "
+                            f"COALESCE(plan.data_produkcji, plan.data_planu, p.data_dodania) AS data_produkcji, "
+                            f"plan.termin_przydatnosci AS data_przydatnosci "
+                            f"FROM {prod_tbl} p "
+                            f"LEFT JOIN {plan_tbl} plan ON p.plan_id = plan.id "
+                            f"WHERE UPPER(COALESCE(p.nr_palety, '')) = %s ORDER BY p.id DESC LIMIT 1"
+                        )
+                        cur.execute(sql, (sscc_code.upper(),))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
+                    except Exception:
+                        pass
+
+                # 3. Surowce, opakowania, dodatki
+                for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
+                    try:
+                        sql = (
+                            f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
+                            f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(nr_partii, '') AS nr_partii, "
                             f"data_produkcji, data_przydatnosci "
-                            f"FROM {table_name} WHERE id = %s LIMIT 1"
+                            f"FROM {mat_tbl} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY id DESC LIMIT 1"
+                        )
+                        cur.execute(sql, (sscc_code.upper(),))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, item_line, prefix, typ_name, False)
+                    except Exception:
+                        pass
+
+            # KROK B: Jeśli nie znaleziono po SSCC, sprawdź po ID liczbowym
+            if numeric_id is not None:
+                # 1. Wyroby gotowe
+                for mag_tbl, plan_tbl, item_line in fg_configs:
+                    try:
+                        sql = (
+                            f"SELECT m.id, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"m.waga_netto AS stan_magazynowy, COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, '') AS nr_partii, "
+                            f"COALESCE(m.data_produkcji, plan.data_produkcji, m.data_planu, plan.data_planu) AS data_produkcji, "
+                            f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
+                            f"FROM {mag_tbl} m "
+                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id "
+                            f"WHERE m.id = %s LIMIT 1"
                         )
                         cur.execute(sql, (numeric_id,))
                         row = cur.fetchone()
                         if row:
-                            return ScannerService._build_label_dict(cur, row, linia, prefix, typ_name, is_fg)
+                            return ScannerService._build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
+                    except Exception:
+                        pass
+
+                # 2. Surowce, opakowania, dodatki
+                for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
+                    try:
+                        sql = (
+                            f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
+                            f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(nr_partii, '') AS nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {mat_tbl} WHERE id = %s LIMIT 1"
+                        )
+                        cur.execute(sql, (numeric_id,))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, item_line, prefix, typ_name, False)
+                    except Exception:
+                        pass
+
+                # 3. Palety produkcyjne
+                for prod_tbl, plan_tbl, item_line in prod_configs:
+                    try:
+                        sql = (
+                            f"SELECT p.id, p.nr_palety, COALESCE(plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"p.waga AS stan_magazynowy, 'PRODUKCJA' AS lokalizacja, "
+                            f"COALESCE(plan.nr_partii, '') AS nr_partii, "
+                            f"COALESCE(plan.data_produkcji, plan.data_planu, p.data_dodania) AS data_produkcji, "
+                            f"plan.termin_przydatnosci AS data_przydatnosci "
+                            f"FROM {prod_tbl} p "
+                            f"LEFT JOIN {plan_tbl} plan ON p.plan_id = plan.id "
+                            f"WHERE p.id = %s LIMIT 1"
+                        )
+                        cur.execute(sql, (numeric_id,))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerService._build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
 
@@ -1571,11 +1665,30 @@ class ScannerService:
                 if prod_tank:
                     row['lokalizacja'] = prod_tank
 
+        lokalizacja = str(row.get('lokalizacja') or 'OCZEKUJĄCE').strip()
+        if not lokalizacja:
+            lokalizacja = 'OCZEKUJĄCE'
+
         dp = row.get('data_produkcji')
         dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))
 
         dz = row.get('data_przydatnosci')
-        dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '---')
+        dz_str = ''
+        if dz:
+            if hasattr(dz, 'strftime'):
+                dz_str = dz.strftime('%Y-%m-%d')
+            else:
+                dz_str = str(dz).strip()
+                match = re.search(r'^(\d+)\s*mies', dz_str, re.IGNORECASE)
+                if match and dp:
+                    try:
+                        months = int(match.group(1))
+                        dp_date = dp if hasattr(dp, 'strftime') else datetime.strptime(str(dp_str)[:10], '%Y-%m-%d').date()
+                        dz_str = (dp_date + relativedelta(months=months)).strftime('%Y-%m-%d')
+                    except Exception:
+                        pass
+        if not dz_str:
+            dz_str = '---'
 
         jednostka = 'szt.' if typ_name == 'OPAKOWANIE' else 'kg'
 
@@ -1585,7 +1698,7 @@ class ScannerService:
             'sscc': nr_palety,
             'nazwa': row.get('nazwa') or 'Brak nazwy',
             'ilosc': qty,
-            'lokalizacja': row.get('lokalizacja') or '',
+            'lokalizacja': lokalizacja,
             'partia': row.get('nr_partii') or '---',
             'nr_partii': row.get('nr_partii') or '---',
             'data_produkcji': dp_str,
@@ -1596,7 +1709,7 @@ class ScannerService:
             'typ': typ_name,
             'inventory_type': typ_name,
             'is_finished_product': is_fg,
-            'qr_data': f"{nr_palety}|{row.get('lokalizacja') or ''}|{row.get('nazwa') or ''}"
+            'qr_data': f"{nr_palety}|{lokalizacja}|{row.get('nazwa') or ''}"
         }
 
 
@@ -1625,11 +1738,13 @@ def _normalize_lookup_item(
     can_dispatch: bool,
     can_split: bool,
     can_print_label: bool,
-    location_fallback: str = '',
+    location_fallback: str = 'OCZEKUJĄCE',
 ) -> dict:
     qty = float(row.get('ilosc', row.get('stan_magazynowy', 0)) or 0)
     is_used_up = qty <= 0
-    raw_location = str(row.get('lokalizacja') or location_fallback or '').strip().upper()
+    raw_location = str(row.get('lokalizacja') or location_fallback or 'OCZEKUJĄCE').strip().upper()
+    if not raw_location:
+        raw_location = 'OCZEKUJĄCE'
     location = f"ZUZYTA (ostatnio: {raw_location})" if (is_used_up and raw_location and not raw_location.startswith('ZUZY')) else raw_location
 
     dp = row.get('data_produkcji')

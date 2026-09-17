@@ -50,6 +50,12 @@ function submitAcceptWG() {
     }).then(r => r.json()).then(res => {
         if (res.success) {
             performSilentRefresh(); closeModal('modalWG');
+            if (res.open_report_url) {
+                var win = window.open(res.open_report_url, '_blank');
+                if (!win || win.closed || typeof win.closed === 'undefined') {
+                    window.location.href = res.open_report_url;
+                }
+            }
         } else {
             AppDialog.alert(res.error || 'Błąd zapisu');
         }

@@ -17,9 +17,8 @@ import threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
-from email.header import Header
 from email import encoders
-from typing import List, Optional, Tuple, Dict, Any, Set, Union
+from typing import List, Optional, Tuple, Dict, Any, Set
 from datetime import datetime
 
 from app.core.database import get_db_connection
@@ -31,6 +30,16 @@ class OsipReportEmailService:
     """Obsługa wysyłki raportów dostaw, przesunięć MM i transferów z dedykowanego konta pocztowego."""
 
     OSIP_LOCATION_KEYWORDS = ('OSIP', 'OS01', 'OS02', 'OS03', 'OS04', 'OS05', 'OS06', 'OS07', 'OS08', 'OS09', 'W_TRANZYCIE_OSIP')
+    ALLOWED_CENTRAL_WAREHOUSE_LOCATIONS = (
+        'MP01', 'MPO1',
+        'BFMP01', 'BF_MP01',
+        'BFMS01', 'BF_MS01',
+        'MS01',
+        'PSD', 'PSD01',
+        'MGW01', 'MGW02',
+        'MOP01', 'MO01',
+        'MDO01', 'MD01', 'MDM01'
+    )
     
     _active_dispatches: Set[str] = set()
     _sent_daily_dates: Set[str] = set()
@@ -38,6 +47,62 @@ class OsipReportEmailService:
 
     def __init__(self, settings_repo: Optional[OsipEmailSettingsRepository] = None):
         self.settings_repo = settings_repo or OsipEmailSettingsRepository()
+
+    @classmethod
+    def is_allowed_central_warehouse_location(cls, loc: Optional[str]) -> bool:
+        """
+        Sprawdza czy lokalizacja należy do ściśle dozwolonych stref Magazynu Centralnego:
+        - regały: R + cyfry (np. R010101, R020102, R090103 itp.), RR + cyfry, lub 4-8 cyfr (np. 010102)
+        - bufory i strefy: MP01, BFMP01 (BF_MP01), BFMS01 (BF_MS01), MS01, PSD, PSD01, MGW01, MGW02, MOP01, MDO01 (MD01, MDM01)
+        """
+        if not loc:
+            return False
+        clean_raw = str(loc).strip()
+        if not clean_raw:
+            return False
+        parts = [p.strip() for p in re.split(r'[,;/|]+', clean_raw) if p.strip()]
+        for p in parts:
+            clean = re.sub(r'[^A-Z0-9]', '', p.upper())
+            if not clean:
+                continue
+            if re.match(r'^RR?\d{1,8}$', clean) or re.match(r'^\d{4,8}$', clean) or re.match(r'^REGAL\d{1,8}$', clean):
+                return True
+            clean_allowed = {re.sub(r'[^A-Z0-9]', '', z) for z in cls.ALLOWED_CENTRAL_WAREHOUSE_LOCATIONS}
+            if clean in clean_allowed:
+                return True
+        return False
+
+    @classmethod
+    def is_allowed_central_transfer(cls, source: Optional[str], target: Optional[str]) -> bool:
+        """
+        Sprawdza czy przesunięcie odbywa się wyłącznie w obrębie dozwolonych lokalizacji Magazynu Centralnego.
+        Dozwolone są regały oraz bufory: MP01, BFMP01, BFMS01, MS01, PSD, PSD01, MGW01, MGW02, MOP01, MDO01.
+        Wyklucza ruchy z/do OSIP, produkcji (BB, MZ, KO itp.) oraz innych nieautoryzowanych stref.
+        """
+        src_clean = str(source or '').strip()
+        tgt_clean = str(target or '').strip()
+
+        if not src_clean and not tgt_clean:
+            return False
+
+        if cls.is_osip_involved(src_clean, tgt_clean):
+            return False
+
+        src_allowed = cls.is_allowed_central_warehouse_location(src_clean)
+        tgt_allowed = cls.is_allowed_central_warehouse_location(tgt_clean)
+
+        neutral_keywords = {'WIELE', 'MAGAZYN', 'CENTRALA', 'MAGAZYNCENTRALNY', 'CENTRALNY', ''}
+        src_norm = re.sub(r'[^A-Z0-9]', '', src_clean.upper())
+        tgt_norm = re.sub(r'[^A-Z0-9]', '', tgt_clean.upper())
+
+        if src_allowed and tgt_allowed:
+            return True
+        if src_allowed and (tgt_norm in neutral_keywords or not tgt_clean):
+            return True
+        if tgt_allowed and (src_norm in neutral_keywords or not src_clean):
+            return True
+
+        return False
 
     @classmethod
     def _is_osip_location(cls, loc: Optional[str]) -> bool:
@@ -77,144 +142,6 @@ class OsipReportEmailService:
     def is_destination_osip(cls, destination: Optional[str], items: Optional[List[Dict[str, Any]]] = None) -> bool:
         """Kompatybilność wsteczna: sprawdza powiązanie z OSIP."""
         return cls.is_osip_involved(None, destination, items)
-
-    @classmethod
-    def _is_rack_location(cls, loc: Optional[str]) -> bool:
-        """Sprawdza czy lokalizacja jest regałem magazynowym (np. R010101, R090201, R220101)."""
-        if not loc:
-            return False
-        l = str(loc).strip().upper()
-        if re.match(r'^R\d{2}', l):
-            return True
-        if any(k in l for k in ('REGAL', 'REGAŁ', 'REG_')):
-            return True
-        return False
-
-    @classmethod
-    def _is_mp01_location(cls, loc: Optional[str]) -> bool:
-        """Sprawdza czy lokalizacja należy do strefy MP01 (podłoga, bufor lub regały R01-R03)."""
-        if not loc:
-            return False
-        l = str(loc).strip().upper()
-        if l in ('MP01', 'BF_MP01', 'BFMP01', 'PODŁOGA MP01', 'PODLOGA MP01'):
-            return True
-        if re.match(r'^R0[1-3]', l):
-            return True
-        return False
-
-    @classmethod
-    def _extract_item_qty(cls, item: Dict[str, Any]) -> float:
-        """
-        Pobiera rzeczywistą wagę/ilość pozycji, priorytetowo traktując wagę netto (netWeight),
-        np. po podziale palety lub ponownym przeważyceniu towaru.
-        """
-        if not isinstance(item, dict):
-            return 0.0
-
-        net_w = item.get('netWeight')
-        if net_w not in (None, '', 0, '0'):
-            try:
-                return float(net_w)
-            except (ValueError, TypeError):
-                pass
-
-        for k in ('quantity', 'unitsPerPallet', 'ilosc', 'loaded_qty', 'requested_qty'):
-            val = item.get(k)
-            if val not in (None, '', 0, '0'):
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    pass
-        return 0.0
-
-    @classmethod
-    def _is_production_zone(cls, loc: Optional[str]) -> bool:
-        """Sprawdza czy lokalizacja wskazuje na strefę produkcyjną."""
-        if not loc:
-            return False
-        l = str(loc).strip().upper()
-        if 'PRODUKCJA' in l or 'PROD' in l:
-            return True
-        if any(k in l for k in ('ZASYP', 'WORKOWANIE', 'STACJA', 'LP01')):
-            return True
-        return False
-
-    @classmethod
-    def is_production_movement(cls, dostawa: Dict[str, Any], items: Optional[List[Dict[str, Any]]] = None) -> bool:
-        """Weryfikuje czy dokument dotyczy przesunięcia z produkcji (odrzucany z raportu przesunięć magazynowych)."""
-        supplier = str(dostawa.get('supplier') or '').strip().upper()
-        if 'PRODUKCJA' in supplier or supplier.startswith('PROD'):
-            return True
-
-        src = str(dostawa.get('lokalizacja_z') or '').strip().upper()
-        if cls._is_production_zone(src):
-            return True
-
-        ref = str(dostawa.get('order_ref') or '').strip().lower()
-        if any(ref.startswith(k) for k in ('czyszczenie', 'zwrot ze stacji', 'zlecenie #', 'zlecenie_')):
-            return True
-
-        if items and isinstance(items, list):
-            valid_items = [it for it in items if isinstance(it, dict)]
-            if valid_items:
-                if any(it.get('is_return') for it in valid_items):
-                    return True
-                if all(cls._is_production_zone(it.get('sourceSpot') or it.get('source_location')) for it in valid_items):
-                    return True
-
-        return False
-
-    @classmethod
-    def is_internal_mp01_movement(cls, dostawa: Dict[str, Any], items: Optional[List[Dict[str, Any]]] = None) -> bool:
-        """
-        Weryfikuje czy ruch odbywa się wewnątrz strefy magazynowej / regałów (relokacje wewnętrzne odrzucane z MM):
-        - z regału na MP01 (np. R090201 -> MP01)
-        - z MP01 na regał (np. MP01 -> R010101)
-        - między regałami (np. R090401 -> R090201)
-        - z produkcji na MP01 (np. PRODUKCJA -> MP01)
-        - wewnątrz MP01 (np. podłoga MP01 -> bufor MP01)
-        """
-        src = str(dostawa.get('lokalizacja_z') or '').strip().upper()
-        dest = str(dostawa.get('lokalizacja_do') or '').strip().upper()
-
-        actual_sources = []
-        actual_targets = []
-        if items and isinstance(items, list):
-            for it in items:
-                if isinstance(it, dict):
-                    s = str(it.get('sourceSpot') or it.get('source_location') or it.get('lokalizacja_z') or '').strip().upper()
-                    t = str(it.get('lokalizacja_przyjecia') or it.get('targetSpot') or it.get('lokalizacja_do') or '').strip().upper()
-                    if s and s not in ('DOSTAWA', 'WIELE'):
-                        actual_sources.append(s)
-                    if t and t not in ('OCZEKUJĄCE', 'WIELE'):
-                        actual_targets.append(t)
-
-        # 1. Z produkcji na MP01
-        is_src_prod = cls._is_production_zone(src) or (actual_sources and any(cls._is_production_zone(s) for s in actual_sources))
-        is_dest_mp01 = cls._is_mp01_location(dest) or (actual_targets and any(cls._is_mp01_location(t) for t in actual_targets))
-        if is_src_prod and is_dest_mp01:
-            return True
-
-        # 2. Z regału na MP01 (np. R090201 -> MP01 lub WIELE(R090201) -> MP01)
-        is_src_rack = cls._is_rack_location(src) or (actual_sources and all(cls._is_rack_location(s) for s in actual_sources))
-        if is_src_rack and is_dest_mp01:
-            return True
-
-        # 3. Z MP01 na regał (np. MP01 -> R010101 lub MP01 -> WIELE(R...))
-        is_src_mp01 = cls._is_mp01_location(src) or (actual_sources and all(cls._is_mp01_location(s) for s in actual_sources))
-        is_dest_rack = cls._is_rack_location(dest) or (actual_targets and all(cls._is_rack_location(t) for t in actual_targets))
-        if is_src_mp01 and is_dest_rack:
-            return True
-
-        # 4. Wewnątrz MP01 (podłoga/bufor MP01 -> MP01)
-        if is_src_mp01 and is_dest_mp01:
-            return True
-
-        # 5. Między regałami
-        if is_src_rack and is_dest_rack:
-            return True
-
-        return False
 
     @classmethod
     def categorize_delivery_doc(cls, dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -374,7 +301,7 @@ class OsipReportEmailService:
         to_emails: List[str],
         subject: str,
         body_html: str,
-        attachments: Optional[List[Union[str, Tuple[str, str]]]] = None
+        attachments: Optional[List[str]] = None
     ) -> Tuple[bool, str]:
         """Wysyła e-mail przez dedykowane konto SMTP."""
         if not to_emails:
@@ -389,25 +316,24 @@ class OsipReportEmailService:
             sender_str = f"{config.sender_name} <{config.smtp_username}>" if config.sender_name else config.smtp_username
             msg['From'] = sender_str
             msg['To'] = ", ".join(to_emails)
-            msg['Subject'] = Header(subject, 'utf-8').encode()
+            msg['Subject'] = subject
 
             msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
             if attachments:
-                for item in attachments:
-                    if isinstance(item, (tuple, list)) and len(item) == 2:
-                        file_path, display_name = item[0], item[1]
+                for att in attachments:
+                    if isinstance(att, tuple) and len(att) == 2:
+                        file_path, filename = att
                     else:
-                        file_path = str(item)
-                        display_name = os.path.basename(file_path)
-
+                        file_path = att
+                        filename = os.path.basename(file_path) if file_path else "zalacznik.pdf"
                     if file_path and os.path.exists(file_path):
-                        clean_filename = re.sub(r'[\r\n/\\:*?"<>|]', '_', str(display_name))
                         with open(file_path, 'rb') as f:
-                            part = MIMEBase('application', 'pdf' if clean_filename.lower().endswith('.pdf') else 'octet-stream')
+                            subtype = 'pdf' if filename.lower().endswith('.pdf') else 'octet-stream'
+                            part = MIMEBase('application', subtype)
                             part.set_payload(f.read())
                         encoders.encode_base64(part)
-                        part.add_header('Content-Disposition', f'attachment; filename="{clean_filename}"')
+                        part.add_header('Content-Disposition', 'attachment', filename=filename)
                         msg.attach(part)
 
             if config.smtp_security == 'SSL' or config.smtp_port == 465:
@@ -657,7 +583,11 @@ class OsipReportEmailService:
             prod = it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
-            qty = self._extract_item_qty(it)
+            raw_qty = it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0
+            try:
+                qty = float(raw_qty)
+            except (ValueError, TypeError):
+                qty = 0.0
             unit = 'szt' if it.get('packageForm') == 'packaging' else 'kg'
             target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
             accepted = bool(it.get('accepted'))
@@ -804,15 +734,19 @@ class OsipReportEmailService:
         rows_html = ""
         summary_products = {}
         for idx, it in enumerate(items, start=1):
-            pname = it.get('productName') or 'Brak nazwy'
+            pname = it.get('product_name') or it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
             prod_date = it.get('data_produkcji') or '-'
             exp_date = it.get('data_przydatnosci') or '-'
-            qty = self._extract_item_qty(it)
-            unit = 'szt' if it.get('packageForm') == 'packaging' else 'kg'
-            source_spot = it.get('sourceSpot') or cat['source_value']
-            target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
+            raw_q = it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0
+            try:
+                qty = float(raw_q)
+            except Exception:
+                qty = 0.0
+            unit = it.get('unit') or ('szt' if it.get('packageForm') == 'packaging' else 'kg')
+            source_spot = it.get('source_spot') or it.get('sourceSpot') or cat['source_value']
+            target_spot = it.get('target_spot') or it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
             accepted = bool(it.get('accepted'))
             status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
             status_color = "#166534" if accepted else "#991b1b"
@@ -1074,25 +1008,20 @@ class OsipReportEmailService:
 
     def generate_transfer_pdf(self, transfer: Any) -> Optional[str]:
         """Generuje plik PDF do druku A4 dla zlecenia transferu OSIP."""
-        def _get_val(obj, key, default=None):
-            if isinstance(obj, dict):
-                return obj.get(key, default)
-            return getattr(obj, key, default)
-
-        code = _get_val(transfer, 'transfer_code', '') or f"TR-{_get_val(transfer, 'id', '')}"
-        source = _get_val(transfer, 'source_warehouse', '') or 'Centrala'
-        dest = _get_val(transfer, 'destination_warehouse', '') or 'OSIP'
-        created_by = _get_val(transfer, 'created_by', '') or _get_val(transfer, 'dispatched_by', '') or 'System'
-        completed_by = _get_val(transfer, 'completed_by', None) or _get_val(transfer, 'updated_by', None) or '-'
+        code = getattr(transfer, 'transfer_code', '') or f"TR-{getattr(transfer, 'id', '')}"
+        source = getattr(transfer, 'source_warehouse', '') or 'Centrala'
+        dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
+        created_by = getattr(transfer, 'created_by', '') or getattr(transfer, 'dispatched_by', '') or 'System'
+        completed_by = getattr(transfer, 'completed_by', None) or getattr(transfer, 'updated_by', None) or '-'
         
-        created_at = _get_val(transfer, 'created_at', None)
-        completed_at = _get_val(transfer, 'completed_at', None) or _get_val(transfer, 'updated_at', None) or created_at
+        created_at = getattr(transfer, 'created_at', None)
+        completed_at = getattr(transfer, 'completed_at', None) or getattr(transfer, 'updated_at', None) or created_at
         
         created_str = created_at.strftime('%Y-%m-%d %H:%M') if created_at and hasattr(created_at, 'strftime') else (str(created_at) if created_at else '-')
         completed_str = completed_at.strftime('%Y-%m-%d %H:%M') if completed_at and hasattr(completed_at, 'strftime') else (str(completed_at) if completed_at else '-')
         gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        raw_items = transfer.get('items', []) if isinstance(transfer, dict) else (getattr(transfer, 'items', []) or [])
+        raw_items = getattr(transfer, 'items', []) or []
         items = raw_items if isinstance(raw_items, list) else []
 
         total_qty = 0.0
@@ -1100,19 +1029,19 @@ class OsipReportEmailService:
         rows_html = ""
         summary_products = {}
         for idx, it in enumerate(items, start=1):
-            pname = _get_val(it, 'product_name') or _get_val(it, 'productName') or 'Brak nazwy'
-            nr_pal = _get_val(it, 'nr_palety') or '-'
-            batch = _get_val(it, 'batch_number') or _get_val(it, 'nr_partii') or '-'
-            prod_date = _get_val(it, 'production_date') or _get_val(it, 'data_produkcji') or '-'
-            exp_date = _get_val(it, 'expiry_date') or _get_val(it, 'data_przydatnosci') or '-'
-            raw_q = _get_val(it, 'loaded_qty') or _get_val(it, 'requested_qty') or _get_val(it, 'quantity') or 0
+            pname = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else '') or 'Brak nazwy'
+            nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '') or '-'
+            batch = getattr(it, 'batch_number', None) or (it.get('batch_number') if isinstance(it, dict) else '') or '-'
+            prod_date = getattr(it, 'production_date', None) or (it.get('production_date') if isinstance(it, dict) else '') or '-'
+            exp_date = getattr(it, 'expiry_date', None) or (it.get('expiry_date') if isinstance(it, dict) else '') or '-'
+            raw_q = getattr(it, 'loaded_qty', None) or getattr(it, 'requested_qty', None) or (it.get('loaded_qty') or it.get('requested_qty') if isinstance(it, dict) else 0)
             try:
                 qty = float(raw_q or 0)
             except Exception:
                 qty = 0.0
-            unit = _get_val(it, 'unit') or 'kg'
-            loc = _get_val(it, 'target_location') or _get_val(it, 'targetSpot') or dest
-            status_txt = _get_val(it, 'status') or 'RECEIVED'
+            unit = getattr(it, 'unit', None) or (it.get('unit') if isinstance(it, dict) else 'kg') or 'kg'
+            loc = getattr(it, 'target_location', None) or (it.get('target_location') if isinstance(it, dict) else '') or dest
+            status_txt = getattr(it, 'status', None) or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
             total_qty += qty
 
             sum_key = (pname, unit, status_txt)
@@ -1471,12 +1400,6 @@ class OsipReportEmailService:
             except Exception:
                 items = []
 
-            # Zgodnie z regułami biznesowymi: nie wysyłamy raportów z ruchów produkcyjnych ani wewnątrz MP01
-            if self.is_production_movement(dostawa, items):
-                return False, f"Dokument #{dostawa_id} dotyczy przesunięcia z produkcji — pominięto wysyłkę e-mail."
-            if self.is_internal_mp01_movement(dostawa, items):
-                return False, f"Dokument #{dostawa_id} dotyczy przesunięcia wewnątrz strefy MP01 — pominięto wysyłkę e-mail."
-
             config = self.settings_repo.get_settings()
             if not config.is_active:
                 return False, "Moduł wysyłki e-mail jest wyłączony w ustawieniach."
@@ -1528,9 +1451,11 @@ class OsipReportEmailService:
             with self._dispatch_lock:
                 self._active_dispatches.discard(dispatch_key)
 
-    def get_daily_warehouse_activity(self, date_str: str) -> Dict[str, Any]:
+    def get_daily_warehouse_activity(self, date_str: str, central_only: bool = True) -> Dict[str, Any]:
         """
         Pobiera wszystkie zrealizowane w danym dniu dostawy zewnętrzne oraz przesunięcia MM / transfery.
+        Domyślnie (central_only=True) filtruje i uwzględnia wyłącznie operacje Magazynu Centralnego,
+        wykluczając dostawy na OSIP oraz wywozy/transfery z i do OSIP.
         Zwraca ustrukturyzowane dane z wyraźnym podziałem na Dostawy oraz Przesunięcia.
         """
         conn = get_db_connection()
@@ -1552,48 +1477,47 @@ class OsipReportEmailService:
             """, (date_str, date_str, date_str))
             dostawy_rows = cursor.fetchall() or []
 
-            # 2. Pobierz transfery z osip_transfers
-            try:
-                cursor.execute("""
-                    SELECT * FROM osip_transfers 
-                    WHERE status = 'COMPLETED'
-                      AND (
-                          DATE(completed_at) = %s 
-                          OR (completed_at IS NULL AND DATE(created_at) = %s)
-                      )
-                    ORDER BY created_at ASC
-                """, (date_str, date_str))
-                osip_transfers_rows = cursor.fetchall() or []
+            # 2. Pobierz transfery z osip_transfers (tylko jeśli nie wymuszono wyłącznie Centrali)
+            if not central_only:
+                try:
+                    cursor.execute("""
+                        SELECT * FROM osip_transfers 
+                        WHERE status = 'COMPLETED'
+                          AND (
+                              DATE(completed_at) = %s 
+                              OR (completed_at IS NULL AND DATE(created_at) = %s)
+                          )
+                        ORDER BY created_at ASC
+                    """, (date_str, date_str))
+                    osip_transfers_rows = cursor.fetchall() or []
 
-                if osip_transfers_rows:
-                    t_ids = [t['id'] for t in osip_transfers_rows]
-                    placeholders = ','.join(['%s'] * len(t_ids))
-                    cursor.execute(f"""
-                        SELECT * FROM osip_transfer_items 
-                        WHERE transfer_id IN ({placeholders})
-                        ORDER BY id ASC
-                    """, tuple(t_ids))
-                    all_it_rows = cursor.fetchall() or []
-                    for it in all_it_rows:
-                        tid = it['transfer_id']
-                        if tid not in osip_items_by_transfer:
-                            osip_items_by_transfer[tid] = []
-                        osip_items_by_transfer[tid].append(it)
-            except Exception:
-                osip_transfers_rows = []
-            finally:
-                cursor.close()
+                    if osip_transfers_rows:
+                        t_ids = [t['id'] for t in osip_transfers_rows]
+                        placeholders = ','.join(['%s'] * len(t_ids))
+                        cursor.execute(f"""
+                            SELECT * FROM osip_transfer_items 
+                            WHERE transfer_id IN ({placeholders})
+                            ORDER BY id ASC
+                        """, tuple(t_ids))
+                        all_it_rows = cursor.fetchall() or []
+                        for it in all_it_rows:
+                            tid = it['transfer_id']
+                            if tid not in osip_items_by_transfer:
+                                osip_items_by_transfer[tid] = []
+                            osip_items_by_transfer[tid].append(it)
+                except Exception:
+                    osip_transfers_rows = []
         finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
             conn.close()
 
-        deliveries_wz = []
-        deliveries_centrala = []
-        transfers_mm = []
-        all_documents = []
-
-        deliveries_wz_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        deliveries_centrala_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        transfers_mm_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        deliveries = []
+        transfers = []
+        deliveries_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        transfers_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
         all_products_summary: Dict[Tuple[str, str], Dict[str, Any]] = {}
         total_pallets = 0
         total_qty_by_unit: Dict[str, float] = {}
@@ -1604,67 +1528,60 @@ class OsipReportEmailService:
                 raw_items = json.loads(d.get('items') or '[]')
             except Exception:
                 raw_items = []
-
-            # 1. Zgodnie z wymaganiami: wykluczamy przesunięcia z produkcji
-            if self.is_production_movement(d, raw_items):
-                continue
-
-            # 2. Wykluczamy przesunięcia wewnątrz MP01 (np. z podłogi MP01 na regały R01-R03) oraz z produkcji na MP01
-            if self.is_internal_mp01_movement(d, raw_items):
-                continue
-
+            
             cat = self.categorize_delivery_doc(d, raw_items)
-            supplier_val = str(d.get('supplier') or '').strip()
-            supplier_upper = supplier_val.upper()
-            src_upper = str(d.get('lokalizacja_z') or '').strip().upper()
-            ref_val = cat['ref']
-            clean_ref = re.sub(r'[\s/\\:*?"<>|]+', '_', str(ref_val)).strip('_')
 
-            # Podział na 3 typy wymagane przez użytkownika:
-            # - Przesunięcia MM (ruch międzymagazynowy bez dostawcy zewnętrznego)
-            # - Dostawa Centrala (dostawca to Centrala lub dostawa do/z Centrali)
-            # - Dostawy Zewnętrzne (WZ) (dostawy od zewnętrznych kontrahentów)
-            if not cat['is_external']:
-                doc_category = 'PRZESUNIECIE_MM'
-                doc_category_title = 'Przesunięcie MM'
-                pdf_filename = f"Przesuniecie_MM_{clean_ref}.pdf"
-            elif supplier_upper in ('CENTRALA', 'MAGAZYN CENTRALA', 'MAGAZYN CENTRALNY') or src_upper in ('CENTRALA', 'MAGAZYN CENTRALA'):
-                doc_category = 'DOSTAWA_CENTRALA'
-                doc_category_title = 'Dostawa Centrala'
-                pdf_filename = f"Dostawa_Centrala_{clean_ref}.pdf"
-            elif cat['doc_type_code'] == 'DOSTAWA_CENTRALA':
-                if not supplier_val or supplier_upper in ('CENTRALA', 'MAGAZYN CENTRALA', 'MAGAZYN CENTRALNY'):
-                    doc_category = 'DOSTAWA_CENTRALA'
-                    doc_category_title = 'Dostawa Centrala'
-                    pdf_filename = f"Dostawa_Centrala_{clean_ref}.pdf"
-                else:
-                    doc_category = 'DOSTAWA_ZEWNETRZNA'
-                    doc_category_title = 'Dostawa Zewnętrzna (WZ)'
-                    pdf_filename = f"Dostawa_WZ_{clean_ref}.pdf"
-            else:
-                doc_category = 'DOSTAWA_ZEWNETRZNA'
-                doc_category_title = 'Dostawa Zewnętrzna (WZ)'
-                pdf_filename = f"Dostawa_WZ_{clean_ref}.pdf"
+            # Filtrowanie OSIP dla raportu dziennego Magazynu Centralnego
+            if central_only:
+                is_osip = (
+                    cat.get('is_osip')
+                    or cat.get('doc_type_code') == 'DOSTAWA_OSIP'
+                    or self.is_osip_involved(d.get('lokalizacja_z') or cat.get('source_value'), d.get('lokalizacja_do') or cat.get('dest_value'), raw_items)
+                )
+                if is_osip:
+                    continue
+
+                # Dla przesunięć MM: weryfikacja czy nagłówek dokumentu nie wskazuje nieautoryzowanej strefy
+                if not cat['is_external']:
+                    doc_src = d.get('lokalizacja_z') or cat.get('source_value')
+                    doc_dst = d.get('lokalizacja_do') or cat.get('dest_value')
+                    neutral_keywords = {'WIELE', 'MAGAZYN', 'CENTRALA', 'MAGAZYNCENTRALNY', 'CENTRALNY', ''}
+                    src_norm = re.sub(r'[^A-Z0-9]', '', str(doc_src or '').upper())
+                    dst_norm = re.sub(r'[^A-Z0-9]', '', str(doc_dst or '').upper())
+                    if doc_src and not self.is_allowed_central_warehouse_location(doc_src) and src_norm not in neutral_keywords:
+                        continue
+                    if doc_dst and not self.is_allowed_central_warehouse_location(doc_dst) and dst_norm not in neutral_keywords:
+                        continue
 
             doc_items = []
             doc_summary_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
-            for idx, it in enumerate(raw_items, start=1):
+            for it in raw_items:
+                source_spot = it.get('sourceSpot') or it.get('lokalizacja_z') or cat['source_value']
+                target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or it.get('lokalizacja_do') or cat['dest_value']
+
+                # Dla raportu Magazynu Centralnego: przesunięcia MM mogą dotyczyć wyłącznie dozwolonych regałów i buforów
+                if central_only and not cat['is_external']:
+                    if not self.is_allowed_central_transfer(source_spot, target_spot):
+                        continue
+
                 pname_raw = it.get('productName') or 'Brak nazwy'
                 pname = re.sub(r'\s+', ' ', str(pname_raw).strip())
                 nr_pal = it.get('nr_palety') or '-'
                 nr_partii = it.get('nr_partii') or '-'
                 prod_date = it.get('data_produkcji') or '-'
                 exp_date = it.get('data_przydatnosci') or '-'
-                qty = self._extract_item_qty(it)
+                raw_q = it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0
+                try:
+                    qty = float(raw_q)
+                except Exception:
+                    qty = 0.0
                 unit = ('szt' if it.get('packageForm') == 'packaging' else 'kg').strip().lower()
-                source_spot = it.get('sourceSpot') or cat['source_value']
-                target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
                 accepted = bool(it.get('accepted'))
                 status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
 
                 item_obj = {
-                    'lp': idx,
+                    'lp': len(doc_items) + 1,
                     'product_name': pname,
                     'nr_palety': nr_pal,
                     'nr_partii': nr_partii,
@@ -1692,14 +1609,8 @@ class OsipReportEmailService:
                 all_products_summary[s_key]['count'] += 1
                 all_products_summary[s_key]['total_qty'] += qty
 
-                # Statystyki dedykowane per kategoria
-                if doc_category == 'DOSTAWA_ZEWNETRZNA':
-                    target_summary = deliveries_wz_products_summary
-                elif doc_category == 'DOSTAWA_CENTRALA':
-                    target_summary = deliveries_centrala_products_summary
-                else:
-                    target_summary = transfers_mm_products_summary
-
+                # Statystyki podzielone na dostawy i przesuniecia
+                target_summary = deliveries_products_summary if cat['is_external'] else transfers_products_summary
                 if s_key not in target_summary:
                     target_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
                 target_summary[s_key]['count'] += 1
@@ -1708,12 +1619,14 @@ class OsipReportEmailService:
                 total_qty_by_unit[unit] = total_qty_by_unit.get(unit, 0.0) + qty
                 total_pallets += 1
 
+            if not doc_items:
+                continue
+
             doc_entry = {
                 'id': d.get('id'),
                 'order_ref': cat['ref'],
-                'doc_type': doc_category,
-                'category': doc_category,
-                'doc_title': doc_category_title,
+                'doc_type': 'DOSTAWA' if cat['is_external'] else 'PRZESUNIECIE_MM',
+                'doc_title': cat['doc_title'],
                 'source': cat['source_value'],
                 'destination': cat['dest_value'],
                 'created_by': cat['created_by'],
@@ -1723,35 +1636,24 @@ class OsipReportEmailService:
                 'uwagi': d.get('uwagi') or '-',
                 'items': doc_items,
                 'items_count': len(doc_items),
-                'summary': list(doc_summary_map.values()),
-                'pdf_filename': pdf_filename,
-                'raw_dostawa': d,
-                'raw_items': raw_items,
-                'raw_transfer': None
+                'summary': list(doc_summary_map.values())
             }
 
-            if doc_category == 'DOSTAWA_ZEWNETRZNA':
-                deliveries_wz.append(doc_entry)
-            elif doc_category == 'DOSTAWA_CENTRALA':
-                deliveries_centrala.append(doc_entry)
+            if cat['is_external']:
+                deliveries.append(doc_entry)
             else:
-                transfers_mm.append(doc_entry)
+                transfers.append(doc_entry)
 
-            all_documents.append(doc_entry)
-
-        # Przetwarzanie osip_transfers (zlecenia transferów międzymagazynowych Centrala <-> OSIP)
+        # Przetwarzanie osip_transfers (jeśli nie wykluczone)
         for tr in osip_transfers_rows:
             tr_id = tr.get('id')
             raw_t_items = osip_items_by_transfer.get(tr_id, [])
             code = tr.get('transfer_code') or f"TR-{tr_id}"
-            clean_code = re.sub(r'[\s/\\:*?"<>|]+', '_', str(code)).strip('_')
             source = tr.get('source_warehouse') or 'Centrala'
             dest = tr.get('destination_warehouse') or 'OSIP'
 
-            # Wyklucz strefy produkcyjne
-            if self._is_production_zone(source) or self._is_production_zone(dest):
+            if central_only and self.is_osip_involved(source, dest, raw_t_items):
                 continue
-
             created_by = tr.get('created_by') or 'System'
             completed_by = tr.get('completed_by') or tr.get('updated_by') or '-'
             created_at = tr.get('created_at')
@@ -1803,21 +1705,19 @@ class OsipReportEmailService:
                 all_products_summary[s_key]['count'] += 1
                 all_products_summary[s_key]['total_qty'] += qty
 
-                if s_key not in transfers_mm_products_summary:
-                    transfers_mm_products_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
-                transfers_mm_products_summary[s_key]['count'] += 1
-                transfers_mm_products_summary[s_key]['total_qty'] += qty
+                if s_key not in transfers_products_summary:
+                    transfers_products_summary[s_key] = {'product_name': pname, 'unit': unit, 'count': 0, 'total_qty': 0.0}
+                transfers_products_summary[s_key]['count'] += 1
+                transfers_products_summary[s_key]['total_qty'] += qty
 
                 total_qty_by_unit[unit] = total_qty_by_unit.get(unit, 0.0) + qty
                 total_pallets += 1
 
-            pdf_filename = f"Przesuniecie_MM_{clean_code}.pdf"
-            doc_entry = {
+            transfers.append({
                 'id': tr_id,
                 'order_ref': code,
                 'doc_type': 'TRANSFER_OSIP',
-                'category': 'PRZESUNIECIE_MM',
-                'doc_title': f'Przesunięcie MM ({source} ➔ {dest})',
+                'doc_title': f'Transfer Wewnętrzny {source} ➔ {dest}',
                 'source': source,
                 'destination': dest,
                 'created_by': created_by,
@@ -1827,79 +1727,105 @@ class OsipReportEmailService:
                 'uwagi': tr.get('notes') or '-',
                 'items': doc_items,
                 'items_count': len(doc_items),
-                'summary': list(doc_summary_map.values()),
-                'pdf_filename': pdf_filename,
-                'raw_dostawa': None,
-                'raw_transfer': tr,
-                'raw_items': raw_t_items
-            }
-            transfers_mm.append(doc_entry)
-            all_documents.append(doc_entry)
+                'summary': list(doc_summary_map.values())
+            })
 
-        has_activity = bool(all_documents)
-        legacy_deliveries_products = list(deliveries_wz_products_summary.values()) + list(deliveries_centrala_products_summary.values())
+        has_activity = bool(deliveries or transfers)
 
         return {
             'date_str': date_str,
-            'deliveries_wz': deliveries_wz,
-            'deliveries_centrala': deliveries_centrala,
-            'transfers_mm': transfers_mm,
-            'all_documents': all_documents,
-            'deliveries_wz_count': len(deliveries_wz),
-            'deliveries_centrala_count': len(deliveries_centrala),
-            'transfers_mm_count': len(transfers_mm),
-            'all_documents_count': len(all_documents),
-            # Kompatybilność wsteczna:
-            'deliveries': deliveries_wz + deliveries_centrala,
-            'transfers': transfers_mm,
-            'deliveries_count': len(deliveries_wz) + len(deliveries_centrala),
-            'transfers_count': len(transfers_mm),
+            'deliveries': deliveries,
+            'transfers': transfers,
+            'deliveries_count': len(deliveries),
+            'transfers_count': len(transfers),
             'total_pallets': total_pallets,
             'total_qty_by_unit': total_qty_by_unit,
-            'deliveries_wz_products_summary': sorted(deliveries_wz_products_summary.values(), key=lambda x: x['product_name'].lower()),
-            'deliveries_centrala_products_summary': sorted(deliveries_centrala_products_summary.values(), key=lambda x: x['product_name'].lower()),
-            'transfers_mm_products_summary': sorted(transfers_mm_products_summary.values(), key=lambda x: x['product_name'].lower()),
-            'deliveries_products_summary': sorted(legacy_deliveries_products, key=lambda x: x['product_name'].lower()),
+            'deliveries_products_summary': sorted(deliveries_products_summary.values(), key=lambda x: x['product_name'].lower()),
+            'transfers_products_summary': sorted(transfers_products_summary.values(), key=lambda x: x['product_name'].lower()),
             'all_products_summary': sorted(all_products_summary.values(), key=lambda x: x['product_name'].lower()),
             'has_activity': has_activity
         }
 
     def build_daily_summary_report_html(self, date_str: str, activity_data: Dict[str, Any]) -> str:
-        """Buduje raport HTML z podsumowaniem dnia z wyraźnym podziałem na Dostawy WZ, Centrala i Przesunięcia MM."""
-        deliveries_wz = activity_data.get('deliveries_wz', [])
-        deliveries_centrala = activity_data.get('deliveries_centrala', [])
-        transfers_mm = activity_data.get('transfers_mm', [])
-        all_documents = activity_data.get('all_documents', [])
-
+        """Buduje nowoczesny, czytelny raport HTML z podsumowaniem dnia (Rejestr zbiorczy + poszczególne dokumenty osobno)."""
+        deliveries = activity_data.get('deliveries', [])
+        transfers = activity_data.get('transfers', [])
         total_pallets = activity_data.get('total_pallets', 0)
         total_qty_by_unit = activity_data.get('total_qty_by_unit', {})
-        deliveries_wz_products = activity_data.get('deliveries_wz_products_summary', [])
-        deliveries_centrala_products = activity_data.get('deliveries_centrala_products_summary', [])
-        transfers_mm_products = activity_data.get('transfers_mm_products_summary', [])
-
+        all_products = activity_data.get('all_products_summary', [])
+        deliveries_products = activity_data.get('deliveries_products_summary', [])
+        transfers_products = activity_data.get('transfers_products_summary', [])
+        
         totals_str_parts = [f"<strong>{qty:,.2f} {unit}</strong>" for unit, qty in sorted(total_qty_by_unit.items())]
         totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
 
-        def _render_doc_block(doc: Dict[str, Any]) -> str:
-            category = doc.get('category', 'PRZESUNIECIE_MM')
-            if category == 'DOSTAWA_ZEWNETRZNA':
-                theme_grad = "linear-gradient(135deg, #1e3a8a, #2563eb)"
-                badge_color = "#1e3a8a"
-                doc_icon = "🚚"
-                src_label = "Dostawca"
-                dst_label = "Lokalizacja docelowa"
-            elif category == 'DOSTAWA_CENTRALA':
-                theme_grad = "linear-gradient(135deg, #3730a3, #4f46e5)"
-                badge_color = "#3730a3"
-                doc_icon = "🏢"
-                src_label = "Dostawca / Magazyn"
-                dst_label = "Lokalizacja docelowa"
-            else:
-                theme_grad = "linear-gradient(135deg, #065f46, #059669)"
-                badge_color = "#065f46"
-                doc_icon = "🔄"
-                src_label = "Skąd (Magazyn)"
-                dst_label = "Dokąd (Magazyn)"
+        # 1. ZBIORCZY REJESTR WSZYSTKICH OPERACJI RAZEM
+        all_master_items = []
+        for d in deliveries:
+            for it in d.get('items', []):
+                all_master_items.append({
+                    'type_label': 'PZ (Dostawa)',
+                    'type_badge_bg': '#dbeafe',
+                    'type_badge_color': '#1e40af',
+                    'doc_ref': d.get('order_ref'),
+                    'source': it.get('source_spot') or d.get('source'),
+                    'target': it.get('target_spot') or d.get('destination'),
+                    'created_by': d.get('created_by') or '-',
+                    'accepted_by': d.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+        for t in transfers:
+            for it in t.get('items', []):
+                all_master_items.append({
+                    'type_label': 'MM (Przesunięcie)',
+                    'type_badge_bg': '#dcfce7',
+                    'type_badge_color': '#166534',
+                    'doc_ref': t.get('order_ref'),
+                    'source': it.get('source_spot') or t.get('source'),
+                    'target': it.get('target_spot') or t.get('destination'),
+                    'created_by': t.get('created_by') or '-',
+                    'accepted_by': t.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+
+        master_rows_html = ""
+        for m_idx, m in enumerate(all_master_items, start=1):
+            st_badge = '<span style="display:inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d;">PRZYJĘTA</span>' if m.get('accepted') else '<span style="display:inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c;">ODRZUCONA</span>'
+            master_rows_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <td style="padding: 7px 8px; text-align: center; color: #64748b; font-weight: 600;">{m_idx}</td>
+                <td style="padding: 7px 8px; text-align: center;"><span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; background: {m['type_badge_bg']}; color: {m['type_badge_color']};">{m['type_label']}</span></td>
+                <td style="padding: 7px 8px; text-align: center; font-weight: 800; color: #0f172a;">{m.get('doc_ref')}</td>
+                <td style="padding: 7px 8px; font-weight: 700; color: #0f172a;">{m.get('product_name')}</td>
+                <td style="padding: 7px 8px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{m.get('nr_palety')}</td>
+                <td style="padding: 7px 8px; text-align: center; color: #475569;">{m.get('nr_partii')}</td>
+                <td style="padding: 7px 8px; text-align: right; font-weight: 800; color: #166534;">{m.get('quantity'):,.2f} {m.get('unit')}</td>
+                <td style="padding: 7px 8px; text-align: center; color: #475569;">{m.get('source')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-weight: 700; color: #2563eb;">{m.get('target')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-size: 11px; color: #334155;">{m.get('created_by')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 700; color: #166534;">{m.get('accepted_by')}</td>
+                <td style="padding: 7px 8px; text-align: center;">{st_badge}</td>
+            </tr>
+            """
+
+        def _render_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
+            badge_color = "#1e3a8a" if is_delivery else "#065f46"
+            theme_grad = "linear-gradient(135deg, #1e3a8a, #2563eb)" if is_delivery else "linear-gradient(135deg, #065f46, #059669)"
+            doc_type_icon = "📦" if is_delivery else "🔄"
+            src_label = "Dostawca" if is_delivery else "Skąd"
+            dst_label = "Lokalizacja docelowa" if is_delivery else "Dokąd"
 
             rows_html = ""
             for item in doc.get('items', []):
@@ -1926,16 +1852,11 @@ class OsipReportEmailService:
                 </tr>
                 """
 
-            pdf_file_label = doc.get('pdf_filename') or ''
-
             return f"""
             <div style="margin-bottom: 24px; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
-                <div style="background: {theme_grad}; padding: 14px 18px; color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.9;">{doc_icon} {doc.get('doc_title')}</div>
-                        <div style="font-size: 18px; font-weight: 900; margin-top: 2px;">Dokument: {doc.get('order_ref')}</div>
-                    </div>
-                    {f'<div style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;">📄 Załącznik: {pdf_file_label}</div>' if pdf_file_label else ''}
+                <div style="background: {theme_grad}; padding: 14px 18px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.9;">{doc_type_icon} {doc.get('doc_title')}</div>
+                    <div style="font-size: 18px; font-weight: 900; margin-top: 2px;">Dokument: {doc.get('order_ref')}</div>
                 </div>
                 <div style="padding: 12px 18px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 12px; line-height: 1.6;">
                     <table style="width: 100%; border-collapse: collapse;">
@@ -1945,8 +1866,8 @@ class OsipReportEmailService:
                                 <div><span style="color: #64748b;">{dst_label}:</span> <strong style="color: {badge_color};">{doc.get('destination')}</strong></div>
                             </td>
                             <td style="width: 50%; vertical-align: top;">
-                                <div><span style="color: #64748b;">Wprowadził / Wydał:</span> <strong>{doc.get('created_by')}</strong> ({doc.get('created_str')})</div>
-                                <div><span style="color: #64748b;">Przyjął / Zatwierdził:</span> <strong style="color: #166534;">{doc.get('accepted_by')}</strong> ({doc.get('accepted_str')})</div>
+                                <div><span style="color: #64748b;">Wprowadził:</span> <strong>{doc.get('created_by')}</strong> ({doc.get('created_str')})</div>
+                                <div><span style="color: #64748b;">Przyjął:</span> <strong style="color: #166534;">{doc.get('accepted_by')}</strong> ({doc.get('accepted_str')})</div>
                             </td>
                         </tr>
                     </table>
@@ -1987,17 +1908,16 @@ class OsipReportEmailService:
             </div>
             """
 
-        wz_blocks = "".join(_render_doc_block(d) for d in deliveries_wz) if deliveries_wz else '<div style="padding: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 12px; margin-bottom: 18px;">Brak dostaw zewnętrznych (WZ) w tym dniu.</div>'
-        centrala_blocks = "".join(_render_doc_block(d) for d in deliveries_centrala) if deliveries_centrala else '<div style="padding: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 12px; margin-bottom: 18px;">Brak dostaw z Centrali w tym dniu.</div>'
-        mm_blocks = "".join(_render_doc_block(t) for t in transfers_mm) if transfers_mm else '<div style="padding: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 12px; margin-bottom: 18px;">Brak przesunięć międzymagazynowych MM w tym dniu.</div>'
+        deliveries_blocks = "".join(_render_doc_block(d, is_delivery=True) for d in deliveries) if deliveries else '<div style="padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 13px; margin-bottom: 20px;">Brak dostaw zewnętrznych w tym dniu.</div>'
+        transfers_blocks = "".join(_render_doc_block(t, is_delivery=False) for t in transfers) if transfers else '<div style="padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; text-align: center; font-size: 13px; margin-bottom: 20px;">Brak przesunięć MM / transferów w tym dniu.</div>'
 
         def _render_html_products_rows(prod_list: List[Dict[str, Any]], count_color: str) -> str:
             if not prod_list:
-                return '<tr><td colspan="4" style="padding: 10px; text-align: center; color: #64748b;">Brak pozycji w tym zestawieniu.</td></tr>'
+                return '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #64748b;">Brak pozycji w tym zestawieniu.</td></tr>'
             rows = ""
             for idx, p in enumerate(prod_list, start=1):
                 rows += f"""
-                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
                     <td style="padding: 8px 12px; text-align: center; color: #64748b; font-weight: 600; width: 35px;">{idx}</td>
                     <td style="padding: 8px 12px; font-weight: 700; color: #0f172a;">{p.get('product_name')}</td>
                     <td style="padding: 8px 12px; text-align: center; font-weight: 800; color: {count_color}; width: 120px;">{p.get('count')} szt.</td>
@@ -2006,29 +1926,10 @@ class OsipReportEmailService:
                 """
             return rows
 
-        wz_products_rows = _render_html_products_rows(deliveries_wz_products, "#1e3a8a")
-        centrala_products_rows = _render_html_products_rows(deliveries_centrala_products, "#3730a3")
-        mm_products_rows = _render_html_products_rows(transfers_mm_products, "#065f46")
-
-        # Lista załączonych dokumentów PDF
-        pdf_attachments_list_html = ""
-        summary_pdf_name = f"Raport_Zbiorczy_Dostaw_i_Przesuniec_{date_str}.pdf"
-        pdf_attachments_list_html += f"""
-        <div style="padding: 8px 12px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 6px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
-            <div><strong>📋 {summary_pdf_name}</strong></div>
-            <div style="color: #2563eb; font-weight: 700;">Główny raport zbiorczy A4</div>
-        </div>
-        """
-        for doc in all_documents:
-            cat_icon = "🚚" if doc.get('category') == 'DOSTAWA_ZEWNETRZNA' else ("🏢" if doc.get('category') == 'DOSTAWA_CENTRALA' else "🔄")
-            pdf_attachments_list_html += f"""
-            <div style="padding: 8px 12px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 6px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
-                <div><strong>{cat_icon} {doc.get('pdf_filename')}</strong> — {doc.get('doc_title')}: {doc.get('order_ref')}</div>
-                <div style="color: #64748b; font-size: 11px;">{doc.get('source')} ➔ {doc.get('destination')} ({doc.get('items_count')} palet)</div>
-            </div>
-            """
-
-        total_pdf_count = len(all_documents) + 1
+        deliveries_products_rows = _render_html_products_rows(deliveries_products, "#1e3a8a")
+        transfers_products_rows = _render_html_products_rows(transfers_products, "#065f46")
+        app_base_url = os.getenv('APP_BASE_URL', 'https://raportprodukcji.mycloudnas.com').rstrip('/')
+        print_url = f"{app_base_url}/magazyn-dostawy/drukuj-raport-dzienny?data={date_str}"
 
         return f"""
         <!DOCTYPE html>
@@ -2039,156 +1940,154 @@ class OsipReportEmailService:
                 
                 <!-- Hero Header -->
                 <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; color: #ffffff;">
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">Magazyn • Dzienny Raport Operacyjny</div>
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; color: #38bdf8;">Magazyn Centralny • Dzienny Raport Zbiorczy</div>
                     <div style="font-size: 24px; font-weight: 900; margin-top: 6px;">📋 Raport Zbiorczy Dostaw i Przesunięć</div>
-                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Dzień: <strong>{date_str}</strong> | Wygenerowano: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M')}</strong></div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-top: 6px;">Dzień: <strong>{date_str}</strong> | Zakres: <strong>Magazyn Centralny</strong> | Wygenerowano: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M')}</strong></div>
                 </div>
 
-                <!-- KPI Banner (5 bloków) -->
-                <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                <!-- KPI Banner -->
+                <div style="padding: 18px 24px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
                     <table style="width: 100%; border-collapse: collapse; text-align: center;">
                         <tr>
-                            <td style="width: 20%; padding: 8px; border-right: 1px solid #e2e8f0;">
-                                <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawy WZ</div>
-                                <div style="font-size: 20px; font-weight: 900; color: #1e3a8a; margin-top: 2px;">{len(deliveries_wz)}</div>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawy PZ</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #1e3a8a; margin-top: 4px;">{len(deliveries)}</div>
                             </td>
-                            <td style="width: 20%; padding: 8px; border-right: 1px solid #e2e8f0;">
-                                <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawa Centrala</div>
-                                <div style="font-size: 20px; font-weight: 900; color: #3730a3; margin-top: 2px;">{len(deliveries_centrala)}</div>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Przesunięcia MM</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #065f46; margin-top: 4px;">{len(transfers)}</div>
                             </td>
-                            <td style="width: 20%; padding: 8px; border-right: 1px solid #e2e8f0;">
-                                <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Przesunięcia MM</div>
-                                <div style="font-size: 20px; font-weight: 900; color: #065f46; margin-top: 2px;">{len(transfers_mm)}</div>
+                            <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łącznie Palet</div>
+                                <div style="font-size: 22px; font-weight: 900; color: #0284c7; margin-top: 4px;">{total_pallets}</div>
                             </td>
-                            <td style="width: 20%; padding: 8px; border-right: 1px solid #e2e8f0;">
-                                <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łącznie Palet</div>
-                                <div style="font-size: 20px; font-weight: 900; color: #0284c7; margin-top: 2px;">{total_pallets}</div>
-                            </td>
-                            <td style="width: 20%; padding: 8px;">
-                                <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łączna Ilość</div>
-                                <div style="font-size: 14px; font-weight: 900; color: #166534; margin-top: 4px;">{totals_display}</div>
+                            <td style="width: 25%; padding: 10px;">
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Łączna Ilość</div>
+                                <div style="font-size: 16px; font-weight: 900; color: #166534; margin-top: 6px;">{totals_display}</div>
                             </td>
                         </tr>
                     </table>
                 </div>
 
+                <!-- Direct 1-Click Print & Attachment Selection Banner -->
+                <div style="margin: 20px 24px 8px 24px; padding: 18px 20px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #bfdbfe; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);">
+                    <div style="font-size: 14px; font-weight: 800; color: #1e40af; margin-bottom: 4px;">
+                        🖨️ DRUKUJ RAPORT I ZAŁĄCZNIKI (WYBÓR 1 KLIKNIĘCIEM)
+                    </div>
+                    <div style="font-size: 12px; color: #334155; margin-bottom: 12px;">
+                        Kliknij poniższy przycisk, aby otworzyć panel wydruku w systemie, wybrać które załączniki PZ / MM chcesz wydrukować i puścić wydruk naraz.
+                    </div>
+                    <a href="{print_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; text-decoration: none; font-weight: 900; font-size: 14px; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); letter-spacing: 0.3px;">
+                        🖨️ OTWÓRZ PANEL DRUKU W SYSTEMIE
+                    </a>
+                </div>
+
                 <div style="padding: 24px;">
 
-                    <!-- SEKCJA 1: DOSTAWY ZEWNĘTRZNE (WZ) -->
-                    <div style="margin-bottom: 28px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 2px solid #1e3a8a; padding-bottom: 6px;">
-                            <h2 style="font-size: 15px; font-weight: 900; color: #1e3a8a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🚚 1. Dostawy Zewnętrzne (WZ) ({len(deliveries_wz)})
+                    <!-- SEKCJA 1: JEDNOLITY ZBIORCZY REJESTR WSZYSTKICH POZYCJI RAZEM -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📑 1. Zbiorczy Rejestr Wszystkich Operacji (Dostawy PZ i Przesunięcia MM razem) [{len(all_master_items)} palet]
                             </h2>
                         </div>
-                        {wz_blocks}
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">
+                            <thead>
+                                <tr style="background: #f1f5f9; color: #334155; font-size: 11px; text-transform: uppercase;">
+                                    <th style="padding: 8px 6px; text-align: center; width: 25px;">Lp</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 85px;">Typ</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 85px;">Dokument</th>
+                                    <th style="padding: 8px 6px; text-align: left;">Produkt / Surowiec</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 105px;">Nr Palety</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Partia</th>
+                                    <th style="padding: 8px 6px; text-align: right; width: 80px;">Ilość</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 60px;">Skąd</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 65px;">Dokąd</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Wydał</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Przyjął</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {master_rows_html}
+                            </tbody>
+                        </table>
                     </div>
 
-                    <!-- SEKCJA 2: DOSTAWA CENTRALA -->
-                    <div style="margin-bottom: 28px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 2px solid #3730a3; padding-bottom: 6px;">
-                            <h2 style="font-size: 15px; font-weight: 900; color: #3730a3; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🏢 2. Dostawa Centrala ({len(deliveries_centrala)})
+                    <!-- SEKCJA 2.1: DOSTAWY ZEWNĘTRZNE OSOBNO -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #1e3a8a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📦 2.1. Szczegółowe Karty: Przyjęcia Dostaw (PZ) ({len(deliveries)})
                             </h2>
                         </div>
-                        {centrala_blocks}
+                        {deliveries_blocks}
                     </div>
 
-                    <!-- SEKCJA 3: PRZESUNIĘCIA MM (MIĘDZYMAGAZYNOWE) -->
-                    <div style="margin-bottom: 28px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 2px solid #065f46; padding-bottom: 6px;">
-                            <h2 style="font-size: 15px; font-weight: 900; color: #065f46; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🔄 3. Przesunięcia MM (Międzymagazynowe) ({len(transfers_mm)})
+                    <!-- SEKCJA 2.2: PRZESUNIĘCIA MM OSOBNO -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #065f46; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #065f46; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                🔄 2.2. Szczegółowe Karty: Przesunięcia MM i Transfery Wewnętrzne ({len(transfers)})
                             </h2>
                         </div>
-                        {mm_blocks}
+                        {transfers_blocks}
                     </div>
 
-                    <!-- SEKCJA 4: PODSUMOWANIE ASORTYMENTU Z PODZIAŁEM NA 3 KATEGORIE -->
-                    <div style="margin-bottom: 28px;">
-                        <div style="margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 6px;">
-                            <h2 style="font-size: 15px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                📊 4. Zbiorcze Podsumowanie Asortymentu
+                    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU -->
+                    <div style="margin-bottom: 16px;">
+                        <div style="margin-bottom: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📊 3. Zbiorcze Podsumowanie Asortymentu z Całego Dnia
                             </h2>
                         </div>
 
-                        <!-- 4.1 Dostawy Zewnętrzne -->
-                        <div style="margin-bottom: 18px;">
+                        <!-- 3.1 Dostawy Zewnętrzne -->
+                        <div style="margin-bottom: 20px;">
                             <div style="font-size: 12px; font-weight: 800; color: #1e3a8a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🚚 4.1. Dostawy Zewnętrzne (WZ) ({len(deliveries_wz_products)})
+                                📦 3.1. Podsumowanie Asortymentu — Przyjęcia Dostaw (PZ) ({len(deliveries_products)})
                             </div>
                             <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
                                 <thead>
                                     <tr style="background: #eff6ff; color: #1e3a8a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
                                         <th style="padding: 8px 12px; text-align: center; width: 35px;">Lp</th>
-                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Asortyment</th>
+                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Surowiec / Opakowanie</th>
                                         <th style="padding: 8px 12px; text-align: center; width: 120px;">Liczba Palet</th>
                                         <th style="padding: 8px 12px; text-align: right; width: 150px;">Łączna Ilość</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {wz_products_rows}
+                                    {deliveries_products_rows}
                                 </tbody>
                             </table>
                         </div>
 
-                        <!-- 4.2 Dostawa Centrala -->
-                        <div style="margin-bottom: 18px;">
-                            <div style="font-size: 12px; font-weight: 800; color: #3730a3; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🏢 4.2. Dostawa Centrala ({len(deliveries_centrala_products)})
-                            </div>
-                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
-                                <thead>
-                                    <tr style="background: #eef2ff; color: #3730a3; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                        <th style="padding: 8px 12px; text-align: center; width: 35px;">Lp</th>
-                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Asortyment</th>
-                                        <th style="padding: 8px 12px; text-align: center; width: 120px;">Liczba Palet</th>
-                                        <th style="padding: 8px 12px; text-align: right; width: 150px;">Łączna Ilość</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {centrala_products_rows}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- 4.3 Przesunięcia MM -->
-                        <div style="margin-bottom: 14px;">
+                        <!-- 3.2 Przesunięcia MM i Transfery Wewnętrzne -->
+                        <div style="margin-bottom: 12px;">
                             <div style="font-size: 12px; font-weight: 800; color: #065f46; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🔄 4.3. Przesunięcia MM (Międzymagazynowe) ({len(transfers_mm_products)})
+                                🔄 3.2. Podsumowanie Asortymentu — Przesunięcia MM i Transfery Wewnętrzne ({len(transfers_products)})
                             </div>
                             <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
                                 <thead>
                                     <tr style="background: #f0fdf4; color: #065f46; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
                                         <th style="padding: 8px 12px; text-align: center; width: 35px;">Lp</th>
-                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Asortyment</th>
+                                        <th style="padding: 8px 12px; text-align: left;">Produkt / Surowiec / Opakowanie</th>
                                         <th style="padding: 8px 12px; text-align: center; width: 120px;">Liczba Palet</th>
                                         <th style="padding: 8px 12px; text-align: right; width: 150px;">Łączna Ilość</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {mm_products_rows}
+                                    {transfers_products_rows}
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- SEKCJA 5: ZAŁĄCZONE DOKUMENTY PDF DO DRUKU -->
-                    <div style="margin-bottom: 10px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 16px;">
-                        <div style="font-size: 13px; font-weight: 900; color: #0f172a; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            📎 5. Dołączone Raporty PDF do Druku ({total_pdf_count} dokumentów A4):
-                        </div>
-                        <div style="font-size: 11px; color: #64748b; margin-bottom: 10px;">
-                            Do niniejszej wiadomości dołączono osobny oficjalny dokument PDF w układzie do druku A4 dla każdej zatwierdzonej operacji oraz zbiorczy raport dzienny:
-                        </div>
-                        {pdf_attachments_list_html}
-                    </div>
-
                 </div>
 
                 <!-- Footer -->
-                <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
-                    Dzienny raport magazynowy wygenerowany automatycznie przez system RaportProdukcyjny. Wszystkie załączniki stanowią oficjalne dokumenty magazynowe do druku A4.
+                <div style="background: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+                    Dzienny raport magazynowy wygenerowany automatycznie przez system RaportProdukcyjny. Do wiadomości dołączono oficjalne załączniki PDF do druku (raport zbiorczy oraz poszczególne dokumenty).
                 </div>
             </div>
         </body>
@@ -2196,38 +2095,85 @@ class OsipReportEmailService:
         """
 
     def generate_daily_summary_pdf(self, date_str: str, activity_data: Dict[str, Any]) -> Optional[str]:
-        """Generuje plik PDF w układzie do druku A4 ze zbiorczym zestawieniem dostaw i przesunięć z podziałem na 3 grupy."""
-        deliveries_wz = activity_data.get('deliveries_wz', [])
-        deliveries_centrala = activity_data.get('deliveries_centrala', [])
-        transfers_mm = activity_data.get('transfers_mm', [])
-
+        """Generuje plik PDF w układzie do druku A4 z pełnym zestawieniem dostaw i przesunięć z danego dnia (Zbiorczo + Dokumenty Osobno)."""
+        deliveries = activity_data.get('deliveries', [])
+        transfers = activity_data.get('transfers', [])
         total_pallets = activity_data.get('total_pallets', 0)
         total_qty_by_unit = activity_data.get('total_qty_by_unit', {})
-        deliveries_wz_products = activity_data.get('deliveries_wz_products_summary', [])
-        deliveries_centrala_products = activity_data.get('deliveries_centrala_products_summary', [])
-        transfers_mm_products = activity_data.get('transfers_mm_products_summary', [])
+        all_products = activity_data.get('all_products_summary', [])
+        deliveries_products = activity_data.get('deliveries_products_summary', [])
+        transfers_products = activity_data.get('transfers_products_summary', [])
         gen_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         totals_str_parts = [f"{qty:,.2f} {unit}" for unit, qty in sorted(total_qty_by_unit.items())]
         totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
 
-        def _render_pdf_doc_block(doc: Dict[str, Any]) -> str:
-            category = doc.get('category', 'PRZESUNIECIE_MM')
-            if category == 'DOSTAWA_ZEWNETRZNA':
-                header_bg = "#eff6ff"
-                header_color = "#1e3a8a"
-                src_label = "Dostawca"
-                dst_label = "Lokalizacja docelowa"
-            elif category == 'DOSTAWA_CENTRALA':
-                header_bg = "#eef2ff"
-                header_color = "#3730a3"
-                src_label = "Dostawca / Magazyn"
-                dst_label = "Lokalizacja docelowa"
-            else:
-                header_bg = "#f0fdf4"
-                header_color = "#065f46"
-                src_label = "Skąd (Magazyn)"
-                dst_label = "Dokąd (Magazyn)"
+        # 1. ZBIORCZY REJESTR WSZYSTKICH POZYCJI RAZEM
+        all_master_items = []
+        for d in deliveries:
+            for it in d.get('items', []):
+                all_master_items.append({
+                    'type_label': 'PZ',
+                    'type_badge_bg': '#dbeafe',
+                    'type_badge_color': '#1e40af',
+                    'doc_ref': d.get('order_ref'),
+                    'source': it.get('source_spot') or d.get('source'),
+                    'target': it.get('target_spot') or d.get('destination'),
+                    'created_by': d.get('created_by') or '-',
+                    'accepted_by': d.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+        for t in transfers:
+            for it in t.get('items', []):
+                all_master_items.append({
+                    'type_label': 'MM',
+                    'type_badge_bg': '#dcfce7',
+                    'type_badge_color': '#166534',
+                    'doc_ref': t.get('order_ref'),
+                    'source': it.get('source_spot') or t.get('source'),
+                    'target': it.get('target_spot') or t.get('destination'),
+                    'created_by': t.get('created_by') or '-',
+                    'accepted_by': t.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+
+        master_rows_html = ""
+        for m_idx, m in enumerate(all_master_items, start=1):
+            st_color = "#166534" if m.get('accepted') else "#991b1b"
+            master_rows_html += f"""
+            <tr>
+                <td style="text-align: center; font-weight: 700;">{m_idx}</td>
+                <td style="text-align: center;"><span style="display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 7.5px; font-weight: 800; background: {m['type_badge_bg']}; color: {m['type_badge_color']};">{m['type_label']}</span></td>
+                <td style="text-align: center; font-weight: 800; font-size: 7.5px;">{m.get('doc_ref')}</td>
+                <td><strong>{m.get('product_name')}</strong></td>
+                <td style="text-align: center; font-family: monospace; font-weight: 700; font-size: 7.5px;">{m.get('nr_palety')}</td>
+                <td style="text-align: center; font-size: 7.5px;">{m.get('nr_partii')}</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{m.get('quantity'):,.2f} {m.get('unit')}</td>
+                <td style="text-align: center; font-size: 7.5px;">{m.get('source')}</td>
+                <td style="text-align: center; font-weight: 700; color: #1e40af; font-size: 7.5px;">{m.get('target')}</td>
+                <td style="text-align: center; font-size: 7.5px; color: #334155;">{m.get('created_by')}</td>
+                <td style="text-align: center; font-weight: 700; font-size: 7.5px; color: #166534;">{m.get('accepted_by')}</td>
+                <td style="text-align: center; font-weight: 700; color: {st_color}; font-size: 7.5px;">{m.get('status')}</td>
+            </tr>
+            """
+
+        def _render_pdf_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
+            src_label = "Dostawca" if is_delivery else "Skąd"
+            dst_label = "Lokalizacja docelowa" if is_delivery else "Dokąd"
+            header_bg = "#eff6ff" if is_delivery else "#f0fdf4"
+            header_color = "#1e3a8a" if is_delivery else "#065f46"
 
             rows_html = ""
             for item in doc.get('items', []):
@@ -2251,8 +2197,8 @@ class OsipReportEmailService:
             return f"""
             <div class="doc-card">
                 <div class="doc-card-head" style="background: {header_bg}; color: {header_color}; border-bottom: 1.5px solid {header_color};">
-                    <div style="font-size: 12px; font-weight: 900;">{doc.get('doc_title')}: {doc.get('order_ref')}</div>
-                    <div style="font-size: 9px; color: #475569;">
+                    <div style="font-size: 13px; font-weight: 900;">{doc.get('doc_title')}: {doc.get('order_ref')}</div>
+                    <div style="font-size: 10px; color: #475569;">
                         {src_label}: <strong>{doc.get('source')}</strong> ➔ {dst_label}: <strong>{doc.get('destination')}</strong> | 
                         Wprowadził: <strong>{doc.get('created_by')}</strong> | Przyjął: <strong>{doc.get('accepted_by')}</strong> ({doc.get('accepted_str')})
                     </div>
@@ -2281,13 +2227,12 @@ class OsipReportEmailService:
             </div>
             """
 
-        wz_pdf_blocks = "".join(_render_pdf_doc_block(d) for d in deliveries_wz) if deliveries_wz else '<p style="color: #64748b; font-style: italic; margin-bottom: 10px; font-size: 9px;">Brak dostaw zewnętrznych (WZ) w tym dniu.</p>'
-        centrala_pdf_blocks = "".join(_render_pdf_doc_block(d) for d in deliveries_centrala) if deliveries_centrala else '<p style="color: #64748b; font-style: italic; margin-bottom: 10px; font-size: 9px;">Brak dostaw z Centrali w tym dniu.</p>'
-        mm_pdf_blocks = "".join(_render_pdf_doc_block(t) for t in transfers_mm) if transfers_mm else '<p style="color: #64748b; font-style: italic; margin-bottom: 10px; font-size: 9px;">Brak przesunięć międzymagazynowych MM w tym dniu.</p>'
+        deliv_blocks = "".join(_render_pdf_doc_block(d, is_delivery=True) for d in deliveries) if deliveries else '<p style="color: #64748b; font-style: italic; margin-bottom: 12px;">Brak dostaw zewnętrznych w tym dniu.</p>'
+        transf_blocks = "".join(_render_pdf_doc_block(t, is_delivery=False) for t in transfers) if transfers else '<p style="color: #64748b; font-style: italic; margin-bottom: 12px;">Brak przesunięć wewnętrznych w tym dniu.</p>'
 
         def _render_pdf_products_rows(prod_list: List[Dict[str, Any]], count_color: str) -> str:
             if not prod_list:
-                return '<tr><td colspan="4" style="text-align: center; color: #64748b; font-style: italic; padding: 5px;">Brak pozycji w tym zestawieniu.</td></tr>'
+                return '<tr><td colspan="4" style="text-align: center; color: #64748b; font-style: italic; padding: 6px;">Brak pozycji w tym zestawieniu.</td></tr>'
             rows = ""
             for idx, p in enumerate(prod_list, start=1):
                 rows += f"""
@@ -2300,9 +2245,8 @@ class OsipReportEmailService:
                 """
             return rows
 
-        pdf_wz_products_rows = _render_pdf_products_rows(deliveries_wz_products, "#1e3a8a")
-        pdf_centrala_products_rows = _render_pdf_products_rows(deliveries_centrala_products, "#3730a3")
-        pdf_mm_products_rows = _render_pdf_products_rows(transfers_mm_products, "#065f46")
+        pdf_deliveries_products_rows = _render_pdf_products_rows(deliveries_products, "#1e3a8a")
+        pdf_transfers_products_rows = _render_pdf_products_rows(transfers_products, "#065f46")
 
         html_content = f"""<!DOCTYPE html>
 <html lang="pl">
@@ -2325,8 +2269,8 @@ class OsipReportEmailService:
         .header-box {{
             border: 2px solid #0f172a;
             border-radius: 6px;
-            padding: 9px 12px;
-            margin-bottom: 10px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
             background: #f8fafc;
         }}
         .doc-title {{
@@ -2334,22 +2278,22 @@ class OsipReportEmailService:
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 0 0 3px 0;
+            margin: 0 0 4px 0;
             color: #0f172a;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }}
         .doc-meta {{
-            font-size: 9px;
+            font-size: 9.5px;
             color: #475569;
         }}
         .kpi-grid {{
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 6px;
-            margin-top: 6px;
-            padding-top: 6px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px solid #cbd5e1;
             text-align: center;
         }}
@@ -2357,16 +2301,16 @@ class OsipReportEmailService:
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 4px;
-            padding: 5px;
+            padding: 6px;
         }}
         .kpi-label {{
-            font-size: 7.5px;
+            font-size: 8px;
             font-weight: 700;
             color: #64748b;
             text-transform: uppercase;
         }}
         .kpi-val {{
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 900;
             color: #0f172a;
             margin-top: 2px;
@@ -2376,14 +2320,14 @@ class OsipReportEmailService:
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 12px 0 6px 0;
+            margin: 14px 0 6px 0;
             padding-bottom: 3px;
             border-bottom: 1.5px solid #0f172a;
         }}
         .doc-card {{
             border: 1px solid #cbd5e1;
-            border-radius: 5px;
-            margin-bottom: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
             overflow: hidden;
             page-break-inside: avoid;
         }}
@@ -2397,7 +2341,7 @@ class OsipReportEmailService:
             width: 100%;
             border-collapse: collapse;
             font-size: 8.5px;
-            margin-top: 3px;
+            margin-top: 4px;
         }}
         table.report-table th, table.report-table td {{
             border: 1px solid #cbd5e1;
@@ -2411,140 +2355,137 @@ class OsipReportEmailService:
             color: #475569;
         }}
         .footer-note {{
-            margin-top: 12px;
+            margin-top: 14px;
             font-size: 8px;
             color: #64748b;
             text-align: center;
             border-top: 1px solid #e2e8f0;
-            padding-top: 5px;
+            padding-top: 6px;
         }}
     </style>
 </head>
 <body>
     <div class="header-box">
         <div class="doc-title">
-            <span>DZIENNY RAPORT ZBIORCZY: DOSTAWY I PRZESUNIĘCIA</span>
-            <span style="font-size: 11px; color: #2563eb;">{date_str}</span>
+            <span>DZIENNY RAPORT ZBIORCZY: DOSTAWY I PRZESUNIĘCIA (MAGAZYN CENTRALNY)</span>
+            <span style="font-size: 12px; color: #2563eb;">{date_str}</span>
         </div>
         <div class="doc-meta">
-            Raport wygenerowano: <strong>{gen_now}</strong> | System RaportProdukcyjny (Moduł Magazynowy)
+            Raport wygenerowano: <strong>{gen_now}</strong> | System RaportProdukcyjny (Magazyn Centralny)
         </div>
         <div class="kpi-grid">
             <div class="kpi-item">
-                <div class="kpi-label">Dostawy WZ</div>
-                <div class="kpi-val" style="color: #1e3a8a;">{len(deliveries_wz)}</div>
-            </div>
-            <div class="kpi-item">
-                <div class="kpi-label">Dostawa Centrala</div>
-                <div class="kpi-val" style="color: #3730a3;">{len(deliveries_centrala)}</div>
+                <div class="kpi-label">Dostawy PZ</div>
+                <div class="kpi-val" style="color: #1e3a8a;">{len(deliveries)}</div>
             </div>
             <div class="kpi-item">
                 <div class="kpi-label">Przesunięcia MM</div>
-                <div class="kpi-val" style="color: #065f46;">{len(transfers_mm)}</div>
+                <div class="kpi-val" style="color: #065f46;">{len(transfers)}</div>
             </div>
             <div class="kpi-item">
                 <div class="kpi-label">Łącznie Palet</div>
                 <div class="kpi-val" style="color: #0284c7;">{total_pallets}</div>
             </div>
             <div class="kpi-item">
-                <div class="kpi-label">Łączna Ilość</div>
-                <div class="kpi-val" style="color: #166534; font-size: 10px;">{totals_display}</div>
+                <div class="kpi-label">Łączna Waga / Ilość</div>
+                <div class="kpi-val" style="color: #166534; font-size: 11px;">{totals_display}</div>
             </div>
         </div>
     </div>
 
-    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
-        1. DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries_wz)}]
+    <!-- SEKCJA 1: JEDNOLITY ZBIORCZY REJESTR WSZYSTKICH OPERACJI RAZEM -->
+    <div class="section-title" style="color: #0f172a; border-bottom-color: #0f172a;">
+        1. ZBIORCZY REJESTR WSZYSTKICH OPERACJI (DOSTAWY PZ I PRZESUNIĘCIA MM RAZEM) [{len(all_master_items)} palet]
     </div>
-    {wz_pdf_blocks}
-
-    <div class="section-title" style="color: #3730a3; border-bottom-color: #3730a3;">
-        2. DOSTAWA CENTRALA [{len(deliveries_centrala)}]
-    </div>
-    {centrala_pdf_blocks}
-
-    <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
-        3. PRZESUNIĘCIA MM (MIĘDZYMAGAZYNOWE) [{len(transfers_mm)}]
-    </div>
-    {mm_pdf_blocks}
-
-    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
-        4.1. PODSUMOWANIE ASORTYMENTU: DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries_wz_products)}]
-    </div>
-    <table class="report-table" style="margin-bottom: 10px; page-break-inside: avoid;">
+    <table class="report-table" style="margin-bottom: 14px;">
         <thead>
             <tr>
-                <th style="width: 25px; text-align: center;">Lp</th>
-                <th style="text-align: left;">Produkt / Surowiec / Opakowanie</th>
-                <th style="width: 90px; text-align: center;">Liczba Palet</th>
-                <th style="width: 130px; text-align: right;">Łączna Ilość</th>
+                <th style="width: 18px; text-align: center;">Lp</th>
+                <th style="width: 24px; text-align: center;">Typ</th>
+                <th style="width: 65px; text-align: center;">Dokument</th>
+                <th style="text-align: left;">Produkt / Surowiec</th>
+                <th style="width: 78px; text-align: center;">Nr Palety (SSCC)</th>
+                <th style="width: 55px; text-align: center;">Partia</th>
+                <th style="width: 60px; text-align: right;">Ilość</th>
+                <th style="width: 45px; text-align: center;">Skąd</th>
+                <th style="width: 50px; text-align: center;">Dokąd</th>
+                <th style="width: 52px; text-align: center;">Wydał</th>
+                <th style="width: 52px; text-align: center;">Przyjął</th>
+                <th style="width: 48px; text-align: center;">Status</th>
             </tr>
         </thead>
         <tbody>
-            {pdf_wz_products_rows}
+            {master_rows_html}
         </tbody>
     </table>
 
-    <div class="section-title" style="color: #3730a3; border-bottom-color: #3730a3;">
-        4.2. PODSUMOWANIE ASORTYMENTU: DOSTAWA CENTRALA [{len(deliveries_centrala_products)}]
+    <!-- SEKCJA 2.1: DOSTAWY ZEWNĘTRZNE OSOBNO -->
+    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a; page-break-before: auto;">
+        2.1. SZCZEGÓŁOWE KARTY: PRZYJĘCIA DOSTAW (PZ) [{len(deliveries)}]
     </div>
-    <table class="report-table" style="margin-bottom: 10px; page-break-inside: avoid;">
+    {deliv_blocks}
+
+    <!-- SEKCJA 2.2: PRZESUNIĘCIA MM OSOBNO -->
+    <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
+        2.2. SZCZEGÓŁOWE KARTY: PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers)}]
+    </div>
+    {transf_blocks}
+
+    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU -->
+    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
+        3.1. ZBIORCZE PODSUMOWANIE ASORTYMENTU: PRZYJĘCIA DOSTAW (PZ) [{len(deliveries_products)}]
+    </div>
+    <table class="report-table" style="margin-bottom: 12px; page-break-inside: avoid;">
         <thead>
             <tr>
-                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="width: 30px; text-align: center;">Lp</th>
                 <th style="text-align: left;">Produkt / Surowiec / Opakowanie</th>
-                <th style="width: 90px; text-align: center;">Liczba Palet</th>
-                <th style="width: 130px; text-align: right;">Łączna Ilość</th>
+                <th style="width: 100px; text-align: center;">Liczba Palet</th>
+                <th style="width: 140px; text-align: right;">Łączna Ilość</th>
             </tr>
         </thead>
         <tbody>
-            {pdf_centrala_products_rows}
+            {pdf_deliveries_products_rows}
         </tbody>
     </table>
 
     <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
-        4.3. PODSUMOWANIE ASORTYMENTU: PRZESUNIĘCIA MM [{len(transfers_mm_products)}]
+        3.2. ZBIORCZE PODSUMOWANIE ASORTYMENTU: PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers_products)}]
     </div>
-    <table class="report-table" style="margin-bottom: 10px; page-break-inside: avoid;">
+    <table class="report-table" style="margin-bottom: 12px; page-break-inside: avoid;">
         <thead>
             <tr>
-                <th style="width: 25px; text-align: center;">Lp</th>
+                <th style="width: 30px; text-align: center;">Lp</th>
                 <th style="text-align: left;">Produkt / Surowiec / Opakowanie</th>
-                <th style="width: 90px; text-align: center;">Liczba Palet</th>
-                <th style="width: 130px; text-align: right;">Łączna Ilość</th>
+                <th style="width: 100px; text-align: center;">Liczba Palet</th>
+                <th style="width: 140px; text-align: right;">Łączna Ilość</th>
             </tr>
         </thead>
         <tbody>
-            {pdf_mm_products_rows}
+            {pdf_transfers_products_rows}
         </tbody>
     </table>
 
     <div class="footer-note">
-        Dokument wygenerowany automatycznie z bazy danych systemu RaportProdukcyjny. Zawiera wyłącznie zatwierdzone przyjęcia zewnętrzne, centralne oraz międzymagazynowe z dnia {date_str}.
+        Dokument wygenerowany automatycznie z bazy danych systemu RaportProdukcyjny. Zawiera rejestr zbiorczy oraz szczegółowe zestawienie wszystkich zatwierdzonych operacji z dnia {date_str}.
     </div>
 </body>
 </html>
         """
         return self._render_html_to_temp_pdf(html_content, prefix=f"raport_dzienny_{date_str}_")
 
-    def send_daily_warehouse_summary_report(
-        self,
-        date_str: Optional[str] = None,
-        force: bool = False,
-        recipient_override: Optional[List[str]] = None
-    ) -> Tuple[bool, str]:
+    def send_daily_warehouse_summary_report(self, date_str: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
         """
         Wysyła dzienny zbiorczy raport z dostaw i przesunięć z danego dnia na listę odbiorców.
-        Dołącza zbiorczy raport PDF oraz OSOBNE DOKUMENTY PDF DO DRUKU A4 DLA KAŻDEJ ZAREJESTROWANEJ AKCJI.
+        Załącza główny raport zbiorczy (wszystko razem) oraz opcjonalnie/dodatkowo każdy dokument WZ i MM z osobna.
         Jeśli w danym dniu nie było dostaw ani przesunięć i nie wymuszono wysyłki (force=False), raport nie jest wysyłany.
-        Opcjonalny parametr recipient_override pozwala na wysyłkę testową wyłącznie na wskazane adresy e-mail.
         """
         if not date_str:
             date_str = datetime.now().strftime('%Y-%m-%d')
 
-        dispatch_key = f"daily_summary_{date_str}_{'-'.join(recipient_override)}" if recipient_override else f"daily_summary_{date_str}"
+        dispatch_key = f"daily_summary_{date_str}"
         with self._dispatch_lock:
-            if not force and not recipient_override and date_str in self._sent_daily_dates:
+            if not force and date_str in self._sent_daily_dates:
                 return False, f"Zbiorczy raport dzienny dla {date_str} został już wysłany w tej sesji aplikacji."
             if dispatch_key in self._active_dispatches:
                 return False, f"Wysyłka raportu dziennego dla {date_str} jest już w toku."
@@ -2558,7 +2499,7 @@ class OsipReportEmailService:
             if not config.is_configured:
                 return False, "Dedykowane konto e-mail nadawcy nie zostało jeszcze skonfigurowane."
 
-            recipients = [r.strip() for r in recipient_override if r and r.strip()] if recipient_override else config.recipients_list
+            recipients = config.recipients_list
             if not recipients:
                 return False, "Brak zdefiniowanych adresów e-mail odbiorców w Ustawieniach E-mail."
 
@@ -2566,51 +2507,67 @@ class OsipReportEmailService:
             if not activity_data['has_activity'] and not force:
                 return False, f"Brak zarejestrowanych dostaw i przesunięć w dniu {date_str} - raport nie został wysłany."
 
-            subject_prefix = "[TEST] " if recipient_override else ""
-            subject = f"{subject_prefix}📋 Raport Dzienny: Dostawy WZ ({activity_data['deliveries_wz_count']}), Centrala ({activity_data['deliveries_centrala_count']}), MM ({activity_data['transfers_mm_count']}) - {date_str} (Palety: {activity_data['total_pallets']})"
+            subject = f"📋 Raport Dzienny Przyjęć PZ i Przesunięć MM (Magazyn Centralny): {date_str} (Dostawy PZ: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
             body_html = self.build_daily_summary_report_html(date_str, activity_data)
 
-            attachments: List[Tuple[str, str]] = []
-            temp_files_to_cleanup: List[str] = []
-
+            temp_pdf_files = []
+            attachments = []
             try:
-                # 1. Zbiorczy raport dzienny PDF (A4)
-                summary_pdf = self.generate_daily_summary_pdf(date_str, activity_data)
-                if summary_pdf and os.path.exists(summary_pdf):
-                    temp_files_to_cleanup.append(summary_pdf)
-                    attachments.append((summary_pdf, f"Raport_Zbiorczy_Dostaw_i_Przesuniec_{date_str}.pdf"))
+                # 1. Główny załącznik zbiorczy (wszystkie przesunięcia i dostawy razem na jednym wydruku)
+                pdf_summary_path = self.generate_daily_summary_pdf(date_str, activity_data)
+                if pdf_summary_path and os.path.exists(pdf_summary_path):
+                    temp_pdf_files.append(pdf_summary_path)
+                    attachments.append((pdf_summary_path, f"Raport_Zbiorczy_Magazyn_Centralny_{date_str}.pdf"))
 
-                # 2. Osobne raporty PDF (układ A4 do druku) dla każdej zatwierdzonej akcji
-                for doc in activity_data.get('all_documents', []):
-                    doc_pdf = None
-                    if doc.get('raw_dostawa') is not None:
-                        doc_pdf = self.generate_delivery_pdf(doc['raw_dostawa'], doc.get('raw_items', []))
-                    elif doc.get('raw_transfer') is not None:
-                        tr_dict = dict(doc['raw_transfer'])
-                        tr_dict['items'] = doc.get('raw_items', [])
-                        doc_pdf = self.generate_transfer_pdf(tr_dict)
+                # 2. Załączniki z każdego przesunięcia i dostawy osobno
+                for d in activity_data.get('deliveries', []):
+                    ref_clean = re.sub(r'[^A-Za-z0-9_-]', '_', str(d.get('order_ref') or 'PZ'))
+                    d_doc = {
+                        'id': d.get('id'),
+                        'order_ref': d.get('order_ref'),
+                        'supplier': d.get('source'),
+                        'lokalizacja_z': d.get('source'),
+                        'lokalizacja_do': d.get('destination'),
+                        'created_by': d.get('created_by'),
+                        'potwierdzone_przez': d.get('accepted_by'),
+                        'uwagi': d.get('uwagi')
+                    }
+                    pdf_d = self.generate_delivery_pdf(d_doc, d.get('items', []))
+                    if pdf_d and os.path.exists(pdf_d):
+                        temp_pdf_files.append(pdf_d)
+                        attachments.append((pdf_d, f"Dostawa_PZ_{ref_clean}.pdf"))
 
-                    if doc_pdf and os.path.exists(doc_pdf):
-                        temp_files_to_cleanup.append(doc_pdf)
-                        display_name = doc.get('pdf_filename') or os.path.basename(doc_pdf)
-                        attachments.append((doc_pdf, display_name))
+                for t in activity_data.get('transfers', []):
+                    ref_clean = re.sub(r'[^A-Za-z0-9_-]', '_', str(t.get('order_ref') or 'MM'))
+                    t_doc = {
+                        'id': t.get('id'),
+                        'order_ref': t.get('order_ref'),
+                        'lokalizacja_z': t.get('source'),
+                        'lokalizacja_do': t.get('destination'),
+                        'created_by': t.get('created_by'),
+                        'potwierdzone_przez': t.get('accepted_by'),
+                        'uwagi': t.get('uwagi')
+                    }
+                    pdf_t = self.generate_delivery_pdf(t_doc, t.get('items', []))
+                    if pdf_t and os.path.exists(pdf_t):
+                        temp_pdf_files.append(pdf_t)
+                        attachments.append((pdf_t, f"Przesuniecie_MM_{ref_clean}.pdf"))
 
                 ok, msg = self._send_raw_email(config, recipients, subject, body_html, attachments=attachments)
                 if ok:
-                    if not recipient_override:
-                        with self._dispatch_lock:
-                            self._sent_daily_dates.add(date_str)
-                        try:
-                            self.settings_repo.update_last_daily_report_date(date_str)
-                        except Exception as db_err:
-                            print(f"[DAILY_REPORT_EMAIL] Ostrzeżenie zapisu last_daily_report_date w bazie: {db_err}")
-                    return True, f"Zbiorczy raport dzienny za dzień {date_str} (z {len(attachments)} załącznikami PDF do druku) wysłany pomyślnie na adresy: {', '.join(recipients)}."
+                    with self._dispatch_lock:
+                        self._sent_daily_dates.add(date_str)
+                    try:
+                        self.settings_repo.update_last_daily_report_date(date_str)
+                    except Exception as db_err:
+                        print(f"[DAILY_REPORT_EMAIL] Ostrzeżenie zapisu last_daily_report_date w bazie: {db_err}")
+                    return True, f"Zbiorczy raport dzienny za dzień {date_str} wysłany pomyślnie z załącznikami ({len(attachments)} plików PDF) na adresy: {', '.join(recipients)}."
                 return ok, msg
             finally:
-                for fpath in temp_files_to_cleanup:
-                    if fpath and os.path.exists(fpath):
+                for p in temp_pdf_files:
+                    if p and os.path.exists(p):
                         try:
-                            os.remove(fpath)
+                            os.remove(p)
                         except Exception:
                             pass
         finally:
