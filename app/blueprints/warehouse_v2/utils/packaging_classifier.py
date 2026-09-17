@@ -5,9 +5,9 @@ def classify_packaging_type(product_name: str, type_str: str, amount: float = 0,
     pkg_raw = str(raw_pkg or '').upper()
     
     # PRIORITIZE raw_packaging_type (typ_opakowania) - if it's set to Taśma or Karton, use it
-    if pkg_raw in ('TAŚMA', 'TASMA') or 'TAŚM' in p_name or 'TASM' in p_name:
+    if 'TAŚM' in pkg_raw or 'TASM' in pkg_raw or 'TAŚM' in p_name or 'TASM' in p_name:
         return 'Taśma (taśma do pakowania)'
-    if pkg_raw == 'KARTON':
+    if 'KARTON' in pkg_raw:
         return 'Karton (opakowanie zbiorcze)'
     
     # Otherwise, classify by product name and other hints
@@ -19,7 +19,7 @@ def classify_packaging_type(product_name: str, type_str: str, amount: float = 0,
         return 'Worek (50kg)'
     if '20KG' in p_name or '20 KG' in p_name:
         return 'Worek (20kg)'
-    if 'KARTON' in pkg_raw or 'KARTON' in p_name:
+    if 'KARTON' in p_name:
         return 'Karton'
     if 'FOLIA' in p_name or 'ROLKA' in pkg_raw or 'ROLKA' in p_name or 'KALKA' in p_name:
         return 'Rolka / Folia'
@@ -28,7 +28,7 @@ def classify_packaging_type(product_name: str, type_str: str, amount: float = 0,
     if 'KANISTER' in p_name or 'BECZKA' in p_name:
         return 'Kanister / Beczka'
     if t_str == 'OPAKOWANIE':
-        return 'Opakowanie / Karton'
+        return 'Karton (opakowanie zbiorcze)'
     if t_str in ('WYRÓB GOTOWY', 'SUROWIEC', 'DODATEK'):
         if amount and amount >= 800 and ('BB' in p_name or ('SUROWIEC' in t_str and amount % 25 != 0)):
             return 'Big Bag (1000kg)'

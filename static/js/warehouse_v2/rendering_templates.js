@@ -94,12 +94,18 @@ function getExpiryStatus(dateExpStr) {
     }
 }
 
-function formatPackagingBadge(pkgType, palletId, type, linia) {
+function formatPackagingBadge(pkgType, palletId, type, linia, rawPkg) {
     const raw = String(pkgType || '').toUpperCase();
+    const rawP = String(rawPkg || '').toUpperCase();
     const clickAttr = palletId 
         ? `onclick="event.stopPropagation(); if(typeof openChangePackagingForPallet==='function'){openChangePackagingForPallet('${palletId}', '${(pkgType || 'Worek (25kg)').replace(/'/g, "\\'")}', '${type || ''}', '${linia || ''}');}" style="cursor: pointer; transition: transform 0.15s ease;" onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'" title="Kliknij, aby zmienić rodzaj opakowania"`
         : '';
 
+    if (raw.includes('TAŚM') || raw.includes('TASM') || rawP.includes('TAŚM') || rawP.includes('TASM')) {
+        return `<span class="badge badge-packaging-tape" ${clickAttr} style="background: #fef9c3; color: #854d0e; border: 1px solid #fde047; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
+            <span class="material-icons" style="font-size: 12px; color: #ca8a04;">straighten</span> Taśma
+        </span>`;
+    }
     if (raw.includes('BIG') || raw.includes('BB') || raw.includes('1000')) {
         return `<span class="badge badge-packaging-bb" ${clickAttr} style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; ${palletId ? 'cursor:pointer;' : ''}">
             <span class="material-icons" style="font-size: 12px; color: #d97706;">shopping_bag</span> Big Bag (1000kg)
@@ -244,7 +250,7 @@ function generateTableRow(item, index) {
             </div>
         </td>
         <td data-label="Opakowanie" class="packaging-cell">
-            ${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia)}
+            ${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}
         </td>
         <td data-label="Ilość" class="amount-cell">
             <div class="amount-box-inner">
@@ -329,7 +335,7 @@ function generateGridCard(item) {
         </div>
         <div class="card-body">
             <div class="product-name">${displayName}</div>
-            <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia)}</div>
+            <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}</div>
             ${batchSubtitle}
             <div class="amount-row">
                 <span class="val">${item.amount}</span>
