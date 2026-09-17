@@ -30,6 +30,16 @@ class OsipReportEmailService:
     """Obsługa wysyłki raportów dostaw, przesunięć MM i transferów z dedykowanego konta pocztowego."""
 
     OSIP_LOCATION_KEYWORDS = ('OSIP', 'OS01', 'OS02', 'OS03', 'OS04', 'OS05', 'OS06', 'OS07', 'OS08', 'OS09', 'W_TRANZYCIE_OSIP')
+    ALLOWED_CENTRAL_WAREHOUSE_LOCATIONS = (
+        'MP01', 'MPO1',
+        'BFMP01', 'BF_MP01',
+        'BFMS01', 'BF_MS01',
+        'MS01',
+        'PSD', 'PSD01',
+        'MGW01', 'MGW02',
+        'MOP01', 'MO01',
+        'MDO01', 'MD01', 'MDM01'
+    )
     
     _active_dispatches: Set[str] = set()
     _sent_daily_dates: Set[str] = set()
@@ -37,6 +47,62 @@ class OsipReportEmailService:
 
     def __init__(self, settings_repo: Optional[OsipEmailSettingsRepository] = None):
         self.settings_repo = settings_repo or OsipEmailSettingsRepository()
+
+    @classmethod
+    def is_allowed_central_warehouse_location(cls, loc: Optional[str]) -> bool:
+        """
+        Sprawdza czy lokalizacja należy do ściśle dozwolonych stref Magazynu Centralnego:
+        - regały: R + cyfry (np. R010101, R020102, R090103 itp.), RR + cyfry, lub 4-8 cyfr (np. 010102)
+        - bufory i strefy: MP01, BFMP01 (BF_MP01), BFMS01 (BF_MS01), MS01, PSD, PSD01, MGW01, MGW02, MOP01, MDO01 (MD01, MDM01)
+        """
+        if not loc:
+            return False
+        clean_raw = str(loc).strip()
+        if not clean_raw:
+            return False
+        parts = [p.strip() for p in re.split(r'[,;/|]+', clean_raw) if p.strip()]
+        for p in parts:
+            clean = re.sub(r'[^A-Z0-9]', '', p.upper())
+            if not clean:
+                continue
+            if re.match(r'^RR?\d{1,8}$', clean) or re.match(r'^\d{4,8}$', clean) or re.match(r'^REGAL\d{1,8}$', clean):
+                return True
+            clean_allowed = {re.sub(r'[^A-Z0-9]', '', z) for z in cls.ALLOWED_CENTRAL_WAREHOUSE_LOCATIONS}
+            if clean in clean_allowed:
+                return True
+        return False
+
+    @classmethod
+    def is_allowed_central_transfer(cls, source: Optional[str], target: Optional[str]) -> bool:
+        """
+        Sprawdza czy przesunięcie odbywa się wyłącznie w obrębie dozwolonych lokalizacji Magazynu Centralnego.
+        Dozwolone są regały oraz bufory: MP01, BFMP01, BFMS01, MS01, PSD, PSD01, MGW01, MGW02, MOP01, MDO01.
+        Wyklucza ruchy z/do OSIP, produkcji (BB, MZ, KO itp.) oraz innych nieautoryzowanych stref.
+        """
+        src_clean = str(source or '').strip()
+        tgt_clean = str(target or '').strip()
+
+        if not src_clean and not tgt_clean:
+            return False
+
+        if cls.is_osip_involved(src_clean, tgt_clean):
+            return False
+
+        src_allowed = cls.is_allowed_central_warehouse_location(src_clean)
+        tgt_allowed = cls.is_allowed_central_warehouse_location(tgt_clean)
+
+        neutral_keywords = {'WIELE', 'MAGAZYN', 'CENTRALA', 'MAGAZYNCENTRALNY', 'CENTRALNY', ''}
+        src_norm = re.sub(r'[^A-Z0-9]', '', src_clean.upper())
+        tgt_norm = re.sub(r'[^A-Z0-9]', '', tgt_clean.upper())
+
+        if src_allowed and tgt_allowed:
+            return True
+        if src_allowed and (tgt_norm in neutral_keywords or not tgt_clean):
+            return True
+        if tgt_allowed and (src_norm in neutral_keywords or not src_clean):
+            return True
+
+        return False
 
     @classmethod
     def _is_osip_location(cls, loc: Optional[str]) -> bool:
@@ -255,14 +321,19 @@ class OsipReportEmailService:
             msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
             if attachments:
-                for file_path in attachments:
+                for att in attachments:
+                    if isinstance(att, tuple) and len(att) == 2:
+                        file_path, filename = att
+                    else:
+                        file_path = att
+                        filename = os.path.basename(file_path) if file_path else "zalacznik.pdf"
                     if file_path and os.path.exists(file_path):
-                        filename = os.path.basename(file_path)
                         with open(file_path, 'rb') as f:
-                            part = MIMEBase('application', 'octet-stream')
+                            subtype = 'pdf' if filename.lower().endswith('.pdf') else 'octet-stream'
+                            part = MIMEBase('application', subtype)
                             part.set_payload(f.read())
                         encoders.encode_base64(part)
-                        part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+                        part.add_header('Content-Disposition', 'attachment', filename=filename)
                         msg.attach(part)
 
             if config.smtp_security == 'SSL' or config.smtp_port == 465:
@@ -663,7 +734,7 @@ class OsipReportEmailService:
         rows_html = ""
         summary_products = {}
         for idx, it in enumerate(items, start=1):
-            pname = it.get('productName') or 'Brak nazwy'
+            pname = it.get('product_name') or it.get('productName') or 'Brak nazwy'
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
             prod_date = it.get('data_produkcji') or '-'
@@ -673,9 +744,9 @@ class OsipReportEmailService:
                 qty = float(raw_q)
             except Exception:
                 qty = 0.0
-            unit = 'szt' if it.get('packageForm') == 'packaging' else 'kg'
-            source_spot = it.get('sourceSpot') or cat['source_value']
-            target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
+            unit = it.get('unit') or ('szt' if it.get('packageForm') == 'packaging' else 'kg')
+            source_spot = it.get('source_spot') or it.get('sourceSpot') or cat['source_value']
+            target_spot = it.get('target_spot') or it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
             accepted = bool(it.get('accepted'))
             status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
             status_color = "#166534" if accepted else "#991b1b"
@@ -1469,10 +1540,31 @@ class OsipReportEmailService:
                 )
                 if is_osip:
                     continue
+
+                # Dla przesunięć MM: weryfikacja czy nagłówek dokumentu nie wskazuje nieautoryzowanej strefy
+                if not cat['is_external']:
+                    doc_src = d.get('lokalizacja_z') or cat.get('source_value')
+                    doc_dst = d.get('lokalizacja_do') or cat.get('dest_value')
+                    neutral_keywords = {'WIELE', 'MAGAZYN', 'CENTRALA', 'MAGAZYNCENTRALNY', 'CENTRALNY', ''}
+                    src_norm = re.sub(r'[^A-Z0-9]', '', str(doc_src or '').upper())
+                    dst_norm = re.sub(r'[^A-Z0-9]', '', str(doc_dst or '').upper())
+                    if doc_src and not self.is_allowed_central_warehouse_location(doc_src) and src_norm not in neutral_keywords:
+                        continue
+                    if doc_dst and not self.is_allowed_central_warehouse_location(doc_dst) and dst_norm not in neutral_keywords:
+                        continue
+
             doc_items = []
             doc_summary_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
-            for idx, it in enumerate(raw_items, start=1):
+            for it in raw_items:
+                source_spot = it.get('sourceSpot') or it.get('lokalizacja_z') or cat['source_value']
+                target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or it.get('lokalizacja_do') or cat['dest_value']
+
+                # Dla raportu Magazynu Centralnego: przesunięcia MM mogą dotyczyć wyłącznie dozwolonych regałów i buforów
+                if central_only and not cat['is_external']:
+                    if not self.is_allowed_central_transfer(source_spot, target_spot):
+                        continue
+
                 pname_raw = it.get('productName') or 'Brak nazwy'
                 pname = re.sub(r'\s+', ' ', str(pname_raw).strip())
                 nr_pal = it.get('nr_palety') or '-'
@@ -1485,13 +1577,11 @@ class OsipReportEmailService:
                 except Exception:
                     qty = 0.0
                 unit = ('szt' if it.get('packageForm') == 'packaging' else 'kg').strip().lower()
-                source_spot = it.get('sourceSpot') or cat['source_value']
-                target_spot = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or cat['dest_value']
                 accepted = bool(it.get('accepted'))
                 status_txt = "PRZYJĘTA" if accepted else "ODRZUCONA"
 
                 item_obj = {
-                    'lp': idx,
+                    'lp': len(doc_items) + 1,
                     'product_name': pname,
                     'nr_palety': nr_pal,
                     'nr_partii': nr_partii,
@@ -1528,6 +1618,9 @@ class OsipReportEmailService:
 
                 total_qty_by_unit[unit] = total_qty_by_unit.get(unit, 0.0) + qty
                 total_pallets += 1
+
+            if not doc_items:
+                continue
 
             doc_entry = {
                 'id': d.get('id'),
@@ -1654,7 +1747,7 @@ class OsipReportEmailService:
         }
 
     def build_daily_summary_report_html(self, date_str: str, activity_data: Dict[str, Any]) -> str:
-        """Buduje nowoczesny, czytelny raport HTML z podsumowaniem dnia (Dostawy i Przesunięcia)."""
+        """Buduje nowoczesny, czytelny raport HTML z podsumowaniem dnia (Rejestr zbiorczy + poszczególne dokumenty osobno)."""
         deliveries = activity_data.get('deliveries', [])
         transfers = activity_data.get('transfers', [])
         total_pallets = activity_data.get('total_pallets', 0)
@@ -1665,6 +1758,67 @@ class OsipReportEmailService:
         
         totals_str_parts = [f"<strong>{qty:,.2f} {unit}</strong>" for unit, qty in sorted(total_qty_by_unit.items())]
         totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
+
+        # 1. ZBIORCZY REJESTR WSZYSTKICH OPERACJI RAZEM
+        all_master_items = []
+        for d in deliveries:
+            for it in d.get('items', []):
+                all_master_items.append({
+                    'type_label': 'PZ (Dostawa)',
+                    'type_badge_bg': '#dbeafe',
+                    'type_badge_color': '#1e40af',
+                    'doc_ref': d.get('order_ref'),
+                    'source': it.get('source_spot') or d.get('source'),
+                    'target': it.get('target_spot') or d.get('destination'),
+                    'created_by': d.get('created_by') or '-',
+                    'accepted_by': d.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+        for t in transfers:
+            for it in t.get('items', []):
+                all_master_items.append({
+                    'type_label': 'MM (Przesunięcie)',
+                    'type_badge_bg': '#dcfce7',
+                    'type_badge_color': '#166534',
+                    'doc_ref': t.get('order_ref'),
+                    'source': it.get('source_spot') or t.get('source'),
+                    'target': it.get('target_spot') or t.get('destination'),
+                    'created_by': t.get('created_by') or '-',
+                    'accepted_by': t.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+
+        master_rows_html = ""
+        for m_idx, m in enumerate(all_master_items, start=1):
+            st_badge = '<span style="display:inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d;">PRZYJĘTA</span>' if m.get('accepted') else '<span style="display:inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c;">ODRZUCONA</span>'
+            master_rows_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <td style="padding: 7px 8px; text-align: center; color: #64748b; font-weight: 600;">{m_idx}</td>
+                <td style="padding: 7px 8px; text-align: center;"><span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; background: {m['type_badge_bg']}; color: {m['type_badge_color']};">{m['type_label']}</span></td>
+                <td style="padding: 7px 8px; text-align: center; font-weight: 800; color: #0f172a;">{m.get('doc_ref')}</td>
+                <td style="padding: 7px 8px; font-weight: 700; color: #0f172a;">{m.get('product_name')}</td>
+                <td style="padding: 7px 8px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{m.get('nr_palety')}</td>
+                <td style="padding: 7px 8px; text-align: center; color: #475569;">{m.get('nr_partii')}</td>
+                <td style="padding: 7px 8px; text-align: right; font-weight: 800; color: #166534;">{m.get('quantity'):,.2f} {m.get('unit')}</td>
+                <td style="padding: 7px 8px; text-align: center; color: #475569;">{m.get('source')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-weight: 700; color: #2563eb;">{m.get('target')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-size: 11px; color: #334155;">{m.get('created_by')}</td>
+                <td style="padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 700; color: #166534;">{m.get('accepted_by')}</td>
+                <td style="padding: 7px 8px; text-align: center;">{st_badge}</td>
+            </tr>
+            """
 
         def _render_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
             badge_color = "#1e3a8a" if is_delivery else "#065f46"
@@ -1774,13 +1928,15 @@ class OsipReportEmailService:
 
         deliveries_products_rows = _render_html_products_rows(deliveries_products, "#1e3a8a")
         transfers_products_rows = _render_html_products_rows(transfers_products, "#065f46")
+        app_base_url = os.getenv('APP_BASE_URL', 'https://raportprodukcji.mycloudnas.com').rstrip('/')
+        print_url = f"{app_base_url}/magazyn-dostawy/drukuj-raport-dzienny?data={date_str}"
 
         return f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"></head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
-            <div style="max-width: 820px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+            <div style="max-width: 860px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
                 
                 <!-- Hero Header -->
                 <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 24px; color: #ffffff;">
@@ -1794,7 +1950,7 @@ class OsipReportEmailService:
                     <table style="width: 100%; border-collapse: collapse; text-align: center;">
                         <tr>
                             <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
-                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawy WZ</div>
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Dostawy PZ</div>
                                 <div style="font-size: 22px; font-weight: 900; color: #1e3a8a; margin-top: 4px;">{len(deliveries)}</div>
                             </td>
                             <td style="width: 25%; padding: 10px; border-right: 1px solid #e2e8f0;">
@@ -1813,29 +1969,72 @@ class OsipReportEmailService:
                     </table>
                 </div>
 
+                <!-- Direct 1-Click Print & Attachment Selection Banner -->
+                <div style="margin: 20px 24px 8px 24px; padding: 18px 20px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #bfdbfe; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);">
+                    <div style="font-size: 14px; font-weight: 800; color: #1e40af; margin-bottom: 4px;">
+                        🖨️ DRUKUJ RAPORT I ZAŁĄCZNIKI (WYBÓR 1 KLIKNIĘCIEM)
+                    </div>
+                    <div style="font-size: 12px; color: #334155; margin-bottom: 12px;">
+                        Kliknij poniższy przycisk, aby otworzyć panel wydruku w systemie, wybrać które załączniki PZ / MM chcesz wydrukować i puścić wydruk naraz.
+                    </div>
+                    <a href="{print_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; text-decoration: none; font-weight: 900; font-size: 14px; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); letter-spacing: 0.3px;">
+                        🖨️ OTWÓRZ PANEL DRUKU W SYSTEMIE
+                    </a>
+                </div>
+
                 <div style="padding: 24px;">
 
-                    <!-- SEKCJA 1: DOSTAWY ZEWNĘTRZNE -->
+                    <!-- SEKCJA 1: JEDNOLITY ZBIORCZY REJESTR WSZYSTKICH POZYCJI RAZEM -->
+                    <div style="margin-bottom: 30px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+                            <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                📑 1. Zbiorczy Rejestr Wszystkich Operacji (Dostawy PZ i Przesunięcia MM razem) [{len(all_master_items)} palet]
+                            </h2>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">
+                            <thead>
+                                <tr style="background: #f1f5f9; color: #334155; font-size: 11px; text-transform: uppercase;">
+                                    <th style="padding: 8px 6px; text-align: center; width: 25px;">Lp</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 85px;">Typ</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 85px;">Dokument</th>
+                                    <th style="padding: 8px 6px; text-align: left;">Produkt / Surowiec</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 105px;">Nr Palety</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Partia</th>
+                                    <th style="padding: 8px 6px; text-align: right; width: 80px;">Ilość</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 60px;">Skąd</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 65px;">Dokąd</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Wydał</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Przyjął</th>
+                                    <th style="padding: 8px 6px; text-align: center; width: 70px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {master_rows_html}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- SEKCJA 2.1: DOSTAWY ZEWNĘTRZNE OSOBNO -->
                     <div style="margin-bottom: 30px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px;">
                             <h2 style="font-size: 16px; font-weight: 900; color: #1e3a8a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                📦 1. Dostawy Zewnętrzne (WZ) ({len(deliveries)})
+                                📦 2.1. Szczegółowe Karty: Przyjęcia Dostaw (PZ) ({len(deliveries)})
                             </h2>
                         </div>
                         {deliveries_blocks}
                     </div>
 
-                    <!-- SEKCJA 2: PRZESUNIĘCIA MM I TRANSFERY -->
+                    <!-- SEKCJA 2.2: PRZESUNIĘCIA MM OSOBNO -->
                     <div style="margin-bottom: 30px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 2px solid #065f46; padding-bottom: 8px;">
                             <h2 style="font-size: 16px; font-weight: 900; color: #065f46; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
-                                🔄 2. Przesunięcia MM i Transfery Wewnętrzne ({len(transfers)})
+                                🔄 2.2. Szczegółowe Karty: Przesunięcia MM i Transfery Wewnętrzne ({len(transfers)})
                             </h2>
                         </div>
                         {transfers_blocks}
                     </div>
 
-                    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU Z PODZIAŁEM NA DOSTAWY I PRZESUNIĘCIA -->
+                    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU -->
                     <div style="margin-bottom: 16px;">
                         <div style="margin-bottom: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
                             <h2 style="font-size: 16px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -1846,7 +2045,7 @@ class OsipReportEmailService:
                         <!-- 3.1 Dostawy Zewnętrzne -->
                         <div style="margin-bottom: 20px;">
                             <div style="font-size: 12px; font-weight: 800; color: #1e3a8a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                📦 3.1. Podsumowanie Asortymentu — Dostawy Zewnętrzne (WZ) ({len(deliveries_products)})
+                                📦 3.1. Podsumowanie Asortymentu — Przyjęcia Dostaw (PZ) ({len(deliveries_products)})
                             </div>
                             <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
                                 <thead>
@@ -1888,7 +2087,7 @@ class OsipReportEmailService:
 
                 <!-- Footer -->
                 <div style="background: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
-                    Dzienny raport magazynowy wygenerowany automatycznie przez system RaportProdukcyjny. Do wiadomości dołączono oficjalny dokument PDF A4 do druku.
+                    Dzienny raport magazynowy wygenerowany automatycznie przez system RaportProdukcyjny. Do wiadomości dołączono oficjalne załączniki PDF do druku (raport zbiorczy oraz poszczególne dokumenty).
                 </div>
             </div>
         </body>
@@ -1896,7 +2095,7 @@ class OsipReportEmailService:
         """
 
     def generate_daily_summary_pdf(self, date_str: str, activity_data: Dict[str, Any]) -> Optional[str]:
-        """Generuje plik PDF w układzie do druku A4 z pełnym zestawieniem dostaw i przesunięć z danego dnia."""
+        """Generuje plik PDF w układzie do druku A4 z pełnym zestawieniem dostaw i przesunięć z danego dnia (Zbiorczo + Dokumenty Osobno)."""
         deliveries = activity_data.get('deliveries', [])
         transfers = activity_data.get('transfers', [])
         total_pallets = activity_data.get('total_pallets', 0)
@@ -1908,6 +2107,67 @@ class OsipReportEmailService:
 
         totals_str_parts = [f"{qty:,.2f} {unit}" for unit, qty in sorted(total_qty_by_unit.items())]
         totals_display = " | ".join(totals_str_parts) if totals_str_parts else "0 kg"
+
+        # 1. ZBIORCZY REJESTR WSZYSTKICH POZYCJI RAZEM
+        all_master_items = []
+        for d in deliveries:
+            for it in d.get('items', []):
+                all_master_items.append({
+                    'type_label': 'PZ',
+                    'type_badge_bg': '#dbeafe',
+                    'type_badge_color': '#1e40af',
+                    'doc_ref': d.get('order_ref'),
+                    'source': it.get('source_spot') or d.get('source'),
+                    'target': it.get('target_spot') or d.get('destination'),
+                    'created_by': d.get('created_by') or '-',
+                    'accepted_by': d.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+        for t in transfers:
+            for it in t.get('items', []):
+                all_master_items.append({
+                    'type_label': 'MM',
+                    'type_badge_bg': '#dcfce7',
+                    'type_badge_color': '#166534',
+                    'doc_ref': t.get('order_ref'),
+                    'source': it.get('source_spot') or t.get('source'),
+                    'target': it.get('target_spot') or t.get('destination'),
+                    'created_by': t.get('created_by') or '-',
+                    'accepted_by': t.get('accepted_by') or '-',
+                    'product_name': it.get('product_name'),
+                    'nr_palety': it.get('nr_palety'),
+                    'nr_partii': it.get('nr_partii'),
+                    'quantity': it.get('quantity'),
+                    'unit': it.get('unit'),
+                    'status': it.get('status'),
+                    'accepted': it.get('accepted'),
+                })
+
+        master_rows_html = ""
+        for m_idx, m in enumerate(all_master_items, start=1):
+            st_color = "#166534" if m.get('accepted') else "#991b1b"
+            master_rows_html += f"""
+            <tr>
+                <td style="text-align: center; font-weight: 700;">{m_idx}</td>
+                <td style="text-align: center;"><span style="display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 7.5px; font-weight: 800; background: {m['type_badge_bg']}; color: {m['type_badge_color']};">{m['type_label']}</span></td>
+                <td style="text-align: center; font-weight: 800; font-size: 7.5px;">{m.get('doc_ref')}</td>
+                <td><strong>{m.get('product_name')}</strong></td>
+                <td style="text-align: center; font-family: monospace; font-weight: 700; font-size: 7.5px;">{m.get('nr_palety')}</td>
+                <td style="text-align: center; font-size: 7.5px;">{m.get('nr_partii')}</td>
+                <td style="text-align: right; font-weight: 800; color: #166534;">{m.get('quantity'):,.2f} {m.get('unit')}</td>
+                <td style="text-align: center; font-size: 7.5px;">{m.get('source')}</td>
+                <td style="text-align: center; font-weight: 700; color: #1e40af; font-size: 7.5px;">{m.get('target')}</td>
+                <td style="text-align: center; font-size: 7.5px; color: #334155;">{m.get('created_by')}</td>
+                <td style="text-align: center; font-weight: 700; font-size: 7.5px; color: #166534;">{m.get('accepted_by')}</td>
+                <td style="text-align: center; font-weight: 700; color: {st_color}; font-size: 7.5px;">{m.get('status')}</td>
+            </tr>
+            """
 
         def _render_pdf_doc_block(doc: Dict[str, Any], is_delivery: bool) -> str:
             src_label = "Dostawca" if is_delivery else "Skąd"
@@ -2003,7 +2263,7 @@ class OsipReportEmailService:
             color: #0f172a;
             margin: 0;
             padding: 0;
-            font-size: 10px;
+            font-size: 9.5px;
             line-height: 1.25;
         }}
         .header-box {{
@@ -2014,7 +2274,7 @@ class OsipReportEmailService:
             background: #f8fafc;
         }}
         .doc-title {{
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -2025,7 +2285,7 @@ class OsipReportEmailService:
             align-items: center;
         }}
         .doc-meta {{
-            font-size: 10px;
+            font-size: 9.5px;
             color: #475569;
         }}
         .kpi-grid {{
@@ -2056,12 +2316,12 @@ class OsipReportEmailService:
             margin-top: 2px;
         }}
         .section-title {{
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin: 14px 0 8px 0;
-            padding-bottom: 4px;
+            margin: 14px 0 6px 0;
+            padding-bottom: 3px;
             border-bottom: 1.5px solid #0f172a;
         }}
         .doc-card {{
@@ -2072,26 +2332,26 @@ class OsipReportEmailService:
             page-break-inside: avoid;
         }}
         .doc-card-head {{
-            padding: 6px 10px;
+            padding: 5px 8px;
         }}
         .doc-card-body {{
-            padding: 6px 10px;
+            padding: 5px 8px;
         }}
         table.report-table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 8.5px;
             margin-top: 4px;
         }}
         table.report-table th, table.report-table td {{
             border: 1px solid #cbd5e1;
-            padding: 4px 6px;
+            padding: 3px 5px;
         }}
         table.report-table th {{
             background: #f1f5f9;
             font-weight: 800;
             text-transform: uppercase;
-            font-size: 8px;
+            font-size: 7.5px;
             color: #475569;
         }}
         .footer-note {{
@@ -2115,7 +2375,7 @@ class OsipReportEmailService:
         </div>
         <div class="kpi-grid">
             <div class="kpi-item">
-                <div class="kpi-label">Dostawy WZ</div>
+                <div class="kpi-label">Dostawy PZ</div>
                 <div class="kpi-val" style="color: #1e3a8a;">{len(deliveries)}</div>
             </div>
             <div class="kpi-item">
@@ -2133,18 +2393,47 @@ class OsipReportEmailService:
         </div>
     </div>
 
-    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
-        1. DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries)}]
+    <!-- SEKCJA 1: JEDNOLITY ZBIORCZY REJESTR WSZYSTKICH OPERACJI RAZEM -->
+    <div class="section-title" style="color: #0f172a; border-bottom-color: #0f172a;">
+        1. ZBIORCZY REJESTR WSZYSTKICH OPERACJI (DOSTAWY PZ I PRZESUNIĘCIA MM RAZEM) [{len(all_master_items)} palet]
+    </div>
+    <table class="report-table" style="margin-bottom: 14px;">
+        <thead>
+            <tr>
+                <th style="width: 18px; text-align: center;">Lp</th>
+                <th style="width: 24px; text-align: center;">Typ</th>
+                <th style="width: 65px; text-align: center;">Dokument</th>
+                <th style="text-align: left;">Produkt / Surowiec</th>
+                <th style="width: 78px; text-align: center;">Nr Palety (SSCC)</th>
+                <th style="width: 55px; text-align: center;">Partia</th>
+                <th style="width: 60px; text-align: right;">Ilość</th>
+                <th style="width: 45px; text-align: center;">Skąd</th>
+                <th style="width: 50px; text-align: center;">Dokąd</th>
+                <th style="width: 52px; text-align: center;">Wydał</th>
+                <th style="width: 52px; text-align: center;">Przyjął</th>
+                <th style="width: 48px; text-align: center;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {master_rows_html}
+        </tbody>
+    </table>
+
+    <!-- SEKCJA 2.1: DOSTAWY ZEWNĘTRZNE OSOBNO -->
+    <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a; page-break-before: auto;">
+        2.1. SZCZEGÓŁOWE KARTY: PRZYJĘCIA DOSTAW (PZ) [{len(deliveries)}]
     </div>
     {deliv_blocks}
 
+    <!-- SEKCJA 2.2: PRZESUNIĘCIA MM OSOBNO -->
     <div class="section-title" style="color: #065f46; border-bottom-color: #065f46;">
-        2. PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers)}]
+        2.2. SZCZEGÓŁOWE KARTY: PRZESUNIĘCIA MM I TRANSFERY WEWNĘTRZNE [{len(transfers)}]
     </div>
     {transf_blocks}
 
+    <!-- SEKCJA 3: PODSUMOWANIE ASORTYMENTU -->
     <div class="section-title" style="color: #1e3a8a; border-bottom-color: #1e3a8a;">
-        3.1. ZBIORCZE PODSUMOWANIE ASORTYMENTU: DOSTAWY ZEWNĘTRZNE (WZ) [{len(deliveries_products)}]
+        3.1. ZBIORCZE PODSUMOWANIE ASORTYMENTU: PRZYJĘCIA DOSTAW (PZ) [{len(deliveries_products)}]
     </div>
     <table class="report-table" style="margin-bottom: 12px; page-break-inside: avoid;">
         <thead>
@@ -2178,7 +2467,7 @@ class OsipReportEmailService:
     </table>
 
     <div class="footer-note">
-        Dokument wygenerowany automatycznie z bazy danych systemu RaportProdukcyjny. Zawiera zestawienie wszystkich zatwierdzonych operacji przyjęć z dnia {date_str}.
+        Dokument wygenerowany automatycznie z bazy danych systemu RaportProdukcyjny. Zawiera rejestr zbiorczy oraz szczegółowe zestawienie wszystkich zatwierdzonych operacji z dnia {date_str}.
     </div>
 </body>
 </html>
@@ -2188,6 +2477,7 @@ class OsipReportEmailService:
     def send_daily_warehouse_summary_report(self, date_str: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
         """
         Wysyła dzienny zbiorczy raport z dostaw i przesunięć z danego dnia na listę odbiorców.
+        Załącza główny raport zbiorczy (wszystko razem) oraz opcjonalnie/dodatkowo każdy dokument WZ i MM z osobna.
         Jeśli w danym dniu nie było dostaw ani przesunięć i nie wymuszono wysyłki (force=False), raport nie jest wysyłany.
         """
         if not date_str:
@@ -2217,13 +2507,52 @@ class OsipReportEmailService:
             if not activity_data['has_activity'] and not force:
                 return False, f"Brak zarejestrowanych dostaw i przesunięć w dniu {date_str} - raport nie został wysłany."
 
-            subject = f"📋 Raport Dzienny Dostaw i Przesunięć (Magazyn Centralny): {date_str} (Dostawy: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
+            subject = f"📋 Raport Dzienny Przyjęć PZ i Przesunięć MM (Magazyn Centralny): {date_str} (Dostawy PZ: {activity_data['deliveries_count']}, MM: {activity_data['transfers_count']}, Palety: {activity_data['total_pallets']})"
             body_html = self.build_daily_summary_report_html(date_str, activity_data)
 
-            pdf_path = None
+            temp_pdf_files = []
+            attachments = []
             try:
-                pdf_path = self.generate_daily_summary_pdf(date_str, activity_data)
-                attachments = [pdf_path] if (pdf_path and os.path.exists(pdf_path)) else None
+                # 1. Główny załącznik zbiorczy (wszystkie przesunięcia i dostawy razem na jednym wydruku)
+                pdf_summary_path = self.generate_daily_summary_pdf(date_str, activity_data)
+                if pdf_summary_path and os.path.exists(pdf_summary_path):
+                    temp_pdf_files.append(pdf_summary_path)
+                    attachments.append((pdf_summary_path, f"Raport_Zbiorczy_Magazyn_Centralny_{date_str}.pdf"))
+
+                # 2. Załączniki z każdego przesunięcia i dostawy osobno
+                for d in activity_data.get('deliveries', []):
+                    ref_clean = re.sub(r'[^A-Za-z0-9_-]', '_', str(d.get('order_ref') or 'PZ'))
+                    d_doc = {
+                        'id': d.get('id'),
+                        'order_ref': d.get('order_ref'),
+                        'supplier': d.get('source'),
+                        'lokalizacja_z': d.get('source'),
+                        'lokalizacja_do': d.get('destination'),
+                        'created_by': d.get('created_by'),
+                        'potwierdzone_przez': d.get('accepted_by'),
+                        'uwagi': d.get('uwagi')
+                    }
+                    pdf_d = self.generate_delivery_pdf(d_doc, d.get('items', []))
+                    if pdf_d and os.path.exists(pdf_d):
+                        temp_pdf_files.append(pdf_d)
+                        attachments.append((pdf_d, f"Dostawa_PZ_{ref_clean}.pdf"))
+
+                for t in activity_data.get('transfers', []):
+                    ref_clean = re.sub(r'[^A-Za-z0-9_-]', '_', str(t.get('order_ref') or 'MM'))
+                    t_doc = {
+                        'id': t.get('id'),
+                        'order_ref': t.get('order_ref'),
+                        'lokalizacja_z': t.get('source'),
+                        'lokalizacja_do': t.get('destination'),
+                        'created_by': t.get('created_by'),
+                        'potwierdzone_przez': t.get('accepted_by'),
+                        'uwagi': t.get('uwagi')
+                    }
+                    pdf_t = self.generate_delivery_pdf(t_doc, t.get('items', []))
+                    if pdf_t and os.path.exists(pdf_t):
+                        temp_pdf_files.append(pdf_t)
+                        attachments.append((pdf_t, f"Przesuniecie_MM_{ref_clean}.pdf"))
+
                 ok, msg = self._send_raw_email(config, recipients, subject, body_html, attachments=attachments)
                 if ok:
                     with self._dispatch_lock:
@@ -2232,14 +2561,15 @@ class OsipReportEmailService:
                         self.settings_repo.update_last_daily_report_date(date_str)
                     except Exception as db_err:
                         print(f"[DAILY_REPORT_EMAIL] Ostrzeżenie zapisu last_daily_report_date w bazie: {db_err}")
-                    return True, f"Zbiorczy raport dzienny za dzień {date_str} wysłany pomyślnie na adresy: {', '.join(recipients)}."
+                    return True, f"Zbiorczy raport dzienny za dzień {date_str} wysłany pomyślnie z załącznikami ({len(attachments)} plików PDF) na adresy: {', '.join(recipients)}."
                 return ok, msg
             finally:
-                if pdf_path and os.path.exists(pdf_path):
-                    try:
-                        os.remove(pdf_path)
-                    except Exception:
-                        pass
+                for p in temp_pdf_files:
+                    if p and os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
         finally:
             with self._dispatch_lock:
                 self._active_dispatches.discard(dispatch_key)

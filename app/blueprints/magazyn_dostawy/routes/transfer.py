@@ -108,8 +108,8 @@ def oczekujace():
                            pending_scan_items=pending_scan_items)
 
 @magazyn_dostawy_bp.route('/nowa')
-@magazyn_dostawy_bp.route('/edycja/<dostawa_id>')
-@magazyn_dostawy_bp.route('/<dostawa_id>')
+@magazyn_dostawy_bp.route('/edycja/<int:dostawa_id>')
+@magazyn_dostawy_bp.route('/<int:dostawa_id>')
 def edycja_dostawy(dostawa_id=None):
     linia = request.args.get('linia', 'PSD').upper()
     conn = get_db_connection()

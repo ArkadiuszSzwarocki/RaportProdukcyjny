@@ -1,3 +1,4 @@
+from .daily_reports_print import *
 from .reception import *
 from .transfer import *
 from .api_actions import *
