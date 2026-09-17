@@ -149,7 +149,10 @@ function openScannerReturnModal() {
 function closeScannerReturnModal() {
   document.getElementById('scannerReturnOverlay').style.display = 'none';
   const scanInput = document.getElementById('scanInput');
-  if (scanInput) scanInput.focus();
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
 }
 
 function submitScannerReturn() {
@@ -217,7 +220,10 @@ function closeScannerSplitModal() {
   const overlay = document.getElementById('scannerSplitOverlay');
   if (overlay) overlay.style.display = 'none';
   const scanInput = document.getElementById('scanInput');
-  if (scanInput) scanInput.focus();
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
 }
 
 function submitScannerSplit() {

@@ -52,6 +52,9 @@ function resetScanner() {
   showToast('🔄 Skaner zresetowany — gotowy do nowego skanu', 'info');
 }
 
+let lastTriggerScanTime = 0;
+let lastTriggerScanCode = '';
+
 function triggerScan() {
   clearTimeout(scanTimeout);
   if (!scanInput) return;
@@ -60,6 +63,13 @@ function triggerScan() {
   if (code !== rawCode) {
     scanInput.value = code;
   }
+  const now = Date.now();
+  if (code && code === lastTriggerScanCode && (now - lastTriggerScanTime) < 500) {
+    return;
+  }
+  lastTriggerScanCode = code;
+  lastTriggerScanTime = now;
+
   if (code) {
     if (currentPallet) {
       if (isPalletCode(code)) {
@@ -86,6 +96,11 @@ function triggerScan() {
 
 async function doMoveFromMainInput(loc) {
   loc = loc.toUpperCase();
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
+  resetLocationInputDetection();
 
   const isDeliveryTransfer = Boolean(
     currentPallet
@@ -142,6 +157,11 @@ async function doMoveFromMainInput(loc) {
       if (d.success) {
         window.hideAfterLoad = true;
         hidePallet();
+        if (scanInput) {
+          scanInput.value = '';
+          scanInput.focus();
+        }
+        resetLocationInputDetection();
         refreshSidebarBadgesSilently();
       } else if (scanInput) {
         scanInput.value = '';
@@ -192,6 +212,11 @@ async function doMoveFromMainInput(loc) {
       if (d.success) {
         window.hideAfterLoad = true;
         hidePallet();
+        if (scanInput) {
+          scanInput.value = '';
+          scanInput.focus();
+        }
+        resetLocationInputDetection();
         refreshSidebarBadgesSilently();
       } else if (scanInput) {
         scanInput.value = '';
@@ -295,8 +320,14 @@ async function doMoveFromMainInput(loc) {
           showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
           window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
         }
-        window.hideAfterLoad = true;
-        lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+        hidePallet();
+        currentPallet = null;
+        if (scanInput) {
+          scanInput.value = '';
+          scanInput.focus();
+          scanInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        resetLocationInputDetection();
         refreshSidebarBadgesSilently();
       } else {
         if (loc && loc.length >= 6) {
@@ -356,8 +387,17 @@ function closeDispatchModal() {
   }
 }
 
+let currentLookupCode = null;
+let currentLookupPromise = null;
+
 function lookupPallet(code) {
-  fetch('/agro/scanner/lookup', {
+  if (!code) return;
+  code = code.trim();
+  if (currentLookupCode === code && currentLookupPromise) {
+    return currentLookupPromise;
+  }
+  currentLookupCode = code;
+  currentLookupPromise = fetch('/agro/scanner/lookup', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({code, linia: LINIA})
@@ -378,7 +418,16 @@ function lookupPallet(code) {
       showToast('❌ ' + d.error, 'danger');
     }
   })
-  .catch(e => showToast('Błąd sieci: ' + e, 'danger'));
+  .catch(e => showToast('Błąd sieci: ' + e, 'danger'))
+  .finally(() => {
+    setTimeout(() => {
+      if (currentLookupCode === code) {
+        currentLookupCode = null;
+        currentLookupPromise = null;
+      }
+    }, 400);
+  });
+  return currentLookupPromise;
 }
 
 if (scanInput) {

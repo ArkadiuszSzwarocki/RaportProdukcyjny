@@ -82,16 +82,17 @@
       </button>
     </div>
     
-    <!-- Pole tekstowe - pełna szerokość z wbudowaną ikoną odświeżenia -->
+    <!-- Pole tekstowe - pełna szerokość z wbudowaną ikoną usuwania i klawiatury -->
     <div style="position: relative; width: 100%;">
       <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
              placeholder="Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)" autofocus
-             style="width: 100%; padding-right: 44px; box-sizing: border-box;">
-      <button type="button" id="btnResetScannerInput" onclick="resetScanner()" title="Wyczyść i zresetuj skaner"
-              style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 6px; transition: all 0.15s;"
-              onmouseover="this.style.color='#2563eb'; this.style.background='#eff6ff'"
+             style="width: 100%; padding-right: 38px; box-sizing: border-box;">
+      <button type="button" id="btnResetScannerInput" onclick="resetScanner()" title="Wyczyść pole skanowania"
+              class="input-clear-btn"
+              style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; display: none; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 2px; border-radius: 6px; transition: all 0.15s; z-index: 16;"
+              onmouseover="this.style.color='#ef4444'; this.style.background='#fee2e2'"
               onmouseout="this.style.color='#64748b'; this.style.background='none'">
-        <span class="material-icons" style="font-size: 22px;">refresh</span>
+        <span class="material-icons" style="font-size: 18px;">close</span>
       </button>
     </div>
 
@@ -267,8 +268,17 @@
 
     <div style="margin-bottom: 14px;">
       <label style="display:block; font-size:12px; font-weight:800; color:#94a3b8; margin-bottom:6px; text-transform:uppercase;">Lokalizacja docelowa odciętej części:</label>
-      <input type="text" id="scannerSplitTargetLoc" placeholder="np. MS01, MP01, Regał..." 
-             style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:16px; font-weight:800; text-transform:uppercase; background:#0f172a; border:2px solid #475569; border-radius:10px; color:#fff;">
+      <div style="position: relative; width: 100%;">
+        <input type="text" id="scannerSplitTargetLoc" placeholder="np. MS01, MP01, Regał..." 
+               style="width:100%; box-sizing:border-box; padding:12px 14px; padding-right:38px; font-size:16px; font-weight:800; text-transform:uppercase; background:#0f172a; border:2px solid #475569; border-radius:10px; color:#fff;">
+        <button type="button" onclick="document.getElementById('scannerSplitTargetLoc').value=''; document.getElementById('scannerSplitTargetLoc').focus();" title="Wyczyść pole"
+                class="input-clear-btn"
+                style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; display: none; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; z-index: 16;"
+                onmouseover="this.style.color='#ef4444'; this.style.background='rgba(239, 68, 68, 0.15)'"
+                onmouseout="this.style.color='#94a3b8'; this.style.background='none'">
+          <span class="material-icons" style="font-size: 18px;">close</span>
+        </button>
+      </div>
     </div>
 
     <div style="margin-bottom: 16px;">
@@ -346,7 +356,16 @@
 
     <div style="margin-bottom:20px;">
       <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">Lokalizacja docelowa (np. MP01, R030101):</label>
-      <input type="text" id="restoreModalLocation" class="form-control" style="width:100%; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:15px; font-weight:800; text-transform:uppercase; box-sizing:border-box; outline:none;">
+      <div style="position: relative; width: 100%;">
+        <input type="text" id="restoreModalLocation" class="form-control" style="width:100%; padding:10px 12px; padding-right:38px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:15px; font-weight:800; text-transform:uppercase; box-sizing:border-box; outline:none;">
+        <button type="button" onclick="document.getElementById('restoreModalLocation').value=''; document.getElementById('restoreModalLocation').focus();" title="Wyczyść pole"
+                class="input-clear-btn"
+                style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; display: none; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; z-index: 16;"
+                onmouseover="this.style.color='#ef4444'; this.style.background='#fee2e2'"
+                onmouseout="this.style.color='#94a3b8'; this.style.background='none'">
+          <span class="material-icons" style="font-size: 18px;">close</span>
+        </button>
+      </div>
     </div>
 
     <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -391,8 +410,17 @@
     <!-- STEP 2: Location Scan -->
     <div id="wgStepLocation" style="display:none;">
       <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">2. Zeskanuj lokalizację docelową:</label>
-      <input type="text" id="wgLocInput" placeholder="np. R010101, MGW01..."
-             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #3b82f6; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box; text-transform:uppercase;">
+      <div style="position: relative; width: 100%;">
+        <input type="text" id="wgLocInput" placeholder="np. R010101, MGW01..."
+               style="width:100%; padding:10px; padding-right:38px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #3b82f6; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box; text-transform:uppercase;">
+        <button type="button" onclick="document.getElementById('wgLocInput').value=''; document.getElementById('wgLocInput').focus();" title="Wyczyść pole"
+                class="input-clear-btn"
+                style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; display: none; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; z-index: 16;"
+                onmouseover="this.style.color='#ef4444'; this.style.background='rgba(239, 68, 68, 0.15)'"
+                onmouseout="this.style.color='#94a3b8'; this.style.background='none'">
+          <span class="material-icons" style="font-size: 18px;">close</span>
+        </button>
+      </div>
       <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
     </div>
 
@@ -591,13 +619,13 @@
     {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v=20260917"></script>
-<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260903_0841"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260918_02"></script>
 {% endblock %}
 

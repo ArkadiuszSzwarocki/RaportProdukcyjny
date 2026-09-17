@@ -41,7 +41,19 @@ function playBeep(type) {
   }
 }
 
+let lastToastMsg = '';
+let lastToastType = '';
+let lastToastTime = 0;
+
 function showToast(msg, type) {
+  const now = Date.now();
+  if (msg === lastToastMsg && type === lastToastType && (now - lastToastTime) < 1800) {
+    return;
+  }
+  lastToastMsg = msg;
+  lastToastType = type;
+  lastToastTime = now;
+
   playBeep(type);
   const container = document.getElementById('toast-container');
   if (!container) return;

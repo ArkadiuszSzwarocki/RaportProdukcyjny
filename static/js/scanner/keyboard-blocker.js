@@ -8,6 +8,78 @@
 (function() {
     'use strict';
 
+    // Inject dedicated CSS for keyboard and clear button positioning
+    if (!document.getElementById('kb-controller-style')) {
+        const style = document.createElement('style');
+        style.id = 'kb-controller-style';
+        style.textContent = `
+            .kb-input-wrapper {
+                position: relative !important;
+            }
+            .kb-input-wrapper input {
+                padding-right: 38px !important;
+            }
+            .kb-input-wrapper .kb-toggle-icon,
+            .kb-input-wrapper .kb-clear-icon,
+            .kb-input-wrapper #btnResetScannerInput,
+            .kb-input-wrapper #clearScanBtn,
+            .kb-input-wrapper #searchClearBtn,
+            .kb-input-wrapper .zaladunki-clear-btn,
+            .kb-input-wrapper .btn-clear-scan,
+            .kb-input-wrapper .btn-clear-input,
+            .kb-input-wrapper .clear-btn,
+            .kb-input-wrapper .input-clear-btn,
+            .kb-input-wrapper .search-clear-btn {
+                position: absolute !important;
+                right: 8px !important;
+                top: 50% !important;
+                transform: translateY(-50%) !important;
+                cursor: pointer !important;
+                padding: 3px !important;
+                border-radius: 6px !important;
+                line-height: 1 !important;
+                user-select: none !important;
+                -webkit-user-select: none !important;
+                transition: color 0.15s, background-color 0.15s !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 26px !important;
+                height: 26px !important;
+                box-sizing: border-box !important;
+            }
+            .kb-input-wrapper .kb-toggle-icon {
+                color: #94a3b8 !important;
+                font-size: 20px !important;
+                z-index: 15 !important;
+            }
+            .kb-input-wrapper .kb-clear-icon,
+            .kb-input-wrapper #btnResetScannerInput,
+            .kb-input-wrapper #clearScanBtn,
+            .kb-input-wrapper #searchClearBtn,
+            .kb-input-wrapper .zaladunki-clear-btn,
+            .kb-input-wrapper .btn-clear-scan,
+            .kb-input-wrapper .btn-clear-input,
+            .kb-input-wrapper .clear-btn,
+            .kb-input-wrapper .input-clear-btn,
+            .kb-input-wrapper .search-clear-btn {
+                color: #94a3b8 !important;
+                font-size: 18px !important;
+                z-index: 16 !important;
+            }
+            .kb-input-wrapper .kb-clear-icon:hover,
+            .kb-input-wrapper #btnResetScannerInput:hover,
+            .kb-input-wrapper #clearScanBtn:hover,
+            .kb-input-wrapper #searchClearBtn:hover,
+            .kb-input-wrapper .zaladunki-clear-btn:hover,
+            .kb-input-wrapper .input-clear-btn:hover {
+                color: #ef4444 !important;
+                background-color: rgba(239, 68, 68, 0.12) !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // Enable W3C VirtualKeyboard API manual policy if supported by browser
     if ('virtualKeyboard' in navigator) {
         try {
@@ -67,6 +139,28 @@
         return true;
     }
 
+    const CLEAR_SELECTORS = [
+        '#btnResetScannerInput',
+        '#clearScanBtn',
+        '#searchClearBtn',
+        '.zaladunki-clear-btn',
+        '.btn-clear-scan',
+        '.btn-clear',
+        '.btn-clear-input',
+        '.clear-btn',
+        '.input-clear-btn',
+        '.search-clear-btn',
+        '[data-action="clear"]',
+        'button[title*="Wyczyść"]',
+        'span[title*="Wyczyść"]',
+        'button[title*="wyczyść"]',
+        'span[title*="wyczyść"]',
+        'button[title*="Usuń"]',
+        'span[title*="Usuń"]',
+        'button[title*="zresetuj"]',
+        'span[title*="zresetuj"]'
+    ].join(', ');
+
     function attachKeyboardController(input) {
         if (!isEligibleInput(input)) return;
 
@@ -90,14 +184,15 @@
         input.addEventListener('pointerdown', suppressOsk, { passive: true });
         input.addEventListener('click', suppressOsk, { passive: true });
 
-        // Create keyboard toggle icon
         const parent = input.parentElement;
         if (!parent) return;
 
-        // If parent is already a relative container with just this input, check if we need a wrapper
-        let wrapper = parent;
         const parentStyle = window.getComputedStyle(parent);
-        const needsWrapper = !parent.classList.contains('kb-input-wrapper') && (parent.children.length > 1 || parentStyle.position === 'static');
+        const isParentPositioned = parentStyle.position === 'relative' || parentStyle.position === 'absolute';
+        const existingClearInParent = parent.querySelector(CLEAR_SELECTORS);
+
+        let wrapper = parent;
+        const needsWrapper = !parent.classList.contains('kb-input-wrapper') && (!isParentPositioned || parentStyle.position === 'static');
 
         if (needsWrapper) {
             wrapper = document.createElement('div');
@@ -112,15 +207,43 @@
 
             parent.insertBefore(wrapper, input);
             wrapper.appendChild(input);
+            if (existingClearInParent) {
+                wrapper.appendChild(existingClearInParent);
+            }
         } else {
             wrapper.classList.add('kb-input-wrapper');
             wrapper.style.position = 'relative';
         }
 
-        // Add padding right to input so text doesn't overlap the icon
-        const currentPaddingRight = parseInt(window.getComputedStyle(input).paddingRight || '0', 10);
-        if (currentPaddingRight < 34) {
-            input.style.paddingRight = '34px';
+        let clearBtn = wrapper.querySelector(CLEAR_SELECTORS) || (needsWrapper ? null : parent.querySelector(CLEAR_SELECTORS));
+        const maxQtyLabel = wrapper.querySelector('#scannerReturnMaxQty') || (needsWrapper ? null : parent.querySelector('#scannerReturnMaxQty'));
+        const iconRight = maxQtyLabel ? '60px' : '8px';
+
+        input.style.setProperty('padding-right', maxQtyLabel ? '90px' : '38px', 'important');
+
+        if (!clearBtn) {
+            clearBtn = document.createElement('span');
+            clearBtn.className = 'material-icons kb-clear-icon';
+            clearBtn.textContent = 'close';
+            clearBtn.title = 'Wyczyść pole';
+            clearBtn.setAttribute('role', 'button');
+            clearBtn.setAttribute('aria-label', 'Wyczyść pole');
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.focus();
+                updateVisibility();
+            });
+            wrapper.appendChild(clearBtn);
+        } else {
+            clearBtn.addEventListener('click', () => {
+                setTimeout(() => {
+                    updateVisibility();
+                }, 20);
+            });
         }
 
         // Keyboard icon element
@@ -130,22 +253,6 @@
         icon.title = 'Dotknij, aby włączyć klawiaturę ekranową';
         icon.setAttribute('role', 'button');
         icon.setAttribute('aria-label', 'Włącz klawiaturę ekranową');
-        icon.style.cssText = `
-            position: absolute;
-            right: 6px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: #94a3b8;
-            font-size: 20px;
-            padding: 3px;
-            border-radius: 6px;
-            z-index: 15;
-            user-select: none;
-            -webkit-user-select: none;
-            transition: color 0.15s, background-color 0.15s;
-            line-height: 1;
-        `;
 
         icon.addEventListener('pointerdown', (e) => {
             e.preventDefault();
@@ -154,6 +261,37 @@
         });
 
         wrapper.appendChild(icon);
+
+        function updateVisibility() {
+            const val = (input.value !== undefined && input.value !== null) ? String(input.value).trim() : '';
+            const hasText = val.length > 0;
+            if (hasText) {
+                icon.style.setProperty('display', 'none', 'important');
+                if (clearBtn) {
+                    clearBtn.style.setProperty('display', 'inline-flex', 'important');
+                    clearBtn.style.setProperty('right', iconRight, 'important');
+                }
+            } else {
+                icon.style.setProperty('display', 'inline-flex', 'important');
+                icon.style.setProperty('right', iconRight, 'important');
+                if (clearBtn) {
+                    clearBtn.style.setProperty('display', 'none', 'important');
+                }
+            }
+        }
+
+        input.addEventListener('input', updateVisibility);
+        input.addEventListener('change', updateVisibility);
+        input.addEventListener('keyup', updateVisibility);
+        input.addEventListener('paste', () => setTimeout(updateVisibility, 0));
+        input.addEventListener('cut', () => setTimeout(updateVisibility, 0));
+        input.addEventListener('focus', updateVisibility);
+        input.addEventListener('blur', updateVisibility);
+
+        // Keep state synchronized safely without overriding native input property descriptors
+        setInterval(updateVisibility, 150);
+
+        updateVisibility();
     }
 
     function scanAndAttachKeyboards() {

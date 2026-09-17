@@ -184,7 +184,20 @@ function showPallet(p) {
   const iconEl = document.querySelector('.input-icon');
 
   if (scanInput) {
-    if (isTransferOrder) {
+    if (window.justConfirmedLoc) {
+      const confLoc = window.justConfirmedLoc;
+      window.justConfirmedLoc = null;
+      currentPallet = null;
+      if (mainTitle) mainTitle.textContent = `✅ Paleta zatwierdzona na: ${confLoc}`;
+      if (titleIcon) {
+        titleIcon.textContent = 'check_circle';
+        titleIcon.style.color = '#16a34a';
+      }
+      scanInput.placeholder = 'Skanuj kod kolejnej palety lub regału...';
+      scanInput.style.borderColor = '#16a34a';
+      scanInput.style.borderWidth = '2px';
+      if (iconEl) iconEl.style.color = '#16a34a';
+    } else if (isTransferOrder) {
       if (mainTitle) mainTitle.textContent = 'Zeskanuj regał docelowy (przyjęcie w locie)';
       if (titleIcon) {
         titleIcon.textContent = 'move_to_inbox';
@@ -296,9 +309,12 @@ function hidePallet() {
   }
   const scanInput = document.getElementById('scanInput');
   if (scanInput) {
+    scanInput.value = '';
     scanInput.placeholder = 'Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)';
     scanInput.style.borderColor = '';
     scanInput.style.borderWidth = '';
+    scanInput.focus();
+    scanInput.dispatchEvent(new Event('input', { bubbles: true }));
   }
   const iconEl = document.querySelector('.input-icon');
   if (iconEl) iconEl.style.color = '';

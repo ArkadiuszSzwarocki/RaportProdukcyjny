@@ -110,14 +110,25 @@ class AcceptanceService:
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
                 p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
+                pallet_id = None
 
                 if target.get('packageForm') == 'packaging' or p_type_scanned == 'opakowanie':
                     qty = float(target.get('unitsPerPallet') or 0)
                     cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    pallet_id = cursor.lastrowid
+                    if not pallet_id or pallet_id == 0:
+                        cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        _row = cursor.fetchone()
+                        if _row: pallet_id = _row['id']
                     p_type = 'opakowanie'
                 elif p_type_scanned == 'dodatek':
                     qty = float(target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
+                    pallet_id = cursor.lastrowid
+                    if not pallet_id or pallet_id == 0:
+                        cursor.execute(f"SELECT id FROM magazyn_dodatki WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        _row = cursor.fetchone()
+                        if _row: pallet_id = _row['id']
                     p_type = 'dodatek'
                 elif p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja']:
                     qty = float(target.get('netWeight') or target.get('quantity') or 0)

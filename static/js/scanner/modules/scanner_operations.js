@@ -236,6 +236,11 @@ function openScannerRestoreModal() {
 function closeScannerRestoreModal() {
   const overlay = document.getElementById('scannerRestoreOverlay');
   if (overlay) overlay.style.display = 'none';
+  const scanInput = document.getElementById('scanInput');
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
 }
 
 async function confirmScannerRestore() {
