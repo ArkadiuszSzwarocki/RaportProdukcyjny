@@ -766,6 +766,23 @@ class AgroTanksRepository:
                 plan_produkt, plan_sekcja = plan_row
                 if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                     return False
+
+                # Blokada auto-rejestracji palety podczas opróżniania paletyzatora
+                try:
+                    import time as _py_time
+                    from app.services.mqtt_service import get_latest_data
+                    m_data = get_latest_data()
+                    is_emptying = bool(m_data.get('oproznianie') or m_data.get('is_emptying'))
+                    last_empty_ts = float(m_data.get('last_oproznianie_ts') or 0)
+                    if is_emptying or (_py_time.time() - last_empty_ts < 180):
+                        logger.warning(
+                            "[OPRÓŻNIANIE BLOKADA] Zablokowano automatyczną rejestrację pełnej palety dla plan_id=%s. "
+                            "Trwa/odbyło się opróżnianie paletyzatora (oproznianie=%s, delta=%.1fs). Priorytet: ręczne potwierdzenie operatora.",
+                            plan_id, is_emptying, _py_time.time() - last_empty_ts if last_empty_ts else 0
+                        )
+                        return False
+                except Exception as empty_chk_err:
+                    logger.warning("[OPRÓŻNIANIE BLOKADA] Błąd sprawdzania statusu opróżniania: %s", empty_chk_err)
                 
                 waga_input = 1000
                 now_ts = datetime.datetime.now()

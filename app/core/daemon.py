@@ -899,33 +899,49 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         except Exception as db_cnt_err:
                             _safe_log_warning("Failed to query db_pallets_count: %s", db_cnt_err)
 
+                        is_emptying_now = bool(data.get('oproznianie') or data.get('is_emptying'))
+                        last_empty_ts = float(data.get('last_oproznianie_ts') or 0)
+                        is_in_emptying_mode = is_emptying_now or ((time.time() - last_empty_ts) < 180 if last_empty_ts > 0 else False)
+
                         # Sprawdzenie czy paletyzator ukończył nową pełną paletę (zjazd z windy)
                         if palletizer_cnt > 0 and int(start_pallet_cnt or 0) > 0 and completed_pallets > db_pallets_count:
-                            _safe_log_info(
-                                "Paletyzator zjechał z windą w dół i ukończył paletę! Licznik palet: %s (start: %s, ukończonych: %s, w bazie: %s). Rejestracja palety #%s.",
-                                palletizer_cnt,
-                                start_pallet_cnt,
-                                completed_pallets,
-                                db_pallets_count,
-                                db_pallets_count + 1,
-                            )
-                            
-                            success = AgroTanksService.auto_register_pallet(
-                                plan_id,
-                                linia='AGRO',
-                                source_instance=_INSTANCE_ID,
-                            )
-                            if success:
+                            if is_in_emptying_mode:
                                 _safe_log_info(
-                                    'Pomyślnie zarejestrowano paletę #%s na podstawie zjazdu z windy paletyzatora (instance=%s)',
-                                    db_pallets_count + 1,
-                                    _INSTANCE_ID,
+                                    "Paletyzator zjechał z windą podczas/po opróżnianiu (oproznianie=%s, delta=%.1fs). "
+                                    "Licznik: %s (start: %s, w bazie: %s). "
+                                    "Zablokowano dodanie automatycznej palety 1000kg. Priorytet ma opróżnianie - oczekiwanie na wpisanie wagi przez operatora w oknie.",
+                                    is_emptying_now,
+                                    time.time() - last_empty_ts if last_empty_ts else 0,
+                                    palletizer_cnt,
+                                    start_pallet_cnt,
+                                    db_pallets_count,
                                 )
                             else:
-                                _safe_log_warning(
-                                    'Rejestracja palety na podstawie paletyzatora wstrzymana przez cooldown/pułapkę (instance=%s)',
-                                    _INSTANCE_ID,
+                                _safe_log_info(
+                                    "Paletyzator zjechał z windą w dół i ukończył paletę! Licznik palet: %s (start: %s, ukończonych: %s, w bazie: %s). Rejestracja palety #%s.",
+                                    palletizer_cnt,
+                                    start_pallet_cnt,
+                                    completed_pallets,
+                                    db_pallets_count,
+                                    db_pallets_count + 1,
                                 )
+                                
+                                success = AgroTanksService.auto_register_pallet(
+                                    plan_id,
+                                    linia='AGRO',
+                                    source_instance=_INSTANCE_ID,
+                                )
+                                if success:
+                                    _safe_log_info(
+                                        'Pomyślnie zarejestrowano paletę #%s na podstawie zjazdu z windy paletyzatora (instance=%s)',
+                                        db_pallets_count + 1,
+                                        _INSTANCE_ID,
+                                    )
+                                else:
+                                    _safe_log_warning(
+                                        'Rejestracja palety na podstawie paletyzatora wstrzymana przez cooldown/pułapkę (instance=%s)',
+                                        _INSTANCE_ID,
+                                    )
                         else:
                             # Stan pracy paletyzatora / pakowaczki – rejestr diagnostyczny do pułapki sygnałów
                             try:

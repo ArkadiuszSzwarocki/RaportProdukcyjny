@@ -179,11 +179,13 @@
                 window.lastOproznianieTimestamp = snapTs;
                 localStorage.setItem('lastOproznianieTs', snapTs);
                 
-                // Show modal ONLY on the Workowanie page, not on the global dashboard
+                // Show modal on Workowanie / production / machine pages
                 const configElem = document.getElementById('dashboard-config');
                 const sekcja = configElem ? configElem.getAttribute('data-sekcja') : null;
+                const path = window.location.pathname.toLowerCase();
+                const isWorkowanieOrProd = (sekcja === 'Workowanie' || path.includes('workowanie') || path.includes('panel_glowny') || path.includes('zarzad_live') || path.includes('maszyny') || path.includes('produkcja'));
                 
-                if (sekcja === 'Workowanie') {
+                if (isWorkowanieOrProd || !sekcja) {
                     showOproznianieModal(data.oproznianie_snapshot.nrWarstwy, data.oproznianie_snapshot.nrWorka);
                 }
             }
@@ -196,24 +198,24 @@
             // Create modal dynamically if it doesn't exist
             modal = document.createElement('div');
             modal.id = 'oproznianie-modal';
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999;';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(2px);';
             modal.innerHTML = `
-                <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-                    <h2 style="color: #e74c3c; margin-top: 0;">⚠️ Opróżnianie Paletyzatora</h2>
-                    <p style="font-size: 1.1em; color: #555;">Zarejestrowano sygnał opróżniania.</p>
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #dee2e6;">
-                        <p style="margin: 0; font-weight: bold; color: #333;">Stan w momencie kliknięcia:</p>
-                        <p style="margin: 5px 0 0 0; font-size: 1.2em; color: #2c3e50;">
-                            Warstwa: <span style="color: #3498db; font-weight: bold;">${warstwa}</span> | 
-                            Worek: <span style="color: #3498db; font-weight: bold;">${worek}</span>
+                <div style="background: white; padding: 30px; border-radius: 12px; max-width: 520px; width: 90%; text-align: center; box-shadow: 0 12px 30px rgba(0,0,0,0.3); font-family: inherit;">
+                    <h2 style="color: #e74c3c; margin-top: 0; font-size: 1.5rem;">⚠️ Opróżnianie Paletyzatora</h2>
+                    <p style="font-size: 1.05em; color: #444; margin-bottom: 12px;">Wykryto sygnał opróżniania paletyzatora. Automatyczne dodanie pełnej palety zostało <strong>zablokowane</strong>.</p>
+                    <div style="background: #f8f9fa; padding: 12px 16px; border-radius: 8px; margin: 15px 0; border: 1px solid #dee2e6;">
+                        <p style="margin: 0; font-weight: bold; color: #333; font-size: 0.95em;">Stan w momencie kliknięcia opróżniania:</p>
+                        <p style="margin: 5px 0 0 0; font-size: 1.25em; color: #2c3e50;">
+                            Warstwa: <span style="color: #2980b9; font-weight: bold;">${warstwa}</span> | 
+                            Worek: <span style="color: #2980b9; font-weight: bold;">${worek}</span>
                         </p>
                     </div>
-                    <p style="font-weight: bold; font-size: 1.2em;">Ile kg było po opróżnieniu?</p>
-                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
-                        <input type="number" id="oproznianie-waga-input" style="padding: 10px; font-size: 1.2em; width: 120px; border: 2px solid #ccc; border-radius: 6px; text-align: center;" placeholder="Waga (kg)" autofocus>
-                        <button id="oproznianie-zapisz-btn" style="padding: 10px 20px; font-size: 1.1em; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Zapisz</button>
+                    <p style="font-weight: bold; font-size: 1.15em; margin: 15px 0 10px 0; color: #2c3e50;">Wpisz wagę palety po opróżnieniu (kg):</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <input type="number" id="oproznianie-waga-input" style="padding: 10px; font-size: 1.3em; width: 140px; border: 2px solid #3498db; border-radius: 6px; text-align: center; font-weight: bold;" placeholder="np. 350" autofocus>
+                        <button id="oproznianie-zapisz-btn" style="padding: 10px 24px; font-size: 1.1em; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s;">Zapisz paletę</button>
                     </div>
-                    <button id="oproznianie-anuluj-btn" style="margin-top: 15px; background: none; border: none; color: #7f8c8d; cursor: pointer; text-decoration: underline;">Zamknij (zignoruj)</button>
+                    <button id="oproznianie-anuluj-btn" style="margin-top: 18px; background: none; border: none; color: #7f8c8d; cursor: pointer; text-decoration: underline; font-size: 0.9em;">Zamknij (nie dodawaj palety)</button>
                 </div>
             `;
             document.body.appendChild(modal);
@@ -221,11 +223,19 @@
             document.getElementById('oproznianie-anuluj-btn').addEventListener('click', () => {
                 modal.style.display = 'none';
             });
+
+            const weightInput = document.getElementById('oproznianie-waga-input');
+            weightInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('oproznianie-zapisz-btn').click();
+                }
+            });
             
             document.getElementById('oproznianie-zapisz-btn').addEventListener('click', () => {
                 const waga = document.getElementById('oproznianie-waga-input').value;
-                if (!waga) {
-                    alert('Podaj wagę!');
+                if (!waga || parseFloat(waga) <= 0) {
+                    alert('Podaj prawidłową wagę (kg)!');
                     return;
                 }
                 
@@ -272,26 +282,26 @@
                     })
                     .then(response => {
                         if (response.ok) {
-                            alert(`Paleta o wadze ${waga} kg została dodana pomyślnie i przekazana do wydruku.`);
+                            alert(`Paleta o wadze ${waga} kg została pomyślnie dodana z opróżnienia.`);
                             window.location.reload();
                         } else {
                             response.text().then(text => {
                                 alert(`Błąd serwera podczas dodawania palety: ${response.status}\nTreść: ${text.substring(0, 150)}`);
-                                if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Zapisz'; }
+                                if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Zapisz paletę'; }
                                 if (cancelBtn) cancelBtn.disabled = false;
                             });
                         }
                     })
                     .catch(err => {
                         alert(`Błąd sieci podczas dodawania palety: ${err}`);
-                        if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Zapisz'; }
+                        if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Zapisz paletę'; }
                         if (cancelBtn) cancelBtn.disabled = false;
                     });
                     
                     // Don't close modal yet, wait for reload or error
                     return;
                 } else {
-                    alert(`Opróżniono: ${waga} kg. Nie znalazłem aktywnego zlecenia Workowania na stronie (ani formularza). Utwórz paletę ręcznie.`);
+                    alert(`Opróżniono: ${waga} kg. Nie znaleziono aktywnego zlecenia na stronie. Utwórz paletę ręcznie.`);
                 }
                 
                 modal.style.display = 'none';
@@ -299,14 +309,19 @@
         }
         
         // Update the info in case it was created previously
-        const infoHtml = `
-            Warstwa: <span style="color: #3498db; font-weight: bold;">${warstwa}</span> | 
-            Worek: <span style="color: #3498db; font-weight: bold;">${worek}</span>
-        `;
-        const infoEl = modal.querySelector('p > span').parentNode;
-        if (infoEl) infoEl.innerHTML = infoHtml;
+        const infoEl = modal.querySelector('p > span') ? modal.querySelector('p > span').parentNode : null;
+        if (infoEl) {
+            infoEl.innerHTML = `
+                Warstwa: <span style="color: #2980b9; font-weight: bold;">${warstwa}</span> | 
+                Worek: <span style="color: #2980b9; font-weight: bold;">${worek}</span>
+            `;
+        }
         
-        document.getElementById('oproznianie-waga-input').value = '';
+        const inp = document.getElementById('oproznianie-waga-input');
+        if (inp) {
+            inp.value = '';
+            setTimeout(() => inp.focus(), 100);
+        }
         modal.style.display = 'flex';
     }
 
