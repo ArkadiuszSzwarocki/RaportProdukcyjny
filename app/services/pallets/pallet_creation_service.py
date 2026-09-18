@@ -59,8 +59,8 @@ class PalletCreationService:
                             cur2.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s AND aktywna = 1", (db_id,))
                             p_row = cur2.fetchone()
                             if p_row:
-                                clean_ip = p_row[0]
-                                override_name = override_name or p_row[1]
+                                clean_ip = p_row.get('ip') if isinstance(p_row, dict) else p_row[0]
+                                override_name = override_name or (p_row.get('nazwa') if isinstance(p_row, dict) else p_row[1])
                         except Exception:
                             clean_ip = None
                     elif clean_ip.isdigit():
@@ -68,23 +68,32 @@ class PalletCreationService:
                             cur2.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s AND aktywna = 1", (int(clean_ip),))
                             p_row = cur2.fetchone()
                             if p_row:
-                                clean_ip = p_row[0]
-                                override_name = override_name or p_row[1]
+                                clean_ip = p_row.get('ip') if isinstance(p_row, dict) else p_row[0]
+                                override_name = override_name or (p_row.get('nazwa') if isinstance(p_row, dict) else p_row[1])
                         except Exception:
                             pass
                     override_ip = clean_ip or None
 
-                if not override_ip and override_name:
+                if override_name:
                     try:
-                        cur2.execute("SELECT ip FROM drukarki WHERE nazwa = %s AND aktywna = 1 LIMIT 1", (override_name,))
+                        cur2.execute("SELECT ip, nazwa FROM drukarki WHERE (nazwa = %s OR LOWER(nazwa) LIKE LOWER(%s)) AND aktywna = 1 LIMIT 1", (override_name, f"%{override_name}%"))
                         p_row = cur2.fetchone()
-                        if p_row and p_row[0]:
-                            override_ip = p_row[0]
+                        if p_row:
+                            db_p_ip = p_row.get('ip') if isinstance(p_row, dict) else p_row[0]
+                            db_p_nazwa = p_row.get('nazwa') if isinstance(p_row, dict) else p_row[1]
+                            if db_p_ip:
+                                override_ip = db_p_ip
+                            if db_p_nazwa:
+                                override_name = db_p_nazwa
                     except Exception:
                         pass
 
-                if not override_ip and not override_name:
-                    override_name, override_ip = _select_preferred_printer(cur2, linia=linia)
+                if not override_ip or not override_name:
+                    pref_name, pref_ip = _select_preferred_printer(cur2, linia=linia)
+                    if not override_ip:
+                        override_ip = pref_ip
+                    if not override_name:
+                        override_name = pref_name
 
                 try:
                     ok, print_msg = printer_local.print_finished_product_label(

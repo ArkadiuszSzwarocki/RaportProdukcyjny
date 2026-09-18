@@ -678,11 +678,31 @@ class PrintServer:
         if ok:
             return True, message
 
-        # FALLBACK: Jeśli mostek nie odpowiada lub zwrócił błąd, a mamy adres IP drukarki sieciowej
+        # FALLBACK 1: Jeśli mostek nie odpowiada lub zwrócił błąd, a mamy adres IP drukarki sieciowej
         if target_ip and str(target_ip).strip().upper() != 'USB' and not str(target_ip).strip().lower().startswith('usb') and zpl_data:
             direct_ok, direct_msg = self.send_direct_tcp(zpl_data, str(target_ip).strip())
             if direct_ok:
                 return True, f"{direct_msg} [fallback z mostka]"
+
+        # FALLBACK 2: Sprawdź czy drukarka o danej nazwie ma w bazie inny (zaktualizowany) IP
+        if zpl_data and target_name:
+            try:
+                from app.db import get_db_connection
+                conn_fb = get_db_connection()
+                try:
+                    cur_fb = conn_fb.cursor(dictionary=True)
+                    cur_fb.execute("SELECT ip FROM drukarki WHERE (nazwa = %s OR LOWER(nazwa) LIKE LOWER(%s)) AND aktywna = 1 LIMIT 1", (target_name, f"%{target_name}%"))
+                    row_fb = cur_fb.fetchone()
+                    if row_fb and row_fb.get('ip') and str(row_fb.get('ip')).strip() != str(target_ip or '').strip():
+                        alt_ip = str(row_fb.get('ip')).strip()
+                        if alt_ip and alt_ip.upper() != 'USB':
+                            direct_ok, direct_msg = self.send_direct_tcp(zpl_data, alt_ip)
+                            if direct_ok:
+                                return True, f"{direct_msg} [fallback z bazy: {alt_ip}]"
+                finally:
+                    conn_fb.close()
+            except Exception:
+                pass
 
         # Jeśli drukarka to USB / Windows Spooler, próba win32print na maszynach Windows
         if os.name == 'nt' and (str(target_ip).strip().upper() == 'USB' or (target_name and 'usb' in str(target_name).lower())):

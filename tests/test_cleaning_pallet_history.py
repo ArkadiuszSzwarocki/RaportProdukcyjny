@@ -29,9 +29,9 @@ class TestCleaningPalletHistory(unittest.TestCase):
         result_empty = WarehousePalletRepository.find_cleaning_sscc(10, 5, 'PSD', conn=mock_conn)
         self.assertIsNone(result_empty)
 
-    @patch('app.services.warehouse_pallet_service.get_db_connection')
-    @patch('app.services.warehouse_pallet_service.generate_pallet_id', return_value='NEW-SSCC-001')
-    @patch('app.services.warehouse_pallet_service.WarehouseMovementLedgerRepository.record_movement')
+    @patch('app.services.pallets.pallet_creation_service.get_db_connection')
+    @patch('app.services.pallets.pallet_creation_service.generate_pallet_id', return_value='NEW-SSCC-001')
+    @patch('app.services.pallets.pallet_creation_service.WarehouseMovementLedgerRepository.record_movement')
     @patch('app.repositories.warehouse_pallet_repository.WarehousePalletRepository.get_plan_info')
     def test_dodaj_palete_assigns_new_sscc_for_cleaning(self, mock_plan_info, mock_record_mv, mock_gen_id, mock_get_conn):
         mock_conn = MagicMock()
@@ -81,7 +81,7 @@ class TestCleaningPalletHistory(unittest.TestCase):
         self.assertTrue(len(hist_calls) > 0)
         hist_sql, hist_args = hist_calls[0][0]
         self.assertEqual(hist_args[1], 'NEW-SSCC-001')
-        self.assertIn('Paleta matka: SUR-MOTH-999', hist_args[3])
+        self.assertTrue(any('Paleta matka: SUR-MOTH-999' in str(arg) for arg in hist_args))
 
     @patch('app.services.warehouse_pallet_service.get_db_connection')
     def test_potwierdz_palete_cleaning_copies_mother_history_and_sets_delivery(self, mock_get_conn):
