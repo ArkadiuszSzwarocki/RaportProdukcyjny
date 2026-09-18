@@ -126,12 +126,12 @@
         let zasypHtml = '<span style="color:#94a3b8; font-size:12px;">—</span>';
         const zasypNum = d.nr_szarzy || d.zasyp_nr;
         if (zasypNum) {
-            zasypHtml = `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; color:#92400e; font-weight:800; font-size:13px;">
-                <span style="font-size:11px;">⚡</span> Zasyp #${escapeHtml(zasypNum)}
+            zasypHtml = `<span style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border:2px solid #f59e0b; border-radius:8px; color:#92400e; font-weight:900; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; box-shadow:0 1px 3px rgba(245,158,11,0.25); white-space:nowrap;">
+                <span style="font-size:14px;">⚡</span> DOSYPKA DO ZASYPU #${escapeHtml(zasypNum)}
             </span>`;
         } else if (d.szarza_id) {
-            zasypHtml = `<span style="display:inline-block; padding:3px 8px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; color:#475569; font-weight:700; font-size:12px;">
-                Szarża #${escapeHtml(d.szarza_id)}
+            zasypHtml = `<span style="display:inline-flex; align-items:center; gap:4px; padding:5px 10px; background:#f1f5f9; border:1.5px solid #cbd5e1; border-radius:8px; color:#334155; font-weight:800; font-size:12px; text-transform:uppercase; white-space:nowrap;">
+                DOSYPKA DO SZARŻY #${escapeHtml(d.szarza_id)}
             </span>`;
         }
 
@@ -139,7 +139,7 @@
             <tr data-plan-id="${escapeHtml(d.plan_id)}" data-dosypka-id="${escapeHtml(d.id)}">
                 <td class="text-muted" data-label="#">${idx + 1}</td>
                 <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#${escapeHtml(d.plan_id)}</span></td>
-                <td data-label="Do zasypu">${zasypHtml}</td>
+                <td data-label="Do zasypu" style="white-space:nowrap;">${zasypHtml}</td>
                 <td data-label="Nazwa">
                     <span style="font-weight:800; font-size:14px; color:#1e293b;">${nameHtml}</span>
                 </td>
