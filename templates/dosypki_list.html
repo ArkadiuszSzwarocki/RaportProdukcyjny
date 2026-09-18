@@ -174,7 +174,8 @@
             <thead>
                 <tr>
                     <th style="width: 40px;">#</th>
-                    <th style="width: 80px;">Plan ID</th>
+                    <th style="width: 75px;">Plan ID</th>
+                    <th style="width: 115px; color:#b45309;">Do zasypu</th>
                     <th>Nazwa składnika</th>
                     <th style="width: 130px; color:#1d4ed8;">Zaplanowane (Laborant)</th>
                     <th style="width: 150px; color:#047857;">Wydozowano (Operator)</th>
@@ -188,6 +189,19 @@
                 <tr data-plan-id="{{ d.plan_id }}" data-dosypka-id="{{ d.id }}">
                     <td class="text-muted" data-label="#">{{ loop.index }}</td>
                     <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#{{ d.plan_id }}</span></td>
+                    <td data-label="Do zasypu">
+                        {% if d.nr_szarzy %}
+                        <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; color:#92400e; font-weight:800; font-size:13px;">
+                            <span style="font-size:11px;">⚡</span> Zasyp #{{ d.nr_szarzy }}
+                        </span>
+                        {% elif d.szarza_id %}
+                        <span style="display:inline-block; padding:3px 8px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; color:#475569; font-weight:700; font-size:12px;">
+                            Szarża #{{ d.szarza_id }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
                     <td data-label="Nazwa">
                         <span style="font-weight:800; font-size:14px; color:#1e293b;">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</span>
                     </td>

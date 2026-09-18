@@ -122,10 +122,24 @@
         const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
         const planKg = d.kg_planowane !== undefined && d.kg_planowane !== null ? d.kg_planowane : d.kg;
         const valKg = d.kg_wydozowane !== undefined && d.kg_wydozowane !== null ? d.kg_wydozowane : planKg;
+        
+        let zasypHtml = '<span style="color:#94a3b8; font-size:12px;">—</span>';
+        const zasypNum = d.nr_szarzy || d.zasyp_nr;
+        if (zasypNum) {
+            zasypHtml = `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; color:#92400e; font-weight:800; font-size:13px;">
+                <span style="font-size:11px;">⚡</span> Zasyp #${escapeHtml(zasypNum)}
+            </span>`;
+        } else if (d.szarza_id) {
+            zasypHtml = `<span style="display:inline-block; padding:3px 8px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; color:#475569; font-weight:700; font-size:12px;">
+                Szarża #${escapeHtml(d.szarza_id)}
+            </span>`;
+        }
+
         return `
             <tr data-plan-id="${escapeHtml(d.plan_id)}" data-dosypka-id="${escapeHtml(d.id)}">
                 <td class="text-muted" data-label="#">${idx + 1}</td>
                 <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#${escapeHtml(d.plan_id)}</span></td>
+                <td data-label="Do zasypu">${zasypHtml}</td>
                 <td data-label="Nazwa">
                     <span style="font-weight:800; font-size:14px; color:#1e293b;">${nameHtml}</span>
                 </td>

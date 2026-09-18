@@ -496,28 +496,33 @@ def register_production_dosypki_routes(
         plan_id = request.args.get('plan_id', None)
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         table_dosypki = get_table_name('dosypki', linia)
+        table_szarze = get_table_name('szarze', linia)
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
             if plan_id:
                 cursor.execute(
                     f"""
-                    SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia,
-                           COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
-                    FROM {table_dosypki}
-                    WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0 AND plan_id = %s
-                    ORDER BY data_zlecenia ASC
+                    SELECT d.id, d.plan_id, d.nazwa, COALESCE(d.kg_planowane, d.kg), d.data_zlecenia,
+                           COALESCE(d.anulowana, 0), d.anulowal_login, d.data_anulowania, d.kg_wydozowane,
+                           d.szarza_id, s.nr_szarzy
+                    FROM {table_dosypki} d
+                    LEFT JOIN {table_szarze} s ON s.id = d.szarza_id
+                    WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0 AND d.plan_id = %s
+                    ORDER BY d.data_zlecenia ASC
                     """,
                     (plan_id,),
                 )
             else:
                 cursor.execute(
                     f"""
-                    SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia,
-                           COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
-                    FROM {table_dosypki}
-                    WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
-                    ORDER BY data_zlecenia ASC
+                    SELECT d.id, d.plan_id, d.nazwa, COALESCE(d.kg_planowane, d.kg), d.data_zlecenia,
+                           COALESCE(d.anulowana, 0), d.anulowal_login, d.data_anulowania, d.kg_wydozowane,
+                           d.szarza_id, s.nr_szarzy
+                    FROM {table_dosypki} d
+                    LEFT JOIN {table_szarze} s ON s.id = d.szarza_id
+                    WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0
+                    ORDER BY d.data_zlecenia ASC
                     """
                 )
             rows = cursor.fetchall()
@@ -541,6 +546,9 @@ def register_production_dosypki_routes(
                         'anulowana': bool(r[5]),
                         'anulowal_login': r[6],
                         'data_anulowania': str(r[7]) if r[7] is not None else '',
+                        'szarza_id': r[9] if len(r) > 9 else None,
+                        'nr_szarzy': r[10] if len(r) > 10 else None,
+                        'zasyp_nr': r[10] if len(r) > 10 else None,
                     }
                 )
             return jsonify({'success': True, 'dosypki': result})
@@ -579,6 +587,9 @@ def register_production_dosypki_routes(
                     'kg_planowane': float(r[3]) if r[3] is not None else None,
                     'kg_wydozowane': float(r[9]) if len(r) > 9 and r[9] is not None else None,
                     'data_zlecenia': str(r[4]) if r[4] is not None else '',
+                    'szarza_id': r[10] if len(r) > 10 else None,
+                    'nr_szarzy': r[11] if len(r) > 11 else None,
+                    'zasyp_nr': r[11] if len(r) > 11 else None,
                 }
             )
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == '1'
