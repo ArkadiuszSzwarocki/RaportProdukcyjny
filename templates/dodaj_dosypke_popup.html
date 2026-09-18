@@ -559,9 +559,14 @@
                 </div>
                 <div class="info-item">
                     <span class="info-label">Zasyp (szarża):</span>
-                    <span class="info-value">{{ szarza_id or '—' }}</span>
+                    <span class="info-value">{% if szarza_nr %}Zasyp #{{ szarza_nr }} (ID {{ szarza_id }}){% else %}{{ szarza_id or '—' }}{% endif %}</span>
                 </div>
             </div>
+            {% if is_szarza_emptied and is_admin_or_zarzad %}
+            <div style="background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:8px 12px; border-radius:8px; margin-top:10px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px;">
+                <span>👑</span> <span>Tryb uprzywilejowany (Admin/Zarząd): Dodajesz dosypkę do zamkniętego/opróżnionego punktu kontrolnego.</span>
+            </div>
+            {% endif %}
             <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji. Wybieraj tylko surowce dostępne na liście magazynu.</p>
         </div>
 

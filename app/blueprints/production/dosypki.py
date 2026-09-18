@@ -28,6 +28,43 @@ def register_production_dosypki_routes(
         except (TypeError, ValueError):
             return None
 
+    def _is_admin_or_zarzad_user():
+        role_lc = (session.get('rola') or '').strip().lower()
+        return role_lc in ['admin', 'masteradmin', 'master_admin', 'zarzad', 'zarząd']
+
+    def _check_szarza_emptied(cursor, linia, plan_id, szarza_nr):
+        if not szarza_nr:
+            return False
+        linia_u = (linia or 'PSD').strip().upper()
+        if linia_u == 'AGRO':
+            cursor.execute(
+                """
+                SELECT 1 FROM zasyp_etapy 
+                WHERE linia = 'AGRO' AND plan_id = %s AND szarza_nr = %s 
+                  AND etap = 5 AND czas_stop IS NOT NULL
+                LIMIT 1
+                """,
+                (int(plan_id), int(szarza_nr)),
+            )
+            return bool(cursor.fetchone())
+        else:
+            cursor.execute(
+                """
+                SELECT 1 FROM zasyp_etapy 
+                WHERE linia = %s AND plan_id = %s AND szarza_nr = %s 
+                  AND (
+                    (etap = 6 AND czas_stop IS NOT NULL)
+                    OR (etap = 5 AND czas_stop IS NOT NULL AND NOT EXISTS (
+                        SELECT 1 FROM zasyp_etapy z2 
+                        WHERE z2.linia = %s AND z2.plan_id = %s AND z2.szarza_nr = %s AND z2.etap = 6
+                    ))
+                  )
+                LIMIT 1
+                """,
+                (linia_u, int(plan_id), int(szarza_nr), linia_u, int(plan_id), int(szarza_nr)),
+            )
+            return bool(cursor.fetchone())
+
     @production_bp.route('/dosypka_strona/<int:plan_id>', methods=['GET'])
     @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
     def dosypka_strona(plan_id):
@@ -51,29 +88,54 @@ def register_production_dosypki_routes(
 
             produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
             role_lc = (session.get('rola') or '').strip().lower()
+            is_admin_or_zarzad = _is_admin_or_zarzad_user()
+
             if linia.upper() == 'AGRO' and role_lc == 'lider':
                 if is_ajax:
                     return "<div style='padding: 24px; text-align: center; color: #dc2626; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 10px; font-weight: 700;'>⚠️ Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.</div>", 403
                 flash('Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.', 'warning')
                 return redirect(bezpieczny_powrot())
 
-            if status != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
+            if status != 'w toku' and not is_admin_or_zarzad:
                 if is_ajax:
-                    return f"<div style='padding: 24px; text-align: center; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; font-weight: 700;'>⚠️ Dosypki można dodawać tylko do aktywnego zlecenia (status \"w toku\").<br><span style='font-size: 0.88rem; font-weight: normal; color: #92400e; display: inline-block; margin-top: 6px;'>To zlecenie ma obecnie status: <strong>{status}</strong>.</span></div>"
-                flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
+                    return f"<div style='padding: 24px; text-align: center; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; font-weight: 700;'>⚠️ Zlecenie jest zamknięte (status: <strong>{status}</strong>).<br><span style='font-size: 0.88rem; font-weight: normal; color: #92400e; display: inline-block; margin-top: 6px;'>Tylko Administrator lub Zarząd może dodawać dosypki do zamkniętych zleceń.</span></div>"
+                flash('Zlecenie jest zamknięte. Dodawanie dosypek do zamkniętych zleceń jest zablokowane.', 'warning')
                 return redirect(bezpieczny_powrot())
 
             szarza_id_int = _read_zasyp_id()
+            target_szarza_nr = None
             if not szarza_id_int:
                 cursor.execute(
-                    f"SELECT id FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania DESC, id DESC LIMIT 1",
+                    f"SELECT id, nr_szarzy FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania DESC, id DESC LIMIT 1",
                     (plan_id,),
                 )
                 latest_sz = cursor.fetchone()
                 if latest_sz and latest_sz[0]:
                     szarza_id_int = int(latest_sz[0])
+                    if latest_sz[1] is not None:
+                        target_szarza_nr = int(latest_sz[1])
+            else:
+                cursor.execute(
+                    f"SELECT nr_szarzy FROM {table_szarze} WHERE id=%s LIMIT 1",
+                    (szarza_id_int,),
+                )
+                sz_row = cursor.fetchone()
+                if sz_row and sz_row[0] is not None:
+                    target_szarza_nr = int(sz_row[0])
+
+            if target_szarza_nr is None and szarza_id_int:
+                target_szarza_nr = szarza_id_int
 
             szarza_id = str(szarza_id_int) if szarza_id_int else None
+
+            # Sprawdzenie czy punkt kontrolny ma zakończone opróżnianie
+            is_szarza_emptied = _check_szarza_emptied(cursor, linia, plan_id, target_szarza_nr)
+            if is_szarza_emptied and not is_admin_or_zarzad:
+                zasyp_lbl = f"Zasyp #{target_szarza_nr}" if target_szarza_nr else "Wybrany zasyp"
+                if is_ajax:
+                    return f"<div style='padding: 24px; text-align: center; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; font-weight: 700;'>⚠️ Punkt kontrolny ({zasyp_lbl}) ma już zakończone opróżnianie.<br><span style='font-size: 0.88rem; font-weight: normal; color: #92400e; display: inline-block; margin-top: 6px;'>Ten zasyp fizycznie nie istnieje (został opróżniony). Nie można dodać do niego dosypki.</span></div>"
+                flash(f'Punkt kontrolny ({zasyp_lbl}) ma już zakończone opróżnianie. Dodawanie dosypek do zamkniętych zasypów jest zablokowane.', 'warning')
+                return redirect(bezpieczny_powrot())
 
             if szarza_id_int:
                 cursor.execute(
@@ -123,6 +185,9 @@ def register_production_dosypki_routes(
                 produkt=produkt,
                 typ=typ_produkcji,
                 szarza_id=szarza_id,
+                szarza_nr=target_szarza_nr,
+                is_szarza_emptied=is_szarza_emptied,
+                is_admin_or_zarzad=is_admin_or_zarzad,
                 existing_dosypki=existing_dosypki,
                 linia=linia,
                 dostepne_surowce=dostepne_surowce,
@@ -205,48 +270,83 @@ def register_production_dosypki_routes(
                 return redirect(bezpieczny_powrot())
 
             role_lc = (session.get('rola') or '').strip().lower()
+            is_admin_or_zarzad = _is_admin_or_zarzad_user()
+
             if linia.upper() == 'AGRO' and role_lc == 'lider':
                 if is_ajax:
                     return jsonify({'success': False, 'message': 'Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.'}), 403
                 flash('Na zasypie AGRO dodawanie dosypek jest przeznaczone tylko dla laboranta.', 'warning')
                 return redirect(bezpieczny_powrot())
 
-            if r[3] != 'w toku' and role_lc not in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider', 'zarzad']:
+            if r[3] != 'w toku' and not is_admin_or_zarzad:
                 if is_ajax:
-                    return jsonify({'success': False, 'message': 'Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")'}), 400
-                flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
+                    return jsonify({'success': False, 'message': f'Zlecenie jest zamknięte (status: {r[3]}). Tylko Administrator lub Zarząd może dodawać dosypki do zamkniętych zleceń.'}), 400
+                flash(f'Zlecenie jest zamknięte (status: {r[3]}). Tylko Administrator lub Zarząd może dodawać dosypki do zamkniętych zleceń.', 'warning')
                 return redirect(bezpieczny_powrot())
             produkt = str(r[1] or '').strip() if r else ''
 
+            target_szarza_nr = None
             if szarza_id and not brak_dosypki:
                 cursor.execute(
-                    f"SELECT id FROM {table_szarze} WHERE id=%s AND plan_id=%s LIMIT 1",
+                    f"SELECT id, nr_szarzy FROM {table_szarze} WHERE id=%s AND plan_id=%s LIMIT 1",
                     (szarza_id, plan_id),
                 )
                 id_match = cursor.fetchone()
                 if not id_match:
                     cursor.execute(
-                        f"SELECT id FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania ASC, id ASC",
+                        f"SELECT id, nr_szarzy FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania ASC, id ASC",
                         (plan_id,),
                     )
-                    szarza_ids_for_plan = [int(row[0]) for row in cursor.fetchall() if row and row[0] is not None]
-                    if szarza_ids_for_plan and 1 <= int(szarza_id) <= len(szarza_ids_for_plan):
-                        szarza_id = int(szarza_ids_for_plan[int(szarza_id) - 1])
+                    szarza_rows_for_plan = cursor.fetchall() or []
+                    if szarza_rows_for_plan and 1 <= int(szarza_id) <= len(szarza_rows_for_plan):
+                        matched_row = szarza_rows_for_plan[int(szarza_id) - 1]
+                        szarza_id = int(matched_row[0])
+                        if matched_row[1] is not None:
+                            target_szarza_nr = int(matched_row[1])
+                else:
+                    if id_match[1] is not None:
+                        target_szarza_nr = int(id_match[1])
 
             if not szarza_id and not brak_dosypki:
                 cursor.execute(
-                    f"SELECT id FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania DESC, id DESC LIMIT 1",
+                    f"SELECT id, nr_szarzy FROM {table_szarze} WHERE plan_id=%s ORDER BY data_dodania DESC, id DESC LIMIT 1",
                     (plan_id,),
                 )
                 latest_szarza = cursor.fetchone()
                 if latest_szarza and latest_szarza[0]:
                     szarza_id = int(latest_szarza[0])
+                    if latest_szarza[1] is not None:
+                        target_szarza_nr = int(latest_szarza[1])
 
             if not szarza_id and not brak_dosypki:
                 if is_ajax:
                     return jsonify({'success': False, 'message': 'Brak aktywnego zasypu dla tego zlecenia! Operator musi najpierw rozpocząć zasyp (dodać szarżę).'}), 400
                 flash('Brak aktywnego zasypu dla tego zlecenia! Operator musi najpierw rozpocząć zasyp (dodać szarżę).', 'warning')
                 return redirect(bezpieczny_powrot())
+
+            if target_szarza_nr is None and szarza_id:
+                try:
+                    cursor.execute(f"SELECT nr_szarzy FROM {table_szarze} WHERE id=%s LIMIT 1", (szarza_id,))
+                    sz_row = cursor.fetchone()
+                    if sz_row and sz_row[0] is not None:
+                        target_szarza_nr = int(sz_row[0])
+                except Exception:
+                    target_szarza_nr = None
+
+            if target_szarza_nr is None and szarza_id:
+                target_szarza_nr = szarza_id
+
+            # Sprawdzenie czy punkt kontrolny ma zakończone opróżnianie
+            if target_szarza_nr and not is_admin_or_zarzad:
+                if _check_szarza_emptied(cursor, linia, plan_id, target_szarza_nr):
+                    zasyp_lbl = f"Zasyp #{target_szarza_nr}"
+                    if is_ajax:
+                        return jsonify({
+                            'success': False, 
+                            'message': f'Punkt kontrolny ({zasyp_lbl}) ma już zakończone opróżnianie. Ten zasyp fizycznie nie istnieje i nie można dodać do niego dosypki.'
+                        }), 400
+                    flash(f'Punkt kontrolny ({zasyp_lbl}) ma już zakończone opróżnianie. Dodawanie dosypek do zamkniętych zasypów jest zablokowane.', 'warning')
+                    return redirect(bezpieczny_powrot())
 
             if not brak_dosypki:
                 allowed_surowce = get_allowed_dosypka_materials(cursor, linia)
@@ -266,18 +366,6 @@ def register_production_dosypki_routes(
                     return redirect(bezpieczny_powrot())
 
                 entries = [(allowed_map[str(name).strip().lower()], kg) for name, kg in entries]
-
-            pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
-            created_by_user_id = session.get('user_id') if 'user_id' in session else None
-            target_szarza_nr = None
-            if szarza_id:
-                try:
-                    cursor.execute(f"SELECT nr_szarzy FROM {table_szarze} WHERE id=%s LIMIT 1", (szarza_id,))
-                    sz_row = cursor.fetchone()
-                    if sz_row and sz_row[0] is not None:
-                        target_szarza_nr = int(sz_row[0])
-                except Exception:
-                    target_szarza_nr = None
 
             for name, kg in entries:
                 cursor.execute(
