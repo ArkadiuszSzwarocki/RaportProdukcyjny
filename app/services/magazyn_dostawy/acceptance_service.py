@@ -123,8 +123,10 @@ class AcceptanceService:
 
                 pallet_id = None
 
+                raw_qty = target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
+                qty = float(raw_qty) if raw_qty else 0.0
+
                 if is_opk_pkg:
-                    qty = float(target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                     pallet_id = cursor.lastrowid
                     if not pallet_id or pallet_id == 0:
@@ -133,7 +135,6 @@ class AcceptanceService:
                         if _row: pallet_id = _row['id']
                     p_type = 'opakowanie'
                 elif p_type_scanned == 'dodatek':
-                    qty = float(target.get('netWeight') or 0)
                     cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
                     pallet_id = cursor.lastrowid
                     if not pallet_id or pallet_id == 0:
@@ -142,7 +143,6 @@ class AcceptanceService:
                         if _row: pallet_id = _row['id']
                     p_type = 'dodatek'
                 elif p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja']:
-                    qty = float(target.get('netWeight') or target.get('quantity') or 0)
                     p_type = 'wyrob_gotowy'
                     source_pid = target.get('sourcePalletId')
                     exist_got = None
@@ -168,13 +168,14 @@ class AcceptanceService:
                         """, (nr_palety, product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, target_linia))
                         pallet_id = cursor.lastrowid
                 else:
-                    qty = float(target.get('netWeight') or 0)
                     p_type = 'surowiec'
-                    # Sprawdź, czy rekord palety już istnieje (np. utworzony podczas zwrotu ze stacji jako ZWROT)
-                    cursor.execute(f"SELECT id FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                    # Sprawdź, czy rekord palety już istnieje (np. utworzony w OCZEKUJĄCYCH lub podczas zwrotu)
+                    cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
                     exist_sur = cursor.fetchone()
                     if exist_sur:
                         pallet_id = exist_sur['id']
+                        if qty <= 0 and float(exist_sur.get('stan_magazynowy') or 0) > 0:
+                            qty = float(exist_sur['stan_magazynowy'])
                         cursor.execute(f"""
                             UPDATE {table_sur}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
@@ -222,29 +223,29 @@ class AcceptanceService:
                     except Exception:
                         pass
 
-                # 3. Empty the source spot (from Transfer or from External Delivery pending buffer)
-                source_spot = target.get('sourceSpot')
+                # 3. Empty the source spot ONLY for internal transfers where source pallet is a SEPARATE row
+                source_spot = str(target.get('sourceSpot') or '').strip().upper()
                 is_partial = target.get('is_partial', False)
                 is_return = target.get('is_return', False)
                 source_pallet_id = target.get('sourcePalletId')
+                supplier = str(dostawa.get('supplier') or '').strip()
+                is_external = bool(supplier) or source_spot in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE') or str(dostawa.get('lokalizacja_z') or '').strip().upper() in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE')
 
-                if source_spot and not is_partial and not is_return:
-                    actual_source_loc = 'OCZEKUJĄCE' if source_spot == 'DOSTAWA' else source_spot
-                    
-                    if source_pallet_id:
-                        # Find the pallet at source and zero it EXACTLY by ID
+                if not is_external and source_spot and not is_partial and not is_return:
+                    # ONLY zero the source pallet if it is a DIFFERENT record from the newly created destination pallet
+                    if source_pallet_id and str(source_pallet_id) != str(pallet_id):
                         cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
                         cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
+                        if p_type == 'wyrob_gotowy':
                             cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE id = %s", (source_pallet_id,))
-                    else:
-                        # Fallback for old data without sourcePalletId
-                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
-                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
-                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (actual_source_loc, product_name))
-                        if p_type == 'wyrob_gotowy' and pallet_id != source_pallet_id:
-                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (actual_source_loc, product_name))
+                    elif not source_pallet_id and source_spot != lokalizacja:
+                        # Fallback for old manual transfers without sourcePalletId
+                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
+                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
+                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
+                        if p_type == 'wyrob_gotowy':
+                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (source_spot, product_name))
                 
                     cursor.execute(
                         "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
