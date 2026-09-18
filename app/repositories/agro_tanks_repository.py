@@ -767,23 +767,60 @@ class AgroTanksRepository:
                 if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                     return False
 
-                # Blokada auto-rejestracji palety podczas opróżniania paletyzatora
+                # Blokada auto-rejestracji palety podczas lub po opróżnianiu paletyzatora
                 try:
                     import time as _py_time
                     from app.services.mqtt_service import get_latest_data
                     m_data = get_latest_data()
                     is_emptying = bool(m_data.get('oproznianie') or m_data.get('is_emptying'))
                     last_empty_ts = float(m_data.get('last_oproznianie_ts') or 0)
-                    if is_emptying or (_py_time.time() - last_empty_ts < 180):
+
+                    # Sprawdź czy w bazie nie ma już palety z opróżniania dla tego planu
+                    cursor.execute(
+                        f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND (waga < 1000 OR (dodal_login IS NOT NULL AND dodal_login != 'System')) AND (status IS NULL OR status != 'rezerwacja')",
+                        (plan_id,)
+                    )
+                    empty_row = cursor.fetchone()
+                    has_emptying_pallet = bool(empty_row and empty_row[0] > 0)
+
+                    if is_emptying or (_py_time.time() - last_empty_ts < 300 if last_empty_ts > 0 else False) or has_emptying_pallet:
                         logger.warning(
                             "[OPRÓŻNIANIE BLOKADA] Zablokowano automatyczną rejestrację pełnej palety dla plan_id=%s. "
-                            "Trwa/odbyło się opróżnianie paletyzatora (oproznianie=%s, delta=%.1fs). Priorytet: ręczne potwierdzenie operatora.",
-                            plan_id, is_emptying, _py_time.time() - last_empty_ts if last_empty_ts else 0
+                            "Trwa/odbyło się opróżnianie paletyzatora (oproznianie=%s, delta=%.1fs, has_emptying_pallet=%s). Priorytet: ręczne potwierdzenie operatora.",
+                            plan_id, is_emptying, _py_time.time() - last_empty_ts if last_empty_ts else 0, has_emptying_pallet
                         )
                         return False
                 except Exception as empty_chk_err:
                     logger.warning("[OPRÓŻNIANIE BLOKADA] Błąd sprawdzania statusu opróżniania: %s", empty_chk_err)
-                
+
+                # Sprawdzenie korelacji liczby worków na pakowaczce z wagą w bazie
+                try:
+                    cursor.execute(f"SELECT start_machine_counter, typ_opakowania FROM {table_plan} WHERE id=%s", (plan_id,))
+                    pm_row = cursor.fetchone()
+                    if pm_row:
+                        st_mach_cnt, typ_opak = pm_row
+                        st_mach_cnt = int(st_mach_cnt or 0)
+                        bags_per_pal = 20 if typ_opak and '50' in str(typ_opak) else 40
+                        min_bags_for_pal = max(15, bags_per_pal - 5)
+
+                        cursor.execute(f"SELECT COALESCE(SUM(ROUND(waga / 25.0)), 0) FROM {table_pal} WHERE plan_id=%s AND (status IS NULL OR status != 'rezerwacja')", (plan_id,))
+                        db_bags_sum = int(cursor.fetchone()[0] or 0)
+
+                        from app.services.mqtt_service import get_latest_data
+                        m_data = get_latest_data()
+                        current_mach_cnt = int(m_data.get('counter') or 0)
+                        if current_mach_cnt > 0 and st_mach_cnt > 0 and db_bags_sum > 0:
+                            actual_produced_bags = max(0, current_mach_cnt - st_mach_cnt)
+                            if actual_produced_bags < (db_bags_sum + min_bags_for_pal):
+                                logger.warning(
+                                    "[BAG CORRELATION] Zablokowano auto-rejestrację palety dla plan_id=%s. "
+                                    "Wyprodukowano worków: %s, w bazie zapisano worków: %s (wymagane min. %s dla nowej palety).",
+                                    plan_id, actual_produced_bags, db_bags_sum, db_bags_sum + min_bags_for_pal
+                                )
+                                return False
+                except Exception as bag_chk_err:
+                    logger.warning("[BAG CORRELATION] Błąd sprawdzania korelacji worków: %s", bag_chk_err)
+
                 waga_input = 1000
                 now_ts = datetime.datetime.now()
                 user_login = 'System'
