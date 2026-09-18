@@ -81,7 +81,7 @@ class WarehouseSummaryController:
                 cursor.execute(f"""
                     SELECT m.id, m.nr_palety, 
                            COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
-                           COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') as location, 
+                           COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as location, 
                            m.waga_netto as amount, 
                            'Wyrób Gotowy' as type, 
                            COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii, 
@@ -96,6 +96,8 @@ class WarehouseSummaryController:
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"PAL-{row['id']}"
                     row['data_produkcji'] = format_date_val(row.get('data_produkcji'))
                     row['data_przydatnosci'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
+                    if not row.get('location') or str(row.get('location')).strip().upper() == 'OCZEKUJĄCE':
+                        row['location'] = 'MGW01'
                     items.append(row)
 
             # 4. Dodatki

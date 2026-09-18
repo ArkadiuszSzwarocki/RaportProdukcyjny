@@ -78,7 +78,7 @@ class WarehouseIndexController:
                         f"""
                         SELECT m.id, m.nr_palety, 
                                COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, plan_pw.produkt, plan_alt.produkt, plan_pw_alt.produkt, 'Nieznany produkt') as productName, 
-                               COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') as location, 
+                               COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as location, 
                                m.waga_netto as amount, 
                                'Wyrób Gotowy' as type, 
                                COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, plan_pw.data_produkcji, m.data_planu, plan.data_planu, plan_pw.data_planu) as data_produkcji, 
@@ -114,8 +114,8 @@ class WarehouseIndexController:
                         row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                         row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
 
-                        if not row['location']:
-                            row['location'] = 'OCZEKUJĄCE'
+                        if not row.get('location') or str(row.get('location')).strip().upper() == 'OCZEKUJĄCE':
+                            row['location'] = 'MGW01'
 
                         # Attach production plan order details
                         plan_id = row.get('effective_plan_id')

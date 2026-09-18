@@ -130,7 +130,7 @@ def index():
                     f"""
                     SELECT m.id, m.nr_palety, 
                            COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
-                           COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') as location, 
+                           COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as location, 
                            m.waga_netto as amount, 
                            'Wyrób Gotowy' as type, 
                            COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji, 
@@ -158,9 +158,8 @@ def index():
                     row['is_blocked'] = row.get('is_blocked', 0)
                     row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
 
-                    # Przypisz domyślną lokalizację OCZEKUJĄCE dla wyrobów gotowych jeśli nie mają
-                    if not row['location']:
-                        row['location'] = 'OCZEKUJĄCE'
+                    if not row.get('location') or str(row.get('location')).strip().upper() == 'OCZEKUJĄCE':
+                        row['location'] = 'MGW01'
 
                     items.append(row)
             except Exception as e:
