@@ -17,7 +17,7 @@ from .palety_helpers import _resolve_plan_id_for_paleta
 from .misc_routes import _parse_data_produkcji_input
 
 def _select_preferred_printer(cursor, linia='AGRO'):
-    """Pick preferred printer based on production line (PSD -> 236, AGRO -> 160, OSIP -> 47/86)."""
+    """Pick preferred printer based on production line (PSD -> 17/236, AGRO -> 160, OSIP -> 47/86)."""
     try:
         linia_clean = str(linia or '').strip().upper()
         if linia_clean == 'PSD':
@@ -29,8 +29,9 @@ def _select_preferred_printer(cursor, linia='AGRO'):
                 ORDER BY
                     CASE
                         WHEN LOWER(COALESCE(nazwa, '')) LIKE '%psd%' THEN 0
-                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%magazyn%' THEN 1
-                        ELSE 2
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%tsc%' THEN 1
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%magazyn%' THEN 2
+                        ELSE 3
                     END,
                     id ASC
                 LIMIT 1
@@ -73,9 +74,14 @@ def _select_preferred_printer(cursor, linia='AGRO'):
         row = cursor.fetchone()
         if not row:
             return None, None
+        if isinstance(row, dict):
+            return row.get('nazwa'), row.get('ip')
         return row[0], row[1]
     except Exception as printer_err:
-        current_app.logger.warning('Nie udało się pobrać preferowanej drukarki: %s', printer_err)
+        try:
+            current_app.logger.warning('Nie udało się pobrać preferowanej drukarki: %s', printer_err)
+        except Exception:
+            pass
         return None, None
 
 def _list_active_printers(cursor):

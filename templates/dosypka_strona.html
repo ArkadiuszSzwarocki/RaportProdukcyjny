@@ -555,12 +555,19 @@
                     </div>
                     <div class="ds-infobar-item">
                         <span class="ds-infobar-label">Zasyp (szarża)</span>
-                        <span class="ds-infobar-value">{{ szarza_id or '—' }}</span>
+                        <span class="ds-infobar-value">{% if szarza_nr %}Zasyp #{{ szarza_nr }} (ID {{ szarza_id }}){% else %}{{ szarza_id or '—' }}{% endif %}</span>
                     </div>
                     <div class="ds-infobar-note">
                         Wybieraj tylko surowce dostępne na liście magazynu. Maksymalnie 10 pozycji.
                     </div>
                 </div>
+
+                {% if is_szarza_emptied and is_admin_or_zarzad %}
+                <div style="background:#fffbeb; border:1.5px solid #fcd34d; color:#92400e; padding:12px 16px; border-radius:10px; margin-bottom:20px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:18px;">👑</span>
+                    <span>Tryb uprzywilejowany (Admin/Zarząd): Dodajesz dosypkę do punktu kontrolnego z zakończonym opróżnianiem.</span>
+                </div>
+                {% endif %}
 
                 {% if not szarza_id %}
                 <div style="background:#fef2f2; border:1.5px solid #f87171; color:#991b1b; padding:16px 20px; border-radius:10px; margin-bottom:20px; display:flex; align-items:center; gap:14px;">

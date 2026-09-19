@@ -174,7 +174,8 @@
             <thead>
                 <tr>
                     <th style="width: 40px;">#</th>
-                    <th style="width: 80px;">Plan ID</th>
+                    <th style="width: 75px;">Plan ID</th>
+                    <th style="min-width: 175px; color:#b45309; text-transform:uppercase; font-weight:800; font-size:13px;">Do zasypu</th>
                     <th>Nazwa składnika</th>
                     <th style="width: 130px; color:#1d4ed8;">Zaplanowane (Laborant)</th>
                     <th style="width: 150px; color:#047857;">Wydozowano (Operator)</th>
@@ -188,6 +189,19 @@
                 <tr data-plan-id="{{ d.plan_id }}" data-dosypka-id="{{ d.id }}">
                     <td class="text-muted" data-label="#">{{ loop.index }}</td>
                     <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#{{ d.plan_id }}</span></td>
+                    <td data-label="Do zasypu" style="white-space:nowrap;">
+                        {% if d.nr_szarzy %}
+                        <span style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border:2px solid #f59e0b; border-radius:8px; color:#92400e; font-weight:900; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; box-shadow:0 1px 3px rgba(245,158,11,0.25); white-space:nowrap;">
+                            <span style="font-size:14px;">⚡</span> DOSYPKA DO ZASYPU #{{ d.nr_szarzy }}
+                        </span>
+                        {% elif d.szarza_id %}
+                        <span style="display:inline-flex; align-items:center; gap:4px; padding:5px 10px; background:#f1f5f9; border:1.5px solid #cbd5e1; border-radius:8px; color:#334155; font-weight:800; font-size:12px; text-transform:uppercase; white-space:nowrap;">
+                            DOSYPKA DO SZARŻY #{{ d.szarza_id }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
                     <td data-label="Nazwa">
                         <span style="font-weight:800; font-size:14px; color:#1e293b;">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</span>
                     </td>

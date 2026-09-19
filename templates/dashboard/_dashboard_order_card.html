@@ -252,7 +252,9 @@
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-plan-id="{{ p[0] }}" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
-                    {% set can_add_dosypka = role_lc in ['admin', 'masteradmin', 'laborant', 'laboratorium', 'zarzad'] or (role_lc == 'lider' and linia != 'AGRO') %}
+                    {% set is_admin_or_zarzad = role_lc in ['admin', 'masteradmin', 'master_admin', 'zarzad', 'zarząd'] %}
+                    {% set is_order_closed = (p[3] != 'w toku') %}
+                    {% set can_add_dosypka = is_admin_or_zarzad or (not is_order_closed and (role_lc in ['laborant', 'laboratorium'] or (role_lc == 'lider' and linia != 'AGRO'))) %}
                     {% if can_add_dosypka %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-blue" data-slide>+ DOSYPKA</a>
                     {% endif %}

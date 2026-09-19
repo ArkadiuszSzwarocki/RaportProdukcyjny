@@ -28,6 +28,9 @@ _latest_machine_data = {
     "rolki2zajete": False,           # Czujnik rolki 2 (bufor oczekujący)
     "buforPelny": False,             # Czy bufor jest pełny?
     "bagger_jaws_closed": False,     # Szczęki zgrzewające wagopakowaczki (worek zrobiony)
+    "oproznianie": False,
+    "is_emptying": False,
+    "last_oproznianie_ts": 0,
 }
 
 _simulated_offsets = {
@@ -306,6 +309,9 @@ def on_message(client, userdata, msg):
 
                 oproznianie = _first_or_default(payload_data.get("oproznianie"), False)
                 _latest_machine_data["oproznianie"] = bool(oproznianie)
+                _latest_machine_data["is_emptying"] = bool(oproznianie)
+                if oproznianie:
+                    _latest_machine_data["last_oproznianie_ts"] = time.time()
                 
                 sygnal_owijarki = _first_or_default(payload_data.get("sygnalDoOwijarkiStart"), False)
                 _latest_machine_data["sygnal_do_owijarki_start"] = bool(sygnal_owijarki)

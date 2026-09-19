@@ -314,7 +314,8 @@ class ProductionService:
                         s.godzina,
                         s.status,
                         COALESCE(p.imie_nazwisko, s.pracownik_id),
-                        COALESCE(s.uwagi, '')
+                        COALESCE(s.uwagi, ''),
+                        s.nr_szarzy
                     FROM {table_szarze} s
                     LEFT JOIN pracownicy p ON s.pracownik_id = p.id
                     WHERE s.plan_id IN ({fmt_ids})
@@ -323,6 +324,37 @@ class ProductionService:
                     plan_ids,
                 )
                 szarze_rows = cursor.fetchall() or []
+
+                emptied_zasypy = set()
+                try:
+                    linia_u = (linia or 'PSD').strip().upper()
+                    if linia_u == 'AGRO':
+                        cursor.execute(
+                            f"""
+                            SELECT plan_id, szarza_nr
+                            FROM zasyp_etapy
+                            WHERE linia = 'AGRO' AND plan_id IN ({fmt_ids})
+                              AND etap = 5 AND czas_stop IS NOT NULL
+                            """,
+                            plan_ids,
+                        )
+                    else:
+                        cursor.execute(
+                            f"""
+                            SELECT plan_id, szarza_nr
+                            FROM zasyp_etapy
+                            WHERE linia = %s AND plan_id IN ({fmt_ids})
+                              AND (
+                                (etap = 6 AND czas_stop IS NOT NULL)
+                                OR (etap = 5 AND czas_stop IS NOT NULL)
+                              )
+                            """,
+                            [linia_u] + plan_ids,
+                        )
+                    for erow in cursor.fetchall() or []:
+                        emptied_zasypy.add((erow[0], erow[1]))
+                except Exception:
+                    logger.debug('Failed to fetch emptied_zasypy for dashboard', exc_info=True)
 
                 cursor.execute(
                     f"""
@@ -411,6 +443,8 @@ class ProductionService:
                     status = row[4] or ''
                     autor = row[5] or ''
                     uwagi = row[6] or ''
+                    nr_sz = row[7] if len(row) > 7 and row[7] is not None else None
+                    is_emptied = bool((pid, nr_sz) in emptied_zasypy) if nr_sz else False
 
                     # Dla widoku szarży łączna waga: zasyp + dosypki (wiaderka to info bez dodawania wagi)
                     waga_laczna = baza_waga + suma_dosypki
@@ -427,6 +461,8 @@ class ProductionService:
                             autor,
                             uwagi,
                             wiaderka_by_szarza.get(szarza_id, []),
+                            nr_sz,
+                            is_emptied,
                         ]
                     )
 

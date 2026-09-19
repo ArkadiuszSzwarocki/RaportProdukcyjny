@@ -267,12 +267,21 @@ class PalletConfirmationService:
                         f"UPDATE {table_pal} SET status='przyjeta', "
                         "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
                         "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
-                        "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
+                        "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())), "
+                        "potwierdzil_login = %s "
                         f"WHERE id=%s",
-                        (paleta_id,),
+                        (user_login, paleta_id),
                     )
                 else:
-                    cursor.execute(f"UPDATE {table_pal} SET status='przyjeta' WHERE id=%s", (paleta_id,))
+                    cursor.execute(
+                        f"UPDATE {table_pal} SET status='przyjeta', "
+                        "data_potwierdzenia = NOW(), "
+                        "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
+                        "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())), "
+                        "potwierdzil_login = %s "
+                        f"WHERE id=%s",
+                        (user_login, paleta_id),
+                    )
                 conn.commit()
                 status_updated = True
             except Exception as error:
@@ -328,8 +337,8 @@ class PalletConfirmationService:
 
                         data_przydatnosci = request.form.get('data_przydatnosci') if request else None
                         lokalizacja = request.form.get('lokalizacja') if request else None
-                        if not lokalizacja or not str(lokalizacja).strip():
-                            lokalizacja = 'OCZEKUJĄCE'
+                        if not lokalizacja or not str(lokalizacja).strip() or str(lokalizacja).strip().upper() == 'OCZEKUJĄCE':
+                            lokalizacja = 'MGW01'
 
                         prod_name_str = str(row[1] or '').strip()
                         is_czyszczenie_product = (

@@ -766,7 +766,33 @@ class AgroTanksRepository:
                 plan_produkt, plan_sekcja = plan_row
                 if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                     return False
-                
+
+                # Blokada auto-rejestracji palety podczas lub po opróżnianiu paletyzatora
+                try:
+                    import time as _py_time
+                    from app.services.mqtt_service import get_latest_data
+                    m_data = get_latest_data()
+                    is_emptying = bool(m_data.get('oproznianie') or m_data.get('is_emptying'))
+                    last_empty_ts = float(m_data.get('last_oproznianie_ts') or 0)
+
+                    # Sprawdź czy w bazie nie ma już palety z opróżniania dla tego planu
+                    cursor.execute(
+                        f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND (waga < 1000 OR (dodal_login IS NOT NULL AND dodal_login != 'System')) AND (status IS NULL OR status != 'rezerwacja')",
+                        (plan_id,)
+                    )
+                    empty_row = cursor.fetchone()
+                    has_emptying_pallet = bool(empty_row and empty_row[0] > 0)
+
+                    if is_emptying or (_py_time.time() - last_empty_ts < 300 if last_empty_ts > 0 else False) or has_emptying_pallet:
+                        logger.warning(
+                            "[OPRÓŻNIANIE BLOKADA] Zablokowano automatyczną rejestrację pełnej palety dla plan_id=%s. "
+                            "Trwa/odbyło się opróżnianie paletyzatora (oproznianie=%s, delta=%.1fs, has_emptying_pallet=%s). Priorytet: ręczne potwierdzenie operatora.",
+                            plan_id, is_emptying, _py_time.time() - last_empty_ts if last_empty_ts else 0, has_emptying_pallet
+                        )
+                        return False
+                except Exception as empty_chk_err:
+                    logger.warning("[OPRÓŻNIANIE BLOKADA] Błąd sprawdzania statusu opróżniania: %s", empty_chk_err)
+
                 waga_input = 1000
                 now_ts = datetime.datetime.now()
                 user_login = 'System'

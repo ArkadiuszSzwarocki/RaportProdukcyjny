@@ -419,15 +419,18 @@ def list_unconfirmed_dosypki(linia='PSD'):
     """Return list of active unconfirmed dosypki."""
     try:
         table_dosypki = get_table_name('dosypki', linia)
+        table_szarze = get_table_name('szarze', linia)
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             f"""
-            SELECT id, plan_id, nazwa, COALESCE(kg_planowane, kg), data_zlecenia, pracownik_id,
-                   COALESCE(anulowana, 0), anulowal_login, data_anulowania, kg_wydozowane
-            FROM {table_dosypki}
-            WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
-            ORDER BY data_zlecenia ASC
+            SELECT d.id, d.plan_id, d.nazwa, COALESCE(d.kg_planowane, d.kg), d.data_zlecenia, d.pracownik_id,
+                   COALESCE(d.anulowana, 0), d.anulowal_login, d.data_anulowania, d.kg_wydozowane,
+                   d.szarza_id, s.nr_szarzy
+            FROM {table_dosypki} d
+            LEFT JOIN {table_szarze} s ON s.id = d.szarza_id
+            WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0
+            ORDER BY d.data_zlecenia ASC
             """
         )
         rows = cursor.fetchall()
