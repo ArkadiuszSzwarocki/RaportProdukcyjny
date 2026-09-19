@@ -119,6 +119,31 @@ def oczekujace():
                 d['items_parsed'] = items
                 items_changed = True
 
+        for p in dostawy.get('wg', []) or []:
+            nr_palety = p.get('nr_palety')
+            if not nr_palety:
+                continue
+            pending_scan_items.append({
+                'dostawa_id': None,
+                'order_ref': f"Zlecenie #{p.get('numer_zlecenia') or p.get('plan_id') or ''}",
+                'lokalizacja_do': p.get('suggested_location') or 'MGW01',
+                'delivery_status': 'OCZEKUJE',
+                'item_id': f"wg_{p.get('id')}",
+                'nr_palety': str(nr_palety).strip().upper(),
+                'product_name': p.get('nazwa_produktu') or '',
+                'nr_partii': p.get('nr_partii') or '',
+                'data_produkcji': _safe_date(p.get('data_dodania')),
+                'data_przydatnosci': _safe_date(p.get('termin_przydatnosci')),
+                'qty': _safe_float(p.get('waga') or p.get('waga_potwierdzona') or 0),
+                'p_type': 'wyrob_gotowy',
+                'pallet_status': 'PENDING',
+                'workflow_mode': 'WG',
+                'workflow_stage_label': 'Wyrób gotowy (produkcja)',
+                'putaway_suggested_location': p.get('suggested_location') or 'MGW01',
+                'linia': p.get('linia') or linia,
+                'wg_id': p.get('id'),
+            })
+
         if items_changed:
             conn.commit()
     finally:
@@ -157,15 +182,13 @@ def edycja_dostawy(dostawa_id=None):
         table_wg = get_table_name('magazyn_palety', linia)
         wszystkie_produkty = set()
         for query, p in [
-            ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
-            (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
-            (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
-            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,)),
-            (f"SELECT DISTINCT produkt as nazwa FROM {table_wg}", ())
+            ("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s AND nazwa IS NOT NULL AND TRIM(nazwa) != ''", (linia,)),
+            (f"SELECT DISTINCT produkt as nazwa FROM {table_wg} WHERE produkt IS NOT NULL AND TRIM(produkt) != ''", ())
         ]:
             try:
                 cursor.execute(query, p)
-                wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+                wszystkie_produkty.update([r['nazwa'].strip() for r in cursor.fetchall() if r and r.get('nazwa')])
             except Exception:
                 pass
         wszystkie_produkty = sorted(list(wszystkie_produkty))

@@ -5,13 +5,19 @@ const OrdersModule = (function () {
     'use strict';
 
     const API_BASE = '/warehouse-v2/api/orders';
-    const REFRESH_INTERVAL_MS = 30000;
+    const REFRESH_INTERVAL_MS = 3000;
 
     let _refreshTimer = null;
 
     function init() {
         _loadOrders();
         _startAutoRefresh();
+
+        window.addEventListener('focus', _loadOrders);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') _loadOrders();
+        });
+        window.addEventListener('ordersChanged', _loadOrders);
     }
 
     function _loadOrders() {
@@ -41,7 +47,7 @@ const OrdersModule = (function () {
         if (sidebarBadge) {
             sidebarBadge.textContent = noweCount;
             if (noweCount > 0) {
-                sidebarBadge.style.display = 'flex'; // matching flex display of badges
+                sidebarBadge.style.display = 'inline-flex';
             } else {
                 sidebarBadge.style.display = 'none';
             }
@@ -75,14 +81,24 @@ const OrdersModule = (function () {
                 ? '<span class="order-status-badge nowe">NOWE</span>'
                 : '<span class="order-status-badge zamkniete">ZAMKNIĘTE</span>';
 
-            var actionHtml = isNowe
-                ? '<button class="order-confirm-btn" onclick="OrdersModule.confirmOrder(' + o.id + ', this)">' +
-                      '<span class="material-icons" style="font-size:16px;">check</span> Potwierdź' +
-                  '</button>'
-                : '<span style="color:#94a3b8; font-size:12px;">' +
-                      _escapeHtml(o.magazynier_login || '') +
-                      '<br>' + _formatDate(o.confirmed_at) +
-                  '</span>';
+            var actionHtml = '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">';
+            if (isNowe) {
+                actionHtml += '<button class="order-confirm-btn" onclick="OrdersModule.confirmOrder(' + o.id + ', this)">' +
+                    '<span class="material-icons" style="font-size:16px;">check</span> Potwierdź' +
+                '</button>';
+            } else {
+                actionHtml += '<span style="color:#94a3b8; font-size:12px;">' +
+                    _escapeHtml(o.magazynier_login || '') +
+                    '<br>' + _formatDate(o.confirmed_at) +
+                '</span>';
+            }
+
+            if (window.CAN_DELETE_ORDERS) {
+                actionHtml += '<button class="order-delete-btn" onclick="OrdersModule.deleteOrder(' + o.id + ', this)" title="Trwale usuń zamówienie">' +
+                    '<span class="material-icons" style="font-size:15px;">delete</span>' +
+                '</button>';
+            }
+            actionHtml += '</div>';
 
             return '<tr>' +
                 '<td data-label="ID"><strong>#' + o.id + '</strong></td>' +
@@ -93,6 +109,37 @@ const OrdersModule = (function () {
                 '<td data-label="Akcja">' + actionHtml + '</td>' +
             '</tr>';
         }).join('');
+    }
+
+    function deleteOrder(orderId, btnElement) {
+        if (!confirm('Czy na pewno chcesz TRWALE USUNĄĆ zamówienie #' + orderId + '?\nOperacji nie można cofnąć.')) return;
+
+        if (btnElement) btnElement.disabled = true;
+
+        fetch(API_BASE + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                _showToast(data.message || 'Zamówienie usunięte.', 'success');
+                _loadOrders();
+                window.dispatchEvent(new CustomEvent('ordersChanged'));
+                if (typeof window.refreshSidebarBadges === 'function') {
+                    window.refreshSidebarBadges();
+                }
+            } else {
+                _showToast(data.message || 'Błąd usuwania zamówienia.', 'error');
+                if (btnElement) btnElement.disabled = false;
+            }
+        })
+        .catch(function (err) {
+            console.error('Błąd usuwania zamówienia:', err);
+            _showToast('Błąd połączenia z serwerem.', 'error');
+            if (btnElement) btnElement.disabled = false;
+        });
     }
 
     function confirmOrder(orderId, btnElement) {
@@ -109,6 +156,10 @@ const OrdersModule = (function () {
             if (data.success) {
                 _showToast(data.message, 'success');
                 _loadOrders();
+                window.dispatchEvent(new CustomEvent('ordersChanged'));
+                if (typeof window.refreshSidebarBadges === 'function') {
+                    window.refreshSidebarBadges();
+                }
             } else {
                 _showToast(data.message || 'Wystąpił błąd.', 'error');
                 if (btnElement) btnElement.disabled = false;
@@ -122,6 +173,7 @@ const OrdersModule = (function () {
     }
 
     function _startAutoRefresh() {
+        if (_refreshTimer) clearInterval(_refreshTimer);
         _refreshTimer = setInterval(function () {
             _loadOrders();
         }, REFRESH_INTERVAL_MS);
@@ -168,6 +220,8 @@ const OrdersModule = (function () {
     document.addEventListener('DOMContentLoaded', init);
 
     return {
-        confirmOrder: confirmOrder
+        confirmOrder: confirmOrder,
+        deleteOrder: deleteOrder,
+        loadOrders: _loadOrders
     };
 })();

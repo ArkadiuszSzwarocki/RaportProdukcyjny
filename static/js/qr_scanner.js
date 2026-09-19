@@ -270,15 +270,17 @@ function handleLoginQrCode(qrText) {
         // Try JSON format first
         if (qrText.startsWith('{')) {
             const data = JSON.parse(qrText);
-            if (data.login && data.haslo) {
-                credentials = { login: data.login, haslo: data.haslo };
+            const userLogin = data.login || data.username || data.user;
+            const userPass = data.haslo || data.pass || data.password;
+            if (userLogin && userPass !== undefined) {
+                credentials = { login: String(userLogin).trim(), haslo: String(userPass) };
             }
         }
-        // Try simple format: LOGIN:user:pass
+        // Try simple format: LOGIN:user:pass (e.g. LOGIN:szwarark:1)
         else if (qrText.startsWith('LOGIN:')) {
             const parts = qrText.split(':');
             if (parts.length >= 3) {
-                credentials = { login: parts[1], haslo: parts[2] };
+                credentials = { login: (parts[1] || '').trim(), haslo: parts.slice(2).join(':') };
             }
         }
 

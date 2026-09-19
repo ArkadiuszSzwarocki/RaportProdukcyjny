@@ -1,52 +1,60 @@
 <!-- KALKULATOR ZASYPU (ZAMÓWIENIA) MODAL -->
-<div id="zasyp-calculator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
-    <div class="modal-content" style="background: #fff; width: 95%; max-width: 800px; border-radius: 12px; padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+<div id="zasyp-calculator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(5px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+    <div class="modal-content" style="background: #ffffff; width: 100%; max-width: 980px; border-radius: 18px; padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2);">
+        
         <!-- HEADER -->
-        <div class="modal-header" style="background: linear-gradient(135deg, #1e293b, #334155); color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
-                    <span class="material-icons" style="font-size: 24px;">calculate</span>
+        <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); display: flex; align-items: center; justify-content: center;">
+                    <span class="material-icons" style="font-size: 26px; color: #60a5fa;">calculate</span>
                 </div>
                 <div>
-                    <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Kalkulator Zamówień</h2>
-                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #cbd5e1;">Oblicz zapotrzebowanie i wygeneruj zamówienie</p>
+                    <h2 style="margin: 0; font-size: 21px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">Kalkulator Zamówień & Kolejka FIFO</h2>
+                    <p style="margin: 3px 0 0 0; font-size: 13px; color: #94a3b8;">Oblicz dokładne zapotrzebowanie surowcowe, sprawdź lokalizacje i wygeneruj listę wydań FIFO</p>
                 </div>
             </div>
-            <button onclick="closeZasypCalculatorModal()" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s;">
-                <span class="material-icons">close</span>
+            <button onclick="closeZasypCalculatorModal()" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'; this.style.color='#ef4444';" onmouseout="this.style.background='rgba(255, 255, 255, 0.08)'; this.style.color='#cbd5e1';">
+                <span class="material-icons" style="font-size: 20px;">close</span>
             </button>
         </div>
 
         <!-- BODY -->
-        <div class="modal-body" style="padding: 24px; overflow-y: auto;">
+        <div class="modal-body" style="padding: 28px; overflow-y: auto; background: #ffffff;">
             
             <!-- WIELKOŚĆ ZLECENIA -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px;">
-                <div style="flex: 1;">
-                    <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px;">Wielkość zlecenia (w tonach)</label>
-                    <div style="position: relative;">
-                        <input type="text" inputmode="decimal" id="calc-order-tons" placeholder="np. 30" style="width: 100%; padding: 10px 12px 10px 40px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; font-weight: 600;">
-                        <span class="material-icons" style="position: absolute; left: 12px; top: 12px; color: #94a3b8; font-size: 20px;">scale</span>
-                        <span style="position: absolute; right: 16px; top: 12px; color: #64748b; font-weight: 600;">t</span>
+            <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
+                <label style="display: block; font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
+                    ⚖️ Wielkość zlecenia produkcyjnego (w tonach):
+                </label>
+                <div style="display: flex; align-items: center; gap: 12px; max-width: 360px;">
+                    <div style="position: relative; flex: 1;">
+                        <input type="text" inputmode="decimal" id="calc-order-tons" placeholder="np. 30" style="width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 16px; font-weight: 700; color: #0f172a; background: #ffffff; box-sizing: border-box;">
+                        <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 22px; pointer-events: none;">scale</span>
                     </div>
+                    <span style="background: #e2e8f0; color: #334155; font-size: 14px; font-weight: 700; padding: 12px 16px; border-radius: 8px; border: 1.5px solid #cbd5e1; white-space: nowrap;">
+                        ton [t]
+                    </span>
                 </div>
             </div>
 
             <!-- TABELA SUROWCÓW -->
-            <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #1e293b;">Lista surowców (receptura)</h3>
-                    <button type="button" onclick="addCalculatorRow()" style="background: #e0e7ff; color: #4338ca; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                        <span class="material-icons" style="font-size: 16px;">add</span> Dodaj surowiec
+            <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #0f172a;">📋 Lista surowców (receptura)</h3>
+                        <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">Wybierz surowce ze słownika (każdy surowiec może być dodany tylko raz)</p>
+                    </div>
+                    <button type="button" onclick="addCalculatorRow()" style="background: #eff6ff; color: #2563eb; border: 1.5px solid #bfdbfe; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
+                        <span class="material-icons" style="font-size: 18px;">add_circle</span> Dodaj surowiec
                     </button>
                 </div>
                 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;" id="calc-items-table">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 8px;" id="calc-items-table">
                     <thead>
-                        <tr style="border-bottom: 2px solid #e2e8f0;">
-                            <th style="text-align: left; padding: 8px; font-size: 13px; color: #64748b; width: 60%;">Surowiec</th>
-                            <th style="text-align: left; padding: 8px; font-size: 13px; color: #64748b; width: 30%;">Przelicznik (kg / 1 t)</th>
-                            <th style="text-align: right; padding: 8px; font-size: 13px; color: #64748b; width: 10%;">Akcja</th>
+                        <tr style="background: #f8fafc;">
+                            <th style="text-align: left; padding: 10px 14px; font-size: 13px; font-weight: 700; color: #475569; width: 55%; border-top-left-radius: 8px; border-bottom: 1.5px solid #e2e8f0;">Surowiec (ze słownika)</th>
+                            <th style="text-align: left; padding: 10px 14px; font-size: 13px; font-weight: 700; color: #475569; width: 35%; border-bottom: 1.5px solid #e2e8f0;">Przelicznik receptury</th>
+                            <th style="text-align: center; padding: 10px 14px; font-size: 13px; font-weight: 700; color: #475569; width: 10%; border-top-right-radius: 8px; border-bottom: 1.5px solid #e2e8f0;">Akcja</th>
                         </tr>
                     </thead>
                     <tbody id="calc-items-tbody">
@@ -55,24 +63,32 @@
                 </table>
             </div>
 
-            <!-- AKCJA -->
-            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
-                <button type="button" onclick="checkStockAndCalculate()" style="background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
-                    <span class="material-icons" style="font-size: 20px;">fact_check</span> Sprawdź Magazyny
+            <!-- AKCJA GŁÓWNA -->
+            <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px;">
+                <button type="button" onclick="checkStockAndCalculate()" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; border: none; padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(37, 99, 235, 0.45)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 14px rgba(37, 99, 235, 0.35)';">
+                    <span class="material-icons" style="font-size: 22px;">fact_check</span> Sprawdź Magazyny & Wyznacz FIFO
                 </button>
             </div>
 
             <!-- WYNIKI -->
-            <div id="calc-results-section" style="display: none; margin-top: 24px; border-top: 2px dashed #cbd5e1; padding-top: 24px;">
-                <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #1e293b;">Wynik sprawdzenia stanów</h3>
+            <div id="calc-results-section" style="display: none; margin-top: 28px; border-top: 2px dashed #cbd5e1; padding-top: 24px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #0f172a;">📊 Wynik analizy stanów magazynowych & Lokalizacje FIFO</h3>
+                        <div id="calc-scanned-zones-info" style="font-size: 13px; color: #475569; margin-top: 4px;"></div>
+                    </div>
+                    <button type="button" onclick="printZasypFifoList()" style="background: #ffffff; color: #1e293b; border: 1.5px solid #cbd5e1; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9';" onmouseout="this.style.background='#ffffff';">
+                        <span class="material-icons" style="font-size: 18px; color: #2563eb;">print</span> Drukuj listę wydań FIFO
+                    </button>
+                </div>
                 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
                     <thead style="background: #f1f5f9;">
                         <tr>
-                            <th style="text-align: left; padding: 10px; font-size: 13px; color: #475569;">Surowiec</th>
-                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Potrzebne</th>
-                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Na stanie</th>
-                            <th style="text-align: right; padding: 10px; font-size: 13px; color: #475569;">Do zamówienia</th>
+                            <th style="text-align: left; padding: 12px 14px; font-size: 13px; font-weight: 700; color: #334155; border-bottom: 1.5px solid #e2e8f0;">Surowiec</th>
+                            <th style="text-align: right; padding: 12px 14px; font-size: 13px; font-weight: 700; color: #334155; border-bottom: 1.5px solid #e2e8f0;">Zapotrzebowanie</th>
+                            <th style="text-align: right; padding: 12px 14px; font-size: 13px; font-weight: 700; color: #334155; border-bottom: 1.5px solid #e2e8f0;">Dostępne aktywne</th>
+                            <th style="text-align: right; padding: 12px 14px; font-size: 13px; font-weight: 700; color: #334155; border-bottom: 1.5px solid #e2e8f0;">Do zamówienia</th>
                         </tr>
                     </thead>
                     <tbody id="calc-results-tbody">
@@ -80,9 +96,9 @@
                     </tbody>
                 </table>
 
-                <div id="calc-order-action-container" style="display: none; justify-content: flex-end;">
-                    <button type="button" onclick="submitCalculatorOrder()" style="background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
-                        <span class="material-icons" style="font-size: 20px;">send</span> Zamów Brakujące Surowce
+                <div id="calc-order-action-container" style="display: none; justify-content: flex-end; gap: 12px;">
+                    <button type="button" onclick="submitCalculatorOrder()" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; border: none; padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(2, 132, 199, 0.45)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 14px rgba(2, 132, 199, 0.35)';">
+                        <span class="material-icons" style="font-size: 22px;">assignment</span> Utwórz Dyspozycję Kompletacji
                     </button>
                 </div>
             </div>
@@ -97,21 +113,21 @@
 </div>
 
 <template id="calc-row-template">
-    <tr style="border-bottom: 1px solid #f1f5f9;">
-        <td style="padding: 8px;">
-            <div style="position: relative;">
-                <input type="text" class="calc-surowiec-input" list="calc-surowce-datalist" placeholder="Wpisz lub wybierz surowiec..." style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-weight: 600; color: #1e293b;" autocomplete="off" onfocus="this.select()">
+    <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s;">
+        <td style="padding: 10px 14px;">
+            <input type="text" class="calc-surowiec-input" list="calc-surowce-datalist" placeholder="Wpisz lub wybierz surowiec ze słownika..." style="width: 100%; padding: 10px 14px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; color: #0f172a; background: #ffffff; box-sizing: border-box;" onfocus="this.select()">
+        </td>
+        <td style="padding: 10px 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="text" inputmode="decimal" class="calc-rate-input" placeholder="np. 20" style="flex: 1; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 700; color: #0f172a; background: #ffffff; box-sizing: border-box;">
+                <span style="background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; white-space: nowrap;">
+                    kg / 1 t
+                </span>
             </div>
         </td>
-        <td style="padding: 8px;">
-            <div style="position: relative;">
-                <input type="text" inputmode="decimal" class="calc-rate-input" placeholder="np. 20" style="width: 100%; padding: 8px 50px 8px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-weight: 600;">
-                <span style="position: absolute; right: 10px; top: 9px; font-size: 12px; color: #94a3b8; font-weight: bold;">kg/1t</span>
-            </div>
-        </td>
-        <td style="padding: 8px; text-align: right;">
-            <button type="button" onclick="this.closest('tr').remove()" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 4px;" title="Usuń wiersz">
-                <span class="material-icons" style="font-size: 20px;">delete</span>
+        <td style="padding: 10px 14px; text-align: center;">
+            <button type="button" class="btn-calc-row-remove" onclick="this.closest('tr').remove();" style="background: #fee2e2; border: 1px solid #fecaca; color: #ef4444; cursor: pointer; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Usuń wiersz" onmouseover="this.style.background='#fca5a5'; this.style.color='#b91c1c';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';">
+                <span class="material-icons" style="font-size: 18px;">delete_outline</span>
             </button>
         </td>
     </tr>

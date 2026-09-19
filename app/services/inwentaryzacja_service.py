@@ -112,20 +112,17 @@ class InwentaryzacjaService:
 
             # 4. Wyroby gotowe (PSD i AGRO)
             if not found_row:
-                for tbl, linia in [('magazyn_palety', 'PSD'), ('magazyn_palety_agro', 'AGRO')]:
-                    if extracted_id is not None:
-                        cursor.execute(
-                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {tbl} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
-                            (extracted_id, raw_code, clean_code)
-                        )
-                    else:
-                        cursor.execute(
-                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, '{linia}' as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {tbl} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
-                            (raw_code, clean_code)
-                        )
-                    found_row = cursor.fetchone()
-                    if found_row:
-                        break
+                if extracted_id is not None:
+                    cursor.execute(
+                        "SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, 'PSD') as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_palety WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                        (extracted_id, raw_code, clean_code)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, 'PSD') as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_palety WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                        (raw_code, clean_code)
+                    )
+                found_row = cursor.fetchone()
 
 
             # 5. Sprawdź czy paleta została już zeskanowana w bieżącej sesji
@@ -914,8 +911,6 @@ class InwentaryzacjaService:
         try:
             cursor = conn.cursor()
             if typ_lower in ('surowiec', '') or not typ_lower:
-                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
-                for r in cursor.fetchall(): names.add(r[0].strip())
                 try:
                     cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE (typ = 'surowiec' OR typ IS NULL OR typ = '') AND nazwa IS NOT NULL AND nazwa != ''")
                     for r in cursor.fetchall(): names.add(r[0].strip())
@@ -923,8 +918,6 @@ class InwentaryzacjaService:
                     pass
 
             if typ_lower in ('opakowanie', '') or not typ_lower:
-                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
-                for r in cursor.fetchall(): names.add(r[0].strip())
                 try:
                     cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE typ = 'opakowanie' AND nazwa IS NOT NULL AND nazwa != ''")
                     for r in cursor.fetchall(): names.add(r[0].strip())

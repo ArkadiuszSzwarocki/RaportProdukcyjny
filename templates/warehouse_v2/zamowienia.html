@@ -281,6 +281,35 @@
         transform: none;
     }
 
+    .order-delete-btn {
+        padding: 8px 12px;
+        background: #fee2e2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s;
+    }
+
+    .order-delete-btn:hover {
+        background: #ef4444;
+        color: white;
+        border-color: #dc2626;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+    }
+
+    .order-delete-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
     .orders-empty {
         text-align: center;
         padding: 40px 20px;
@@ -408,6 +437,9 @@
 <!-- TOAST NOTIFICATION -->
 <div class="order-toast" id="orderToast"></div>
 
+<script>
+    window.CAN_DELETE_ORDERS = {{ 'true' if (role in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd'] or session.get('login') in ['masteradmin', 'admin']) else 'false' }};
+</script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/orders.js') }}?v={{ static_version }}"></script>
 
 {% endblock %}

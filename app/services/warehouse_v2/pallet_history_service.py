@@ -34,7 +34,9 @@ class PalletHistoryService:
             # Find identity across warehouse tables
             search_tables = []
             if is_finished_good:
-                search_tables = ['magazyn_palety', 'magazyn_palety_agro']
+                target_buf = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                other_buf = 'palety_agro' if target_buf == 'palety_workowanie' else 'palety_workowanie'
+                search_tables = ['magazyn_palety', target_buf, other_buf]
             elif 'surow' in p_type_norm:
                 search_tables = ['magazyn_surowce', 'magazyn_agro_surowce']
             elif 'opakow' in p_type_norm:
@@ -57,7 +59,7 @@ class PalletHistoryService:
                     pass
 
             target_id = real_id if real_id is not None else pallet_id
-            target_sscc = nr_pal_sscc if nr_pal_sscc else str(pallet_id)
+            target_sscc = nr_pal_sscc if nr_pal_sscc else (str(pallet_id) if str(pallet_id).startswith(('PSD', 'AGR', 'PAL', 'SUR', 'OPK', 'DOD')) else None)
 
             id_candidates = []
             if target_id is not None:
@@ -102,21 +104,19 @@ class PalletHistoryService:
                     SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
                            lokalizacja_zrodlowa, lokalizacja_docelowa
                     FROM palety_historia
-                    WHERE {type_filter_clause} AND (
-                        nr_palety = %s OR komentarz LIKE %s
-                    )
+                    WHERE {type_filter_clause} AND nr_palety = %s
                     ORDER BY data_ruchu DESC
                 """
-                cursor.execute(sql_q, tuple(type_params + [target_sscc, f"%{target_sscc}%"]))
+                cursor.execute(sql_q, tuple(type_params + [target_sscc]))
             else:
                 sql_q = f"""
                     SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
                            lokalizacja_zrodlowa, lokalizacja_docelowa
                     FROM palety_historia
-                    WHERE {type_filter_clause} AND {id_ph_clause}
+                    WHERE {type_filter_clause} AND {id_ph_clause} AND (linia = %s OR linia IS NULL OR linia = '')
                     ORDER BY data_ruchu DESC
                 """
-                cursor.execute(sql_q, tuple(type_params + list(id_candidates)))
+                cursor.execute(sql_q, tuple(type_params + list(id_candidates) + [linia]))
             historia_nowa = cursor.fetchall() or []
 
             # 2. Fetch from legacy movement tables (magazyn_ruch / magazyn_agro_ruch)
@@ -146,7 +146,7 @@ class PalletHistoryService:
 
             # 3. Fetch finished goods confirmation events strictly by SSCC
             if is_finished_good:
-                for t_pal in ['magazyn_palety', 'magazyn_palety_agro']:
+                for t_pal in ['magazyn_palety']:
                     try:
                         if target_sscc:
                             cursor.execute(f"""
@@ -182,8 +182,11 @@ class PalletHistoryService:
                     except Exception:
                         pass
 
-                # 4. Fetch creation events from bagging / orders strictly by SSCC
-                for t_work, t_plan in [('palety_workowanie', 'plan_produkcji'), ('palety_agro', 'plan_produkcji_agro')]:
+                # 4. Fetch creation events from bagging / orders strictly by SSCC and line
+                has_creation = any('UTWORZ' in str(h.get('typ_ruchu') or '').upper() for h in historia_nowa)
+                t_work = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                t_plan = 'plan_produkcji' if str(linia).upper() == 'PSD' else 'plan_produkcji_agro'
+                if not has_creation:
                     try:
                         if target_sscc:
                             cursor.execute(f"""
@@ -210,6 +213,19 @@ class PalletHistoryService:
                             historia_stara.append(row_w)
                     except Exception:
                         pass
+                else:
+                    # Enrich existing UTWORZENIE event with plan source location if missing
+                    for h in historia_nowa:
+                        if 'UTWORZ' in str(h.get('typ_ruchu') or '').upper():
+                            if not h.get('lokalizacja_zrodlowa') or h.get('lokalizacja_zrodlowa') == '-':
+                                try:
+                                    cursor.execute(f"SELECT plan_id FROM {t_work} WHERE nr_palety = %s LIMIT 1", (target_sscc,))
+                                    pw_r = cursor.fetchone()
+                                    if pw_r and pw_r.get('plan_id'):
+                                        h['lokalizacja_zrodlowa'] = f"Zlecenie #{pw_r['plan_id']}"
+                                        h['lokalizacja_docelowa'] = 'BUFOR_WORKOWANIE'
+                                except Exception:
+                                    pass
 
             # 5. Fetch delivery creation and reception events directly from magazyn_dostawy
             historia_dostawy = []
@@ -368,7 +384,10 @@ class PalletHistoryService:
 
                 u_key = str(h.get('autor_login') or '').strip().lower()
                 dt_key = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
-                key = f"{dt_key}_{t_key}_{u_key}"
+                if t_key == 'CREATION':
+                    key = 'PALLET_CREATION_EVENT'
+                else:
+                    key = f"{dt_key}_{t_key}_{u_key}"
                 if key not in seen:
                     seen.add(key)
                     h['autor_data'] = dt_key if dt != datetime.min else str(h.get('autor_data', ''))

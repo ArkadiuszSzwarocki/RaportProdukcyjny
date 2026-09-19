@@ -81,9 +81,12 @@ function initWarehouseDashboard() {
         capBar.style.display = 'block';
     }
 
-    // 5. Inicjalizacja filtra lokalizacji (dropdown multiselect)
+    // 5. Inicjalizacja filtrów (dropdowny multiselect)
     if (typeof populateLocationFilter === 'function') {
         populateLocationFilter();
+    }
+    if (typeof populateBlockedFilter === 'function') {
+        populateBlockedFilter();
     }
 
     // 6. Odtwórz wyszukiwarkę

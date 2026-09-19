@@ -66,7 +66,17 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @dynamic_role_required('ustawienia')
     def admin_qr_generator():
         """Generator kodów QR dla loginów i haseł."""
-        return render_template('qr_generator.html')
+        users = []
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, login, rola FROM uzytkownicy ORDER BY login ASC")
+            users = cursor.fetchall()
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+        return render_template('qr_generator.html', users=users)
 
     @admin_bp.route('/admin/ustawienia/qr-generator/drukuj', methods=['POST'])
     @dynamic_role_required('ustawienia')
@@ -88,7 +98,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             else:
                 qr_data = f"LOGIN:{login}:{password}"
 
-            # Zbuduj ZPL dla małej etykiety QR (1cm x 1cm)
+            # Zbuduj ZPL dla małej etykiety QR (1.5cm x 1.5cm)
             from app.services.print_server import get_printer
             printer = get_printer()
             zpl = printer.build_login_qr_label_zpl(qr_data, login)

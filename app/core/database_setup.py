@@ -201,6 +201,7 @@ def _create_tables(cursor):
             tara FLOAT DEFAULT 0,
             waga_brutto FLOAT DEFAULT 0,
             status VARCHAR(20) DEFAULT 'do_przyjecia',
+            is_blocked TINYINT(1) DEFAULT 0,
             dodal_login VARCHAR(100) DEFAULT NULL,
             nr_palety VARCHAR(100) DEFAULT NULL,
             nr_plomby VARCHAR(100) DEFAULT NULL,
@@ -218,6 +219,7 @@ def _create_tables(cursor):
             waga_brutto FLOAT DEFAULT 0,
             data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
             status VARCHAR(20) DEFAULT 'do_przyjecia',
+            is_blocked TINYINT(1) DEFAULT 0,
             dodal_login VARCHAR(100) DEFAULT NULL,
             nr_palety VARCHAR(100) DEFAULT NULL,
             nr_plomby VARCHAR(100) DEFAULT NULL,
@@ -228,6 +230,15 @@ def _create_tables(cursor):
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE
         )
     """)
+
+    for tbl in ['palety_workowanie', 'palety_agro']:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS is_blocked TINYINT(1) DEFAULT 0")
+        except Exception:
+            try:
+                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN is_blocked TINYINT(1) DEFAULT 0")
+            except Exception:
+                pass
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS magazyn_palety (
@@ -242,32 +253,29 @@ def _create_tables(cursor):
             user_login VARCHAR(100) DEFAULT NULL,
             nr_palety VARCHAR(100) DEFAULT NULL,
             nr_plomby VARCHAR(100) DEFAULT NULL,
+            linia VARCHAR(20) NOT NULL DEFAULT 'PSD',
+            lokalizacja VARCHAR(100) DEFAULT 'MGW01',
+            nr_partii VARCHAR(100) DEFAULT NULL,
+            data_produkcji DATE DEFAULT NULL,
+            data_przydatnosci DATE DEFAULT NULL,
+            typ_opakowania VARCHAR(50) DEFAULT 'bags',
+            is_blocked TINYINT(1) DEFAULT 0,
             data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_workowanie(id) ON DELETE SET NULL,
-            FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE SET NULL
+            INDEX idx_mp_linia (linia),
+            INDEX idx_mp_lokalizacja (lokalizacja),
+            INDEX idx_mp_nr_palety (nr_palety)
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS magazyn_palety_agro (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            paleta_workowanie_id INT NULL,
-            plan_id INT NULL,
-            data_planu DATE NULL,
-            produkt VARCHAR(100) NULL,
-            waga_netto FLOAT DEFAULT 0,
-            waga_brutto FLOAT DEFAULT 0,
-            tara FLOAT DEFAULT 0,
-            user_login VARCHAR(100) DEFAULT NULL,
-            nr_palety VARCHAR(100) DEFAULT NULL,
-            nr_plomby VARCHAR(100) DEFAULT NULL,
-            data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_agro(id) ON DELETE SET NULL,
-            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE SET NULL
-        )
-    """)
+    # Backwards compatibility: ensure view or table exists for magazyn_palety_agro
+    try:
+        cursor.execute("""
+            CREATE OR REPLACE VIEW magazyn_palety_agro AS
+            SELECT * FROM magazyn_palety WHERE linia = 'AGRO'
+        """)
+    except Exception:
+        pass
     
     cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
 
@@ -973,6 +981,31 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_kompletacja (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            order_ref VARCHAR(50) NOT NULL,
+            surowiec_nazwa VARCHAR(255) NOT NULL,
+            paleta_id INT NOT NULL,
+            nr_palety VARCHAR(100) NOT NULL,
+            lokalizacja_zrodlowa VARCHAR(100),
+            lokalizacja_docelowa VARCHAR(100) DEFAULT 'MP01',
+            ilosc_kg DECIMAL(10,2) NOT NULL,
+            nr_partii VARCHAR(100),
+            fifo_rank INT,
+            is_blocked TINYINT(1) DEFAULT 0,
+            powod_blokady VARCHAR(500) DEFAULT NULL,
+            status ENUM('OCZEKUJE', 'SKOMPLETOWANA', 'POMINIETA', 'ANULOWANA') DEFAULT 'OCZEKUJE',
+            operator_login VARCHAR(100),
+            magazynier_login VARCHAR(100) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME DEFAULT NULL,
+            INDEX idx_kompletacja_order (order_ref),
+            INDEX idx_kompletacja_status (status),
+            INDEX idx_kompletacja_paleta (paleta_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS magazyn_wyjazdy_samochodowe (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nr_palety VARCHAR(100) NOT NULL,
@@ -1219,10 +1252,26 @@ def _migrate_columns(cursor):
     # aktywne_sesje columns
     _add_column_if_missing(cursor, "aktywne_sesje", "ip_address", "VARCHAR(64) NULL", "Dodawanie kolumny 'ip_address' do aktywne_sesje")
 
-    # magazyn_palety_agro columns
+    # magazyn_palety columns & index unification
+    _add_column_if_missing(cursor, "magazyn_palety", "linia", "VARCHAR(20) NOT NULL DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety")
-    _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety")
+
+    try:
+        cursor.execute("ALTER TABLE magazyn_palety DROP INDEX uq_magazyn_palety_paleta_workowanie")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE magazyn_palety ADD UNIQUE INDEX uq_magazyn_palety_paleta_linia (paleta_workowanie_id, linia)")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE magazyn_palety ADD INDEX idx_magazyn_palety_linia (linia)")
+    except Exception:
+        pass
+
+    # Legacy magazyn_palety_agro compatibility
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "linia", "VARCHAR(20) DEFAULT 'AGRO'", "Dodawanie kolumny 'linia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
@@ -1699,12 +1748,35 @@ def _create_composite_indexes(cursor):
             # Index already exists or table structure incompatible
             pass
 
+def _migrate_single_database(db_name: str):
+    """Run table creation and column migrations on specified database."""
+    from app.config import DB_CONFIG
+    cfg = dict(DB_CONFIG)
+    cfg['database'] = db_name
+    try:
+        conn = mysql.connector.connect(**cfg, buffered=True)
+        cursor = conn.cursor()
+        _create_tables(cursor)
+        _migrate_columns(cursor)
+        _create_composite_indexes(cursor)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[OK] Schemat bazy '{db_name}' zaktualizowany.")
+    except Exception as e:
+        print(f"[WARN] Pominięto aktualizację bazy '{db_name}': {e}")
+
 def setup_database():
-    """Main setup function - orchestrates all database initialization."""
+    """Main setup function - orchestrates database initialization across both production and test DBs."""
     print("==========================================================================================")
     print("WARNING: Baza danych docelowo będzie wersjonowana przez Alembic (katalog 'alembic/').")
     print("Obecnie database_setup.py wciąż tworzy tabele dla kompatybilności wstecznej.")
     print("==========================================================================================")
+    
+    # Ensure both production and test databases are always synchronized
+    for db_target in ('biblioteka', 'biblioteka_testowa'):
+        _migrate_single_database(db_target)
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()

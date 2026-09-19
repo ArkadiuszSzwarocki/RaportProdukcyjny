@@ -98,7 +98,7 @@ class DeliveryQueries:
             is_psd = normalized_line == 'PSD'
             table_prod = 'palety_workowanie' if is_psd else 'palety_agro'
             table_plan = 'plan_produkcji' if is_psd else 'plan_produkcji_agro'
-            table_wh = 'magazyn_palety' if is_psd else 'magazyn_palety_agro'
+            table_wh = 'magazyn_palety'
             plan_product_col = 'plan.produkt'
             
             # Check if table exists (safety)
@@ -124,7 +124,8 @@ class DeliveryQueries:
                        {suggested_location_sql} AS suggested_location
                 FROM {table_prod} p
                 LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
-                WHERE p.status = 'do_przyjecia'
+                WHERE (p.status = 'do_przyjecia' OR p.status = 'oczekujace' OR p.status IS NULL OR p.status = '')
+                  AND (p.status NOT IN ('w_magazynie', 'przyjeta', 'wydana', 'anulowana') OR p.status IS NULL)
                 ORDER BY p.data_dodania DESC
             """
 

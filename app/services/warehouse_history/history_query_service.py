@@ -331,6 +331,7 @@ class HistoryQueryService:
                             ABS(COALESCE(mp.waga_netto, 0.0)) as waga_ref
                         FROM magazyn_palety mp
                         WHERE mp.data_potwierdzenia IS NOT NULL
+                          AND COALESCE(mp.linia, 'PSD') = 'PSD'
                           {date_cond_conf_psd}
                           {stacja_cond_conf.replace('lokalizacja', 'mp.lokalizacja')}
                           {sur_cond_conf.replace('produkt', 'mp.produkt').replace('nr_palety', 'mp.nr_palety')}

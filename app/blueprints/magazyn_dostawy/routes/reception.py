@@ -45,17 +45,14 @@ def reception_edit(dostawa_id=None):
                 dostawa['items'] = json.loads(dostawa['items'])
 
         table_sur = get_table_name('magazyn_surowce', linia)
-        table_opk = get_table_name('magazyn_opakowania', linia)
         wszystkie_produkty = set()
         for query, p in [
-            ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
-            (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
-            (f"SELECT DISTINCT nazwa, typ_opakowania FROM {table_opk} WHERE stan_magazynowy > 0", ()),
-            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
+            ("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s AND nazwa IS NOT NULL AND TRIM(nazwa) != ''", (linia,))
         ]:
             try:
                 cursor.execute(query, p)
-                wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+                wszystkie_produkty.update([r['nazwa'].strip() for r in cursor.fetchall() if r and r.get('nazwa')])
             except Exception:
                 pass
         wszystkie_produkty = sorted(list(wszystkie_produkty))

@@ -238,9 +238,6 @@ class InwentaryzacjaProdukcjiService:
             cursor.execute("SELECT DISTINCT produkt FROM magazyn_palety WHERE produkt IS NOT NULL AND produkt != ''")
             for r in cursor.fetchall():
                 names.add(r[0])
-            cursor.execute("SELECT DISTINCT produkt FROM magazyn_palety_agro WHERE produkt IS NOT NULL AND produkt != ''")
-            for r in cursor.fetchall():
-                names.add(r[0])
             return sorted(list(names))
         except Exception:
             return []

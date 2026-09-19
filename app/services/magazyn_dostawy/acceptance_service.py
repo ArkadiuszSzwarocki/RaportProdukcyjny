@@ -170,6 +170,9 @@ class AcceptanceService:
                 else:
                     qty = float(target.get('netWeight') or 0)
                     p_type = 'surowiec'
+                    from app.utils.surowiec_validator import is_valid_surowiec
+                    if not is_valid_surowiec(product_name):
+                        return False, f"Surowiec '{product_name}' nie występuje w słowniku surowców. Nie można go przyjąć.", None
                     # Sprawdź, czy rekord palety już istnieje (np. utworzony podczas zwrotu ze stacji jako ZWROT)
                     cursor.execute(f"SELECT id FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
                     exist_sur = cursor.fetchone()
@@ -514,7 +517,7 @@ class AcceptanceService:
                 # 1. Szukaj w statusie 'do_przyjecia' (lub oczekującym)
                 for try_line in lines_to_try:
                     t_prod = 'palety_workowanie' if try_line == 'PSD' else 'palety_agro'
-                    t_wh = 'magazyn_palety' if try_line == 'PSD' else 'magazyn_palety_agro'
+                    t_wh = 'magazyn_palety'
                     t_plan = 'plan_produkcji' if try_line == 'PSD' else 'plan_produkcji_agro'
 
                     where_clauses = ["p.nr_palety = %s"]
@@ -544,7 +547,7 @@ class AcceptanceService:
                 if not pallet:
                     for try_line in lines_to_try:
                         t_prod = 'palety_workowanie' if try_line == 'PSD' else 'palety_agro'
-                        t_wh = 'magazyn_palety' if try_line == 'PSD' else 'magazyn_palety_agro'
+                        t_wh = 'magazyn_palety'
                         t_plan = 'plan_produkcji' if try_line == 'PSD' else 'plan_produkcji_agro'
 
                         where_clauses = ["p.nr_palety = %s"]
@@ -591,21 +594,21 @@ class AcceptanceService:
                     (datetime.now(), confirmed_netto, actual_pallet_id),
                 )
                 
-                # 3. Insert into warehouse table
+                # 3. Insert into unified warehouse table
                 fk_col = 'paleta_workowanie_id'
-                cursor.execute(f"SELECT id FROM {table_wh} WHERE {fk_col} = %s", (actual_pallet_id,))
+                cursor.execute(f"SELECT id FROM magazyn_palety WHERE {fk_col} = %s AND linia = %s", (actual_pallet_id, linia))
                 existing = cursor.fetchone()
                 
                 if existing:
                     cursor.execute(
-                        f"UPDATE {table_wh} SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s, waga_netto = %s WHERE id = %s",
-                        (lokalizacja, datetime.now(), login, confirmed_netto, existing['id']),
+                        "UPDATE magazyn_palety SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s, waga_netto = %s, linia = %s WHERE id = %s",
+                        (lokalizacja, datetime.now(), login, confirmed_netto, linia, existing['id']),
                     )
                 else:
                     cursor.execute(f"""
-                        INSERT INTO {table_wh} 
-                        ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO magazyn_palety 
+                        ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety, linia)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (actual_pallet_id, 
                           pallet.get('plan_id'), 
                           pallet.get('data_planu'), 
@@ -614,7 +617,8 @@ class AcceptanceService:
                           float(pallet.get('waga_brutto') or 0), 
                           float(pallet.get('tara') or 0), 
                           lokalizacja, login, 
-                          pallet.get('nr_palety')))
+                          pallet.get('nr_palety'),
+                          linia))
 
                 # 4. Log history
                 cursor.execute("""

@@ -420,11 +420,11 @@ class PrintServer:
         display_name = f"{symbol} - {product_name}" if symbol else product_name
         
         if is_pkg:
-            header_text = f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE"
+            header_text = f"OPAKOWANIE"
         elif zbiornik:
             header_text = f"SUROWIEC -> {zbiornik}"
         else:
-            header_text = f"SUROWIEC - {linia}" if linia else "SUROWIEC"
+            header_text = f"SUROWIEC"
 
         if jednostka == 'kg':
             waga_line = f"^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} kg^FS"
@@ -433,14 +433,15 @@ class PrintServer:
 
         import json
         qr_details = {
+            "typ": header_text,
             "sscc": nr_palety,
-            "prod": display_name,
+            "dostawa": label_data.get('dostawa') or f"PZ #{label_data.get('dostawa_id', '---')}",
+            "dostawca": label_data.get('dostawca') or '---',
             "partia": nr_partii,
-            "data_prod": data_produkcji,
-            "data_przyd": data_przydatnosci,
+            "data_dostawy": label_data.get('data_dostawy') or data_produkcji,
+            "prod": display_name,
             "ilosc": qty_display,
-            "jm": jednostka,
-            "typ": header_text
+            "jm": jednostka
         }
         if zbiornik:
             qr_details["zbiornik"] = zbiornik
@@ -498,11 +499,11 @@ class PrintServer:
             product_name = "Mąka mix do Lnu"
 
         if is_pkg:
-            header_text = f"OPAKOWANIE - {linia}" if linia else "OPAKOWANIE"
+            header_text = f"OPAKOWANIE"
             qty_unit = "szt."
             qty_header = "ILOSC:"
         elif is_surowiec:
-            header_text = f"SUROWIEC - {linia}" if linia else "SUROWIEC"
+            header_text = f"SUROWIEC"
             qty_unit = "kg"
             qty_header = "WAGA NETTO:"
         else:
@@ -510,19 +511,36 @@ class PrintServer:
             qty_unit = "kg"
             qty_header = "WAGA NETTO:"
 
+        data_wytworzenia = str(label_data.get('data_wytworzenia') or f"{data_produkcji} 00:00:00")
+        data_przyjecia = str(label_data.get('data_przyjecia') or label_data.get('data_potwierdzenia') or data_wytworzenia)
+        plan_id_val = label_data.get('plan_id')
+
         import json
-        qr_details = {
-            "sscc": nr_palety,
-            "prod": product_name,
-            "lp": str(nr_palety_lp),
-            "partia": nr_partii,
-            "plomba": nr_plomby,
-            "data_prod": data_produkcji,
-            "data_przyd": data_przydatnosci,
-            "ilosc": qty_display,
-            "jm": qty_unit,
-            "typ": header_text
-        }
+        if is_surowiec or is_pkg:
+            qr_details = {
+                "typ": header_text,
+                "sscc": nr_palety,
+                "dostawa": label_data.get('dostawa') or f"PZ #{label_data.get('dostawa_id', '---')}",
+                "dostawca": label_data.get('dostawca') or '---',
+                "partia": nr_partii,
+                "data_dostawy": label_data.get('data_dostawy') or data_produkcji,
+                "prod": product_name,
+                "ilosc": qty_display,
+                "jm": qty_unit
+            }
+        else:
+            qr_details = {
+                "typ": header_text,
+                "sscc": nr_palety,
+                "zlecenie": str(plan_id_val or '---'),
+                "lp": str(nr_palety_lp or '---'),
+                "prod": product_name,
+                "wytworzono": data_wytworzenia,
+                "przyjeto_magazyn": data_przyjecia,
+                "partia": nr_partii,
+                "ilosc": qty_display,
+                "jm": qty_unit
+            }
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
 
         return f"""^XA
@@ -600,10 +618,10 @@ class PrintServer:
         return self.queue_print_job(zpl_string, override_ip, override_name)
 
     def build_login_qr_label_zpl(self, qr_data: str, login_display: str = '') -> str:
-        """Buduje ZPL dla małej etykiety QR z loginem i hasłem (1cm x 1cm).
+        """Buduje ZPL dla małej etykiety QR z loginem i hasłem (1.5cm x 1.5cm).
         
         Args:
-            qr_data: Dane do zakodowania w QR (np. "LOGIN:xxx|PASS:yyy" lub JSON)
+            qr_data: Dane do zakodowania w QR (np. "LOGIN:xxx:yyy" lub JSON)
             login_display: Opcjonalny tekst do wyświetlenia (np. login użytkownika)
         
         Returns:
@@ -611,21 +629,15 @@ class PrintServer:
         """
         # Sanitize ZPL (usuń znaki specjalne które mogą zepsuć ZPL)
         safe_qr_data = str(qr_data or '').replace('^', '').replace('~', '')
-        safe_login = str(login_display or '').replace('^', '').replace('~', '')[:20]  # max 20 znaków
         
-        # Etykieta 1.5cm x 1.5cm (około 120x120 punktów przy 203 DPI)
-        # QR kod współczynnik 2 (mały ale czytelny)
+        # Etykieta 1.5cm x 1.5cm (120x120 punktów przy 203 DPI)
         zpl = "^XA\n"
         zpl += "^CI28\n"  # Kodowanie UTF-8
-        zpl += "^PW300\n"  # Szerokość 1.5cm
-        zpl += "^LL300\n"  # Wysokość 1.5cm
+        zpl += "^PW120\n"  # Szerokość 1.5cm (120 dots @ 203 DPI)
+        zpl += "^LL120\n"  # Wysokość 1.5cm (120 dots @ 203 DPI)
         
-        # QR kod (wyśrodkowany, współczynnik 2)
-        zpl += f"^FO50,30^BQN,2,3^FDQA,{safe_qr_data}^FS\n"
-        
-        # Opcjonalnie wyświetl login pod kodem (mała czcionka)
-        if safe_login:
-            zpl += f"^FO20,220^A0N,20,20^FB260,1,0,C^FD{safe_login}^FS\n"
+        # QR kod (1.5cm x 1.5cm, współczynnik powiększenia 3)
+        zpl += f"^FO10,10^BQN,2,3^FDQA,{safe_qr_data}^FS\n"
         
         zpl += "^XZ"
         return zpl

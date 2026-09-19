@@ -41,6 +41,11 @@ class ScannerMovementService:
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje", None
 
+            if pallet_type == 'Surowiec':
+                from app.utils.surowiec_validator import is_valid_surowiec
+                if not is_valid_surowiec(pallet.get('nazwa')):
+                    return False, f"BŁĄD: Surowiec '{pallet.get('nazwa')}' nie istnieje w słowniku surowców. Wydanie na produkcję zablokowane.", None
+
             if pallet.get('is_blocked') or str(pallet.get('lokalizacja') or '').upper().startswith('OCZEK'):
                 return False, f"BŁĄD: Paleta #{surowiec_id} ma status OCZEKUJĄCE na przyjęcie / jest ZABLOKOWANA. Nie można jej wydać na produkcję dopóki nie zostanie przyjęta na magazyn docelowy!", None
 
@@ -175,6 +180,10 @@ class ScannerMovementService:
             pallet = cur.fetchone()
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje"
+
+            from app.utils.surowiec_validator import is_valid_surowiec
+            if not is_valid_surowiec(pallet.get('nazwa')):
+                return False, f"BŁĄD: Surowiec '{pallet.get('nazwa')}' nie istnieje w słowniku surowców. Przesunięcie zablokowane."
 
             nr_p = pallet.get('nr_palety')
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries

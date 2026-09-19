@@ -330,35 +330,29 @@
         });
     };
     window.refreshSidebarBadges = function() {
-        fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(res => res.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                
-                // Aktualizacja wskaźników (kropek) na głównych kategoriach
-                const currentMainBtns = document.querySelectorAll('.main-cat-btn');
-                const newMainBtns = doc.querySelectorAll('.main-cat-btn');
-                currentMainBtns.forEach((btn, idx) => {
-                    if (newMainBtns[idx]) {
-                        btn.innerHTML = newMainBtns[idx].innerHTML;
+        // 1. Szybkie ciche odświeżenie liczników zamówień i kompletacji przez dedykowany JSON endpoint
+        fetch('/warehouse-v2/api/sidebar-badges')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success) {
+                    const ordersBadge = document.getElementById('sidebarOrdersBadge');
+                    if (ordersBadge) {
+                        const count = data.orders_nowe || 0;
+                        ordersBadge.textContent = count;
+                        ordersBadge.style.display = count > 0 ? 'inline-flex' : 'none';
                     }
-                });
 
-                // Aktualizacja badge w pod-kategoriach (Oczekujące itp.)
-                const currentSubItems = document.querySelectorAll('.nav-sub-item');
-                const newSubItems = doc.querySelectorAll('.nav-sub-item');
-                currentSubItems.forEach(currentLink => {
-                    if (currentLink.href) {
-                        const newLink = Array.from(newSubItems).find(l => l.href === currentLink.href);
-                        if (newLink) {
-                            currentLink.innerHTML = newLink.innerHTML;
-                        }
+                    const pickingBadge = document.getElementById('sidebarPickingBadge');
+                    if (pickingBadge) {
+                        const pCount = data.active_picking || 0;
+                        pickingBadge.textContent = pCount;
+                        pickingBadge.style.display = pCount > 0 ? 'inline-flex' : 'none';
                     }
-                });
-                updateSidebarDraftBadges();
+                }
             })
-            .catch(err => console.error('[sidebar] Failed to refresh badges:', err));
+            .catch(() => {});
+
+        updateSidebarDraftBadges();
     };
 
     function updateSidebarDraftBadges() {
@@ -414,12 +408,38 @@
 
     window.updateSidebarDraftBadges = updateSidebarDraftBadges;
 
+    // Automatyczne ciche odświeżanie badge w tle co 4 sekundy
+    setInterval(function() {
+        if (typeof window.refreshSidebarBadges === 'function') {
+            window.refreshSidebarBadges();
+        }
+    }, 4000);
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', updateSidebarDraftBadges);
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSidebarDraftBadges();
+            window.refreshSidebarBadges();
+        });
     } else {
         updateSidebarDraftBadges();
+        window.refreshSidebarBadges();
     }
     window.addEventListener('storage', updateSidebarDraftBadges);
     window.addEventListener('draftStateChanged', updateSidebarDraftBadges);
+    window.addEventListener('ordersChanged', function() {
+        if (typeof window.refreshSidebarBadges === 'function') {
+            window.refreshSidebarBadges();
+        }
+    });
+    window.addEventListener('focus', function() {
+        if (typeof window.refreshSidebarBadges === 'function') {
+            window.refreshSidebarBadges();
+        }
+    });
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible' && typeof window.refreshSidebarBadges === 'function') {
+            window.refreshSidebarBadges();
+        }
+    });
 
 })();

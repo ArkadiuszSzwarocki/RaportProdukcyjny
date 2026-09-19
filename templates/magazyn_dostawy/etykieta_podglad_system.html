@@ -65,6 +65,23 @@
             background: #1e293b;
         }
 
+        .toolbar-btn-close {
+            border: 1px solid #ef4444;
+            background: #ef4444;
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toolbar-btn-close:hover {
+            background: #dc2626;
+        }
+
         .label-container {
             width: 101.6mm;
             height: 152.4mm;
@@ -120,7 +137,12 @@
 <body>
     <div class="screen">
         <div class="toolbar">
-            <span class="toolbar-note">Podgląd ZPL na żywo</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="toolbar-btn-close" onclick="closePreview()">
+                    ✕ Zamknij
+                </button>
+                <span class="toolbar-note">Podgląd ZPL na żywo</span>
+            </div>
             <button class="toolbar-btn" onclick="window.print()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -142,6 +164,22 @@
         </div>
     </div>
 
+    <script>
+        function closePreview() {
+            if (window.opener && !window.opener.closed) {
+                window.close();
+            } else if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closePreview();
+            }
+        });
+    </script>
     {% if autoprint %}
     <script>
         window.onload = function() {

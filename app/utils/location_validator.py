@@ -201,10 +201,10 @@ def check_rack_location_availability(location_code, current_nr_palety=None):
     conn = get_db_connection()
     try:
         cur = conn.cursor(dictionary=True)
-        tables = ['magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki', 'magazyn_palety', 'magazyn_palety_agro']
+        tables = ['magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki', 'magazyn_palety']
         
         for t in tables:
-            if t in ('magazyn_palety', 'magazyn_palety_agro'):
+            if t == 'magazyn_palety':
                 query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND waga_netto > 0"
             else:
                 query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND stan_magazynowy > 0"

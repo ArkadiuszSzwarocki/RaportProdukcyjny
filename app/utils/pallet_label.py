@@ -164,7 +164,7 @@ def lookup_raw_material_details_by_sscc(cursor, sscc_code):
         except Exception:
             pass
 
-    tables_mag = ['magazyn_palety', 'magazyn_palety_agro']
+    tables_mag = ['magazyn_palety']
     for tbl in tables_mag:
         try:
             cursor.execute(

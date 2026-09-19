@@ -118,8 +118,27 @@ class WarehouseOrderRepository:
             conn.close()
 
     @staticmethod
+    def delete(order_id):
+        """Usuwa zamówienie z bazy danych.
+
+        Args:
+            order_id: ID zamówienia do usunięcia.
+
+        Returns:
+            int: Liczba usuniętych wierszy.
+        """
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM magazyn_zamowienia WHERE id = %s", (order_id,))
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_available_surowce():
-        """Pobiera połączoną listę surowców ze słownika oraz fizycznego magazynu.
+        """Pobiera listę surowców wyłącznie ze słownika surowców (slownik_surowcow).
 
         Returns:
             list[dict]: Lista surowców (id, nazwa).
@@ -128,13 +147,9 @@ class WarehouseOrderRepository:
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                "SELECT id, nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''"
+                "SELECT id, nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != '' ORDER BY nazwa ASC"
             )
             dict_rows = cursor.fetchall()
-            cursor.execute(
-                "SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''"
-            )
-            sur_rows = cursor.fetchall()
 
             seen_lower = set()
             items = []
@@ -145,14 +160,6 @@ class WarehouseOrderRepository:
                     seen_lower.add(nl)
                     items.append({'id': r['id'], 'nazwa': n})
 
-            for r in sur_rows:
-                n = str(r['nazwa']).strip()
-                nl = n.lower()
-                if n and nl != 'brak nazwy' and nl not in seen_lower:
-                    seen_lower.add(nl)
-                    items.append({'id': None, 'nazwa': n})
-
-            items.sort(key=lambda x: x['nazwa'].lower())
             return items
         finally:
             conn.close()
@@ -170,40 +177,69 @@ class WarehouseOrderRepository:
 
     @staticmethod
     def check_stock(surowce_names, linia='AGRO'):
-        """Sprawdza łączny stan magazynowy dla podanych nazw surowców.
+        """Sprawdza stany magazynowe, lokalizacje, kolejność FIFO i statusy blokad.
 
-        Wyklucza magazyny/lokalizacje: ms01, psd01, psd oraz bufory (np. BF_*, BUF*, *bufor*).
-        Odporny na różnice w kodowaniu polskich znaków oraz znak zastępczy \\ufffd.
+        Ograniczenie magazynów do: regałów (R*), MP01 oraz bufora przyjęć (BF_MP01).
 
         Args:
             surowce_names: Lista nazw surowców do sprawdzenia.
             linia: Nazwa linii ('AGRO' lub 'PSD').
 
         Returns:
-            dict: Słownik z aktualnymi stanami (np. {'Hydro': 27000.0}).
+            dict: Słownik zawierający 'stock_data' oraz 'scanned_zones'.
         """
+        scanned_zones = [
+            'Regały wysokiego składowania (R*)',
+            'Magazyn podręczny (MP01)',
+            'Bufor przyjęć surowców (BF_MP01)'
+        ]
         if not surowce_names:
-            return {}
+            return {'stock_data': {}, 'scanned_zones': scanned_zones}
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Ograniczenie magazynów do: regałów (R*), MP01 oraz BF_MP01
+            # Pobierz szczegółowe rekordy palet w aktywnych lokalizacjach
             query = """
-                SELECT nazwa, SUM(stan_magazynowy) as total_stan
+                SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                       created_at,
+                       COALESCE(is_blocked, 0) as is_blocked
                 FROM magazyn_surowce
-                WHERE (
-                    LOWER(TRIM(COALESCE(lokalizacja, ''))) = 'mp01'
-                    OR LOWER(TRIM(COALESCE(lokalizacja, ''))) IN ('bf_mp01', 'bfmp01')
-                    OR LOWER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'r%%'
-                )
-                AND COALESCE(is_blocked, 0) = 0
-                GROUP BY nazwa
+                WHERE stan_magazynowy > 0
+                  AND (
+                      LOWER(TRIM(COALESCE(lokalizacja, ''))) = 'mp01'
+                      OR LOWER(TRIM(COALESCE(lokalizacja, ''))) IN ('bf_mp01', 'bfmp01')
+                      OR LOWER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'r%%'
+                  )
+                ORDER BY created_at ASC, id ASC
             """
             
-            cursor.execute(query)
-            db_rows = cursor.fetchall()
+            try:
+                # Próba z powod_blokady i data_produkcji jeśli istnieją
+                query_full = """
+                    SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                           COALESCE(data_produkcji, created_at) as fifo_date,
+                           created_at,
+                           COALESCE(is_blocked, 0) as is_blocked,
+                           COALESCE(powod_blokady, '') as powod_blokady
+                    FROM magazyn_surowce
+                    WHERE stan_magazynowy > 0
+                      AND (
+                          LOWER(TRIM(COALESCE(lokalizacja, ''))) = 'mp01'
+                          OR LOWER(TRIM(COALESCE(lokalizacja, ''))) IN ('bf_mp01', 'bfmp01')
+                          OR LOWER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'r%%'
+                      )
+                    ORDER BY fifo_date ASC, id ASC
+                """
+                cursor.execute(query_full)
+                db_rows = cursor.fetchall()
+            except Exception:
+                cursor.execute(query)
+                db_rows = cursor.fetchall()
+                for r in db_rows:
+                    r['fifo_date'] = r.get('created_at')
+                    r['powod_blokady'] = ''
             
             norm_fn = WarehouseOrderRepository._norm_str
             final_stock = {}
@@ -212,19 +248,82 @@ class WarehouseOrderRepository:
                 clean_name = str(req_name).strip()
                 req_norm = norm_fn(clean_name)
                 if not req_norm:
-                    final_stock[clean_name] = 0.0
+                    final_stock[clean_name] = {
+                        'stan_magazynowy_kg': 0.0,
+                        'zablokowane_kg': 0.0,
+                        'lokalizacje': [],
+                        'palety_fifo': []
+                    }
                     continue
                     
-                total = 0.0
+                matching_pallets = []
+                active_total = 0.0
+                blocked_total = 0.0
+                locations_set = set()
+
                 for r in db_rows:
-                    db_name = r['nazwa']
+                    db_name = r.get('nazwa', '')
                     db_norm = norm_fn(db_name)
                     
                     if req_norm == db_norm or (len(req_norm) > 3 and (req_norm in db_norm or db_norm in req_norm)):
-                        total += float(r['total_stan'] or 0)
-                        
-                final_stock[clean_name] = round(total, 2)
+                        qty = float(r.get('stan_magazynowy') or 0)
+                        is_blk = bool(r.get('is_blocked'))
+                        loc = str(r.get('lokalizacja') or '').strip().upper()
+                        if loc:
+                            locations_set.add(loc)
+                            
+                        if is_blk:
+                            blocked_total += qty
+                        else:
+                            active_total += qty
 
-            return final_stock
+                        f_date_str = ''
+                        if r.get('fifo_date'):
+                            try:
+                                f_date_str = r['fifo_date'].strftime('%Y-%m-%d %H:%M')
+                            except Exception:
+                                f_date_str = str(r['fifo_date'])
+                        elif r.get('created_at'):
+                            try:
+                                f_date_str = r['created_at'].strftime('%Y-%m-%d %H:%M')
+                            except Exception:
+                                f_date_str = str(r['created_at'])
+
+                        matching_pallets.append({
+                            'id': r.get('id'),
+                            'nr_palety': r.get('nr_palety') or f"PAL-{r.get('id')}",
+                            'lokalizacja': loc or 'BRAK',
+                            'nr_partii': r.get('nr_partii') or '—',
+                            'stan_magazynowy': round(qty, 2),
+                            'data': f_date_str,
+                            'is_blocked': is_blk,
+                            'powod_blokady': str(r.get('powod_blokady') or '').strip()
+                        })
+
+                # Sortowanie FIFO: najpierw aktywne według daty (kolejność wydań), potem zablokowane
+                active_pallets = [p for p in matching_pallets if not p['is_blocked']]
+                blocked_pallets = [p for p in matching_pallets if p['is_blocked']]
+
+                for idx, p in enumerate(active_pallets, start=1):
+                    p['fifo_rank'] = idx
+                    p['status_label'] = f"Wydaj #{idx} (FIFO)"
+
+                for p in blocked_pallets:
+                    p['fifo_rank'] = None
+                    p['status_label'] = f"ZABLOKOWANA ({p['powod_blokady']})" if p['powod_blokady'] else "ZABLOKOWANA"
+
+                sorted_pallets = active_pallets + blocked_pallets
+
+                final_stock[clean_name] = {
+                    'stan_magazynowy_kg': round(active_total, 2),
+                    'zablokowane_kg': round(blocked_total, 2),
+                    'lokalizacje': sorted(list(locations_set)),
+                    'palety_fifo': sorted_pallets
+                }
+
+            return {
+                'stock_data': final_stock,
+                'scanned_zones': scanned_zones
+            }
         finally:
             conn.close()

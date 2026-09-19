@@ -434,7 +434,7 @@ body.sidebar-open {
         position: fixed;
         right: 16px;
         bottom: 16px;
-        z-index: 12000;
+        z-index: 999999 !important;
         display: flex;
         flex-direction: column;
     }

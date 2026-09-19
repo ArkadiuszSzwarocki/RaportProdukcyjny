@@ -42,7 +42,7 @@
                     <div>
                         <div class="modal-spec-label" style="display: flex; align-items: center; justify-content: space-between;">
                             <span><span class="material-icons" style="font-size: 13px; color: #d97706;">shopping_bag</span> Opakowanie</span>
-                            <span style="font-size: 9px; color: #0284c7; cursor: pointer; text-decoration: underline;" onclick="promptChangePackaging()">[Zmień]</span>
+                            <span id="modalPackagingChangeLink" style="font-size: 9px; color: #0284c7; cursor: pointer; text-decoration: underline;" onclick="promptChangePackaging()">[Zmień]</span>
                         </div>
                         <div id="modalPackagingBadge" style="cursor: pointer;" onclick="promptChangePackaging()" title="Kliknij, aby zmienić rodzaj opakowania">
                             <span class="badge" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px;">-</span>
@@ -63,25 +63,42 @@
                 </div>
             </div>
 
-            {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
+            <!-- BLOCKED PALLET NOTICE -->
+            <div id="modalBlockedNotice" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 10px 14px; margin: 12px 0; color: #991b1b; font-size: 13px; font-weight: 700; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px; color: #dc2626;">block</span>
+                <span>Paleta jest <strong>ZABLOKOWANA</strong>. <span id="modalBlockedReasonText"></span></span>
+            </div>
+
+            <!-- PENDING BUFFER NOTICE -->
+            <div id="pendingPalletNotice" style="display: none; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 14px; margin: 12px 0; color: #92400e; font-size: 13px; font-weight: 600; align-items: center; gap: 8px;">
+                <span class="material-icons" style="font-size: 20px; color: #d97706;">info</span>
+                <span>Paleta w buforze produkcyjnym (oczekuje na przyjęcie). Dostępne operacje: <strong>Zmień ilość</strong>, <strong>Blokada jakościowa</strong>, <strong>Drukuj / Podgląd etykiety</strong> oraz <strong>Trwałe usunięcie</strong> (Admin). Przypisanie do regału następuje przez skaner.</span>
+            </div>
+
+            {% set role = (session.get('rola') or session.get('role') or '')|lower|replace(' ','')|replace('_','') %}
+            {% set can_modify_admin_zarzad = role in ('masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd') %}
             {% if role not in ('laborant', 'laboratorium') %}
             <!-- ACTION BUTTONS GRID -->
             <div class="modal-actions-grid">
-                <button type="button" onclick="promptMoveLocation()" class="btn-modal-action btn-modal-primary">
+                <button type="button" id="btnMoveLocation" onclick="promptMoveLocation()" class="btn-modal-action btn-modal-primary">
                     <span class="material-icons" style="font-size: 18px;">place</span> PRZENIEŚ
                 </button>
-                <button type="button" onclick="promptUpdateWeight()" class="btn-modal-action btn-modal-teal">
+                {% if can_modify_admin_zarzad %}
+                <button type="button" id="btnUpdateWeight" onclick="promptUpdateWeight()" class="btn-modal-action btn-modal-teal">
                     <span class="material-icons" style="font-size: 18px;">scale</span> ZMIEŃ ILOŚĆ
                 </button>
-                <button type="button" onclick="promptChangePackaging()" class="btn-modal-action btn-modal-packaging" title="Zmień typ opakowania (Big Bag, Worek 25kg, Karton itp.)">
+                {% endif %}
+                <button type="button" id="btnChangePackaging" onclick="promptChangePackaging()" class="btn-modal-action btn-modal-packaging" title="Zmień typ opakowania (Big Bag, Worek 25kg, Karton itp.)">
                     <span class="material-icons" style="font-size: 18px;">inventory_2</span> OPAKOWANIE
                 </button>
-                <button type="button" onclick="promptRename()" class="btn-modal-action btn-modal-dark">
+                {% if can_modify_admin_zarzad %}
+                <button type="button" id="btnRename" onclick="promptRename()" class="btn-modal-action btn-modal-dark">
                     <span class="material-icons" style="font-size: 18px;">edit</span> NAZWA
                 </button>
                 <button type="button" onclick="togglePalletBlock()" id="toggleBlockBtn" class="btn-modal-action btn-modal-block">
                     <span class="material-icons" style="font-size: 18px;">block</span> BLOKADA
                 </button>
+                {% endif %}
             </div>
 
             <!-- MATERIAL TYPE BUTTON (Opakowanie only) -->
@@ -92,7 +109,7 @@
             </div>
 
             <!-- MODUŁ DRUKOWANIA ETYKIETY (RESPONSIVE) -->
-            <div class="modal-print-box">
+            <div id="modalPrintBox" class="modal-print-box">
                 <div class="modal-print-header">
                     <span class="material-icons" style="font-size: 20px;">print</span> DRUKOWANIE & PODGLĄD ETYKIETY (ZPL)
                 </div>
@@ -119,13 +136,13 @@
 
             <!-- SECONDARY FOOTER ACTIONS -->
             <div class="modal-footer-actions">
-                <button type="button" onclick="promptDispatch()" class="btn-modal-outline expedition">
+                <button type="button" id="btnDispatch" onclick="promptDispatch()" class="btn-modal-outline expedition">
                     <span class="material-icons">local_shipping</span> WYDAJ PALETĘ (EXPEDITION / WYSYŁKA)
                 </button>
                 <button type="button" id="returnToRawBtn" onclick="promptReturnToRaw()" class="btn-modal-outline" style="display: none; color: #d97706; border-color: #fde68a;">
                     <span class="material-icons">undo</span> ZWRÓĆ DO SUROWCÓW
                 </button>
-                <button type="button" onclick="fetchHistory()" class="btn-modal-outline history">
+                <button type="button" id="btnShowHistory" onclick="fetchHistory()" class="btn-modal-outline history">
                     <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW PALETY
                 </button>
             </div>
@@ -137,7 +154,7 @@
 
             {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
             {% if role in ('masteradmin', 'admin', 'administrator') %}
-            <div style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #fecaca;">
+            <div id="adminDeleteContainer" style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #fecaca;">
                 <div style="font-size: 11px; font-weight: 800; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa Administratora</div>
                 <button type="button" onclick="deletePalletPermanently()" class="btn-modal-outline" style="color: #dc2626; border-color: #fca5a5; font-size: 12px; width: 100%;">
                     <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE Z BAZY (DUPLIKAT / TESTOWA)

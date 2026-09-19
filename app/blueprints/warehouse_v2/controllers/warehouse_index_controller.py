@@ -10,8 +10,8 @@ class WarehouseIndexController:
     @staticmethod
     def render_index():
         """Render the main warehouse dashboard with stocks, locations, capacities, and printers."""
-        linia = request.args.get('linia', 'PSD').upper()
-        palety_linie = ['PSD', 'AGRO'] if linia == 'ALL' else [linia]
+        linia = request.args.get('linia', 'ALL').upper()
+        palety_linie = ['PSD', 'AGRO']
         shared_linia = linia if linia in ('PSD', 'AGRO') else 'PSD'
         conn = get_db_connection()
         items = []
@@ -66,13 +66,16 @@ class WarehouseIndexController:
             except Exception as e:
                 print(f"Error fetching opakowania: {e}")
 
-            # 3. Wyroby Gotowe (dla ALL łączymy PSD + AGRO)
-            for linia_palety in palety_linie:
+            # 3. Wyroby Gotowe (dla obu linii z zunifikowanej tabeli magazyn_palety)
+            for linia_palety in ['PSD', 'AGRO']:
                 table_palety = get_table_name('magazyn_palety', linia_palety)
                 table_plan = get_table_name('plan_produkcji', linia_palety)
                 alt_linia = 'AGRO' if linia_palety == 'PSD' else 'PSD'
                 table_plan_alt = get_table_name('plan_produkcji', alt_linia)
-                line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if table_palety == 'magazyn_palety' else ""
+                if linia_palety == 'PSD':
+                    line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')"
+                else:
+                    line_condition = "AND m.linia = 'AGRO'"
                 try:
                     cursor.execute(
                         f"""
@@ -134,6 +137,67 @@ class WarehouseIndexController:
                         items.append(row)
                 except Exception as e:
                     print(f"Error fetching wyroby gotowe ({linia_palety}): {e}")
+
+            # 3b. Oczekujące Wyroby Gotowe z produkcji (palety w buforze ze statusem 'do_przyjecia')
+            for linia_prod in ['PSD', 'AGRO']:
+                tbl_prod = 'palety_workowanie' if linia_prod == 'PSD' else 'palety_agro'
+                tbl_plan_p = 'plan_produkcji' if linia_prod == 'PSD' else 'plan_produkcji_agro'
+                try:
+                    cursor.execute(f"""
+                        SELECT pw.id, pw.nr_palety,
+                               COALESCE(NULLIF(TRIM(plan.produkt), ''), 'Wyrób gotowy') as productName,
+                               'OCZEKUJĄCE' as location,
+                               COALESCE(NULLIF(pw.waga_potwierdzona, 0), pw.waga, 0) as amount,
+                               'Wyrób Gotowy' as type,
+                               pw.data_dodania as data_produkcji,
+                               plan.termin_przydatnosci as data_przydatnosci,
+                               '{linia_prod}' as linia,
+                               COALESCE(plan.nr_partii, '') as nr_partii,
+                               0 as is_blocked,
+                               pw.data_dodania as created_at,
+                               COALESCE(plan.typ_opakowania, 'Karton') as typ_opakowania,
+                               pw.plan_id as effective_plan_id,
+                               plan.data_planu as plan_order_date,
+                               COALESCE(NULLIF(plan.nazwa_zlecenia, ''), plan.typ_zlecenia, '') as plan_order_name
+                        FROM {tbl_prod} pw
+                        LEFT JOIN {tbl_plan_p} plan ON pw.plan_id = plan.id
+                        WHERE (
+                            LOWER(COALESCE(pw.status, '')) IN ('do_przyjecia', 'oczekujace', 'oczekuje', 'bufor', 'nowa', '')
+                            OR pw.status IS NULL
+                        )
+                        AND LOWER(COALESCE(pw.status, '')) NOT IN ('w_magazynie', 'przyjeta', 'wydana', 'anulowana')
+                        ORDER BY pw.id DESC
+                    """)
+                    pending_palety = cursor.fetchall()
+                    for row in pending_palety:
+                        row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"PAL-{row['id']}"
+                        row['linia'] = linia_prod
+                        row['date_prod'] = format_date_val(row.get('data_produkcji'))
+                        row['date_exp'] = compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji'))
+                        row['date_added'] = format_date_val(row.get('created_at'), '%Y-%m-%d %H:%M')
+                        row['batch'] = row.get('nr_partii') or '-'
+                        row['unit'] = 'kg'
+                        row['is_blocked'] = 0
+                        row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
+                        row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
+                        row['location'] = 'OCZEKUJĄCE'
+
+                        plan_id = row.get('effective_plan_id')
+                        plan_date_raw = row.get('plan_order_date')
+                        plan_date_str = format_date_val(plan_date_raw) if plan_date_raw else ''
+                        if plan_id:
+                            row['order_id'] = f"PLAN-{plan_id}"
+                            row['order_ref'] = f"Plan #{plan_id}"
+                            row['order_doc_type'] = 'PROD'
+                            row['order_doc_label'] = f"PROD: #{plan_id}"
+                            row['order_date'] = plan_date_str
+                            row['order_source'] = f"Linia {row['linia']}"
+                        elif plan_date_str:
+                            row['order_date'] = plan_date_str
+
+                        items.append(row)
+                except Exception as e_pw:
+                    print(f"Error fetching pending production pallets ({linia_prod}): {e_pw}")
 
             # 4. Dodatki
             try:

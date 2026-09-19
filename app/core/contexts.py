@@ -533,6 +533,36 @@ def inject_pending_orders_count():
             pass
 
 
+def inject_pending_picking_count():
+    """Wstrzykuje liczbę aktywnych dyspozycji kompletacji."""
+    conn = None
+    try:
+        if not session.get('zalogowany'):
+            return dict(pending_picking_count=0)
+
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(DISTINCT order_ref)
+            FROM magazyn_kompletacja
+            WHERE status = 'OCZEKUJE'
+            """
+        )
+        row = cursor.fetchone()
+        count = row[0] if row else 0
+        return dict(pending_picking_count=count)
+    except Exception:
+        return dict(pending_picking_count=0)
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+
 def inject_today_date():
     """Inject current date 'dzisiaj' into templates globally to prevent UndefinedError in sidebar."""
     from datetime import date
@@ -615,6 +645,7 @@ def register_contexts(app):
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
     app.context_processor(inject_pending_orders_count)
+    app.context_processor(inject_pending_picking_count)
     app.context_processor(inject_osip_transfers_count)
     app.context_processor(inject_database_info)
     app.context_processor(inject_today_date)

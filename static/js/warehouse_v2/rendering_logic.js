@@ -97,7 +97,16 @@ function selectAllLocations(select) {
     updateSelectedLocations();
 }
 
-function filterTable() {
+function filterTable(options = {}) {
+    const preserveScroll = (options && options.preserveScroll !== undefined) ? options.preserveScroll : true;
+    
+    // Zapisz aktualną pozycję scrolla przed manipulacją DOM
+    const savedWindowScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    const container = document.getElementById('warehouseItemsContainer');
+    if (!container) return;
+    const listWrapper = container.querySelector('.list-view-wrapper');
+    const savedWrapperScrollTop = listWrapper ? listWrapper.scrollTop : 0;
+
     const input = document.getElementById("searchInput");
     const filter = input ? input.value.toUpperCase().trim() : "";
     
@@ -105,24 +114,8 @@ function filterTable() {
     if (input) {
         localStorage.setItem('warehouse_search', input.value);
     }
-    const container = document.getElementById('warehouseItemsContainer');
-    if (!container) return;
 
     syncStateFromDOM();
-
-    // 1. Filter JavaScript Array instead of DOM
-    let filtered = allWarehouseItems.filter(item => {
-        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}`.toUpperCase();
-        return isMatch(allText, item.location || '', filter, selectedLocations);
-    });
-
-    // 1b. Oblicz kolejność FIFO per produkt
-    const productGroups = {};
-    filtered.forEach(item => {
-        const pKey = String(item.productName || '').trim().toLowerCase();
-        if (!productGroups[pKey]) productGroups[pKey] = [];
-        productGroups[pKey].push(item);
-    });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -133,12 +126,36 @@ function filterTable() {
         return !isNaN(expDate.getTime()) && expDate.getTime() < today.getTime();
     };
 
-    // System-block pallets that have passed their expiration date
-    filtered.forEach(item => {
+    // Oznacz palety przeterminowane jako zablokowane systemowo
+    allWarehouseItems.forEach(item => {
         if (isItemExpired(item)) {
             item.is_blocked = 1;
             item.is_system_blocked = true;
         }
+    });
+
+    // 1. Filtruj tablicę JavaScript
+    let filtered = allWarehouseItems.filter(item => {
+        // Pogłębiona filtracja po powodach zablokowania
+        if (typeof selectedBlockedReasons !== 'undefined' && Array.isArray(selectedBlockedReasons) && selectedBlockedReasons.length > 0) {
+            const reason = (typeof getItemBlockReason === 'function') ? getItemBlockReason(item) : null;
+            if (!reason || !selectedBlockedReasons.includes(reason)) {
+                return false;
+            }
+        } else if (typeof filterOnlyBlocked !== 'undefined' && filterOnlyBlocked) {
+            const isBlocked = Boolean(item.is_blocked) || Boolean(item.is_system_blocked) || isItemExpired(item);
+            if (!isBlocked) return false;
+        }
+        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}`.toUpperCase();
+        return isMatch(allText, item.location || '', filter, selectedLocations);
+    });
+
+    // 1b. Oblicz kolejność FIFO per produkt
+    const productGroups = {};
+    filtered.forEach(item => {
+        const pKey = String(item.productName || '').trim().toLowerCase();
+        if (!productGroups[pKey]) productGroups[pKey] = [];
+        productGroups[pKey].push(item);
     });
 
     const getBatchDateKey = (item) => {
@@ -200,7 +217,8 @@ function filterTable() {
         currentFilteredItems = fifoList;
     }
 
-    // 2. Reset Pagination
+    // 2. Zachowaj dotychczasową liczbę wyrenderowanych elementów, by nie ucinać widoku
+    const targetRenderCount = preserveScroll ? Math.max(currentRenderedCount || 0, PAGE_SIZE) : PAGE_SIZE;
     currentRenderedCount = 0;
     
     const tbody = container.querySelector(".list-view-wrapper tbody");
@@ -214,30 +232,57 @@ function filterTable() {
         grid.style.opacity = '0';
     }
 
-    // 3. Render first batch
-    loadMoreItems();
+    // 3. Render items
+    loadItemsBatch(targetRenderCount);
 
-    // 4. Aktualizuj banner statusu filtra
+    // 4. Aktualizuj banner statusu filtra oraz licznik zablokowanych
     if (typeof _updateFilterBanner === 'function') {
         _updateFilterBanner(filter, currentFilteredItems.length, allWarehouseItems.length);
+    }
+    if (typeof updateBlockedBadgeCount === 'function') {
+        updateBlockedBadgeCount();
+    }
+
+    // 5. Odtwórz pozycję scrolla
+    if (preserveScroll && savedWindowScrollY > 0) {
+        window.scrollTo({ top: savedWindowScrollY, behavior: 'instant' });
+        if (listWrapper && savedWrapperScrollTop > 0) {
+            listWrapper.scrollTop = savedWrapperScrollTop;
+        }
+        requestAnimationFrame(() => {
+            window.scrollTo({ top: savedWindowScrollY, behavior: 'instant' });
+            if (listWrapper && savedWrapperScrollTop > 0) {
+                listWrapper.scrollTop = savedWrapperScrollTop;
+            }
+        });
+        setTimeout(() => {
+            window.scrollTo({ top: savedWindowScrollY, behavior: 'instant' });
+            if (listWrapper && savedWrapperScrollTop > 0) {
+                listWrapper.scrollTop = savedWrapperScrollTop;
+            }
+        }, 50);
     }
 }
 
 function loadMoreItems() {
+    loadItemsBatch(PAGE_SIZE);
+}
+
+function loadItemsBatch(batchSize) {
     const tbody = document.querySelector(".list-view-wrapper tbody");
     const grid = document.getElementById('palletGridContainer');
     if (!tbody || !grid) return;
 
     if (currentFilteredItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 48px 16px; color: #64748b;">
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 48px 16px; color: #64748b;">
             <span class="material-icons" style="font-size: 44px; color: #94a3b8; display: block; margin-bottom: 8px;">filter_alt_off</span>
             <div style="font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 4px;">Brak palet dla wybranych lokalizacji / filtrów</div>
-            <div style="font-size: 13px; color: #64748b;">Zaznacz inne magazyny/regały w menu lub kliknij „Wszystkie”, aby wyświetlić pozycje.</div>
+            <div style="font-size: 13px; color: #64748b;">Zmień kryteria wyszukiwania lub filtry blokad/lokalizacji, aby wyświetlić pozycje.</div>
         </td></tr>`;
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding: 48px 16px; color: #64748b;">
             <span class="material-icons" style="font-size: 44px; color: #94a3b8; display: block; margin-bottom: 8px;">filter_alt_off</span>
             <div style="font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 4px;">Brak palet dla wybranych lokalizacji / filtrów</div>
-            <div style="font-size: 13px; color: #64748b;">Zaznacz inne magazyny/regały w menu lub kliknij „Wszystkie”, aby wyświetlić pozycje.</div>
+            <div style="font-size: 13px; color: #64748b;">Zmień kryteria wyszukiwania lub filtry blokad/lokalizacji, aby wyświetlić pozycje.</div>
         </div>`;
         const loadMoreContainer = document.getElementById('loadMoreContainer');
         if (loadMoreContainer) {
@@ -251,7 +296,7 @@ function loadMoreItems() {
     }
 
     const start = currentRenderedCount;
-    const end = Math.min(start + PAGE_SIZE, currentFilteredItems.length);
+    const end = Math.min(start + (batchSize || PAGE_SIZE), currentFilteredItems.length);
     
     let tableHtml = '';
     let gridHtml = '';

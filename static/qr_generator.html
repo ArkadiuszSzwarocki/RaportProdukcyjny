@@ -228,7 +228,7 @@
             <br>
             <label>
                 <input type="radio" name="format" value="simple" checked>
-                Prosty (LOGIN:xxx|PASS:yyy)
+                Standardowy (LOGIN:login:hasło)
             </label>
             <label>
                 <input type="radio" name="format" value="json">
@@ -287,8 +287,8 @@
                 });
                 formatName = 'JSON';
             } else {
-                qrData = `LOGIN:${login}|PASS:${password}`;
-                formatName = 'Prosty (delimiter |)';
+                qrData = `LOGIN:${login}:${password}`;
+                formatName = 'Standardowy (LOGIN:login:hasło)';
             }
 
             // Wyczyść poprzedni kod QR

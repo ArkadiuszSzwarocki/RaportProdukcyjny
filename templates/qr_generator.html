@@ -3,37 +3,70 @@
 {% block content %}
 <style>
     .qr-generator-view {
-        max-width: 800px;
+        max-width: 860px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 24px 16px;
     }
 
     .qr-hero {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         border-radius: 16px;
-        padding: 40px;
-        margin-bottom: 30px;
+        padding: 32px;
+        margin-bottom: 24px;
         color: white;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.08);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .qr-hero::after {
+        content: "";
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(0,0,0,0) 70%);
+        pointer-events: none;
     }
 
     .qr-hero h1 {
-        margin: 0 0 10px 0;
-        font-size: 28px;
-        color: white;
+        margin: 0 0 8px 0;
+        font-size: 26px;
+        font-weight: 700;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
 
     .qr-hero .subtitle {
         margin: 0;
-        opacity: 0.9;
+        color: #94a3b8;
         font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .format-badge {
+        display: inline-block;
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 10px;
     }
 
     .qr-card {
-        background: white;
+        background: #ffffff;
         border-radius: 16px;
-        padding: 40px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+        padding: 32px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
     }
 
     .form-group {
@@ -43,276 +76,494 @@
     .form-group label {
         display: block;
         margin-bottom: 8px;
-        color: #555;
+        color: #334155;
         font-weight: 600;
         font-size: 14px;
     }
 
+    .form-control-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
     .form-group input[type="text"],
-    .form-group input[type="password"] {
+    .form-group input[type="password"],
+    .form-group select {
         width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e0e0e0;
+        padding: 12px 14px;
+        border: 1.5px solid #cbd5e1;
         border-radius: 8px;
-        font-size: 16px;
-        transition: border-color 0.3s;
+        font-size: 15px;
+        color: #1e293b;
+        background-color: #f8fafc;
+        transition: all 0.2s ease;
         box-sizing: border-box;
     }
 
     .form-group input[type="text"]:focus,
-    .form-group input[type="password"]:focus {
+    .form-group input[type="password"]:focus,
+    .form-group select:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: #3b82f6;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
 
-    .format-selector {
-        margin-bottom: 20px;
-        padding: 15px;
-        background: #f8f9fa;
-        border-radius: 8px;
+    .password-toggle-btn {
+        position: absolute;
+        right: 12px;
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        padding: 4px;
+        font-size: 16px;
     }
 
-    .format-selector label {
+    .password-toggle-btn:hover {
+        color: #1e293b;
+    }
+
+    .format-selector-box {
+        margin-bottom: 24px;
+        padding: 16px;
+        background: #f1f5f9;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .format-selector-box .format-title {
         display: block;
         margin-bottom: 10px;
         font-weight: 600;
-        color: #333;
+        color: #1e293b;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    .format-selector .radio-group {
+    .radio-pill-group {
         display: flex;
-        gap: 20px;
+        gap: 12px;
         flex-wrap: wrap;
     }
 
-    .format-selector .radio-group label {
+    .radio-pill {
         display: inline-flex;
         align-items: center;
-        margin: 0;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #ffffff;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
         cursor: pointer;
-        font-weight: normal;
+        font-size: 14px;
+        font-weight: 500;
+        color: #334155;
+        transition: all 0.2s;
     }
 
-    .format-selector input[type="radio"] {
-        margin-right: 8px;
+    .radio-pill:hover {
+        border-color: #94a3b8;
     }
 
-    .btn-qr {
-        width: 100%;
-        padding: 14px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+    .radio-pill input[type="radio"] {
+        accent-color: #3b82f6;
+        cursor: pointer;
+    }
+
+    .radio-pill.active {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .btn-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+    }
+
+    .btn-main-qr {
+        flex: 2;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #ffffff;
         border: none;
         border-radius: 8px;
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 600;
         cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        margin-top: 10px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
 
-    .btn-qr:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    .btn-main-qr:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
     }
 
-    .btn-qr:active {
-        transform: translateY(0);
+    .btn-clear-form {
+        flex: 1;
+        padding: 14px 20px;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    .btn-print {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        margin-top: 20px;
+    .btn-clear-form:hover {
+        background: #e2e8f0;
+        color: #0f172a;
     }
 
-    .btn-print:hover {
-        box-shadow: 0 8px 20px rgba(17, 153, 142, 0.4);
-    }
-
-    .btn-clear {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-        margin-top: 10px;
-    }
-
-    .btn-clear:hover {
-        box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4);
-    }
-
-    .btn-print {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        margin-top: 20px;
-        font-weight: 700;
-        font-size: 18px;
-    }
-
-    .btn-print:hover {
-        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
-        transform: translateY(-2px);
-    }
-
-    .qr-container {
-        margin-top: 30px;
-        text-align: center;
-        padding: 20px;
-        background: #f8f9fa;
+    .qr-result-wrapper {
+        margin-top: 32px;
+        padding: 24px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
         border-radius: 12px;
         display: none;
     }
 
-    .qr-container.active {
+    .qr-result-wrapper.active {
         display: block;
+        animation: fadeIn 0.3s ease;
     }
 
-    #qrcode {
-        display: inline-block;
-        padding: 20px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
-    .qr-info {
-        margin-top: 20px;
-        padding: 15px;
-        background: white;
-        border-radius: 8px;
-        border-left: 4px solid #667eea;
-        text-align: left;
+    .qr-output-flex {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        flex-wrap: wrap;
     }
 
-    .qr-info h3 {
-        color: #667eea;
-        margin-bottom: 10px;
+    .qr-canvas-box {
+        background: #ffffff;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 150px;
+        min-height: 150px;
+    }
+
+    .qr-info-content {
+        flex: 1;
+        min-width: 250px;
+    }
+
+    .qr-info-content h3 {
+        margin: 0 0 8px 0;
         font-size: 16px;
-        margin-top: 0;
+        font-weight: 700;
+        color: #0f172a;
     }
 
-    .qr-info p {
-        color: #666;
+    .qr-payload-display {
+        margin-top: 8px;
+        padding: 12px 14px;
+        background: #0f172a;
+        color: #38bdf8;
+        border-radius: 8px;
+        font-family: 'Courier New', Courier, monospace;
         font-size: 14px;
-        margin: 5px 0;
+        font-weight: 600;
+        word-break: break-all;
+        position: relative;
     }
 
-    .qr-data {
-        margin-top: 15px;
-        padding: 12px;
-        background: #f0f0f0;
-        border-radius: 6px;
-        font-family: 'Courier New', monospace;
-        font-size: 13px;
-        word-break: break-all;
-        color: #333;
+    .actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .action-btn {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        transition: all 0.2s ease;
+    }
+
+    .btn-action-zebra {
+        background: #10b981;
+        color: white;
+    }
+    .btn-action-zebra:hover {
+        background: #059669;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-action-print {
+        background: #6366f1;
+        color: white;
+    }
+    .btn-action-print:hover {
+        background: #4f46e5;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-action-download {
+        background: #0284c7;
+        color: white;
+    }
+    .btn-action-download:hover {
+        background: #0369a1;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-action-copy {
+        background: #ffffff;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+    }
+    .btn-action-copy:hover {
+        background: #f1f5f9;
+        color: #0f172a;
     }
 
     @media print {
-        .qr-hero,
-        .form-group,
-        .format-selector,
-        .btn-qr,
-        .qr-info,
-        nav,
-        .breadcrumbs,
-        .back-button {
-            display: none !important;
+        @page {
+            size: auto;
+            margin: 5mm;
         }
-
-        .qr-container {
-            display: block !important;
-            background: white;
-            padding: 0;
-            margin: 0;
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
         }
-
+        body * {
+            visibility: hidden !important;
+        }
+        .qr-canvas-box, .qr-canvas-box * {
+            visibility: visible !important;
+        }
+        .qr-canvas-box {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            transform: none !important;
+            width: 1.5cm !important;
+            height: 1.5cm !important;
+            min-width: 1.5cm !important;
+            min-height: 1.5cm !important;
+            max-width: 1.5cm !important;
+            max-height: 1.5cm !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+        }
         #qrcode {
-            box-shadow: none;
-            padding: 0;
+            width: 1.5cm !important;
+            height: 1.5cm !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
-
-        #qrcode canvas {
-            width: 1cm !important;
-            height: 1cm !important;
+        #qrcode img, #qrcode canvas {
+            width: 1.5cm !important;
+            height: 1.5cm !important;
+            max-width: 1.5cm !important;
+            max-height: 1.5cm !important;
+            object-fit: contain !important;
+            display: block !important;
         }
     }
 
     @media (max-width: 640px) {
         .qr-hero {
-            padding: 24px;
+            padding: 20px;
         }
-
         .qr-card {
-            padding: 24px;
+            padding: 20px;
         }
-
-        .qr-hero h1 {
-            font-size: 22px;
+        .btn-row {
+            flex-direction: column;
+        }
+        .qr-output-flex {
+            flex-direction: column;
+            text-align: center;
         }
     }
 </style>
 
 <div class="qr-generator-view">
     <div class="qr-hero">
-        <h1>🔐 Generator Kodów QR</h1>
-        <p class="subtitle">Login i hasło • Rozmiar: 1cm × 1cm • Drukarka Zebra</p>
+        <h1>🔐 Generator Kodów QR Logowania</h1>
+        <p class="subtitle">
+            Generowanie kodów QR dla szybkiego logowania pracowników i operatorów na terminalach skanera i stanowiskach magazynowych.
+        </p>
+        <div class="format-badge">
+            📌 Format: LOGIN:&lt;login&gt;:&lt;hasło&gt;
+        </div>
     </div>
 
     <div class="qr-card">
-        <div class="format-selector">
-            <label><strong>Format danych:</strong></label>
-            <div class="radio-group">
-                <label>
-                    <input type="radio" name="format" value="simple" checked>
-                    Prosty (LOGIN:login:haslo)
+        <div class="format-selector-box">
+            <span class="format-title">Format zakodowanych danych:</span>
+            <div class="radio-pill-group">
+                <label class="radio-pill active" id="pillSimple">
+                    <input type="radio" name="format" value="simple" checked onchange="updateFormatPill()">
+                    <span>Standardowy (LOGIN:login:hasło)</span>
                 </label>
-                <label>
-                    <input type="radio" name="format" value="json">
-                    JSON
+                <label class="radio-pill" id="pillJson">
+                    <input type="radio" name="format" value="json" onchange="updateFormatPill()">
+                    <span>Format JSON ({"login":"...","pass":"..."})</span>
                 </label>
             </div>
         </div>
 
+        {% if users and users|length > 0 %}
         <div class="form-group">
-            <label for="login">Login:</label>
-            <input type="text" id="login" placeholder="Wpisz login użytkownika" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <label for="userSelect">⚡ Szybki wybór istniejącego użytkownika (opcjonalnie):</label>
+            <select id="userSelect" onchange="onUserSelectChange()">
+                <option value="">-- Wybierz użytkownika z bazy lub wpisz poniżej --</option>
+                {% for u in users %}
+                <option value="{{ u.login }}">{{ u.login }} ({{ u.rola or 'użytkownik' }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="login">Login pracownika:</label>
+            <div class="form-control-wrap">
+                <input type="text" id="login" placeholder="Wprowadź login" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            </div>
         </div>
 
         <div class="form-group">
-            <label for="password">Hasło:</label>
-            <input type="password" id="password" placeholder="Wpisz hasło" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <label for="password">Hasło lub PIN:</label>
+            <div class="form-control-wrap">
+                <input type="password" id="password" placeholder="Wprowadź hasło lub PIN" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false">
+                <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility()" title="Pokaż/Ukryj hasło">
+                    👁️
+                </button>
+            </div>
         </div>
 
-        <button class="btn-qr" onclick="generateQR()">🎯 Wygeneruj Kod QR (podgląd)</button>
-        <button class="btn-qr btn-clear" onclick="clearForm()">🗑️ Wyczyść formularz</button>
+        <div class="btn-row">
+            <button class="btn-main-qr" onclick="generateQR()">
+                🎯 Wygeneruj Kod QR
+            </button>
+            <button class="btn-clear-form" onclick="clearForm()">
+                🗑️ Wyczyść
+            </button>
+        </div>
 
-        <div class="qr-container" id="qrContainer">
-            <div id="qrcode"></div>
-            
-            <div class="qr-info">
-                <h3>📋 Informacje o kodzie QR</h3>
-                <p><strong>Rozmiar:</strong> 1cm × 1cm (118px @ 300 DPI)</p>
-                <p><strong>Format:</strong> <span id="formatInfo"></span></p>
-                <p><strong>Dane zakodowane:</strong></p>
-                <div class="qr-data" id="qrData"></div>
+        <div class="qr-result-wrapper" id="qrContainer">
+            <div class="qr-output-flex">
+                <div class="qr-canvas-box" id="qrcodeBox">
+                    <div id="qrcode"></div>
+                </div>
+
+                <div class="qr-info-content">
+                    <h3>✅ Wygenerowano kod QR</h3>
+                    <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748b;">
+                        Rozmiar wydruku: <strong>1,5 cm × 1,5 cm</strong> &bull; Korekcja błędów: <strong>Poziom M</strong>
+                    </p>
+                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #475569;">
+                        Zawartość kodu do zeskanowania:
+                    </p>
+                    <div class="qr-payload-display" id="qrData"></div>
+                </div>
             </div>
 
-            <button class="btn-qr btn-print" onclick="drukujNaZebra()">🖨️ DRUKUJ NA ZEBRA</button>
+            <div class="actions-grid">
+                <button class="action-btn btn-action-zebra" onclick="drukujNaZebra()">
+                    🖨️ Drukuj na Zebra (ZPL)
+                </button>
+                <button class="action-btn btn-action-print" onclick="window.print()">
+                    🖨️ Drukuj (Przeglądarka)
+                </button>
+                <button class="action-btn btn-action-download" onclick="downloadQRCode()">
+                    💾 Pobierz PNG
+                </button>
+                <button class="action-btn btn-action-copy" onclick="copyPayload()">
+                    📋 Kopiuj tekst
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Biblioteka QRCode - używamy qrcodejs -->
+<!-- Biblioteki generowania kodów QR -->
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script>
-    // Sprawdź czy biblioteka QRCode została załadowana
-    console.log('QRCode library loaded:', typeof QRCode !== 'undefined');
-    
-    function generateQR() {
-        console.log('generateQR() called');
-        
-        const login = document.getElementById('login').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const format = document.querySelector('input[name="format"]:checked').value;
 
-        console.log('Login:', login, 'Password length:', password.length);
+<script>
+    let currentQrPayload = '';
+
+    function updateFormatPill() {
+        const format = document.querySelector('input[name="format"]:checked').value;
+        const pillSimple = document.getElementById('pillSimple');
+        const pillJson = document.getElementById('pillJson');
+        if (format === 'simple') {
+            pillSimple.classList.add('active');
+            pillJson.classList.remove('active');
+        } else {
+            pillSimple.classList.remove('active');
+            pillJson.classList.add('active');
+        }
+        if (document.getElementById('qrContainer').classList.contains('active')) {
+            generateQR();
+        }
+    }
+
+    function onUserSelectChange() {
+        const select = document.getElementById('userSelect');
+        if (select && select.value) {
+            document.getElementById('login').value = select.value;
+            document.getElementById('password').focus();
+        }
+    }
+
+    function togglePasswordVisibility() {
+        const passInput = document.getElementById('password');
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+        } else {
+            passInput.type = 'password';
+        }
+    }
+
+    function generateQR() {
+        const login = (document.getElementById('login').value || '').trim();
+        const password = (document.getElementById('password').value || '').trim();
+        const format = document.querySelector('input[name="format"]:checked').value;
 
         if (!login || !password) {
             if (typeof showToast === 'function') {
@@ -323,106 +574,106 @@
             return;
         }
 
-        // Przygotuj dane w wybranym formacie
-        let qrData;
-        let formatName;
-
+        // Przygotuj format LOGIN:<login>:<haslo> lub JSON
         if (format === 'json') {
-            qrData = JSON.stringify({
+            currentQrPayload = JSON.stringify({
                 login: login,
                 pass: password
             });
-            formatName = 'JSON';
         } else {
-            qrData = `LOGIN:${login}:${password}`;
-            formatName = 'Prosty (oszukany LOGIN:SzwarArk:1)';
+            currentQrPayload = `LOGIN:${login}:${password}`;
         }
 
-        console.log('QR Data:', qrData);
-
-        // Wyczyść poprzedni kod QR
         const qrContainer = document.getElementById('qrcode');
         qrContainer.innerHTML = '';
 
-        // Sprawdź dostępność biblioteki
-        if (typeof QRCode === 'undefined') {
-            const errorMsg = '❌ Biblioteka QRCode nie została załadowana. Odśwież stronę.';
-            if (typeof showToast === 'function') {
-                showToast(errorMsg, 'error');
-            } else {
-                alert(errorMsg);
-            }
-            console.error('QRCode library not loaded');
-            return;
-        }
-
         try {
-            // Wygeneruj nowy kod QR używając QRCodeJS (tylko podgląd)
-            // Rozmiar: 118px dla 1cm przy 300 DPI (typowy dla Zebra)
-            const qrcode = new QRCode(qrContainer, {
-                text: qrData,
-                width: 118,
-                height: 118,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
-            
-            console.log('QR Code generated successfully');
-            
-            // Pokaż kontener z kodem QR
-            document.getElementById('qrContainer').classList.add('active');
-            
-            // Aktualizuj informacje
-            document.getElementById('formatInfo').textContent = formatName;
-            document.getElementById('qrData').textContent = qrData;
-
-            // Scroll do kodu QR
-            qrContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            if (typeof showToast === 'function') {
-                showToast('✅ Kod QR wygenerowany - kliknij DRUKUJ aby wysłać do Zebra', 'success');
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(qrContainer, {
+                    text: currentQrPayload,
+                    width: 140,
+                    height: 140,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
+                });
+            } else {
+                throw new Error('Biblioteka QRCode nie jest dostępna.');
             }
 
-            // Automatyczne wyczyszczenie pól po 30 sekundach (bezpieczeństwo)
-            setTimeout(function() {
-                clearForm();
-                if (typeof showToast === 'function') {
-                    showToast('🔒 Formularz wyczyszczony automatycznie', 'info');
-                }
-            }, 30000);
-        } catch (e) {
-            console.error('Exception in generateQR:', e);
+            document.getElementById('qrData').textContent = currentQrPayload;
+            document.getElementById('qrContainer').classList.add('active');
+
             if (typeof showToast === 'function') {
-                showToast('❌ Wyjątek: ' + e.message, 'error');
+                showToast('✅ Kod QR wygenerowany pomyślnie', 'success');
+            }
+        } catch (e) {
+            console.error('Błąd generowania QR:', e);
+            if (typeof showToast === 'function') {
+                showToast('❌ Błąd generowania QR: ' + e.message, 'error');
             } else {
-                alert('❌ Wyjątek: ' + e.message);
+                alert('❌ Błąd generowania QR: ' + e.message);
             }
         }
     }
 
-    function drukujNaZebra() {
-        console.log('drukujNaZebra() called');
-        
-        const login = document.getElementById('login').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const format = document.querySelector('input[name="format"]:checked').value;
+    function downloadQRCode() {
+        const qrContainer = document.getElementById('qrcode');
+        const img = qrContainer.querySelector('img');
+        const canvas = qrContainer.querySelector('canvas');
+        let dataUrl = '';
 
-        if (!login || !password) {
+        if (img && img.src && img.src.startsWith('data:')) {
+            dataUrl = img.src;
+        } else if (canvas) {
+            dataUrl = canvas.toDataURL('image/png');
+        }
+
+        if (!dataUrl) {
             if (typeof showToast === 'function') {
-                showToast('⚠️ Najpierw wygeneruj kod QR!', 'warning');
-            } else {
-                alert('⚠️ Najpierw wygeneruj kod QR!');
+                showToast('⚠️ Nie znaleziono wygenerowanego obrazu QR', 'warning');
             }
             return;
         }
 
-        // Pokaż spinner / stan ładowania
+        const login = (document.getElementById('login').value || '').trim() || 'user';
+        const link = document.createElement('a');
+        link.download = `qr_login_${login}.png`;
+        link.href = dataUrl;
+        link.click();
+    }
+
+    function copyPayload() {
+        if (!currentQrPayload) return;
+        navigator.clipboard.writeText(currentQrPayload).then(() => {
+            if (typeof showToast === 'function') {
+                showToast('📋 Skopiowano treść do schowka', 'success');
+            } else {
+                alert('📋 Skopiowano treść do schowka: ' + currentQrPayload);
+            }
+        }).catch(() => {
+            alert('Treść: ' + currentQrPayload);
+        });
+    }
+
+    function drukujNaZebra() {
+        const login = (document.getElementById('login').value || '').trim();
+        const password = (document.getElementById('password').value || '').trim();
+        const format = document.querySelector('input[name="format"]:checked').value;
+
+        if (!login || !password) {
+            if (typeof showToast === 'function') {
+                showToast('⚠️ Najpierw wypełnij formularz i wygeneruj kod QR!', 'warning');
+            } else {
+                alert('⚠️ Najpierw wypełnij formularz i wygeneruj kod QR!');
+            }
+            return;
+        }
+
         if (typeof showToast === 'function') {
             showToast('📤 Wysyłanie do drukarki Zebra...', 'info');
         }
 
-        // Wyślij do endpointu druku ZPL
         fetch('{{ url_for("admin.admin_qr_generator_drukuj") }}', {
             method: 'POST',
             headers: {
@@ -445,8 +696,6 @@
                 } else {
                     alert('✅ Etykieta wysłana do drukarki Zebra' + printerInfo);
                 }
-                // Wyczyść formularz po udanym wydruku (bezpieczeństwo)
-                setTimeout(clearForm, 2000);
             } else {
                 const errorMsg = data.message || 'Błąd druku';
                 if (typeof showToast === 'function') {
@@ -469,28 +718,36 @@
     function clearForm() {
         document.getElementById('login').value = '';
         document.getElementById('password').value = '';
+        const userSelect = document.getElementById('userSelect');
+        if (userSelect) userSelect.value = '';
         document.getElementById('qrContainer').classList.remove('active');
+        currentQrPayload = '';
         if (typeof showToast === 'function') {
             showToast('Formularz wyczyszczony', 'info');
         }
     }
 
-    // Wyczyść pola przy ładowaniu strony (bezpieczeństwo)
-    window.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('login').value = '';
-        document.getElementById('password').value = '';
-    });
+    // Enter shortcuts
+    document.addEventListener('DOMContentLoaded', function() {
+        const loginEl = document.getElementById('login');
+        const passEl = document.getElementById('password');
 
-    // Generuj QR po naciśnięciu Enter
-    document.getElementById('password').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            generateQR();
+        if (loginEl) {
+            loginEl.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (passEl) passEl.focus();
+                }
+            });
         }
-    });
 
-    document.getElementById('login').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            document.getElementById('password').focus();
+        if (passEl) {
+            passEl.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    generateQR();
+                }
+            });
         }
     });
 </script>

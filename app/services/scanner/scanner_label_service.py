@@ -64,8 +64,8 @@ class ScannerLabelService:
 
             is_agro = (str(linia).upper() == 'AGRO')
             fg_configs = [
-                ('magazyn_palety_agro', 'plan_produkcji_agro', 'AGRO') if is_agro else ('magazyn_palety', 'plan_produkcji', 'PSD'),
-                ('magazyn_palety', 'plan_produkcji', 'PSD') if is_agro else ('magazyn_palety_agro', 'plan_produkcji_agro', 'AGRO'),
+                ('magazyn_palety', 'plan_produkcji_agro' if is_agro else 'plan_produkcji', 'AGRO' if is_agro else 'PSD'),
+                ('magazyn_palety', 'plan_produkcji' if is_agro else 'plan_produkcji_agro', 'PSD' if is_agro else 'AGRO'),
             ]
 
             prod_configs = [

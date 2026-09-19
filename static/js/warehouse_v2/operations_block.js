@@ -1,26 +1,60 @@
-function togglePalletBlock() {
-    if(!currentPallet.id) return;
+async function togglePalletBlock() {
+    if(!currentPallet.id && !currentPallet.displayId) return;
+    
+    let blockReason = null;
+    if (!currentPallet.is_blocked) {
+        blockReason = await AppDialog.prompt(
+            `Podaj powód zablokowania palety ${currentPallet.displayId || '#' + currentPallet.id}:`,
+            'Kontrola jakości'
+        );
+        if (blockReason === null) {
+            return; // Użytkownik anulował
+        }
+        blockReason = blockReason.trim() || 'Blokada manualna (Jakość / Magazyn)';
+    }
+
     fetch('/warehouse-v2/api/pallet/toggle-block', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             id: currentPallet.id,
+            sscc: currentPallet.displayId,
             type: currentPallet.type,
-            linia: currentPallet.linia
+            linia: currentPallet.linia,
+            reason: blockReason
         })
     }).then(r => r.json()).then(data => {
         if(data.success) {
             showToast(data.message || 'Status blokady zmieniony.', 'success');
             const newBlocked = !currentPallet.is_blocked;
             currentPallet.is_blocked = newBlocked;
+            currentPallet.block_reason = newBlocked ? blockReason : null;
             const targetId = currentPallet.id;
-            const it = allWarehouseItems.find(x => String(x.id) === String(targetId));
-            if (it) {
-                it.is_blocked = newBlocked ? 1 : 0;
+            const targetSscc = currentPallet.displayId;
+
+            if (typeof updateBlockButtonDisplay === 'function') {
+                updateBlockButtonDisplay(newBlocked);
             }
+
+            allWarehouseItems.forEach(x => {
+                if ((targetId && String(x.id) === String(targetId) && x.type === currentPallet.type) || (targetSscc && x.displayId === targetSscc)) {
+                    x.is_blocked = newBlocked ? 1 : 0;
+                    x.block_reason = newBlocked ? blockReason : null;
+                }
+            });
+
+            if (typeof currentFilteredItems !== 'undefined') {
+                currentFilteredItems.forEach(x => {
+                    if ((targetId && String(x.id) === String(targetId) && x.type === currentPallet.type) || (targetSscc && x.displayId === targetSscc)) {
+                        x.is_blocked = newBlocked ? 1 : 0;
+                        x.block_reason = newBlocked ? blockReason : null;
+                    }
+                });
+            }
+
             // Zaktualizuj stan wizualny wiersza bez reload
-            const row = document.querySelector(`tr[data-id="${targetId}"]`);
-            const card = document.querySelector(`.pallet-card[data-id="${targetId}"]`);
+            const row = document.querySelector(`tr[data-id="${targetId}"]`) || (targetSscc ? document.querySelector(`tr[data-sscc="${targetSscc}"]`) : null);
+            const card = document.querySelector(`.pallet-card[data-id="${targetId}"]`) || (targetSscc ? document.querySelector(`.pallet-card[data-sscc="${targetSscc}"]`) : null);
             [row, card].forEach(el => {
                 if (!el) return;
                 el.dataset.blocked = newBlocked ? '1' : '0';
@@ -28,11 +62,14 @@ function togglePalletBlock() {
                 el.classList.toggle('is-blocked-card', newBlocked);
             });
             closePalletModal();
+            if (typeof populateBlockedFilter === 'function') {
+                populateBlockedFilter();
+            }
             if (typeof filterTable === 'function') {
-                filterTable();
+                filterTable({ preserveScroll: true });
             }
         } else {
-            AppDialog.alert("Błąd: " + data.error);
+            AppDialog.alert("Błąd: " + (data.message || data.error));
         }
     });
 }

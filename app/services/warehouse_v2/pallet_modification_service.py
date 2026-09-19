@@ -25,7 +25,7 @@ class PalletModificationService:
             conn.close()
 
     @staticmethod
-    def update_weight(pallet_id, pallet_type, new_weight, worker_login, linia='PSD'):
+    def update_weight(pallet_id, pallet_type, new_weight, worker_login, linia='PSD', sscc=None):
         """Update pallet weight or amount. If 0 or less, pallet is archived."""
         new_weight = float(new_weight)
         if new_weight <= 0:
@@ -34,40 +34,67 @@ class PalletModificationService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            if pallet_type == 'Surowiec':
+            p_type_norm = str(pallet_type or '').strip().lower()
+            if 'surow' in p_type_norm:
                 table = get_table_name('magazyn_surowce', linia)
                 col = 'stan_magazynowy'
-            elif pallet_type == 'Opakowanie':
+            elif 'opakow' in p_type_norm:
                 table = get_table_name('magazyn_opakowania', linia)
                 col = 'stan_magazynowy'
-            elif pallet_type == 'Dodatek':
+            elif 'dodat' in p_type_norm:
                 table = 'magazyn_dodatki'
                 col = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
                 col = 'waga_netto'
 
-            cursor.execute(f"SELECT {col} FROM {table} WHERE id = %s", (int(pallet_id),))
+            target_sscc = str(sscc).strip() if sscc else None
+            cursor.execute(f"SELECT {col}, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
             row = cursor.fetchone()
+
+            if not row and not any(k in p_type_norm for k in ('surow', 'opakow', 'dodat')):
+                # Check buffer tables
+                buf_tbl = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                cursor.execute(f"SELECT id, waga, nr_palety FROM {buf_tbl} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
+                b_row = cursor.fetchone()
+                if not b_row:
+                    alt_buf = 'palety_agro' if buf_tbl == 'palety_workowanie' else 'palety_workowanie'
+                    cursor.execute(f"SELECT id, waga, nr_palety FROM {alt_buf} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
+                    b_row = cursor.fetchone()
+                    if b_row:
+                        buf_tbl = alt_buf
+                        linia = 'AGRO' if alt_buf == 'palety_agro' else 'PSD'
+                if b_row:
+                    old_weight = float(b_row[1] or 0.0)
+                    p_real_id = b_row[0]
+                    p_nr = b_row[2]
+                    cursor.execute(f"UPDATE {buf_tbl} SET waga = %s, waga_brutto = %s + COALESCE(tara, 0) WHERE id = %s", (new_weight, new_weight, p_real_id))
+                    cursor.execute("""
+                        INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login)
+                        VALUES (%s, %s, %s, 'wyrob_gotowy', 'KOREKTA_WAGI', %s, %s)
+                    """, (p_real_id, p_nr, linia, f"Ręczna zmiana wagi w buforze: {old_weight} -> {new_weight} kg", worker_login))
+                    conn.commit()
+                    return True, f"Waga została zaktualizowana ({old_weight} -> {new_weight} kg)."
+
             if not row:
                 return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje."
                 
             old_weight = float(row[0]) if row[0] is not None else 0.0
+            nr_p = row[1] if len(row) > 1 else target_sscc
 
-            cursor.execute(f"UPDATE {table} SET {col} = %s WHERE id = %s", (new_weight, int(pallet_id)))
+            cursor.execute(f"UPDATE {table} SET {col} = %s WHERE id = %s OR nr_palety = %s", (new_weight, pallet_id, target_sscc or str(pallet_id)))
             
-            table_ruch = get_table_name('magazyn_ruch', linia)
+            # Zapisz ruch do historii
             try:
-                cursor.execute(f"""
-                    INSERT INTO {table_ruch} 
-                    (typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
-                    VALUES ('KOREKTA_WAGI', %s, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (new_weight - old_weight, new_weight, worker_login, datetime.now(), f"Ręczna zmiana wagi: {old_weight} -> {new_weight}"))
+                cursor.execute("""
+                    INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login)
+                    VALUES (%s, %s, %s, %s, 'KOREKTA_WAGI', %s, %s)
+                """, (pallet_id, nr_p, linia, pallet_type.lower(), f"Ręczna zmiana wagi: {old_weight} -> {new_weight}", worker_login))
             except Exception as e:
                 print(f"Błąd zapisu ruchu:", e)
 
             conn.commit()
-            return True, f"Pomyślnie zaktualizowano wagę na {new_weight}."
+            return True, f"Waga zaktualizowana pomyślnie na {new_weight}."
         finally:
             conn.close()
 

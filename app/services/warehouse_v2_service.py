@@ -5,125 +5,11 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 class WarehouseV2Service:
     @staticmethod
-    def get_pallet_history(pallet_id, pallet_type, linia='PSD'):
-        """Zwraca historię ruchów palety ściśle odseparowaną wg typu (Wyrób Gotowy / Surowiec / Opakowanie)."""
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            
-            p_type_norm = str(pallet_type or '').strip().lower()
-            if 'surow' in p_type_norm:
-                allowed_types = ('surowiec', 'surowce')
-                is_finished_good = False
-                source_tbl = get_table_name('magazyn_surowce', linia)
-            elif 'opakow' in p_type_norm:
-                allowed_types = ('opakowanie', 'opakowania')
-                is_finished_good = False
-                source_tbl = get_table_name('magazyn_opakowania', linia)
-            elif 'dodat' in p_type_norm:
-                allowed_types = ('dodatek', 'dodatki')
-                is_finished_good = False
-                source_tbl = 'magazyn_dodatki'
-            else:
-                allowed_types = ('wyrob_gotowy', 'wyroby_gotowe', 'gotowy', 'wyrób gotowy')
-                is_finished_good = True
-                source_tbl = get_table_name('magazyn_palety', linia)
-
-            real_id = None
-            nr_pal_sscc = None
-            try:
-                cursor.execute(f"SELECT id, nr_palety FROM {source_tbl} WHERE id = %s OR nr_palety = %s LIMIT 1", (pallet_id, str(pallet_id)))
-                row_found = cursor.fetchone()
-                if row_found:
-                    real_id = row_found.get('id')
-                    nr_pal_sscc = row_found.get('nr_palety')
-            except Exception:
-                pass
-
-            target_id = real_id if real_id is not None else pallet_id
-            target_sscc = nr_pal_sscc if nr_pal_sscc else str(pallet_id)
-
-            # 1. Pobieramy historię z palety_historia - priorytet dla unikalnego numeru SSCC (nr_palety)
-            placeholders = ', '.join(['%s'] * len(allowed_types))
-            if nr_pal_sscc:
-                query_params = [nr_pal_sscc, target_id] + list(allowed_types)
-                cursor.execute(f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
-                           lokalizacja_zrodlowa, lokalizacja_docelowa
-                    FROM palety_historia
-                    WHERE (nr_palety = %s OR (nr_palety IS NULL AND paleta_id = %s AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})))
-                    ORDER BY data_ruchu DESC
-                """, tuple(query_params))
-            else:
-                query_params = [target_id, target_sscc] + list(allowed_types)
-                cursor.execute(f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
-                           lokalizacja_zrodlowa, lokalizacja_docelowa
-                    FROM palety_historia
-                    WHERE (paleta_id = %s OR nr_palety = %s)
-                      AND LOWER(COALESCE(typ_palety, 'wyrob_gotowy')) IN ({placeholders})
-                    ORDER BY data_ruchu DESC
-                """, tuple(query_params))
-            historia_nowa = cursor.fetchall() or []
-            
-            # 2. Pobieramy historię wsteczną ze starych tabel
-            historia_stara = []
-            if not is_finished_good:
-                for t_ruch in ['magazyn_ruch', 'magazyn_agro_ruch']:
-                    try:
-                        cursor.execute(f"""
-                            SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
-                                   NULL as lokalizacja_zrodlowa, NULL as lokalizacja_docelowa
-                            FROM {t_ruch} 
-                            WHERE surowiec_id = %s 
-                            ORDER BY id DESC
-                        """, (target_id,))
-                        historia_stara.extend(cursor.fetchall() or [])
-                    except Exception:
-                        pass
-            else:
-                try:
-                    cursor.execute(f"""
-                        SELECT data_potwierdzenia as autor_data, user_login as autor_login, 'POTWIERDZENIE' as typ_ruchu, 'Rejestracja wyrobu' as komentarz,
-                               NULL as lokalizacja_zrodlowa, NULL as lokalizacja_docelowa
-                        FROM {source_tbl} WHERE id = %s OR nr_palety = %s
-                    """, (target_id, target_sscc))
-                    row = cursor.fetchone()
-                    if row and row.get('autor_data'):
-                        historia_stara.append(row)
-                except Exception:
-                    pass
-                    
-            # Combine
-            combined = historia_nowa + historia_stara
-            
-            # Sort po dacie upewniając się, że autor_data jest datetime
-            def get_dt(x):
-                dt = x.get('autor_data')
-                from datetime import datetime
-                if isinstance(dt, datetime):
-                    return dt
-                if isinstance(dt, str):
-                    try: return datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
-                    except: pass
-                return datetime.min
-                
-            combined.sort(key=get_dt, reverse=True)
-            
-            # Deduplikacja by nie wyświetlać tego samego ruchu dwa razy
-            seen = set()
-            deduped = []
-            for h in combined:
-                dt = get_dt(h)
-                key = f"{dt.strftime('%Y-%m-%d %H:%M')}_{h.get('typ_ruchu')}_{h.get('autor_login')}"
-                if key not in seen:
-                    seen.add(key)
-                    h['autor_data'] = dt.strftime('%Y-%m-%d %H:%M:%S') if dt != datetime.min else str(h.get('autor_data', ''))
-                    deduped.append(h)
-                    
-            return deduped
-        finally:
-            conn.close()
+    @staticmethod
+    def get_pallet_history(pallet_id, pallet_type, linia='PSD', sscc=None):
+        """Zwraca historię ruchów palety ściśle odseparowaną wg typu i unikalnego identyfikatora."""
+        from app.services.warehouse_v2.pallet_history_service import PalletHistoryService
+        return PalletHistoryService.get_pallet_history(pallet_id, pallet_type, linia=linia, sscc=sscc)
 
     @staticmethod
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
@@ -539,40 +425,10 @@ class WarehouseV2Service:
             if conn: conn.close()
             
     @staticmethod
-    def toggle_block(pallet_id, pallet_type, worker_login, linia='PSD'):
+    def toggle_block(pallet_id, pallet_type, worker_login, linia='PSD', sscc=None, reason=None):
         """Przełącza status blokady palety."""
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            if pallet_type == 'Surowiec':
-                table = get_table_name('magazyn_surowce', linia)
-            elif pallet_type == 'Opakowanie':
-                table = get_table_name('magazyn_opakowania', linia)
-            elif pallet_type == 'Dodatek':
-                table = 'magazyn_dodatki'
-            else:
-                table = get_table_name('magazyn_palety', linia)
-
-            cursor.execute(f"SELECT is_blocked, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
-            row = cursor.fetchone()
-            if not row:
-                return False, "Paleta nie znaleziona."
-                
-            new_status = 0 if row.get('is_blocked') else 1
-            nr_p = row.get('nr_palety')
-            cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s", (new_status, pallet_id))
-            
-            # Log to history
-            action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
-            cursor.execute(
-                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (pallet_id, nr_p, linia, pallet_type.lower(), action, f"{action} palety przez użytkownika", worker_login)
-            )
-            
-            conn.commit()
-            return True, f"Paleta {'zablokowana' if new_status else 'odblokowana'}."
-        finally:
-            conn.close()
+        from app.services.warehouse_v2.pallet_status_service import PalletStatusService
+        return PalletStatusService.toggle_block(pallet_id, pallet_type, worker_login, linia=linia, sscc=sscc, reason=reason)
 
     @staticmethod
     def dispatch_pallet(pallet_id, pallet_type, worker_login, linia='PSD'):
@@ -705,53 +561,10 @@ class WarehouseV2Service:
             conn.close()
 
     @staticmethod
-    def update_weight(pallet_id, pallet_type, new_weight, worker_login, linia='PSD'):
+    def update_weight(pallet_id, pallet_type, new_weight, worker_login, linia='PSD', sscc=None):
         """Aktualizuje wagę/ilość na palecie. Jeśli 0, archiwizuje."""
-        new_weight = float(new_weight)
-        if new_weight <= 0:
-            return WarehouseV2Service.archive_pallet(pallet_id, pallet_type, worker_login, linia)
-            
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            if pallet_type == 'Surowiec':
-                table = get_table_name('magazyn_surowce', linia)
-                col = 'stan_magazynowy'
-            elif pallet_type == 'Opakowanie':
-                table = get_table_name('magazyn_opakowania', linia)
-                col = 'stan_magazynowy'
-            elif pallet_type == 'Dodatek':
-                table = 'magazyn_dodatki'
-                col = 'stan_magazynowy'
-            else:
-                table = get_table_name('magazyn_palety', linia)
-                col = 'waga_netto'
-
-            # Pobierz starą wagę do logu
-            cursor.execute(f"SELECT {col} FROM {table} WHERE id = %s", (int(pallet_id),))
-            row = cursor.fetchone()
-            if not row:
-                return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje."
-                
-            old_weight = float(row[0]) if row[0] is not None else 0.0
-
-            cursor.execute(f"UPDATE {table} SET {col} = %s WHERE id = %s", (new_weight, int(pallet_id)))
-            
-            # Zapisz ruch do historii
-            table_ruch = get_table_name('magazyn_ruch', linia)
-            try:
-                cursor.execute(f"""
-                    INSERT INTO {table_ruch} 
-                    (typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
-                    VALUES ('KOREKTA_WAGI', %s, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (new_weight - old_weight, new_weight, worker_login, datetime.now(), f"Ręczna zmiana wagi: {old_weight} -> {new_weight}"))
-            except Exception as e:
-                print(f"Błąd zapisu ruchu:", e)
-
-            conn.commit()
-            return True, f"Pomyślnie zaktualizowano wagę na {new_weight}."
-        finally:
-            conn.close()
+        from app.services.warehouse_v2.pallet_modification_service import PalletModificationService
+        return PalletModificationService.update_weight(pallet_id, pallet_type, new_weight, worker_login, linia=linia, sscc=sscc)
 
     @staticmethod
     def return_pallet_to_raw(pallet_id, pallet_type, worker_login, linia='PSD'):

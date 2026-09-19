@@ -132,6 +132,10 @@ const OrderNewModule = (function () {
         .then(data => {
             if (data.success) {
                 _showToast(data.message, 'success');
+                window.dispatchEvent(new CustomEvent('ordersChanged'));
+                if (typeof window.refreshSidebarBadges === 'function') {
+                    window.refreshSidebarBadges();
+                }
                 setTimeout(() => {
                     // Przekierowanie na listę zamówień (ORDER_LIST_URL zdefiniowane w HTML)
                     window.location.href = (typeof ORDER_LIST_URL !== 'undefined') ? ORDER_LIST_URL : '/warehouse-v2/zamowienia';

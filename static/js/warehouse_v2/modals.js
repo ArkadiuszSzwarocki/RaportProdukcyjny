@@ -1,3 +1,78 @@
+function updateBlockButtonDisplay(isBlocked, reasonText) {
+    const blockBtn = document.getElementById('toggleBlockBtn');
+    const blockedNotice = document.getElementById('modalBlockedNotice');
+    const reasonEl = document.getElementById('modalBlockedReasonText');
+
+    if (blockedNotice) {
+        if (isBlocked) {
+            blockedNotice.style.display = 'flex';
+            if (reasonEl) {
+                const reason = reasonText || (typeof getItemBlockReason === 'function' ? getItemBlockReason(currentPallet) : null) || 'Blokada manualna / jakościowa';
+                reasonEl.innerHTML = `Powód: <strong>${reason}</strong>`;
+            }
+        } else {
+            blockedNotice.style.display = 'none';
+            if (reasonEl) reasonEl.innerHTML = '';
+        }
+    }
+
+    if (blockBtn) {
+        if (isBlocked) {
+            blockBtn.innerHTML = '<span class="material-icons">lock_open</span> ODBLOKUJ PALETĘ';
+            blockBtn.className = 'btn-modal-action';
+            blockBtn.style.background = '#10b981';
+            blockBtn.style.color = '#fff';
+        } else {
+            blockBtn.innerHTML = '<span class="material-icons">block</span> ZABLOKUJ PALETĘ';
+            blockBtn.className = 'btn-modal-action btn-modal-block';
+            blockBtn.style.background = '';
+            blockBtn.style.color = '';
+        }
+    }
+}
+
+function applyPendingPalletRestrictions(isPending) {
+    const btnMove = document.getElementById('btnMoveLocation');
+    const btnWeight = document.getElementById('btnUpdateWeight');
+    const btnPkg = document.getElementById('btnChangePackaging');
+    const btnRename = document.getElementById('btnRename');
+    const btnBlock = document.getElementById('toggleBlockBtn');
+    const pkgChangeLink = document.getElementById('modalPackagingChangeLink');
+    const printBox = document.getElementById('modalPrintBox');
+    const btnDispatch = document.getElementById('btnDispatch');
+    const returnToRaw = document.getElementById('returnToRawBtn');
+    const adminDelete = document.getElementById('adminDeleteContainer');
+    const notice = document.getElementById('pendingPalletNotice');
+    const materialContainer = document.getElementById('materialTypeBtnContainer');
+
+    if (isPending) {
+        if (btnMove) btnMove.style.display = 'none';
+        if (btnWeight) btnWeight.style.display = '';
+        if (btnPkg) btnPkg.style.display = 'none';
+        if (btnRename) btnRename.style.display = 'none';
+        if (btnBlock) btnBlock.style.display = '';
+        if (pkgChangeLink) pkgChangeLink.style.display = 'none';
+        if (printBox) printBox.style.display = '';
+        if (btnDispatch) btnDispatch.style.display = 'none';
+        if (returnToRaw) returnToRaw.style.display = 'none';
+        if (adminDelete) adminDelete.style.display = '';
+        if (materialContainer) materialContainer.style.display = 'none';
+        if (notice) notice.style.display = 'flex';
+    } else {
+        if (btnMove) btnMove.style.display = '';
+        if (btnWeight) btnWeight.style.display = '';
+        if (btnPkg) btnPkg.style.display = '';
+        if (btnRename) btnRename.style.display = '';
+        if (btnBlock) btnBlock.style.display = '';
+        if (pkgChangeLink) pkgChangeLink.style.display = '';
+        if (printBox) printBox.style.display = '';
+        if (btnDispatch) btnDispatch.style.display = '';
+        if (returnToRaw) returnToRaw.style.display = (currentPallet && currentPallet.type === 'Wyrób Gotowy') ? 'flex' : 'none';
+        if (adminDelete) adminDelete.style.display = '';
+        if (notice) notice.style.display = 'none';
+    }
+}
+
 function openPalletModal(displayId, productName, amount, location, type, dateProd, realId, linia, isBlocked, dateAdded, batch, dateExp, unit, packagingType) {
     currentPallet = { displayId, productName, amount, location, type, date: dateProd, id: realId, linia: linia, is_blocked: isBlocked, date_added: dateAdded, batch, date_exp: dateExp, unit, packaging_type: packagingType || 'Worek (25kg)' };
     
@@ -22,6 +97,11 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
         }
     }
 
+    // Apply restrictions for pending buffer pallets (only Zmień Ilość and Blokada allowed)
+    const initialLoc = location || '';
+    const isPendingInit = String(initialLoc).trim().toUpperCase().startsWith('OCZEK') || String(initialLoc).trim().toUpperCase() === 'BUFOR_WORKOWANIE';
+    applyPendingPalletRestrictions(isPendingInit);
+
     // Pobierz pełne, aktualne dane palety bezpośrednio z bazy danych
     if (realId && type) {
         const curLinia = linia || (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
@@ -38,6 +118,10 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
                     currentPallet.amount = p.amount;
                     currentPallet.location = p.location;
                     currentPallet.productName = p.productName;
+                    if (p.is_blocked !== undefined) {
+                        currentPallet.is_blocked = p.is_blocked;
+                        updateBlockButtonDisplay(p.is_blocked);
+                    }
                     if (p.packaging_type) currentPallet.packaging_type = p.packaging_type;
                     if (p.raw_packaging_type) currentPallet.raw_packaging_type = p.raw_packaging_type;
 
@@ -50,6 +134,10 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
                     setEl('modalLocation', p.location);
                     setEl('modalProductName', p.productName);
 
+                    const finalLoc = p.location || currentPallet.location || '';
+                    const isPendingFinal = String(finalLoc).trim().toUpperCase().startsWith('OCZEK') || String(finalLoc).trim().toUpperCase() === 'BUFOR_WORKOWANIE';
+                    applyPendingPalletRestrictions(isPendingFinal);
+
                     if (pkgBadge && typeof formatPackagingBadge === 'function') {
                         pkgBadge.innerHTML = formatPackagingBadge(currentPallet.packaging_type);
                     }
@@ -59,20 +147,7 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
     }
 
     // Blocking status indicator in modal
-    const blockBtn = document.getElementById('toggleBlockBtn');
-    if (blockBtn) {
-        if (currentPallet.is_blocked) {
-            blockBtn.innerHTML = '<span class="material-icons">lock_open</span> ODBLOKUJ PALETĘ';
-            blockBtn.className = 'modal-btn-secondary';
-            blockBtn.style.background = '#10b981';
-            blockBtn.style.color = '#fff';
-        } else {
-            blockBtn.innerHTML = '<span class="material-icons">block</span> ZABLOKUJ PALETĘ';
-            blockBtn.className = 'modal-btn-secondary';
-            blockBtn.style.background = '#be123c';
-            blockBtn.style.color = '#fff';
-        }
-    }
+    updateBlockButtonDisplay(currentPallet.is_blocked);
     
     const returnBtn = document.getElementById('returnToRawBtn');
     if (returnBtn) {

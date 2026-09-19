@@ -96,6 +96,10 @@ class PalletMutationController:
     @staticmethod
     def rename_pallet():
         """Rename product on a pallet."""
+        user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+        if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+            return jsonify({'success': False, 'error': 'Brak uprawnień. Zmiana nazwy dostępna tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
         data = request.get_json() or {}
         pallet_id = data.get('id')
         pallet_type = data.get('type')
@@ -112,6 +116,10 @@ class PalletMutationController:
     @staticmethod
     def update_weight():
         """Update weight or count on a pallet."""
+        user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+        if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+            return jsonify({'success': False, 'error': 'Brak uprawnień. Zmiana ilości dostępna tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
         data = request.get_json() or {}
         pallet_id = data.get('id')
         pallet_type = data.get('type')
@@ -128,6 +136,10 @@ class PalletMutationController:
     @staticmethod
     def toggle_block():
         """Toggle pallet quality lock/block."""
+        user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+        if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+            return jsonify({'success': False, 'error': 'Brak uprawnień. Blokowanie/odblokowanie palet dostępne tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
         data = request.get_json() or {}
         pallet_id = data.get('id')
         pallet_type = data.get('type')

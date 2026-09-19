@@ -207,27 +207,101 @@ class PalletLabelController:
             typ_label = 'OPAKOWANIE'
             unit_str = 'szt.'
             qty_header = 'ILOSC:'
+            header_zpl = f"OPAKOWANIE"
         elif is_surowiec:
             typ_label = 'SUROWIEC'
             unit_str = 'kg'
             qty_header = 'WAGA NETTO:'
+            header_zpl = f"SUROWIEC"
         else:
             typ_label = 'WYRÓB GOTOWY'
             unit_str = 'kg'
             qty_header = 'WAGA NETTO:'
+            header_zpl = f"WYRÓB GOTOWY - {linia}"
 
-        qr_details = {
-            "sscc": nr_palety,
-            "prod": product_name,
-            "lp": str(nr_palety_lp or ''),
-            "partia": nr_partii,
-            "plomba": str(nr_plomby or ''),
-            "data_prod": data_produkcji,
-            "data_przyd": data_przydatnosci or '---',
-            "ilosc": f"{qty_display:.2f}",
-            "jm": unit_str,
-            "typ": f"{typ_label} - {linia}"
-        }
+        conn = get_db_connection()
+        qr_details = {}
+        try:
+            cursor = conn.cursor(dictionary=True)
+            if is_surowiec or is_pkg:
+                dostawa_id = None
+                dostawa_ref = None
+                dostawca = None
+                data_dostawy = None
+
+                cursor.execute("""
+                    SELECT id, order_ref, supplier, delivery_date, created_at, items 
+                    FROM magazyn_dostawy 
+                    WHERE items LIKE %s OR order_ref = %s
+                    ORDER BY id DESC LIMIT 1
+                """, (f"%{nr_palety}%", nr_partii))
+                d_row = cursor.fetchone()
+                if d_row:
+                    dostawa_id = str(d_row.get('id') or '')[:8]
+                    dostawa_ref = d_row.get('order_ref') or f"PZ #{dostawa_id}"
+                    dostawca = (d_row.get('supplier') or '').strip()
+                    d_date = d_row.get('delivery_date') or d_row.get('created_at')
+                    data_dostawy = d_date.strftime('%Y-%m-%d') if hasattr(d_date, 'strftime') else str(d_date)[:10] if d_date else ''
+
+                qr_details = {
+                    "typ": typ_label,
+                    "sscc": nr_palety,
+                    "dostawa": dostawa_ref or (f"PZ #{dostawa_id}" if dostawa_id else '---'),
+                    "dostawca": dostawca or '---',
+                    "partia": nr_partii,
+                    "data_dostawy": data_dostawy or data_produkcji,
+                    "prod": product_name,
+                    "ilosc": f"{qty_display:.2f}",
+                    "jm": unit_str
+                }
+            else:
+                table_pal = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+                plan_id_val = label_data.get('plan_id')
+                data_wytworzenia_str = ''
+                data_przyjecia_str = ''
+
+                cursor.execute(f"""
+                    SELECT pw.data_dodania, pw.data_potwierdzenia, mp.data_potwierdzenia as mp_potwierdzenie, 
+                           mp.created_at as mp_created, pw.plan_id, pw.nr_palety_lp
+                    FROM magazyn_palety mp
+                    LEFT JOIN {table_pal} pw ON mp.paleta_workowanie_id = pw.id
+                    WHERE mp.nr_palety = %s OR mp.id = %s OR pw.nr_palety = %s
+                    ORDER BY mp.id DESC LIMIT 1
+                """, (nr_palety, search_id, nr_palety))
+                ts_row = cursor.fetchone()
+
+                if ts_row:
+                    dt_prod = ts_row.get('data_dodania') or ts_row.get('mp_created')
+                    dt_recv = ts_row.get('data_potwierdzenia') or ts_row.get('mp_potwierdzenie') or ts_row.get('mp_created') or dt_prod
+                    if dt_prod:
+                        data_wytworzenia_str = dt_prod.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt_prod, 'strftime') else str(dt_prod)
+                    if dt_recv:
+                        data_przyjecia_str = dt_recv.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt_recv, 'strftime') else str(dt_recv)
+                    if not plan_id_val and ts_row.get('plan_id'):
+                        plan_id_val = ts_row.get('plan_id')
+                    if not nr_palety_lp and ts_row.get('nr_palety_lp'):
+                        nr_palety_lp = ts_row.get('nr_palety_lp')
+
+                if not data_wytworzenia_str:
+                    data_wytworzenia_str = f"{data_produkcji} 00:00:00"
+                if not data_przyjecia_str:
+                    data_przyjecia_str = data_wytworzenia_str
+
+                qr_details = {
+                    "typ": f"{typ_label} - {linia}",
+                    "sscc": nr_palety,
+                    "zlecenie": str(plan_id_val or '---'),
+                    "lp": str(nr_palety_lp or '---'),
+                    "prod": product_name,
+                    "wytworzono": data_wytworzenia_str,
+                    "przyjeto_magazyn": data_przyjecia_str,
+                    "partia": nr_partii,
+                    "ilosc": f"{qty_display:.2f}",
+                    "jm": unit_str
+                }
+        finally:
+            conn.close()
+
         qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
 
         partia_line = f"^FO40,900^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != '---' else ""
@@ -238,7 +312,7 @@ class PalletLabelController:
 ^CI28
 ^PW812^LL1214
 ^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FD{typ_label} - {linia}^FS
+^FO40,60^A0N,50,50^FD{header_zpl}^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
 ^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
@@ -262,8 +336,10 @@ class PalletLabelController:
             data_przydatnosci=data_przydatnosci,
             qty=qty_display,
             typ_label=typ_label,
+            is_surowiec=is_surowiec,
+            is_pkg=is_pkg,
             linia=linia,
-            qr_details_json=json.dumps(qr_details),
+            qr_details_json=json.dumps(qr_details, ensure_ascii=False),
             zpl_string=zpl_string,
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         )

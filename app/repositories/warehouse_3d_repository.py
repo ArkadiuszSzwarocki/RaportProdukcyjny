@@ -89,7 +89,7 @@ class Warehouse3dRepository:
                                'PSD' as linia
                         FROM magazyn_palety m
                         LEFT JOIN plan_produkcji plan ON m.plan_id = plan.id
-                        WHERE m.waga_netto > 0 AND m.lokalizacja IS NOT NULL AND m.lokalizacja <> ''
+                        WHERE m.waga_netto > 0 AND m.lokalizacja IS NOT NULL AND m.lokalizacja <> '' AND COALESCE(m.linia, 'PSD') = 'PSD'
                     """)
                     items.extend(cursor.fetchall() or [])
                 except Exception as e:

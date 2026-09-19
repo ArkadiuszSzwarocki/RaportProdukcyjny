@@ -73,15 +73,18 @@ def podglad_etykiety():
         typ_label = 'SUROWIEC'
         unit_str = 'kg'
 
+    is_surowiec = (typ_label == 'SUROWIEC')
+    header_zpl = f"WYRÓB GOTOWY - {linia}" if typ_label == 'WYRÓB GOTOWY' else typ_label
+
     qr_details = {
+        "typ": header_zpl,
         "sscc": nr_palety,
         "prod": product_name,
         "partia": nr_partii,
         "data_prod": data_produkcji,
         "data_przyd": data_przydatnosci,
         "ilosc": f"{qty:.2f}",
-        "jm": unit_str,
-        "typ": typ_label
+        "jm": unit_str
     }
     qr_details_json = json.dumps(qr_details, ensure_ascii=False)
     qr_details_safe = qr_details_json.replace('^', '').replace('~', '')
@@ -90,7 +93,7 @@ def podglad_etykiety():
 ^CI28
 ^PW812^LL1214
 ^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FD{typ_label} - {linia}^FS
+^FO40,60^A0N,50,50^FD{header_zpl}^FS
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
 ^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
@@ -111,6 +114,8 @@ def podglad_etykiety():
         data_przydatnosci=data_przydatnosci,
         qty=qty,
         typ_label=typ_label,
+        is_surowiec=is_surowiec,
+        is_pkg=is_pkg,
         linia=linia,
         qr_details_json=qr_details_json,
         zpl_string=zpl_string,

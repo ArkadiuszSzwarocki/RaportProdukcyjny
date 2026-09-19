@@ -80,6 +80,29 @@
             box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
         }
 
+        .toolbar-btn-close {
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-weight: 800;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .toolbar-btn-close:hover {
+            background: #dc2626;
+            color: #ffffff;
+            border-color: #ef4444;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+            transform: translateY(-1px);
+        }
+
         .toolbar-btn-print {
             border: none;
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -398,6 +421,9 @@
         <!-- TOP TOOLBAR -->
         <div class="toolbar">
             <div class="toolbar-group">
+                <button type="button" id="btnClosePreview" class="toolbar-btn-close" onclick="closePreview()" title="Zamknij podgląd i wróć (Esc)">
+                    <span class="material-icons" style="font-size: 16px;">arrow_back</span> ZAMKNIJ
+                </button>
                 <button type="button" id="btnZplMode" class="toggle-btn active" onclick="switchView('zpl')">
                     <span class="material-icons" style="font-size: 15px;">view_in_ar</span> ZPL 1:1
                 </button>
@@ -426,8 +452,10 @@
                 <div>
                     <div class="head">
                         <div class="head-row">
-                            <h1 class="label-title">{{ typ_label }} - MAGAZYN {{ linia }}</h1>
+                            <h1 class="label-title">{% if is_surowiec or typ_label == 'SUROWIEC' %}SUROWIEC{% elif is_pkg or typ_label == 'OPAKOWANIE' %}OPAKOWANIE{% else %}WYRÓB GOTOWY - MAGAZYN {{ linia }}{% endif %}</h1>
+                            {% if not is_surowiec and typ_label != 'SUROWIEC' and not is_pkg and typ_label != 'OPAKOWANIE' %}
                             <span class="badge-line">{{ linia }}</span>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -489,6 +517,22 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             renderZplViaLabelary();
+        });
+
+        function closePreview() {
+            if (window.opener && !window.opener.closed) {
+                window.close();
+            } else if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closePreview();
+            }
         });
 
         async function renderZplViaLabelary() {

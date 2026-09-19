@@ -63,7 +63,7 @@ class PalletPrintController:
             if not label_data:
                 row = None
                 if pallet_type == 'Wyrób Gotowy':
-                    table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
+                    table_mag = 'magazyn_palety'
                     cursor.execute(f"SELECT id, produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, data_przydatnosci, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s OR nr_palety = %s ORDER BY waga_netto > 0 DESC, id DESC LIMIT 1", (pallet_id, str(pallet_id)))
                     row = cursor.fetchone()
                 elif pallet_type == 'Surowiec':

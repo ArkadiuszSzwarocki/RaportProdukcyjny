@@ -241,7 +241,7 @@ async function promptRename() {
                 }
                 closePalletModal();
                 if (typeof filterTable === 'function') {
-                    filterTable();
+                    filterTable({ preserveScroll: true });
                 }
             } else {
                 AppDialog.alert("Błąd: " + (data.error || data.message));
@@ -272,6 +272,7 @@ async function promptUpdateWeight() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 id: targetId,
+                sscc: targetDisplayId,
                 type: targetType,
                 weight: parsedW,
                 linia: targetLinia
@@ -296,7 +297,7 @@ async function promptUpdateWeight() {
                     }
                     closePalletModal();
                     if (typeof filterTable === 'function') {
-                        filterTable();
+                        filterTable({ preserveScroll: true });
                     }
                 }
             } else {

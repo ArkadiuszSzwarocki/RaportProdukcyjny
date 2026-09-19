@@ -10,11 +10,8 @@ class TraceabilityService:
         try:
             # 1. Find the pallet across all tables
             query_pallet = """
-                SELECT id, nr_palety, plan_id, 'PSD' as linia, produkt, waga_netto, data_potwierdzenia, 'WYROB_GOTOWY' as type 
+                SELECT id, nr_palety, plan_id, COALESCE(linia, 'PSD') as linia, produkt, waga_netto, data_potwierdzenia, 'WYROB_GOTOWY' as type 
                 FROM magazyn_palety WHERE nr_palety = %s
-                UNION ALL
-                SELECT id, nr_palety, plan_id, 'AGRO' as linia, produkt, waga_netto, data_potwierdzenia, 'WYROB_GOTOWY' as type 
-                FROM magazyn_palety_agro WHERE nr_palety = %s
                 UNION ALL
                 SELECT id, nr_palety, plan_id, 'PSD' as linia, 'W trakcie workowania' as produkt, waga_brutto as waga_netto, data_dodania as data_potwierdzenia, 'W_WORKOWANIU' as type 
                 FROM palety_workowanie WHERE nr_palety = %s
@@ -34,7 +31,7 @@ class TraceabilityService:
                 SELECT id, nr_palety, NULL as plan_id, linia, nazwa as produkt, waga_ostatnia as waga_netto, data_archiwizacji as data_potwierdzenia, 'ARCHIWUM' as type 
                 FROM magazyn_archiwum WHERE nr_palety = %s
             """
-            cursor.execute(query_pallet, (nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety))
+            cursor.execute(query_pallet, (nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety, nr_palety))
             pallet = cursor.fetchone()
             
             if not pallet:
@@ -316,11 +313,11 @@ class TraceabilityService:
             all_plan_ids = [p['id'] for p in plans]
             if all_plan_ids:
                 format_strings = ','.join(['%s'] * len(all_plan_ids))
-                # PSD Palety
-                cursor.execute(f"SELECT id, nr_palety, plan_id, 'PSD' as linia, produkt, waga_netto, data_potwierdzenia FROM magazyn_palety WHERE plan_id IN ({format_strings})", tuple(all_plan_ids))
-                pallets.extend(cursor.fetchall())
-                # AGRO Palety
-                cursor.execute(f"SELECT id, nr_palety, plan_id, 'AGRO' as linia, produkt, waga_netto, data_potwierdzenia FROM magazyn_palety_agro WHERE plan_id IN ({format_strings})", tuple(all_plan_ids))
+                # Palety wyrobów gotowych (PSD i AGRO)
+                cursor.execute(
+                    f"SELECT id, nr_palety, plan_id, COALESCE(linia, 'PSD') as linia, produkt, waga_netto, data_potwierdzenia FROM magazyn_palety WHERE plan_id IN ({format_strings})",
+                    tuple(all_plan_ids)
+                )
                 pallets.extend(cursor.fetchall())
                 
             return {

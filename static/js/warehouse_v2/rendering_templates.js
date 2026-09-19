@@ -189,8 +189,9 @@ function generateTableRow(item, index) {
     const isBlockedCls = isBlocked ? 'is-blocked-row' : '';
     const rowStyle = `cursor: pointer; background: ${isBlocked ? '#fff1f2' : '#ffffff'} !important; border-left: 4px solid ${expiry.borderColor} !important;`;
 
+    const blockReasonText = isBlocked ? ((typeof getItemBlockReason === 'function' ? getItemBlockReason(item) : null) || 'Zablokowana') : '';
     const icon = isBlocked 
-        ? '<span class="material-icons" style="color: #dc2626; font-size: 16px;" title="Paleta zablokowana systemowo">block</span>' 
+        ? `<span class="material-icons" style="color: #dc2626; font-size: 16px;" title="Powód blokady: ${blockReasonText}">block</span>` 
         : (isFirstFifo 
             ? '<span class="material-icons" style="color: #ea580c; font-size: 16px;" title="Pierwsza partia do zużycia (FIFO)">bolt</span>'
             : '<span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>');
@@ -288,8 +289,9 @@ function generateGridCard(item) {
 
     const isBlockedCls = isBlocked ? 'is-blocked-card' : '';
     const cardFifoStyle = `border-left: 4px solid ${expiry.borderColor} !important; background: ${isBlocked ? '#fff1f2' : '#ffffff'} !important;`;
+    const blockReasonText = isBlocked ? ((typeof getItemBlockReason === 'function' ? getItemBlockReason(item) : null) || 'Zablokowana') : '';
     const icon = isBlocked 
-        ? '<span class="material-icons text-danger" style="font-size: 18px;" title="Paleta zablokowana">block</span>' 
+        ? `<span class="material-icons text-danger" style="font-size: 18px;" title="Powód blokady: ${blockReasonText}">block</span>` 
         : (isFirstFifo 
             ? '<span class="badge fifo-tag" style="background: #ea580c; color: white; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px;"><span class="material-icons" style="font-size: 10px;">bolt</span> FIFO</span>' 
             : '');
@@ -466,8 +468,17 @@ function isMatch(allText, locText, filter, locationFiltersArray) {
     const slotMatch = (filterText !== "" && matchesLocationSlots(locText, filterText));
 
     if (!(textMatch || slotMatch)) return false;
+
+    // Direct pallet / barcode / SSCC search bypasses rack-level filter so workers can always locate the pallet
+    const isDirectPalletSearch = filterText.length >= 4 && (
+        filterText.startsWith('PSD') || 
+        filterText.startsWith('AGR') || 
+        filterText.startsWith('PAL') ||
+        filterText.startsWith('SSCC') ||
+        /^\d{6,}$/.test(filterText)
+    );
     
-    if (Array.isArray(locationFiltersArray)) {
+    if (!isDirectPalletSearch && Array.isArray(locationFiltersArray)) {
         if (locationFiltersArray.length === 0) {
             return false;
         }

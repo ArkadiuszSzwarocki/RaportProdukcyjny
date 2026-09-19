@@ -5,97 +5,15 @@ from app.db import get_db_connection, get_table_name
 from app.services.warehouse_v2_service import WarehouseV2Service
 from .blueprint import warehouse_v2_bp
 
+from .controllers.pallet_query_controller import PalletQueryController
+
 @warehouse_v2_bp.route('/api/pallet/history', methods=['GET'])
 def get_history():
-    pallet_id = request.args.get('id')
-    pallet_type = request.args.get('type')
-    linia = request.args.get('linia', 'PSD')
-    
-    if not pallet_id or not pallet_type:
-        return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
-        
-    history = WarehouseV2Service.get_pallet_history(pallet_id, pallet_type, linia)
-    return jsonify({'success': True, 'history': history})
+    return PalletQueryController.get_history()
 
 @warehouse_v2_bp.route('/api/pallet/details', methods=['GET'])
 def get_pallet_details():
-    pallet_id = request.args.get('id')
-    pallet_type = request.args.get('type')
-    linia = request.args.get('linia', 'PSD')
-    
-    if not pallet_id or not pallet_type:
-        return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
-        
-    conn = get_db_connection()
-    try:
-        cur = conn.cursor(dictionary=True)
-        t_type = (pallet_type or '').strip()
-        if t_type == 'Surowiec':
-            t_name = get_table_name('magazyn_surowce', linia)
-            cur.execute(f"SELECT *, nazwa as productName, stan_magazynowy as amount, 'kg' as unit FROM {t_name} WHERE id = %s OR nr_palety = %s", (pallet_id, pallet_id))
-        elif t_type == 'Opakowanie':
-            t_name = get_table_name('magazyn_opakowania', linia)
-            cur.execute(f"SELECT *, nazwa as productName, stan_magazynowy as amount, 'szt' as unit FROM {t_name} WHERE id = %s OR nr_palety = %s", (pallet_id, pallet_id))
-        elif t_type == 'Dodatek':
-            t_name = 'magazyn_dodatki'
-            cur.execute(f"SELECT *, nazwa as productName, stan_magazynowy as amount, 'kg' as unit FROM {t_name} WHERE id = %s OR nr_palety = %s", (pallet_id, pallet_id))
-        else:
-            t_name = get_table_name('magazyn_palety', linia)
-            table_plan = get_table_name('plan_produkcji', linia)
-            cur.execute(f"""
-                SELECT m.*, 
-                       COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 
-                       m.waga_netto as amount, 
-                       'kg' as unit,
-                       COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii) as nr_partii,
-                       COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji, m.data_planu, plan.data_planu) as data_produkcji,
-                       COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
-                       COALESCE(m.created_at, m.data_potwierdzenia) as created_at
-                FROM {t_name} m
-                LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
-                WHERE m.id = %s OR m.nr_palety = %s
-            """, (pallet_id, pallet_id))
-            
-        row = cur.fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': 'Nie znaleziono palety'}), 404
-            
-        def fmt_d(val, fmt='%Y-%m-%d'):
-            if not val: return '-'
-            if hasattr(val, 'strftime'): return val.strftime(fmt)
-            return str(val)[:10]
-
-        from .views import compute_expiry_date, classify_packaging_type
-
-        pkg_formatted = classify_packaging_type(
-            row.get('productName') or row.get('nazwa') or row.get('produkt'),
-            t_type,
-            float(row.get('amount') or 0),
-            row.get('unit') or 'kg',
-            row.get('typ_opakowania') or ''
-        )
-
-        details = {
-            'id': row.get('id'),
-            'displayId': row.get('nr_palety') or f"PAL-{row.get('id')}",
-            'productName': row.get('productName') or row.get('nazwa') or row.get('produkt') or '-',
-            'amount': float(row.get('amount') or 0),
-            'unit': row.get('unit') or 'kg',
-            'location': row.get('lokalizacja') or row.get('location') or '-',
-            'batch': row.get('nr_partii') or '-',
-            'date_prod': fmt_d(row.get('data_produkcji')),
-            'date_exp': compute_expiry_date(row.get('data_przydatnosci'), row.get('data_produkcji')),
-            'date_added': fmt_d(row.get('created_at'), '%Y-%m-%d %H:%M'),
-            'type': t_type,
-            'is_blocked': row.get('is_blocked', 0),
-            'packaging_type': pkg_formatted,
-            'raw_packaging_type': row.get('typ_opakowania') or ''
-        }
-        return jsonify({'success': True, 'pallet': details})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        conn.close()
+    return PalletQueryController.get_pallet_details()
 
 @warehouse_v2_bp.route('/api/pallet/update-packaging', methods=['POST'])
 def update_packaging():
@@ -164,6 +82,10 @@ def dispatch_pallet():
 
 @warehouse_v2_bp.route('/api/pallet/rename', methods=['POST'])
 def rename_pallet():
+    user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+    if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+        return jsonify({'success': False, 'error': 'Brak uprawnień. Zmiana nazwy dostępna tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
     data = request.get_json()
     pallet_id = data.get('id')
     pallet_type = data.get('type')
@@ -179,31 +101,42 @@ def rename_pallet():
 
 @warehouse_v2_bp.route('/api/pallet/update-weight', methods=['POST'])
 def update_weight():
-    data = request.get_json()
+    user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+    if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+        return jsonify({'success': False, 'error': 'Brak uprawnień. Zmiana ilości dostępna tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
+    data = request.get_json() or {}
     pallet_id = data.get('id')
     pallet_type = data.get('type')
     new_weight = data.get('weight')
     linia = data.get('linia', 'PSD')
+    sscc = data.get('sscc')
     worker = session.get('login', 'nieznany')
     
     if not all([pallet_id, pallet_type, new_weight is not None]):
         return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
         
-    success, msg = WarehouseV2Service.update_weight(pallet_id, pallet_type, new_weight, worker, linia)
+    success, msg = WarehouseV2Service.update_weight(pallet_id, pallet_type, new_weight, worker, linia, sscc=sscc)
     return jsonify({'success': success, 'message': msg})
 
 @warehouse_v2_bp.route('/api/pallet/toggle-block', methods=['POST'])
 def toggle_block():
-    data = request.get_json()
+    user_role = str(session.get('rola') or session.get('role') or '').lower().replace(' ', '').replace('_', '').strip()
+    if user_role not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
+        return jsonify({'success': False, 'error': 'Brak uprawnień. Blokowanie/odblokowanie palet dostępne tylko dla MasterAdmin, Admin i Zarząd.'}), 403
+
+    data = request.get_json() or {}
     pallet_id = data.get('id')
     pallet_type = data.get('type')
     linia = data.get('linia', 'PSD')
+    sscc = data.get('sscc')
+    reason = data.get('reason')
     worker = session.get('login', 'nieznany')
     
     if not all([pallet_id, pallet_type]):
         return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
         
-    success, msg = WarehouseV2Service.toggle_block(pallet_id, pallet_type, worker, linia)
+    success, msg = WarehouseV2Service.toggle_block(pallet_id, pallet_type, worker, linia, sscc=sscc, reason=reason)
     return jsonify({'success': success, 'message': msg})
 
 @warehouse_v2_bp.route('/api/pallet/return-to-raw', methods=['POST'])
@@ -581,35 +514,57 @@ def delete_pallet():
             col_amount = 'waga_netto'
             col_name = 'produkt'
 
-        cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+        target_sscc = data.get('sscc')
+        cursor.execute(f"SELECT * FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
         row = cursor.fetchone()
+
+        if not row and pallet_type in ('Wyrób Gotowy', 'wyrob_gotowy', 'Paleta'):
+            buf_tbl = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+            cursor.execute(f"SELECT * FROM {buf_tbl} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
+            row = cursor.fetchone()
+            if not row:
+                alt_buf = 'palety_agro' if buf_tbl == 'palety_workowanie' else 'palety_workowanie'
+                cursor.execute(f"SELECT * FROM {alt_buf} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
+                row = cursor.fetchone()
+                if row:
+                    buf_tbl = alt_buf
+                    linia = 'AGRO' if alt_buf == 'palety_agro' else 'PSD'
+            if row:
+                table = buf_tbl
+                col_name = 'produkt'
+                col_amount = 'waga'
+
         if not row:
             return jsonify({'success': False, 'error': f'Paleta ID {pallet_id} nie istnieje w tabeli {table}'}), 404
+
+        real_id = row['id']
+        p_sscc = row.get('nr_palety') or target_sscc or str(pallet_id)
+        loc_val = row.get('lokalizacja') or 'OCZEKUJĄCE'
 
         # Archive before delete
         try:
             cursor.execute("""
                 INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (row['id'], row.get('nr_palety'), row.get(col_name), pallet_type, linia,
-                  row.get(col_amount, 0), row.get('lokalizacja'), session.get('login', 'admin'),
+            """, (real_id, p_sscc, row.get(col_name), pallet_type, linia,
+                  row.get(col_amount, 0), loc_val, session.get('login', 'admin'),
                   'USUNIĘTO: duplikat/paleta testowa'))
         except Exception as ae:
             print(f"Archive warning (non-fatal): {ae}")
 
-        cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
+        cursor.execute(f"DELETE FROM {table} WHERE id = %s", (real_id,))
         
         # Log to palety_historia - trwałe usunięcie
         try:
             cursor.execute(
-                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
-                (pallet_id, linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", session.get('login', 'admin'))
+                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
+                (real_id, p_sscc, linia, pallet_type.lower(), loc_val, f"Trwałe usunięcie palety: {p_sscc}, powód: duplikat/testowa", session.get('login', 'admin'))
             )
         except Exception as hist_err:
             print(f"History log warning: {hist_err}")
         
         conn.commit()
-        return jsonify({'success': True, 'message': f'Paleta {row.get("nr_palety", pallet_id)} usunięta trwale.'})
+        return jsonify({'success': True, 'message': f'Paleta {p_sscc} usunięta trwale.'})
     except Exception as e:
         conn.rollback()
         print(f"Error deleting pallet: {e}")

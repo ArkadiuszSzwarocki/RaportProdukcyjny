@@ -41,7 +41,6 @@
                 user-select: none !important;
                 -webkit-user-select: none !important;
                 transition: color 0.15s, background-color 0.15s !important;
-                display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
                 width: 26px !important;
@@ -52,6 +51,10 @@
                 color: #94a3b8 !important;
                 font-size: 20px !important;
                 z-index: 15 !important;
+                display: inline-flex;
+            }
+            .kb-input-wrapper .kb-clear-icon {
+                display: none;
             }
             .kb-input-wrapper .kb-clear-icon,
             .kb-input-wrapper #btnResetScannerInput,
@@ -75,6 +78,14 @@
             .kb-input-wrapper .input-clear-btn:hover {
                 color: #ef4444 !important;
                 background-color: rgba(239, 68, 68, 0.12) !important;
+            }
+            .kb-input-wrapper input::-webkit-calendar-picker-indicator {
+                opacity: 0.4;
+                cursor: pointer;
+                margin-right: 22px;
+            }
+            .kb-input-wrapper input::-webkit-search-cancel-button {
+                display: none;
             }
         `;
         document.head.appendChild(style);
@@ -127,12 +138,13 @@
             return false;
         }
 
-        // Exclude system search dropdowns, dosypka weight inputs or inputs marked no-kb-icon
+        // Exclude system search dropdowns, inputs with datalist, dosypka weight inputs or inputs marked no-kb-icon
         if (input.classList.contains('select2-search__field') || 
             input.classList.contains('dt-input') ||
             input.classList.contains('dosypka-actual-kg') ||
             input.classList.contains('no-kb-icon') ||
-            input.classList.contains('no-kb-block')) {
+            input.classList.contains('no-kb-block') ||
+            input.hasAttribute('list')) {
             return false;
         }
 
@@ -145,20 +157,11 @@
         '#searchClearBtn',
         '.zaladunki-clear-btn',
         '.btn-clear-scan',
-        '.btn-clear',
         '.btn-clear-input',
-        '.clear-btn',
         '.input-clear-btn',
         '.search-clear-btn',
-        '[data-action="clear"]',
-        'button[title*="Wyczyść"]',
-        'span[title*="Wyczyść"]',
-        'button[title*="wyczyść"]',
-        'span[title*="wyczyść"]',
-        'button[title*="Usuń"]',
-        'span[title*="Usuń"]',
-        'button[title*="zresetuj"]',
-        'span[title*="zresetuj"]'
+        '.kb-clear-icon',
+        '[data-action="clear-input"]'
     ].join(', ');
 
     function attachKeyboardController(input) {
@@ -188,11 +191,9 @@
         if (!parent) return;
 
         const parentStyle = window.getComputedStyle(parent);
-        const isParentPositioned = parentStyle.position === 'relative' || parentStyle.position === 'absolute';
-        const existingClearInParent = parent.querySelector(CLEAR_SELECTORS);
 
         let wrapper = parent;
-        const needsWrapper = !parent.classList.contains('kb-input-wrapper') && (!isParentPositioned || parentStyle.position === 'static');
+        const needsWrapper = !parent.classList.contains('kb-input-wrapper');
 
         if (needsWrapper) {
             wrapper = document.createElement('div');
@@ -200,23 +201,20 @@
             wrapper.style.position = 'relative';
             wrapper.style.display = 'inline-flex';
             wrapper.style.alignItems = 'center';
-            wrapper.style.width = input.style.width || (parentStyle.display === 'flex' ? '100%' : (input.classList.contains('w-full') ? '100%' : 'auto'));
+            wrapper.style.width = input.style.width || (parentStyle.display === 'flex' ? '100%' : (input.classList.contains('w-full') ? '100%' : '100%'));
             if (input.classList.contains('form-control') || input.style.width === '100%') {
                 wrapper.style.width = '100%';
             }
 
             parent.insertBefore(wrapper, input);
             wrapper.appendChild(input);
-            if (existingClearInParent) {
-                wrapper.appendChild(existingClearInParent);
-            }
         } else {
             wrapper.classList.add('kb-input-wrapper');
             wrapper.style.position = 'relative';
         }
 
-        let clearBtn = wrapper.querySelector(CLEAR_SELECTORS) || (needsWrapper ? null : parent.querySelector(CLEAR_SELECTORS));
-        const maxQtyLabel = wrapper.querySelector('#scannerReturnMaxQty') || (needsWrapper ? null : parent.querySelector('#scannerReturnMaxQty'));
+        let clearBtn = wrapper.querySelector(CLEAR_SELECTORS);
+        const maxQtyLabel = wrapper.querySelector('#scannerReturnMaxQty');
         const iconRight = maxQtyLabel ? '60px' : '8px';
 
         input.style.setProperty('padding-right', maxQtyLabel ? '90px' : '38px', 'important');

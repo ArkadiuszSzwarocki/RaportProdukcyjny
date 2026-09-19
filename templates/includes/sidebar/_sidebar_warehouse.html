@@ -101,6 +101,14 @@
                 </span>
             </span>
         </a>
+        <a href="{{ url_for('warehouse_v2.kompletacja', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}" style="color: #38bdf8; font-weight: 700;">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">📦 Dyspozycje Kompletacji</span>
+                <span id="sidebarPickingBadge" class="nav-pending-badge" aria-label="Aktywne kompletacje" style="background:#0284c7; {% if not pending_picking_count or pending_picking_count == 0 %}display: none;{% endif %}">
+                    {{ pending_picking_count if pending_picking_count else 0 }}
+                </span>
+            </span>
+        </a>
         <a href="{{ url_for('warehouse_v2.zaladunki_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zaladunki_view' %}active{% endif %}">
             <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
         </a>

@@ -12,8 +12,10 @@ let scanBuffer = '';
 let scanTimeout = null;
 
 let selectedLocations = null; // Store selected locations (null = not initialized yet)
+let selectedBlockedReasons = []; // Store selected block reasons (empty = show all or rely on filterOnlyBlocked)
 let currentSortCol = null; // Column index for sorting
 let currentSortDir = 'asc'; // 'asc' or 'desc'
+let filterOnlyBlocked = false; // Filter strictly blocked / expired pallets
 
 let currentFilteredItems = [];
 let currentRenderedCount = 0;

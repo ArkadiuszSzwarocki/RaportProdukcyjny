@@ -161,6 +161,12 @@ class PalletRelocationService:
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
+
+            if pallet_type == 'Surowiec':
+                from app.utils.surowiec_validator import is_valid_surowiec
+                s_name = row.get('nazwa')
+                if not is_valid_surowiec(s_name):
+                    return False, f"BŁĄD: Surowiec '{s_name}' nie istnieje w słowniku surowców. Przesunięcie zablokowane.", None
             
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
             in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)

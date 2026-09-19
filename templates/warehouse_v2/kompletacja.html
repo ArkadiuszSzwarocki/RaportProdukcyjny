@@ -1,0 +1,198 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="picking-page" style="max-width: 1100px; margin: 0 auto; padding: 20px 16px;">
+
+    <!-- TOP HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);">
+                <span class="material-icons" style="font-size: 28px;">assignment</span>
+            </div>
+            <div>
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.4px;">
+                    Dyspozycje Kompletacji Magazynowej (FIFO)
+                </h1>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #64748b;">
+                    Pobieranie i odstawianie palet surowcowych na strefę MP01 wg ścisłej kolejki FIFO
+                </p>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" onclick="loadActivePickingOrders()" style="background: #f1f5f9; color: #334155; border: 1.5px solid #cbd5e1; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;" onmouseover="this.style.background='#e2e8f0';" onmouseout="this.style.background='#f1f5f9';">
+                <span class="material-icons" style="font-size: 20px;">refresh</span> Odśwież listę
+            </button>
+        </div>
+    </div>
+
+    <!-- ACTIVE ORDERS CONTAINER -->
+    <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 14px;">
+            <h2 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #0284c7; font-size: 22px;">pending_actions</span>
+                Aktywne zlecenia kompletacji
+            </h2>
+            <span id="active-picking-count" style="background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 20px;">
+                0 aktywnych
+            </span>
+        </div>
+
+        <div id="picking-orders-list" style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="text-align: center; padding: 40px; color: #94a3b8; font-size: 14px;">
+                <span class="material-icons" style="font-size: 40px; color: #cbd5e1; display: block; margin-bottom: 8px;">hourglass_empty</span>
+                Ładowanie aktywnych dyspozycji...
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let _pickingAutoRefreshTimer = null;
+const CAN_DELETE_PICKING = {{ 'true' if (role in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd'] or session.get('login') in ['masteradmin', 'admin']) else 'false' }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadActivePickingOrders();
+
+    // Auto-refresh w tle co 3 sekundy
+    _pickingAutoRefreshTimer = setInterval(loadActivePickingOrders, 3000);
+
+    window.addEventListener('focus', loadActivePickingOrders);
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') loadActivePickingOrders();
+    });
+    window.addEventListener('ordersChanged', loadActivePickingOrders);
+
+    var initRef = "{{ initial_order_ref or '' }}";
+    if (initRef && typeof PickingViewModule !== 'undefined') {
+        setTimeout(function() {
+            PickingViewModule.openPickingModal(initRef);
+        }, 300);
+    }
+});
+
+window.addEventListener('beforeunload', function() {
+    if (_pickingAutoRefreshTimer) clearInterval(_pickingAutoRefreshTimer);
+});
+
+function deletePickingOrder(orderRef, btnElement) {
+    if (!confirm('Czy na pewno chcesz TRWALE USUNĄĆ całą dyspozycję kompletacji ' + orderRef + '?\nOperacji nie można cofnąć.')) {
+        return;
+    }
+
+    if (btnElement) btnElement.disabled = true;
+
+    fetch('/warehouse-v2/api/orders/picking/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ref: orderRef })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data && data.success) {
+            if (typeof showToast === 'function') {
+                showToast(data.message || 'Dyspozycja usunięta.', 'success');
+            } else {
+                alert(data.message || 'Dyspozycja usunięta.');
+            }
+            loadActivePickingOrders();
+            window.dispatchEvent(new CustomEvent('ordersChanged'));
+            if (typeof window.refreshSidebarBadges === 'function') {
+                window.refreshSidebarBadges();
+            }
+        } else {
+            alert(data ? data.message : 'Błąd usuwania dyspozycji.');
+            if (btnElement) btnElement.disabled = false;
+        }
+    })
+    .catch(function(err) {
+        console.error('Błąd usuwania dyspozycji:', err);
+        alert('Błąd połączenia z serwerem.');
+        if (btnElement) btnElement.disabled = false;
+    });
+}
+
+function loadActivePickingOrders() {
+    var container = document.getElementById('picking-orders-list');
+    var badge = document.getElementById('active-picking-count');
+    if (!container) return;
+
+    fetch('/warehouse-v2/api/orders/picking/active')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            var orders = (data && data.success) ? (data.data || data.orders || []) : [];
+            if (badge) badge.textContent = orders.length + ' aktywnych';
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 48px 20px; color: #64748b;">
+                        <span class="material-icons" style="font-size: 48px; color: #94a3b8; display: block; margin-bottom: 12px;">task_alt</span>
+                        <div style="font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">Wszystkie dyspozycje są zrealizowane</div>
+                        <p style="font-size: 13px; color: #64748b; margin: 0;">Nowe dyspozycje pojawią się po kliknięciu „Utwórz Dyspozycję Kompletacji” w kalkulatorze zamówień.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            var html = '';
+            orders.forEach(function(o) {
+                var total = o.total_items || 0;
+                var completed = o.completed_items || 0;
+                var pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                var createdStr = o.created_at || '—';
+
+                var deleteBtnHtml = '';
+                if (CAN_DELETE_PICKING) {
+                    deleteBtnHtml = `
+                        <button type="button" onclick="deletePickingOrder('${o.order_ref}', this)" style="background: #fee2e2; color: #ef4444; border: 1.5px solid #fca5a5; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#ef4444'; this.style.color='#ffffff';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';" title="Trwale usuń dyspozycję">
+                            <span class="material-icons" style="font-size: 18px;">delete</span>
+                            Usuń
+                        </button>
+                    `;
+                }
+
+                html += `
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; transition: all 0.2s;" onmouseover="this.style.borderColor='#94a3b8';" onmouseout="this.style.borderColor='#e2e8f0';">
+                        <div style="flex: 1; min-width: 260px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <span style="font-family: monospace; font-size: 16px; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 4px 10px; border-radius: 6px;">
+                                    ${o.order_ref}
+                                </span>
+                                <span style="font-size: 13px; font-weight: 600; color: #475569;">
+                                    👤 ${o.operator_login || 'Operator'}
+                                </span>
+                                <span style="font-size: 12px; color: #94a3b8;">
+                                    🕒 ${createdStr}
+                                </span>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px;">
+                                <div style="flex: 1; max-width: 320px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                    <div style="width: ${pct}%; height: 100%; background: ${pct === 100 ? '#10b981' : 'linear-gradient(90deg, #f59e0b, #0284c7)'}; border-radius: 4px; transition: width 0.4s ease;"></div>
+                                </div>
+                                <span style="font-size: 13px; font-weight: 700; color: #334155;">
+                                    ${completed} / ${total} palet (${pct}%)
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button type="button" onclick="PickingViewModule.openPickingModal('${o.order_ref}')" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; padding: 12px 22px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';" onmouseout="this.style.transform='none';">
+                                <span class="material-icons" style="font-size: 20px;">qr_code_scanner</span>
+                                Skanuj & Kompletuj
+                            </button>
+                            ${deleteBtnHtml}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        })
+        .catch(function(err) {
+            console.error('Błąd ładowania zleceń kompletacji:', err);
+        });
+}
+</script>
+{% endblock %}

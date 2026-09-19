@@ -13,6 +13,8 @@ class PalletQueryController:
         pallet_type = request.args.get('type')
         linia = request.args.get('linia', 'PSD')
         sscc = request.args.get('sscc')
+        if not sscc and pallet_id and any(str(pallet_id).startswith(prefix) for prefix in ('PSD', 'AGR', 'PAL', 'SUR', 'OPK', 'DOD')):
+            sscc = str(pallet_id)
         
         if not pallet_id and not sscc:
             return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
@@ -88,6 +90,50 @@ class PalletQueryController:
                 row = cur.fetchone()
                 if row:
                     linia = alt_linia
+
+            # Fallback for pending finished goods in production buffer
+            if not row and t_type in ('Wyrob', 'Wyroby', 'Paleta', 'Wyrób Gotowy'):
+                buf_tbl = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                plan_tbl = 'plan_produkcji' if str(linia).upper() == 'PSD' else 'plan_produkcji_agro'
+                cur.execute(f"""
+                    SELECT pw.id, pw.nr_palety,
+                           COALESCE(NULLIF(TRIM(plan.produkt), ''), 'Wyrób gotowy') as productName,
+                           COALESCE(NULLIF(pw.waga_potwierdzona, 0), pw.waga, 0) as amount,
+                           'kg' as unit,
+                           COALESCE(plan.nr_partii, '') as nr_partii,
+                           pw.data_dodania as data_produkcji,
+                           plan.termin_przydatnosci as data_przydatnosci,
+                           pw.data_dodania as created_at,
+                           COALESCE(pw.is_blocked, 0) as is_blocked,
+                           'OCZEKUJĄCE' as lokalizacja,
+                           COALESCE(plan.typ_opakowania, 'Karton') as typ_opakowania
+                    FROM {buf_tbl} pw
+                    LEFT JOIN {plan_tbl} plan ON pw.plan_id = plan.id
+                    WHERE pw.id = %s OR pw.nr_palety = %s
+                """, (pallet_id, str(pallet_id)))
+                row = cur.fetchone()
+                if not row:
+                    alt_buf = 'palety_agro' if buf_tbl == 'palety_workowanie' else 'palety_workowanie'
+                    alt_plan = 'plan_produkcji_agro' if alt_buf == 'palety_agro' else 'plan_produkcji'
+                    cur.execute(f"""
+                        SELECT pw.id, pw.nr_palety,
+                               COALESCE(NULLIF(TRIM(plan.produkt), ''), 'Wyrób gotowy') as productName,
+                               COALESCE(NULLIF(pw.waga_potwierdzona, 0), pw.waga, 0) as amount,
+                               'kg' as unit,
+                               COALESCE(plan.nr_partii, '') as nr_partii,
+                               pw.data_dodania as data_produkcji,
+                               plan.termin_przydatnosci as data_przydatnosci,
+                               pw.data_dodania as created_at,
+                               COALESCE(pw.is_blocked, 0) as is_blocked,
+                               'OCZEKUJĄCE' as lokalizacja,
+                               COALESCE(plan.typ_opakowania, 'Karton') as typ_opakowania
+                        FROM {alt_buf} pw
+                        LEFT JOIN {alt_plan} plan ON pw.plan_id = plan.id
+                        WHERE pw.id = %s OR pw.nr_palety = %s
+                    """, (pallet_id, str(pallet_id)))
+                    row = cur.fetchone()
+                    if row:
+                        linia = 'AGRO' if alt_buf == 'palety_agro' else 'PSD'
 
             if not row:
                 return jsonify({'success': False, 'error': 'Nie znaleziono palety'}), 404

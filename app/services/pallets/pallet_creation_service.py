@@ -292,6 +292,27 @@ class PalletCreationService:
                     cursor.execute(f"UPDATE {table_plan} SET produkt = %s WHERE id = %s", (nazwa_do_historii, plan_id))
                     plan_produkt = nazwa_do_historii
 
+                # Automatic acceptance of finished goods into warehouse inventory
+                default_loc = 'MGW01' if str(linia).upper() == 'PSD' else 'MGW02'
+                
+                if not is_original_czyszczenie:
+                    cursor.execute(
+                        f"UPDATE {table_pal} SET status='przyjeta', waga_potwierdzona=%s, data_potwierdzenia=%s WHERE id=%s",
+                        (waga_input, now_ts, paleta_id)
+                    )
+                    
+                    cursor.execute("""
+                        INSERT INTO magazyn_palety (
+                            paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, 
+                            waga_brutto, tara, user_login, nr_partii, data_produkcji, 
+                            data_przydatnosci, lokalizacja, nr_palety, nr_plomby, linia, nr_palety_lp, data_potwierdzenia
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 25, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        paleta_id, plan_id, _plan_data, nazwa_do_historii, waga_input,
+                        waga_input + 25, user_login, None, selected_data_produkcji,
+                        None, default_loc, nr_palety, nr_plomby, linia, nr_palety_lp, now_ts
+                    ))
+
                 # Record in unified warehouse movement ledger (PW movement)
                 WarehouseMovementLedgerRepository.record_movement(
                     movement_type='PW',
@@ -299,23 +320,30 @@ class PalletCreationService:
                     pallet_code=nr_palety,
                     product_name=nazwa_do_historii,
                     source_location=f"PRODUKCJA_{linia}",
-                    target_location="BUFOR_WORKOWANIE",
+                    target_location=default_loc if not is_original_czyszczenie else "BUFOR_WORKOWANIE",
                     quantity=waga_input,
                     unit='kg',
                     user_login=user_login,
                     reference_id=str(plan_id),
-                    notes=f"Utworzono paletę wyrobu gotowego ze zlecenia #{plan_id}",
+                    notes=f"Utworzono i przyjęto paletę wyrobu gotowego ze zlecenia #{plan_id}",
                     external_conn=conn
                 )
 
-                hist_comment = f"Utworzono paletę: {nazwa_do_historii}, waga: {waga_input} kg"
+                hist_comment = f"Utworzono i przyjęto na {default_loc}: {nazwa_do_historii}, waga: {waga_input} kg"
                 if is_original_czyszczenie and nr_palety_czyszczenie:
                     hist_comment += f" (Paleta matka: {nr_palety_czyszczenie})"
                 order_loc = f"Zlecenie #{plan_id}: {nazwa_do_historii}"
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s, %s)",
-                    (paleta_id, nr_palety, linia, order_loc, hist_comment, user_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s, %s)",
+                    (paleta_id, nr_palety, linia, order_loc, default_loc if not is_original_czyszczenie else 'BUFOR', hist_comment, user_login)
                 )
+
+                if not is_original_czyszczenie:
+                    try:
+                        from app.services.pallets.pallet_confirmation_service import PalletConfirmationService
+                        PalletConfirmationService._trigger_closing_report_print(cursor, plan_id, table_plan, table_pal)
+                    except Exception as print_chk_err:
+                        current_app.logger.warning('Failed to check closing report auto-print: %s', print_chk_err)
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
 
