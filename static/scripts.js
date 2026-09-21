@@ -3534,6 +3534,10 @@ window.savePrinterSelection = function() {
         }
     }
     
+    if (typeof window.initTopbarPrinterSelect === 'function') {
+        window.initTopbarPrinterSelect();
+    }
+    
     document.getElementById('printer-settings-modal').style.display = 'none';
 };
 
@@ -3622,7 +3626,123 @@ window.saveOperatorPrinterSettings = function() {
         }
     }
     
+    if (typeof window.initTopbarPrinterSelect === 'function') {
+        window.initTopbarPrinterSelect();
+    }
+    
     if(window.createQuickPopup && window.createQuickPopup._lastInst) {
         window.createQuickPopup._lastInst.close();
     }
 };
+
+window.handleTopbarPrinterChange = function(select) {
+    if (!select) return;
+    const selected = select.options[select.selectedIndex];
+    if (selected && selected.value) {
+        const ip = selected.dataset.ip || (selected.value.startsWith('net:') ? selected.value.replace('net:', '') : '');
+        const name = selected.dataset.name || selected.textContent || '';
+        localStorage.setItem('agromes_preferred_zpl_printer', selected.value);
+        localStorage.setItem('agromes_preferred_zpl_printer_ip', ip);
+        localStorage.setItem('agromes_preferred_zpl_printer_name', name);
+        if (typeof showToast === 'function') {
+            showToast('Przypisano drukarkę: ' + name + (ip ? ' (' + ip + ')' : ''), 'success');
+        }
+    } else {
+        localStorage.removeItem('agromes_preferred_zpl_printer');
+        localStorage.removeItem('agromes_preferred_zpl_printer_ip');
+        localStorage.removeItem('agromes_preferred_zpl_printer_name');
+        if (typeof showToast === 'function') {
+            showToast('Drukarka ZPL: Tryb domyślny (automatyczny)', 'info');
+        }
+    }
+    const form = document.getElementById('addPaletaForm');
+    if (form && typeof window.workowaniePopulatePrinter === 'function') {
+        window.workowaniePopulatePrinter(form);
+    }
+};
+
+window.initTopbarPrinterSelect = function() {
+    const topSelect = document.getElementById('topbarZplPrinterSelect');
+    if (!topSelect) return;
+
+    const pref = window.getPreferredZplPrinter ? window.getPreferredZplPrinter() : { value: '', ip: '', name: '' };
+
+    function populateOptions(printers) {
+        topSelect.innerHTML = '<option value="">-- Domyślna (Automat) --</option>';
+        let matched = false;
+        printers.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.selection_value || ('net:' + p.ip);
+            opt.textContent = (p.nazwa || 'Drukarka') + (p.ip ? ' (' + p.ip + ')' : '');
+            opt.dataset.ip = p.ip || '';
+            opt.dataset.name = p.nazwa || '';
+
+            const isMatch = (pref.value && pref.value === opt.value) ||
+                            (pref.ip && pref.ip === p.ip) ||
+                            (pref.name && pref.name === p.nazwa);
+            if (isMatch) {
+                opt.selected = true;
+                matched = true;
+            }
+            topSelect.appendChild(opt);
+        });
+
+        if (!matched && (pref.value || pref.ip)) {
+            const customOpt = document.createElement('option');
+            customOpt.value = pref.value || ('net:' + pref.ip);
+            customOpt.textContent = (pref.name || 'Zapisana') + (pref.ip ? ' (' + pref.ip + ')' : '');
+            customOpt.dataset.ip = pref.ip || '';
+            customOpt.dataset.name = pref.name || '';
+            customOpt.selected = true;
+            topSelect.appendChild(customOpt);
+        }
+    }
+
+    fetch('/magazyn-dostawy/api/active-printers')
+        .then(r => r.json())
+        .then(data => {
+            let list = [];
+            if (data && data.success && Array.isArray(data.printers)) {
+                list = data.printers;
+            }
+            if (list.length === 0) {
+                return fetch('/api/printers').then(r => r.json()).then(d2 => {
+                    if (d2 && d2.success && Array.isArray(d2.printers)) {
+                        list = d2.printers.map(p => ({
+                            selection_value: 'db:' + p.id,
+                            nazwa: p.nazwa,
+                            ip: p.ip
+                        }));
+                    }
+                    populateOptions(list);
+                });
+            } else {
+                populateOptions(list);
+            }
+        })
+        .catch(() => {
+            fetch('/api/printers')
+                .then(r => r.json())
+                .then(d2 => {
+                    if (d2 && d2.success && Array.isArray(d2.printers)) {
+                        populateOptions(d2.printers.map(p => ({
+                            selection_value: 'db:' + p.id,
+                            nazwa: p.nazwa,
+                            ip: p.ip
+                        })));
+                    } else {
+                        topSelect.innerHTML = '<option value="">(Brak drukarek)</option>';
+                    }
+                })
+                .catch(() => {
+                    topSelect.innerHTML = '<option value="">-- Domyślna (Automat) --</option>';
+                });
+        });
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.initTopbarPrinterSelect);
+} else {
+    window.initTopbarPrinterSelect();
+}
+

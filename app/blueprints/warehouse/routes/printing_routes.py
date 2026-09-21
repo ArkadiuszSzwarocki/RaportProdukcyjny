@@ -117,6 +117,7 @@ def register_printing_routes(warehouse_bp, *, resolve_request_linia, resolve_pay
             cursor.execute("SELECT id, nazwa, ip FROM drukarki WHERE aktywna = 1 ORDER BY nazwa")
             printers = cursor.fetchall()
             conn.close()
+            return jsonify({'success': True, 'printers': printers})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)})
 

@@ -43,9 +43,12 @@
                     {% include 'components/_date_picker.html' %}
                 {% endwith %}
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
-                <button type="button" onclick="if(typeof openPrinterSettingsModal === 'function') { openPrinterSettingsModal(); } else { alert('Opcja wyboru drukarki jest niedostępna na tym widoku.'); }" style="background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; outline: none; margin-left: 2px;" title="Ustawienia Drukarki ZPL">
-                    <span class="material-icons" style="font-size: 20px; color: #94a3b8; transition: color 0.2s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">print</span>
-                </button>
+                <div class="topbar-printer-container" style="display: inline-flex; align-items: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 3px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-left: 4px; height: 38px; box-sizing: border-box;" title="Drukarka ZPL przypisana do tego stanowiska">
+                    <span class="material-icons" style="font-size: 19px; color: #2563eb; margin-right: 6px; flex-shrink: 0;">print</span>
+                    <select id="topbarZplPrinterSelect" onchange="if(typeof handleTopbarPrinterChange === 'function') handleTopbarPrinterChange(this)" style="border: none; outline: none; background: transparent; font-size: 0.85rem; font-weight: 700; color: #1e293b; cursor: pointer; max-width: 230px; text-overflow: ellipsis; padding: 2px 0;">
+                        <option value="">Wczytywanie...</option>
+                    </select>
+                </div>
             </div>
 
             {% if (sekcja|string|lower == 'workowanie' and linia|string|upper == 'PSD') or (request.args.get('sekcja', '')|lower == 'workowanie' and request.args.get('linia', '')|upper == 'PSD') %}
