@@ -20,14 +20,97 @@ class WarehouseDocumentClassifier:
 
     @staticmethod
     def is_osip_location(loc: Optional[str]) -> bool:
-        """Sprawdza czy lokalizacja należy do OSIP / Centrali."""
+        """Sprawdza czy lokalizacja należy do OSIP."""
         if not loc:
             return False
         l = str(loc).strip().upper()
-        if 'OSIP' in l or 'CENTRALA' in l or 'CENTRALNY' in l:
+        if 'OSIP' in l or 'W_TRANZYCIE_OSIP' in l:
             return True
-        if l.startswith('OS') or l.startswith('A') or l == 'BFOS':
+        if l.startswith('OS'):
             return True
+        return False
+
+    @classmethod
+    def is_osip_involved(
+        cls,
+        source: Optional[str] = None,
+        destination: Optional[str] = None,
+        items: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        """Sprawdza czy operacja magazynowa dotyczy magazynu OSIP (ruch DO OSIP lub Z OSIP)."""
+        if cls.is_osip_location(source) or cls.is_osip_location(destination):
+            return True
+
+        if items and isinstance(items, list):
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                target_loc = str(it.get('lokalizacja_przyjecia') or it.get('targetSpot') or it.get('lokalizacja_do') or '').strip().upper()
+                source_loc = str(it.get('sourceSpot') or it.get('source_location') or it.get('lokalizacja_z') or '').strip().upper()
+                if cls.is_osip_location(target_loc) or cls.is_osip_location(source_loc):
+                    return True
+
+        return False
+
+    @classmethod
+    def is_destination_osip(cls, destination: Optional[str], items: Optional[List[Dict[str, Any]]] = None) -> bool:
+        """Kompatybilność wsteczna: sprawdza powiązanie z OSIP."""
+        return cls.is_osip_involved(None, destination, items)
+
+    @staticmethod
+    def is_allowed_central_warehouse_location(loc: Optional[str]) -> bool:
+        """Sprawdza czy lokalizacja należy do dozwolonych regałów lub buforów Magazynu Centralnego."""
+        if not loc:
+            return False
+        l = str(loc).strip().upper()
+
+        # OSIP / produkcja / zewnętrzne stacje wykluczone
+        if 'OSIP' in l or 'TRANZYT' in l:
+            return False
+        if l.startswith('OS') or l.startswith('MZ') or l.startswith('KO') or l.startswith('BB') or l.startswith('LP'):
+            return False
+        if 'PODŁOGA' in l or 'PODLOGA' in l or 'MASZYNA' in l:
+            return False
+
+        # Wzorce regałowe (np. R010101, R020603, R-01-01-01, RR030602, 010102)
+        cleaned = re.sub(r'[^A-Z0-9]', '', l)
+        if re.match(r'^(?:R|RR)?0[1-9]\d{4}$', cleaned) or re.match(r'^0[1-9]\d{4}$', cleaned):
+            return True
+
+        allowed_buffers = {
+            'MP01', 'MPO1', 'BFMP01', 'BF_MP01', 'BFMS01', 'BF_MS01',
+            'MS01', 'PSD', 'PSD01', 'MGW01', 'MGW02', 'MOP01', 'MO01',
+            'MDO01', 'MD01', 'MDM01'
+        }
+        return l in allowed_buffers
+
+    @classmethod
+    def is_allowed_central_transfer(
+        cls,
+        source: Optional[str],
+        destination: Optional[str],
+        items: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        """Weryfikuje czy przesunięcie odbywa się wyłącznie wewnątrz dozwolonych stref Magazynu Centralnego."""
+        src = str(source or '').strip().upper()
+        dest = str(destination or '').strip().upper()
+
+        if not src and not dest:
+            return False
+
+        if src == 'WIELE' and (not dest or cls.is_allowed_central_warehouse_location(dest)):
+            return True
+        if dest == 'WIELE' and (not src or cls.is_allowed_central_warehouse_location(src)):
+            return True
+
+        if not src and cls.is_allowed_central_warehouse_location(dest):
+            return True
+        if not dest and cls.is_allowed_central_warehouse_location(src):
+            return True
+
+        if cls.is_allowed_central_warehouse_location(src) and cls.is_allowed_central_warehouse_location(dest):
+            return True
+
         return False
 
     @staticmethod

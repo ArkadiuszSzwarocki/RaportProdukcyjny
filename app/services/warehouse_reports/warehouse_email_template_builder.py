@@ -356,3 +356,119 @@ class WarehouseEmailTemplateBuilder:
         </body>
         </html>
         """
+
+    @staticmethod
+    def build_transfer_report_html(transfer: Any) -> str:
+        """Buduje raport HTML po przyjęciu Transferu Wewnętrznego OSIP."""
+        code = getattr(transfer, 'transfer_code', '') or f"TR-{getattr(transfer, 'id', '')}"
+        source = getattr(transfer, 'source_warehouse', '') or 'Centrala'
+        dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
+        created_by = getattr(transfer, 'created_by', '') or getattr(transfer, 'dispatched_by', '') or 'System'
+        completed_by = getattr(transfer, 'completed_by', None) or getattr(transfer, 'updated_by', None) or '-'
+
+        created_at = getattr(transfer, 'created_at', None)
+        completed_at = getattr(transfer, 'completed_at', None) or getattr(transfer, 'updated_at', None) or created_at
+
+        created_str = created_at.strftime('%Y-%m-%d %H:%M') if created_at and hasattr(created_at, 'strftime') else (str(created_at) if created_at else '-')
+        completed_str = completed_at.strftime('%Y-%m-%d %H:%M') if completed_at and hasattr(completed_at, 'strftime') else (str(completed_at) if completed_at else '-')
+
+        status = getattr(transfer, 'status', 'COMPLETED')
+        notes = getattr(transfer, 'notes', '') or '-'
+
+        raw_items = getattr(transfer, 'items', []) or []
+        items = raw_items if isinstance(raw_items, list) else []
+
+        total_qty = 0.0
+        total_pallets = len(items)
+        rows_html = ""
+        for idx, it in enumerate(items, start=1):
+            prod = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else 'Brak nazwy')
+            nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '-')
+            batch = getattr(it, 'batch_number', None) or (it.get('batch_number') if isinstance(it, dict) else '-')
+            qty = float(getattr(it, 'loaded_qty', 0.0) or getattr(it, 'requested_qty', 0.0) or (it.get('loaded_qty', 0.0) if isinstance(it, dict) else it.get('requested_qty', 0.0)) or 0.0)
+            unit = getattr(it, 'unit', 'kg') or (it.get('unit', 'kg') if isinstance(it, dict) else 'kg')
+            it_status = getattr(it, 'status', 'RECEIVED') or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
+            total_qty += qty
+
+            rows_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+                <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{prod}</td>
+                <td style="padding: 10px 12px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{nr_pal}</td>
+                <td style="padding: 10px 12px; text-align: center; color: #475569;">{batch}</td>
+                <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f} {unit}</td>
+                <td style="padding: 10px 12px; text-align: center;"><span style="display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">{it_status}</span></td>
+            </tr>
+            """
+
+        if not rows_html:
+            rows_html = '<tr><td colspan="6" style="padding: 16px; text-align: center; color: #64748b;">Brak pozycji w zleceniu.</td></tr>'
+
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+            <div style="max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                <div style="background: linear-gradient(135deg, #1e1b4b, #4338ca); padding: 24px; color: #ffffff;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; opacity: 0.85;">Raport Przyjęcia Transferu Towaru</div>
+                    <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">🚚 Transfer: {source} ➔ {dest}</div>
+                    <div style="font-size: 13px; opacity: 0.9; margin-top: 6px;">Kod zlecenia: <strong>{code}</strong> | Status: <strong>PRZYJĘTE ({status})</strong></div>
+                </div>
+
+                <div style="padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0; width: 40%;">Magazyn wydający (Skąd):</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{source}</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Magazyn docelowy (Dokąd):</td>
+                            <td style="font-weight: 800; color: #4338ca; text-align: right;">{dest}</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Otworzył / Wydał:</td>
+                            <td style="font-weight: 700; color: #0f172a; text-align: right;">{created_by} ({created_str})</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Przyjął / Zatwierdził:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{completed_by} ({completed_str})</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Liczba palet:</td>
+                            <td style="font-weight: 800; color: #4338ca; text-align: right;">{total_pallets} szt.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #64748b; padding: 5px 0;">Łączna ilość przyjęta:</td>
+                            <td style="font-weight: 800; color: #166534; text-align: right;">{total_qty:,.2f} kg</td>
+                        </tr>
+                        {f'<tr><td style="color: #64748b; padding: 5px 0;">Uwagi do transferu:</td><td style="font-weight: 600; color: #334155; text-align: right;">{notes}</td></tr>' if notes and notes != '-' else ''}
+                    </table>
+                </div>
+
+                <div style="padding: 24px 24px 12px 24px;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Wykaz przyjętych palet:</div>
+                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 10px 12px; text-align: center; width: 35px;">Lp</th>
+                                <th style="padding: 10px 12px; text-align: left;">Produkt</th>
+                                <th style="padding: 10px 12px; text-align: center;">Nr Palety</th>
+                                <th style="padding: 10px 12px; text-align: center;">Partia</th>
+                                <th style="padding: 10px 12px; text-align: right;">Ilość</th>
+                                <th style="padding: 10px 12px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="padding: 16px 24px 24px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
+                    W załączniku znajduje się oficjalny dokument PDF potwierdzający przyjęcie transferu w systemie RaportProdukcyjny.
+                </div>
+            </div>
+        </body>
+        </html>
+        """

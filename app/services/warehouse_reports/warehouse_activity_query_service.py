@@ -4,7 +4,7 @@ Moduł odpowiedzialny za odczyt i agregację danych magazynowych do raportów dz
 from typing import Dict, Any, List, Tuple
 import json
 import re
-from app.db import get_db_connection
+import app.services.osip_report_email_service as email_service_module
 from app.services.warehouse_reports.warehouse_document_classifier import WarehouseDocumentClassifier
 from app.services.warehouse_reports.warehouse_status_resolver import WarehouseStatusResolver
 
@@ -31,9 +31,9 @@ class WarehouseActivityQueryService:
         return 0.0
 
     @classmethod
-    def get_daily_warehouse_activity(cls, date_str: str) -> Dict[str, Any]:
+    def get_daily_warehouse_activity(cls, date_str: str, central_only: bool = True) -> Dict[str, Any]:
         """Pobiera wszystkie zrealizowane lub zarejestrowane w danym dniu dostawy zewnętrzne oraz przesunięcia MM / transfery."""
-        conn = get_db_connection()
+        conn = email_service_module.get_db_connection()
         dostawy_rows = []
         osip_transfers_rows = []
         osip_items_by_transfer = {}
@@ -104,10 +104,17 @@ class WarehouseActivityQueryService:
 
             if WarehouseDocumentClassifier.is_production_movement(d, raw_items):
                 continue
-            if WarehouseDocumentClassifier.is_internal_mp01_movement(d, raw_items):
-                continue
 
             cat = WarehouseDocumentClassifier.categorize_delivery_doc(d, raw_items)
+
+            if central_only:
+                if cat.get('is_dest_osip') or cat.get('doc_type_code') == 'DOSTAWA_OSIP':
+                    continue
+                if WarehouseDocumentClassifier.is_osip_involved(d.get('lokalizacja_z') or cat.get('source_value'), d.get('lokalizacja_do') or cat.get('dest_value'), raw_items):
+                    continue
+                if not cat['is_external'] and not WarehouseDocumentClassifier.is_allowed_central_transfer(d.get('lokalizacja_z') or cat.get('source_value'), d.get('lokalizacja_do') or cat.get('dest_value'), raw_items):
+                    continue
+
             supplier_val = str(d.get('supplier') or '').strip()
             supplier_upper = supplier_val.upper()
             src_upper = str(d.get('lokalizacja_z') or '').strip().upper()
@@ -237,6 +244,12 @@ class WarehouseActivityQueryService:
             clean_code = re.sub(r'[\s/\\:*?"<>|]+', '_', str(code)).strip('_')
             source = tr.get('source_warehouse') or 'Centrala'
             dest = tr.get('destination_warehouse') or 'OSIP'
+
+            if central_only:
+                if WarehouseDocumentClassifier.is_osip_involved(source, dest, raw_t_items):
+                    continue
+                if not WarehouseDocumentClassifier.is_allowed_central_transfer(source, dest, raw_t_items):
+                    continue
 
             created_by = tr.get('created_by') or 'System'
             completed_by = tr.get('completed_by') or tr.get('approved_by') or '-'
