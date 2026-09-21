@@ -228,6 +228,9 @@ def register_production_dosypki_routes(
             return redirect(bezpieczny_powrot())
 
         szarza_id = _read_zasyp_id()
+        pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
+        created_by_user_id = session.get('user_id')
+        pracownik_login = session.get('login') or session.get('imie_nazwisko')
 
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         brak_dosypki = request.form.get('brak_dosypki') == '1'
@@ -367,11 +370,24 @@ def register_production_dosypki_routes(
 
                 entries = [(allowed_map[str(name).strip().lower()], kg) for name, kg in entries]
 
+            has_login_col = False
+            try:
+                cursor.execute(f"SHOW COLUMNS FROM {table_dosypki} LIKE 'pracownik_login'")
+                has_login_col = bool(cursor.fetchone())
+            except Exception:
+                has_login_col = False
+
             for name, kg in entries:
-                cursor.execute(
-                    f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, kg_planowane, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, %s, 0)",
-                    (plan_id, szarza_id, name, kg, kg, pracownik_id),
-                )
+                if has_login_col:
+                    cursor.execute(
+                        f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, kg_planowane, pracownik_id, pracownik_login, potwierdzone) VALUES (%s, %s, %s, %s, %s, %s, %s, 0)",
+                        (plan_id, szarza_id, name, kg, kg, pracownik_id, pracownik_login),
+                    )
+                else:
+                    cursor.execute(
+                        f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, kg_planowane, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, %s, 0)",
+                        (plan_id, szarza_id, name, kg, kg, pracownik_id),
+                    )
                 try:
                     audit_log('Dodał dosypkę', f'nazwa={name}, kg={kg}, plan_id={plan_id}')
                 except Exception:
