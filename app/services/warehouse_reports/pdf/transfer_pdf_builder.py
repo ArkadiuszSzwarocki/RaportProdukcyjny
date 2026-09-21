@@ -9,7 +9,37 @@ class TransferPdfBuilder:
     """
 
     @classmethod
-    def generate(cls, transfer: Dict[str, Any]) -> str:
+    def generate(cls, transfer: Any) -> str:
+        if not isinstance(transfer, dict):
+            tr_dict = {
+                'id': getattr(transfer, 'id', None),
+                'transfer_code': getattr(transfer, 'transfer_code', None),
+                'source_warehouse': getattr(transfer, 'source_warehouse', None),
+                'destination_warehouse': getattr(transfer, 'destination_warehouse', None),
+                'created_by': getattr(transfer, 'created_by', None),
+                'completed_by': getattr(transfer, 'completed_by', None) or getattr(transfer, 'updated_by', None),
+                'created_at': getattr(transfer, 'created_at', None),
+                'completed_at': getattr(transfer, 'completed_at', None) or getattr(transfer, 'updated_at', None),
+                'notes': getattr(transfer, 'notes', None),
+                'status': getattr(transfer, 'status', None),
+                'items': []
+            }
+            raw_items = getattr(transfer, 'items', []) or []
+            for it in raw_items:
+                if isinstance(it, dict):
+                    tr_dict['items'].append(it)
+                else:
+                    tr_dict['items'].append({
+                        'product_name': getattr(it, 'product_name', None),
+                        'pallet_sscc': getattr(it, 'nr_palety', None) or getattr(it, 'pallet_sscc', None),
+                        'batch_number': getattr(it, 'batch_number', None) or getattr(it, 'nr_partii', None),
+                        'production_date': getattr(it, 'production_date', None),
+                        'expiry_date': getattr(it, 'expiry_date', None),
+                        'loaded_weight': getattr(it, 'loaded_qty', None) or getattr(it, 'requested_qty', None),
+                        'status': getattr(it, 'status', None)
+                    })
+            transfer = tr_dict
+
         code = transfer.get('transfer_code') or f"TR-{transfer.get('id')}"
         source = transfer.get('source_warehouse') or 'Centrala'
         dest = transfer.get('destination_warehouse') or 'OSIP'

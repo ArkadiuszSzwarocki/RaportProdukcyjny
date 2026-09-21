@@ -24,8 +24,16 @@ class WarehouseReportMailer:
             return False, "Brak adresatów wiadomości e-mail."
 
         try:
+            smtp_server = getattr(config, 'smtp_server', None) or getattr(config, 'smtp_host', '')
+            smtp_user = getattr(config, 'smtp_username', None) or getattr(config, 'smtp_user', '')
+            smtp_password = getattr(config, 'smtp_password', '')
+            smtp_port = int(getattr(config, 'smtp_port', 465))
+            smtp_security = getattr(config, 'smtp_security', 'SSL')
+            use_ssl = (smtp_security == 'SSL') or getattr(config, 'smtp_use_ssl', False)
+            use_tls = (smtp_security == 'TLS') or getattr(config, 'smtp_use_tls', False)
+
             msg = MIMEMultipart('mixed')
-            msg['From'] = f"{config.sender_name or 'System Magazynowy'} <{config.smtp_user}>"
+            msg['From'] = f"{config.sender_name or 'System Magazynowy'} <{smtp_user}>"
             msg['To'] = ", ".join(recipients)
             msg['Subject'] = subject
 
@@ -36,7 +44,12 @@ class WarehouseReportMailer:
                 for att in attachments:
                     if not att:
                         continue
-                    file_path, display_name = att
+                    if isinstance(att, tuple):
+                        file_path, display_name = att
+                    else:
+                        file_path = att
+                        display_name = os.path.basename(att)
+
                     if not file_path or not os.path.exists(file_path):
                         continue
 
@@ -49,19 +62,20 @@ class WarehouseReportMailer:
                         print(f"[MAILER] Ostrzeżenie przy dołączaniu {display_name}: {e}")
 
             server = None
-            if config.smtp_use_ssl:
-                server = smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=25)
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=15)
             else:
-                server = smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=25)
-                if config.smtp_use_tls:
+                server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
+                if use_tls:
                     server.starttls()
 
-            if config.smtp_user and config.smtp_password:
-                server.login(config.smtp_user, config.smtp_password)
+            if smtp_user and smtp_password:
+                server.login(smtp_user, smtp_password)
 
-            server.sendmail(config.smtp_user, recipients, msg.as_string())
+            server.sendmail(smtp_user, recipients, msg.as_string())
             server.quit()
             return True, "Wiadomość e-mail wysłana pomyślnie."
 
         except Exception as ex:
             return False, f"Błąd wysyłki SMTP: {str(ex)}"
+

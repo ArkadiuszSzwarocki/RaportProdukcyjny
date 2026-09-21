@@ -28,8 +28,8 @@ class OsipReportEmailService:
     _active_dispatches = set()
     _sent_daily_dates = set()
 
-    def __init__(self):
-        self.settings_repo = OsipEmailSettingsRepository()
+    def __init__(self, settings_repo: Optional[Any] = None):
+        self.settings_repo = settings_repo or OsipEmailSettingsRepository()
 
     # --- DELEGOWANE METODY DOMENOWE (DLA KOMPATYBILNOŚCI) ---
     @staticmethod
@@ -39,6 +39,32 @@ class OsipReportEmailService:
     @staticmethod
     def _is_osip_location(loc: Optional[str]) -> bool:
         return WarehouseDocumentClassifier.is_osip_location(loc)
+
+    @classmethod
+    def is_osip_involved(
+        cls,
+        source: Optional[str] = None,
+        destination: Optional[str] = None,
+        items: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        return WarehouseDocumentClassifier.is_osip_involved(source, destination, items)
+
+    @classmethod
+    def is_destination_osip(cls, destination: Optional[str], items: Optional[List[Dict[str, Any]]] = None) -> bool:
+        return WarehouseDocumentClassifier.is_destination_osip(destination, items)
+
+    @staticmethod
+    def is_allowed_central_warehouse_location(loc: Optional[str]) -> bool:
+        return WarehouseDocumentClassifier.is_allowed_central_warehouse_location(loc)
+
+    @classmethod
+    def is_allowed_central_transfer(
+        cls,
+        source: Optional[str],
+        destination: Optional[str],
+        items: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        return WarehouseDocumentClassifier.is_allowed_central_transfer(source, destination, items)
 
     @staticmethod
     def _is_mp01_location(loc: Optional[str]) -> bool:
@@ -65,8 +91,8 @@ class OsipReportEmailService:
         return WarehouseActivityQueryService.extract_item_qty(item)
 
     @classmethod
-    def get_daily_warehouse_activity(cls, date_str: str) -> Dict[str, Any]:
-        return WarehouseActivityQueryService.get_daily_warehouse_activity(date_str)
+    def get_daily_warehouse_activity(cls, date_str: str, central_only: bool = True) -> Dict[str, Any]:
+        return WarehouseActivityQueryService.get_daily_warehouse_activity(date_str, central_only=central_only)
 
     @staticmethod
     def generate_delivery_pdf(dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
@@ -77,8 +103,85 @@ class OsipReportEmailService:
         return WarehousePdfReportBuilder.generate_transfer_pdf(transfer)
 
     @staticmethod
+    def build_single_delivery_html(dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
+        return WarehouseEmailTemplateBuilder.build_single_delivery_html(dostawa, items)
+
+    @staticmethod
+    def build_transfer_report_html(transfer: Any) -> str:
+        return WarehouseEmailTemplateBuilder.build_transfer_report_html(transfer)
+
+    @staticmethod
     def build_daily_summary_report_html(date_str: str, activity_data: Dict[str, Any]) -> str:
         return WarehouseEmailTemplateBuilder.build_daily_summary_report_html(date_str, activity_data)
+
+    # --- WYSYŁKA POJEDYNCZEGO TRANSFERU OSIP ---
+    def send_osip_transfer_report(self, transfer_id: Any) -> Tuple[bool, str]:
+        """Wysyła raport e-mail po przyjęciu transferu (w tym OSIP) wraz z załącznikiem PDF."""
+        dispatch_key = f"transfer_{transfer_id}"
+        with self._dispatch_lock:
+            if dispatch_key in self._active_dispatches:
+                return False, f"Wysyłka e-mail dla transferu {transfer_id} jest już w toku."
+            self._active_dispatches.add(dispatch_key)
+
+        try:
+            from app.repositories.osip_transfer_repository import OsipTransferRepository
+            repo = OsipTransferRepository()
+            transfer = repo.get_transfer_by_id(transfer_id)
+            if not transfer:
+                return False, f"Nie znaleziono transferu o ID/kodzie: {transfer_id}"
+
+            if getattr(transfer, 'email_sent_at', None):
+                sent_at = transfer.email_sent_at
+                sent_str = sent_at.strftime('%Y-%m-%d %H:%M') if hasattr(sent_at, 'strftime') else str(sent_at)
+                return False, f"Raport e-mail dla transferu {transfer.transfer_code} został już wcześniej wysłany ({sent_str})."
+
+            config = self.settings_repo.get_settings()
+            if not config.is_active:
+                return False, "Moduł wysyłki e-mail jest wyłączony w ustawieniach."
+
+            if not config.is_configured:
+                return False, "Dedykowane konto e-mail nadawcy nie zostało jeszcze skonfigurowane."
+
+            recipients = config.recipients_list
+            if not recipients:
+                return False, "Brak zdefiniowanych adresów e-mail odbiorców w Ustawieniach E-mail."
+
+            source = getattr(transfer, 'source_warehouse', '') or 'Centrala'
+            dest = getattr(transfer, 'destination_warehouse', '') or 'OSIP'
+            code = getattr(transfer, 'transfer_code', '') or f"TR-{transfer_id}"
+
+            subject = f"[Transfer: {source} ➔ {dest}] Zlecenie {code}"
+            body_html = WarehouseEmailTemplateBuilder.build_transfer_report_html(transfer)
+
+            pdf_path = None
+            try:
+                pdf_path = WarehousePdfReportBuilder.generate_transfer_pdf(transfer)
+                pdf_filename = f"Raport_Transferu_{code}.pdf"
+                attachments = [(pdf_path, pdf_filename)] if pdf_path else []
+                ok, msg = WarehouseReportMailer.send_raw_email(config, recipients, subject, body_html, attachments=attachments)
+                if ok:
+                    conn = get_db_connection()
+                    try:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE osip_transfers SET email_sent_at = NOW(), email_sent_to = %s WHERE id = %s AND email_sent_at IS NULL",
+                            (", ".join(recipients)[:500], transfer.id)
+                        )
+                        conn.commit()
+                        cursor.close()
+                    finally:
+                        conn.close()
+                    return True, f"Raport przyjęcia wysłany pomyślnie na adresy: {', '.join(recipients)}."
+                return ok, msg
+            finally:
+                if pdf_path and os.path.exists(pdf_path):
+                    try:
+                        os.remove(pdf_path)
+                    except Exception:
+                        pass
+        finally:
+            with self._dispatch_lock:
+                self._active_dispatches.discard(dispatch_key)
 
     # --- WYSYŁKA POJEDYNCZEJ DOSTAWY / PRZESUNIĘCIA ---
     def send_central_delivery_osip_report(self, dostawa_id: Any) -> Tuple[bool, str]:
@@ -159,7 +262,7 @@ class OsipReportEmailService:
                         cursor2.close()
                     finally:
                         conn2.close()
-                    return True, f"Raport e-mail dla dokumentu {ref} został pomyślnie wysłany na adresy: {', '.join(recipients)}."
+                    return True, f"Raport przyjęcia wysłany pomyślnie dla dokumentu {ref} na adresy: {', '.join(recipients)}."
                 return ok, msg
             finally:
                 if pdf_path and os.path.exists(pdf_path):
@@ -269,3 +372,18 @@ class OsipReportEmailService:
                 print(f"[WAREHOUSE_EMAIL] Błąd wysyłki dla dostawy {dostawa_id}: {ex}")
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    @classmethod
+    def trigger_async_transfer_report(cls, transfer_id: Any) -> None:
+        if not transfer_id:
+            return
+        def _worker():
+            try:
+                service = cls()
+                ok, msg = service.send_osip_transfer_report(transfer_id)
+                print(f"[OSIP_EMAIL] Wynik wysyłki dla transferu {transfer_id}: {msg}")
+            except Exception as ex:
+                print(f"[OSIP_EMAIL] Błąd wysyłki dla transferu {transfer_id}: {ex}")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
