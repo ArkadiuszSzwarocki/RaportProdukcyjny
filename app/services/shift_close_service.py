@@ -71,8 +71,8 @@ def get_shift_actual_production(date_str: str, linia: str = 'PSD') -> dict:
         cursor.execute(f"""
             SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s
             FROM {table_palety}
-            WHERE DATE(data_dodania) = %s
-        """, (date_str,))
+            WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s
+        """, (date_str, date_str))
         r_w = cursor.fetchone()
         if r_w:
             palety_count = int(r_w['cnt'] or 0)
