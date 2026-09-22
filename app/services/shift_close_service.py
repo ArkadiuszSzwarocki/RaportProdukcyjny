@@ -23,6 +23,79 @@ from app.db import get_db_connection, get_table_name
 
 logger = logging.getLogger(__name__)
 
+
+def get_shift_actual_production(date_str: str, linia: str = 'PSD') -> dict:
+    """Calculate actual production executed on a given date for shift reporting.
+    
+    Zasyp: real weighed batches (table_szarze) + confirmed dosypki (table_dosypki).
+    Workowanie: real packed pallets (table_palety).
+    Strictly queries execution tables with zero fallback to planned tonnages.
+    """
+    linia_u = str(linia or 'PSD').strip().upper()
+    table_szarze = 'szarze_agro' if linia_u == 'AGRO' else 'szarze'
+    table_dosypki = 'dosypki_agro' if linia_u == 'AGRO' else 'dosypki'
+    table_palety = get_table_name('palety_workowanie', linia_u)
+
+    suma_zasyp = 0
+    suma_workowanie = 0
+    palety_count = 0
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(f"""
+            SELECT (
+                COALESCE((
+                    SELECT SUM(sz.waga)
+                    FROM {table_szarze} sz
+                    WHERE DATE(sz.data_dodania) = %s
+                ), 0)
+                +
+                COALESCE((
+                    SELECT SUM(d.kg)
+                    FROM {table_dosypki} d
+                    WHERE d.potwierdzone = 1
+                      AND (d.anulowana = 0 OR d.anulowana IS NULL)
+                      AND (
+                          DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s
+                          OR d.szarza_id IN (SELECT sz.id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s)
+                      )
+                ), 0)
+            ) as s
+        """, (date_str, date_str, date_str))
+        r_z = cursor.fetchone()
+        suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
+
+        cursor.execute(f"""
+            SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s
+            FROM {table_palety}
+            WHERE DATE(data_dodania) = %s
+        """, (date_str,))
+        r_w = cursor.fetchone()
+        if r_w:
+            palety_count = int(r_w['cnt'] or 0)
+            suma_workowanie = int(r_w['s'] or 0)
+
+        cursor.close()
+    except Exception as exc:
+        logger.warning("[SHIFT_CLOSE] Error calculating actual production: %s", exc)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    return {
+        'suma_zasyp': suma_zasyp,
+        'suma_workowanie': suma_workowanie,
+        'palety_count': palety_count,
+        'suma_laczna': suma_zasyp + suma_workowanie,
+    }
+
+
 # Absolutna ścieżka do katalogu projektu:
 #   __file__ = app/services/shift_close_service.py
 #   .parent   = app/services/
