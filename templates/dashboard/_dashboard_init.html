@@ -2,11 +2,19 @@
 {# ns initialized in parent layout.html #}
 {% if plan is defined and plan %}
     {% for p in plan %}
-        {% if p[3]|lower in ['w toku', 'zawieszone'] %}
+        {% if p[3]|lower == 'w toku' %}
             {% set ns.is_active = true %}
             {% if ns.active_plan_id is none %}{% set ns.active_plan_id = p[0] %}{% endif %}
         {% endif %}
     {% endfor %}
+    {% if ns.active_plan_id is none %}
+        {% for p in plan %}
+            {% if p[3]|lower == 'zawieszone' %}
+                {% set ns.is_active = true %}
+                {% if ns.active_plan_id is none %}{% set ns.active_plan_id = p[0] %}{% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
 {% endif %}
 
 {# Focus Mode setup for production sections (AGRO + PSD) #}

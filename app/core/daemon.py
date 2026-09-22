@@ -909,8 +909,26 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         is_in_emptying_mode = is_emptying_now or ((time.time() - last_empty_ts) < 300 if last_empty_ts > 0 else False) or has_emptying_pallet
 
                         # Sprawdzenie czy paletyzator ukończył nową pełną paletę (zjazd z windy)
-                        if palletizer_cnt > 0 and int(start_pallet_cnt or 0) > 0 and completed_pallets > db_pallets_count:
+                        # Sprawdzamy nie tylko completed_pallets > db_pallets_count, ale również zbocze narastające
+                        # licznika paletyzatora (palletizer_cnt > last_reg_pal), aby usunięcie palety przez operatora
+                        # NIE powodowało natychmiastowego ponownego dodania i wydrukowania tej samej palety!
+                        last_reg_pal_key = f"{plan_id}_last_reg_pal"
+                        if last_reg_pal_key not in plan_counters:
+                            plan_counters[last_reg_pal_key] = max(
+                                int(start_pallet_cnt or 0) + db_pallets_count,
+                                palletizer_cnt if completed_pallets <= db_pallets_count else int(start_pallet_cnt or 0) + db_pallets_count
+                            )
+
+                        last_reg_pal = plan_counters[last_reg_pal_key]
+
+                        if (
+                            palletizer_cnt > 0 
+                            and int(start_pallet_cnt or 0) > 0 
+                            and completed_pallets > db_pallets_count
+                            and palletizer_cnt > last_reg_pal
+                        ):
                             if is_in_emptying_mode:
+                                plan_counters[last_reg_pal_key] = palletizer_cnt
                                 _safe_log_info(
                                     "Paletyzator zjechał z windą podczas/po opróżnianiu (oproznianie=%s, delta=%.1fs, has_emptying_pallet=%s). "
                                     "Licznik: %s (start: %s, w bazie: %s). "
@@ -938,12 +956,14 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                     source_instance=_INSTANCE_ID,
                                 )
                                 if success:
+                                    plan_counters[last_reg_pal_key] = palletizer_cnt
                                     _safe_log_info(
                                         'Pomyślnie zarejestrowano paletę #%s na podstawie zjazdu z windy paletyzatora (instance=%s)',
                                         db_pallets_count + 1,
                                         _INSTANCE_ID,
                                     )
                                 else:
+                                    plan_counters[last_reg_pal_key] = palletizer_cnt
                                     _safe_log_warning(
                                         'Rejestracja palety na podstawie paletyzatora wstrzymana przez cooldown/pułapkę (instance=%s)',
                                         _INSTANCE_ID,
