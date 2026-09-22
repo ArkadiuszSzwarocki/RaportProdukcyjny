@@ -195,8 +195,8 @@ class PdfProductionSections:
         pdf.set_font("Arial", size=9)
         pdf.ln(2)
 
-        col_pal = (65, 75, 25, 25)
-        rysuj_wiersz_multicell(pdf, col_pal, ["Zlecenie", "Produkt", "Sztuk", "Waga"], col_aligns=['C', 'C', 'C', 'C'], fill=True, fill_color=(230, 230, 230), font_style='B')
+        col_pal = (55, 60, 30, 20, 25)
+        rysuj_wiersz_multicell(pdf, col_pal, ["Zlecenie", "Produkt", "Opakowanie", "Sztuk", "Waga"], col_aligns=['C', 'C', 'C', 'C', 'C'], fill=True, fill_color=(230, 230, 230), font_style='B')
         fill = False
         pdf.set_font("Arial", size=9)
         total_szt, total_wg = 0, 0.0
@@ -205,16 +205,17 @@ class PdfProductionSections:
             prod = str(r[1]) if r[1] else "Brak"
             szt = int(r[2]) if r[2] else 0
             wg = float(r[3]) if r[3] else 0.0
+            opak = str(r[4]).capitalize() if len(r) > 4 and r[4] else "Worki"
             total_szt += szt
             total_wg += wg
             row_color = (250, 250, 250) if fill else (255, 255, 255)
-            rysuj_wiersz_multicell(pdf, col_pal, [zlec, prod, f"{szt} szt.", format_kg(wg)], col_aligns=['L', 'L', 'C', 'C'], fill=fill, fill_color=row_color, font_style='')
+            rysuj_wiersz_multicell(pdf, col_pal, [zlec, prod, opak, f"{szt} szt.", format_kg(wg)], col_aligns=['L', 'L', 'C', 'C', 'C'], fill=fill, fill_color=row_color, font_style='')
             fill = not fill
             
         pdf.set_font("Arial", 'B', 9)
         pdf.set_fill_color(250, 235, 215)
-        pdf.cell(140, 7, "RAZEM WYPRODUKOWANO W DNIU RAPORTU:", 1, 0, 'R', True)
-        pdf.cell(25, 7, f"{total_szt} szt.", 1, 0, 'C', True)
+        pdf.cell(145, 7, "RAZEM WYPRODUKOWANO W DNIU RAPORTU:", 1, 0, 'R', True)
+        pdf.cell(20, 7, f"{total_szt} szt.", 1, 0, 'C', True)
         pdf.cell(25, 7, format_kg(total_wg), 1, 1, 'C', True)
         pdf.ln(5)
 

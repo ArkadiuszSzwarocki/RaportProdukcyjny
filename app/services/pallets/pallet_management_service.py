@@ -33,11 +33,12 @@ class PalletManagementService:
             plan_id = res[0]
 
             # Get paleta details for history before deletion
-            cursor.execute(f"SELECT waga, nr_palety, status FROM {table_pal} WHERE id=%s", (id,))
+            cursor.execute(f"SELECT waga, nr_palety, status, dodal_login FROM {table_pal} WHERE id=%s", (id,))
             paleta_data = cursor.fetchone()
             waga_val = paleta_data[0] if paleta_data else 0
             nr_palety_val = paleta_data[1] if paleta_data and len(paleta_data) > 1 else None
             status_val = paleta_data[2] if paleta_data and len(paleta_data) > 2 else 'unknown'
+            dodal_login_val = paleta_data[3] if paleta_data and len(paleta_data) > 3 else None
 
             # Get plan info for history before deletion
             cursor.execute(f"SELECT produkt FROM {table_plan} WHERE id=%s", (plan_id,))
@@ -60,6 +61,18 @@ class PalletManagementService:
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s) WHERE id = %s",
                 (plan_id, plan_id),
             )
+
+            # Jeśli usunięto automatyczną paletę AGRO dodaną przez paletyzator/System,
+            # zwiększamy start_pallet_counter, aby demon nie zinterpretował tego jako nowej palety do dodania
+            if linia == 'AGRO' and (not dodal_login_val or dodal_login_val == 'System'):
+                try:
+                    cursor.execute(
+                        "UPDATE plan_produkcji_agro SET start_pallet_counter = start_pallet_counter + 1 WHERE id = %s AND start_pallet_counter > 0",
+                        (plan_id,)
+                    )
+                except Exception as spc_err:
+                    current_app.logger.warning('Failed to increment start_pallet_counter on pallet deletion: %s', spc_err)
+
             conn.commit()
 
             current_app.logger.info('Usunięto paletę ID=%s, plan_id=%s, użytkownik=%s', id, plan_id, user_login)
