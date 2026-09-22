@@ -434,7 +434,8 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         try:
             table_palety = get_table_name('palety_workowanie', linia)
             sql_palety = f"""
-                SELECT p.id as plan_id, p.nazwa_zlecenia, p.produkt, COUNT(pw.id) as ilosc_palet, SUM(pw.waga) as laczna_waga
+                SELECT p.id as plan_id, p.nazwa_zlecenia, p.produkt, COUNT(pw.id) as ilosc_palet, SUM(pw.waga) as laczna_waga,
+                       MAX(COALESCE(p.typ_opakowania, 'worki')) as typ_opakowania
                 FROM {table_palety} pw
                 JOIN {table_plan} p ON pw.plan_id = p.id
                 WHERE DATE(pw.data_dodania) = %s
@@ -447,7 +448,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                 zlec = r.get('nazwa_zlecenia')
                 if not zlec or not str(zlec).strip():
                     zlec = f"ID: {r.get('plan_id', '')}"
-                palety_rows.append((zlec, r.get('produkt', ''), r.get('ilosc_palet', 0), r.get('laczna_waga', 0)))
+                palety_rows.append((zlec, r.get('produkt', ''), r.get('ilosc_palet', 0), r.get('laczna_waga', 0), r.get('typ_opakowania', 'worki')))
         except Exception as e:
             logger.error(f"[GENERATOR] Error fetching palety_rows: {e}")
             palety_rows = []
