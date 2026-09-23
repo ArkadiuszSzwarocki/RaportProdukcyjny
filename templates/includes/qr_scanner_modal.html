@@ -1,78 +1,118 @@
-<!-- Universal QR Code Scanner Modal with Camera Support -->
-<dialog id="modalQrCamera" class="modal-premium" style="width:90%; max-width:500px;">
-    <div class="modal-header">
-        <h4 class="modal-title">Skanowanie kodu QR</h4>
-        <button class="modal-close" onclick="closeQrScannerModal()">×</button>
-    </div>
-    <div class="modal-body text-center">
-        <!-- Camera Scanner Area -->
-        <div id="qr-reader" style="width:100%; max-width:400px; margin:0 auto 20px;"></div>
-        
-        <!-- Error Messages -->
-        <div id="qr-scanner-error" class="alert alert-danger" style="display:none; margin-bottom:15px;"></div>
-        
-        <!-- Scanned Result -->
-        <div id="qr-scan-result-container" style="margin-bottom:15px;">
-            <div class="text-muted small mb-5">Zeskanowany kod:</div>
-            <div id="qr-scan-result" class="text-lg font-bold" style="min-height:30px; padding:10px; background:#f1f5f9; border-radius:4px; word-break:break-all;"></div>
+<!-- Universal QR Code Scanner Modal with Camera & Native Photo Support -->
+<dialog id="modalQrCamera" class="modal-premium qr-scanner-dialog">
+    <div class="qr-modal-container">
+        <div class="modal-header qr-modal-header">
+            <h4 class="modal-title">
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    Skaner kodu QR
+                </span>
+            </h4>
+            <button type="button" class="qr-close-btn" onclick="closeQrScannerModal()" aria-label="Zamknij">&times;</button>
         </div>
-
-        <!-- Instructions -->
-        <div class="text-muted small">
-            <p>📱 Skieruj aparat na kod QR</p>
-            <p>Kod zostanie automatycznie zeskanowany</p>
-        </div>
-
-        <!-- Manual Input Option -->
-        <details style="margin-top:20px;">
-            <summary style="cursor:pointer; color:var(--primary-color); font-size:14px;">Wpisz kod ręcznie</summary>
-            <div style="margin-top:10px;">
-                <input 
-                    type="text" 
-                    id="qr-manual-input" 
-                    class="form-control text-center" 
-                    placeholder="Wpisz kod..."
-                    style="margin-top:10px;"
-                    oninput="enableManualQrConfirm()"
-                >
-                <button 
-                    class="btn btn-outline" 
-                    id="qr-manual-confirm-btn"
-                    onclick="confirmManualQrInput()"
-                    disabled
-                    style="margin-top:10px; width:100%;"
-                >
-                    Potwierdź ręczny wpis
-                </button>
+        
+        <div class="modal-body qr-modal-body">
+            <!-- Camera Scanner Viewport -->
+            <div class="qr-scanner-viewport-wrapper">
+                <div id="qr-reader" class="qr-reader-box"></div>
+                <div id="qr-laser-line" class="qr-laser-line"></div>
+                
+                <!-- Quick Floating Camera Controls -->
+                <div class="qr-floating-controls" id="qr-floating-controls">
+                    <button type="button" id="qr-torch-btn" class="qr-pill-btn" onclick="window.toggleQrScannerTorch()" style="display:none;">
+                        💡 Latarka
+                    </button>
+                    <button type="button" id="qr-switch-cam-btn" class="qr-pill-btn" onclick="window.switchQrScannerCamera()" style="display:none;">
+                        🔄 Zmień aparat
+                    </button>
+                </div>
             </div>
-        </details>
-    </div>
-    <div class="modal-footer">
-        <button class="btn btn-outline" onclick="closeQrScannerModal()">{{ _('anuluj') }}</button>
-        <button class="btn btn-primary" id="qr-confirm-btn" onclick="confirmQrScan()" disabled>Potwierdź</button>
+            
+            <!-- Error / Warning Messages -->
+            <div id="qr-scanner-error" class="alert alert-danger qr-error-box" style="display:none;"></div>
+            
+            <!-- Fallback: Native Photo Upload / Camera App -->
+            <div class="qr-native-fallback-box">
+                <input 
+                    type="file" 
+                    id="qr-native-file-input" 
+                    accept="image/*" 
+                    capture="environment" 
+                    style="display:none;" 
+                    onchange="window.handleQrNativePhotoFile(this)"
+                >
+                <button type="button" class="qr-btn-native-photo" onclick="document.getElementById('qr-native-file-input').click()">
+                    📸 Użyj aparatu systemowego / Zrób zdjęcie
+                </button>
+                <div class="qr-native-hint">Gwarantowane działanie na każdym telefonie i sieci lokalnej (HTTP)</div>
+            </div>
+
+            <!-- Scanned Result Preview -->
+            <div id="qr-scan-result-container" class="qr-result-container" style="display:none;">
+                <div class="text-muted small">Odczytany kod:</div>
+                <div id="qr-scan-result" class="qr-scan-result-text"></div>
+            </div>
+
+            <!-- Manual Input Option -->
+            <details class="qr-manual-details">
+                <summary>✍️ Wpisz kod ręcznie</summary>
+                <div class="qr-manual-body">
+                    <input 
+                        type="text" 
+                        id="qr-manual-input" 
+                        class="form-control text-center" 
+                        placeholder="Wpisz tekst / kod..."
+                        oninput="enableManualQrConfirm()"
+                    >
+                    <button 
+                        type="button"
+                        class="btn btn-outline" 
+                        id="qr-manual-confirm-btn"
+                        onclick="confirmManualQrInput()"
+                        disabled
+                    >
+                        Zatwierdź wpis
+                    </button>
+                </div>
+            </details>
+        </div>
+        
+        <div class="modal-footer qr-modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeQrScannerModal()">Anuluj</button>
+            <button type="button" class="btn btn-primary" id="qr-confirm-btn" onclick="confirmQrScan()" disabled>Zatwierdź</button>
+        </div>
     </div>
 </dialog>
 
 <script>
-// Manual input handlers
 function enableManualQrConfirm() {
     const input = document.getElementById('qr-manual-input');
     const btn = document.getElementById('qr-manual-confirm-btn');
-    if (btn) {
+    if (btn && input) {
         btn.disabled = !input.value.trim();
     }
 }
 
 function confirmManualQrInput() {
     const input = document.getElementById('qr-manual-input');
+    if (!input) return;
     const value = input.value.trim();
     if (value) {
-        document.getElementById('qr-scan-result').textContent = value;
-        confirmQrScan(value);
+        const resEl = document.getElementById('qr-scan-result');
+        if (resEl) resEl.textContent = value;
+        const resBox = document.getElementById('qr-scan-result-container');
+        if (resBox) resBox.style.display = 'block';
+        if (typeof confirmQrScan === 'function') {
+            confirmQrScan(value);
+        }
     }
 }
 
-// Enter key support for manual input
 document.addEventListener('DOMContentLoaded', () => {
     const manualInput = document.getElementById('qr-manual-input');
     if (manualInput) {
@@ -87,17 +127,100 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <style>
-/* QR Scanner Styles */
-#qr-reader {
-    border: 2px solid var(--border-color, #e2e8f0);
-    border-radius: 8px;
+/* QR Scanner Standalone Styles (Mobile & Desktop) */
+dialog#modalQrCamera.qr-scanner-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: 92vw;
+    max-width: 480px;
+    max-height: 92vh;
+    padding: 0;
+    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    z-index: 999999;
     overflow: hidden;
-    background: #000;
+    color: #1e293b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+dialog#modalQrCamera::backdrop {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.qr-modal-container {
+    display: flex;
+    flex-direction: column;
+    max-height: 92vh;
+}
+
+.qr-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.qr-modal-header .modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.qr-close-btn {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: #64748b;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.qr-close-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.qr-modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    text-align: center;
+    flex: 1;
+}
+
+.qr-scanner-viewport-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto 12px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+#qr-reader {
+    width: 100% !important;
+    min-height: 240px;
+    border: none !important;
+    background: #000000;
 }
 
 #qr-reader video {
     width: 100% !important;
     height: auto !important;
+    max-height: 360px;
+    object-fit: cover !important;
     display: block;
 }
 
@@ -105,19 +228,193 @@ document.addEventListener('DOMContentLoaded', () => {
     display: none !important;
 }
 
-.alert-danger {
-    background-color: #fee;
-    border: 1px solid #fcc;
-    color: #c33;
-    padding: 12px;
-    border-radius: 4px;
+.qr-laser-line {
+    position: absolute;
+    top: 15%;
+    left: 10%;
+    width: 80%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #22c55e, #10b981, transparent);
+    box-shadow: 0 0 8px #10b981;
+    animation: qrScanMove 2.2s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 10;
 }
 
-#modalQrCamera details summary {
+@keyframes qrScanMove {
+    0%, 100% { top: 15%; opacity: 0.3; }
+    50% { top: 85%; opacity: 1; }
+}
+
+.qr-floating-controls {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    z-index: 15;
+    padding: 0 10px;
+}
+
+.qr-pill-btn {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.qr-pill-btn:active {
+    transform: scale(0.95);
+}
+
+.qr-error-box {
+    text-align: left;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.qr-native-fallback-box {
+    margin: 10px 0 14px;
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+}
+
+.qr-btn-native-photo {
+    width: 100%;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.qr-btn-native-photo:active {
+    transform: scale(0.98);
+}
+
+.qr-native-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 6px;
+}
+
+.qr-result-container {
+    margin-bottom: 12px;
+}
+
+.qr-scan-result-text {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    word-break: break-all;
+    margin-top: 4px;
+}
+
+.qr-manual-details {
+    margin-top: 10px;
+    text-align: left;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+}
+
+.qr-manual-details summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #0284c7;
+    font-weight: 600;
     user-select: none;
 }
 
-#modalQrCamera details[open] summary {
-    margin-bottom: 10px;
+.qr-manual-body {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.qr-manual-body input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+.qr-manual-body button {
+    width: 100%;
+    padding: 8px;
+    background: #e2e8f0;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: #334155;
+}
+
+.qr-manual-body button:not(:disabled) {
+    background: #0284c7;
+    color: #fff;
+}
+
+.qr-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 18px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.qr-modal-footer .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.qr-modal-footer .btn-outline {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+}
+
+.qr-modal-footer .btn-primary {
+    background: #16a34a;
+    border: 1px solid #16a34a;
+    color: #fff;
+}
+
+.qr-modal-footer .btn-primary:disabled {
+    background: #cbd5e1;
+    border-color: #cbd5e1;
+    cursor: not-allowed;
 }
 </style>

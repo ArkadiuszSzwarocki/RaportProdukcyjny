@@ -123,7 +123,11 @@ class WarehouseDispatchRepository:
 
         clean = str(code).strip().upper()
         digits = ''.join([c for c in clean if c.isdigit()])
-        num_id = item_id if item_id else (int(clean) if clean.isdigit() and len(clean) < 8 else -1)
+        is_pure_digits = clean.isdigit()
+        
+        # Gdy wyszukujemy po cyfrach, szukamy od konca (suffix)
+        match_clean = f"%{clean}" if is_pure_digits else f"%{clean}%"
+        match_digits = f"%{digits}"
 
         queries = [
             # 1. magazyn_palety (Wyroby Gotowe PSD & AGRO w magazynie)
@@ -135,11 +139,10 @@ class WarehouseDispatchRepository:
                 WHERE waga_netto > 0 AND (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 2. magazyn_palety_agro (Wyroby Gotowe AGRO)
             ("""
@@ -150,11 +153,10 @@ class WarehouseDispatchRepository:
                 WHERE waga_netto > 0 AND (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 3. palety_workowanie (Wyroby Gotowe PSD w buforze/produkcji)
             ("""
@@ -167,11 +169,10 @@ class WarehouseDispatchRepository:
                 WHERE COALESCE(pw.waga_potwierdzona, pw.waga, 0) > 0 AND (
                     UPPER(COALESCE(pw.nr_palety, '')) = %s 
                     OR UPPER(COALESCE(pw.nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(pw.nr_palety, '')) LIKE %s)
-                    OR pw.id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(pw.nr_palety, '')) LIKE %s)
                 )
                 ORDER BY pw.id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 4. palety_agro (Wyroby Gotowe AGRO w buforze/produkcji)
             ("""
@@ -184,11 +185,10 @@ class WarehouseDispatchRepository:
                 WHERE COALESCE(pw.waga_potwierdzona, pw.waga, 0) > 0 AND (
                     UPPER(COALESCE(pw.nr_palety, '')) = %s 
                     OR UPPER(COALESCE(pw.nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(pw.nr_palety, '')) LIKE %s)
-                    OR pw.id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(pw.nr_palety, '')) LIKE %s)
                 )
                 ORDER BY pw.id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 5. magazyn_surowce (Surowce)
             ("""
@@ -199,24 +199,25 @@ class WarehouseDispatchRepository:
                 WHERE stan_magazynowy > 0 AND (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 6. magazyn_agro_surowce (Surowce AGRO)
             ("""
-                SELECT id, CONCAT('SUR-', id) AS nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
                        'Surowiec' AS typ, 'AGRO' AS linia,
                        'magazyn_agro_surowce' AS src_table
                 FROM magazyn_agro_surowce
                 WHERE stan_magazynowy > 0 AND (
-                    CONCAT('SUR-', id) = %s 
-                    OR id = %s
+                    UPPER(COALESCE(nr_palety, '')) = %s 
+                    OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
+                    OR CONCAT('SUR-', id) = %s
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, num_id)),
+            """, (clean, match_clean, digits, match_digits, clean)),
 
             # 7. magazyn_opakowania (Opakowania)
             ("""
@@ -227,24 +228,25 @@ class WarehouseDispatchRepository:
                 WHERE stan_magazynowy > 0 AND (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 8. magazyn_agro_opakowania (Opakowania AGRO)
             ("""
-                SELECT id, CONCAT('OPK-', id) AS nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
                        'Opakowanie' AS typ, 'AGRO' AS linia,
                        'magazyn_agro_opakowania' AS src_table
                 FROM magazyn_agro_opakowania
                 WHERE stan_magazynowy > 0 AND (
-                    CONCAT('OPK-', id) = %s 
-                    OR id = %s
+                    UPPER(COALESCE(nr_palety, '')) = %s 
+                    OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
+                    OR CONCAT('OPK-', id) = %s
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, num_id)),
+            """, (clean, match_clean, digits, match_digits, clean)),
 
             # 9. magazyn_dodatki (Dodatki)
             ("""
@@ -255,11 +257,10 @@ class WarehouseDispatchRepository:
                 WHERE stan_magazynowy > 0 AND (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id)),
+            """, (clean, match_clean, digits, match_digits)),
 
             # 10. magazyn_osip_items (OSIP)
             ("""
@@ -270,11 +271,27 @@ class WarehouseDispatchRepository:
                 WHERE (
                     UPPER(COALESCE(nr_palety, '')) = %s 
                     OR UPPER(COALESCE(nr_palety, '')) LIKE %s 
-                    OR (LENGTH(%s) >= 6 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
-                    OR id = %s
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(nr_palety, '')) LIKE %s)
                 )
                 ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", digits, f"%{digits}%", num_id))
+            """, (clean, match_clean, digits, match_digits)),
+
+            # 11. osip_transfer_items (Transfery OSIP)
+            ("""
+                SELECT ti.id, ti.nr_palety, ti.product_name AS nazwa, 
+                       COALESCE(ti.loaded_qty, ti.requested_qty, 0) AS stan_magazynowy,
+                       t.destination_warehouse AS lokalizacja, NULL AS nr_partii,
+                       'Surowiec' AS typ, 'OSIP' AS linia,
+                       'osip_transfer_items' AS src_table
+                FROM osip_transfer_items ti
+                JOIN osip_transfers t ON ti.transfer_id = t.id
+                WHERE (
+                    UPPER(COALESCE(ti.nr_palety, '')) = %s 
+                    OR UPPER(COALESCE(ti.nr_palety, '')) LIKE %s 
+                    OR (LENGTH(%s) >= 3 AND UPPER(COALESCE(ti.nr_palety, '')) LIKE %s)
+                )
+                ORDER BY ti.id DESC LIMIT 1
+            """, (clean, match_clean, digits, match_digits))
         ]
 
         conn = get_db_connection()

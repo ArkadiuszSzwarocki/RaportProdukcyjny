@@ -388,7 +388,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadTransfers() {
         if (!tbody) return;
         try {
-            const res = await fetch('/osip/api/transfers');
+            const container = document.getElementById('transfers-container');
+            const urlParams = new URLSearchParams(window.location.search);
+            const scopeVal = urlParams.get('scope') || (container ? container.dataset.scope : '') || 'osip';
+
+            const res = await fetch(`/osip/api/transfers?scope=${encodeURIComponent(scopeVal)}`);
             const json = await res.json();
             if (json.success) {
                 allTransfersData = json.transfers || [];

@@ -41,6 +41,9 @@ class WarehouseQueries:
         table_plan = get_table_name('plan_produkcji', linia)
         table_palety = get_table_name('palety_workowanie', linia)
         
+        is_agro = str(linia).upper() == 'AGRO'
+        line_filter_mag = "AND m.linia = 'AGRO'" if is_agro else "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')"
+        
         cursor.execute(
             f"SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
             "COALESCE(pw.data_dodania, m.data_potwierdzenia) AS data_dodania, "
@@ -48,7 +51,7 @@ class WarehouseQueries:
             "COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at), m.user_login, m.nr_palety, m.nr_plomby "
             f"FROM {table_magazyn} m LEFT JOIN {table_plan} p ON m.plan_id = p.id "
             f"LEFT JOIN {table_palety} pw ON m.paleta_workowanie_id = pw.id "
-            f"WHERE DATE(COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at)) = %s AND m.waga_netto > 0 "
+            f"WHERE DATE(COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at)) = %s AND m.waga_netto > 0 {line_filter_mag} "
             "UNION ALL "
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, COALESCE(pw.data_potwierdzenia, pw.data_dodania) AS data_dodania, "
             "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, "

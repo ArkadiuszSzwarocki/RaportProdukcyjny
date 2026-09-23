@@ -46,9 +46,21 @@ def test_get_transfers_list_filtering():
 
     service = OsipTransferService(repository=mock_repo)
 
-    # Admin widzi wszystko
+    # Admin widzi wszystko bez podanego scope
     admin_list = service.get_transfers_list("admin", "AGRO")
     assert len(admin_list) == 2
+
+    # Scope centrala (Transfery na OSIP / Wszystkie Magazyny) -> tylko transfery Z OSIP
+    centrala_list = service.get_transfers_list("admin", "AGRO", scope="centrala")
+    assert len(centrala_list) == 1
+    assert centrala_list[0].id == 2
+    assert centrala_list[0].source_warehouse == "OSIP"
+
+    # Scope osip (Transfery do Centrali / Magazyn OSIP) -> tylko transfery Z CENTRALI
+    osip_list = service.get_transfers_list("admin", "OSIP", scope="osip")
+    assert len(osip_list) == 1
+    assert osip_list[0].id == 1
+    assert osip_list[0].source_warehouse == "MS01"
 
     # Magazynier AGRO widzi tylko zlecenia zaplanowane wychodzące z AGRO/MS01
     agro_list = service.get_transfers_list("magazynier", "AGRO")

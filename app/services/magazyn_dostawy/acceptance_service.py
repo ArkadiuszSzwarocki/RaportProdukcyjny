@@ -207,24 +207,9 @@ class AcceptanceService:
                 target['data_produkcji'] = data_produkcji
                 target['data_przydatnosci'] = data_przydatnosci
 
-                # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety
-                source_pallet_id = target.get('sourcePalletId')
-                if source_pallet_id:
-                    tbl_unblk = table_opk if p_type == 'opakowanie' else (table_sur if p_type == 'surowiec' else None)
-                    if not tbl_unblk and p_type == 'dodatek': tbl_unblk = 'magazyn_dodatki'
-                    elif not tbl_unblk and p_type in ['magazyn', 'produkcja', 'wyrob_gotowy']: tbl_unblk = get_table_name('magazyn_palety', linia)
-                    
-                    if tbl_unblk:
-                        try:
-                            cursor.execute(f"UPDATE {tbl_unblk} SET is_blocked = 0 WHERE id = %s", (source_pallet_id,))
-                        except Exception:
-                            pass
-                if nr_palety:
-                    try:
-                        for tbl_check in [table_opk, table_sur, get_table_name('magazyn_palety', linia), 'magazyn_dodatki']:
-                            cursor.execute(f"UPDATE {tbl_check} SET is_blocked = 0 WHERE nr_palety = %s", (nr_palety,))
-                    except Exception:
-                        pass
+                # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety (dla obu linii PSD i AGRO)
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
 
                 # 3. Empty the source spot ONLY for internal transfers where source pallet is a SEPARATE row
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
@@ -443,7 +428,9 @@ class AcceptanceService:
                 target['rejected_by'] = login
                 target['rejected_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 target['rejected_reason'] = normalized_reason
-                target['reject_restored'] = restored
+                # Zwalniamy blokadę dla odrzuconej palety
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
 
                 if restored:
                     cursor.execute(

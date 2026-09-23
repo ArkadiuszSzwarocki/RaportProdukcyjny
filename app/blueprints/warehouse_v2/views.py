@@ -72,6 +72,13 @@ def index():
 def summary():
     return WarehouseSummaryController.render_summary()
 
+@warehouse_v2_bp.route('/transfers')
+def transfers_osip_view():
+    """Widok transferów międzymagazynowych na magazyn OSIP z poziomu Wszystkich Magazynów."""
+    linia = request.args.get('linia', 'PSD').upper()
+    return render_template('osip/osip_transfers.html', scope='centrala', linia=linia)
+
+
 @warehouse_v2_bp.route('/production-status')
 def production_status():
     """Strona podsumowania stanu 24 stanowisk produkcyjnych."""

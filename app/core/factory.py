@@ -1,7 +1,6 @@
 """Flask application factory."""
 
 import os
-import glob
 from datetime import timedelta
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -62,14 +61,8 @@ def create_app(config_secret_key=None, init_db=True):
     static_folder = os.path.join(project_root, 'static')
     app = Flask(__name__, root_path=project_root, template_folder=template_folder, static_folder=static_folder)
     
-    # Log template folder and available templates to help diagnose TemplateNotFound
+    # Log template folder path for diagnostics (skip verbose per-file listing)
     app.logger.debug('Flask template_folder=%s', template_folder)
-    try:
-        templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
-        for t in templates_list:
-            app.logger.debug('Template file: %s', t)
-    except Exception as e:
-        app.logger.exception('Failed to enumerate templates: %s', e)
     
     # Configure with secret key – always load from environment first so
     # container restarts (Watchtower) do not invalidate existing session cookies.

@@ -35,17 +35,31 @@ class OsipWarehouseService:
             except Exception:
                 finished_goods = []
 
-            # Filtrowanie wyszukiwaniem
+            # Filtrowanie wyszukiwaniem (dla cyfr szukamy od konca - suffix matching)
             if search_term:
-                term = search_term.lower()
-                raw_materials = [
-                    r for r in raw_materials
-                    if term in str(r.get('nr_palety', '')).lower() or term in str(r.get('nazwa', '')).lower() or term in str(r.get('lokalizacja', '')).lower()
-                ]
-                finished_goods = [
-                    f for f in finished_goods
-                    if term in str(f.get('nr_palety', '')).lower() or term in str(f.get('nazwa', '')).lower() or term in str(f.get('lokalizacja', '')).lower()
-                ]
+                term = str(search_term).strip().lower()
+                is_pure_digits = term.isdigit()
+
+                def _matches_item(item: Dict[str, Any]) -> bool:
+                    nr_p = str(item.get('nr_palety', '')).strip().lower()
+                    nazwa = str(item.get('nazwa', '')).strip().lower()
+                    lok = str(item.get('lokalizacja', '')).strip().lower()
+                    batch = str(item.get('nr_partii', '')).strip().lower()
+
+                    if is_pure_digits:
+                        nr_digits = ''.join(c for c in nr_p if c.isdigit())
+                        batch_digits = ''.join(c for c in batch if c.isdigit())
+                        return (
+                            (nr_digits and nr_digits.endswith(term))
+                            or nr_p.endswith(term)
+                            or (batch_digits and batch_digits.endswith(term))
+                            or term in nazwa
+                            or term in lok
+                        )
+                    return (term in nr_p or term in nazwa or term in lok or term in batch)
+
+                raw_materials = [r for r in raw_materials if _matches_item(r)]
+                finished_goods = [f for f in finished_goods if _matches_item(f)]
 
             return {
                 "raw_materials": raw_materials,

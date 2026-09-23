@@ -147,7 +147,7 @@ function filterTable(options = {}) {
             if (!isBlocked) return false;
         }
         let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}`.toUpperCase();
-        return isMatch(allText, item.location || '', filter, selectedLocations);
+        return isMatch(allText, item.location || '', filter, selectedLocations, item);
     });
 
     // 1b. Oblicz kolejność FIFO per produkt

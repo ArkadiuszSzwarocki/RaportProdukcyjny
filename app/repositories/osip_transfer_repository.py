@@ -29,9 +29,23 @@ class OsipTransferRepository:
             conn.close()
 
     def add_transfer_items(self, transfer_id: int, items: List[Dict[str, Any]]) -> None:
+        if not items:
+            return
+
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
+            # Deduplicate items by nr_palety in case of race conditions
+            seen_pallets = set()
+            unique_items = []
+            for item in items:
+                nr_pal = str(item.get('nr_palety') or '').strip().upper()
+                if nr_pal and nr_pal in seen_pallets:
+                    continue
+                if nr_pal:
+                    seen_pallets.add(nr_pal)
+                unique_items.append(item)
+
             query = """
                 INSERT INTO osip_transfer_items (transfer_id, pallet_id, nr_palety, product_name, item_type, requested_qty, loaded_qty, unit, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'PLANNED')
@@ -47,7 +61,7 @@ class OsipTransferRepository:
                     float(item.get('loaded_qty', 0.0)),
                     item.get('unit', 'kg')
                 )
-                for item in items
+                for item in unique_items
             ]
             cursor.executemany(query, params)
             conn.commit()

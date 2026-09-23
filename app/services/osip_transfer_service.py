@@ -352,9 +352,26 @@ class OsipTransferService:
             cursor.close()
             conn.close()
 
-    def get_transfers_list(self, user_role: str, user_subrole: Optional[str] = None) -> List[OsipTransferModel]:
-        """Pobiera listę transferów z filtrowaniem wg rola/oddział."""
+    def get_transfers_list(self, user_role: str, user_subrole: Optional[str] = None, scope: Optional[str] = None) -> List[OsipTransferModel]:
+        """Pobiera listę transferów z filtrowaniem wg rola/oddział oraz zakresu (scope)."""
         all_transfers = self.repository.get_all_transfers()
+        
+        # Filtrowanie kierunku w zależności od zadanego widoku (OSIP vs Centrala / Wszystkie Magazyny)
+        # 'centrala': widok Centrala/Wszystkie Magazyny -> tylko transfery Z OSIP (source_warehouse == 'OSIP')
+        # 'osip': widok Magazyn OSIP -> tylko transfery Z CENTRALI (source_warehouse != 'OSIP')
+        if scope:
+            scope_lower = str(scope).lower().strip()
+            if scope_lower in ('centrala', 'all_warehouses', 'from_osip', 'to_centrala'):
+                all_transfers = [
+                    t for t in all_transfers 
+                    if (t.source_warehouse or '').upper() == 'OSIP'
+                ]
+            elif scope_lower in ('osip', 'from_centrala', 'to_osip'):
+                all_transfers = [
+                    t for t in all_transfers 
+                    if (t.source_warehouse or '').upper() != 'OSIP'
+                ]
+
         role_lower = (user_role or '').lower()
         if role_lower in ("admin", "masteradmin", "zarzad", "boss", "planista", "lider", "master"):
             return all_transfers

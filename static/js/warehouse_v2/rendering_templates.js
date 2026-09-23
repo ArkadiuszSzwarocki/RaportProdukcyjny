@@ -462,21 +462,43 @@ function clearAllFilters() {
     filterTable();
 }
 
-function isMatch(allText, locText, filter, locationFiltersArray) {
+function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
     const filterText = (filter || '').toUpperCase().trim();
-    const textMatch = (filterText === "" || allText.indexOf(filterText) > -1);
-    const slotMatch = (filterText !== "" && matchesLocationSlots(locText, filterText));
+    if (filterText === "") return true;
+
+    const isPureDigits = /^\d+$/.test(filterText);
+    let textMatch = false;
+
+    if (isPureDigits) {
+        // Gdy szukamy po samych cyfrach (np. 3-6 ostatnich cyfr), szukamy OD KOŃCA numeru palety / partii (suffix)
+        const idStr = String(item ? (item.displayId || item.nr_palety || item.id || '') : '').toUpperCase().trim();
+        const idDigits = idStr.replace(/\D/g, '');
+        const batchStr = String(item ? (item.batch || item.nr_partii || '') : '').toUpperCase().trim();
+        const batchDigits = batchStr.replace(/\D/g, '');
+        const prodName = String(item ? (item.productName || item.nazwa || '') : '').toUpperCase().trim();
+
+        const endsWithDigits = (idDigits && idDigits.endsWith(filterText)) || (idStr && idStr.endsWith(filterText));
+        const batchEndsWithDigits = (batchDigits && batchDigits.endsWith(filterText)) || (batchStr && batchStr.endsWith(filterText));
+        const prodContainsDigits = prodName.includes(filterText);
+
+        textMatch = Boolean(endsWithDigits || batchEndsWithDigits || prodContainsDigits);
+    } else {
+        textMatch = (allText.indexOf(filterText) > -1);
+    }
+
+    const slotMatch = matchesLocationSlots(locText, filterText);
 
     if (!(textMatch || slotMatch)) return false;
 
     // Direct pallet / barcode / SSCC search bypasses rack-level filter so workers can always locate the pallet
-    const isDirectPalletSearch = filterText.length >= 4 && (
+    const isDirectPalletSearch = (isPureDigits && filterText.length >= 3) || (filterText.length >= 4 && (
         filterText.startsWith('PSD') || 
         filterText.startsWith('AGR') || 
         filterText.startsWith('PAL') ||
-        filterText.startsWith('SSCC') ||
-        /^\d{6,}$/.test(filterText)
-    );
+        filterText.startsWith('SUR') ||
+        filterText.startsWith('OPK') ||
+        filterText.startsWith('SSCC')
+    ));
     
     if (!isDirectPalletSearch && Array.isArray(locationFiltersArray)) {
         if (locationFiltersArray.length === 0) {

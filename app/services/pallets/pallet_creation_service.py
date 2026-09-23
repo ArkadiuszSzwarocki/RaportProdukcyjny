@@ -314,8 +314,8 @@ class PalletCreationService:
                         INSERT INTO magazyn_palety (
                             paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, 
                             waga_brutto, tara, user_login, nr_partii, data_produkcji, 
-                            data_przydatnosci, lokalizacja, nr_palety, nr_plomby, linia, nr_palety_lp, data_potwierdzenia
-                        ) VALUES (%s, %s, %s, %s, %s, %s, 25, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            data_przydatnosci, lokalizacja, nr_palety, nr_plomby, linia, nr_palety_lp, data_potwierdzenia, is_blocked
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 25, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
                     """, (
                         paleta_id, plan_id, _plan_data, nazwa_do_historii, waga_input,
                         waga_input + 25, user_login, None, selected_data_produkcji,

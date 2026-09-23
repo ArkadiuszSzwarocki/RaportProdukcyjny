@@ -294,30 +294,44 @@
     }
 </style>
 
-<div class="osip-transfers-container">
+<div class="osip-transfers-container" id="transfers-container" data-scope="{{ scope or 'osip' }}">
 
     <!-- NAGŁÓWEK STRONY -->
     <div class="transfers-header-bar">
         <div class="transfers-title-group">
-            <div class="transfers-title-icon">
+            <div class="transfers-title-icon" style="{% if scope == 'centrala' %}background: #eff6ff; color: #2563eb;{% else %}background: #ecfdf5; color: #059669;{% endif %}">
                 <span class="material-icons">swap_horiz</span>
             </div>
             <div>
-                <h2>Transfery Międzymagazynowe Palet</h2>
+                {% if scope == 'centrala' %}
+                <h2>Transfery na OSIP (z Magazynu OSIP)</h2>
                 <p>
-                    Ewidencja ruchów paletowych OSIP &harr; Centrala. 
-                    <strong>[O]</strong> = dostawa na OSIP, 
-                    <strong>[C]</strong> = dostawa do Centrali.
+                    Zlecenia transferów surowców i wyrobów wysłanych z Magazynu OSIP do Magazynu Centralnego (MS01).
                 </p>
+                {% else %}
+                <h2>Transfery do Centrali (z Centrali)</h2>
+                <p>
+                    Zlecenia transferów surowców i towarów wysłanych z Centrali (MS01) do magazynu zewnętrznego OSIP.
+                </p>
+                {% endif %}
             </div>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
-            <a href="{{ url_for('osip.transfer_nowy_view') }}" class="orders-back-btn btn-new-trf">
-                <span class="material-icons">add_circle</span> NOWY TRANSFER
+            {% if scope == 'centrala' %}
+            <a href="{{ url_for('osip.transfer_nowy_view', source='OSIP', dest='MS01', scope='centrala') }}" class="orders-back-btn btn-new-trf" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);">
+                <span class="material-icons">add_circle</span> NOWY TRANSFER Z OSIP
+            </a>
+            <a href="{{ url_for('warehouse_v2.index') }}" class="orders-back-btn">
+                <span class="material-icons">dashboard</span> WSZYSTKIE MAGAZYNY
+            </a>
+            {% else %}
+            <a href="{{ url_for('osip.transfer_nowy_view', source='MS01', dest='OSIP', scope='osip') }}" class="orders-back-btn btn-new-trf">
+                <span class="material-icons">add_circle</span> NOWY TRANSFER Z CENTRALI
             </a>
             <a href="{{ url_for('osip.warehouse_view') }}" class="orders-back-btn">
                 <span class="material-icons">warehouse</span> STAN OSIP
             </a>
+            {% endif %}
         </div>
     </div>
 

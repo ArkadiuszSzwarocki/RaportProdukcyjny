@@ -2,753 +2,1091 @@
 
 {% block content %}
 <style>
-    .qr-generator-view {
-        max-width: 860px;
+    .qr-view-container {
+        max-width: 1280px;
         margin: 0 auto;
         padding: 24px 16px;
     }
 
-    .qr-hero {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    /* HERO HEADER */
+    .qr-hero-card {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         border-radius: 16px;
-        padding: 32px;
+        padding: 28px 32px;
         margin-bottom: 24px;
-        color: white;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        border: 1px solid rgba(255,255,255,0.08);
-        position: relative;
-        overflow: hidden;
+        color: #ffffff;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 20px;
     }
 
-    .qr-hero::after {
-        content: "";
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(0,0,0,0) 70%);
-        pointer-events: none;
-    }
-
-    .qr-hero h1 {
-        margin: 0 0 8px 0;
-        font-size: 26px;
-        font-weight: 700;
+    .qr-hero-title-group h1 {
+        margin: 0 0 6px 0;
+        font-size: 24px;
+        font-weight: 800;
         color: #ffffff;
         display: flex;
         align-items: center;
         gap: 12px;
     }
 
-    .qr-hero .subtitle {
+    .qr-hero-title-group p {
         margin: 0;
         color: #94a3b8;
         font-size: 14px;
-        line-height: 1.5;
     }
 
-    .format-badge {
-        display: inline-block;
+    .qr-size-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         background: rgba(59, 130, 246, 0.2);
         color: #60a5fa;
         border: 1px solid rgba(59, 130, 246, 0.4);
-        padding: 4px 10px;
-        border-radius: 6px;
+        padding: 6px 14px;
+        border-radius: 8px;
         font-family: 'Courier New', Courier, monospace;
         font-size: 13px;
-        font-weight: 600;
-        margin-top: 10px;
+        font-weight: 700;
     }
 
-    .qr-card {
+    .btn-hero-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #f8fafc;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    .btn-hero-back:hover {
+        background: #ffffff;
+        color: #0f172a;
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+
+    /* NAV TABS */
+    .qr-tabs-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+        flex-wrap: wrap;
+    }
+
+    .qr-tab-btn {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .qr-tab-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .qr-tab-btn.active {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #2563eb;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+
+    .qr-tab-content {
+        display: none;
+    }
+    .qr-tab-content.active {
+        display: block;
+    }
+
+    /* MAIN GRID LAYOUT */
+    .qr-main-grid {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 24px;
+        align-items: start;
+    }
+
+    @media (max-width: 992px) {
+        .qr-main-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* CARDS */
+    .qr-section-card {
         background: #ffffff;
         border-radius: 16px;
-        padding: 32px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        padding: 24px;
         border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+        margin-bottom: 20px;
     }
 
+    .qr-section-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 16px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* FORM ELEMENTS */
     .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 18px;
     }
 
     .form-group label {
         display: block;
-        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 700;
         color: #334155;
-        font-weight: 600;
-        font-size: 14px;
+        margin-bottom: 6px;
     }
 
-    .form-control-wrap {
-        position: relative;
-        display: flex;
-        align-items: center;
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="password"],
-    .form-group select {
+    .form-control-custom {
         width: 100%;
-        padding: 12px 14px;
+        padding: 10px 14px;
         border: 1.5px solid #cbd5e1;
         border-radius: 8px;
-        font-size: 15px;
+        font-size: 14px;
         color: #1e293b;
         background-color: #f8fafc;
-        transition: all 0.2s ease;
         box-sizing: border-box;
+        transition: all 0.2s ease;
     }
 
-    .form-group input[type="text"]:focus,
-    .form-group input[type="password"]:focus,
-    .form-group select:focus {
+    .form-control-custom:focus {
         outline: none;
         border-color: #3b82f6;
         background-color: #ffffff;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
 
-    .password-toggle-btn {
-        position: absolute;
-        right: 12px;
-        background: none;
-        border: none;
-        color: #64748b;
-        cursor: pointer;
-        padding: 4px;
-        font-size: 16px;
-    }
-
-    .password-toggle-btn:hover {
-        color: #1e293b;
-    }
-
-    .format-selector-box {
-        margin-bottom: 24px;
-        padding: 16px;
-        background: #f1f5f9;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-    }
-
-    .format-selector-box .format-title {
-        display: block;
-        margin-bottom: 10px;
-        font-weight: 600;
-        color: #1e293b;
-        font-size: 13px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .radio-pill-group {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .radio-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
+    /* 80x80 MM PREVIEW CARD */
+    .qr-preview-card {
         background: #ffffff;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-        color: #334155;
-        transition: all 0.2s;
-    }
-
-    .radio-pill:hover {
-        border-color: #94a3b8;
-    }
-
-    .radio-pill input[type="radio"] {
-        accent-color: #3b82f6;
-        cursor: pointer;
-    }
-
-    .radio-pill.active {
-        border-color: #3b82f6;
-        background: #eff6ff;
-        color: #1d4ed8;
-    }
-
-    .btn-row {
-        display: flex;
-        gap: 12px;
-        margin-top: 10px;
-    }
-
-    .btn-main-qr {
-        flex: 2;
-        padding: 14px 20px;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: #ffffff;
-        border: none;
-        border-radius: 8px;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-
-    .btn-main-qr:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        transform: translateY(-1px);
-    }
-
-    .btn-clear-form {
-        flex: 1;
-        padding: 14px 20px;
-        background: #f1f5f9;
-        color: #475569;
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .btn-clear-form:hover {
-        background: #e2e8f0;
-        color: #0f172a;
-    }
-
-    .qr-result-wrapper {
-        margin-top: 32px;
-        padding: 24px;
-        background: #f8fafc;
+        border-radius: 16px;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        display: none;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+        position: sticky;
+        top: 20px;
+        text-align: center;
     }
 
-    .qr-result-wrapper.active {
-        display: block;
-        animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .qr-output-flex {
-        display: flex;
-        gap: 24px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-
-    .qr-canvas-box {
+    .qr-label-80x80 {
+        width: 280px;
+        height: 280px;
+        margin: 0 auto 16px auto;
+        border: 3px solid #0f172a;
+        border-radius: 8px;
         background: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-        border: 1px solid #e2e8f0;
+        box-sizing: border-box;
+        padding: 12px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: center;
-        min-width: 150px;
-        min-height: 150px;
-    }
-
-    .qr-info-content {
-        flex: 1;
-        min-width: 250px;
-    }
-
-    .qr-info-content h3 {
-        margin: 0 0 8px 0;
-        font-size: 16px;
-        font-weight: 700;
-        color: #0f172a;
-    }
-
-    .qr-payload-display {
-        margin-top: 8px;
-        padding: 12px 14px;
-        background: #0f172a;
-        color: #38bdf8;
-        border-radius: 8px;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 14px;
-        font-weight: 600;
-        word-break: break-all;
+        justify-content: space-between;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         position: relative;
     }
 
-    .actions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
-        margin-top: 24px;
+    .qr-label-header-text {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #475569;
+        border-bottom: 1.5px solid #cbd5e1;
+        width: 100%;
+        padding-bottom: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .action-btn {
-        padding: 12px 16px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
+    .qr-label-canvas-wrap {
+        width: 150px;
+        height: 150px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        margin: 4px 0;
+    }
+
+    .qr-label-canvas-wrap img,
+    .qr-label-canvas-wrap canvas {
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    .qr-label-footer-code {
+        font-size: 20px;
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: 0.5px;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    .qr-label-footer-sub {
+        font-size: 10px;
+        font-weight: 600;
+        color: #64748b;
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    .qr-actions-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .btn-action-primary {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #ffffff;
         border: none;
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
         transition: all 0.2s ease;
+        width: 100%;
+    }
+    .btn-action-primary:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        transform: translateY(-1px);
     }
 
-    .btn-action-zebra {
-        background: #10b981;
-        color: white;
-    }
-    .btn-action-zebra:hover {
-        background: #059669;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-
-    .btn-action-print {
-        background: #6366f1;
-        color: white;
-    }
-    .btn-action-print:hover {
-        background: #4f46e5;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    }
-
-    .btn-action-download {
-        background: #0284c7;
-        color: white;
-    }
-    .btn-action-download:hover {
-        background: #0369a1;
-        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-    }
-
-    .btn-action-copy {
-        background: #ffffff;
+    .btn-action-secondary {
+        background: #f8fafc;
         color: #334155;
-        border: 1px solid #cbd5e1;
+        border: 1.5px solid #cbd5e1;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        width: 100%;
     }
-    .btn-action-copy:hover {
+    .btn-action-secondary:hover {
         background: #f1f5f9;
         color: #0f172a;
+        border-color: #94a3b8;
     }
 
+    /* LOCATION CATALOG LIST */
+    .loc-filter-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    .loc-pills-wrap {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    .loc-cat-pill {
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .loc-cat-pill:hover {
+        background: #e2e8f0;
+    }
+    .loc-cat-pill.active {
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
+    }
+
+    .loc-grid-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 12px;
+        max-height: 540px;
+        overflow-y: auto;
+        padding: 4px;
+    }
+
+    .loc-item-card {
+        background: #ffffff;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+    }
+    .loc-item-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+        transform: translateY(-2px);
+    }
+    .loc-item-card.selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+    }
+
+    .loc-item-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .loc-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+    .loc-badge {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .loc-card-code {
+        font-size: 15px;
+        font-weight: 900;
+        color: #0f172a;
+        margin-bottom: 2px;
+    }
+    .loc-card-name {
+        font-size: 11px;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* PRINT LAYOUT FOR 80x80 MM LABELS */
     @media print {
-        @page {
-            size: auto;
-            margin: 5mm;
-        }
-        body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-        }
         body * {
             visibility: hidden !important;
         }
-        .qr-canvas-box, .qr-canvas-box * {
+        #print-sheet-container, #print-sheet-container * {
             visibility: visible !important;
         }
-        .qr-canvas-box {
+        #print-sheet-container {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            transform: none !important;
-            width: 1.5cm !important;
-            height: 1.5cm !important;
-            min-width: 1.5cm !important;
-            min-height: 1.5cm !important;
-            max-width: 1.5cm !important;
-            max-height: 1.5cm !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
+            width: 100% !important;
             margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: #ffffff !important;
-        }
-        #qrcode {
-            width: 1.5cm !important;
-            height: 1.5cm !important;
             padding: 0 !important;
-            margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-        #qrcode img, #qrcode canvas {
-            width: 1.5cm !important;
-            height: 1.5cm !important;
-            max-width: 1.5cm !important;
-            max-height: 1.5cm !important;
-            object-fit: contain !important;
             display: block !important;
         }
-    }
-
-    @media (max-width: 640px) {
-        .qr-hero {
-            padding: 20px;
-        }
-        .qr-card {
-            padding: 20px;
-        }
-        .btn-row {
-            flex-direction: column;
-        }
-        .qr-output-flex {
-            flex-direction: column;
-            text-align: center;
+        .print-label-page {
+            width: 80mm !important;
+            height: 80mm !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            border: 2px solid #000000 !important;
+            box-sizing: border-box !important;
+            padding: 4mm !important;
+            margin: 0 auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            text-align: center !important;
+            background: #ffffff !important;
         }
     }
 </style>
 
-<div class="qr-generator-view">
-    <div class="qr-hero">
-        <h1>🔐 Generator Kodów QR Logowania</h1>
-        <p class="subtitle">
-            Generowanie kodów QR dla szybkiego logowania pracowników i operatorów na terminalach skanera i stanowiskach magazynowych.
-        </p>
-        <div class="format-badge">
-            📌 Format: LOGIN:&lt;login&gt;:&lt;hasło&gt;
+<div class="qr-view-container">
+
+    <!-- HERO HEADER -->
+    <div class="qr-hero-card">
+        <div class="qr-hero-title-group">
+            <h1>
+                <span class="material-icons" style="font-size: 32px; color: #60a5fa;">qr_code_2</span>
+                Generator Kodów QR & Etykiet Magazynowych
+            </h1>
+            <p>Tworzenie i wydruk kodów QR dla wpisanego tekstu oraz pełnego katalogu lokalizacji magazynowych (standard 80 × 80 mm).</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span class="qr-size-badge">
+                <span class="material-icons" style="font-size: 16px;">straighten</span>
+                Format: <span id="badgeCurrentDim">{{ qr_settings.width_mm }} × {{ qr_settings.height_mm }} mm</span>
+            </span>
+            <a href="/admin/ustawienia" class="btn-hero-back">
+                <span class="material-icons" style="font-size: 18px;">arrow_back</span> Powrót do Ustawień
+            </a>
         </div>
     </div>
 
-    <div class="qr-card">
-        <div class="format-selector-box">
-            <span class="format-title">Format zakodowanych danych:</span>
-            <div class="radio-pill-group">
-                <label class="radio-pill active" id="pillSimple">
-                    <input type="radio" name="format" value="simple" checked onchange="updateFormatPill()">
-                    <span>Standardowy (LOGIN:login:hasło)</span>
-                </label>
-                <label class="radio-pill" id="pillJson">
-                    <input type="radio" name="format" value="json" onchange="updateFormatPill()">
-                    <span>Format JSON ({"login":"...","pass":"..."})</span>
-                </label>
-            </div>
-        </div>
-
-        {% if users and users|length > 0 %}
-        <div class="form-group">
-            <label for="userSelect">⚡ Szybki wybór istniejącego użytkownika (opcjonalnie):</label>
-            <select id="userSelect" onchange="onUserSelectChange()">
-                <option value="">-- Wybierz użytkownika z bazy lub wpisz poniżej --</option>
-                {% for u in users %}
-                <option value="{{ u.login }}">{{ u.login }} ({{ u.rola or 'użytkownik' }})</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endif %}
-
-        <div class="form-group">
-            <label for="login">Login pracownika:</label>
-            <div class="form-control-wrap">
-                <input type="text" id="login" placeholder="Wprowadź login" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label for="password">Hasło lub PIN:</label>
-            <div class="form-control-wrap">
-                <input type="password" id="password" placeholder="Wprowadź hasło lub PIN" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false">
-                <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility()" title="Pokaż/Ukryj hasło">
-                    👁️
-                </button>
-            </div>
-        </div>
-
-        <div class="btn-row">
-            <button class="btn-main-qr" onclick="generateQR()">
-                🎯 Wygeneruj Kod QR
-            </button>
-            <button class="btn-clear-form" onclick="clearForm()">
-                🗑️ Wyczyść
-            </button>
-        </div>
-
-        <div class="qr-result-wrapper" id="qrContainer">
-            <div class="qr-output-flex">
-                <div class="qr-canvas-box" id="qrcodeBox">
-                    <div id="qrcode"></div>
-                </div>
-
-                <div class="qr-info-content">
-                    <h3>✅ Wygenerowano kod QR</h3>
-                    <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748b;">
-                        Rozmiar wydruku: <strong>1,5 cm × 1,5 cm</strong> &bull; Korekcja błędów: <strong>Poziom M</strong>
-                    </p>
-                    <p style="margin: 0 0 4px 0; font-size: 13px; color: #475569;">
-                        Zawartość kodu do zeskanowania:
-                    </p>
-                    <div class="qr-payload-display" id="qrData"></div>
-                </div>
-            </div>
-
-            <div class="actions-grid">
-                <button class="action-btn btn-action-zebra" onclick="drukujNaZebra()">
-                    🖨️ Drukuj na Zebra (ZPL)
-                </button>
-                <button class="action-btn btn-action-print" onclick="window.print()">
-                    🖨️ Drukuj (Przeglądarka)
-                </button>
-                <button class="action-btn btn-action-download" onclick="downloadQRCode()">
-                    💾 Pobierz PNG
-                </button>
-                <button class="action-btn btn-action-copy" onclick="copyPayload()">
-                    📋 Kopiuj tekst
-                </button>
-            </div>
-        </div>
+    <!-- TABS NAVIGATION -->
+    <div class="qr-tabs-nav">
+        <button type="button" class="qr-tab-btn active" onclick="switchQrTab('tab-locations')">
+            <span class="material-icons" style="font-size: 18px;">place</span> Lista Lokalizacji (Kody QR)
+            <span class="badge badge-light" style="background:#e2e8f0; color:#1e293b; padding:2px 7px; border-radius:12px; font-size:11px;">{{ locations_data.total_count }}</span>
+        </button>
+        <button type="button" class="qr-tab-btn" onclick="switchQrTab('tab-custom')">
+            <span class="material-icons" style="font-size: 18px;">edit_note</span> Wpisz Tekst / Dowolny Kod
+        </button>
+        <button type="button" class="qr-tab-btn" onclick="switchQrTab('tab-settings')">
+            <span class="material-icons" style="font-size: 18px;">tune</span> Ustawienia Wymiarów (80×80 mm)
+        </button>
     </div>
+
+    <!-- MAIN TWO-COLUMN CONTAINER -->
+    <div class="qr-main-grid">
+
+        <!-- LEFT COLUMN: TABS CONTENT -->
+        <div>
+
+            <!-- TAB 1: LOCATIONS CATALOG -->
+            <div id="tab-locations" class="qr-tab-content active">
+                <div class="qr-section-card">
+                    <div class="qr-section-title">
+                        <span>📍 Wybierz lokalizację magazynową</span>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllFilteredLocs(true)" style="border-radius: 6px; font-size: 12px; font-weight: 700;">Zaznacz widoczne</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllFilteredLocs(false)" style="border-radius: 6px; font-size: 12px; font-weight: 700;">Odznacz</button>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Bar -->
+                    <div class="loc-filter-bar">
+                        <div style="flex: 1; min-width: 220px; position: relative;">
+                            <input type="text" id="locSearchInput" class="form-control-custom" placeholder="🔍 Szukaj lokalizacji (np. MS01, R01, OS05, KO01)..." oninput="filterLocationsList()">
+                        </div>
+                    </div>
+
+                    <!-- Category Pills -->
+                    <div class="loc-pills-wrap">
+                        <button type="button" class="loc-cat-pill active" onclick="setLocCategory('all')">Wszystkie ({{ locations_data.total_count }})</button>
+                        <button type="button" class="loc-cat-pill" onclick="setLocCategory('magazyny')">Magazyny & Strefy ({{ locations_data.categories.magazyny|length }})</button>
+                        <button type="button" class="loc-cat-pill" onclick="setLocCategory('regaly')">Regały R01-R09 ({{ locations_data.categories.regaly|length }})</button>
+                        <button type="button" class="loc-cat-pill" onclick="setLocCategory('osip')">Alejki OSIP ({{ locations_data.categories.osip|length }})</button>
+                        <button type="button" class="loc-cat-pill" onclick="setLocCategory('stacje')">Stacje KO / BB / MZ ({{ locations_data.categories.stacje|length }})</button>
+                        {% if locations_data.categories.wlasne and locations_data.categories.wlasne|length > 0 %}
+                        <button type="button" class="loc-cat-pill" onclick="setLocCategory('wlasne')">Własne ({{ locations_data.categories.wlasne|length }})</button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Location Cards Grid -->
+                    <div class="loc-grid-cards" id="locGridCards">
+                        {% for cat_key, items in locations_data.categories.items() %}
+                            {% for loc in items %}
+                            <div class="loc-item-card" data-code="{{ loc.code }}" data-name="{{ loc.name }}" data-zone="{{ loc.zone }}" data-cat="{{ cat_key }}" onclick="selectLocation('{{ loc.code }}', '{{ loc.name }}', '{{ loc.zone }}')">
+                                <div class="loc-item-top">
+                                    <span class="loc-badge">{{ loc.category }}</span>
+                                    <input type="checkbox" class="loc-checkbox" onclick="event.stopPropagation(); updateBatchCount();" value="{{ loc.code }}" data-name="{{ loc.name }}" data-zone="{{ loc.zone }}">
+                                </div>
+                                <div>
+                                    <div class="loc-card-code">{{ loc.code }}</div>
+                                    <div class="loc-card-name" title="{{ loc.name }}">{{ loc.name }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+
+                    <!-- Batch Operations Bar -->
+                    <div style="margin-top: 16px; padding-top: 14px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <span style="font-size: 13px; color: #475569; font-weight: 700;">
+                            Zaznaczono lokalizacji: <span id="batchSelectedCount" style="color: #2563eb; font-size: 15px;">0</span>
+                        </span>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="printSelectedBrowser()" style="border-radius: 8px;">
+                                🖨️ Drukuj zaznaczone (Przeglądarka)
+                            </button>
+                            <button type="button" class="btn btn-primary btn-sm font-weight-bold" onclick="printSelectedZebra()" style="border-radius: 8px;">
+                                🏷️ Drukuj zaznaczone na Zebra (ZPL)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: CUSTOM TEXT / CODE -->
+            <div id="tab-custom" class="qr-tab-content">
+                <div class="qr-section-card">
+                    <div class="qr-section-title">
+                        <span>✍️ Ręczne wprowadzanie danych</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customTextInput">Wpisz tekst / kod / login do zakodowania w QR:</label>
+                        <textarea id="customTextInput" class="form-control-custom" rows="3" placeholder="Wpisz dowolny tekst, kod palety (np. SUR000001...), numer partii lub identyfikator..." oninput="onCustomTextChange()"></textarea>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                        <div class="form-group">
+                            <label for="customTitleInput">Nagłówek na etykiecie (Duży napis):</label>
+                            <input type="text" id="customTitleInput" class="form-control-custom" placeholder="np. PALETA #1234 lub MS01" oninput="onCustomTextChange()">
+                        </div>
+                        <div class="form-group">
+                            <label for="customSubInput">Podtytuł / Opis:</label>
+                            <input type="text" id="customSubInput" class="form-control-custom" placeholder="np. KOD DOSTAWY / PRODUKT" oninput="onCustomTextChange()">
+                        </div>
+                    </div>
+
+                    {% if users and users|length > 0 %}
+                    <div class="form-group" style="background: #f8fafc; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <label for="quickUserSelect">⚡ Szybki wybór użytkownika (Login + Hasło):</label>
+                        <select id="quickUserSelect" class="form-control-custom" onchange="onQuickUserSelect()">
+                            <option value="">-- Wybierz konto użytkownika z bazy --</option>
+                            {% for u in users %}
+                            <option value="{{ u.login }}">{{ u.login }} ({{ u.rola or 'użytkownik' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-action-primary" style="flex: 1;" onclick="applyCustomToPreview()">
+                            🎯 Odśwież Podgląd Etykiety
+                        </button>
+                        <button type="button" class="btn-action-secondary" style="width: 120px;" onclick="clearCustomForm()">
+                            Wyczyść
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SETTINGS (DIMENSIONS 80x80 MM) -->
+            <div id="tab-settings" class="qr-tab-content">
+                <div class="qr-section-card">
+                    <div class="qr-section-title">
+                        <span>⚙️ Ustawienia Formatów i Drukarki (Domyślnie 80 × 80 mm)</span>
+                    </div>
+
+                    <form id="qrSettingsForm" onsubmit="saveQrSettingsForm(event)">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label for="settingWidth">Szerokość etykiety (mm):</label>
+                                <input type="number" id="settingWidth" class="form-control-custom" value="{{ qr_settings.width_mm }}" min="30" max="200" required oninput="updateLiveDimensions()">
+                            </div>
+                            <div class="form-group">
+                                <label for="settingHeight">Wysokość etykiety (mm):</label>
+                                <input type="number" id="settingHeight" class="form-control-custom" value="{{ qr_settings.height_mm }}" min="30" max="200" required oninput="updateLiveDimensions()">
+                            </div>
+                        </div>
+
+                        <!-- Presets -->
+                        <div class="form-group">
+                            <label>Szybkie presety rozmiarów:</label>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold" onclick="setDimPreset(80, 80)">80 × 80 mm (Domyślny Magazyn)</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="setDimPreset(100, 100)">100 × 100 mm (Duży regał)</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="setDimPreset(100, 50)">100 × 50 mm (Płaski)</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="setDimPreset(50, 50)">50 × 50 mm (Kompaktowy)</button>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label for="settingPrinter">Domyślna drukarka Zebra (ZPL):</label>
+                                <select id="settingPrinter" class="form-control-custom">
+                                    {% for p in printers %}
+                                    <option value="{{ p.nazwa }}" data-ip="{{ p.ip }}" {% if p.nazwa == qr_settings.default_printer %}selected{% endif %}>{{ p.nazwa }} ({{ p.ip or 'USB' }})</option>
+                                    {% else %}
+                                    <option value="Magazyn" data-ip="192.168.1.237">Magazyn (192.168.1.237)</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="settingEcc">Korekcja błędów QR (ECC):</label>
+                                <select id="settingEcc" class="form-control-custom">
+                                    <option value="L" {% if qr_settings.ecc_level == 'L' %}selected{% endif %}>Poziom L (7% odzysku - wysoka gęstość)</option>
+                                    <option value="M" {% if qr_settings.ecc_level == 'M' or not qr_settings.ecc_level %}selected{% endif %}>Poziom M (15% odzysku - standard przemysłowy)</option>
+                                    <option value="Q" {% if qr_settings.ecc_level == 'Q' %}selected{% endif %}>Poziom Q (25% odzysku)</option>
+                                    <option value="H" {% if qr_settings.ecc_level == 'H' %}selected{% endif %}>Poziom H (30% odzysku - wysoka odporność)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="settingCompanyTitle">Tytuł nagłówka etykiety:</label>
+                            <input type="text" id="settingCompanyTitle" class="form-control-custom" value="{{ qr_settings.company_title or 'MAGAZYN' }}">
+                        </div>
+
+                        <button type="submit" class="btn-action-primary" style="margin-top: 8px;">
+                            💾 Zapisz Ustawienia Etykiet QR
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: 80x80 MM LIVE PREVIEW & PRINT ACTIONS -->
+        <div>
+            <div class="qr-preview-card">
+                <div class="qr-section-title" style="justify-content: center; margin-bottom: 12px;">
+                    <span>👁️ Podgląd Etykiety (<span id="previewDimLabel">{{ qr_settings.width_mm }} × {{ qr_settings.height_mm }} mm</span>)</span>
+                </div>
+
+                <!-- 80x80 MM LABEL VISUAL BOX -->
+                <div class="qr-label-80x80" id="liveLabelBox">
+                    <div class="qr-label-header-text" id="liveLabelSub">MAGAZYN CENTRALNY</div>
+                    <div class="qr-label-canvas-wrap" id="liveQrCanvasWrap">
+                        <div id="qrcodeLive"></div>
+                    </div>
+                    <div>
+                        <div class="qr-label-footer-code" id="liveLabelTitle">MS01</div>
+                        <div class="qr-label-footer-sub" id="liveLabelDesc">Magazyn Surowcowy</div>
+                    </div>
+                </div>
+
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 16px;">
+                    Zawartość kodu QR: <strong id="liveQrPayloadText" style="color:#0f172a; word-break: break-all;">MS01</strong>
+                </div>
+
+                <!-- ACTIONS BUTTONS -->
+                <div class="qr-actions-stack">
+                    <button type="button" class="btn-action-primary" onclick="printSingleZebra()">
+                        🖨️ Drukuj na Zebra (ZPL 80x80)
+                    </button>
+                    <button type="button" class="btn-action-secondary" onclick="printSingleBrowser()">
+                        📄 Drukuj etykietę (Przeglądarka)
+                    </button>
+                    <button type="button" class="btn-action-secondary" onclick="downloadSinglePNG()">
+                        💾 Pobierz etykietę jako PNG
+                    </button>
+                    <button type="button" class="btn-action-secondary" onclick="copyCurrentPayload()">
+                        📋 Kopiuj kod do schowka
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
 </div>
 
-<!-- Biblioteki generowania kodów QR -->
+<!-- HIDDEN PRINT CONTAINER FOR BROWSER PRINTING -->
+<div id="print-sheet-container" style="display: none;"></div>
+
+<!-- SCRIPT QR & LOGIC -->
 <script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
 <script>
-    let currentQrPayload = '';
+    let activeQrCode = null;
+    let currentPayload = 'MS01';
+    let currentTitle = 'MS01';
+    let currentSubtitle = 'MAGAZYN CENTRALNY';
+    let currentDesc = 'Magazyn Surowcowy';
+    let currentWidthMm = {{ qr_settings.width_mm }};
+    let currentHeightMm = {{ qr_settings.height_mm }};
 
-    function updateFormatPill() {
-        const format = document.querySelector('input[name="format"]:checked').value;
-        const pillSimple = document.getElementById('pillSimple');
-        const pillJson = document.getElementById('pillJson');
-        if (format === 'simple') {
-            pillSimple.classList.add('active');
-            pillJson.classList.remove('active');
-        } else {
-            pillSimple.classList.remove('active');
-            pillJson.classList.add('active');
-        }
-        if (document.getElementById('qrContainer').classList.contains('active')) {
-            generateQR();
-        }
+    document.addEventListener('DOMContentLoaded', () => {
+        renderLiveQr(currentPayload);
+        // Domyślnie zaznacz pierwszą kartę lokalizacji
+        const firstCard = document.querySelector('.loc-item-card');
+        if (firstCard) firstCard.classList.add('selected');
+    });
+
+    function switchQrTab(tabId) {
+        document.querySelectorAll('.qr-tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.qr-tab-content').forEach(c => c.classList.remove('active'));
+
+        const targetTab = document.getElementById(tabId);
+        if (targetTab) targetTab.classList.add('active');
+
+        const activeBtn = Array.from(document.querySelectorAll('.qr-tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(tabId));
+        if (activeBtn) activeBtn.classList.add('active');
     }
 
-    function onUserSelectChange() {
-        const select = document.getElementById('userSelect');
-        if (select && select.value) {
-            document.getElementById('login').value = select.value;
-            document.getElementById('password').focus();
-        }
-    }
+    function renderLiveQr(text) {
+        const wrap = document.getElementById('qrcodeLive');
+        if (!wrap) return;
+        wrap.innerHTML = '';
 
-    function togglePasswordVisibility() {
-        const passInput = document.getElementById('password');
-        if (passInput.type === 'password') {
-            passInput.type = 'text';
-        } else {
-            passInput.type = 'password';
-        }
-    }
-
-    function generateQR() {
-        const login = (document.getElementById('login').value || '').trim();
-        const password = (document.getElementById('password').value || '').trim();
-        const format = document.querySelector('input[name="format"]:checked').value;
-
-        if (!login || !password) {
-            if (typeof showToast === 'function') {
-                showToast('⚠️ Wypełnij oba pola: login i hasło!', 'warning');
-            } else {
-                alert('⚠️ Wypełnij oba pola: login i hasło!');
-            }
-            return;
-        }
-
-        // Przygotuj format LOGIN:<login>:<haslo> lub JSON
-        if (format === 'json') {
-            currentQrPayload = JSON.stringify({
-                login: login,
-                pass: password
+        if (typeof QRCode !== 'undefined') {
+            activeQrCode = new QRCode(wrap, {
+                text: text || 'QR',
+                width: 140,
+                height: 140,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
             });
-        } else {
-            currentQrPayload = `LOGIN:${login}:${password}`;
         }
+    }
 
-        const qrContainer = document.getElementById('qrcode');
-        qrContainer.innerHTML = '';
+    function selectLocation(code, name, zone) {
+        currentPayload = code;
+        currentTitle = code;
+        currentSubtitle = (zone || 'LOKALIZACJA MAGAZYNOWA').toUpperCase();
+        currentDesc = name || code;
+
+        document.getElementById('liveLabelTitle').textContent = currentTitle;
+        document.getElementById('liveLabelSub').textContent = currentSubtitle;
+        document.getElementById('liveLabelDesc').textContent = currentDesc;
+        document.getElementById('liveQrPayloadText').textContent = currentPayload;
+
+        document.querySelectorAll('.loc-item-card').forEach(c => c.classList.remove('selected'));
+        const selectedCard = document.querySelector(`.loc-item-card[data-code="${code}"]`);
+        if (selectedCard) selectedCard.classList.add('selected');
+
+        renderLiveQr(currentPayload);
+    }
+
+    function filterLocationsList() {
+        const query = (document.getElementById('locSearchInput')?.value || '').trim().toLowerCase();
+        const activeCat = document.querySelector('.loc-cat-pill.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || 'all';
+
+        document.querySelectorAll('.loc-item-card').forEach(card => {
+            const code = (card.getAttribute('data-code') || '').toLowerCase();
+            const name = (card.getAttribute('data-name') || '').toLowerCase();
+            const zone = (card.getAttribute('data-zone') || '').toLowerCase();
+            const cat = card.getAttribute('data-cat');
+
+            const matchQuery = !query || code.includes(query) || name.includes(query) || zone.includes(query);
+            const matchCat = (activeCat === 'all' || cat === activeCat);
+
+            card.style.display = (matchQuery && matchCat) ? 'flex' : 'none';
+        });
+    }
+
+    function setLocCategory(catKey) {
+        document.querySelectorAll('.loc-cat-pill').forEach(p => p.classList.remove('active'));
+        const targetPill = Array.from(document.querySelectorAll('.loc-cat-pill')).find(p => p.getAttribute('onclick')?.includes(`'${catKey}'`));
+        if (targetPill) targetPill.classList.add('active');
+        filterLocationsList();
+    }
+
+    function selectAllFilteredLocs(checkVal) {
+        document.querySelectorAll('.loc-item-card').forEach(card => {
+            if (card.style.display !== 'none') {
+                const cb = card.querySelector('.loc-checkbox');
+                if (cb) cb.checked = checkVal;
+            }
+        });
+        updateBatchCount();
+    }
+
+    function updateBatchCount() {
+        const checked = document.querySelectorAll('.loc-checkbox:checked');
+        const countSpan = document.getElementById('batchSelectedCount');
+        if (countSpan) countSpan.textContent = checked.length;
+    }
+
+    function onCustomTextChange() {
+        const txt = (document.getElementById('customTextInput')?.value || '').trim();
+        const title = (document.getElementById('customTitleInput')?.value || '').trim();
+        const sub = (document.getElementById('customSubInput')?.value || '').trim();
+
+        currentPayload = txt || 'KOD_QR';
+        currentTitle = title || (txt ? txt.substring(0, 20) : 'ETYKIETA');
+        currentSubtitle = sub || 'KOD QR';
+        currentDesc = txt;
+
+        document.getElementById('liveLabelTitle').textContent = currentTitle;
+        document.getElementById('liveLabelSub').textContent = currentSubtitle;
+        document.getElementById('liveLabelDesc').textContent = currentDesc;
+        document.getElementById('liveQrPayloadText').textContent = currentPayload;
+
+        renderLiveQr(currentPayload);
+    }
+
+    function onQuickUserSelect() {
+        const sel = document.getElementById('quickUserSelect');
+        if (!sel || !sel.value) return;
+        const login = sel.value;
+        const pass = prompt(`Wprowadź hasło lub PIN dla użytkownika ${login}:`, '');
+        if (pass === null) return;
+
+        const payload = `LOGIN:${login}:${pass}`;
+        document.getElementById('customTextInput').value = payload;
+        document.getElementById('customTitleInput').value = login;
+        document.getElementById('customSubInput').value = 'IDENTYFIKATOR PRACOWNIKA';
+        onCustomTextChange();
+    }
+
+    function clearCustomForm() {
+        document.getElementById('customTextInput').value = '';
+        document.getElementById('customTitleInput').value = '';
+        document.getElementById('customSubInput').value = '';
+        selectLocation('MS01', 'Magazyn Surowcowy', 'Centrala');
+    }
+
+    function applyCustomToPreview() {
+        onCustomTextChange();
+    }
+
+    function setDimPreset(w, h) {
+        document.getElementById('settingWidth').value = w;
+        document.getElementById('settingHeight').value = h;
+        updateLiveDimensions();
+    }
+
+    function updateLiveDimensions() {
+        const w = parseInt(document.getElementById('settingWidth')?.value || '80', 10);
+        const h = parseInt(document.getElementById('settingHeight')?.value || '80', 10);
+        currentWidthMm = w;
+        currentHeightMm = h;
+        const label = `${w} × ${h} mm`;
+        document.getElementById('badgeCurrentDim').textContent = label;
+        document.getElementById('previewDimLabel').textContent = label;
+    }
+
+    async function saveQrSettingsForm(e) {
+        e.preventDefault();
+        const payload = {
+            width_mm: parseInt(document.getElementById('settingWidth').value, 10),
+            height_mm: parseInt(document.getElementById('settingHeight').value, 10),
+            ecc_level: document.getElementById('settingEcc').value,
+            company_title: document.getElementById('settingCompanyTitle').value,
+            default_printer: document.getElementById('settingPrinter').value
+        };
 
         try {
-            if (typeof QRCode !== 'undefined') {
-                new QRCode(qrContainer, {
-                    text: currentQrPayload,
-                    width: 140,
-                    height: 140,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: (QRCode.CorrectLevel && QRCode.CorrectLevel.M) ? QRCode.CorrectLevel.M : 0
+            const res = await fetch('/admin/api/qr/settings/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const d = await res.json();
+            if (d.success) {
+                alert('✅ ' + d.message);
+                updateLiveDimensions();
+            } else {
+                alert('❌ ' + d.message);
+            }
+        } catch (err) {
+            alert('❌ Błąd połączenia z serwerem: ' + err);
+        }
+    }
+
+    async function printSingleZebra() {
+        const printerSel = document.getElementById('settingPrinter');
+        const printerName = printerSel ? printerSel.value : 'Magazyn';
+        const printerIp = printerSel ? (printerSel.selectedOptions[0]?.dataset?.ip || '') : '';
+
+        const payload = {
+            mode: 'custom',
+            text: currentPayload,
+            title: currentTitle,
+            subtitle: currentSubtitle,
+            width_mm: currentWidthMm,
+            height_mm: currentHeightMm,
+            printer_name: printerName,
+            printer_ip: printerIp
+        };
+
+        try {
+            const res = await fetch('/admin/ustawienia/qr-generator/drukuj', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const d = await res.json();
+            if (d.success) {
+                alert('✅ ' + d.message);
+            } else {
+                alert('❌ ' + d.message);
+            }
+        } catch (err) {
+            alert('❌ Błąd wysyłki do drukarki: ' + err);
+        }
+    }
+
+    async function printSelectedZebra() {
+        const checked = Array.from(document.querySelectorAll('.loc-checkbox:checked'));
+        if (checked.length === 0) {
+            alert('Wybierz co najmniej jedną lokalizację zaznaczając checkbox.');
+            return;
+        }
+
+        const locations = checked.map(cb => ({
+            code: cb.value,
+            name: cb.dataset.name || cb.value,
+            zone: cb.dataset.zone || 'LOKALIZACJA'
+        }));
+
+        const printerSel = document.getElementById('settingPrinter');
+        const printerName = printerSel ? printerSel.value : 'Magazyn';
+        const printerIp = printerSel ? (printerSel.selectedOptions[0]?.dataset?.ip || '') : '';
+
+        if (!confirm(`Wydrukować ${locations.length} etykiet QR (${currentWidthMm}x${currentHeightMm} mm) na drukarce ${printerName}?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/admin/ustawienia/qr-generator/drukuj', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'batch_locations',
+                    locations: locations,
+                    width_mm: currentWidthMm,
+                    height_mm: currentHeightMm,
+                    printer_name: printerName,
+                    printer_ip: printerIp
+                })
+            });
+            const d = await res.json();
+            if (d.success) {
+                alert('✅ ' + d.message);
+            } else {
+                alert('❌ ' + d.message);
+            }
+        } catch (err) {
+            alert('❌ Błąd drukowania partii: ' + err);
+        }
+    }
+
+    function printSingleBrowser() {
+        const printContainer = document.getElementById('print-sheet-container');
+        printContainer.innerHTML = `
+            <div class="print-label-page">
+                <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; border-bottom: 1.5px solid #000; width: 100%; padding-bottom: 2mm;">
+                    ${currentSubtitle}
+                </div>
+                <div style="width: 48mm; height: 48mm; display: flex; align-items: center; justify-content: center; margin: 2mm 0;" id="browserPrintQr"></div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 900; line-height: 1;">${currentTitle}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #444; margin-top: 1mm;">${currentDesc}</div>
+                </div>
+            </div>
+        `;
+
+        new QRCode(document.getElementById('browserPrintQr'), {
+            text: currentPayload,
+            width: 180,
+            height: 180,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        setTimeout(() => {
+            window.print();
+        }, 300);
+    }
+
+    function printSelectedBrowser() {
+        const checked = Array.from(document.querySelectorAll('.loc-checkbox:checked'));
+        if (checked.length === 0) {
+            alert('Wybierz co najmniej jedną lokalizację zaznaczając checkbox.');
+            return;
+        }
+
+        const printContainer = document.getElementById('print-sheet-container');
+        printContainer.innerHTML = '';
+
+        checked.forEach((cb, idx) => {
+            const code = cb.value;
+            const name = cb.dataset.name || code;
+            const zone = cb.dataset.zone || 'LOKALIZACJA';
+
+            const page = document.createElement('div');
+            page.className = 'print-label-page';
+            page.innerHTML = `
+                <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; border-bottom: 1.5px solid #000; width: 100%; padding-bottom: 2mm;">
+                    ${zone}
+                </div>
+                <div style="width: 48mm; height: 48mm; display: flex; align-items: center; justify-content: center; margin: 2mm 0;" id="browserBatchQr_${idx}"></div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 900; line-height: 1;">${code}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #444; margin-top: 1mm;">${name}</div>
+                </div>
+            `;
+            printContainer.appendChild(page);
+        });
+
+        checked.forEach((cb, idx) => {
+            const qrEl = document.getElementById(`browserBatchQr_${idx}`);
+            if (qrEl) {
+                new QRCode(qrEl, {
+                    text: cb.value,
+                    width: 180,
+                    height: 180,
+                    correctLevel: QRCode.CorrectLevel.M
                 });
-            } else {
-                throw new Error('Biblioteka QRCode nie jest dostępna.');
             }
+        });
 
-            document.getElementById('qrData').textContent = currentQrPayload;
-            document.getElementById('qrContainer').classList.add('active');
-
-            if (typeof showToast === 'function') {
-                showToast('✅ Kod QR wygenerowany pomyślnie', 'success');
-            }
-        } catch (e) {
-            console.error('Błąd generowania QR:', e);
-            if (typeof showToast === 'function') {
-                showToast('❌ Błąd generowania QR: ' + e.message, 'error');
-            } else {
-                alert('❌ Błąd generowania QR: ' + e.message);
-            }
-        }
+        setTimeout(() => {
+            window.print();
+        }, 500);
     }
 
-    function downloadQRCode() {
-        const qrContainer = document.getElementById('qrcode');
-        const img = qrContainer.querySelector('img');
-        const canvas = qrContainer.querySelector('canvas');
-        let dataUrl = '';
+    function downloadSinglePNG() {
+        const canvas = document.querySelector('#qrcodeLive canvas');
+        const img = document.querySelector('#qrcodeLive img');
+        const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
 
-        if (img && img.src && img.src.startsWith('data:')) {
-            dataUrl = img.src;
-        } else if (canvas) {
-            dataUrl = canvas.toDataURL('image/png');
-        }
-
-        if (!dataUrl) {
-            if (typeof showToast === 'function') {
-                showToast('⚠️ Nie znaleziono wygenerowanego obrazu QR', 'warning');
-            }
+        if (!src) {
+            alert('Nie można pobrać obrazu QR.');
             return;
         }
 
-        const login = (document.getElementById('login').value || '').trim() || 'user';
-        const link = document.createElement('a');
-        link.download = `qr_login_${login}.png`;
-        link.href = dataUrl;
-        link.click();
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = `QR_${currentPayload.replace(/[^a-zA-Z0-9_-]/g, '_')}_80x80.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
-    function copyPayload() {
-        if (!currentQrPayload) return;
-        navigator.clipboard.writeText(currentQrPayload).then(() => {
-            if (typeof showToast === 'function') {
-                showToast('📋 Skopiowano treść do schowka', 'success');
-            } else {
-                alert('📋 Skopiowano treść do schowka: ' + currentQrPayload);
-            }
+    function copyCurrentPayload() {
+        navigator.clipboard.writeText(currentPayload).then(() => {
+            alert('📋 Skopiowano do schowka: ' + currentPayload);
         }).catch(() => {
-            alert('Treść: ' + currentQrPayload);
+            prompt('Skopiuj kod:', currentPayload);
         });
     }
-
-    function drukujNaZebra() {
-        const login = (document.getElementById('login').value || '').trim();
-        const password = (document.getElementById('password').value || '').trim();
-        const format = document.querySelector('input[name="format"]:checked').value;
-
-        if (!login || !password) {
-            if (typeof showToast === 'function') {
-                showToast('⚠️ Najpierw wypełnij formularz i wygeneruj kod QR!', 'warning');
-            } else {
-                alert('⚠️ Najpierw wypełnij formularz i wygeneruj kod QR!');
-            }
-            return;
-        }
-
-        if (typeof showToast === 'function') {
-            showToast('📤 Wysyłanie do drukarki Zebra...', 'info');
-        }
-
-        fetch('{{ url_for("admin.admin_qr_generator_drukuj") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                login: login,
-                password: password,
-                format: format
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const printerInfo = data.printer_name ? ` (${data.printer_name})` : '';
-                if (typeof showToast === 'function') {
-                    showToast('✅ Etykieta wysłana do drukarki Zebra' + printerInfo, 'success');
-                } else {
-                    alert('✅ Etykieta wysłana do drukarki Zebra' + printerInfo);
-                }
-            } else {
-                const errorMsg = data.message || 'Błąd druku';
-                if (typeof showToast === 'function') {
-                    showToast('❌ ' + errorMsg, 'error');
-                } else {
-                    alert('❌ ' + errorMsg);
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Błąd wysyłania do drukarki:', error);
-            if (typeof showToast === 'function') {
-                showToast('❌ Błąd połączenia z serwerem', 'error');
-            } else {
-                alert('❌ Błąd połączenia z serwerem');
-            }
-        });
-    }
-
-    function clearForm() {
-        document.getElementById('login').value = '';
-        document.getElementById('password').value = '';
-        const userSelect = document.getElementById('userSelect');
-        if (userSelect) userSelect.value = '';
-        document.getElementById('qrContainer').classList.remove('active');
-        currentQrPayload = '';
-        if (typeof showToast === 'function') {
-            showToast('Formularz wyczyszczony', 'info');
-        }
-    }
-
-    // Enter shortcuts
-    document.addEventListener('DOMContentLoaded', function() {
-        const loginEl = document.getElementById('login');
-        const passEl = document.getElementById('password');
-
-        if (loginEl) {
-            loginEl.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (passEl) passEl.focus();
-                }
-            });
-        }
-
-        if (passEl) {
-            passEl.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    generateQR();
-                }
-            });
-        }
-    });
 </script>
 {% endblock %}

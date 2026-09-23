@@ -45,6 +45,12 @@ class WarehouseSummaryController:
         try:
             cursor = conn.cursor(dictionary=True)
 
+            try:
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                PalletLockManager.reconcile_orphan_transfer_locks(cursor)
+            except Exception:
+                pass
+
             # 1. Surowce
             table_surowce = get_table_name('magazyn_surowce', linia)
             cursor.execute(
@@ -77,7 +83,7 @@ class WarehouseSummaryController:
             for linia_palety in palety_linie:
                 table_palety = get_table_name('magazyn_palety', linia_palety)
                 table_plan = get_table_name('plan_produkcji', linia_palety)
-                line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if table_palety == 'magazyn_palety' else ""
+                line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')" if linia_palety == 'PSD' else "AND m.linia = 'AGRO'"
                 cursor.execute(f"""
                     SELECT m.id, m.nr_palety, 
                            COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Nieznany produkt') as productName, 

@@ -44,12 +44,12 @@
                 <div class="vertical-list-menu">
                     {% set racks = [
                         ('all', 'Wszystkie Lokalizacje'), 
-                        ('OCZEKUJĄCE', '⏳ Oczekujące (W tranzycie / Bufor)'),
-                        ('bufory', '📦 Wszystkie Miejsca Buforowe i Podłogowe'),
-                        ('MP01', '🏢 Magazyn Produkcyjny – Podłoga (MP01)'),
-                        ('MS01', '🏢 Magazyn Surowcowy – Podłoga (MS01)'),
-                        ('MGW01', '🏭 Magazyn Wyrobów Gotowych 1 (MGW01)'),
-                        ('MGW02', '🏭 Magazyn Wyrobów Gotowych 2 (MGW02)'),
+                        ('OCZEKUJĄCE', 'Oczekujące (W tranzycie / Bufor)'),
+                        ('bufory', 'Wszystkie Miejsca Buforowe i Podłogowe'),
+                        ('MP01', 'Magazyn Produkcyjny – Podłoga (MP01)'),
+                        ('MS01', 'Magazyn Surowcowy – Podłoga (MS01)'),
+                        ('MGW01', 'Magazyn Wyrobów Gotowych 1 (MGW01)'),
+                        ('MGW02', 'Magazyn Wyrobów Gotowych 2 (MGW02)'),
                         ('R01', 'Regał R01 (MP01)'), 
                         ('R02', 'Regał R02 (MP01)'), 
                         ('R03', 'Regał R03 (MP01)'), 
@@ -58,7 +58,7 @@
                         ('R06', 'Regał R06 (MP01)'), 
                         ('R07', 'Regał R07 (MP01)'), 
                         ('R09', 'Regał Półkowy R09 (MP01)'),
-                        ('BFOS', '📦 Bufor Zewnętrzny (BFOS)'),
+                        ('BFOS', 'Bufor Zewnętrzny (BFOS)'),
                         ('A01-A99', 'Magazyn Zewnętrzny OSIP (A01–A99)'),
                         ('OS01-77', 'Magazyn Zewnętrzny OSIP (OS01–OS77)')
                     ] %}
@@ -66,7 +66,7 @@
                     <div class="nav-item-row nav-item-row-rack" data-rack-id="{{ rid }}">
                         <input type="radio" name="rack_select" id="rack-{{ rid }}" class="nav-radio-input" 
                                {% if rid == 'all' %}checked{% endif %} 
-                               onchange="updateRackLabel('{{ rname }}'); switchSubWarehouse('{{ rid }}', null)">
+                                onchange="updateRackLabel('{{ rname }}'); switchSubWarehouse('{{ rid }}', null)">
                         <label for="rack-{{ rid }}" class="list-item-btn rack-item">
                             <span class="item-id">{{ rid }}</span>
                             <span class="item-name">{{ rname }}</span>
@@ -100,30 +100,33 @@
 
             <div class="list-footer" style="display: flex; flex-direction: column; gap: 8px;">
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.racks_3d_view', linia=linia) }}'" class="status-link-btn" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color: #38bdf8; color: #ffffff; font-weight: 800; box-shadow: 0 4px 10px rgba(56, 189, 248, 0.25);">
-                    <span class="material-icons">view_in_ar</span> WIDOK 3D REGAŁÓW
+                    WIDOK 3D REGAŁÓW
                 </button>
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.summary', linia=linia) }}'" class="status-link-btn" style="background: #f0f9ff; border-color: #0ea5e9; color: #0369a1;">
-                    <span class="material-icons">pie_chart</span> PODSUMOWANIE MAGAZYNU
+                    PODSUMOWANIE MAGAZYNU
+                </button>
+                <button onclick="window.location.href='{{ url_for('warehouse_v2.transfers_osip_view', linia=linia) }}'" class="status-link-btn" style="background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 800;">
+                    TRANSFERY NA OSIP
                 </button>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                     <button onclick="openReturnModal('{{ linia }}'); closeUnifiedMenu()" class="status-link-btn" style="padding: 12px; font-size: 11px; background: #fdf2f8; border-color: #db2777; color: #9d174d;">
-                        <span class="material-icons" style="font-size: 18px;">assignment_return</span> ZWROT
+                        ZWROT
                     </button>
                     <button onclick="openReportsModal(); closeUnifiedMenu()" class="status-link-btn" style="padding: 12px; font-size: 11px; background: #f8fafc; border-color: #64748b; color: #475569;">
-                        <span class="material-icons" style="font-size: 18px;">summarize</span> RAPORTY
+                        RAPORTY
                     </button>
                 </div>
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.production_status', linia=linia) }}'" class="status-link-btn">
-                    <span class="material-icons">analytics</span> STATUS PRODUKCJI
+                    STATUS PRODUKCJI
                 </button>
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.zuzycie_view', linia=linia) }}'" class="status-link-btn" style="background: #fef2f2; border-color: #ef4444; color: #991b1b;">
-                    <span class="material-icons" style="color: #ef4444;">delete_sweep</span> ZUŻYCIE W PRODUKCJI (0 kg)
+                    ZUŻYCIE W PRODUKCJI (0 kg)
                 </button>
                 <button onclick="openStationHistoryModal(); closeUnifiedMenu()" class="status-link-btn" style="background: #fdf4ff; border-color: #d946ef; color: #a21caf;">
-                    <span class="material-icons">history</span> HISTORIA STACJI (BB, MZ, WZ)
+                    HISTORIA STACJI (BB, MZ, WZ)
                 </button>
                 <button onclick="window.location.href='{{ url_for('warehouse_v2.archiwum', linia=linia) }}'" class="status-link-btn" style="background: #f1f5f9; border-color: #94a3b8; color: #475569;">
-                    <span class="material-icons">inventory_2</span> ARCHIWUM PALET
+                    ARCHIWUM PALET
                 </button>
             </div>
         </div>

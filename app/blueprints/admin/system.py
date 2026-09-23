@@ -65,7 +65,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/ustawienia/qr-generator')
     @dynamic_role_required('ustawienia')
     def admin_qr_generator():
-        """Generator kodów QR dla loginów i haseł."""
+        """Generator kodów QR dla tekstu, haseł oraz pełnej bazy lokalizacji magazynowych (80x80 mm)."""
         users = []
         try:
             conn = get_db_connection()
@@ -76,42 +76,115 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             conn.close()
         except Exception:
             pass
-        return render_template('qr_generator.html', users=users)
+
+        from app.services.qr_generator_service import QrGeneratorService
+        from app.repositories.settings_repository import SettingsRepository
+
+        locations_data = QrGeneratorService.get_all_warehouse_locations()
+        qr_settings = QrGeneratorService.get_qr_settings()
+        printers = SettingsRepository.get_active_printers()
+
+        return render_template(
+            'qr_generator.html', 
+            users=users,
+            locations_data=locations_data,
+            qr_settings=qr_settings,
+            printers=printers
+        )
+
+    @admin_bp.route('/admin/api/qr/settings/save', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_qr_save_settings():
+        """Zapisuje domyślne wymiary (np. 80x80 mm) i opcje etykiet QR."""
+        from app.services.qr_generator_service import QrGeneratorService
+        data = request.get_json(silent=True) or {}
+        success, msg = QrGeneratorService.save_qr_settings(data)
+        return jsonify({'success': success, 'message': msg})
 
     @admin_bp.route('/admin/ustawienia/qr-generator/drukuj', methods=['POST'])
     @dynamic_role_required('ustawienia')
     def admin_qr_generator_drukuj():
-        """Wydrukuj małą etykietę QR z loginem i hasłem na drukarce Zebra ZPL."""
+        """Wydrukuj etykietę QR (tekst / lokalizacja / partia) na drukarce Zebra ZPL (wymiary 80x80 mm)."""
         try:
             data = request.get_json(silent=True) or {}
-            login = str(data.get('login', '')).strip()
-            password = str(data.get('password', '')).strip()
-            format_type = str(data.get('format', 'simple')).strip()
+            mode = str(data.get('mode', 'custom')).strip().lower()
+            width_mm = int(data.get('width_mm', 80) or 80)
+            height_mm = int(data.get('height_mm', 80) or 80)
+            target_printer_ip = str(data.get('printer_ip', '')).strip()
+            target_printer_name = str(data.get('printer_name', 'Magazyn')).strip()
 
-            if not login or not password:
-                return jsonify({'success': False, 'message': 'Brak loginu lub hasła'}), 400
-
-            # Przygotuj dane QR
-            if format_type == 'json':
-                import json
-                qr_data = json.dumps({'login': login, 'pass': password})
-            else:
-                qr_data = f"LOGIN:{login}:{password}"
-
-            # Zbuduj ZPL dla małej etykiety QR (1.5cm x 1.5cm)
+            from app.services.qr_generator_service import QrGeneratorService
             from app.services.print_server import get_printer
             printer = get_printer()
-            zpl = printer.build_login_qr_label_zpl(qr_data, login)
 
-            # Wyślij do drukarki
-            ok, msg = printer.print_zpl_label(zpl)
+            zpl_chunks = []
+
+            if mode == 'location':
+                code = str(data.get('code', '')).strip().upper()
+                name = str(data.get('name', code)).strip()
+                zone = str(data.get('zone', 'LOKALIZACJA')).strip()
+                if not code:
+                    return jsonify({'success': False, 'message': 'Brak kodu lokalizacji'}), 400
+                zpl = QrGeneratorService.build_location_zpl_80x80(code, name, zone, width_mm, height_mm)
+                zpl_chunks.append(zpl)
+
+            elif mode == 'batch_locations':
+                locations = data.get('locations') or []
+                if not locations:
+                    return jsonify({'success': False, 'message': 'Brak wybranych lokalizacji'}), 400
+                for loc in locations:
+                    code = str(loc.get('code', '')).strip().upper()
+                    name = str(loc.get('name', code)).strip()
+                    zone = str(loc.get('zone', 'LOKALIZACJA')).strip()
+                    if code:
+                        zpl = QrGeneratorService.build_location_zpl_80x80(code, name, zone, width_mm, height_mm)
+                        zpl_chunks.append(zpl)
+
+            elif mode == 'login':
+                login = str(data.get('login', '')).strip()
+                password = str(data.get('password', '')).strip()
+                format_type = str(data.get('format', 'simple')).strip()
+
+                if not login or not password:
+                    return jsonify({'success': False, 'message': 'Brak loginu lub hasła'}), 400
+
+                if format_type == 'json':
+                    import json
+                    qr_data = json.dumps({'login': login, 'pass': password})
+                else:
+                    qr_data = f"LOGIN:{login}:{password}"
+
+                if width_mm <= 30 and height_mm <= 30:
+                    zpl = printer.build_login_qr_label_zpl(qr_data, login)
+                else:
+                    zpl = QrGeneratorService.build_custom_qr_zpl_80x80(qr_data, f"LOGIN: {login}", "IDENTYFIKATOR PRACOWNIKA", width_mm, height_mm)
+                zpl_chunks.append(zpl)
+
+            else:  # 'custom' / typed text
+                qr_text = str(data.get('text', '') or data.get('payload', '')).strip()
+                title = str(data.get('title', '')).strip()
+                subtitle = str(data.get('subtitle', 'KOD QR')).strip()
+                if not qr_text:
+                    return jsonify({'success': False, 'message': 'Wprowadź tekst lub kod QR do wydruku'}), 400
+                zpl = QrGeneratorService.build_custom_qr_zpl_80x80(qr_text, title or qr_text[:24], subtitle, width_mm, height_mm)
+                zpl_chunks.append(zpl)
+
+            if not zpl_chunks:
+                return jsonify({'success': False, 'message': 'Nie wygenerowano żadnej etykiety'}), 400
+
+            full_zpl = "\n".join(zpl_chunks)
+            override_ip = target_printer_ip if target_printer_ip else None
+            override_name = target_printer_name if target_printer_name else None
+
+            ok, msg = printer.print_zpl_label(full_zpl, override_ip=override_ip, override_name=override_name)
 
             if ok:
                 return jsonify({
                     'success': True,
-                    'message': 'Etykieta wysłana do drukarki Zebra',
-                    'printer_name': printer.printer_name,
-                    'printer_ip': printer.printer_ip
+                    'message': f'Pomyślnie wysłano {len(zpl_chunks)} etykiet(ę) QR ({width_mm}x{height_mm} mm) do drukarki {target_printer_name}',
+                    'count': len(zpl_chunks),
+                    'printer_name': target_printer_name,
+                    'printer_ip': target_printer_ip or printer.printer_ip
                 })
             else:
                 return jsonify({

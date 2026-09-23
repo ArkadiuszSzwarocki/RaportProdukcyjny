@@ -59,7 +59,8 @@ def dispatch_osip_pallet_api():
 @login_required
 def transfers_view():
     """Widok listy i obsługi transferów wewnętrznych."""
-    return render_template('osip/osip_transfers.html')
+    scope = request.args.get('scope', 'osip')
+    return render_template('osip/osip_transfers.html', scope=scope)
 
 
 @osip_bp.route('/transfers/nowy', methods=['GET'])
@@ -68,7 +69,10 @@ def transfer_nowy_view():
     """Widok dedykowanej pełnej strony tworzenia nowego zlecenia transferu OSIP."""
     user_role = session.get('rola', 'magazynier')
     user_subrole = session.get('subrole', 'OSIP')
-    return render_template('osip/osip_transfer_nowy.html', user_role=user_role, user_subrole=user_subrole)
+    source = request.args.get('source')
+    dest = request.args.get('dest')
+    scope = request.args.get('scope')
+    return render_template('osip/osip_transfer_nowy.html', user_role=user_role, user_subrole=user_subrole, pre_source=source, pre_dest=dest, scope=scope)
 
 
 @osip_bp.route('/transfers/<transfer_id>', methods=['GET'])
@@ -79,7 +83,8 @@ def transfer_details_view(transfer_id):
     if not transfer:
         flash('Nie znaleziono zlecenia transferu.', 'danger')
         return redirect(url_for('osip.transfers_view'))
-    return render_template('osip/osip_transfer_details.html', transfer=transfer)
+    scope = request.args.get('scope')
+    return render_template('osip/osip_transfer_details.html', transfer=transfer, scope=scope)
 
 
 @osip_bp.route('/api/inventory', methods=['GET'])
@@ -105,7 +110,8 @@ def get_transfers_api():
     """API zwracające listę transferów wewnętrznych."""
     user_role = session.get('rola', 'magazynier')
     user_subrole = session.get('subrole', 'OSIP')
-    transfers = transfer_service.get_transfers_list(user_role, user_subrole)
+    scope = request.args.get('scope') or request.args.get('destination')
+    transfers = transfer_service.get_transfers_list(user_role, user_subrole, scope=scope)
     
     result = []
     for t in transfers:

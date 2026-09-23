@@ -240,12 +240,23 @@ class DeliveryQueries:
     @staticmethod
     def sync_pending_transfers_blocked_state():
         """
-        Synchronizuje flagę is_blocked = 1 dla wszystkich palet znajdujących się na aktywnych listach przesunięć.
+        Synchronizuje flagę is_blocked dla wszystkich palet:
+        1. Odblokowuje osierocone blokady palet z dawno zamkniętych/zakończonych zleceń MM/PZ.
+        2. Utrzymuje blokadę wyłącznie dla palet znajdujących się na aktualnie aktywnych listach przesunięć.
         """
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
+
+            # 1. Self-healing: automatyczne odblokowanie palet z zakończonych zleceń
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            try:
+                PalletLockManager.reconcile_orphan_transfer_locks(cursor)
+            except Exception as rec_err:
+                print(f"Warning during orphan lock reconciliation: {rec_err}")
+
+            # 2. Upewnij się, że pozycje w aktywnych transferach mają status zablokowany
+            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')")
             rows = cursor.fetchall()
             for r in rows:
                 raw_items = r.get('items')

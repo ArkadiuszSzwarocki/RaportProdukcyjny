@@ -59,6 +59,18 @@ function initRouteSelectors() {
     const selectDest = document.getElementById('select-custom-dest');
     if (selectSource) selectSource.addEventListener('change', saveDraftToStorage);
     if (selectDest) selectDest.addEventListener('change', saveDraftToStorage);
+
+    // Pre-selekcja na podstawie parametrów URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sourceParam = (urlParams.get('source') || '').toUpperCase();
+    const destParam = (urlParams.get('dest') || '').toUpperCase();
+    const scopeParam = (urlParams.get('scope') || '').toLowerCase();
+
+    if ((sourceParam === 'OSIP' && destParam === 'MS01') || scopeParam === 'osip') {
+        selectRouteCard('OSIP_MS01');
+    } else if ((sourceParam === 'MS01' && destParam === 'OSIP') || scopeParam === 'centrala') {
+        selectRouteCard('MS01_OSIP');
+    }
 }
 
 /**
@@ -91,6 +103,8 @@ function initScanner() {
     }
 }
 
+let isScanProcessing = false;
+
 /**
  * Przetwarza zeskanowany kod palety (odpytuje API i dodaje do listy)
  */
@@ -98,6 +112,10 @@ async function processPalletScan() {
     const input = document.getElementById('trf-pallet-input');
     const statusMsg = document.getElementById('trf-scan-status-msg');
     if (!input) return;
+
+    if (isScanProcessing) {
+        return;
+    }
 
     const rawCode = input.value.trim();
     if (!rawCode) {
@@ -116,6 +134,9 @@ async function processPalletScan() {
         input.focus();
         return;
     }
+
+    isScanProcessing = true;
+    input.disabled = true;
 
     if (statusMsg) {
         statusMsg.innerHTML = `<span class="material-icons" style="font-size:16px; color:#2563eb; vertical-align:middle;">sync</span> Wyszukiwanie palety <strong>${escapeHtml(codeUpper)}</strong> w systemie...`;
@@ -148,16 +169,19 @@ async function processPalletScan() {
             };
         }
 
-        scannedItems.push(palletObj);
-        renderScannedTable();
-        saveDraftToStorage();
+        // Re-check unikalności przed dodaniem
+        if (!scannedItems.some(it => String(it.nr_palety).toUpperCase() === String(palletObj.nr_palety).toUpperCase())) {
+            scannedItems.push(palletObj);
+            renderScannedTable();
+            saveDraftToStorage();
 
-        if (statusMsg) {
-            statusMsg.innerHTML = `<span class="material-icons" style="font-size:16px; color:#16a34a; vertical-align:middle;">check_circle</span> Pomyślnie dodano paletę <strong>${escapeHtml(palletObj.nr_palety)}</strong> (${palletObj.ilosc_kg.toFixed(2)} kg).`;
-            statusMsg.style.color = '#16a34a';
+            if (statusMsg) {
+                statusMsg.innerHTML = `<span class="material-icons" style="font-size:16px; color:#16a34a; vertical-align:middle;">check_circle</span> Pomyślnie dodano paletę <strong>${escapeHtml(palletObj.nr_palety)}</strong> (${palletObj.ilosc_kg.toFixed(2)} kg).`;
+                statusMsg.style.color = '#16a34a';
+            }
+
+            showTrfToast('success', `Dodano paletę ${palletObj.nr_palety}`);
         }
-
-        showTrfToast('success', `Dodano paletę ${palletObj.nr_palety}`);
     } catch (err) {
         console.error('Błąd weryfikacji palety:', err);
         // Fallback w razie problemów z siecią
@@ -168,10 +192,14 @@ async function processPalletScan() {
             typ_palety: 'Surowiec',
             ilosc_kg: 0.0
         };
-        scannedItems.push(fallbackObj);
-        renderScannedTable();
-        saveDraftToStorage();
+        if (!scannedItems.some(it => String(it.nr_palety).toUpperCase() === String(fallbackObj.nr_palety).toUpperCase())) {
+            scannedItems.push(fallbackObj);
+            renderScannedTable();
+            saveDraftToStorage();
+        }
     } finally {
+        isScanProcessing = false;
+        input.disabled = false;
         input.value = '';
         input.focus();
     }

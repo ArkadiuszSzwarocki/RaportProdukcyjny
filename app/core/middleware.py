@@ -363,9 +363,9 @@ def enforce_session_timeout(app):
                 return
 
             idle_seconds = now_ts - last_activity
-            # Debug log to catch "flashing" session timeout issues
+            # Debug log to catch "flashing" session timeout issues (DEBUG level to avoid flooding console)
             try:
-                app.logger.info(f"Session check: user={session.get('login')}, role={session.get('rola')}, idle={idle_seconds:.1f}s, limit={timeout_min}m, zalogowany={session.get('zalogowany')}")
+                app.logger.debug(f"Session check: user={session.get('login')}, role={session.get('rola')}, idle={idle_seconds:.1f}s, limit={timeout_min}m, zalogowany={session.get('zalogowany')}")
             except Exception:
                 pass
             

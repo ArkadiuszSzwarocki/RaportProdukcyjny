@@ -19,6 +19,13 @@ class WarehouseIndexController:
         try:
             cursor = conn.cursor(dictionary=True)
             
+            # Automatic self-healing: reconcile orphan transfer locks from completed PZ/MM
+            try:
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                PalletLockManager.reconcile_orphan_transfer_locks(cursor)
+            except Exception as e:
+                pass
+
             # Load active printers
             try:
                 cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
@@ -66,12 +73,14 @@ class WarehouseIndexController:
             except Exception as e:
                 print(f"Error fetching opakowania: {e}")
 
-            # 3. Wyroby Gotowe (dla obu linii z zunifikowanej tabeli magazyn_palety)
-            for linia_palety in ['PSD', 'AGRO']:
+            # 3. Wyroby Gotowe (filtrowane wg wybranej linii lub ALL)
+            target_palety_linie = ['PSD', 'AGRO'] if linia == 'ALL' else ([linia] if linia in ('PSD', 'AGRO') else ['PSD'])
+            for linia_palety in target_palety_linie:
                 table_palety = get_table_name('magazyn_palety', linia_palety)
                 table_plan = get_table_name('plan_produkcji', linia_palety)
                 alt_linia = 'AGRO' if linia_palety == 'PSD' else 'PSD'
                 table_plan_alt = get_table_name('plan_produkcji', alt_linia)
+                table_buf = 'palety_workowanie' if linia_palety == 'PSD' else 'palety_agro'
                 if linia_palety == 'PSD':
                     line_condition = "AND (m.linia = 'PSD' OR m.linia IS NULL OR m.linia = '')"
                 else:
@@ -95,7 +104,7 @@ class WarehouseIndexController:
                                COALESCE(plan.data_planu, plan_pw.data_planu, plan_alt.data_planu, plan_pw_alt.data_planu) as plan_order_date,
                                COALESCE(NULLIF(plan.nazwa_zlecenia, ''), NULLIF(plan_pw.nazwa_zlecenia, ''), NULLIF(plan_alt.nazwa_zlecenia, ''), NULLIF(plan_pw_alt.nazwa_zlecenia, ''), NULLIF(plan.typ_zlecenia, ''), NULLIF(plan_pw.typ_zlecenia, '')) as plan_order_name
                         FROM {table_palety} m
-                        LEFT JOIN palety_workowanie pw ON m.paleta_workowanie_id = pw.id
+                        LEFT JOIN {table_buf} pw ON m.paleta_workowanie_id = pw.id
                         LEFT JOIN {table_plan} plan ON m.plan_id = plan.id
                         LEFT JOIN {table_plan} plan_pw ON pw.plan_id = plan_pw.id
                         LEFT JOIN {table_plan_alt} plan_alt ON m.plan_id = plan_alt.id
@@ -139,7 +148,8 @@ class WarehouseIndexController:
                     print(f"Error fetching wyroby gotowe ({linia_palety}): {e}")
 
             # 3b. Oczekujące Wyroby Gotowe z produkcji (palety w buforze ze statusem 'do_przyjecia')
-            for linia_prod in ['PSD', 'AGRO']:
+            pending_prod_linie = ['PSD', 'AGRO'] if linia == 'ALL' else ([linia] if linia in ('PSD', 'AGRO') else ['PSD'])
+            for linia_prod in pending_prod_linie:
                 tbl_prod = 'palety_workowanie' if linia_prod == 'PSD' else 'palety_agro'
                 tbl_plan_p = 'plan_produkcji' if linia_prod == 'PSD' else 'plan_produkcji_agro'
                 try:

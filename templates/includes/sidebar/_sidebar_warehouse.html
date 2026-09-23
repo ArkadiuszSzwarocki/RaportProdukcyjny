@@ -17,9 +17,7 @@
     <div id="mag-sub" class="nav-sub {% if request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.index' %}active{% endif %}">Wszystkie Magazyny</a>
-        <a href="{{ url_for('warehouse_v2.racks_3d_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.racks_3d_view' %}active{% endif %}" style="color: #38bdf8; font-weight: 700;">
-            <i class="fas fa-cubes mr-1" style="font-size:12px;"></i> Widok 3D Regałów
-        </a>
+        <a href="{{ url_for('warehouse_v2.racks_3d_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.racks_3d_view' %}active{% endif %}">Widok 3D Regałów</a>
         {% endif %}
         {% if role_has_access('magazyn.reception') %}
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' %}active{% endif %}">Przyjęcie dostawy</a>
@@ -69,7 +67,7 @@
         {% endif %}
         {% if role_has_access('magazyn.agro_packaging') %}
         <a href="{{ url_for('agro_warehouse.opakowania') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.opakowania' %}active{% endif %}">Opakowania Agro</a>
-        <a href="{{ url_for('agro_warehouse.lp01_view') }}" class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}" style="color: #0d9488; font-weight: 700;">🏭 Stanowisko LP01</a>
+        <a href="{{ url_for('agro_warehouse.lp01_view') }}" class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}">Stanowisko LP01</a>
         {% endif %}
         
         {% if role_has_access('magazyn.mom') %}
@@ -83,8 +81,8 @@
         
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
         
-        <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}" style="color: #dc2626; font-weight: 700;">
-            <i class="fas fa-trash-alt mr-1" style="font-size:12px;"></i> Zużycie w Produkcji
+        <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
+            Zużycie w Produkcji
         </a>
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
@@ -101,9 +99,9 @@
                 </span>
             </span>
         </a>
-        <a href="{{ url_for('warehouse_v2.kompletacja', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}" style="color: #38bdf8; font-weight: 700;">
+        <a href="{{ url_for('warehouse_v2.kompletacja', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}">
             <span class="nav-sub-label">
-                <span class="nav-sub-text">📦 Dyspozycje Kompletacji</span>
+                <span class="nav-sub-text">Dyspozycje Kompletacji</span>
                 <span id="sidebarPickingBadge" class="nav-pending-badge" aria-label="Aktywne kompletacje" style="background:#0284c7; {% if not pending_picking_count or pending_picking_count == 0 %}display: none;{% endif %}">
                     {{ pending_picking_count if pending_picking_count else 0 }}
                 </span>
@@ -111,6 +109,9 @@
         </a>
         <a href="{{ url_for('warehouse_v2.zaladunki_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zaladunki_view' %}active{% endif %}">
             <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
+        </a>
+        <a href="{{ url_for('warehouse_v2.transfers_osip_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.transfers_osip_view' %}active{% endif %}">
+            <span class="nav-sub-text">Transfery na OSIP</span>
         </a>
     </div>
 </div>
@@ -131,25 +132,25 @@
         <span class="material-icons chevron">expand_more</span>
     </button>
     <div id="osip-sub" class="nav-sub {% if request.blueprint == 'osip' or (request.blueprint == 'magazyn_dostawy' and request.args.get('linia') == 'OSIP') %}open{% endif %}">
-        <a href="{{ url_for('osip.warehouse_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.warehouse_view' %}active{% endif %}"><i class="fas fa-warehouse mr-1" style="font-size:12px;"></i> Stan i Układ Hali</a>
+        <a href="{{ url_for('osip.warehouse_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.warehouse_view' %}active{% endif %}">Stan i Układ Hali</a>
         <a href="{{ url_for('osip.transfers_view') }}" class="nav-sub-item {% if request.endpoint in ['osip.transfers_view', 'osip.transfer_details_view'] %}active{% endif %}">
             <span class="nav-sub-label">
-                <span class="nav-sub-text"><i class="fas fa-exchange-alt mr-1" style="font-size:12px;"></i> Transfery OSIP</span>
+                <span class="nav-sub-text">Transfery do Centrali (MS01)</span>
                 {% if osip_transfers_count and osip_transfers_count > 0 %}
                 <span class="nav-pending-badge" aria-label="Są aktywne transfery OSIP">{{ osip_transfers_count }}/{{ osip_unreceived_pallets_count }}</span>
                 {% endif %}
             </span>
         </a>
-        <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-arrow-down mr-1" style="font-size:12px;"></i> Przyjęcie dostawy</a>
+        <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Przyjęcie dostawy</a>
         <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
-                <span class="nav-sub-text"><i class="fas fa-dolly mr-1" style="font-size:12px;"></i> Przesunięcia Palet</span>
+                <span class="nav-sub-text">Przesunięcia Palet</span>
                 <span class="nav-draft-badge" data-draft-hall="OSIP" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
             </span>
         </a>
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
-                <span class="nav-sub-text"><i class="fas fa-clock mr-1" style="font-size:12px;"></i> Oczekujące Przyjęcia</span>
+                <span class="nav-sub-text">Oczekujące Przyjęcia</span>
                 {% set transfer_orders_osip = (pending_transfer_orders.get('OSIP', 0) if pending_transfer_orders is defined else 0)|int %}
                 {% set transfer_pallets_osip = (pending_transfer_pallets.get('OSIP', 0) if pending_transfer_pallets is defined else 0)|int %}
                 {% set external_orders_osip = (pending_external_orders.get('OSIP', 0) if pending_external_orders is defined else 0)|int %}
@@ -166,14 +167,14 @@
                 {% endif %}
             </span>
         </a>
-        <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}"><i class="fas fa-cubes mr-1" style="font-size:12px;"></i> Suma surowców</a>
-        <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-cut mr-1" style="font-size:12px;"></i> Podział Palety</a>
-        <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}"><i class="fas fa-mortar-pestle mr-1" style="font-size:12px;"></i> Mixowanie Palet</a>
-        <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}"><i class="fas fa-truck-loading mr-1" style="font-size:12px;"></i> Wydania Zewnętrzne</a>
+        <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}">Suma surowców</a>
+        <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Podział Palety</a>
+        <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Mixowanie Palet</a>
+        <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}">Wydania Zewnętrzne</a>
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
-        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}"><i class="fas fa-qrcode mr-1" style="font-size:12px;"></i> Skaner & Drukarka</a>
-        <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}"><i class="fas fa-print mr-1" style="font-size:12px;"></i> Drukarki ZPL</a>
-        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}"><i class="fas fa-file-invoice mr-1" style="font-size:12px;"></i> Logi Drukowania (48h)</a>
+        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}">Skaner & Drukarka</a>
+        <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
+        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
     </div>
 </div>
 

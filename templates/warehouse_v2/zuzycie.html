@@ -216,7 +216,7 @@
 <script>
     window.CAN_RESTORE_PALLET = {{ 'true' if can_restore else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/qr_scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/qr_scanner.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/production_consumption.js') }}?v={{ static_version }}"></script>
 
 {% endblock %}
