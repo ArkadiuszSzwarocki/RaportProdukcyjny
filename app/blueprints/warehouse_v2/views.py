@@ -245,7 +245,8 @@ def raport_palet():
                     NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
                     COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
                     COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
-                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety
+                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety,
+                    COALESCE(p.nr_palety_lp, m.nr_palety_lp) as nr_palety_lp
                 FROM palety_workowanie p
                 LEFT JOIN magazyn_palety m ON p.id = m.paleta_workowanie_id
                 WHERE p.plan_id = %s OR (%s IS NOT NULL AND p.plan_id = %s)

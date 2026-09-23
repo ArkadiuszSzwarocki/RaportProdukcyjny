@@ -202,7 +202,20 @@ def raport_palet():
                 end = current_in_kg + inp['waga']
                 input_ranges.append({'label': inp['label'], 'start': start, 'end': end})
                 current_in_kg = end
-            cursor.execute("\n                SELECT \n                    p.id, p.waga, p.status, p.data_dodania, \n                    p.dodal_login,\n                    NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,\n                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,\n                    COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,\n                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety\n                FROM palety_agro p\n                LEFT JOIN magazyn_palety_agro m ON p.id = m.paleta_workowanie_id\n                WHERE p.plan_id = %s\n                ORDER BY p.data_dodania ASC\n            ", (p['work_id'],))
+            cursor.execute("""
+                SELECT 
+                    p.id, p.waga, p.status, p.data_dodania, 
+                    p.dodal_login,
+                    NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
+                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
+                    COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
+                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety,
+                    COALESCE(p.nr_palety_lp, m.nr_palety_lp) as nr_palety_lp
+                FROM palety_agro p
+                LEFT JOIN magazyn_palety_agro m ON p.id = m.paleta_workowanie_id
+                WHERE p.plan_id = %s
+                ORDER BY p.data_dodania ASC
+            """, (p['work_id'],))
             pallets_raw = cursor.fetchall()
             current_out_kg = 0
             processed_pallets = []

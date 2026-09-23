@@ -249,8 +249,8 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width:50px;">Lp.</th>
                     <th style="width:60px;">ID</th>
+                    <th style="width:85px;">Nr palety</th>
                     <th>Nr palety SSCC</th>
                     <th>Waga (kg)</th>
                     <th>Nr plomby</th>
@@ -263,14 +263,12 @@
                 </tr>
             </thead>
             <tbody>
-                {% set lp = namespace(value=0) %}
                 <!-- MIX items removed from Pallet table -->
                 {% for pal in item.palety %}
-                {% set lp.value = lp.value + 1 %}
                 {% set has_confirm_meta = pal.potwierdzil_login or pal.data_potwierdzenia %}
                 <tr>
-                    <td>{{ lp.value }}</td>
                     <td style="font-family: monospace; font-size: 0.85em; font-weight: 700; color: #64748b;">#{{ pal.id or '-' }}</td>
+                    <td style="font-weight: 700; color: #1e293b;">{{ pal.nr_palety_lp if pal.nr_palety_lp is not none and pal.nr_palety_lp != '' else '-' }}</td>
                     <td style="font-family: monospace; font-size: 0.85em;">{{ pal.nr_palety if pal.nr_palety else '-' }}</td>
                     <td><strong>{{ pal.waga }}</strong></td>
                     <td>{{ pal.nr_plomby if pal.nr_plomby else '' }}</td>
