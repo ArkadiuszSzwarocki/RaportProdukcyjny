@@ -16,6 +16,7 @@ from app.services.auto_report.auto_report_schedule_service import AutoReportSche
 from app.services.auto_report.auto_report_history_service import AutoReportHistoryService
 from app.services.auto_report.auto_report_activity_detector import AutoReportActivityDetector
 from app.services.auto_report.auto_report_recipients_service import AutoReportRecipientsService
+from app.services.shift_close_service import get_shift_actual_production
 
 logger = logging.getLogger(__name__)
 
@@ -81,27 +82,10 @@ class AutoReportDispatcherService:
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-            suma_zasyp = 0
-            suma_workowanie = 0
-            palety_count = 0
-            try:
-                conn = get_db_connection()
-                table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
-                table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
-                c_prod = conn.cursor(dictionary=True)
-                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_z = c_prod.fetchone()
-                suma_zasyp = int(r_z['s']) if r_z else 0
-
-                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_w = c_prod.fetchone()
-                if r_w:
-                    palety_count = int(r_w['cnt'] or 0)
-                    suma_workowanie = int(r_w['s'] or 0)
-                c_prod.close()
-                conn.close()
-            except Exception:
-                pass
+            prod_data = get_shift_actual_production(date_str, linia=linia)
+            suma_zasyp = prod_data['suma_zasyp']
+            suma_workowanie = prod_data['suma_workowanie']
+            palety_count = prod_data['palety_count']
 
             downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
             total_downtime_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in downtimes)
@@ -186,27 +170,10 @@ class AutoReportDispatcherService:
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-            suma_zasyp = 0
-            suma_workowanie = 0
-            palety_count = 0
-            try:
-                conn = get_db_connection()
-                table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
-                table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
-                c_prod = conn.cursor(dictionary=True)
-                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_z = c_prod.fetchone()
-                suma_zasyp = int(r_z['s']) if r_z else 0
-
-                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_w = c_prod.fetchone()
-                if r_w:
-                    palety_count = int(r_w['cnt'] or 0)
-                    suma_workowanie = int(r_w['s'] or 0)
-                c_prod.close()
-                conn.close()
-            except Exception:
-                pass
+            prod_data = get_shift_actual_production(date_str, linia=linia)
+            suma_zasyp = prod_data['suma_zasyp']
+            suma_workowanie = prod_data['suma_workowanie']
+            palety_count = prod_data['palety_count']
 
             downtimes = DowntimeRepository().get_downtimes(linia, date_str, date_str)
             total_downtime_min = sum(int(dt.get('czas_trwania_min') or 0) for dt in downtimes)

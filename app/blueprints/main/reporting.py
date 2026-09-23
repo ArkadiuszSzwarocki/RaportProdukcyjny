@@ -18,7 +18,7 @@ def register_main_reporting_routes(main_bp):
     def raport_zakoncz_zmiane_page():
         """Strona podsumowania i wysyłki raportu e-mail przy zakończeniu zmiany."""
         from datetime import date, datetime
-        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files
+        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files, get_shift_actual_production
         from app.services.email_service import EmailService
         from app.services.email_report_builder import EmailReportBuilder
         from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
@@ -65,49 +65,12 @@ def register_main_reporting_routes(main_bp):
                     'exists': True
                 })
 
-        # 4. Pobierz szczegóły produkcji (Zasyp, Workowanie)
-        suma_zasyp = 0
-        suma_workowanie = 0
-        palety_count = 0
-        suma_laczna = 0
-        try:
-            conn = get_db_connection()
-            table_plan = get_table_name('plan_produkcji', linia)
-            table_palety = get_table_name('palety_workowanie', linia)
-            table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
-            c_prod = conn.cursor(dictionary=True)
-
-            # 1. Zasyp wykonany w danym dniu
-            try:
-                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_z = c_prod.fetchone()
-                suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
-            except Exception:
-                suma_zasyp = 0
-
-            if suma_zasyp == 0:
-                try:
-                    c_prod.execute(f"SELECT COALESCE(SUM(tonaz_rzeczywisty), 0) as s FROM {table_plan} WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp'", (date_str,))
-                    r_z2 = c_prod.fetchone()
-                    suma_zasyp = int(r_z2['s']) if r_z2 and r_z2['s'] else 0
-                except Exception:
-                    pass
-
-            # 2. Workowanie - bezpośrednio z palet spakowanych w danym dniu!
-            try:
-                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_w = c_prod.fetchone()
-                if r_w:
-                    palety_count = int(r_w['cnt'] or 0)
-                    suma_workowanie = int(r_w['s'] or 0)
-            except Exception as w_err:
-                current_app.logger.warning("Błąd pobierania palet workowania: %s", w_err)
-
-            suma_laczna = suma_zasyp + suma_workowanie
-            c_prod.close()
-            conn.close()
-        except Exception as e:
-            current_app.logger.warning("Błąd wyliczania tonazu w reporting: %s", e)
+        # 4. Pobierz szczegóły produkcji (Zasyp, Workowanie) - wyłącznie realne wykonanie
+        prod_data = get_shift_actual_production(date_str, linia=linia)
+        suma_zasyp = prod_data['suma_zasyp']
+        suma_workowanie = prod_data['suma_workowanie']
+        palety_count = prod_data['palety_count']
+        suma_laczna = prod_data['suma_laczna']
 
         # 5. Pobierz przestoje
         downtimes = []
@@ -246,44 +209,12 @@ def register_main_reporting_routes(main_bp):
         valid_attachments = [p for p in selected_attachments if os.path.exists(p)]
         att_filenames = [os.path.basename(p) for p in valid_attachments]
 
-        # Pobierz aktualne dane produkcji (zasyp i workowanie) wykonane dokładnie w danym dniu
-        suma_zasyp = 0
-        suma_workowanie = 0
-        palety_count = 0
-        try:
-            conn = get_db_connection()
-            table_plan = get_table_name('plan_produkcji', linia)
-            table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
-            table_palety = get_table_name('palety_workowanie', linia)
-            c_prod = conn.cursor(dictionary=True)
-            try:
-                c_prod.execute(f"SELECT COALESCE(SUM(waga), 0) as s FROM {table_szarze} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_z = c_prod.fetchone()
-                suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
-            except Exception:
-                suma_zasyp = 0
-
-            if suma_zasyp == 0:
-                try:
-                    c_prod.execute(f"SELECT COALESCE(SUM(tonaz_rzeczywisty), 0) as s FROM {table_plan} WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp'", (date_str,))
-                    r_z2 = c_prod.fetchone()
-                    suma_zasyp = int(r_z2['s']) if r_z2 and r_z2['s'] else 0
-                except Exception:
-                    pass
-
-            try:
-                c_prod.execute(f"SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s FROM {table_palety} WHERE DATE(data_dodania) = %s", (date_str,))
-                r_w = c_prod.fetchone()
-                if r_w:
-                    palety_count = int(r_w['cnt'] or 0)
-                    suma_workowanie = int(r_w['s'] or 0)
-            except Exception as w_err:
-                current_app.logger.warning("Błąd pobierania palet workowania w email: %s", w_err)
-
-            c_prod.close()
-            conn.close()
-        except Exception:
-            pass
+        # Pobierz aktualne dane produkcji (zasyp i workowanie) - wyłącznie realne wykonanie
+        from app.services.shift_close_service import get_shift_actual_production
+        prod_data = get_shift_actual_production(date_str, linia=linia)
+        suma_zasyp = prod_data['suma_zasyp']
+        suma_workowanie = prod_data['suma_workowanie']
+        palety_count = prod_data['palety_count']
 
         downtimes = []
         total_downtime_min = 0
