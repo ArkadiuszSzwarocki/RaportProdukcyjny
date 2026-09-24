@@ -59,6 +59,25 @@ def inject_static_version():
     return dict(static_version=v)
 
 
+_PERMS_CACHE = {'mtime': 0, 'data': {}}
+
+def _get_role_permissions(cfg_path):
+    """Load role permissions with automatic mtime caching to avoid opening file on every check."""
+    try:
+        if os.path.exists(cfg_path):
+            mtime = os.path.getmtime(cfg_path)
+            if _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
+                return _PERMS_CACHE['data']
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                _PERMS_CACHE['mtime'] = mtime
+                _PERMS_CACHE['data'] = data
+                return data
+    except Exception:
+        pass
+    return _PERMS_CACHE.get('data') or {}
+
+
 def inject_role_permissions():
     """Inject role-based access control functions into templates."""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -104,14 +123,8 @@ def inject_role_permissions():
                 except Exception:
                     pass
 
-            # Read config every time (no caching)
-            perms = {}
-            try:
-                with open(cfg_path, 'r', encoding='utf-8') as f:
-                    perms = json.load(f)
-            except Exception as e:
-                current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
-                perms = {}
+            # Fast cached config load
+            perms = _get_role_permissions(cfg_path)
             
             # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
@@ -124,7 +137,6 @@ def inject_role_permissions():
                     pass
             if r in ['operator', 'stepnpio']:
                 r = 'pracownik'
-            # Do not log debug info here to avoid noisy logs during template rendering
             
             # IMPORTANT: if config exists and contains pages, use ONLY config
             # (no fallback to hardcoded rules)
@@ -167,16 +179,12 @@ def inject_role_permissions():
                             if bool(role_cfg.get('access', False)):
                                 has_sub_access = True
                                 break
-                        current_app.logger.info(f"role_has_access(parent_page={page}, role={r}) resolved via sub_keys to {has_sub_access}")
                         return has_sub_access
                     
-                    current_app.logger.warning(f"role_has_access: page_key '{page_key}' not found in perms (original page: '{page}')")
                     return False
                 
                 role_cfg = page_perms.get(r, {})
-                result = bool(role_cfg.get('access', False))
-                current_app.logger.info(f"role_has_access(page={page}, key={page_key}, role={r}) -> {result} (cfg: {role_cfg})")
-                return result
+                return bool(role_cfg.get('access', False))
             
             # Config empty - use fallback
             if page == 'dashboard':
@@ -198,7 +206,6 @@ def inject_role_permissions():
             # unknown page key -> allow by default
             return True
         except Exception as e:
-            current_app.logger.exception(f'role_has_access({page}) error: {e}')
             return False
 
     def role_is_readonly(page):
@@ -218,13 +225,8 @@ def inject_role_permissions():
                 except Exception:
                     pass
 
-            # Read config every time (no caching)
-            perms = {}
-            try:
-                with open(cfg_path, 'r', encoding='utf-8') as f:
-                    perms = json.load(f)
-            except Exception:
-                perms = {}
+            # Fast cached config load
+            perms = _get_role_permissions(cfg_path)
             
             # Normalize common role name variants/synonyms
             if r.isdigit():

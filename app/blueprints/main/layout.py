@@ -58,7 +58,7 @@ DEFAULT_LAYOUTS = {
 
 
 def _layouts_config_path() -> str:
-    return os.path.join(current_app.root_path, '../config/layouts.json')
+    return os.path.join(current_app.root_path, 'config', 'layouts.json')
 
 
 def register_main_layout_routes(main_bp):

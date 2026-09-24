@@ -73,14 +73,28 @@
                 </div>
 
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
-                    <!-- Skaner kodów Big Bagów -->
+                    <!-- Skaner kodów Big Bagów z Auto-Zapisem -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <span style="font-size: 0.85em; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-icons" style="font-size: 16px; color: #3b82f6;">barcode_reader</span> Skaner kodu Big Baga
+                        </span>
+                        <div id="bb-auto-save-badge" style="font-size: 0.82em; font-weight: 700; color: #166534; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+                            <span id="bb-auto-save-icon">✨</span>
+                            <span id="bb-auto-save-text">Auto-zapis po skanie aktywny</span>
+                        </div>
+                    </div>
+
                     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <div style="position: relative; flex: 1; min-width: 260px;">
                             <span class="material-icons" style="position: absolute; left: 10px; top: 10px; color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
                             <input type="text" id="bb-scan-input" placeholder="Zeskanuj kod QR / SSCC / kreskowy Big Baga..."
                                    autocomplete="off"
-                                   onkeydown="if(event.key==='Enter'){event.preventDefault();addScannedBigBag();}"
-                                   style="width: 100%; padding: 10px 12px 10px 38px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95em; outline: none; font-weight: 600; color: #1e293b;">
+                                   style="width: 100%; padding: 10px 36px 10px 38px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95em; outline: none; font-weight: 600; color: #1e293b; transition: border-color 0.2s;">
+                            <button type="button" id="btn-clear-bb-input" onclick="const el=document.getElementById('bb-scan-input'); if(el){el.value=''; el.focus(); this.style.display='none';}"
+                                    title="Wyczyść pole"
+                                    style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px; border-radius: 4px;">
+                                <span class="material-icons" style="font-size: 18px;">close</span>
+                            </button>
                         </div>
                         <button type="button" id="btn-add-bb" onclick="addScannedBigBag()"
                                 style="background: #2563eb; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 0.95em; box-shadow: 0 2px 6px rgba(37,99,235,0.2);">
@@ -321,6 +335,69 @@
 
     const activeBigBagPlanId = {{ (wrctx.active_plan.id if wrctx and wrctx.active_plan else 0)|int }};
     const currentBigBagLinia = "{{ linia|default('AGRO') }}";
+    let bbScanDebounce = null;
+    let isAddingBigBag = false;
+
+    function extractSSCCFromBigBag(value) {
+        if (!value) return '';
+        let s = String(value).trim();
+        if ((s.startsWith('{') && s.endsWith('}')) || (s.includes('"sscc"') || s.includes('"prod"'))) {
+            try {
+                const match = s.match(/\{[\s\S]*\}/);
+                if (match) {
+                    const parsed = JSON.parse(match[0]);
+                    if (parsed.sscc) return String(parsed.sscc).trim();
+                    if (parsed.nr_palety) return String(parsed.nr_palety).trim();
+                    if (parsed.id) return String(parsed.id).trim();
+                }
+            } catch (e) {
+                const ssccMatch = s.match(/"sscc"\s*:\s*"([^"]+)"/i);
+                if (ssccMatch) return ssccMatch[1].trim();
+                const nrMatch = s.match(/"nr_palety"\s*:\s*"([^"]+)"/i);
+                if (nrMatch) return nrMatch[1].trim();
+            }
+        }
+        return s;
+    }
+
+    function setBbAutoSaveStatus(status, text) {
+        const badge = document.getElementById('bb-auto-save-badge');
+        const icon = document.getElementById('bb-auto-save-icon');
+        const textEl = document.getElementById('bb-auto-save-text');
+        if (!badge || !icon || !textEl) return;
+
+        if (status === 'saving') {
+            badge.style.background = '#eff6ff';
+            badge.style.color = '#1d4ed8';
+            badge.style.borderColor = '#bfdbfe';
+            icon.textContent = '⏳';
+            textEl.textContent = text || 'Zapisywanie wsadu...';
+        } else if (status === 'saved') {
+            badge.style.background = '#f0fdf4';
+            badge.style.color = '#166534';
+            badge.style.borderColor = '#bbf7d0';
+            icon.textContent = '✅';
+            textEl.textContent = text || 'Zapisano automatycznie';
+            setTimeout(() => {
+                setBbAutoSaveStatus('idle', 'Auto-zapis po skanie aktywny');
+            }, 3000);
+        } else if (status === 'error') {
+            badge.style.background = '#fef2f2';
+            badge.style.color = '#991b1b';
+            badge.style.borderColor = '#fecaca';
+            icon.textContent = '❌';
+            textEl.textContent = text || 'Błąd zapisu';
+            setTimeout(() => {
+                setBbAutoSaveStatus('idle', 'Auto-zapis po skanie aktywny');
+            }, 4000);
+        } else {
+            badge.style.background = '#f0fdf4';
+            badge.style.color = '#166534';
+            badge.style.borderColor = '#bbf7d0';
+            icon.textContent = '✨';
+            textEl.textContent = text || 'Auto-zapis po skanie aktywny';
+        }
+    }
 
     function showBbFeedback(msg, type) {
         const fb = document.getElementById('bb-scan-feedback');
@@ -339,23 +416,38 @@
         }
         setTimeout(() => {
             if (fb) fb.style.display = 'none';
-        }, 5000);
+        }, 6000);
     }
 
     async function addScannedBigBag() {
+        if (isAddingBigBag) return;
+        clearTimeout(bbScanDebounce);
+        bbScanDebounce = null;
+
         const input = document.getElementById('bb-scan-input');
         if (!input) return;
-        const code = input.value.trim();
+
+        let raw = input.value.trim();
+        const code = extractSSCCFromBigBag(raw);
+        if (code !== raw) {
+            input.value = code;
+        }
+
         if (!code) {
             showBbFeedback('Wprowadź lub zeskanuj kod Big Baga.', 'error');
             input.focus();
             return;
         }
 
+        isAddingBigBag = true;
+        setBbAutoSaveStatus('saving', 'Zapisywanie Big Baga...');
         const btn = document.getElementById('btn-add-bb');
         if (btn) btn.disabled = true;
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
             const resp = await fetch('/agro/workowanie/bigbag/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -363,25 +455,83 @@
                     plan_id: activeBigBagPlanId,
                     code: code,
                     linia: currentBigBagLinia
-                })
+                }),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+
             const data = await resp.json();
             if (data.success) {
-                showBbFeedback(data.message || 'Pomyślnie dodano Big Bag.', 'success');
+                setBbAutoSaveStatus('saved', 'Dodano ' + code);
+                showBbFeedback(data.message || 'Pomyślnie dodano Big Bag do zlecenia.', 'success');
                 input.value = '';
+                const clearBtn = document.getElementById('btn-clear-bb-input');
+                if (clearBtn) clearBtn.style.display = 'none';
+
                 if (data.settlement) {
                     renderBigBagSettlement(data.settlement);
                 }
             } else {
+                setBbAutoSaveStatus('error', 'Błąd: ' + (data.error || data.message || 'Odrzucono'));
                 showBbFeedback(data.error || data.message || 'Błąd dodawania Big Baga.', 'error');
             }
         } catch (e) {
-            showBbFeedback('Błąd połączenia z serwerem: ' + e, 'error');
+            setBbAutoSaveStatus('error', 'Błąd połączenia');
+            showBbFeedback('Błąd połączenia z serwerem: ' + (e.name === 'AbortError' ? 'Przekroczono limit czasu' : e), 'error');
         } finally {
+            isAddingBigBag = false;
             if (btn) btn.disabled = false;
-            input.focus();
+            if (input) input.focus();
         }
     }
+
+    // Auto-save listeners on input field
+    (function initBigBagAutoSave() {
+        const input = document.getElementById('bb-scan-input');
+        if (!input) return;
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                clearTimeout(bbScanDebounce);
+                bbScanDebounce = null;
+                addScannedBigBag();
+            }
+        });
+
+        input.addEventListener('input', function() {
+            clearTimeout(bbScanDebounce);
+            const val = this.value.trim();
+            const clearBtn = document.getElementById('btn-clear-bb-input');
+            if (clearBtn) {
+                clearBtn.style.display = val.length > 0 ? 'block' : 'none';
+            }
+
+            const cleaned = extractSSCCFromBigBag(val);
+            if (cleaned !== val) {
+                this.value = cleaned;
+            }
+
+            const currCode = this.value.trim();
+            if (currCode.length >= 4) {
+                // Auto-submit after 120ms debounce when scanned
+                bbScanDebounce = setTimeout(() => {
+                    if (!isAddingBigBag && input.value.trim().length >= 4) {
+                        addScannedBigBag();
+                    }
+                }, 120);
+            }
+        });
+
+        input.addEventListener('paste', function() {
+            clearTimeout(bbScanDebounce);
+            setTimeout(() => {
+                if (!isAddingBigBag && input.value.trim().length >= 3) {
+                    addScannedBigBag();
+                }
+            }, 30);
+        });
+    })();
 
     async function removeScannedBigBag(entryId, nrPalety) {
         AppDialog.confirm(`Czy na pewno chcesz wycofać Big Bag ${nrPalety} ze zlecenia?\nStan zostanie przywrócony do magazynu.`).then(async (ok) => {

@@ -343,25 +343,28 @@ def register_main_reporting_routes(main_bp):
         if gdzie:
             full_opis = f"[Miejsce] {gdzie}\n{full_opis}"
 
-        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
-        os.makedirs(upload_dir, exist_ok=True)
-
         report_id = int(time.time() * 1000)
         saved_files = []
 
-        files = request.files.getlist('zalaczniki')
-        for index, file in enumerate(files[:3]):
-            if not file or not file.filename:
-                continue
-            ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
-            if ext not in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
-                continue
-            filename = f'bug_{report_id}_{index}.{ext}'
+        files = [f for f in request.files.getlist('zalaczniki') if f and f.filename]
+        if files:
+            static_dir = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+            upload_dir = os.path.abspath(os.path.join(static_dir, 'uploads', 'bugs'))
             try:
-                file.save(os.path.join(upload_dir, filename))
-                saved_files.append(filename)
-            except Exception as error:
-                current_app.logger.warning('Błąd zapisu pliku: %s', error)
+                os.makedirs(upload_dir, exist_ok=True)
+            except Exception as dir_err:
+                current_app.logger.warning('Błąd tworzenia katalogu uploads/bugs: %s', dir_err)
+
+            for index, file in enumerate(files[:3]):
+                ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
+                if ext not in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
+                    continue
+                filename = f'bug_{report_id}_{index}.{ext}'
+                try:
+                    file.save(os.path.join(upload_dir, filename))
+                    saved_files.append(filename)
+                except Exception as error:
+                    current_app.logger.warning('Błąd zapisu pliku: %s', error)
 
         # 1. Zapis do zgłoszeń błędów / DUR
         conn = db.get_db_connection()

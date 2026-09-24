@@ -3,62 +3,85 @@ from app.db import get_db_connection, get_table_name
 class PalletStatusService:
     @staticmethod
     def toggle_block(pallet_id, pallet_type, worker_login, linia='PSD', sscc=None, reason=None):
-        """Toggle lock/block status of a pallet, including buffer pallets."""
+        """Toggle lock/block status of a pallet, keeping warehouse and buffer tables in sync."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             p_type_norm = str(pallet_type or '').strip().lower()
-            if 'surow' in p_type_norm:
-                table = get_table_name('magazyn_surowce', linia)
-            elif 'opakow' in p_type_norm:
-                table = get_table_name('magazyn_opakowania', linia)
-            elif 'dodat' in p_type_norm:
-                table = 'magazyn_dodatki'
-            else:
-                table = get_table_name('magazyn_palety', linia)
-
             target_sscc = str(sscc).strip() if sscc else None
-            cursor.execute(f"SELECT is_blocked, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
-            row = cursor.fetchone()
-
-            if not row and not any(k in p_type_norm for k in ('surow', 'opakow', 'dodat')):
-                # Check buffer tables (palety_workowanie / palety_agro)
-                buf_tbl = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
-                cursor.execute(f"SELECT id, is_blocked, nr_palety FROM {buf_tbl} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
-                b_row = cursor.fetchone()
-                if not b_row:
-                    alt_buf = 'palety_agro' if buf_tbl == 'palety_workowanie' else 'palety_workowanie'
-                    cursor.execute(f"SELECT id, is_blocked, nr_palety FROM {alt_buf} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
-                    b_row = cursor.fetchone()
-                    if b_row:
-                        buf_tbl = alt_buf
-                        linia = 'AGRO' if alt_buf == 'palety_agro' else 'PSD'
-                if b_row:
-                    new_status = 0 if b_row.get('is_blocked') else 1
-                    cursor.execute(f"UPDATE {buf_tbl} SET is_blocked = %s WHERE id = %s", (new_status, b_row['id']))
-                    action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
-                    comment = f"{action}: {reason}" if reason and new_status else f"{action} palety w buforze przez użytkownika"
-                    cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', %s, %s, %s)",
-                        (b_row['id'], b_row.get('nr_palety'), linia, action, comment, worker_login)
-                    )
-                    conn.commit()
-                    return True, f"Paleta {'zablokowana' if new_status else 'odblokowana'}."
-
-            if not row:
-                return False, "Paleta nie znaleziona."
-                
-            new_status = 0 if row.get('is_blocked') else 1
-            nr_p = row.get('nr_palety')
-            cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s OR nr_palety = %s", (new_status, pallet_id, target_sscc or str(pallet_id)))
             
+            # Find the pallet across tables to determine current status and nr_palety
+            if 'surow' in p_type_norm:
+                tables_to_check = [get_table_name('magazyn_surowce', linia)]
+            elif 'opakow' in p_type_norm:
+                tables_to_check = [get_table_name('magazyn_opakowania', linia)]
+            elif 'dodat' in p_type_norm:
+                tables_to_check = ['magazyn_dodatki']
+            else:
+                tables_to_check = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro']
+
+            found_row = None
+            for tbl in tables_to_check:
+                try:
+                    cursor.execute(
+                        f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s)",
+                        (pallet_id if str(pallet_id).isdigit() else -1, target_sscc or str(pallet_id))
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        found_row = row
+                        break
+                except Exception:
+                    pass
+
+            if not found_row:
+                all_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
+                for tbl in all_tables:
+                    try:
+                        cursor.execute(
+                            f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s)",
+                            (pallet_id if str(pallet_id).isdigit() else -1, target_sscc or str(pallet_id))
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            found_row = row
+                            break
+                    except Exception:
+                        pass
+
+            if not found_row:
+                return False, "Paleta nie znaleziona."
+
+            new_status = 0 if found_row.get('is_blocked') else 1
+            nr_p = found_row.get('nr_palety') or target_sscc or str(pallet_id)
+
+            # Update ALL tables where this pallet (by nr_palety or id) exists to keep them in sync
+            synced_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
+            for tbl in synced_tables:
+                try:
+                    if nr_p and nr_p != str(pallet_id):
+                        cursor.execute(
+                            f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s OR id = %s",
+                            (new_status, nr_p, pallet_id if str(pallet_id).isdigit() else -1)
+                        )
+                    else:
+                        cursor.execute(
+                            f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s OR nr_palety = %s",
+                            (new_status, pallet_id if str(pallet_id).isdigit() else -1, str(pallet_id))
+                        )
+                except Exception:
+                    pass
+
             action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
             comment = f"{action}: {reason}" if reason and new_status else f"{action} palety przez użytkownika"
-            cursor.execute(
-                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (pallet_id, nr_p, linia, pallet_type.lower(), action, comment, worker_login)
-            )
-            
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (pallet_id if str(pallet_id).isdigit() else found_row.get('id'), nr_p, linia, pallet_type.lower() if pallet_type else 'wyrob_gotowy', action, comment, worker_login)
+                )
+            except Exception:
+                pass
+
             conn.commit()
             return True, f"Paleta {'zablokowana' if new_status else 'odblokowana'}."
         finally:

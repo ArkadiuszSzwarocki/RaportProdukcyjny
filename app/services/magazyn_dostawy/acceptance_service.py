@@ -578,8 +578,8 @@ class AcceptanceService:
 
                 # 2. Update production table status
                 cursor.execute(
-                    f"UPDATE {table_prod} SET status = 'w_magazynie', data_potwierdzenia = %s, waga_potwierdzona = %s WHERE id = %s",
-                    (datetime.now(), confirmed_netto, actual_pallet_id),
+                    f"UPDATE {table_prod} SET status = 'w_magazynie', data_potwierdzenia = %s, waga_potwierdzona = %s, potwierdzil_login = %s WHERE id = %s",
+                    (datetime.now(), confirmed_netto, login, actual_pallet_id),
                 )
                 
                 # 3. Insert into unified warehouse table

@@ -245,30 +245,15 @@ function showPallet(p) {
 
   pendingProductionLoc = null;
 
+  // Clear any legacy timeouts and ensure countdown bar is hidden
   if (window.hidePalletTimeout) {
     clearTimeout(window.hidePalletTimeout);
     window.hidePalletTimeout = null;
   }
-  
-  if (window.hideAfterLoad) {
-    const barContainer = document.getElementById('palletTimeoutBarContainer');
-    const bar = document.getElementById('palletTimeoutBar');
-    if (barContainer && bar) {
-        barContainer.style.display = 'block';
-        bar.style.transition = 'none';
-        bar.style.width = '100%';
-        void bar.offsetWidth;
-        bar.style.transition = 'width 6s linear';
-        bar.style.width = '0%';
-    }
-
-    window.hidePalletTimeout = setTimeout(() => {
-      hidePallet();
-    }, 6000);
-    window.hideAfterLoad = false;
-  } else {
-    const barContainer = document.getElementById('palletTimeoutBarContainer');
-    if (barContainer) barContainer.style.display = 'none';
+  window.hideAfterLoad = false;
+  const barContainer = document.getElementById('palletTimeoutBarContainer');
+  if (barContainer) {
+    barContainer.style.display = 'none';
   }
 }
 
@@ -277,6 +262,7 @@ function hidePallet() {
     clearTimeout(window.hidePalletTimeout);
     window.hidePalletTimeout = null;
   }
+  window.hideAfterLoad = false;
   currentPallet = null;
   const palletCard = document.getElementById('palletCard');
   if (palletCard) palletCard.classList.remove('visible');

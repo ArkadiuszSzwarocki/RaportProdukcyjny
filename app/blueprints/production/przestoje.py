@@ -13,13 +13,25 @@ downtime_repo = DowntimeRepository()
 
 def _save_przestoj_photo(req) -> Optional[str]:
     """Zapisuje przesłane zdjęcie z dysku/aparatu (file) lub ze schowka/screena (base64)."""
-    upload_dir = os.path.join(current_app.root_path, '..', 'static', 'uploads', 'przestoje')
-    upload_dir = os.path.abspath(upload_dir)
+    # Sprawdź czy jest plik lub base64
+    file = req.files.get('zdjecie_file') or req.files.get('zdjecie_camera')
+    base64_data = (req.form.get('zdjecie_base64') or '').strip()
+
+    has_file = bool(file and file.filename)
+    has_base64 = bool(base64_data and base64_data.startswith('data:image'))
+
+    if not has_file and not has_base64:
+        # Jeśli usunięto zdjęcie w edycji
+        if req.form.get('remove_zdjecie') == '1':
+            return ''
+        return None
+
+    static_dir = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+    upload_dir = os.path.abspath(os.path.join(static_dir, 'uploads', 'przestoje'))
     os.makedirs(upload_dir, exist_ok=True)
 
     # 1. Sprawdź plik z request.files (z dysku lub aparatu)
-    file = req.files.get('zdjecie_file') or req.files.get('zdjecie_camera')
-    if file and file.filename:
+    if has_file and file and file.filename:
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
             ext = '.jpg'
@@ -29,8 +41,7 @@ def _save_przestoj_photo(req) -> Optional[str]:
         return f"/static/uploads/przestoje/{filename}"
 
     # 2. Sprawdź base64 (ze schowka / PrintScreen / zrzut ekranu)
-    base64_data = (req.form.get('zdjecie_base64') or '').strip()
-    if base64_data and base64_data.startswith('data:image'):
+    if has_base64:
         try:
             header, encoded = base64_data.split(',', 1)
             ext = '.png'
@@ -46,10 +57,6 @@ def _save_przestoj_photo(req) -> Optional[str]:
             return f"/static/uploads/przestoje/{filename}"
         except Exception as e:
             current_app.logger.error(f"Error saving base64 downtime photo: {e}")
-
-    # 3. Jeśli usunięto zdjęcie w edycji
-    if req.form.get('remove_zdjecie') == '1':
-        return ''
 
     return None
 

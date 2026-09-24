@@ -49,6 +49,64 @@ class TestAgroWorkowanieBigBag(unittest.TestCase):
             self.assertEqual(settlement['pallets_count'], 2)
             self.assertTrue(settlement['has_bigbags'])
 
+    def test_lookup_bigbag_by_exact_sscc(self):
+        with patch('app.services.agro_workowanie_bigbag_service.get_db_connection') as mock_conn:
+            mock_cursor = MagicMock()
+            mock_conn.return_value.cursor.return_value = mock_cursor
+            mock_cursor.fetchone.return_value = {
+                'id': 2253,
+                'nr_palety': 'PSD000001790147129443',
+                'nazwa': 'MLECZNA PYCHA BRĄZOWA',
+                'stan_magazynowy': 732.0,
+                'lokalizacja': 'MP01',
+                'nr_partii': 'BRAK',
+                'data_produkcji': None,
+                'data_przydatnosci': None,
+                'is_blocked': 0,
+                'typ_palety': 'Wyrób Gotowy',
+                'linia': 'PSD',
+                'table_name': 'magazyn_palety',
+                'qty_column': 'waga_netto'
+            }
+
+            result = AgroWorkowanieBigBagService.lookup_bigbag('PSD000001790147129443', linia='AGRO')
+            self.assertIsNotNone(result)
+            self.assertEqual(result['id'], 2253)
+            self.assertFalse(result['is_blocked'])
+            self.assertEqual(result['nazwa'], 'MLECZNA PYCHA BRĄZOWA')
+
+    def test_lookup_bigbag_by_numeric_id(self):
+        with patch('app.services.agro_workowanie_bigbag_service.get_db_connection') as mock_conn:
+            mock_cursor = MagicMock()
+            mock_conn.return_value.cursor.return_value = mock_cursor
+            mock_cursor.fetchone.side_effect = [
+                None,  # exact nr_palety agro
+                None,  # exact nr_palety psd
+                None,  # exact nr_palety surowce agro
+                None,  # exact nr_palety surowce psd
+                {      # id match in magazyn_palety
+                    'id': 2255,
+                    'nr_palety': 'PSD000001790147180360',
+                    'nazwa': 'MLECZNA PYCHA BRĄZOWA',
+                    'stan_magazynowy': 1010.0,
+                    'lokalizacja': 'MP01',
+                    'nr_partii': 'BRAK',
+                    'data_produkcji': None,
+                    'data_przydatnosci': None,
+                    'is_blocked': 0,
+                    'typ_palety': 'Wyrób Gotowy',
+                    'linia': 'PSD',
+                    'table_name': 'magazyn_palety',
+                    'qty_column': 'waga_netto'
+                }
+            ]
+
+            result = AgroWorkowanieBigBagService.lookup_bigbag('2255', linia='AGRO')
+            self.assertIsNotNone(result)
+            self.assertEqual(result['id'], 2255)
+            self.assertFalse(result['is_blocked'])
+
 
 if __name__ == '__main__':
     unittest.main()
+

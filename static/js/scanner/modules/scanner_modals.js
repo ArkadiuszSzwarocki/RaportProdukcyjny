@@ -271,14 +271,28 @@ function submitScannerSplit() {
   .then(d => {
     if (d.success) {
       closeScannerSplitModal();
+      const isPkg = Boolean(
+        currentPallet && (
+          currentPallet.inventory_type === 'Opakowanie' ||
+          currentPallet.is_pkg ||
+          currentPallet.unit === 'szt.' ||
+          currentPallet.unit === 'szt' ||
+          currentPallet.jednostka === 'szt.' ||
+          currentPallet.jednostka === 'szt'
+        )
+      );
+      const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
       if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
-        showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram nową etykietę...`, 'success');
-        window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
-      } else {
-        showToast(d.message || 'Podzielono paletę', 'success');
+        if (!isPkg) {
+          showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram nową etykietę...`, 'success');
+          window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+        } else {
+          showToast(`✅ Pomyślnie odcięto ${d.split_info.moved_qty} szt. opakowania (${d.split_info.new_sscc}).`, 'success');
+        }
       }
-      window.hideAfterLoad = true;
-      lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+      if (targetPalletCode) {
+        lookupPallet(targetPalletCode);
+      }
     } else {
       showToast(d.message || d.error || 'Błąd podziału palety', 'danger');
     }

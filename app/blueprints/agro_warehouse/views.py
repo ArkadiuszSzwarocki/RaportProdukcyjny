@@ -206,13 +206,14 @@ def raport_palet():
                 SELECT 
                     p.id, p.waga, p.status, p.data_dodania, 
                     p.dodal_login,
-                    NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
-                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
-                    COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
-                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety,
-                    COALESCE(p.nr_palety_lp, m.nr_palety_lp) as nr_palety_lp
+                    NULLIF(TRIM(COALESCE(p.potwierdzil_login, m.user_login, m2.user_login, '')), '') as potwierdzil_login,
+                    COALESCE(p.data_potwierdzenia, m.data_potwierdzenia, m2.data_potwierdzenia) as data_potwierdzenia,
+                    COALESCE(m.nr_plomby, m2.nr_plomby, p.nr_plomby) as nr_plomby,
+                    COALESCE(p.nr_palety, m.nr_palety, m2.nr_palety) as nr_palety,
+                    COALESCE(p.nr_palety_lp, m.nr_palety_lp, m2.nr_palety_lp) as nr_palety_lp
                 FROM palety_agro p
-                LEFT JOIN magazyn_palety_agro m ON p.id = m.paleta_workowanie_id
+                LEFT JOIN magazyn_palety m ON (p.id = m.paleta_workowanie_id AND (m.linia = 'AGRO' OR m.linia IS NULL))
+                LEFT JOIN magazyn_palety_agro m2 ON p.id = m2.paleta_workowanie_id
                 WHERE p.plan_id = %s
                 ORDER BY p.data_dodania ASC
             """, (p['work_id'],))
@@ -295,11 +296,12 @@ def raport_palet_daily():
     try:
         cursor.execute(
             """
-            SELECT p.id as paleta_id, COALESCE(m.nr_palety, p.nr_palety) as nr_palety, p.waga, p.status,
-                   p.data_dodania, p.dodal_login as dodal, COALESCE(m.potwierdzil_login, p.potwierdzil_login) as potwierdzil,
+            SELECT p.id as paleta_id, COALESCE(p.nr_palety, m.nr_palety, m2.nr_palety) as nr_palety, p.waga, p.status,
+                   p.data_dodania, p.dodal_login as dodal, COALESCE(p.potwierdzil_login, m.user_login, m2.user_login) as potwierdzil,
                    w.produkt, w.id as plan_id, w.nr_partii
             FROM palety_agro p
-            LEFT JOIN magazyn_palety_agro m ON m.paleta_workowanie_id = p.id
+            LEFT JOIN magazyn_palety m ON (m.paleta_workowanie_id = p.id AND (m.linia = 'AGRO' OR m.linia IS NULL))
+            LEFT JOIN magazyn_palety_agro m2 ON m2.paleta_workowanie_id = p.id
             LEFT JOIN plan_produkcji_agro w ON w.id = p.plan_id
             WHERE p.data_dodania >= %s AND p.data_dodania < %s
             ORDER BY p.data_dodania ASC

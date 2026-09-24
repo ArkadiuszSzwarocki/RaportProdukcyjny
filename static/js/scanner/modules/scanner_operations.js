@@ -78,31 +78,49 @@ function submitLP01Modal() {
     btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Trwa wydanie...';
   }
 
-  fetch('/agro/scanner/move', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      surowiec_id: currentPallet.id,
-      nr_palety: currentPallet.nr_palety || currentPallet.sscc,
-      type: currentPallet.inventory_type,
-      lokalizacja: pendingLP01Loc || 'LP01',
-      linia: LINIA,
-      amount_to_move: parsedQty
+    const isPackaging = Boolean(
+      currentPallet && (
+        currentPallet.inventory_type === 'Opakowanie' ||
+        currentPallet.is_pkg ||
+        currentPallet.unit === 'szt.' ||
+        currentPallet.unit === 'szt' ||
+        currentPallet.jednostka === 'szt.' ||
+        currentPallet.jednostka === 'szt'
+      )
+    );
+    const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
+
+    fetch('/agro/scanner/move', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        surowiec_id: currentPallet.id,
+        nr_palety: currentPallet.nr_palety || currentPallet.sscc,
+        type: currentPallet.inventory_type,
+        lokalizacja: pendingLP01Loc || 'LP01',
+        linia: LINIA,
+        amount_to_move: parsedQty
+      })
     })
-  })
-  .then(r => r.json())
-  .then(d => {
-    showToast(d.message, d.success ? 'success' : 'danger');
-    closeLP01Modal();
-    if (d.success) {
-      if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
-        showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
-        window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message, d.success ? 'success' : 'danger');
+      closeLP01Modal();
+      if (d.success) {
+        if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
+          if (!isPackaging && (pendingLP01Loc || 'LP01') !== 'LP01' && (pendingLP01Loc || 'LP01') !== 'MASZYNA') {
+            showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
+            window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+          } else {
+            const unitStr = isPackaging ? 'szt.' : 'kg';
+            showToast(`✅ Pomyślnie wydano ${parsedQty} ${unitStr} na ${pendingLP01Loc || 'LP01'}.`, 'success');
+          }
+        }
+        if (targetPalletCode) {
+          lookupPallet(targetPalletCode);
+        }
       }
-      window.hideAfterLoad = true;
-      lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
-    }
-  })
+    })
   .catch(e => {
     showToast('Błąd połączenia: ' + e, 'danger');
   })

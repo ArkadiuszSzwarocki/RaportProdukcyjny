@@ -142,16 +142,27 @@ function submitMoveLocation() {
             btnSubmit.textContent = 'Przenieś';
         }
         if(data.success) {
+            const isPkg = Boolean(
+                currentPallet && (
+                    currentPallet.type === 'Opakowanie' ||
+                    currentPallet.inventory_type === 'Opakowanie' ||
+                    currentPallet.unit === 'szt.' ||
+                    currentPallet.unit === 'szt' ||
+                    currentPallet.jednostka === 'szt.' ||
+                    currentPallet.jednostka === 'szt' ||
+                    currentPallet.is_pkg
+                )
+            );
             const isSplit = (data.split_info && data.split_info.is_split) || (totalQty > 0 && amountToMove < totalQty);
             const newSSCC = data.split_info && data.split_info.new_sscc;
             const movedQty = (data.split_info && data.split_info.moved_qty) || amountToMove;
             const remainingQty = data.split_info && data.split_info.remaining_qty;
 
-            if (isSplit && newSSCC) {
+            if (isSplit && newSSCC && !isPkg) {
                 showToast(`✅ Odcięto ${movedQty} kg na nową paletę (SSCC: ${newSSCC}). Pozostało: ${remainingQty} kg. Otwieram nową etykietę...`, 'success');
                 window.open(`/agro/scanner/label/${encodeURIComponent(newSSCC)}?linia=${encodeURIComponent(currentPallet.linia || 'PSD')}&autoprint=1`, '_blank');
             } else if (isSplit) {
-                showToast(`Pomyślnie odcięto ${amountToMove} kg na nową paletę na lokalizację: ${newLoc}`, 'success');
+                showToast(`Pomyślnie odcięto ${amountToMove} ${isPkg ? 'szt.' : 'kg'} na nową paletę na lokalizację: ${newLoc}`, 'success');
             } else {
                 showToast(`Przeniesiono pomyślnie na: ${newLoc}`, 'success');
             }

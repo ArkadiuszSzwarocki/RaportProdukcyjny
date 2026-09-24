@@ -1,9 +1,46 @@
 """Error handlers and logging configuration."""
 
 import os
+import time
 import logging
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from flask import render_template, flash, request, jsonify
+
+
+class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """
+    Windows-compatible TimedRotatingFileHandler.
+    Catches PermissionError (WinError 32) when rotating logs while another
+    process/thread holds a file handle open on Windows, preventing cascading
+    tracebacks, log flood, and server request latency.
+    """
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except PermissionError:
+            # On Windows, if file is locked, recalculate next rollover time
+            # so we do not attempt rotation on every single log emit.
+            currentTime = int(time.time())
+            newRolloverAt = self.computeRollover(currentTime)
+            while newRolloverAt <= currentTime:
+                newRolloverAt = newRolloverAt + self.interval
+            self.rolloverAt = newRolloverAt
+            if self.stream is None:
+                try:
+                    self.stream = self._open()
+                except Exception:
+                    pass
+        except Exception:
+            currentTime = int(time.time())
+            newRolloverAt = self.computeRollover(currentTime)
+            while newRolloverAt <= currentTime:
+                newRolloverAt = newRolloverAt + self.interval
+            self.rolloverAt = newRolloverAt
+            if self.stream is None:
+                try:
+                    self.stream = self._open()
+                except Exception:
+                    pass
 
 
 class NoiseFilter(logging.Filter):
@@ -70,7 +107,7 @@ def setup_logging(app):
     else:
         # Use time-based rotation: rotate daily and keep 30 days of logs
         # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
-        handler = TimedRotatingFileHandler(
+        handler = SafeTimedRotatingFileHandler(
             log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
         )
         # INFO level: debug-trace messages stay out of the file log
@@ -91,7 +128,7 @@ def setup_logging(app):
     # ------------------------------------------------------------------
     if not use_stream:
         error_log_path = os.path.join(logs_dir, 'error.log')
-        error_handler = TimedRotatingFileHandler(
+        error_handler = SafeTimedRotatingFileHandler(
             error_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
         )
         error_handler.setLevel(logging.ERROR)
@@ -108,7 +145,7 @@ def setup_logging(app):
     audit_logger.propagate = False
     if not use_stream:
         audit_log_path = os.path.join(logs_dir, 'audit.log')
-        audit_handler = TimedRotatingFileHandler(
+        audit_handler = SafeTimedRotatingFileHandler(
             audit_log_path, when='midnight', interval=1, backupCount=90, encoding='utf-8', delay=True
         )
         audit_handler.setLevel(logging.INFO)
@@ -131,7 +168,7 @@ def setup_logging(app):
     palety_logger.setLevel(logging.INFO)
     palety_log_path = os.path.join(logs_dir, 'palety.log')
     # Rotate palety log daily and keep 30 days
-    palety_handler = TimedRotatingFileHandler(
+    palety_handler = SafeTimedRotatingFileHandler(
         palety_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
     )
     palety_handler.setLevel(logging.INFO)
@@ -146,7 +183,7 @@ def setup_logging(app):
     status_logger = logging.getLogger('status_changes')
     status_logger.setLevel(logging.INFO)
     status_log_path = os.path.join(logs_dir, 'status_changes.log')
-    status_handler = TimedRotatingFileHandler(
+    status_handler = SafeTimedRotatingFileHandler(
         status_log_path, when='midnight', interval=1, backupCount=60, encoding='utf-8', delay=True
     )
     status_handler.setLevel(logging.INFO)
@@ -162,7 +199,7 @@ def setup_logging(app):
     frontend_logger = logging.getLogger('frontend_errors')
     frontend_logger.setLevel(logging.ERROR)
     frontend_log_path = os.path.join(logs_dir, 'frontend_errors.log')
-    frontend_handler = TimedRotatingFileHandler(
+    frontend_handler = SafeTimedRotatingFileHandler(
         frontend_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
     )
     frontend_handler.setLevel(logging.ERROR)
@@ -177,7 +214,7 @@ def setup_logging(app):
     db_logger = logging.getLogger('db_errors')
     db_logger.setLevel(logging.ERROR)
     db_log_path = os.path.join(logs_dir, 'db_errors.log')
-    db_handler = TimedRotatingFileHandler(
+    db_handler = SafeTimedRotatingFileHandler(
         db_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
     )
     db_handler.setLevel(logging.ERROR)

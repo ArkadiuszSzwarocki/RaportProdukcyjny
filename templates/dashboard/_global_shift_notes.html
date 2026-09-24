@@ -29,30 +29,35 @@
 
   <div id="shift-notes-body" style="display: block; padding: 20px;">
     
-    <!-- Note Add Form -->
-    <form action="/add_shift_note" method="post" id="noteForm" style="margin-bottom: 24px;">
-      <input type="hidden" name="date" value="{{ dzisiaj }}">
-      <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
-      <input type="hidden" name="linia" value="{{ linia }}">
+    <!-- Note Add / Auto-Save Area -->
+    <div id="noteFormContainer" style="margin-bottom: 24px;">
+      <input type="hidden" id="noteDateInput" name="date" value="{{ dzisiaj }}">
+      <input type="hidden" id="notePracownikId" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
+      <input type="hidden" id="noteLinia" name="linia" value="{{ linia }}">
 
-      <div style="margin-bottom: 12px;">
-        <label for="noteTextarea" style="display: block; margin-bottom: 6px; font-weight: 700; color: #334155; font-size: 0.88rem;">
-          {{ _('notatka_label') }}
-        </label>
-        <textarea id="noteTextarea" name="note" required
+      <div style="margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+          <label for="noteTextarea" style="font-weight: 700; color: #334155; font-size: 0.88rem; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
+            {{ _('notatka_label') }}
+          </label>
+          <div style="display: inline-flex; align-items: center; gap: 8px;">
+            <button type="button" id="btnNewNote" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
+              ➕ Nowa notatka
+            </button>
+            <div id="noteAutoSaveStatus" style="font-size: 0.82rem; font-weight: 700; color: #10b981; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; transition: all 0.2s ease;">
+              <span id="noteAutoSaveIcon">✨</span>
+              <span id="noteAutoSaveText">Automatyczny zapis aktywny</span>
+            </div>
+          </div>
+        </div>
+        <textarea id="noteTextarea" name="note"
                   placeholder="{{ _('wpisz_notatke') }}"
                   rows="3"
-                  style="width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.92rem; color: #0f172a; background: #ffffff; box-sizing: border-box; resize: vertical; line-height: 1.5; font-family: inherit; transition: border-color 0.15s ease;"
-                  onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
+                  style="width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 0.92rem; color: #0f172a; background: #ffffff; box-sizing: border-box; resize: vertical; line-height: 1.5; font-family: inherit; transition: border-color 0.15s ease, box-shadow 0.15s ease;"
+                  onfocus="this.style.borderColor='#2563eb'; this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)';" 
+                  onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';"></textarea>
       </div>
-
-      <div style="display: flex; justify-content: flex-end;">
-        <button type="submit"
-                style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; background: linear-gradient(135deg, #ea580c, #c2410c); border: none; border-radius: 10px; color: #ffffff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3); transition: transform 0.15s ease;">
-          <span>💾</span> {{ _('zapisz_notatke') }}
-        </button>
-      </div>
-    </form>
+    </div>
 
     <!-- Saved Notes List -->
     <div>

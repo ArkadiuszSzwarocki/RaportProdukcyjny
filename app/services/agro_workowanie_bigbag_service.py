@@ -21,59 +21,95 @@ class AgroWorkowanieBigBagService:
         if not code:
             return None
 
-        normalized = ScannerService._normalize_scanned_code(code)
+        raw_code = str(code).strip()
+        normalized = ScannerService._normalize_scanned_code(raw_code)
         if not normalized:
-            normalized = str(code).strip().upper()
+            normalized = raw_code.upper()
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             prefix, item_id = ScannerService._extract_prefixed_id(normalized)
 
+            # Jeśli wpisano czysty integer o długości < 10, traktuj jako jawne ID palety
+            if not item_id and raw_code.isdigit() and len(raw_code) < 10:
+                try:
+                    item_id = int(raw_code)
+                except ValueError:
+                    item_id = None
+
+            import re
+            digits_only = re.sub(r'\D', '', normalized)
+
             lines_to_check = ['AGRO', 'PSD'] if linia.upper() == 'AGRO' else ['PSD', 'AGRO']
 
-            # 1. Sprawdź Surowce (magazyn_surowce / magazyn_surowce_agro)
-            for l in lines_to_check:
-                tbl_sur = get_table_name('magazyn_surowce', l)
-                query_sur = f"""
-                    SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
-                           data_produkcji, data_przydatnosci, is_blocked, '{l}' as linia,
-                           'Surowiec' as typ_palety, '{tbl_sur}' as table_name
-                    FROM {tbl_sur}
-                    WHERE stan_magazynowy > 0 AND (
-                        (nr_palety IS NOT NULL AND (UPPER(nr_palety) = %s OR UPPER(nr_palety) LIKE %s))
-                        OR id = %s
-                    )
-                    ORDER BY id DESC LIMIT 1
-                """
-                cursor.execute(query_sur, (normalized, f"%{normalized}%", item_id or -1))
-                row = cursor.fetchone()
-                if row:
-                    dp = row.get('data_produkcji')
-                    dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
-                    dz = row.get('data_przydatnosci')
-                    dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '')
-                    return {
-                        'id': row['id'],
-                        'nr_palety': row.get('nr_palety') or f"SUR-{row['id']}",
-                        'nazwa': row.get('nazwa') or 'Surowiec',
-                        'waga': float(row.get('stan_magazynowy') or 0),
-                        'lokalizacja': row.get('lokalizacja') or 'Magazyn',
-                        'nr_partii': row.get('nr_partii') or 'BRAK',
-                        'data_produkcji': dp_str,
-                        'data_przydatnosci': dz_str,
-                        'is_blocked': bool(row.get('is_blocked')),
-                        'typ_palety': 'Surowiec',
-                        'linia': row.get('linia'),
-                        'table_name': tbl_sur,
-                        'qty_column': 'stan_magazynowy'
-                    }
+            def _format_row(row):
+                dp = row.get('data_produkcji')
+                dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
+                dz = row.get('data_przydatnosci')
+                dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '')
+                return {
+                    'id': row['id'],
+                    'nr_palety': row.get('nr_palety') or f"PAL-{row['id']}",
+                    'nazwa': row.get('nazwa') or ('Surowiec' if row.get('typ_palety') == 'Surowiec' else 'Wyrób Gotowy'),
+                    'waga': float(row.get('stan_magazynowy') or 0),
+                    'lokalizacja': row.get('lokalizacja') or 'Magazyn',
+                    'nr_partii': row.get('nr_partii') or 'BRAK',
+                    'data_produkcji': dp_str,
+                    'data_przydatnosci': dz_str,
+                    'is_blocked': bool(row.get('is_blocked')),
+                    'typ_palety': row.get('typ_palety'),
+                    'linia': row.get('linia'),
+                    'table_name': row.get('table_name'),
+                    'qty_column': row.get('qty_column')
+                }
 
-            # 2. Sprawdź Wyroby Gotowe (magazyn_palety / magazyn_palety_agro)
+            # KROK 1: Jeśli podano ID z prefiksem (np. PAL-2253, SUR-3819)
+            if prefix and item_id:
+                if prefix in ('PAL', 'AGR', 'PSD'):
+                    for l in lines_to_check:
+                        tbl_pal = get_table_name('magazyn_palety', l)
+                        tbl_plan = get_table_name('plan_produkcji', l)
+                        query = f"""
+                            SELECT m.id, m.nr_palety,
+                                   COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób gotowy') as nazwa,
+                                   m.waga_netto as stan_magazynowy,
+                                   COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as lokalizacja,
+                                   COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, 'BRAK') as nr_partii,
+                                   COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji) as data_produkcji,
+                                   COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
+                                   m.is_blocked, '{l}' as linia, 'Wyrób Gotowy' as typ_palety, '{tbl_pal}' as table_name,
+                                   'waga_netto' as qty_column
+                            FROM {tbl_pal} m
+                            LEFT JOIN {tbl_plan} plan ON m.plan_id = plan.id
+                            WHERE m.id = %s
+                        """
+                        cursor.execute(query, (item_id,))
+                        row = cursor.fetchone()
+                        if row:
+                            return _format_row(row)
+
+                if prefix == 'SUR':
+                    for l in lines_to_check:
+                        tbl_sur = get_table_name('magazyn_surowce', l)
+                        query = f"""
+                            SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                                   data_produkcji, data_przydatnosci, is_blocked, '{l}' as linia,
+                                   'Surowiec' as typ_palety, '{tbl_sur}' as table_name,
+                                   'stan_magazynowy' as qty_column
+                            FROM {tbl_sur}
+                            WHERE id = %s
+                        """
+                        cursor.execute(query, (item_id,))
+                        row = cursor.fetchone()
+                        if row:
+                            return _format_row(row)
+
+            # KROK 2: DOKŁADNE dopasowanie po pełnym nr_palety (Exact match)
             for l in lines_to_check:
                 tbl_pal = get_table_name('magazyn_palety', l)
                 tbl_plan = get_table_name('plan_produkcji', l)
-                query_pal = f"""
+                query = f"""
                     SELECT m.id, m.nr_palety,
                            COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób gotowy') as nazwa,
                            m.waga_netto as stan_magazynowy,
@@ -81,37 +117,121 @@ class AgroWorkowanieBigBagService:
                            COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, 'BRAK') as nr_partii,
                            COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji) as data_produkcji,
                            COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
-                           m.is_blocked, '{l}' as linia, 'Wyrób Gotowy' as typ_palety, '{tbl_pal}' as table_name
+                           m.is_blocked, '{l}' as linia, 'Wyrób Gotowy' as typ_palety, '{tbl_pal}' as table_name,
+                           'waga_netto' as qty_column
                     FROM {tbl_pal} m
                     LEFT JOIN {tbl_plan} plan ON m.plan_id = plan.id
-                    WHERE m.waga_netto > 0 AND (
-                        (m.nr_palety IS NOT NULL AND (UPPER(m.nr_palety) = %s OR UPPER(m.nr_palety) LIKE %s))
-                        OR m.id = %s
+                    WHERE UPPER(m.nr_palety) = %s OR (
+                        %s != '' AND (
+                            m.nr_palety = %s OR m.nr_palety = CONCAT('AGR', %s) OR m.nr_palety = CONCAT('PSD', %s)
+                        )
                     )
-                    ORDER BY m.id DESC LIMIT 1
+                    ORDER BY (m.waga_netto > 0) DESC, (m.is_blocked = 0) DESC, m.id DESC LIMIT 1
                 """
-                cursor.execute(query_pal, (normalized, f"%{normalized}%", item_id or -1))
+                cursor.execute(query, (normalized, digits_only, digits_only, digits_only, digits_only))
                 row = cursor.fetchone()
                 if row:
-                    dp = row.get('data_produkcji')
-                    dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
-                    dz = row.get('data_przydatnosci')
-                    dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '')
-                    return {
-                        'id': row['id'],
-                        'nr_palety': row.get('nr_palety') or f"PAL-{row['id']}",
-                        'nazwa': row.get('nazwa') or 'Wyrób gotowy',
-                        'waga': float(row.get('stan_magazynowy') or 0),
-                        'lokalizacja': row.get('lokalizacja') or 'Magazyn',
-                        'nr_partii': row.get('nr_partii') or 'BRAK',
-                        'data_produkcji': dp_str,
-                        'data_przydatnosci': dz_str,
-                        'is_blocked': bool(row.get('is_blocked')),
-                        'typ_palety': 'Wyrób Gotowy',
-                        'linia': row.get('linia'),
-                        'table_name': tbl_pal,
-                        'qty_column': 'waga_netto'
-                    }
+                    return _format_row(row)
+
+            for l in lines_to_check:
+                tbl_sur = get_table_name('magazyn_surowce', l)
+                query = f"""
+                    SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                           data_produkcji, data_przydatnosci, is_blocked, '{l}' as linia,
+                           'Surowiec' as typ_palety, '{tbl_sur}' as table_name,
+                           'stan_magazynowy' as qty_column
+                    FROM {tbl_sur}
+                    WHERE UPPER(nr_palety) = %s OR (
+                        %s != '' AND (
+                            nr_palety = %s OR nr_palety = CONCAT('SUR', %s)
+                        )
+                    )
+                    ORDER BY (stan_magazynowy > 0) DESC, (is_blocked = 0) DESC, id DESC LIMIT 1
+                """
+                cursor.execute(query, (normalized, digits_only, digits_only, digits_only))
+                row = cursor.fetchone()
+                if row:
+                    return _format_row(row)
+
+            # KROK 3: Jeśli wpisano czyste ID (np. 2253, 2255, 2262)
+            if item_id:
+                for l in lines_to_check:
+                    tbl_pal = get_table_name('magazyn_palety', l)
+                    tbl_plan = get_table_name('plan_produkcji', l)
+                    query = f"""
+                        SELECT m.id, m.nr_palety,
+                               COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób gotowy') as nazwa,
+                               m.waga_netto as stan_magazynowy,
+                               COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as lokalizacja,
+                               COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, 'BRAK') as nr_partii,
+                               COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji) as data_produkcji,
+                               COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
+                               m.is_blocked, '{l}' as linia, 'Wyrób Gotowy' as typ_palety, '{tbl_pal}' as table_name,
+                               'waga_netto' as qty_column
+                        FROM {tbl_pal} m
+                        LEFT JOIN {tbl_plan} plan ON m.plan_id = plan.id
+                        WHERE m.id = %s
+                    """
+                    cursor.execute(query, (item_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        return _format_row(row)
+
+                for l in lines_to_check:
+                    tbl_sur = get_table_name('magazyn_surowce', l)
+                    query = f"""
+                        SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                               data_produkcji, data_przydatnosci, is_blocked, '{l}' as linia,
+                               'Surowiec' as typ_palety, '{tbl_sur}' as table_name,
+                               'stan_magazynowy' as qty_column
+                        FROM {tbl_sur}
+                        WHERE id = %s
+                    """
+                    cursor.execute(query, (item_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        return _format_row(row)
+
+            # KROK 4: Dopasowanie po końcówce kodu (Suffix match - np. ze skanera)
+            if len(digits_only) >= 6:
+                for l in lines_to_check:
+                    tbl_pal = get_table_name('magazyn_palety', l)
+                    tbl_plan = get_table_name('plan_produkcji', l)
+                    query = f"""
+                        SELECT m.id, m.nr_palety,
+                               COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób gotowy') as nazwa,
+                               m.waga_netto as stan_magazynowy,
+                               COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'MGW01') as lokalizacja,
+                               COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, 'BRAK') as nr_partii,
+                               COALESCE(NULLIF(TRIM(m.data_produkcji), ''), plan.data_produkcji) as data_produkcji,
+                               COALESCE(NULLIF(TRIM(m.data_przydatnosci), ''), plan.termin_przydatnosci) as data_przydatnosci,
+                               m.is_blocked, '{l}' as linia, 'Wyrób Gotowy' as typ_palety, '{tbl_pal}' as table_name,
+                               'waga_netto' as qty_column
+                        FROM {tbl_pal} m
+                        LEFT JOIN {tbl_plan} plan ON m.plan_id = plan.id
+                        WHERE m.nr_palety LIKE %s
+                        ORDER BY (m.waga_netto > 0) DESC, (m.is_blocked = 0) DESC, m.id DESC LIMIT 1
+                    """
+                    cursor.execute(query, (f"%{digits_only}",))
+                    row = cursor.fetchone()
+                    if row:
+                        return _format_row(row)
+
+                for l in lines_to_check:
+                    tbl_sur = get_table_name('magazyn_surowce', l)
+                    query = f"""
+                        SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
+                               data_produkcji, data_przydatnosci, is_blocked, '{l}' as linia,
+                               'Surowiec' as typ_palety, '{tbl_sur}' as table_name,
+                               'stan_magazynowy' as qty_column
+                        FROM {tbl_sur}
+                        WHERE nr_palety LIKE %s
+                        ORDER BY (stan_magazynowy > 0) DESC, (is_blocked = 0) DESC, id DESC LIMIT 1
+                    """
+                    cursor.execute(query, (f"%{digits_only}",))
+                    row = cursor.fetchone()
+                    if row:
+                        return _format_row(row)
 
             return None
         finally:

@@ -17,78 +17,272 @@
 </script>
 
 <script>
-  // Note form submission - no auto-refresh, let flash message show
-  const noteForm = document.getElementById('noteForm');
-  if (noteForm) {
-    noteForm.addEventListener('submit', function (e) {
-      // Just submit normally, page will refresh after redirect
+  // ========== SHIFT NOTES AUTO-SAVE & MANAGEMENT ==========
+  (function() {
+    let shiftNoteDebounceTimer = null;
+    let activeEditingNoteId = null;
+    let lastSavedNoteText = '';
+    let isSavingNote = false;
+    const linia = '{{ linia }}' || 'AGRO';
+
+    function setAutoSaveStatus(state, text) {
+      const statusEl = document.getElementById('noteAutoSaveStatus');
+      const iconEl = document.getElementById('noteAutoSaveIcon');
+      const textEl = document.getElementById('noteAutoSaveText');
+      const btnNew = document.getElementById('btnNewNote');
+      if (!statusEl || !iconEl || !textEl) return;
+
+      if (state === 'typing') {
+        statusEl.style.color = '#d97706';
+        statusEl.style.background = '#fffbeb';
+        statusEl.style.borderColor = '#fde68a';
+        iconEl.innerText = '✏️';
+        textEl.innerText = text || 'Pisanie...';
+      } else if (state === 'saving') {
+        statusEl.style.color = '#2563eb';
+        statusEl.style.background = '#eff6ff';
+        statusEl.style.borderColor = '#bfdbfe';
+        iconEl.innerText = '⏳';
+        textEl.innerText = text || 'Zapisywanie...';
+      } else if (state === 'saved') {
+        statusEl.style.color = '#059669';
+        statusEl.style.background = '#f0fdf4';
+        statusEl.style.borderColor = '#bbf7d0';
+        iconEl.innerText = '✅';
+        textEl.innerText = text || 'Zapisano automatycznie';
+      } else if (state === 'editing') {
+        statusEl.style.color = '#7c3aed';
+        statusEl.style.background = '#f5f3ff';
+        statusEl.style.borderColor = '#ddd6fe';
+        iconEl.innerText = '📝';
+        textEl.innerText = text || 'Edycja notatki (autozapis)';
+      } else if (state === 'error') {
+        statusEl.style.color = '#dc2626';
+        statusEl.style.background = '#fef2f2';
+        statusEl.style.borderColor = '#fecaca';
+        iconEl.innerText = '⚠️';
+        textEl.innerText = text || 'Błąd zapisu';
+      } else {
+        statusEl.style.color = '#10b981';
+        statusEl.style.background = '#f0fdf4';
+        statusEl.style.borderColor = '#bbf7d0';
+        iconEl.innerText = '✨';
+        textEl.innerText = text || 'Automatyczny zapis aktywny';
+      }
+
+      if (btnNew) {
+        const textarea = document.getElementById('noteTextarea');
+        const hasText = textarea && textarea.value.trim().length > 0;
+        btnNew.style.display = (activeEditingNoteId || hasText) ? 'inline-flex' : 'none';
+      }
+    }
+
+    function performAutoSave() {
+      const textarea = document.getElementById('noteTextarea');
+      if (!textarea) return;
+
+      const text = textarea.value.trim();
+      if (text === lastSavedNoteText) {
+        return;
+      }
+
+      if (!text) {
+        lastSavedNoteText = '';
+        activeEditingNoteId = null;
+        setAutoSaveStatus('idle');
+        return;
+      }
+
+      const dateInput = document.getElementById('noteDateInput');
+      const dateStr = dateInput ? dateInput.value : ('{{ dzisiaj }}');
+      const pracownikId = document.getElementById('notePracownikId')?.value || '';
+
+      isSavingNote = true;
+      setAutoSaveStatus('saving');
+
+      if (activeEditingNoteId) {
+        // Update existing note via AJAX
+        fetch(`/api/shift_note/${activeEditingNoteId}/update`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            note: text,
+            linia: linia
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          isSavingNote = false;
+          if (data && data.success) {
+            lastSavedNoteText = text;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            setAutoSaveStatus('saved', `Zapisano automatycznie o ${timeStr}`);
+            if (typeof window.updateShiftNotesForDate === 'function') {
+              window.updateShiftNotesForDate(dateStr);
+            }
+          } else {
+            setAutoSaveStatus('error', (data && data.message) || 'Błąd zapisu');
+          }
+        })
+        .catch(err => {
+          isSavingNote = false;
+          setAutoSaveStatus('error', 'Błąd połączenia');
+        });
+      } else {
+        // Create new note via AJAX
+        fetch('/add_shift_note', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            note: text,
+            date: dateStr,
+            linia: linia,
+            pracownik_id: pracownikId
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          isSavingNote = false;
+          if (data && data.success) {
+            activeEditingNoteId = data.id;
+            lastSavedNoteText = text;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            setAutoSaveStatus('saved', `Zapisano automatycznie o ${timeStr}`);
+            if (typeof window.updateShiftNotesForDate === 'function') {
+              window.updateShiftNotesForDate(dateStr);
+            }
+          } else {
+            setAutoSaveStatus('error', (data && data.message) || 'Błąd zapisu');
+          }
+        })
+        .catch(err => {
+          isSavingNote = false;
+          setAutoSaveStatus('error', 'Błąd połączenia');
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const textarea = document.getElementById('noteTextarea');
+      const btnNew = document.getElementById('btnNewNote');
+
+      if (textarea) {
+        textarea.addEventListener('input', function() {
+          setAutoSaveStatus('typing');
+          if (shiftNoteDebounceTimer) clearTimeout(shiftNoteDebounceTimer);
+          shiftNoteDebounceTimer = setTimeout(performAutoSave, 900);
+        });
+
+        textarea.addEventListener('blur', function() {
+          if (shiftNoteDebounceTimer) clearTimeout(shiftNoteDebounceTimer);
+          performAutoSave();
+        });
+      }
+
+      if (btnNew) {
+        btnNew.addEventListener('click', function() {
+          if (shiftNoteDebounceTimer) clearTimeout(shiftNoteDebounceTimer);
+          if (textarea) {
+            textarea.value = '';
+            textarea.focus();
+          }
+          activeEditingNoteId = null;
+          lastSavedNoteText = '';
+          setAutoSaveStatus('idle');
+        });
+      }
     });
-  }
 
-  // Obsługa edycji i usuwania notatek
-  document.addEventListener('click', function (e) {
-    const delBtn = e.target.closest('.note-delete-btn');
-    if (delBtn) {
-      const id = delBtn.getAttribute('data-id');
-      const confirmPromise = (window.AppDialog && typeof window.AppDialog.confirm === 'function')
-        ? window.AppDialog.confirm('Czy na pewno chcesz usunąć tę notatkę?')
-        : Promise.resolve(window.confirm('Czy na pewno chcesz usunąć tę notatkę?'));
+    // Delegated edit & delete handlers with AJAX
+    document.addEventListener('click', function (e) {
+      const delBtn = e.target.closest('.note-delete-btn');
+      if (delBtn) {
+        const id = delBtn.getAttribute('data-id');
+        const confirmPromise = (window.AppDialog && typeof window.AppDialog.confirm === 'function')
+          ? window.AppDialog.confirm('Czy na pewno chcesz usunąć tę notatkę?')
+          : Promise.resolve(window.confirm('Czy na pewno chcesz usunąć tę notatkę?'));
 
-      confirmPromise.then(ok => {
-        if (ok) {
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = `/api/shift_note/${id}/delete`;
-          
-          const liniaInput = document.createElement('input');
-          liniaInput.type = 'hidden';
-          liniaInput.name = 'linia';
-          liniaInput.value = '{{ linia }}' || 'AGRO';
-          form.appendChild(liniaInput);
+        confirmPromise.then(ok => {
+          if (ok) {
+            fetch(`/api/shift_note/${id}/delete`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({ linia: linia })
+            })
+            .then(r => r.json())
+            .then(data => {
+              if (data && data.success) {
+                if (activeEditingNoteId == id) {
+                  activeEditingNoteId = null;
+                  lastSavedNoteText = '';
+                  const textarea = document.getElementById('noteTextarea');
+                  if (textarea) textarea.value = '';
+                  setAutoSaveStatus('idle');
+                }
+                const dateInput = document.getElementById('noteDateInput');
+                const dateStr = dateInput ? dateInput.value : ('{{ dzisiaj }}');
+                if (typeof window.updateShiftNotesForDate === 'function') {
+                  window.updateShiftNotesForDate(dateStr);
+                }
+              } else {
+                if (window.AppDialog && window.AppDialog.alert) {
+                  window.AppDialog.alert((data && data.message) || 'Nie udało się usunąć notatki');
+                } else {
+                  alert((data && data.message) || 'Nie udało się usunąć notatki');
+                }
+              }
+            })
+            .catch(() => {
+              alert('Błąd połączenia podczas usuwania notatki');
+            });
+          }
+        });
+        return;
+      }
 
-          document.body.appendChild(form);
-          form.submit();
+      const editBtn = e.target.closest('.note-edit-btn');
+      if (editBtn) {
+        const id = editBtn.getAttribute('data-id');
+        const noteCard = editBtn.closest('.note-card');
+        const textEl = noteCard ? noteCard.querySelector('.note-text') : null;
+        const currentText = textEl ? textEl.innerText.trim() : '';
+
+        const textarea = document.getElementById('noteTextarea');
+        if (textarea) {
+          activeEditingNoteId = id;
+          lastSavedNoteText = currentText;
+          textarea.value = currentText;
+          textarea.focus();
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setAutoSaveStatus('editing', 'Edytujesz notatkę (autozapis aktywny)');
         }
-      });
-      return;
-    }
+        return;
+      }
+    });
 
-    const editBtn = e.target.closest('.note-edit-btn');
-    if (editBtn) {
-      const id = editBtn.getAttribute('data-id');
-      const noteCard = editBtn.closest('.note-card');
-      const textEl = noteCard ? noteCard.querySelector('.note-text') : null;
-      const currentText = textEl ? textEl.innerText.trim() : '';
-
-      const promptPromise = (window.AppDialog && typeof window.AppDialog.prompt === 'function')
-        ? window.AppDialog.prompt('Edytuj treść notatki:', currentText)
-        : Promise.resolve(window.prompt('Edytuj treść notatki:', currentText));
-
-      promptPromise.then(newText => {
-        if (newText !== null && newText !== undefined && newText.trim() !== '') {
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = `/api/shift_note/${id}/update`;
-          
-          const inputNote = document.createElement('input');
-          inputNote.type = 'hidden';
-          inputNote.name = 'note';
-          inputNote.value = newText.trim();
-          form.appendChild(inputNote);
-
-          const liniaInput = document.createElement('input');
-          liniaInput.type = 'hidden';
-          liniaInput.name = 'linia';
-          liniaInput.value = '{{ linia }}' || 'AGRO';
-          form.appendChild(liniaInput);
-
-          document.body.appendChild(form);
-          form.submit();
-        }
-      });
-      return;
-    }
-  });
+    window.resetShiftNoteForm = function() {
+      if (shiftNoteDebounceTimer) clearTimeout(shiftNoteDebounceTimer);
+      const textarea = document.getElementById('noteTextarea');
+      if (textarea) textarea.value = '';
+      activeEditingNoteId = null;
+      lastSavedNoteText = '';
+      setAutoSaveStatus('idle');
+    };
+  })();
 </script>
 
 <script>
@@ -262,8 +456,8 @@
   // ========== DATE-BASED SHIFT NOTES FILTERING (AJAX) ==========
   document.addEventListener('DOMContentLoaded', function () {
     const notesContainer = document.getElementById('shift-notes-container');
-    const dateInput = document.querySelector('input[name="date"]');
-    const linia = '{{ linia }}';
+    const dateInput = document.getElementById('noteDateInput') || document.querySelector('input[name="date"]');
+    const linia = '{{ linia }}' || 'AGRO';
 
     if (!notesContainer) return;
 
@@ -279,6 +473,7 @@
           if (data.notes && data.notes.length > 0) {
             data.notes.forEach(note => {
               const noteCard = document.createElement('div');
+              noteCard.className = 'note-card';
               noteCard.style.cssText = 'background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); margin-bottom: 12px;';
               
               let actionButtons = '';
@@ -310,9 +505,7 @@
                   </div>
                   ${actionButtons}
                 </div>
-                <div style="color: #334155; font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap;">
-                  ${note.note}
-                </div>
+                <div class="note-text" style="color: #334155; font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap;">${note.note}</div>
               `;
               notesContainer.appendChild(noteCard);
             });
@@ -325,10 +518,15 @@
         });
     }
 
+    window.updateShiftNotesForDate = updateShiftNotesForDate;
+
     window.addEventListener('app:date-changed', function (e) {
       if (e.detail && e.detail.pickerId === 'notes-date-picker') {
         const dateStr = e.detail.date;
         if (dateInput) dateInput.value = dateStr;
+        if (typeof window.resetShiftNoteForm === 'function') {
+          window.resetShiftNoteForm();
+        }
         updateShiftNotesForDate(dateStr);
       }
     });
