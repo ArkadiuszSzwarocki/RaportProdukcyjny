@@ -84,22 +84,18 @@
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <div style="position: relative; flex: 1; min-width: 260px;">
-                            <span class="material-icons" style="position: absolute; left: 10px; top: 10px; color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
-                            <input type="text" id="bb-scan-input" placeholder="Zeskanuj kod QR / SSCC / kreskowy Big Baga..."
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div style="position: relative; flex: 1; width: 100%;">
+                            <span class="material-icons" style="position: absolute; left: 12px; top: 12px; color: #3b82f6; font-size: 22px;">qr_code_scanner</span>
+                            <input type="text" id="bb-scan-input" placeholder="Zeskanuj kod QR / SSCC / kreskowy Big Baga (auto-zapis)..."
                                    autocomplete="off"
-                                   style="width: 100%; padding: 10px 36px 10px 38px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95em; outline: none; font-weight: 600; color: #1e293b; transition: border-color 0.2s;">
+                                   style="width: 100%; box-sizing: border-box; padding: 12px 38px 12px 42px; border: 2px solid #3b82f6; border-radius: 8px; font-size: 1em; outline: none; font-weight: 700; color: #1e293b; transition: all 0.2s; box-shadow: 0 2px 6px rgba(59,130,246,0.08);">
                             <button type="button" id="btn-clear-bb-input" onclick="const el=document.getElementById('bb-scan-input'); if(el){el.value=''; el.focus(); this.style.display='none';}"
                                     title="Wyczyść pole"
-                                    style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px; border-radius: 4px;">
-                                <span class="material-icons" style="font-size: 18px;">close</span>
+                                    style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px; border-radius: 4px;">
+                                <span class="material-icons" style="font-size: 20px;">close</span>
                             </button>
                         </div>
-                        <button type="button" id="btn-add-bb" onclick="addScannedBigBag()"
-                                style="background: #2563eb; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 0.95em; box-shadow: 0 2px 6px rgba(37,99,235,0.2);">
-                            <span class="material-icons" style="font-size: 18px;">add_circle</span> DODAJ BIG BAG
-                        </button>
                     </div>
 
                     <!-- Informacja / status skanowania -->
@@ -474,14 +470,20 @@
             } else {
                 setBbAutoSaveStatus('error', 'Błąd: ' + (data.error || data.message || 'Odrzucono'));
                 showBbFeedback(data.error || data.message || 'Błąd dodawania Big Baga.', 'error');
+                input.focus();
+                input.select();
             }
         } catch (e) {
             setBbAutoSaveStatus('error', 'Błąd połączenia');
             showBbFeedback('Błąd połączenia z serwerem: ' + (e.name === 'AbortError' ? 'Przekroczono limit czasu' : e), 'error');
+            input.focus();
+            input.select();
         } finally {
             isAddingBigBag = false;
             if (btn) btn.disabled = false;
-            if (input) input.focus();
+            if (input && !input.value) {
+                input.focus();
+            }
         }
     }
 
