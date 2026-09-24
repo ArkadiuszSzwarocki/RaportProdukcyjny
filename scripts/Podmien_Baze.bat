@@ -8,8 +8,6 @@ chcp 65001 > nul
 title PROCEDURA PODMIANY BAZY DANYCH - RAPORT PRODUKCYJNY
 
 set "PROJECT_DIR=C:\Users\arkad\Documents\github\RaportProdukcyjny"
-set "DB_PASS=VVezyr$$"
-set "DB_NAME=biblioteka"
 set "SQL_FILE=nowa_baza.sql"
 
 color 0A
@@ -74,16 +72,16 @@ timeout /t 20 /nobreak
 
 :: KROK 4: Import nowych danych
 echo.
-echo --- KROK 4: Tworzenie bazy '%DB_NAME%' i import danych ---
-docker-compose exec -T db mysql -u root -p"%DB_PASS%" -e "CREATE DATABASE IF NOT EXISTS %DB_NAME%;"
+echo --- KROK 4: Weryfikacja skonfigurowanej bazy i import danych ---
+docker-compose exec -T db sh -c "export MYSQL_PWD=$MYSQL_ROOT_PASSWORD; mysqladmin -u root ping"
 if %errorlevel% neq 0 (
-    docker compose exec -T db mysql -u root -p"%DB_PASS%" -e "CREATE DATABASE IF NOT EXISTS %DB_NAME%;"
+    docker compose exec -T db sh -c "export MYSQL_PWD=$MYSQL_ROOT_PASSWORD; mysqladmin -u root ping"
 )
 
-echo Wgrywanie pliku %SQL_FILE% do bazy '%DB_NAME%'...
-docker-compose exec -T db mysql -u root -p"%DB_PASS%" %DB_NAME% < "%SQL_FILE%"
+echo Wgrywanie pliku %SQL_FILE% do bazy skonfigurowanej jako MYSQL_DATABASE...
+docker-compose exec -T db sh -c "export MYSQL_PWD=$MYSQL_ROOT_PASSWORD; exec mysql -u root $MYSQL_DATABASE" < "%SQL_FILE%"
 if %errorlevel% neq 0 (
-    docker compose exec -T db mysql -u root -p"%DB_PASS%" %DB_NAME% < "%SQL_FILE%"
+    docker compose exec -T db sh -c "export MYSQL_PWD=$MYSQL_ROOT_PASSWORD; exec mysql -u root $MYSQL_DATABASE" < "%SQL_FILE%"
 )
 
 echo [OK] Dane zostaly pomyslnie zaimportowane!

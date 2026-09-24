@@ -98,8 +98,12 @@ def create_app(config_secret_key=None, init_db=True):
     app.secret_key = _secret_key
 
     # Configure session to ensure cookies are properly set
-    cookie_secure_env = str(os.environ.get('SESSION_COOKIE_SECURE', 'false')).strip().lower()
-    app.config['SESSION_COOKIE_SECURE'] = cookie_secure_env in ('true', '1', 'yes')
+    cookie_secure_raw = os.environ.get('SESSION_COOKIE_SECURE')
+    if cookie_secure_raw is not None:
+        app.config['SESSION_COOKIE_SECURE'] = str(cookie_secure_raw).strip().lower() in ('true', '1', 'yes')
+    else:
+        # Secure by default unless running in debug/testing mode
+        app.config['SESSION_COOKIE_SECURE'] = not (app.debug or app.testing)
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)

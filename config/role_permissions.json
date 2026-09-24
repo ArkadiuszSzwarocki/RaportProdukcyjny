@@ -1215,6 +1215,44 @@
       "readonly": false
     }
   },
+  "ustawienia": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    }
+  },
   "ustawienia.backups": {
     "admin": {
       "access": true,

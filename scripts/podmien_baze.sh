@@ -17,8 +17,6 @@ NC='\033[0m' # No Color
 
 # Zmienne domyślne
 PROJECT_DIR="${HOME}/raportprodukcyjny"
-DB_PASS="VVezyr\$\$"
-DB_NAME="biblioteka"
 SQL_FILE="${1:-nowa_baza.sql}"
 
 echo -e "${BLUE}======================================================================${NC}"
@@ -74,11 +72,11 @@ echo -e "\n${GREEN}[OK] Kontener db gotowy.${NC}"
 
 # KROK 4: Import nowych danych
 echo -e "\n${YELLOW}--- KROK 4: Import nowych danych ---${NC}"
-echo -e "Tworzenie bazy '${DB_NAME}'..."
-sudo docker-compose exec -T db mysql -u root -p"${DB_PASS}" -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME};"
+echo -e "Weryfikacja bazy skonfigurowanej jako MYSQL_DATABASE..."
+sudo docker-compose exec -T db sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysqladmin -u root ping'
 
-echo -e "Wgrywanie pliku ${SQL_FILE} do bazy '${DB_NAME}'..."
-sudo docker-compose exec -T db mysql -u root -p"${DB_PASS}" "${DB_NAME}" < "$SQL_FILE"
+echo -e "Wgrywanie pliku ${SQL_FILE} do skonfigurowanej bazy..."
+sudo docker-compose exec -T db sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -u root "$MYSQL_DATABASE"' < "$SQL_FILE"
 echo -e "${GREEN}[OK] Import zakończył się bez błędów!${NC}"
 
 # KROK 5: Uruchomienie aplikacji

@@ -81,8 +81,8 @@ def verify_location():
         if sesja_id:
             cursor.execute("SELECT lokalizacja FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
             sesja = cursor.fetchone()
-            if sesja and sesja['lokalizacja'] and sesja['lokalizacja'] != 'Wszystko':
-                target = sesja['lokalizacja'].upper()
+            target = (sesja.get('lokalizacja') or '').strip().upper() if sesja else ''
+            if target and target not in ('WSZYSTKO', 'WSZYSTKIE'):
                 is_session_valid = False
                 if lokalizacja == target:
                     is_session_valid = True

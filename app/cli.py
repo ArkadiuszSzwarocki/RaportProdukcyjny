@@ -25,8 +25,10 @@ def register_cli_commands(app):
             click.echo("Error: Login cannot be empty.")
             return
 
-        if not password or len(password) < 6:
-            click.echo("Error: Password must be at least 6 characters.")
+        from app.services.password_policy_service import password_policy_service
+        is_valid_pwd, pwd_error = password_policy_service.validate_password(password)
+        if not is_valid_pwd:
+            click.echo(f"Error: {pwd_error}")
             return
 
         hashed = generate_password_hash(password, method='pbkdf2:sha256')

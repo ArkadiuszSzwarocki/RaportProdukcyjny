@@ -68,7 +68,7 @@ docker-compose exec app python scripts/add_admin.py
 # Flask Settings
 FLASK_ENV=production
 SECRET_KEY=your-secret-key-here
-INITIAL_ADMIN_PASSWORD=admin123
+INITIAL_ADMIN_PASSWORD=CHANGE_THIS_TO_STRONG_PASSWORD_MIN_8_CHARS
 
 # Database
 DB_HOST=db

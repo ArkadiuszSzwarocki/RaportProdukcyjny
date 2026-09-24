@@ -107,9 +107,6 @@ spec:
           mountPath: /app/logs
         - name: raporty
           mountPath: /app/raporty
-        - name: config
-          mountPath: /app/config
-          readOnly: true
       volumes:
       - name: logs
         persistentVolumeClaim:
@@ -117,9 +114,6 @@ spec:
       - name: raporty
         persistentVolumeClaim:
           claimName: app-raporty-pvc
-      - name: config
-        configMap:
-          name: app-config
 
 ---
 apiVersion: v1

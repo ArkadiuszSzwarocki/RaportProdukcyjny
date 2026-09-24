@@ -78,8 +78,8 @@ def create_pdf(output_path):
         {
             "num": "KROK 4",
             "title": "Import nowych danych",
-            "desc": "Stworz czysta strukture bazy o nazwie biblioteka i wgraj do niej nowy plik SQL. Wykonaj kolejno te dwa polecenia:",
-            "code": "sudo docker-compose exec -T db mysql -u root -p'VVezyr$$' -e \"CREATE DATABASE IF NOT EXISTS biblioteka;\"\nsudo docker-compose exec -T db mysql -u root -p'VVezyr$$' biblioteka < nowa_baza.sql",
+            "desc": "Sprawdz gotowosc bazy wskazanej przez MYSQL_DATABASE, a nastepnie wgraj do niej nowy plik SQL:",
+            "code": "sudo docker-compose exec -T db sh -c 'export MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\"; mysqladmin -u root ping'\nsudo docker-compose exec -T db sh -c 'export MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\"; exec mysql -u root \"$MYSQL_DATABASE\"' < nowa_baza.sql",
             "tip": "Uwaga: upewnij sie, ze nazwa pliku na koncu drugiego polecenia zgadza sie z nazwa Twojego pliku."
         },
         {

@@ -80,6 +80,8 @@ class AcceptanceService:
                     fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
+                supplier = str(dostawa.get('supplier') or '').strip()
+                is_external = bool(supplier) or source_spot in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE') or str(dostawa.get('lokalizacja_z') or '').strip().upper() in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE')
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
                 if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None
@@ -122,17 +124,29 @@ class AcceptanceService:
                     if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
                 pallet_id = None
+                source_pallet_id = target.get('sourcePalletId')
 
                 raw_qty = target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
                 qty = float(raw_qty) if raw_qty else 0.0
 
                 if is_opk_pkg:
-                    cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
-                    pallet_id = cursor.lastrowid
-                    if not pallet_id or pallet_id == 0:
-                        cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                        _row = cursor.fetchone()
-                        if _row: pallet_id = _row['id']
+                    cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                    exist_opk = cursor.fetchone()
+                    if not exist_opk and is_external and source_pallet_id:
+                        cursor.execute(f"SELECT id FROM {table_opk} WHERE id = %s LIMIT 1", (source_pallet_id,))
+                        exist_opk = cursor.fetchone()
+                    if exist_opk:
+                        pallet_id = exist_opk['id']
+                        cursor.execute(f"""
+                            UPDATE {table_opk}
+                            SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
+                                data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s,
+                                typ_opakowania = %s, is_blocked = 0, updated_at = NOW()
+                            WHERE id = %s
+                        """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
+                    else:
+                        cursor.execute(f"INSERT INTO {table_opk} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                        pallet_id = cursor.lastrowid
                     p_type = 'opakowanie'
                 elif p_type_scanned == 'dodatek':
                     cursor.execute(f"INSERT INTO magazyn_dodatki (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, linia))
@@ -175,6 +189,9 @@ class AcceptanceService:
                     # Sprawdź, czy rekord palety już istnieje (np. utworzony w OCZEKUJĄCYCH lub podczas zwrotu)
                     cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
                     exist_sur = cursor.fetchone()
+                    if not exist_sur and is_external and source_pallet_id:
+                        cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE id = %s LIMIT 1", (source_pallet_id,))
+                        exist_sur = cursor.fetchone()
                     if exist_sur:
                         pallet_id = exist_sur['id']
                         if qty <= 0 and float(exist_sur.get('stan_magazynowy') or 0) > 0:
@@ -182,10 +199,10 @@ class AcceptanceService:
                         cursor.execute(f"""
                             UPDATE {table_sur}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
-                                data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s,
+                                data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s, typ_opakowania = %s,
                                 is_blocked = 0, updated_at = NOW()
                             WHERE id = %s
-                        """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, pkg_form, pallet_id))
+                        """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
                     else:
                         cursor.execute(f"INSERT INTO {table_sur} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania), lokalizacja = VALUES(lokalizacja)", (product_name, qty, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
                         pallet_id = cursor.lastrowid
@@ -215,10 +232,6 @@ class AcceptanceService:
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
                 is_partial = target.get('is_partial', False)
                 is_return = target.get('is_return', False)
-                source_pallet_id = target.get('sourcePalletId')
-                supplier = str(dostawa.get('supplier') or '').strip()
-                is_external = bool(supplier) or source_spot in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE') or str(dostawa.get('lokalizacja_z') or '').strip().upper() in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE')
-
                 if not is_external and source_spot and not is_partial and not is_return:
                     # ONLY zero the source pallet if it is a DIFFERENT record from the newly created destination pallet
                     if source_pallet_id and str(source_pallet_id) != str(pallet_id):

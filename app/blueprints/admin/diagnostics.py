@@ -224,7 +224,7 @@ def _explain_error(lines):
 
 def register_admin_diagnostics_routes(admin_bp):
     @admin_bp.route('/admin/ustawienia/errors')
-    @dynamic_role_required('errors')
+    @dynamic_role_required('ustawienia.errors')
     def ustawienia_errors():
         """View server error logs and application traps with structured parsing."""
         error_log_path = os.path.join(_project_root(), 'logs', 'error.log')
@@ -290,7 +290,7 @@ def register_admin_diagnostics_routes(admin_bp):
         return render_template('ustawienia_errors.html', errors=parsed_errors, lines=lines_count)
 
     @admin_bp.route('/admin/ustawienia/errors/clear', methods=['POST'])
-    @dynamic_role_required('errors')
+    @dynamic_role_required('ustawienia.errors')
     def clear_error_log():
         """Clear the error.log file by truncating it."""
         error_log_path = os.path.join(_project_root(), 'logs', 'error.log')
@@ -590,7 +590,7 @@ def register_admin_diagnostics_routes(admin_bp):
 
 
     @admin_bp.route('/admin/ustawienia/logs')
-    @dynamic_role_required('logs')
+    @dynamic_role_required('ustawienia.logs')
     def admin_ustawienia_logs():
         """Admin-only view: show tail of application logs."""
         try:

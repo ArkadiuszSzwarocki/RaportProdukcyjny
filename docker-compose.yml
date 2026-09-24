@@ -6,10 +6,10 @@ services:
     image: mysql:8.0
     container_name: raportprodukcyjny_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
-      MYSQL_DATABASE: ${DB_NAME:-raportprodukcyjny}
-      MYSQL_USER: ${DB_USER:-raportprodukcyjny}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
+      MYSQL_USER: ${DB_USER:?DB_USER is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       TZ: ${TZ:-Europe/Warsaw}
     ports:
       - "${DB_PORT:-3306}:3306"
@@ -33,10 +33,10 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key}
       DB_HOST: db
       DB_PORT: 3306
-      DB_USER: ${DB_USER:-raportprodukcyjny}
-      DB_PASSWORD: ${DB_PASSWORD:-password}
-      DB_NAME: ${DB_NAME:-raportprodukcyjny}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-admin}
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       TZ: ${TZ:-Europe/Warsaw}
       PORT: 8082
       HOST: 0.0.0.0

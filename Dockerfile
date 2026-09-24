@@ -37,4 +37,4 @@ RUN mkdir -p /app/raporty /app/logs /app/certs && \
 
 USER appuser
 
-CMD ["python", "app.py"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]

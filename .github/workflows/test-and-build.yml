@@ -42,14 +42,14 @@ jobs:
 
       - name: Lint with pylint
         run: |
-          pylint --disable=all --enable=E,F app/ || true
+          pylint --disable=all --enable=E,F app/
 
       - name: Type check with mypy
         run: |
-          mypy app/ --ignore-missing-imports || true
+          mypy app/ --ignore-missing-imports
 
       - name: Run tests
-        run: pytest -v --tb=short || true
+        run: pytest -v --tb=short
         env:
           DB_HOST: localhost
           DB_PORT: 3306
@@ -61,7 +61,7 @@ jobs:
 
       - name: Coverage report
         run: |
-          pytest --cov=app --cov-report=xml || true
+          pytest --cov=app --cov-report=xml
           echo "Coverage report generated"
         env:
           DB_HOST: localhost

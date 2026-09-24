@@ -459,7 +459,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         )
 
     @admin_bp.route('/admin/api/printer-server/status')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('ustawienia.system')
     def admin_printer_server_status():
         import os
         import requests
@@ -504,7 +504,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return jsonify({'success': True, 'running': False, 'message': 'Serwer druku jest wyłączony.'})
 
     @admin_bp.route('/admin/api/printer-server/start', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('ustawienia.system')
     def admin_printer_server_start():
         import subprocess
         import sys

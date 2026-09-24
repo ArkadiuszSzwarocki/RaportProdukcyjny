@@ -190,8 +190,8 @@
             showToastNotification('Nowe hasła nie są identyczne.', 'warning');
             return;
         }
-        if (newP.length < 4) {
-            showToastNotification('Nowe hasło musi mieć minimum 4 znaki.', 'warning');
+        if (newP.length < 8) {
+            showToastNotification('Nowe hasło musi mieć minimum 8 znaków (w tym litery i cyfry).', 'warning');
             return;
         }
 

@@ -32,14 +32,14 @@ sudo docker-compose up -d db
 ---
 
 ## KROK 4: Import nowych danych
-Stwórz czystą strukturę bazy o nazwie `biblioteka` i wgraj do niej nowy plik SQL. Wykonaj kolejno te dwa polecenia:
+Sprawdź gotowość bazy wskazanej przez `MYSQL_DATABASE`, a następnie wgraj do niej nowy plik SQL:
 
 ```bash
-sudo docker-compose exec -T db mysql -u root -p'VVezyr$$' -e "CREATE DATABASE IF NOT EXISTS biblioteka;"
+sudo docker-compose exec -T db sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysqladmin -u root ping'
 ```
 
 ```bash
-sudo docker-compose exec -T db mysql -u root -p'VVezyr$$' biblioteka < nowa_baza.sql
+sudo docker-compose exec -T db sh -c 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -u root "$MYSQL_DATABASE"' < nowa_baza.sql
 ```
 > 💡 **Uwaga:** Upewnij się, że nazwa pliku na końcu drugiego polecenia zgadza się z nazwą Twojego pliku SQL.
 

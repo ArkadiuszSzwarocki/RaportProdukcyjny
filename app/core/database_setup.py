@@ -1611,9 +1611,15 @@ def _seed_default_users(cursor):
     # Create default admin account if needed
     cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
     if not cursor.fetchone():
-        init_pass = os.environ.get('INITIAL_ADMIN_PASSWORD')
+        init_pass = (os.environ.get('INITIAL_ADMIN_PASSWORD') or '').strip()
         if init_pass:
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash(init_pass, method='pbkdf2:sha256'), 'admin'))
+            from app.services.password_policy_service import password_policy_service
+            is_valid, err_msg = password_policy_service.validate_password(init_pass)
+            if not is_valid:
+                print(f"[SECURITY ALERT] INITIAL_ADMIN_PASSWORD does not meet security policy: {err_msg}. Admin account creation aborted.")
+            else:
+                cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash(init_pass, method='pbkdf2:sha256'), 'admin'))
+                print("[SECURITY] Admin account initialized with verified secure password.")
         else:
             print("[SECURITY] No INITIAL_ADMIN_PASSWORD provided; skipping creation of default 'admin' account.")
     

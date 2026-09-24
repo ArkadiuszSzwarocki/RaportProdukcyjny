@@ -72,16 +72,30 @@ def enforce_csrf_origin_check(app):
         referer = request.headers.get('Referer')
         target_source = origin or referer
 
+        # Enforce fail-closed for authenticated session-based requests missing origin/referer
         if not target_source:
-            # Same-origin requests without headers (e.g. direct scripts/native tools)
+            if session.get('login') or session.get('user_id'):
+                app.logger.warning(
+                    "[CSRF_BLOCKED] Missing Origin and Referer on mutating request for authenticated session: %s %s",
+                    request.method, request.path
+                )
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = accepts_json = False
+
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'Forbidden: Missing origin verification headers.'}), 403
+                return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola', '')), 403
             return
 
         try:
             parsed = urlparse(target_source)
-            source_netloc = parsed.netloc.lower()
+            source_netloc = (parsed.netloc or '').lower()
             expected_host = (request.host or '').lower()
 
-            if source_netloc and expected_host and source_netloc != expected_host:
+            if not source_netloc or (expected_host and source_netloc != expected_host):
                 app.logger.warning(
                     "[CSRF_BLOCKED] Cross-origin request rejected. Source: %s, Expected Host: %s, Path: %s",
                     source_netloc, expected_host, request.path
@@ -95,8 +109,9 @@ def enforce_csrf_origin_check(app):
                 if is_xhr or accepts_json:
                     return jsonify({'success': False, 'error': 'Forbidden: Cross-origin request blocked.'}), 403
                 return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola', '')), 403
-        except Exception:
-            pass
+        except Exception as exc:
+            app.logger.error("[CSRF_ERROR] Exception parsing origin/referer: %s. Denying request for safety.", exc)
+            return jsonify({'success': False, 'error': 'Forbidden: Invalid request origin.'}), 403
 
     return middleware
 

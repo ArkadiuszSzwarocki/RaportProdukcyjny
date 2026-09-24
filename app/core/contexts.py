@@ -84,6 +84,9 @@ def inject_role_permissions():
     cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
     page_aliases = {
         'podsumowanie_zasypow': 'podsumowanie_szarz',
+        'errors': 'ustawienia.errors',
+        'logs': 'ustawienia.logs',
+        'backups': 'ustawienia.backups',
     }
 
     def _resolve_page_key(page, perms):
@@ -95,6 +98,10 @@ def inject_role_permissions():
         for new_key, legacy_key in page_aliases.items():
             if page == legacy_key and new_key in perms:
                 return new_key
+        # Check namespace prefix fallback, e.g. 'errors' -> 'ustawienia.errors'
+        namespaced = f"ustawienia.{page}"
+        if namespaced in perms:
+            return namespaced
         return page
 
     def role_has_access(page):
@@ -203,8 +210,8 @@ def inject_role_permissions():
                 return True
             if page == 'ustawienia':
                 return r == 'admin'
-            # unknown page key -> allow by default
-            return True
+            # unknown page key -> deny by default (principle of least privilege)
+            return False
         except Exception as e:
             return False
 

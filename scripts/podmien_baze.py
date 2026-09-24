@@ -12,8 +12,6 @@ import subprocess
 import sys
 import time
 
-DB_PASS = "VVezyr$$"
-DB_NAME = "biblioteka"
 DEFAULT_SQL_FILE = "nowa_baza.sql"
 
 def run_cmd(cmd, check=True, shell=True):
@@ -74,11 +72,21 @@ def main():
 
     # KROK 4: Import nowych danych
     print("\n--- KROK 4: Import nowych danych ---")
-    print(f"Tworzenie czystej struktury bazy o nazwie '{DB_NAME}'...")
-    run_cmd(f"sudo docker-compose exec -T db mysql -u root -p'{DB_PASS}' -e \"CREATE DATABASE IF NOT EXISTS {DB_NAME};\"")
-    print(f"Wgrywanie pliku '{sql_file}' do bazy '{DB_NAME}'...")
-    run_cmd(f"sudo docker-compose exec -T db mysql -u root -p'{DB_PASS}' {DB_NAME} < \"{sql_file}\"")
-    print(f"✅ Pomyślnie zaimportowano plik '{sql_file}' do bazy '{DB_NAME}'!")
+    print("Weryfikacja gotowości bazy skonfigurowanej jako MYSQL_DATABASE...")
+    run_cmd(
+        """sudo docker-compose exec -T db sh -c '
+        export MYSQL_PWD="$MYSQL_ROOT_PASSWORD";
+        mysqladmin -u root ping
+        '"""
+    )
+    print(f"Wgrywanie pliku '{sql_file}' do skonfigurowanej bazy...")
+    run_cmd(
+        f'''sudo docker-compose exec -T db sh -c '
+        export MYSQL_PWD="$MYSQL_ROOT_PASSWORD";
+        exec mysql -u root "$MYSQL_DATABASE"
+        ' < "{sql_file}"'''
+    )
+    print(f"✅ Pomyślnie zaimportowano plik '{sql_file}' do skonfigurowanej bazy!")
 
     # KROK 5: Uruchomienie aplikacji
     print("\n--- KROK 5: Uruchomienie aplikacji ---")
