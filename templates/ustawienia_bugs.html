@@ -557,15 +557,20 @@
                         <span>💬 Historia konwersacji ({{ bug.odpowiedzi|length }}):</span>
                     </div>
                     {% for rep in bug.odpowiedzi %}
-                    {% set is_adm = (rep.autor_login|lower in ['admin', 'masteradmin'] or 'admin' in rep.autor_login|lower) %}
+                    {% set is_reporter = ((rep.autor_login|lower == (bug.login or '')|lower) and rep.autor_login|lower not in ['admin', 'masteradmin']) %}
+                    {% set is_adm = not is_reporter %}
                     <div class="thread-msg {% if is_adm %}is-admin{% else %}is-user{% endif %}">
                         <div class="thread-msg-header">
                             <span>
                                 <strong>{{ rep.autor_login }}</strong> 
                                 {% if is_adm %}
-                                <span style="font-size: 0.72rem; background: #e0f2fe; color: #0369a1; padding: 1px 6px; border-radius: 4px; font-weight: 700; margin-left: 4px;">Wsparcie / Admin</span>
+                                <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 6px; font-weight: 700; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                    🛠️ Wsparcie / Poprawiający błąd
+                                </span>
                                 {% else %}
-                                <span style="font-size: 0.72rem; background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 4px; font-weight: 700; margin-left: 4px;">Zgłaszający</span>
+                                <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 6px; font-weight: 700; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                    👤 Zgłaszający
+                                </span>
                                 {% endif %}
                             </span>
                             <div style="display: flex; align-items: center; gap: 8px;">

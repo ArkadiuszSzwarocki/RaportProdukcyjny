@@ -52,9 +52,10 @@
             <div class="mt-15 d-flex flex-column gap-10">
                 <div style="font-size: 13px; font-weight: 700; color: #475569;">💬 Historia odpowiedzi ({{ r.odpowiedzi|length }}):</div>
                 {% for rep in r.odpowiedzi %}
-                <div class="p-10" style="border:1px solid #cbd5e1; background:{% if rep.autor_login == session.get('login') %}#f0fdf4; border-left:4px solid #22c55e;{% else %}#eff6ff; border-left:4px solid #3b82f6;{% endif %} border-radius:8px;">
+                {% set is_rep_author = ((rep.autor_login|lower == (r.login or session.get('login') or '')|lower) and rep.autor_login|lower not in ['admin', 'masteradmin']) %}
+                <div class="p-10" style="border:1px solid #cbd5e1; background:{% if is_rep_author %}#f0fdf4; border-left:4px solid #22c55e;{% else %}#eff6ff; border-left:4px solid #3b82f6;{% endif %} border-radius:8px;">
                     <div class="small text-muted d-flex justify-between">
-                        <span><strong>{{ rep.autor_login }}</strong> {% if rep.autor_login == session.get('login') %}(Ty){% else %}(Wsparcie / Admin){% endif %}</span>
+                        <span><strong>{{ rep.autor_login }}</strong> {% if is_rep_author %}<span style="color:#166534; font-weight:700;">(Ty / Zgłaszający)</span>{% else %}<span style="color:#0369a1; font-weight:700;">(🛠️ Wsparcie / Poprawiający błąd)</span>{% endif %}</span>
                         <span>🕒 {{ (rep.created_at|string)|replace('T', ' ')|truncate(19, True, '') }}</span>
                     </div>
                     <div style="white-space:pre-wrap; margin-top:6px; font-size:13.5px; color:#1e293b;">{{ rep.tresc }}</div>
