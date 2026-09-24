@@ -324,7 +324,7 @@
                     });
                 }
 
-                if (typeof global.performPartialReload === 'function' || (typeof window !== 'undefined' && typeof window.performPartialReload === 'function')) {
+                if (isAgroWorkowanieContext() && (typeof global.performPartialReload === 'function' || (typeof window !== 'undefined' && typeof window.performPartialReload === 'function'))) {
                     try {
                         if (typeof global.closeQuickPopup === 'function') {
                             global.closeQuickPopup();
@@ -333,7 +333,7 @@
                     }
 
                     var pReload = global.performPartialReload || window.performPartialReload;
-                    return pReload({ force: true, preserveScroll: true, source: 'add-pallet' })
+                    return pReload({ force: true, preserveScroll: true, source: 'add-pallet-workowanie-agro' })
                         .then(function () {
                             global.setTimeout(scrollToProductionSection, 140);
                         })
