@@ -135,6 +135,21 @@
         }
     }
 
+    function safeReload(source) {
+        if (typeof global.performPartialReload === 'function') {
+            return global.performPartialReload({ force: true, preserveScroll: true, source: source || 'card-actions' })
+                .catch(function (e) {
+                    console.warn('performPartialReload failed, fallback', e);
+                });
+        } else if (typeof window !== 'undefined' && typeof window.performPartialReload === 'function') {
+            return window.performPartialReload({ force: true, preserveScroll: true, source: source || 'card-actions' })
+                .catch(function (e) {
+                    console.warn('performPartialReload failed, fallback', e);
+                });
+        }
+        global.location.reload();
+    }
+
     function submitWniosekForm(form, event) {
         event.preventDefault();
 
@@ -309,7 +324,7 @@
                     });
                 }
 
-                if (isAgroWorkowanieContext() && typeof global.performPartialReload === 'function') {
+                if (typeof global.performPartialReload === 'function' || (typeof window !== 'undefined' && typeof window.performPartialReload === 'function')) {
                     try {
                         if (typeof global.closeQuickPopup === 'function') {
                             global.closeQuickPopup();
@@ -317,13 +332,13 @@
                     } catch (popupError) {
                     }
 
-                    return global.performPartialReload({ force: true, preserveScroll: true, source: 'add-pallet-workowanie-agro' })
+                    var pReload = global.performPartialReload || window.performPartialReload;
+                    return pReload({ force: true, preserveScroll: true, source: 'add-pallet' })
                         .then(function () {
                             global.setTimeout(scrollToProductionSection, 140);
                         })
                         .catch(function (reloadError) {
                             console.error('Silent partial reload failed after add pallet', reloadError);
-                            global.location.reload();
                         });
                 }
 
@@ -332,7 +347,7 @@
                     return;
                 }
 
-                global.location.reload();
+                safeReload('add-pallet');
             })
             .catch(function (error) {
                 global.clearTimeout(timeoutId);
@@ -366,7 +381,7 @@
             .then(function (result) {
                 var payload = result.data;
                 if (result.ok && payload && payload.success) {
-                    global.location.reload();
+                    safeReload('edit-pallet');
                     return;
                 }
                 global.alert(resolveRequestMessage(result, 'edycji palety', 'Nie udalo sie edytowac palety.'));
@@ -393,7 +408,7 @@
             .then(function (result) {
                 var payload = result.data;
                 if (result.ok && payload && payload.success) {
-                    global.location.reload();
+                    safeReload('delete-pallet');
                     return;
                 }
                 global.alert(resolveRequestMessage(result, 'usuniecia palety', 'Nie udalo sie usunac palety.'));
@@ -424,8 +439,8 @@
             .then(function (result) {
                 var payload = result.data;
                 if (result.ok && payload && payload.success) {
-                    global.alert(payload.message || 'Zlecenie usunięte');
-                    global.location.reload();
+                    notify(payload.message || 'Zlecenie usunięte', 'success');
+                    safeReload('delete-plan');
                     return;
                 }
                 global.alert(resolveRequestMessage(result, 'usuniecia zlecenia', 'Nie udalo sie usunac zlecenia.'));
@@ -475,8 +490,8 @@
             })
             .then(function (payload) {
                 if (payload && payload.success) {
-                    global.alert('Tonaż zaktualizowany');
-                    global.location.reload();
+                    notify('Tonaż zaktualizowany', 'success');
+                    safeReload('edit-tonaz');
                     return;
                 }
                 global.alert((payload && payload.message) || 'Błąd');
@@ -536,16 +551,7 @@
                 var payload = result.data;
                 if (result.ok && payload && payload.success) {
                     notify(payload.message || 'Zmieniono date produkcji', 'success');
-
-                    if (isAgroWorkowanieContext() && typeof global.performPartialReload === 'function') {
-                        global.performPartialReload({ force: true, preserveScroll: true, source: 'edit-workowanie-data-produkcji' })
-                            .catch(function () {
-                                global.location.reload();
-                            });
-                        return;
-                    }
-
-                    global.location.reload();
+                    safeReload('edit-workowanie-data-produkcji');
                     return;
                 }
 

@@ -194,7 +194,13 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success) { window.location.reload(); } else { AppDialog.alert('Błąd: ' + data.message); }
+            if (data.success) { 
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'magnet-cleaning' });
+                } else {
+                    window.location.reload(); 
+                }
+            } else { AppDialog.alert('Błąd: ' + data.message); }
         }).catch(err => AppDialog.alert('Wystąpił błąd.'));
     }
 
@@ -220,7 +226,15 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success) { window.location.reload(); } else { AppDialog.alert('Błąd: ' + data.message); }
+            if (data.success) { 
+                const modal = document.getElementById('adhocMagnetModal');
+                if (modal) modal.style.display = 'none';
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'magnet-cleaning' });
+                } else {
+                    window.location.reload(); 
+                }
+            } else { AppDialog.alert('Błąd: ' + data.message); }
         }).catch(err => AppDialog.alert('Wystąpił błąd.'));
     }
 
@@ -240,7 +254,15 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success) { window.location.reload(); } else { AppDialog.alert('Błąd: ' + data.message); }
+            if (data.success) { 
+                const modal = document.getElementById('confirmSeparatorModal');
+                if (modal) modal.style.display = 'none';
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'separator-cleaning' });
+                } else {
+                    window.location.reload(); 
+                }
+            } else { AppDialog.alert('Błąd: ' + data.message); }
         }).catch(err => AppDialog.alert('Wystąpił błąd.'));
     }
 
@@ -266,7 +288,15 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success) { window.location.reload(); } else { AppDialog.alert('Błąd: ' + data.message); }
+            if (data.success) { 
+                const modal = document.getElementById('adhocSeparatorModal');
+                if (modal) modal.style.display = 'none';
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'separator-cleaning' });
+                } else {
+                    window.location.reload(); 
+                }
+            } else { AppDialog.alert('Błąd: ' + data.message); }
         }).catch(err => AppDialog.alert('Wystąpił błąd.'));
     }
     

@@ -17,7 +17,7 @@
                 } else if (typeof global.performPartialReload === 'function') {
                     global.performPartialReload({ force: true, preserveScroll: true, source: 'auto-pallet-added' });
                 } else {
-                    window.location.reload();
+                    console.info('[TELEMETRY] Wykryto nową paletę, ale brak performPartialReload — pomijanie twardego przeładowania.');
                 }
             }
             window.lastMachinePalletCounter = data.pallet_counter;
@@ -283,7 +283,13 @@
                     .then(response => {
                         if (response.ok) {
                             alert(`Paleta o wadze ${waga} kg została pomyślnie dodana z opróżnienia.`);
-                            window.location.reload();
+                            if (typeof window.performPartialReload === 'function') {
+                                window.performPartialReload({ force: true, preserveScroll: true, source: 'oproznianie-paleta' });
+                            } else if (typeof global.performPartialReload === 'function') {
+                                global.performPartialReload({ force: true, preserveScroll: true, source: 'oproznianie-paleta' });
+                            } else {
+                                window.location.reload();
+                            }
                         } else {
                             response.text().then(text => {
                                 alert(`Błąd serwera podczas dodawania palety: ${response.status}\nTreść: ${text.substring(0, 150)}`);

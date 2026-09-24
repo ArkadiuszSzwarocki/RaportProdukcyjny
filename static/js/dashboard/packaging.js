@@ -107,12 +107,22 @@ function linkPackaging(opakId, planId) {
 
         overlay.remove();
         
+function refreshPackagingView() {
+    if (typeof window.performPartialReload === 'function') {
+        window.performPartialReload({ force: true, preserveScroll: true, source: 'packaging-action' });
+    } else if (typeof global !== 'undefined' && typeof global.performPartialReload === 'function') {
+        global.performPartialReload({ force: true, preserveScroll: true, source: 'packaging-action' });
+    } else {
+        location.reload();
+    }
+}
+
         fetch('/agro/api/opakowania/link', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ opakowanie_id: opakId, plan_id: planId, ilosc_pobrana: finalQty })
         }).then(r => r.json()).then(res => {
-            if(res.success) location.reload();
+            if(res.success) refreshPackagingView();
             else if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd: ' + (res.error || 'Nieznany')); else alert('Błąd: ' + (res.error || 'Nieznany'));
         }).catch(err => { if (typeof AppDialog !== 'undefined') AppDialog.alert('Błąd połączenia: ' + err); else alert('Błąd połączenia: ' + err); });
     });
@@ -260,7 +270,8 @@ function submitReturnPackaging() {
             showToast('Zwrot zapisany.', 'success');
         }
 
-        setTimeout(() => location.reload(), 450);
+        closeReturnModal();
+        setTimeout(() => refreshPackagingView(), 300);
     }).catch(err => alert('Błąd połączenia: ' + err));
 }
 
@@ -307,7 +318,7 @@ function undoPackagingLink(linkId) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ link_id: linkId })
     }).then(r => r.json()).then(res => {
-        if(res.success) location.reload();
+        if(res.success) refreshPackagingView();
         else alert('Błąd: ' + (res.error || 'Nieznany'));
     }).catch(err => alert('Błąd połączenia: ' + err));
 }
@@ -319,7 +330,7 @@ function undoPackagingReturn(linkId) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ link_id: linkId })
     }).then(r => r.json()).then(res => {
-        if(res.success) location.reload();
+        if(res.success) refreshPackagingView();
         else alert('Błąd: ' + (res.error || 'Nieznany'));
     }).catch(err => alert('Błąd połączenia: ' + err));
 }
