@@ -122,6 +122,19 @@ class WarehousePendingItemsService:
                     )
 
                     if existing_match:
+                        # If physical pallet is already stored on a rack (not buffer/pending) and not blocked, it is not pending putaway
+                        loc_clean = str(existing_match.get('location') or '').strip().upper()
+                        is_stored_on_rack = bool(
+                            loc_clean 
+                            and loc_clean not in ('OCZEKUJĄCE', 'OCZEKUJACE', 'RAMPA', 'W_TRANZYCIE', 'W_TRANZYCIE_OSIP', 'BRAK', 'BEZ LOKACJI')
+                            and not existing_match.get('is_blocked')
+                        )
+
+                        if is_stored_on_rack and order_status in ('W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS'):
+                            order_meta['is_pending_transfer'] = False
+                            existing_match.update(order_meta)
+                            continue
+
                         # Enrich existing physical pallet - DO NOT DUPLICATE!
                         existing_match.update(order_meta)
                         existing_match['has_active_order'] = True

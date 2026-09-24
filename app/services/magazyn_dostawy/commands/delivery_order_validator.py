@@ -6,7 +6,7 @@ from app.utils.location_validator import validate_warehouse_location, validate_c
 KNOWN_SOURCE_LOCATIONS = {
     'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
     'OSIP', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'PSD', 'PSD01',
-    'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
+    'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'W_TRANZYCIE', 'OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE',
 }
 KNOWN_SOURCE_LOCATIONS.update({f'KO{i:02d}' for i in range(1, 23)})
 KNOWN_TARGET_LOCATIONS = {'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'PSD01'}
@@ -29,6 +29,8 @@ def is_route_conflict(source_loc: str, target_loc: str) -> bool:
     target = norm_loc(target_loc)
     if not source or not target:
         return False
+    if source in {'OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE'} and target not in {'OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE'}:
+        return False
     if source == target:
         return True
     return source.startswith(target) or target.startswith(source)
@@ -40,7 +42,7 @@ def is_known_source_location(value: Any) -> bool:
         return False
 
     clean_loc = loc.replace('_', '').replace('-', '').replace(' ', '')
-    if clean_loc in {'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP'}:
+    if clean_loc in {'BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP', 'WTRANZYCIE', 'OCZEKUJACE', 'OCZEKUJĄCE', 'OCZEKUJE'}:
         return True
 
     if loc in KNOWN_SOURCE_LOCATIONS:

@@ -152,6 +152,10 @@ function isRouteConflictLocation(sourceLoc, targetLoc) {
             return false;
         }
 
+        if (['OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE', 'WTRANZYCIE', 'WTRANZYCIEOSIP'].includes(source) && !['OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE', 'WTRANZYCIE', 'WTRANZYCIEOSIP'].includes(target)) {
+            return false;
+        }
+
         if (source === target) {
             return true;
         }
@@ -171,7 +175,7 @@ function isKnownSourceLocation(value) {
         }
 
         const clean = loc.replace(/[\s\-_]/g, '');
-        if (['BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP'].includes(clean)) {
+        if (['BFMS01', 'BFMP01', 'BFOS', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02', 'OSIP', 'PSD', 'PSD01', 'RAMPA', 'MIX01', 'WTRANZYCIEOSIP', 'WTRANZYCIE', 'OCZEKUJACE', 'OCZEKUJĄCE', 'OCZEKUJE'].includes(clean)) {
             return true;
         }
 
@@ -437,7 +441,7 @@ function createItemFromPallet(pal, idx = 0) {
             netWeight: isPackaging ? '' : qty,
             unitsPerPallet: isPackaging ? qty : '',
             packageForm: isPackaging ? 'packaging' : 'bags',
-            sourceSpot: pal.lokalizacja || getDefaultSourceSpot(),
+            sourceSpot: pal.source_location || pal.lokalizacja || getDefaultSourceSpot(),
             nr_partii: pal.nr_partii || '',
             data_produkcji: pal.data_produkcji || '',
             data_przydatnosci: pal.data_przydatnosci || '',

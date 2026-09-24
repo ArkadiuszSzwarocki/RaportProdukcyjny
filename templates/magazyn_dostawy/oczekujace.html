@@ -819,6 +819,7 @@
                         {% endfor %}
                         {% if ns.pending > 0 %}
                         <tr class="waiting-row" 
+                            data-id="{{ d.id }}"
                             onclick="window.location.href='{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}'"
                             title="Kliknij, aby otworzyć przyjęcie zlecenia">
                             <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
@@ -830,6 +831,7 @@
                             <td data-label="Referencja">
                                 <div class="font-bold" style="color: #0f172a; font-size: 0.95rem;">#{{ d.id[:8] }}</div>
                                 <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
+                                <div style="display: none;">{{ d.id }} {{ d.id[:8] }} #{{ d.id[:8] }} {% if not d.lokalizacja_z %}PZ PZ: #{{ d.id[:8] }} PZ: {{ d.id[:8] }}{% else %}MM MM: #{{ d.id[:8] }} MM: {{ d.id[:8] }}{% endif %}</div>
                             </td>
                             <td data-label="Trasa ruchu">
                                 <div class="route-flow-box">
@@ -969,12 +971,20 @@
 function filterTableRows() {
     const input = document.getElementById('tableSearchInput');
     if (!input) return;
-    const filter = input.value.toLowerCase();
+    const rawFilter = input.value.trim().toLowerCase();
+    const filterTerms = rawFilter
+        .replace(/[#:]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
     const rows = document.querySelectorAll('.modern-waiting-table tbody tr, .premium-table tbody tr');
     rows.forEach(row => {
         if (row.querySelector('.text-muted.italic') && row.cells.length === 1) return;
         
-        if (row.textContent.toLowerCase().includes(filter)) {
+        const rowText = (row.textContent + ' ' + (row.getAttribute('data-id') || '')).toLowerCase();
+        const matches = filterTerms.length === 0 || filterTerms.every(term => rowText.includes(term));
+
+        if (matches) {
             row.style.display = '';
         } else {
             row.style.display = 'none';

@@ -99,7 +99,7 @@
                 </thead>
                 <tbody>
                     {% for d in dostawy %}
-                    <tr>
+                    <tr data-id="{{ d.id }}">
                         <td>
                             {% if d.delivery_date %}
                                 <div class="font-bold">{{ d.delivery_date }}</div>
@@ -124,8 +124,10 @@
                         </td>
                         <td>
                             <div class="font-mono font-bold">{{ d.order_ref or 'DOST-' ~ d.id[:8] }}</div>
+                            <div class="text-xs text-muted font-mono" style="font-size: 11px; color: #64748b;">ID: #{{ d.id[:8] }}</div>
                             <div class="small">{{ d.supplier or 'Dostawca nieznany' }}</div>
-                            <div style="display: none;">
+                            <div style="display: none;" class="searchable-items-payload">
+                                {{ d.id }} {{ d.id[:8] }} #{{ d.id[:8] }} PZ: #{{ d.id[:8] }} PZ: {{ d.id[:8] }} {{ d.order_ref }} {{ d.supplier or '' }}
                                 {% for item in d.items_parsed %}
                                     {{ item.productName }} {{ item.nr_palety }} {{ item.sourcePalletNo }}
                                 {% endfor %}
@@ -190,13 +192,21 @@
 function filterTableRows() {
     const input = document.getElementById('tableSearchInput');
     if (!input) return;
-    const filter = input.value.toLowerCase();
+    const rawFilter = input.value.trim().toLowerCase();
+    const filterTerms = rawFilter
+        .replace(/[#:]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
     const rows = document.querySelectorAll('.premium-table tbody tr');
     rows.forEach(row => {
         // Pomiń wiersz "Brak danych", jeśli istnieje
         if (row.querySelector('.text-muted') && row.cells.length === 1) return;
         
-        if (row.textContent.toLowerCase().includes(filter)) {
+        const rowText = (row.textContent + ' ' + (row.getAttribute('data-id') || '')).toLowerCase();
+        const matches = filterTerms.length === 0 || filterTerms.every(term => rowText.includes(term));
+
+        if (matches) {
             row.style.display = '';
         } else {
             row.style.display = 'none';

@@ -5,7 +5,7 @@ from datetime import datetime
 LOKALIZACJE_ZRODLO = [
     'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
     'OSIP', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'KO01', 'PSD', 'PSD01',
-    'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
+    'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'OCZEKUJĄCE',
 ]
 
 # Regały R04 (18 poz.: 6 kolumn x 3 poziomy), R05 (20 poz.), R06 (10 poz.), R07 (44 poz.: 11 kolumn x 4 poziomy)

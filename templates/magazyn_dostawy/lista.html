@@ -782,6 +782,7 @@
                 {% for d in dostawy %}
                 <tr class="transfer-row row-clickable"
                     data-status="{{ d.status }}"
+                    data-id="{{ d.id }}"
                     data-open-url="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}">
                     <td>
                         {% if d.created_at %}
@@ -807,7 +808,9 @@
                             <span>{{ (d.items_parsed|length) if d.items_parsed else 0 }} palet</span>
                         </div>
                         <div style="display: none;" class="searchable-items-payload">
-                            {{ d.order_ref }} {{ d.lokalizacja_z }} {{ d.lokalizacja_do }}
+                            {{ d.id }} {{ d.id[:8] }} #{{ d.id[:8] }} {{ d.order_ref }} {{ d.lokalizacja_z }} {{ d.lokalizacja_do }} {{ d.supplier or '' }}
+                            {% if not d.lokalizacja_z %}PZ PZ: #{{ d.id[:8] }} PZ: {{ d.id[:8] }}{% else %}MM MM: #{{ d.id[:8] }} MM: {{ d.id[:8] }}{% endif %}
+                            {% if d.status in ['COMPLETED', 'CANCELLED'] %}archive archiwum{% endif %}
                             {% for item in d.items_parsed %}
                                 {{ item.productName }} {{ item.nr_palety }} {{ item.sourcePalletNo }}
                             {% endfor %}
@@ -994,11 +997,16 @@ function clearSearchInput() {
 
 function filterTableRows() {
     const input = document.getElementById('tableSearchInput');
-    const filterText = (input ? input.value : '').trim().toLowerCase();
+    const rawFilter = (input ? input.value : '').trim().toLowerCase();
     const clearBtn = document.getElementById('searchClearBtn');
     if (clearBtn) {
-        clearBtn.style.display = filterText ? 'inline-block' : 'none';
+        clearBtn.style.display = rawFilter ? 'inline-block' : 'none';
     }
+
+    const filterTerms = rawFilter
+        .replace(/[#:]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
 
     const rows = document.querySelectorAll('.modern-transfer-table tbody tr.transfer-row');
     let visibleCount = 0;
@@ -1006,7 +1014,9 @@ function filterTableRows() {
     rows.forEach(row => {
         const rowStatus = (row.getAttribute('data-status') || '').toUpperCase();
         const matchesStatus = (currentStatusFilter === 'ALL' || rowStatus === currentStatusFilter);
-        const matchesText = !filterText || row.textContent.toLowerCase().includes(filterText);
+        
+        const rowText = (row.textContent + ' ' + (row.getAttribute('data-id') || '')).toLowerCase();
+        const matchesText = filterTerms.length === 0 || filterTerms.every(term => rowText.includes(term));
 
         if (matchesStatus && matchesText) {
             row.style.display = '';
