@@ -82,26 +82,18 @@
         <!-- Sekcja 1: Wybór linii do auto-wysyłki -->
         <div style="margin-bottom: 18px;">
           <div style="font-weight: 800; color: #0f172a; font-size: 0.9rem; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-            <span>🏭</span> Automatycznie wysyłane raporty linii:
+            <span>🏭</span> Automatycznie wysyłany raport o 15:00:
           </div>
           <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 10px;">
-            Możesz włączyć wysyłanie obu raportów (AGRO i PSD) lub tylko wybranej linii (np. tylko AGRO).
+            Automatyczna wysyłka raportu o 15:00 jest aktywna wyłącznie dla linii AGRO (dla PSD wyłączona).
           </div>
           
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-            <label style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; cursor: pointer; user-select: none; transition: all 0.15s ease;">
-              <input type="checkbox" id="cfgLine_AGRO" value="AGRO" checked style="width: 18px; height: 18px; accent-color: #16a34a; cursor: pointer;">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; user-select: none;">
+              <input type="checkbox" id="cfgLine_AGRO" value="AGRO" checked style="width: 18px; height: 18px; accent-color: #16a34a;">
               <div>
-                <div style="font-weight: 800; color: #0f172a; font-size: 0.92rem;">🌾 Linia AGRO</div>
-                <div style="font-size: 0.75rem; color: #64748b;">Raport z workowania AGRO</div>
-              </div>
-            </label>
-
-            <label style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; cursor: pointer; user-select: none; transition: all 0.15s ease;">
-              <input type="checkbox" id="cfgLine_PSD" value="PSD" checked style="width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer;">
-              <div>
-                <div style="font-weight: 800; color: #0f172a; font-size: 0.92rem;">📦 Linia PSD</div>
-                <div style="font-size: 0.75rem; color: #64748b;">Raport z linii PSD</div>
+                <div style="font-weight: 800; color: #166534; font-size: 0.92rem;">🌾 Linia AGRO</div>
+                <div style="font-size: 0.75rem; color: #15803d;">Raport z workowania AGRO wysyłany automatycznie o 15:00</div>
               </div>
             </label>
           </div>

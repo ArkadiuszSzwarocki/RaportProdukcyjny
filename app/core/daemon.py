@@ -1094,11 +1094,11 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     from datetime import timedelta
 
                     global_cfg = AutoReportService.get_global_config()
-                    enabled_lines = global_cfg.get('enabled_lines', ['AGRO', 'PSD'])
+                    enabled_lines = global_cfg.get('enabled_lines', ['AGRO'])
 
-                    # 1. Sprawdzanie bieżącego dnia (podstawowe okno wysyłki o 15:00 lub wg harmonogramu)
+                    # 1. Sprawdzanie bieżącego dnia (podstawowe okno wysyłki o 15:00 lub wg harmonogramu - tylko linia AGRO)
                     is_standard_report_day = AutoReportService.is_report_day(today_str)
-                    for linia in ['AGRO', 'PSD']:
+                    for linia in ['AGRO']:
                         if linia not in enabled_lines:
                             continue
 

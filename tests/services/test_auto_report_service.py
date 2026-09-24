@@ -55,7 +55,7 @@ class TestAutoReportServiceWeekdayAndConfig:
             'agro_enabled': True,
             'psd_enabled': False
         }
-        with patch.object(AutoReportService, "get_global_config", return_value=custom_config):
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.get_global_config', return_value=custom_config):
             # Poniedziałek 2026-08-17 -> True
             assert AutoReportService.is_report_day("2026-08-17") is True
             # Wtorek 2026-08-18 -> False
@@ -67,7 +67,7 @@ class TestAutoReportServiceWeekdayAndConfig:
 
     def test_is_line_enabled(self):
         # Tylko linia AGRO włączona
-        with patch.object(AutoReportService, "get_global_config", return_value={
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.get_global_config', return_value={
             'active_days': [0, 1, 2, 3, 4],
             'enabled_lines': ['AGRO'],
             'agro_enabled': True,
@@ -78,18 +78,18 @@ class TestAutoReportServiceWeekdayAndConfig:
             assert AutoReportService.is_line_enabled('agro') is True
 
     def test_send_shift1_report_skips_when_line_disabled(self):
-        with patch.object(AutoReportService, "is_line_enabled", return_value=False):
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_line_enabled', return_value=False):
             success, msg = AutoReportService.send_shift1_report_at_1500(linia="PSD", date_str="2026-08-17", force=False)
             assert success is True
-            assert "wyłączony w konfiguracji" in msg
+            assert "wyłączony" in msg
 
     def test_send_shift1_report_skips_on_inactive_day_unless_forced(self):
         saturday_str = "2026-08-22"
 
-        with patch.object(AutoReportService, "is_line_enabled", return_value=True), \
-             patch.object(AutoReportService, "is_report_day", return_value=False), \
-             patch.object(AutoReportService, "is_1500_report_sent", return_value=False), \
-             patch.object(AutoReportService, "get_default_recipients", return_value=["test@example.com"]):
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_line_enabled', return_value=True), \
+             patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=False), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.is_report_sent', return_value=False), \
+             patch('app.services.auto_report.auto_report_recipients_service.AutoReportRecipientsService.get_default_recipients', return_value=["test@example.com"]):
             
             success, msg = AutoReportService.send_shift1_report_at_1500(linia="AGRO", date_str=saturday_str, force=False)
             assert success is True
@@ -99,26 +99,27 @@ class TestAutoReportServiceWeekdayAndConfig:
     def test_send_shift1_report_allowed_on_weekend_if_forced(self):
         saturday_str = "2026-08-22"
 
-        with patch.object(AutoReportService, "is_line_enabled", return_value=True), \
-             patch.object(AutoReportService, "is_report_day", return_value=False), \
-             patch.object(AutoReportService, "is_1500_report_sent", return_value=False), \
-             patch.object(AutoReportService, "get_default_recipients", return_value=[]):
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_line_enabled', return_value=True), \
+             patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=False), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.is_report_sent', return_value=False), \
+             patch('app.services.auto_report.auto_report_recipients_service.AutoReportRecipientsService.get_default_recipients', return_value=[]):
             
             # Bez odbiorców zwróci błąd walidacji, ale nie zostanie pominięty
             success, msg = AutoReportService.send_shift1_report_at_1500(linia="AGRO", date_str=saturday_str, force=True)
             assert success is False
-            assert "Brak skonfigurowanych odbiorcow" in msg
+            assert "Brak skonfigurowanych odbiorców" in msg or "Brak skonfigurowanych odbiorcow" in msg
 
 
 class TestAutoReportServiceLockingAndHistory:
     """Testy weryfikujące mechanizm atomowej rezerwacji i zabezpieczenia historii wysyłek."""
 
     def test_send_shift1_report_skips_when_claim_fails(self):
-        with patch.object(AutoReportService, "is_line_enabled", return_value=True), \
-             patch.object(AutoReportService, "is_report_day", return_value=True), \
-             patch.object(AutoReportService, "is_1500_report_sent", return_value=False), \
-             patch.object(AutoReportService, "get_default_recipients", return_value=["test@example.com"]), \
-             patch.object(AutoReportService, "claim_report_execution", return_value=False):
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_line_enabled', return_value=True), \
+             patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=True), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.is_report_sent', return_value=False), \
+             patch('app.services.auto_report.auto_report_activity_detector.AutoReportActivityDetector.has_report_data', return_value=True), \
+             patch('app.services.auto_report.auto_report_recipients_service.AutoReportRecipientsService.get_default_recipients', return_value=["test@example.com"]), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.claim_report_execution', return_value=False):
             
             success, msg = AutoReportService.send_shift1_report_at_1500(linia="AGRO", date_str="2026-08-25", force=False)
             assert success is True
@@ -131,12 +132,12 @@ class TestAutoReportServiceLockingAndHistory:
 
         # Przypadek 1: znaleziono wiersz o statusie SENT -> True
         mock_cursor.fetchone.return_value = {'id': 1}
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+        with patch("app.services.auto_report.auto_report_history_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is True
 
         # Przypadek 2: brak wiersza o statusie SENT -> False
         mock_cursor.fetchone.return_value = None
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+        with patch("app.services.auto_report.auto_report_history_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.is_1500_report_sent("AGRO", "2026-08-25") is False
 
     def test_claim_report_execution_returns_false_if_already_sent(self):
@@ -145,7 +146,7 @@ class TestAutoReportServiceLockingAndHistory:
         mock_conn.cursor.return_value = mock_cursor
 
         mock_cursor.fetchone.return_value = {'id': 1, 'status': 'SENT', 'age_min': 50}
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+        with patch("app.services.auto_report.auto_report_history_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is False
 
     def test_claim_report_execution_returns_false_if_in_progress_recently(self):
@@ -154,7 +155,7 @@ class TestAutoReportServiceLockingAndHistory:
         mock_conn.cursor.return_value = mock_cursor
 
         mock_cursor.fetchone.return_value = {'id': 1, 'status': 'IN_PROGRESS', 'age_min': 3}
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+        with patch("app.services.auto_report.auto_report_history_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is False
 
     def test_claim_report_execution_returns_true_if_no_record(self):
@@ -163,7 +164,7 @@ class TestAutoReportServiceLockingAndHistory:
         mock_conn.cursor.return_value = mock_cursor
 
         mock_cursor.fetchone.return_value = None
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn):
+        with patch("app.services.auto_report.auto_report_history_service.get_db_connection", return_value=mock_conn):
             assert AutoReportService.claim_report_execution("AGRO", "2026-08-25", "15:00") is True
 
     def test_set_schedule_does_not_delete_history(self):
@@ -171,8 +172,8 @@ class TestAutoReportServiceLockingAndHistory:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
-        with patch("app.services.auto_report_service.get_db_connection", return_value=mock_conn), \
-             patch("app.services.auto_report_service.audit_log"):
+        with patch("app.services.auto_report.auto_report_schedule_service.get_db_connection", return_value=mock_conn), \
+             patch("app.services.auto_report.auto_report_schedule_service.audit_log"):
             
             ok, msg = AutoReportService.set_schedule(linia="AGRO", date_str="2026-08-25", scheduled_time="15:30", is_paused=False)
             assert ok is True

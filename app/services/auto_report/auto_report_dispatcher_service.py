@@ -28,6 +28,11 @@ class AutoReportDispatcherService:
         if not date_str:
             date_str = str(date.today())
 
+        if not force and linia.strip().upper() != 'AGRO':
+            msg = f"Automatyczny raport o 15:00 dla linii {linia} jest wyłączony — wysyłane są wyłącznie raporty AGRO."
+            logger.info("[AUTO_REPORT_DISPATCHER] %s", msg)
+            return True, msg
+
         if not force and not AutoReportConfigService.is_line_enabled(linia):
             msg = f"Automatyczny raport dla linii {linia} jest wyłączony w konfiguracji."
             logger.info("[AUTO_REPORT_DISPATCHER] %s", msg)

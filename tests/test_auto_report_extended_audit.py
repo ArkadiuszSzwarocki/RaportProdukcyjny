@@ -24,9 +24,9 @@ class TestAutoReportExtendedAudit:
         test_date = "2026-09-01"
         test_line = "AGRO"
 
-        with patch.object(AutoReportService, 'is_report_day', return_value=True), \
-             patch.object(AutoReportService, 'get_schedule', return_value={'is_paused': True, 'scheduled_time': '15:00'}), \
-             patch.object(AutoReportService, 'claim_report_execution') as mock_claim, \
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=True), \
+             patch('app.services.auto_report.auto_report_schedule_service.AutoReportScheduleService.get_schedule', return_value={'is_paused': True, 'scheduled_time': '15:00'}), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.claim_report_execution') as mock_claim, \
              patch('app.services.email_service.EmailService.send_report_email') as mock_send:
 
             success, msg = AutoReportService.send_shift1_report_at_1500(linia=test_line, date_str=test_date, force=False)
@@ -41,15 +41,15 @@ class TestAutoReportExtendedAudit:
         test_date = "2026-09-01"
         test_line = "AGRO"
 
-        with patch.object(AutoReportService, 'is_report_day', return_value=True), \
-             patch.object(AutoReportService, 'get_schedule', return_value={'is_paused': False, 'scheduled_time': '15:00'}), \
-             patch.object(AutoReportService, 'is_1500_report_sent', return_value=True), \
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=True), \
+             patch('app.services.auto_report.auto_report_schedule_service.AutoReportScheduleService.get_schedule', return_value={'is_paused': False, 'scheduled_time': '15:00'}), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.is_report_sent', return_value=True), \
              patch('app.services.email_service.EmailService.send_report_email') as mock_send:
 
             success, msg = AutoReportService.send_shift1_report_at_1500(linia=test_line, date_str=test_date, force=False)
 
             assert success is True
-            assert "zostal juz wyslany" in msg
+            assert "został już wysłany" in msg or "juz wyslany" in msg
             mock_send.assert_not_called()
 
     def test_claim_report_execution_guarantees_single_execution(self):
@@ -57,11 +57,12 @@ class TestAutoReportExtendedAudit:
         test_date = "2026-09-01"
         test_line = "AGRO"
 
-        with patch.object(AutoReportService, 'is_report_day', return_value=True), \
-             patch.object(AutoReportService, 'get_schedule', return_value={'is_paused': False, 'scheduled_time': '15:00'}), \
-             patch.object(AutoReportService, 'is_1500_report_sent', return_value=False), \
-             patch.object(AutoReportService, 'get_default_recipients', return_value=['boss@agronetzwerk.com']), \
-             patch.object(AutoReportService, 'claim_report_execution', return_value=False), \
+        with patch('app.services.auto_report.auto_report_config_service.AutoReportConfigService.is_report_day', return_value=True), \
+             patch('app.services.auto_report.auto_report_schedule_service.AutoReportScheduleService.get_schedule', return_value={'is_paused': False, 'scheduled_time': '15:00'}), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.is_report_sent', return_value=False), \
+             patch('app.services.auto_report.auto_report_activity_detector.AutoReportActivityDetector.has_report_data', return_value=True), \
+             patch('app.services.auto_report.auto_report_recipients_service.AutoReportRecipientsService.get_default_recipients', return_value=['boss@agronetzwerk.com']), \
+             patch('app.services.auto_report.auto_report_history_service.AutoReportHistoryService.claim_report_execution', return_value=False), \
              patch('app.services.email_service.EmailService.send_report_email') as mock_send:
 
             success, msg = AutoReportService.send_shift1_report_at_1500(linia=test_line, date_str=test_date, force=False)

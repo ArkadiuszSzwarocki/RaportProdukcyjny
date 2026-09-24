@@ -56,14 +56,14 @@ class AutoReportHistoryService:
                 CREATE TABLE IF NOT EXISTS auto_report_config (
                     id INT PRIMARY KEY,
                     active_days VARCHAR(50) NOT NULL DEFAULT '0,1,2,3,4',
-                    enabled_lines VARCHAR(50) NOT NULL DEFAULT 'AGRO,PSD',
+                    enabled_lines VARCHAR(50) NOT NULL DEFAULT 'AGRO',
                     updated_by VARCHAR(100) DEFAULT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
             cursor.execute("""
                 INSERT IGNORE INTO auto_report_config (id, active_days, enabled_lines, updated_by)
-                VALUES (1, '0,1,2,3,4', 'AGRO,PSD', 'System');
+                VALUES (1, '0,1,2,3,4', 'AGRO', 'System');
             """)
             conn.commit()
             cursor.close()
