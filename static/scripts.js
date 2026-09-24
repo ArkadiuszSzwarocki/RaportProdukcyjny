@@ -158,15 +158,15 @@
     function hasFocusedEditableElement() {
         const active = document.activeElement;
 
-        // --- PREVENT REFRESH IF BULK CHECKBOXES ARE SELECTED ---
-        // If there are checked checkboxes for bulk actions (like planista_bulk), we must not reload and lose them.
-        const checkedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-        if (checkedCheckboxes.length > 0) return true;
+        // --- PREVENT REFRESH IF BULK ACTION CHECKBOXES ARE SELECTED ---
+        // Only consider actual bulk selection checkboxes (e.g. planista_bulk), not toggle switches like calc-loss-toggle
+        const checkedBulkCheckboxes = document.querySelectorAll('.planista-checkbox:checked, input[name="bulk_select"]:checked, .bulk-select-cb:checked, input[name="selected_orders"]:checked, .order-select-cb:checked');
+        if (checkedBulkCheckboxes.length > 0) return true;
 
-        if (!active) return false;
+        if (!active || active === document.body) return false;
 
-        // Minor/simple inputs do not block auto-refresh if focus/value is preserved
-        if (active.name === 'waga_palety' || active.name === 'tonaz' || active.id === 'move_to_date_work') {
+        // Minor/simple inputs and idle/empty scan inputs do not block auto-refresh if focus/value is preserved
+        if (active.name === 'waga_palety' || active.name === 'tonaz' || active.id === 'move_to_date_work' || active.id === 'calc-loss-toggle' || (active.id === 'bb-scan-input' && !active.value.trim())) {
             return false;
         }
 
@@ -412,12 +412,18 @@
                     newState.last_notif !== lastKnownSystemState.last_notif ||
                     newState.last_station_change !== lastKnownSystemState.last_station_change ||
                     newState.last_pallet_agro !== lastKnownSystemState.last_pallet_agro ||
+                    newState.count_pallet_agro !== lastKnownSystemState.count_pallet_agro ||
+                    newState.last_bigbag_agro !== lastKnownSystemState.last_bigbag_agro ||
+                    newState.count_bigbag_agro !== lastKnownSystemState.count_bigbag_agro ||
+                    newState.last_pkg_agro !== lastKnownSystemState.last_pkg_agro ||
                     newState.last_pallet_psd !== lastKnownSystemState.last_pallet_psd ||
+                    newState.count_pallet_psd !== lastKnownSystemState.count_pallet_psd ||
                     newState.last_pallet !== lastKnownSystemState.last_pallet ||
                     newState.last_zasyp_agro !== lastKnownSystemState.last_zasyp_agro ||
                     newState.last_zasyp_psd !== lastKnownSystemState.last_zasyp_psd ||
                     newState.last_dosypka_agro !== lastKnownSystemState.last_dosypka_agro ||
                     newState.last_dosypka_psd !== lastKnownSystemState.last_dosypka_psd ||
+                    newState.last_awaria !== lastKnownSystemState.last_awaria ||
                     newState.state_dosypka !== lastKnownSystemState.state_dosypka
                 );
 
@@ -442,8 +448,8 @@
 
     function startSmartPolling() {
         stopSmartPolling();
-        // Poll every 10 seconds (cheap check)
-        smartPollingTimer = setInterval(checkSystemState, 10000);
+        // Poll every 3.5 seconds for snappy real-time updates
+        smartPollingTimer = setInterval(checkSystemState, 3500);
         // Initial check
         checkSystemState();
     }

@@ -1267,7 +1267,13 @@
                 
                 const s = data.state;
                 const currentSum = Number(s.last_pallet_psd || 0) +
+                                   Number(s.count_pallet_psd || 0) +
                                    Number(s.last_pallet_agro || 0) +
+                                   Number(s.count_pallet_agro || 0) +
+                                   Number(s.last_bigbag_agro || 0) +
+                                   Number(s.count_bigbag_agro || 0) +
+                                   Number(s.last_pkg_agro || 0) +
+                                   Number(s.last_move || 0) +
                                    Number(s.last_plan || 0) +
                                    Number(s.last_zasyp_psd || 0) +
                                    Number(s.last_zasyp_agro || 0) +

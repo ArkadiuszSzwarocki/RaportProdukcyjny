@@ -320,11 +320,45 @@ def register_api_runtime_routes(api_bp):
                 cursor.execute("SELECT MAX(UNIX_TIMESTAMP(updated_at)) FROM agro_stanowiska")
                 last_station_change = cursor.fetchone()[0] or 0
                 
-            # Fetch last pallets for BOTH halls to be sure
-            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('palety_workowanie', 'PSD')}")
-            last_pallet_psd = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('palety_workowanie', 'AGRO')}")
-            last_pallet_agro = cursor.fetchone()[0] or 0
+            # Fetch last pallets and counts for BOTH halls
+            try:
+                cursor.execute(f"SELECT COALESCE(MAX(id), 0), COUNT(*) FROM {get_table_name('palety_workowanie', 'PSD')}")
+                row_psd = cursor.fetchone()
+                last_pallet_psd = row_psd[0] or 0
+                count_pallet_psd = row_psd[1] or 0
+            except Exception:
+                last_pallet_psd = 0
+                count_pallet_psd = 0
+
+            try:
+                cursor.execute("""
+                    SELECT 
+                        GREATEST(COALESCE((SELECT MAX(id) FROM palety_agro), 0), COALESCE((SELECT MAX(id) FROM palety_workowanie_agro), 0)),
+                        (SELECT COUNT(*) FROM palety_agro) + (SELECT COUNT(*) FROM palety_workowanie_agro)
+                """)
+                row_agro = cursor.fetchone()
+                last_pallet_agro = row_agro[0] or 0
+                count_pallet_agro = row_agro[1] or 0
+            except Exception:
+                last_pallet_agro = 0
+                count_pallet_agro = 0
+
+            # Fetch Big Bags for AGRO
+            try:
+                cursor.execute("SELECT COALESCE(MAX(id), 0), COUNT(*) FROM agro_workowanie_bigbagi")
+                row_bb = cursor.fetchone()
+                last_bigbag_agro = row_bb[0] or 0
+                count_bigbag_agro = row_bb[1] or 0
+            except Exception:
+                last_bigbag_agro = 0
+                count_bigbag_agro = 0
+
+            # Fetch Packaging assignments for AGRO
+            try:
+                cursor.execute("SELECT COALESCE(MAX(id), 0) FROM agro_plan_opakowania")
+                last_pkg_agro = cursor.fetchone()[0] or 0
+            except Exception:
+                last_pkg_agro = 0
 
             # 5. Fetch last zasyp (szarża) for BOTH halls
             try:
@@ -374,8 +408,13 @@ def register_api_runtime_routes(api_bp):
                     'last_notif': last_notif,
                     'last_station_change': last_station_change,
                     'last_pallet_psd': last_pallet_psd,
+                    'count_pallet_psd': count_pallet_psd,
                     'last_pallet_agro': last_pallet_agro,
+                    'count_pallet_agro': count_pallet_agro,
                     'last_pallet': max(last_pallet_psd, last_pallet_agro),
+                    'last_bigbag_agro': last_bigbag_agro,
+                    'count_bigbag_agro': count_bigbag_agro,
+                    'last_pkg_agro': last_pkg_agro,
                     'last_zasyp_psd': last_zasyp_psd,
                     'last_zasyp_agro': last_zasyp_agro,
                     'last_awaria': last_awaria,
