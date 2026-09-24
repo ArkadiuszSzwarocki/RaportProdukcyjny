@@ -16,7 +16,7 @@ from app.services.scanner_service import ScannerService
 
 class AgroWorkowanieBigBagService:
     @staticmethod
-    def lookup_bigbag(code: str, linia: str = 'AGRO') -> Optional[Dict[str, Any]]:
+    def lookup_bigbag(code: str, linia: str = 'AGRO', auto_reconcile: bool = True) -> Optional[Dict[str, Any]]:
         """Wyszukuje aktywną paletę/Big Bag w magazynie surowców lub wyrobów gotowych."""
         if not code:
             return None
@@ -48,7 +48,7 @@ class AgroWorkowanieBigBagService:
                 dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else '')
                 dz = row.get('data_przydatnosci')
                 dz_str = dz.strftime('%Y-%m-%d') if hasattr(dz, 'strftime') else (str(dz) if dz else '')
-                return {
+                res = {
                     'id': row['id'],
                     'nr_palety': row.get('nr_palety') or f"PAL-{row['id']}",
                     'nazwa': row.get('nazwa') or ('Surowiec' if row.get('typ_palety') == 'Surowiec' else 'Wyrób Gotowy'),
@@ -63,6 +63,16 @@ class AgroWorkowanieBigBagService:
                     'table_name': row.get('table_name'),
                     'qty_column': row.get('qty_column')
                 }
+                if res['is_blocked'] and auto_reconcile:
+                    try:
+                        from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                        if PalletLockManager.reconcile_orphan_transfer_locks() > 0:
+                            refreshed = AgroWorkowanieBigBagService.lookup_bigbag(code, linia=linia, auto_reconcile=False)
+                            if refreshed:
+                                return refreshed
+                    except Exception:
+                        pass
+                return res
 
             # KROK 1: Jeśli podano ID z prefiksem (np. PAL-2253, SUR-3819)
             if prefix and item_id:
@@ -252,6 +262,16 @@ class AgroWorkowanieBigBagService:
         pallet = AgroWorkowanieBigBagService.lookup_bigbag(code, linia=linia)
         if not pallet:
             return False, f"Nie znaleziono palety/Big Baga dla kodu: {code}", None
+
+        if pallet.get('is_blocked'):
+            try:
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                if PalletLockManager.reconcile_orphan_transfer_locks() > 0:
+                    refreshed = AgroWorkowanieBigBagService.lookup_bigbag(code, linia=linia, auto_reconcile=False)
+                    if refreshed and not refreshed.get('is_blocked'):
+                        pallet = refreshed
+            except Exception:
+                pass
 
         if pallet.get('is_blocked'):
             return False, f"BŁĄD: Paleta {pallet.get('nr_palety')} jest ZABLOKOWANA w magazynie.", None

@@ -48,6 +48,7 @@ class WarehouseSummaryController:
             try:
                 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
                 PalletLockManager.reconcile_orphan_transfer_locks(cursor)
+                conn.commit()
             except Exception:
                 pass
 

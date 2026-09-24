@@ -111,6 +111,8 @@ class PalletLockManager:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             should_close = True
+        else:
+            conn = getattr(cursor, '_connection', None) or getattr(cursor, 'connection', None)
 
         try:
             # 1. Collect all active in-flight pallet IDs and numbers from active orders
@@ -163,13 +165,15 @@ class PalletLockManager:
 
             unblocked_count = 0
 
-            # 3. Scan all warehouse stock tables for is_blocked = 1
+            # 3. Scan all warehouse stock and buffer tables for is_blocked = 1
             all_tables = [
                 'magazyn_surowce',
                 'magazyn_opakowania',
                 'magazyn_palety',
                 'magazyn_palety_agro',
-                'magazyn_dodatki'
+                'magazyn_dodatki',
+                'palety_workowanie',
+                'palety_agro'
             ]
 
             for tbl in all_tables:
@@ -195,7 +199,10 @@ class PalletLockManager:
                     continue
 
             if conn:
-                conn.commit()
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
 
             return unblocked_count
         except Exception as err:
@@ -203,4 +210,7 @@ class PalletLockManager:
             return 0
         finally:
             if should_close and conn:
-                conn.close()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
