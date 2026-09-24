@@ -6,7 +6,10 @@ function populateLocationFilter() {
     const uniqueLocationsSet = new Set();
     allWarehouseItems.forEach(item => {
         let loc = (item.location || '').toUpperCase().trim();
-        if (loc.length === 0) return;
+        if (loc.length === 0 || loc.startsWith('OCZEKUJ') || loc === 'BRAK') {
+            uniqueLocationsSet.add('OCZEKUJĄCE');
+            return;
+        }
         
         if (typeof currentWarehouseId !== 'undefined' && currentWarehouseId === 'OSIP') {
             const isOsip = loc.includes('OSIP') || loc.startsWith('OS') || loc.startsWith('A') || loc === 'BFOS';

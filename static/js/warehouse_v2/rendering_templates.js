@@ -464,31 +464,7 @@ function clearAllFilters() {
 
 function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
     const filterText = (filter || '').toUpperCase().trim();
-    if (filterText === "") return true;
-
     const isPureDigits = /^\d+$/.test(filterText);
-    let textMatch = false;
-
-    if (isPureDigits) {
-        // Gdy szukamy po samych cyfrach (np. 3-6 ostatnich cyfr), szukamy OD KOŃCA numeru palety / partii (suffix)
-        const idStr = String(item ? (item.displayId || item.nr_palety || item.id || '') : '').toUpperCase().trim();
-        const idDigits = idStr.replace(/\D/g, '');
-        const batchStr = String(item ? (item.batch || item.nr_partii || '') : '').toUpperCase().trim();
-        const batchDigits = batchStr.replace(/\D/g, '');
-        const prodName = String(item ? (item.productName || item.nazwa || '') : '').toUpperCase().trim();
-
-        const endsWithDigits = (idDigits && idDigits.endsWith(filterText)) || (idStr && idStr.endsWith(filterText));
-        const batchEndsWithDigits = (batchDigits && batchDigits.endsWith(filterText)) || (batchStr && batchStr.endsWith(filterText));
-        const prodContainsDigits = prodName.includes(filterText);
-
-        textMatch = Boolean(endsWithDigits || batchEndsWithDigits || prodContainsDigits);
-    } else {
-        textMatch = (allText.indexOf(filterText) > -1);
-    }
-
-    const slotMatch = matchesLocationSlots(locText, filterText);
-
-    if (!(textMatch || slotMatch)) return false;
 
     // Direct pallet / barcode / SSCC search bypasses rack-level filter so workers can always locate the pallet
     const isDirectPalletSearch = (isPureDigits && filterText.length >= 3) || (filterText.length >= 4 && (
@@ -499,20 +475,61 @@ function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
         filterText.startsWith('OPK') ||
         filterText.startsWith('SSCC')
     ));
-    
-    if (!isDirectPalletSearch && Array.isArray(locationFiltersArray)) {
+
+    // 1. Text Search Filtering (only if search query is entered)
+    if (filterText !== "") {
+        let textMatch = false;
+
+        if (isPureDigits) {
+            // Gdy szukamy po samych cyfrach (np. 3-6 ostatnich cyfr), szukamy OD KOŃCA numeru palety / partii (suffix)
+            const idStr = String(item ? (item.displayId || item.nr_palety || item.id || '') : '').toUpperCase().trim();
+            const idDigits = idStr.replace(/\D/g, '');
+            const batchStr = String(item ? (item.batch || item.nr_partii || '') : '').toUpperCase().trim();
+            const batchDigits = batchStr.replace(/\D/g, '');
+            const prodName = String(item ? (item.productName || item.nazwa || '') : '').toUpperCase().trim();
+
+            const endsWithDigits = (idDigits && idDigits.endsWith(filterText)) || (idStr && idStr.endsWith(filterText));
+            const batchEndsWithDigits = (batchDigits && batchDigits.endsWith(filterText)) || (batchStr && batchStr.endsWith(filterText));
+            const prodContainsDigits = prodName.includes(filterText);
+
+            textMatch = Boolean(endsWithDigits || batchEndsWithDigits || prodContainsDigits);
+        } else {
+            textMatch = (allText.indexOf(filterText) > -1);
+        }
+
+        const slotMatch = matchesLocationSlots(locText, filterText);
+
+        if (!(textMatch || slotMatch)) return false;
+    }
+
+    // Direct pallet lookup bypasses location filters
+    if (isDirectPalletSearch) {
+        return true;
+    }
+
+    // 2. Multi-select Location Filter Dropdown
+    if (Array.isArray(locationFiltersArray)) {
         if (locationFiltersArray.length === 0) {
             return false;
         }
         const upLoc = (locText || '').toUpperCase().trim();
-        if (!upLoc) {
-            const allowsEmpty = locationFiltersArray.includes('BRAK') || 
-                                locationFiltersArray.includes('OCZEKUJĄCE') ||
-                                locationFiltersArray.includes('BEZ LOKACJI');
-            if (!allowsEmpty) return false;
+        const isPendingOrEmpty = !upLoc || upLoc.startsWith('OCZEKUJ') || upLoc === 'BRAK' || upLoc === 'BEZ LOKACJI';
+
+        if (isPendingOrEmpty) {
+            const allowsPending = locationFiltersArray.includes('OCZEKUJĄCE') || 
+                                  locationFiltersArray.includes('OCZEKUJACE') ||
+                                  locationFiltersArray.includes('BRAK') || 
+                                  locationFiltersArray.includes('BEZ LOKACJI');
+            if (!allowsPending) return false;
         } else {
             const matched = locationFiltersArray.some(f => {
                 const uf = (f || '').toUpperCase().trim();
+                if (uf === 'OCZEKUJĄCE' || uf === 'OCZEKUJACE' || uf === 'BRAK' || uf === 'BEZ LOKACJI') {
+                    return false;
+                }
+                if (/^R\d{2}/.test(uf)) {
+                    return upLoc.startsWith(uf);
+                }
                 return upLoc === uf || upLoc.startsWith(uf);
             });
             if (!matched) return false;
@@ -521,29 +538,30 @@ function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
 
     const locNormalized = normalizeLocationCode(locText);
     const locParts = parseLocationCode(locText);
-    const upLoc = (locText || '').toUpperCase();
+    const upLoc = (locText || '').toUpperCase().trim();
     const isOsip = upLoc.includes('OSIP') || upLoc.startsWith('OS') || upLoc.startsWith('A') || upLoc === 'BFOS';
 
-    // 0. Magazyn OSIP widzi WYŁĄCZNIE własne lokalizacje (OS*, OSIP)
+    // 3. Magazyn OSIP widzi WYŁĄCZNIE własne lokalizacje (OS*, OSIP, A*, BFOS)
     if (currentWarehouseId === 'OSIP') {
         if (!isOsip) return false;
         
         if (currentSubWarehouseId && currentSubWarehouseId !== 'all') {
-            if (currentSubWarehouseId === 'OS01') return upLoc.includes('OS01');
-            if (currentSubWarehouseId === 'A') return upLoc.startsWith('A');
+            if (currentSubWarehouseId === 'OS01' || currentSubWarehouseId === 'OS01-77') return upLoc.includes('OS01') || upLoc.startsWith('OS');
+            if (currentSubWarehouseId === 'A' || currentSubWarehouseId === 'A01-A99') return upLoc.startsWith('A');
+            if (currentSubWarehouseId === 'BFOS') return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP');
             return upLoc.includes(currentSubWarehouseId.toUpperCase());
         }
         return true;
     }
 
-    // 1. Jeśli wybrano konkretny regał/podlokalizację lub bufor - to jest priorytet
+    // 4. Jeśli wybrano konkretny regał/podlokalizację lub bufor w menu zakładek
     if (currentSubWarehouseId && currentSubWarehouseId !== 'all') {
         const subUpper = currentSubWarehouseId.toUpperCase();
         if (subUpper === 'OCZEKUJĄCE' || subUpper === 'OCZEKUJACE') {
-            return upLoc.includes('OCZEKUJ');
+            return upLoc.startsWith('OCZEKUJ') || !locText || upLoc === '';
         }
         if (subUpper === 'BUFORY' || subUpper === 'BUFOR') {
-            return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || upLoc.includes('OCZEKUJ') || !locText || upLoc.trim() === '';
+            return upLoc.startsWith('BF') || upLoc.startsWith('MGW') || upLoc.startsWith('MGM') || upLoc.startsWith('MS') || upLoc.startsWith('MP') || upLoc.includes('BUFOR') || upLoc.includes('OCZEKUJ') || !locText || upLoc === '';
         }
         if (subUpper === 'BFOS') {
             return upLoc.includes('BFOS') || upLoc.includes('BUFOR OSIP') || upLoc.includes('BUFOR CENTR');
@@ -571,10 +589,10 @@ function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
         if (locParts) {
             return locParts.rack === selectedRack;
         }
-        return locNormalized.includes(selectedRack);
+        return locNormalized.startsWith(selectedRack);
     }
 
-    // 2. Jeśli nie wybrano regału, filtrujemy po magazynie głównym
+    // 5. Jeśli nie wybrano regału, filtrujemy po magazynie głównym
     if (!currentWarehouseId || currentWarehouseId === 'all') {
         // "Wszystkie Magazyny" must include every location, including OSIP (A*/OS*/BFOS).
         return true;
@@ -598,7 +616,7 @@ function isMatch(allText, locText, filter, locationFiltersArray, item = null) {
     // Obsługa magazynów rodzajowych dla asortymentów na regałach (np. R09)
     if (currentWarehouseId === 'MOP01' && allText.includes('OPAKOWANIE')) return true;
     if (currentWarehouseId === 'MDO01' && allText.includes('DODATEK')) return true;
-    if ((currentWarehouseId === 'MGW01' || currentWarehouseId === 'MGW02') && allText.includes('WYRÓB GOTOWY')) return true;
+    if ((currentWarehouseId === 'MGW01' || currentWarehouseId === 'MGW02' || currentWarehouseId === 'MGM01') && allText.includes('WYRÓB GOTOWY')) return true;
     if (currentWarehouseId === 'MS01' && allText.includes('SUROWIEC')) return true;
     return false;
 }
