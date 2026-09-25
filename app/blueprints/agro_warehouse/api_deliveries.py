@@ -32,6 +32,7 @@ def add_delivery():
                     return (jsonify({'success': False, 'error': 'Nieprawidłowa wartość ilości w jednym z elementów (popraw format liczby)'}), 400)
                 note = it.get('komentarz')
                 p = it.get('nr_partii')
+                dp = it.get('data_produkcji')
                 dz = it.get('data_przydatnosci')
                 pf = it.get('pkg_form', 'bags')
                 if not n or q <= 0:

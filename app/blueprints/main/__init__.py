@@ -214,7 +214,6 @@ def index():
             'etapy_sesje_mapa': zasyp_etapy_context['etapy_sesje_mapa'],
             'kgph_stats_mapa': zasyp_etapy_context['kgph_stats_mapa'],
             'przestoje_mapa': przestoje_mapa,
-            'agro_mix_mapa': agro_mix_mapa,
             'agro_mix_dostepne': agro_mix_dostepne,
             'fefo_pallets': fefo_pallets,
         }

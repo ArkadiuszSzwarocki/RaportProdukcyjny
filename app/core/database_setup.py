@@ -1863,6 +1863,7 @@ def setup_database():
         # startup. Only run it when explicitly requested via environment variable
         # `AUTO_CONFIRM_PALET=1` to avoid unexpected automatic acceptance.
         if os.environ.get('AUTO_CONFIRM_PALET') == '1':
+            from app.repositories.production_repository import _auto_confirm_existing_palety
             _auto_confirm_existing_palety(cursor)
         else:
             print("[INFO] Skipping auto-confirm palet on startup (AUTO_CONFIRM_PALET not set)")

@@ -17,6 +17,43 @@ def test_plan_with_szarza():
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     
+    # Ensure test tables exist in testing database
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS plan_produkcji (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            produkt VARCHAR(255),
+            data_planu DATE,
+            sekcja VARCHAR(100),
+            status VARCHAR(50),
+            tonaz DECIMAL(10,2),
+            tonaz_rzeczywisty DECIMAL(10,2),
+            is_deleted TINYINT DEFAULT 0
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS szarze (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT,
+            nr_szarzy INT,
+            waga DECIMAL(10,2),
+            data_dodania DATETIME
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kod_wiadra VARCHAR(50),
+            plan_id INT,
+            szarza_id INT,
+            status VARCHAR(50),
+            data_rozpoczecia DATETIME,
+            data_zakonczenia DATETIME,
+            operator VARCHAR(100),
+            linia VARCHAR(50)
+        )
+    """)
+    conn.commit()
+
     # 1. Create active Zasyp plan
     cur.execute(
         """

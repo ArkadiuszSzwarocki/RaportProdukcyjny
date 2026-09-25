@@ -15,6 +15,8 @@ from app.db import (
 from app.services.mqtt_service import get_latest_data
 from app.decorators import login_required
 
+_system_state_cache = {}
+
 
 def register_api_runtime_routes(api_bp):
     @api_bp.route('/log_frontend_error', methods=['POST'])

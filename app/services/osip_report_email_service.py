@@ -94,6 +94,29 @@ class OsipReportEmailService:
     def get_daily_warehouse_activity(cls, date_str: str, central_only: bool = True) -> Dict[str, Any]:
         return WarehouseActivityQueryService.get_daily_warehouse_activity(date_str, central_only=central_only)
 
+    @classmethod
+    def generate_daily_summary_pdf(cls, date_str: str, activity_data: Dict[str, Any]) -> Optional[str]:
+        html = WarehouseEmailTemplateBuilder.build_daily_summary_report_html(date_str, activity_data)
+        title = f"Raport Dzienny — Ruch Magazynowy ({date_str})"
+        return WarehousePdfReportBuilder._render_html_or_fallback(html, title, f"Data: {date_str}", activity_data)
+
+    @classmethod
+    def test_smtp_connection(
+        cls,
+        smtp_server: str,
+        smtp_port: int = 465,
+        smtp_security: str = "SSL",
+        smtp_username: str = "",
+        smtp_password: str = ""
+    ) -> Tuple[bool, str]:
+        return WarehouseReportMailer.test_smtp_connection(
+            smtp_server=smtp_server,
+            smtp_port=smtp_port,
+            smtp_security=smtp_security,
+            smtp_username=smtp_username,
+            smtp_password=smtp_password
+        )
+
     @staticmethod
     def generate_delivery_pdf(dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
         return WarehousePdfReportBuilder.generate_delivery_pdf(dostawa, items)

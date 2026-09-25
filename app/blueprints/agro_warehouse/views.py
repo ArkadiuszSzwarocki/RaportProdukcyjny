@@ -1,5 +1,5 @@
 import re
-from flask import render_template, request, jsonify, session, redirect, url_for, current_app, flash
+from flask import render_template, request, jsonify, session, redirect, url_for, current_app, flash, Response
 from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
 from app.services.agro.agro_surowce_service import AgroSurowceService
 from app.services.agro.agro_tanks_service import AgroTanksService

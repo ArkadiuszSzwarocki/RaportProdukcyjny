@@ -77,14 +77,15 @@ def przyjmij_pozycje(dostawa_id):
         printer_name=printer_name
     )
     if success:
+        res = result if isinstance(result, dict) else {}
         return jsonify({
             "success": True,
-            "all_accepted": result["all_accepted"],
-            "accepted_count": result["accepted_count"],
-            "total": result["total"],
+            "all_accepted": res.get("all_accepted", False),
+            "accepted_count": res.get("accepted_count", 0),
+            "total": res.get("total", 0),
             "report_url": None,
-            "nr_palety": result.get("nr_palety"),
-            "message": f"Przyjęto pomyślnie. SSCC: {result.get('nr_palety')}" if result.get("nr_palety") else "Przyjęto pomyślnie."
+            "nr_palety": res.get("nr_palety"),
+            "message": f"Przyjęto pomyślnie. SSCC: {res.get('nr_palety')}" if res.get("nr_palety") else "Przyjęto pomyślnie."
         })
     return jsonify({"success": False, "error": error}), 400
 

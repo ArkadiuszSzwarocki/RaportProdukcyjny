@@ -79,3 +79,28 @@ class WarehouseReportMailer:
         except Exception as ex:
             return False, f"Błąd wysyłki SMTP: {str(ex)}"
 
+    @staticmethod
+    def test_smtp_connection(
+        smtp_server: str,
+        smtp_port: int = 465,
+        smtp_security: str = "SSL",
+        smtp_username: str = "",
+        smtp_password: str = ""
+    ) -> Tuple[bool, str]:
+        """Testuje połączenie SMTP."""
+        try:
+            use_ssl = (smtp_security == 'SSL')
+            use_tls = (smtp_security == 'TLS')
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10)
+            else:
+                server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
+                if use_tls:
+                    server.starttls()
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            server.quit()
+            return True, "Połączenie z serwerem SMTP powiodło się."
+        except Exception as e:
+            return False, f"Błąd połączenia SMTP: {str(e)}"
+

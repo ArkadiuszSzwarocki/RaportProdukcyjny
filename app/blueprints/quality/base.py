@@ -1,7 +1,7 @@
 """Quality control routes (jakosc, DUR/awarie)."""
 
 from flask import Blueprint, render_template, request, redirect, flash, url_for, session, send_file, current_app, jsonify
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import os
 from werkzeug.utils import secure_filename
 
