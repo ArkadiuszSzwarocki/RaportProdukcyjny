@@ -62,6 +62,7 @@ def init_test_database():
                     data_produkcji DATETIME,
                     data_przydatnosci DATETIME,
                     data_rozpoczecia DATETIME,
+                    data_skompletowania DATETIME NULL,
                     data_zakonczenia DATETIME,
                     operator VARCHAR(100),
                     linia VARCHAR(50),

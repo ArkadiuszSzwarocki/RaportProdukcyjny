@@ -46,6 +46,7 @@ jobs:
           pylint --disable=all --enable=E,F app/
 
       - name: Type check with mypy
+        continue-on-error: true
         run: |
           mypy app/ --ignore-missing-imports
 

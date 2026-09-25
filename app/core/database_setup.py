@@ -88,6 +88,7 @@ def _create_tables(cursor):
             tonaz_rzeczywisty FLOAT,
             kolejnosc INT DEFAULT 0,
             typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
+            typ_zlecenia VARCHAR(50) DEFAULT '',
             wyjasnienie_rozbieznosci TEXT,
             data_produkcji DATE DEFAULT NULL,
             rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'
@@ -171,6 +172,8 @@ def _create_tables(cursor):
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             dispatched_at DATETIME NULL,
             completed_at DATETIME NULL,
+            email_sent_at DATETIME NULL,
+            email_sent_to VARCHAR(255) NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     """)
@@ -310,6 +313,12 @@ def _create_tables(cursor):
             nazwa VARCHAR(255) NOT NULL,
             stan_magazynowy FLOAT DEFAULT 0,
             lokalizacja VARCHAR(64) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_partii VARCHAR(100) DEFAULT NULL,
+            data_produkcji DATE DEFAULT NULL,
+            data_przydatnosci DATE DEFAULT NULL,
+            typ_opakowania VARCHAR(50) DEFAULT 'bags',
+            is_blocked TINYINT(1) DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_magazyn_surowce_nazwa (nazwa(250)),
@@ -323,12 +332,86 @@ def _create_tables(cursor):
                    "typ_opakowania VARCHAR(50) DEFAULT 'Karton',"
                    "stan_magazynowy FLOAT DEFAULT 0,"
                    "lokalizacja VARCHAR(64) DEFAULT NULL,"
+                   "nr_palety VARCHAR(100) DEFAULT NULL,"
                    "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
                    "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                    "INDEX idx_magazyn_opakowania_nazwa (nazwa(250)),"
                    "INDEX idx_magazyn_opakowania_lokal (lokalizacja),"
                    "INDEX idx_magazyn_opakowania_typ (typ_opakowania)"
                    ")")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_dostawy (
+            id VARCHAR(64) PRIMARY KEY,
+            order_ref VARCHAR(100) NULL,
+            supplier VARCHAR(255) NULL,
+            delivery_date DATE NULL,
+            status VARCHAR(50) DEFAULT 'OCZEKUJE',
+            items JSON NULL,
+            created_by VARCHAR(100) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            requires_lab TINYINT(1) DEFAULT 0,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            lokalizacja_z VARCHAR(100) NULL,
+            lokalizacja_do VARCHAR(100) NULL,
+            INDEX idx_md_status (status),
+            INDEX idx_md_linia (linia),
+            INDEX idx_md_created_at (created_at)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS slownik_surowcow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL UNIQUE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_dodatki (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            stan_magazynowy FLOAT DEFAULT 0,
+            lokalizacja VARCHAR(100) NULL,
+            nr_palety VARCHAR(100) NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kod_wiadra VARCHAR(50),
+            nr_sscc VARCHAR(50),
+            plan_id INT,
+            szarza_id INT,
+            status VARCHAR(50),
+            waga_calkowita DECIMAL(10,2) DEFAULT 0,
+            operator_nawazyl_login VARCHAR(100),
+            data_produkcji DATETIME,
+            data_przydatnosci DATETIME,
+            data_rozpoczecia DATETIME,
+            data_skompletowania DATETIME,
+            data_zakonczenia DATETIME,
+            operator VARCHAR(100),
+            linia VARCHAR(50),
+            mieszalnik_kod VARCHAR(50),
+            data_zasypania DATETIME,
+            operator_zasypal_login VARCHAR(100)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy_pozycje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            wiaderko_id INT,
+            stacja_kod VARCHAR(50),
+            surowiec_nazwa VARCHAR(255),
+            waga_faktyczna DECIMAL(10,2) DEFAULT 0,
+            data_nawazenia DATETIME,
+            operator_login VARCHAR(100)
+        )
+    """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS slownik_surowcow (
@@ -1351,6 +1434,14 @@ def _migrate_columns(cursor):
         typ_default = "VARCHAR(50) DEFAULT 'Karton'" if tbl.endswith('opakowania') else "VARCHAR(50) DEFAULT 'bags'"
         _add_column_if_missing(cursor, tbl, "typ_opakowania", typ_default, f"Dodawanie kolumny 'typ_opakowania' do {tbl}")
         _add_column_if_missing(cursor, tbl, "is_blocked", "BOOLEAN DEFAULT 0", f"Dodawanie kolumny 'is_blocked' do {tbl}")
+
+    for tbl in ["magazyn_surowce", "magazyn_agro_surowce", "magazyn_opakowania", "magazyn_agro_opakowania", "magazyn_dodatki"]:
+        _add_column_if_missing(cursor, tbl, "nr_palety", "VARCHAR(100) NULL", f"Dodawanie kolumny 'nr_palety' do {tbl}")
+
+    _add_column_if_missing(cursor, "osip_transfers", "email_sent_at", "DATETIME NULL", "Dodawanie kolumny 'email_sent_at' do osip_transfers")
+    _add_column_if_missing(cursor, "osip_transfers", "email_sent_to", "VARCHAR(255) NULL", "Dodawanie kolumny 'email_sent_to' do osip_transfers")
+    _add_column_if_missing(cursor, "plan_produkcji", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' do plan_produkcji")
+    _add_column_if_missing(cursor, "wiaderka_maluchy", "data_skompletowania", "DATETIME NULL", "Dodawanie kolumny 'data_skompletowania' do wiaderka_maluchy")
     
     # Inwentaryzacja wpisy packaging type
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")

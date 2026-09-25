@@ -2,7 +2,27 @@
 from __future__ import annotations
 
 import re
-from app.core.database import get_db_connection, get_table_name
+from app.core.database import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
+
+
+def get_db_connection(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_db_connection', _core_get_db_connection)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_db_connection(*args, **kwargs)
+
+
+def get_table_name(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_table_name', _core_get_table_name)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_table_name(*args, **kwargs)
+
+
 from app.services.scanner.scanner_code_normalizer import ScannerCodeNormalizer
 from app.services.scanner.scanner_item_normalizer import ScannerItemNormalizer
 from app.services.scanner.scanner_lookup_service import ScannerLookupService

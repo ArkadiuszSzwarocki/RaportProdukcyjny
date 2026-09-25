@@ -1,5 +1,25 @@
 from datetime import datetime
-from app.db import get_db_connection, get_table_name
+from app.db import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
+
+
+def get_db_connection(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_db_connection', _core_get_db_connection)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_db_connection(*args, **kwargs)
+
+
+def get_table_name(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_table_name', _core_get_table_name)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_table_name(*args, **kwargs)
+
+
 from app.services.tank_validation_service import TankValidationService
 from app.utils.location_validator import is_deleted_station_code, check_rack_location_availability
 from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
