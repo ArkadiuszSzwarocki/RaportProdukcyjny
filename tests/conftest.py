@@ -31,6 +31,79 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_db)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def init_test_database():
+    """Ensure database schema and test data exist when connected to real DB in CI."""
+    if _is_db_reachable():
+        try:
+            from werkzeug.security import generate_password_hash
+            from app.db import get_db_connection
+            from app.core.database_setup import (
+                _create_tables,
+                _migrate_columns,
+                _create_composite_indexes,
+            )
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            _create_tables(cursor)
+            _migrate_columns(cursor)
+            _create_composite_indexes(cursor)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    kod_wiadra VARCHAR(50),
+                    nr_sscc VARCHAR(50),
+                    plan_id INT,
+                    szarza_id INT,
+                    status VARCHAR(50),
+                    waga_calkowita DECIMAL(10,2) DEFAULT 0,
+                    operator_nawazyl_login VARCHAR(100),
+                    data_produkcji DATETIME,
+                    data_przydatnosci DATETIME,
+                    data_rozpoczecia DATETIME,
+                    data_zakonczenia DATETIME,
+                    operator VARCHAR(100),
+                    linia VARCHAR(50),
+                    mieszalnik_kod VARCHAR(50),
+                    data_zasypania DATETIME,
+                    operator_zasypal_login VARCHAR(100)
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wiaderka_maluchy_pozycje (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    wiaderko_id INT,
+                    stacja_kod VARCHAR(50),
+                    surowiec_nazwa VARCHAR(255),
+                    waga_faktyczna DECIMAL(10,2) DEFAULT 0,
+                    data_nawazenia DATETIME,
+                    operator_login VARCHAR(100)
+                )
+            """)
+
+            test_users = [
+                ('GontaArt', 'Artur2026', 'magazynier', 'OSIP'),
+                ('admin', 'admin123', 'admin', 'ALL'),
+                ('lider', 'lider123', 'lider', 'PSD'),
+                ('planista', 'planista123', 'planista', 'PSD'),
+                ('pracownik', 'pracownik123', 'pracownik', 'PSD'),
+            ]
+            for login_val, pass_val, rola_val, grupa_val in test_users:
+                cursor.execute("SELECT id FROM uzytkownicy WHERE login=%s", (login_val,))
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)",
+                        (login_val, generate_password_hash(pass_val, method='pbkdf2:sha256'), rola_val, grupa_val)
+                    )
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            print(f"[TEST DB SETUP WARN] {e}")
+
+
 
 @pytest.fixture
 def app():

@@ -106,7 +106,7 @@ class ExternalDeliveryProcessor:
                 pallet_id = cursor.lastrowid
                 item['sourcePalletId'] = pallet_id
 
-            if nr_palety:
+            if nr_palety and not item.get('accepted'):
                 operation_id = f"delivery:{delivery_id or order_ref}:item:{item.get('id')}:staging"
                 history_saved = MovementRecorder.record_movement(
                     pallet_id, linia, pallet_type, 'DOSTAWA_PRZYJECIE',

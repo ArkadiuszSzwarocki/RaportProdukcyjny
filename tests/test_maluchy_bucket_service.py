@@ -43,13 +43,32 @@ def test_plan_with_szarza():
         CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
             id INT AUTO_INCREMENT PRIMARY KEY,
             kod_wiadra VARCHAR(50),
+            nr_sscc VARCHAR(50),
             plan_id INT,
             szarza_id INT,
             status VARCHAR(50),
+            waga_calkowita DECIMAL(10,2) DEFAULT 0,
+            operator_nawazyl_login VARCHAR(100),
+            data_produkcji DATETIME,
+            data_przydatnosci DATETIME,
             data_rozpoczecia DATETIME,
             data_zakonczenia DATETIME,
             operator VARCHAR(100),
-            linia VARCHAR(50)
+            linia VARCHAR(50),
+            mieszalnik_kod VARCHAR(50),
+            data_zasypania DATETIME,
+            operator_zasypal_login VARCHAR(100)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy_pozycje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            wiaderko_id INT,
+            stacja_kod VARCHAR(50),
+            surowiec_nazwa VARCHAR(255),
+            waga_faktyczna DECIMAL(10,2) DEFAULT 0,
+            data_nawazenia DATETIME,
+            operator_login VARCHAR(100)
         )
     """)
     conn.commit()

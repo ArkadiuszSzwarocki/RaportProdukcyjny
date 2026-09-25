@@ -10,6 +10,9 @@ from app.services.scanner.scanner_location_query_service import ScannerLocationQ
 from app.services.scanner.scanner_resolution_service import ScannerResolutionService
 from app.services.scanner.scanner_movement_service import ScannerMovementService
 from app.services.scanner.scanner_label_service import ScannerLabelService
+from app.db import get_db_connection, get_table_name
+
+__all__ = ["ScannerService", "get_db_connection", "get_table_name"]
 
 
 class ScannerService:

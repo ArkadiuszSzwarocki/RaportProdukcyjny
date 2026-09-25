@@ -2,6 +2,7 @@ from datetime import date, datetime
 import os
 import threading
 import json
+import mysql.connector
 from flask import current_app, request, session, jsonify, flash
 
 from app.core.audit import audit_log
@@ -37,6 +38,12 @@ class WarehousePalletService:
     @staticmethod
     def potwierdz_palete(paleta_id, linia, user_login, app_obj, update_paleta_workowanie, update_paleta_magazyn, is_ajax, safe_return_url):
         """Confirm paleta acceptance with warehouse manager/lider."""
+        printed_msg = None
+        open_report_url = None
+        is_last_pallet = False
+        weight_difference = None
+        has_weight_difference = False
+        force_accept_request = False
         linia = linia
         table_plan = get_table_name('plan_produkcji', linia)
         table_pal = get_table_name('palety_workowanie', linia)
@@ -77,14 +84,16 @@ class WarehousePalletService:
                 current_app.logger.warning('Failed to fetch tara for paleta %s: %s', paleta_id, error)
     
             try:
-                if request.form.get('waga_palety'):
+                raw_waga = request.form.get('waga_palety')
+                raw_brutto = request.form.get('waga_brutto')
+                if raw_waga:
                     try:
-                        provided_netto = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
+                        provided_netto = int(float(str(raw_waga).strip().replace(',', '.')))
                     except (ValueError, Exception):
                         provided_netto = None
-                elif request.form.get('waga_brutto'):
+                elif raw_brutto:
                     try:
-                        provided_brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
+                        provided_brutto = int(float(str(raw_brutto).strip().replace(',', '.')))
                     except (ValueError, Exception):
                         provided_brutto = None
                     if provided_brutto is not None:
@@ -140,6 +149,8 @@ class WarehousePalletService:
             prev_status = ''
             plan_id = None
             stored_netto = None
+            nr_palety = None
+            nr_plomby = None
             try:
                 cursor.execute(
                     f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s",

@@ -298,7 +298,6 @@ def login():
             cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL), grupa FROM uzytkownicy WHERE login = %s", (login_field,))
             row = cursor.fetchone()
         except Exception as e:
-            from flask import current_app
             current_app.logger.error("Błąd zapytania podczas logowania: %s", e)
             cursor.close()
             conn.close()
@@ -346,7 +345,6 @@ def login():
                 session['show_bug_icon_intro'] = True
                 
                 # Log login with current process PID
-                from flask import current_app
                 from app.core.audit import audit_log, security_audit_log
                 current_app.logger.info("Użytkownik '%s' zalogował się (rola: %s)", login_field, (rola or '').lower())
                 audit_log('Zalogował się')
