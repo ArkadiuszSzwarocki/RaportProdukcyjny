@@ -316,9 +316,10 @@ class DashboardService:
             
         table = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            f"SELECT DISTINCT produkt FROM {table} "
+            f"SELECT produkt FROM {table} "
             f"WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND is_deleted = 0 "
-            "ORDER BY kolejnosc ASC, id ASC",
+            "GROUP BY produkt "
+            "ORDER BY MIN(kolejnosc) ASC, MIN(id) ASC",
             (dzisiaj,)
         )
         res = [r[0] for r in cursor.fetchall()]
