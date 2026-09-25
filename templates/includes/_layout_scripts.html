@@ -1,4 +1,11 @@
 <script>
+    /** Suppress verbose client console logging to speed up page rendering */
+    if (!window.DEBUG_LOGS && localStorage.getItem('debug_logs') !== '1') {
+        window._originalConsoleLog = console.log;
+        console.log = function() {};
+        console.debug = function() {};
+    }
+
     /** JS ERROR TRAP: Capture and log frontend errors to the server */
     window.onerror = function(message, source, lineno, colno, error) {
         try {

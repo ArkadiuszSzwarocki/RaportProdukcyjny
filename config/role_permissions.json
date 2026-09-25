@@ -257,7 +257,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {

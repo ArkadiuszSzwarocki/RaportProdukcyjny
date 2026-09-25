@@ -1,5 +1,4 @@
-"""Middleware functions for request/response processing and session management."""
-
+import os
 import re
 import time
 from datetime import timedelta
@@ -26,28 +25,18 @@ def register_middleware(app):
 
 
 def log_request_info(app):
-    """Middleware: Log incoming requests (except static/well-known paths).
-    
-    Args:
-        app: Flask application instance
-        
-    Returns:
-        Middleware function for before_request
-    """
+    """Middleware: Log incoming requests (disabled by default for maximum throughput)."""
+    enable_req_log = os.environ.get('ENABLE_REQUEST_LOGGING', 'false').lower() == 'true'
+    if not enable_req_log:
+        return lambda: None
+
     def middleware():
         try:
-            # Skip noisy static file and well-known requests from debug logs to reduce noise
             p = request.path or ''
             if p.startswith('/static/') or p == '/favicon.ico' or p.startswith('/.well-known'):
                 return
-            # Use full_path to include query string, helps debugging links like ?sekcja=...
             full = getattr(request, 'full_path', None) or request.path
-            try:
-                import os as _os
-                pid = _os.getpid()
-            except Exception:
-                pid = 'unknown'
-            app.logger.debug('Incoming request (pid=%s): %s %s', pid, request.method, full)
+            app.logger.debug('Incoming request: %s %s', request.method, full)
         except Exception:
             pass
     return middleware
@@ -117,7 +106,11 @@ def enforce_csrf_origin_check(app):
 
 
 def record_request_start_time(app):
-    """Middleware: Monitor request start time for performance tracking."""
+    """Middleware: Monitor request start time (no-op unless slow-request logging is enabled)."""
+    enable_slow_log = os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() == 'true'
+    if not enable_slow_log:
+        return lambda: None
+
     from flask import g
     def middleware():
         try:
@@ -128,14 +121,18 @@ def record_request_start_time(app):
 
 
 def log_slow_requests(app):
-    """Middleware: Log requests exceeding 2 seconds (Performance Trap)."""
+    """Middleware: Log requests exceeding slow threshold (disabled by default to prevent I/O blocking)."""
+    enable_slow_log = os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() == 'true'
+    if not enable_slow_log:
+        return lambda response: response
+
     from flask import g
     def middleware(response):
         try:
             start_time = getattr(g, '_request_start_time', None)
             if start_time:
                 duration = time.time() - start_time
-                if duration > 2.0:
+                if duration > 15.0:
                     user = session.get('login', 'anonymous')
                     app.logger.warning('SLOW REQUEST: %s %s took %.2fs (User: %s)', request.method, request.path, duration, user)
         except Exception:

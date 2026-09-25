@@ -3,6 +3,7 @@ from app.db import get_db_connection, get_table_name
 from datetime import datetime
 import json
 import re
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 class InwentaryzacjaService:
     ID_PREFIX_MAP = {
@@ -807,6 +808,16 @@ class InwentaryzacjaService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT status FROM magazyn_inwentaryzacja_sesje WHERE id = %s FOR UPDATE",
+                (sesja_id,),
+            )
+            session_row = cursor.fetchone()
+            if not session_row:
+                return False, "Nie znaleziono sesji inwentaryzacyjnej"
+            if str(session_row.get('status') or '').upper() == 'APPLIED':
+                return False, "Ta sesja inwentaryzacyjna została już zastosowana"
+
             # 1. Get entries
             cursor.execute("SELECT * FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
             entries = cursor.fetchall()
@@ -885,10 +896,20 @@ class InwentaryzacjaService:
                 
                 # Log in history for both new and updated
                 p_id = e['paleta_id'] or cursor.lastrowid
-                cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'INWENTARYZACJA_KOREKTA', %s, %s, %s)",
-                    (p_id, e.get('nr_palety'), linia_e, e['typ_palety'], e['lokalizacja'], f"Korekta inwentaryzacyjna: {e['waga_systemowa']} -> {e['waga_faktyczna']}", user_login)
+                operation_id = f"inventory:{sesja_id}:entry:{e['id']}"
+                history_saved = MovementRecorder.record_movement(
+                    p_id, linia_e, e['typ_palety'], 'INWENTARYZACJA_KOREKTA',
+                    e['lokalizacja'], e['lokalizacja'],
+                    f"Korekta inwentaryzacyjna: {e['waga_systemowa']} -> {e['waga_faktyczna']}",
+                    user_login, e.get('nr_palety'),
+                    cursor=cursor,
+                    connection=conn,
+                    operation_id=operation_id,
+                    quantity_before=e['waga_systemowa'],
+                    quantity_after=e['waga_faktyczna'],
                 )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii korekty inwentaryzacyjnej")
 
             
             # 2. Mark session as APPLIED

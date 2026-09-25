@@ -43,6 +43,7 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_block.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
         ]
         mtimes = []
         for p in candidates:

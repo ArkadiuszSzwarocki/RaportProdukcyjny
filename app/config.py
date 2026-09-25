@@ -11,6 +11,9 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # Główny adres bazowy aplikacji dla linków w powiadomieniach e-mail
 APP_BASE_URL = os.getenv('APP_BASE_URL', 'https://raportprodukcji.mycloudnas.com').rstrip('/')
 
+# Zewnętrzny serwer logów (Watchdog Error Tracker) - None wyłącza wysyłanie logów
+WATCHDOG_URL = os.getenv('WATCHDOG_URL') or None
+
 # Dane do bazy - teraz pobierane bezpiecznie z .env
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),

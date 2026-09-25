@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from app.db import get_table_name
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 
 class ExternalDeliveryProcessor:
@@ -9,7 +10,8 @@ class ExternalDeliveryProcessor:
     def process_reception(
         cls, cursor, items: List[Dict[str, Any]], linia: str, supplier: str,
         order_ref: str, physical_insert_loc: str, printer_info: Dict[str, Any],
-        old_data: Dict[str, Any], old_items: List[Dict[str, Any]], login: str
+        old_data: Dict[str, Any], old_items: List[Dict[str, Any]], login: str,
+        connection=None, delivery_id: str | None = None,
     ) -> List[Dict[str, Any]]:
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
@@ -20,6 +22,7 @@ class ExternalDeliveryProcessor:
             for old_it in old_items:
                 old_pid = old_it.get('sourcePalletId')
                 if old_pid and old_pid not in new_pallet_ids and not old_it.get('accepted'):
+                    old_src = str(old_it.get('type') or old_it.get('palletType') or '').lower()
                     old_pkg = str(old_it.get('packageForm') or '').lower()
                     del_table = table_opk if old_src == 'opakowanie' or old_pkg in ('packaging', 'tasma', 'taśma', 'karton') or str(old_it.get('unit')).lower() == 'szt' else table_sur
                     try:
@@ -103,10 +106,18 @@ class ExternalDeliveryProcessor:
                 pallet_id = cursor.lastrowid
                 item['sourcePalletId'] = pallet_id
 
-                if nr_palety:
-                    cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
-                        (pallet_id, nr_palety, linia, pallet_type, 'DOSTAWA', physical_insert_loc, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
-                    )
+            if nr_palety:
+                operation_id = f"delivery:{delivery_id or order_ref}:item:{item.get('id')}:staging"
+                history_saved = MovementRecorder.record_movement(
+                    pallet_id, linia, pallet_type, 'DOSTAWA_PRZYJECIE',
+                    'DOSTAWA', physical_insert_loc,
+                    f"Rejestracja dostawy zewnętrznej z {supplier} - WZ: {order_ref}",
+                    login, nr_palety,
+                    cursor=cursor, connection=connection,
+                    operation_id=operation_id,
+                    quantity_before=0, quantity_after=qty,
+                )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii rejestracji dostawy")
 
         return items

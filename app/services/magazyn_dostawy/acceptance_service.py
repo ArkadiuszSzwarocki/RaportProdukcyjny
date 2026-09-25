@@ -7,6 +7,7 @@ from app.utils.pallet_id import generate_pallet_id
 from app.utils.location_validator import validate_warehouse_location, is_production_tank_code, normalize_warehouse_location
 
 from app.services.magazyn_dostawy.location_service import LocationService
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 class AcceptanceResult(tuple):
     def __new__(cls, success, message, open_report_url=None, plan_id=None, is_last_pallet=False):
@@ -248,18 +249,22 @@ class AcceptanceService:
                         if p_type == 'wyrob_gotowy':
                             cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (source_spot, product_name))
                 
-                    cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE_PRZESUNIECIE', %s, %s, %s)",
-                        (None, linia, p_type, source_spot, f"Wydanie do przesunięcia: {product_name} -> {lokalizacja}", login)
-                    )
-
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
                 comment_text = f"Przyjęcie zwrotu z produkcji: {product_name} na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}"
-                cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (pallet_id, nr_palety, linia, p_type, action_name, source_spot or 'OCZEKUJACE', lokalizacja, comment_text, login)
+                operation_id = f"delivery:{dostawa_id}:item:{item_id}:accept"
+                history_saved = MovementRecorder.record_movement(
+                    pallet_id, linia, p_type, action_name,
+                    source_spot or 'OCZEKUJACE', lokalizacja, comment_text, login,
+                    nr_palety,
+                    cursor=cursor,
+                    connection=conn,
+                    event_id=str(uuid.uuid5(uuid.NAMESPACE_URL, operation_id)),
+                    operation_id=operation_id,
+                    quantity_after=qty,
                 )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii przyjęcia palety")
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
                 new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'

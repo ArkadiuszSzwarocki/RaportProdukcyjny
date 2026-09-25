@@ -6,6 +6,7 @@ from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
 from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
 from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
 from app.services.magazyn_dostawy.location_service import LocationService
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 from app.utils.pallet_label import prepare_pallet_label_data
 from app.utils.pallet_id import generate_pallet_id
 from ..config import (
@@ -377,14 +378,27 @@ def api_workflow_etykiety(dostawa_id):
 
             nr_p = it.get('nr_palety')
             if nr_p:
-                cursor.execute(
-                    "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PZ_STREFA_PRZYJEC', %s, %s, %s, %s)",
-                    (nr_p, linia, p_type, 'DOSTAWA', strefa, f"Przyjęcie z dostawy do strefy przyjęć: {strefa}", login)
+                source_pallet_id = it.get('sourcePalletId')
+                target_table = get_table_name('magazyn_opakowania' if p_type == 'opakowanie' else 'magazyn_surowce', linia)
+                qty = float(it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0)
+                if source_pallet_id:
+                    cursor.execute(
+                        f"UPDATE {target_table} SET nr_palety = %s, lokalizacja = %s WHERE id = %s",
+                        (nr_p, strefa, source_pallet_id),
+                    )
+
+                operation_id = f"delivery:{dostawa_id}:item:{it.get('id')}:label"
+                history_saved = MovementRecorder.record_movement(
+                    source_pallet_id, linia, p_type, 'PZ_STREFA_PRZYJEC',
+                    'RAMPA', strefa,
+                    f"Nadanie SSCC i przyjęcie do strefy: {strefa}",
+                    login, nr_p,
+                    cursor=cursor, connection=conn,
+                    operation_id=operation_id,
+                    quantity_before=qty, quantity_after=qty,
                 )
-                cursor.execute(
-                    "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'SSCC_NADANIE', %s, %s, %s, %s)",
-                    (nr_p, linia, p_type, strefa, strefa, f"Nadanie SSCC: {nr_p}, strefa: {strefa}", login)
-                )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii nadania SSCC")
 
         cursor.execute("""
             UPDATE magazyn_dostawy

@@ -74,7 +74,8 @@ class OsipTransferService:
                         (self.IN_TRANSIT_LOCATION, nr_palety)
                     )
 
-                MovementRecorder.record_movement(
+                item_id = item.get("id")
+                history_saved = MovementRecorder.record_movement(
                     paleta_id=pallet_id,
                     linia="OSIP",
                     typ_palety="surowiec",
@@ -83,8 +84,13 @@ class OsipTransferService:
                     lokalizacja_docelowa=self.IN_TRANSIT_LOCATION,
                     komentarz=f"Załadunek transferu {transfer.transfer_code or transfer.id}: {transfer.source_warehouse} -> {self.IN_TRANSIT_LOCATION}",
                     user_login=user_login,
-                    nr_palety=nr_palety
+                    nr_palety=nr_palety,
+                    cursor=cursor,
+                    connection=conn,
+                    operation_id=f"osip-transfer:{transfer.id}:item:{item_id or nr_palety or pallet_id}:dispatch",
                 )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii wysyłki transferu OSIP")
 
             conn.commit()
         finally:
@@ -135,6 +141,23 @@ class OsipTransferService:
                         "UPDATE osip_transfer_items SET status = 'RECEIVED' WHERE id = %s",
                         (item_id,)
                     )
+
+                history_saved = MovementRecorder.record_movement(
+                    paleta_id=pallet_id,
+                    linia="OSIP",
+                    typ_palety="surowiec",
+                    akcja="PRZYJECIE",
+                    lokalizacja_zrodlowa=self.IN_TRANSIT_LOCATION,
+                    lokalizacja_docelowa=new_loc,
+                    komentarz=f"Przyjęcie transferu {transfer.transfer_code or transfer.id}: {self.IN_TRANSIT_LOCATION} -> {new_loc}",
+                    user_login=user_login,
+                    nr_palety=nr_palety,
+                    cursor=cursor,
+                    connection=conn,
+                    operation_id=f"osip-transfer:{transfer.id}:item:{item_id or nr_palety or pallet_id}:receive",
+                )
+                if not history_saved:
+                    raise RuntimeError("Nie udało się zapisać historii przyjęcia transferu OSIP")
 
             conn.commit()
         finally:
@@ -197,7 +220,7 @@ class OsipTransferService:
                 )
 
             src_history = transfer.source_warehouse if transfer.source_warehouse else 'CENTRALA'
-            MovementRecorder.record_movement(
+            history_saved = MovementRecorder.record_movement(
                 paleta_id=matched_pallet_id,
                 linia="OSIP",
                 typ_palety="surowiec",
@@ -206,8 +229,13 @@ class OsipTransferService:
                 lokalizacja_docelowa=target_loc,
                 komentarz=f"Przyjęcie z transferu {transfer.transfer_code or transfer.id}: {src_history} -> {target_loc}",
                 user_login=user_login,
-                nr_palety=matched_nr_palety
+                nr_palety=matched_nr_palety,
+                cursor=cursor,
+                connection=conn,
+                operation_id=f"osip-transfer:{transfer.id}:item:{matched_item_id or matched_nr_palety or matched_pallet_id}:receive",
             )
+            if not history_saved:
+                raise RuntimeError("Nie udało się zapisać historii przyjęcia palety OSIP")
 
             conn.commit()
         finally:

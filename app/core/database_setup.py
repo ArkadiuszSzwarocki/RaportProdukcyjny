@@ -283,15 +283,24 @@ def _create_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS palety_historia (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            event_id CHAR(36) NULL,
             paleta_id INT NULL,
+            nr_palety VARCHAR(100) NULL,
             linia VARCHAR(20) NOT NULL,
             typ_palety VARCHAR(50) DEFAULT 'wyrob_gotowy',
+            entity_type VARCHAR(50) NULL,
+            operation_id VARCHAR(100) NULL,
             akcja VARCHAR(50) NOT NULL,
             lokalizacja_zrodlowa VARCHAR(100) NULL,
             lokalizacja_docelowa VARCHAR(100) NULL,
+            quantity_before DECIMAL(14,3) NULL,
+            quantity_after DECIMAL(14,3) NULL,
             komentarz TEXT NULL,
             user_login VARCHAR(100) NULL,
-            data_ruchu DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_ruchu DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_palety_historia_event_id (event_id),
+            INDEX idx_ph_sscc_time (nr_palety, data_ruchu),
+            INDEX idx_ph_operation_id (operation_id)
         )
     """)
 
@@ -1565,6 +1574,47 @@ def _migrate_columns(cursor):
             print("[OK] Added column nr_palety and index to palety_historia")
     except Exception as e:
         print(f"[WARN] Failed to add column nr_palety to palety_historia: {e}")
+
+    # Traceability v2: stable event identity, unambiguous entity type and quantities.
+    _add_column_if_missing(cursor, "palety_historia", "event_id", "CHAR(36) NULL", "Dodawanie event_id do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "entity_type", "VARCHAR(50) NULL", "Dodawanie entity_type do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "operation_id", "VARCHAR(100) NULL", "Dodawanie operation_id do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "quantity_before", "DECIMAL(14,3) NULL", "Dodawanie quantity_before do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "quantity_after", "DECIMAL(14,3) NULL", "Dodawanie quantity_after do palety_historia")
+    try:
+        cursor.execute("UPDATE palety_historia SET event_id = UUID() WHERE event_id IS NULL OR event_id = ''")
+        cursor.execute("UPDATE palety_historia SET entity_type = typ_palety WHERE entity_type IS NULL OR entity_type = ''")
+        try:
+            cursor.execute("ALTER TABLE palety_historia MODIFY event_id CHAR(36) NOT NULL DEFAULT (UUID())")
+        except Exception as default_error:
+            print(f"[WARN] Database UUID default not supported: {default_error}")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'uq_palety_historia_event_id'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD UNIQUE INDEX uq_palety_historia_event_id (event_id)")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'idx_ph_sscc_time'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD INDEX idx_ph_sscc_time (nr_palety, data_ruchu)")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'idx_ph_operation_id'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD INDEX idx_ph_operation_id (operation_id)")
+        cursor.execute("""
+            SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
+            WHERE TRIGGER_SCHEMA = DATABASE()
+              AND TRIGGER_NAME = 'bi_palety_historia_trace'
+        """)
+        if not cursor.fetchone():
+            try:
+                cursor.execute("""
+                    CREATE TRIGGER bi_palety_historia_trace
+                    BEFORE INSERT ON palety_historia
+                    FOR EACH ROW
+                    SET NEW.event_id = COALESCE(NULLIF(NEW.event_id, ''), UUID()),
+                        NEW.entity_type = COALESCE(NULLIF(NEW.entity_type, ''), NEW.typ_palety)
+                """)
+            except Exception as trigger_error:
+                print(f"[WARN] Traceability trigger not installed: {trigger_error}")
+    except Exception as e:
+        print(f"[WARN] Failed to add traceability indexes to palety_historia: {e}")
 
     # Clean up any past bug reports ("Robaczek") from downtime tables for PSD line
     try:

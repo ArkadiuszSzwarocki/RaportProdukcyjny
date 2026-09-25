@@ -1,46 +1,50 @@
-<!-- MODAL: Pełna historia ruchów palety (Dedykowany Popup) -->
+<!-- MODAL: Czytelna oś czasu palety -->
 <div id="palletFullHistoryModal" class="modal-premium-overlay" style="display: none; z-index: 2200;">
-    <div class="modal-premium-content" style="max-width: 860px; width: 95%; max-height: 85vh; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
-        <div class="modal-premium-header" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #ffffff; padding: 16px 24px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: rgba(99, 102, 241, 0.2); border-radius: 10px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                    <span class="material-icons" style="color: #818cf8; font-size: 24px;">history</span>
+    <div class="modal-premium-content pallet-history-modal" role="dialog" aria-modal="true" aria-labelledby="palletHistoryModalTitle">
+        <div class="modal-premium-header pallet-history-header">
+            <div class="pallet-history-heading">
+                <div class="pallet-history-heading-icon" aria-hidden="true">
+                    <span class="material-icons">history</span>
                 </div>
                 <div>
-                    <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #f8fafc; letter-spacing: -0.02em;">Historia Ruchów Palety</h3>
-                    <div id="palletHistoryModalSubtitle" style="font-size: 12px; color: #94a3b8; margin-top: 2px; font-family: monospace; font-weight: 600;"></div>
+                    <h3 id="palletHistoryModalTitle">Historia palety</h3>
+                    <div id="palletHistoryModalSubtitle" class="pallet-history-subtitle"></div>
                 </div>
             </div>
-            <button type="button" onclick="closePalletHistoryModal()" class="modal-premium-close" style="background: rgba(255,255,255,0.1); border: none; border-radius: 8px; width: 34px; height: 34px; font-size: 20px; cursor: pointer; color: #cbd5e1; display: flex; align-items: center; justify-content: center; transition: background 0.2s;">&times;</button>
+            <button type="button" onclick="closePalletHistoryModal()" class="modal-premium-close" title="Zamknij" aria-label="Zamknij historię">&times;</button>
         </div>
-        <div class="modal-premium-body" style="padding: 20px 24px; overflow-y: auto; flex: 1; background: #ffffff;">
-            <div id="palletHistoryLoading" style="text-align: center; padding: 40px; color: #64748b;">
-                <span class="material-icons spinning" style="font-size: 32px; color: #6366f1; vertical-align: middle; margin-bottom: 10px; display: block;">sync</span>
-                <span style="font-weight: 600;">Pobieranie pełnej historii ruchów i przyjęć...</span>
+
+        <div class="modal-premium-body pallet-history-body">
+            <section class="pallet-history-summary" aria-label="Aktualny stan palety">
+                <div class="pallet-history-summary-item">
+                    <span>Aktualna lokalizacja</span>
+                    <strong id="palletHistoryCurrentLocation">—</strong>
+                </div>
+                <div class="pallet-history-summary-item">
+                    <span>Stan palety</span>
+                    <strong id="palletHistoryCurrentAmount">—</strong>
+                </div>
+                <div class="pallet-history-summary-item">
+                    <span>Liczba zdarzeń</span>
+                    <strong id="palletHistoryEventCount">—</strong>
+                </div>
+            </section>
+
+            <div id="palletHistoryLoading" class="pallet-history-state">
+                <span class="material-icons spinning" aria-hidden="true">sync</span>
+                <span>Pobieranie historii palety…</span>
             </div>
-            <div id="palletHistoryEmpty" style="display: none; text-align: center; padding: 40px; color: #94a3b8;">
-                <span class="material-icons" style="font-size: 44px; color: #cbd5e1; display: block; margin-bottom: 10px;">inventory_2</span>
-                <div style="font-weight: 700; font-size: 16px; color: #475569;">Brak historii dla tej palety</div>
-                <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Nie zarejestrowano jeszcze żadnych przesunięć ani zmian statusu.</div>
+            <div id="palletHistoryEmpty" class="pallet-history-state" style="display: none;">
+                <span class="material-icons" aria-hidden="true">inventory_2</span>
+                <strong>Brak historii dla tej palety</strong>
+                <span>Nie zarejestrowano jeszcze żadnych przesunięć ani zmian statusu.</span>
             </div>
-            <div id="palletHistoryTableContainer" style="display: none;">
-                <table class="modern-table small" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px;">
-                    <thead>
-                        <tr style="background: #f8fafc;">
-                            <th style="padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-weight: 700; color: #475569;">Data</th>
-                            <th style="padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-weight: 700; color: #475569;">Typ operacji</th>
-                            <th style="padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-weight: 700; color: #475569;">Przebieg (Skąd &rarr; Dokąd)</th>
-                            <th style="padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-weight: 700; color: #475569;">Komentarz / Szczegóły</th>
-                            <th style="padding: 10px 12px; border-bottom: 2px solid #e2e8f0; font-weight: 700; color: #475569;">Użytkownik</th>
-                        </tr>
-                    </thead>
-                    <tbody id="palletHistoryTableBody">
-                    </tbody>
-                </table>
-            </div>
+            <div id="palletHistoryTimeline" class="pallet-history-timeline" style="display: none;"></div>
         </div>
-        <div style="padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; background: #f8fafc;">
-            <button type="button" onclick="closePalletHistoryModal()" class="btn-modal-action btn-modal-dark" style="padding: 8px 24px; font-size: 13px; font-weight: 700; border-radius: 8px;">Zamknij</button>
+
+        <div class="pallet-history-footer">
+            <span>Najnowsze zdarzenia są wyświetlane na górze.</span>
+            <button type="button" onclick="closePalletHistoryModal()" class="btn-modal-action btn-modal-dark">Zamknij</button>
         </div>
     </div>
 </div>

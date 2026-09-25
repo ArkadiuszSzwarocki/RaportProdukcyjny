@@ -19,7 +19,7 @@ from app.decorators import login_required
 def register_api_runtime_routes(api_bp):
     @api_bp.route('/log_frontend_error', methods=['POST'])
     def log_frontend_error():
-        """Receive and log JavaScript errors from the frontend."""
+        """Receive and log JavaScript errors from the frontend, forwarding to Watchdog."""
         try:
             data = request.get_json() or {}
             error_msg = data.get('message', 'Unknown JS Error')
@@ -27,12 +27,33 @@ def register_api_runtime_routes(api_bp):
             url = data.get('url', '')
             user = session.get('login', 'unauthenticated')
 
-            frontend_logger = logging.getLogger('frontend_errors')
-            frontend_logger.error(f'JS ERROR: {error_msg} | URL: {url} | User: {user}\nStack: {stack}')
+            from app.services.watchdog_service import WatchdogService
+            WatchdogService.send_error(
+                error_type='Frontend JS Error',
+                details=f"{error_msg} | User: {user} | URL: {url}\n{stack}",
+                file_path=str(data.get('url', '')),
+                line_num=str(data.get('line', ''))
+            )
             return jsonify({'success': True}), 200
-        except Exception as error:
-            current_app.logger.error('Error in JS error trap: %s', error)
-            return jsonify({'success': False}), 500
+        except Exception:
+            return jsonify({'success': False}), 200
+
+    @api_bp.route('/watchdog/log', methods=['POST'])
+    def log_watchdog_error():
+        """Proxy client-side watchdog error reports to avoid HTTPS mixed-content and CORS blocks."""
+        try:
+            data = request.get_json(silent=True) or {}
+            from app.services.watchdog_service import WatchdogService
+            WatchdogService.send_log(
+                app_name=data.get('app_name', 'RaportProdukcyjny'),
+                error_type=data.get('error_type', 'Frontend Error'),
+                details=data.get('details', 'No details'),
+                file_path=str(data.get('file_path', '')),
+                line_num=str(data.get('line_num', ''))
+            )
+            return jsonify({'status': 'accepted'}), 202
+        except Exception:
+            return jsonify({'status': 'accepted'}), 202
 
     @api_bp.route('/set_language', methods=['GET', 'POST'])
     def set_language():

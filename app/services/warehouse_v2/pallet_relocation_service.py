@@ -9,6 +9,7 @@ from app.utils.location_validator import (
     validate_centrala_osip_move
 )
 from app.utils.pallet_id import generate_pallet_id
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 class PalletRelocationService:
     @staticmethod
@@ -248,6 +249,8 @@ class PalletRelocationService:
                     (surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, lokalizacja, status, autor_login, autor_data, komentarz) 
                     VALUES (%s, %s, %s, %s, %s, %s, 'POTWIERDZONE', %s, %s, %s)
                 """, (new_pallet_id, mat_name, typ_ruchu_log, moved_qty, moved_qty, new_location, worker_login, datetime.now(), komentarz_ruch))
+                movement_id = cursor.lastrowid
+                operation_id = f"{table_ruch}:{movement_id}"
 
                 if not mother_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(mother_sscc), re.IGNORECASE):
                     mother_sscc = generate_pallet_id(linia, pallet_type)
@@ -255,81 +258,39 @@ class PalletRelocationService:
                 now_dt = datetime.now()
 
                 if is_split:
-                    cur_h = conn.cursor(dictionary=True)
-                    cur_h.execute("""
-                        SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu
-                        FROM palety_historia
-                        WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
-                        ORDER BY data_ruchu ASC, id ASC
-                    """, (real_pallet_id, mother_sscc))
-                    for h in cur_h.fetchall() or []:
-                        cursor.execute("""
-                            INSERT INTO palety_historia
-                            (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            new_pallet_id,
-                            target_pallet_sscc,
-                            h.get('linia') or linia,
-                            h.get('typ_palety') or pallet_type.lower(),
-                            h.get('akcja'),
-                            h.get('lokalizacja_zrodlowa'),
-                            h.get('lokalizacja_docelowa'),
-                            h.get('komentarz'),
-                            h.get('user_login'),
-                            h.get('data_ruchu') or now_dt
-                        ))
-
-                    cursor.execute("""
-                        INSERT INTO palety_historia
-                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        new_pallet_id,
-                        target_pallet_sscc,
-                        linia,
-                        pallet_type.lower(),
-                        typ_ruchu_log if is_lp01 else 'PODZIAL_PALETY',
-                        old_loc,
-                        new_location,
+                    # Do not clone the mother's history. The child gets a single lineage
+                    # event; older events remain attached exclusively to the mother SSCC.
+                    child_saved = MovementRecorder.record_movement(
+                        new_pallet_id, linia, pallet_type, 'UTWORZENIE_Z_PODZIALU',
+                        old_loc, new_location,
                         f"Utworzono z podziału palety matki {mother_sscc} (odcięto {amount_to_move}). " + (f"Wydano na maszynę LP01" if is_lp01 else f"Przeniesiono na {new_location}"),
-                        worker_login,
-                        now_dt
-                    ))
-
-                    cursor.execute("""
-                        INSERT INTO palety_historia
-                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
-                        VALUES (%s, %s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s, %s)
-                    """, (
-                        real_pallet_id,
-                        mother_sscc,
-                        linia,
-                        pallet_type.lower(),
-                        old_loc,
-                        old_loc,
+                        worker_login, target_pallet_sscc,
+                        cursor=cursor, connection=conn, operation_id=operation_id,
+                        quantity_before=0, quantity_after=amount_to_move, occurred_at=now_dt,
+                    )
+                    mother_saved = MovementRecorder.record_movement(
+                        real_pallet_id, linia, pallet_type, 'PODZIAL_ODJECIE',
+                        old_loc, old_loc,
                         f"Odcięto {amount_to_move} podczas podziału palety do nowej palety {target_pallet_sscc}" + (f" (Wydanie na maszynę LP01)" if is_lp01 else ""),
-                        worker_login,
-                        now_dt
-                    ))
+                        worker_login, mother_sscc,
+                        cursor=cursor, connection=conn, operation_id=operation_id,
+                        quantity_before=qty, quantity_after=qty - amount_to_move, occurred_at=now_dt,
+                    )
+                    if not child_saved or not mother_saved:
+                        raise RuntimeError("Nie udało się zapisać historii podziału palety")
                 else:
-                    cursor.execute("""
-                        INSERT INTO palety_historia
-                        (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        new_pallet_id,
-                        target_pallet_sscc,
-                        linia,
-                        pallet_type.lower(),
-                        typ_ruchu_log,
-                        old_loc,
-                        new_location,
+                    history_saved = MovementRecorder.record_movement(
+                        new_pallet_id, linia, pallet_type, typ_ruchu_log,
+                        old_loc, new_location,
                         komentarz_lp01 if is_lp01 else f"Przesunięcie z {old_loc or 'Brak'} do {new_location}",
-                        worker_login
-                    ))
+                        worker_login, target_pallet_sscc,
+                        cursor=cursor, connection=conn, operation_id=operation_id,
+                        quantity_before=qty, quantity_after=qty, occurred_at=now_dt,
+                    )
+                    if not history_saved:
+                        raise RuntimeError("Nie udało się zapisać historii przesunięcia palety")
             except Exception as e:
-                print("Błąd zapisu ruchu:", e)
+                raise RuntimeError(f"Błąd zapisu ruchu: {e}") from e
 
             # Auto-accept in pending deliveries
             if nr_palety:

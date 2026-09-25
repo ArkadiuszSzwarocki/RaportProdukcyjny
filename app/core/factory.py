@@ -189,9 +189,9 @@ def create_app(config_secret_key=None, init_db=True):
         )
         
         if is_reloader_parent:
-            app.logger.info('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
+            app.logger.debug('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
         else:
-            app.logger.info('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
+            app.logger.debug('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
             start_daemon_threads(app, cleanup_enabled=True)
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')
