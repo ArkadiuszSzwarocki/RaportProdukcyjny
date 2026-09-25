@@ -201,6 +201,8 @@ class ScannerLocationQueryService:
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
+            results = []
+            normalized_for_lookup = str(location_code).upper()
 
             inventory_sources = [
                 ('magazyn_surowce', 'stan_magazynowy', 'Surowiec', 'SUR', True, True, True),
