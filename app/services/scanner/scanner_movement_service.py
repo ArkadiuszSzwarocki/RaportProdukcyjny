@@ -154,6 +154,7 @@ class ScannerMovementService:
         nowa_lokalizacja: str,
         worker_login: str,
         linia: str = 'Agro',
+        pallet_type: str = 'Surowiec',
     ) -> tuple[bool, str]:
         """Przenosi paletę na nową lokalizację i zapisuje historię w magazyn_ruch."""
         nowa_lokalizacja = str(nowa_lokalizacja or '').strip().upper()

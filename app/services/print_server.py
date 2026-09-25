@@ -719,7 +719,7 @@ class PrintServer:
         # Jeśli drukarka to USB / Windows Spooler, próba win32print na maszynach Windows
         if os.name == 'nt' and (str(target_ip).strip().upper() == 'USB' or (target_name and 'usb' in str(target_name).lower())):
             try:
-                import win32print
+                import win32print  # pylint: disable=import-error
                 win_target = target_name if (target_name and target_name.upper() != 'USB') else win32print.GetDefaultPrinter()
                 hprinter = win32print.OpenPrinter(win_target)
                 try:

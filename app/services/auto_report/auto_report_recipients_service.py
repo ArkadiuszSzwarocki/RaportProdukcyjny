@@ -57,10 +57,8 @@ class AutoReportRecipientsService:
         try:
             from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
             wh_settings = OsipEmailSettingsRepository().get_settings()
-            if wh_settings and wh_settings.recipient_emails:
-                parsed = [e.strip() for e in wh_settings.recipient_emails.replace(';', ',').split(',') if e.strip()]
-                if parsed:
-                    return parsed
+            if wh_settings and wh_settings.recipients_list:
+                return wh_settings.recipients_list
         except Exception:
             pass
 

@@ -25,6 +25,10 @@ class OsipEmailSettingsModel:
     updated_at: Optional[datetime] = None
 
     @property
+    def recipient_emails(self) -> str:
+        return self.odbiorcy or ""
+
+    @property
     def recipients_list(self) -> List[str]:
         """Zwraca sparsowaną listę unikalnych adresów e-mail odbiorców."""
         if not self.odbiorcy:

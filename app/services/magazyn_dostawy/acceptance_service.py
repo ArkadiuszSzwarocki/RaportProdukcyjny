@@ -22,6 +22,7 @@ class AcceptanceResult(tuple):
 
 class AcceptanceService:
 
+    @staticmethod
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
             def _clean_date(d_str):
                 if not d_str: return None
@@ -336,6 +337,7 @@ class AcceptanceService:
             finally:
                 conn.close()
 
+    @staticmethod
     def auto_accept_by_pallet_no(nr_palety, nowa_lokalizacja, login):
             if not nr_palety: return
             conn = get_db_connection()
@@ -364,6 +366,7 @@ class AcceptanceService:
             finally:
                 conn.close()
 
+    @staticmethod
     def reject_item(dostawa_id, item_id, reason='', login='system'):
             conn = get_db_connection()
             try:
@@ -490,6 +493,7 @@ class AcceptanceService:
             finally:
                 conn.close()
 
+    @staticmethod
     def accept_production_pallet(pallet_id, lokalizacja, linia='PSD', login='system', confirmed_weight=None):
             """Moves a production pallet (WG) from 'do_przyjecia' to warehouse inventory with robust cross-line detection."""
             conn = get_db_connection()

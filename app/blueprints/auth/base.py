@@ -2,7 +2,7 @@
 Handles login, logout, and user-specific interface settings (e.g., bug icon acknowledgment).
 """
 
-from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app, url_for
 from datetime import datetime
 import time
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -289,7 +289,6 @@ def login():
             conn = get_db_connection(retries=1)
             cursor = conn.cursor()
         except Exception as e:
-            from flask import current_app
             current_app.logger.error("Błąd połączenia z bazą danych podczas logowania: %s", e)
             flash("Błąd połączenia z bazą danych! Sprawdź plik .env lub sieć.", 'danger')
             return redirect('/login')
@@ -412,7 +411,6 @@ def login():
         return redirect(target)
     
     try:
-        import time
         t0 = time.time()
         html = render_template('login.html')
         t1 = time.time()

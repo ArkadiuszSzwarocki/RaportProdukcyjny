@@ -354,7 +354,7 @@ class ProductionService:
                     for erow in cursor.fetchall() or []:
                         emptied_zasypy.add((erow[0], erow[1]))
                 except Exception:
-                    logger.debug('Failed to fetch emptied_zasypy for dashboard', exc_info=True)
+                    _logger.debug('Failed to fetch emptied_zasypy for dashboard', exc_info=True)
 
                 cursor.execute(
                     f"""

@@ -55,6 +55,11 @@ class ScannerService:
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
         return ScannerResolutionService.lookup_by_location(location_code, linia, try_all_lines)
 
+    @staticmethod
+    def lookup_scanned_code(scanned_code: str, linia: str = 'Agro') -> dict | None:
+        """Alias resolving scanned barcode or SSCC."""
+        return ScannerResolutionService.lookup_by_location(scanned_code, linia=linia)
+
     # Movement & Dispatch delegates
     @staticmethod
     def dispatch_to_production(

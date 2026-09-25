@@ -211,6 +211,7 @@ class PalletRelocationService:
                 else:
                     cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, real_pallet_id))
                 new_pallet_id = real_pallet_id
+                moved_qty = qty
                 mother_sscc = nr_palety
             else:
                 new_qty_old = qty - amount_to_move

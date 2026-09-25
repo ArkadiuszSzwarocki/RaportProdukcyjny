@@ -13,6 +13,7 @@ class LocationService:
         'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD'
     ]
 
+    @staticmethod
     def check_location(lokalizacja, linia='PSD'):
             if any(str(lokalizacja or '').upper().startswith(ol) for ol in LocationService.OPEN_LOCATIONS_PREFIXES):
                 return False, "", [] # Always free for open locations
@@ -58,6 +59,7 @@ class LocationService:
 
         return True, "Lokalizacja dostępna."
 
+    @staticmethod
     def get_location_suggestions(prefix, linia='PSD', only_free_for_racks=True, limit=40):
             prefix_normalized = LocationService._normalize_location_code(prefix)
             if not prefix_normalized:
@@ -89,12 +91,15 @@ class LocationService:
             matched.sort(key=lambda value: (0, *LocationService._rack_sort_key(value)) if LocationService._is_rack_location_code(value) else (1, value))
             return matched[:safe_limit]
 
+    @staticmethod
     def _normalize_location_code(value):
             return str(value or '').strip().upper().replace('_', '').replace('-', '').replace(' ', '')
 
+    @staticmethod
     def _is_rack_location_code(value):
             return bool(re.match(r'^R0[1-9]\d{4}$', LocationService._normalize_location_code(value)))
 
+    @staticmethod
     def _rack_sort_key(location_code):
             normalized = LocationService._normalize_location_code(location_code)
             match = re.match(r'^R(\d{2})(\d{2})(\d{2})$', normalized)
@@ -102,6 +107,7 @@ class LocationService:
                 return (999, 999, 999)
             return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
+    @staticmethod
     def _build_static_location_candidates():
             candidates = {
                 'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
@@ -139,6 +145,7 @@ class LocationService:
 
             return candidates
 
+    @staticmethod
     def _append_locations_from_query(cursor, query, params, target_set):
             try:
                 cursor.execute(query, params)
@@ -151,6 +158,7 @@ class LocationService:
                 if location:
                     target_set.add(location)
 
+    @staticmethod
     def _load_db_location_sets(linia='PSD'):
             normalized_line = str(linia or 'PSD').upper()
             all_locations = set()
@@ -187,6 +195,7 @@ class LocationService:
 
             return all_locations, occupied_locations
 
+    @staticmethod
     def _derive_target_zone(location):
             normalized = LocationService._normalize_location_code(location)
             if not normalized:

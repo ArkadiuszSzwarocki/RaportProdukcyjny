@@ -166,6 +166,7 @@ class PalletConfirmationService:
         force_accept_request = False
         status_updated = False
         error_message = None
+        printed_msg = None
 
         conn = get_db_connection()
         try:
@@ -441,7 +442,7 @@ class PalletConfirmationService:
         try:
             if is_ajax:
                 response_data = {'success': True, 'paleta_id': paleta_id}
-                if 'printed_msg' in locals() and printed_msg:
+                if printed_msg:
                     response_data['message'] = printed_msg
                 if has_weight_difference and not force_accept_request:
                     response_data['has_difference'] = True
