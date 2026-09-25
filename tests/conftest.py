@@ -83,6 +83,32 @@ def init_test_database():
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS magazyn_archiwum (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    original_id INT NULL,
+                    nr_palety VARCHAR(50) NULL,
+                    nazwa VARCHAR(255) NULL,
+                    typ_palety VARCHAR(50) NULL,
+                    linia VARCHAR(10) NULL,
+                    nr_partii VARCHAR(100) NULL,
+                    waga_ostatnia FLOAT NULL,
+                    lokalizacja_ostatnia VARCHAR(100) NULL,
+                    data_archiwizacji DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    user_login VARCHAR(100) NULL,
+                    komentarz TEXT NULL,
+                    INDEX idx_ma_nr_palety (nr_palety),
+                    INDEX idx_ma_original_id (original_id)
+                )
+            """)
+
+            common_surowce = [
+                'Lactose', 'Laktoza', 'Serwatka', 'Cukier', 'Glukoza', 'Mleko w proszku',
+                'WPC80', 'WPC35', 'Kazeina', 'Permeat'
+            ]
+            for s_name in common_surowce:
+                cursor.execute("INSERT IGNORE INTO slownik_surowcow (nazwa) VALUES (%s)", (s_name,))
+
             test_users = [
                 ('GontaArt', 'Artur2026', 'magazynier', 'OSIP'),
                 ('admin', 'admin123', 'admin', 'ALL'),

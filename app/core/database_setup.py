@@ -280,7 +280,21 @@ def _create_tables(cursor):
     except Exception:
         pass
     
-    cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dziennik_zmiany (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_wpisu DATE,
+            sekcja VARCHAR(50),
+            problem TEXT,
+            czas_start DATETIME,
+            czas_stop DATETIME,
+            status VARCHAR(30) DEFAULT 'zgłoszone',
+            kategoria VARCHAR(50),
+            pracownik_id INT,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            data_zakonczenia DATETIME NULL
+        )
+    """)
 
     # Tabela historii ruchów palet (traceability)
     cursor.execute("""
@@ -379,6 +393,25 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_archiwum (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            original_id INT NULL,
+            nr_palety VARCHAR(50) NULL,
+            nazwa VARCHAR(255) NULL,
+            typ_palety VARCHAR(50) NULL,
+            linia VARCHAR(10) NULL,
+            nr_partii VARCHAR(100) NULL,
+            waga_ostatnia FLOAT NULL,
+            lokalizacja_ostatnia VARCHAR(100) NULL,
+            data_archiwizacji DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_login VARCHAR(100) NULL,
+            komentarz TEXT NULL,
+            INDEX idx_ma_nr_palety (nr_palety),
+            INDEX idx_ma_original_id (original_id)
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
             id INT AUTO_INCREMENT PRIMARY KEY,
             kod_wiadra VARCHAR(50),
@@ -467,6 +500,8 @@ def _create_tables(cursor):
             szarza_id INT NULL,
             nazwa VARCHAR(255) NOT NULL,
             kg FLOAT NOT NULL,
+            kg_wydozowane FLOAT NULL,
+            kg_planowane FLOAT NULL,
             data_zlecenia DATETIME DEFAULT CURRENT_TIMESTAMP,
             pracownik_id INT NULL,
             potwierdzone BOOLEAN DEFAULT 0,
@@ -1206,9 +1241,13 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
     _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "kg_wydozowane", "FLOAT NULL", "Dodawanie kolumny 'kg_wydozowane' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "kg_planowane", "FLOAT NULL", "Dodawanie kolumny 'kg_planowane' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowana", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'anulowana' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "data_anulowania", "DATETIME NULL", "Dodawanie kolumny 'data_anulowania' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowal_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'anulowal_login' do dosypek")
+    _add_column_if_missing(cursor, "dziennik_zmiany", "linia", "VARCHAR(20) DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do dziennik_zmiany")
+    _add_column_if_missing(cursor, "dziennik_zmiany", "data_zakonczenia", "DATETIME NULL", "Dodawanie kolumny 'data_zakonczenia' do dziennik_zmiany")
     
     # szarze columns
     _add_column_if_missing(cursor, "szarze", "nr_szarzy", "INT NULL", "Dodawanie kolumny 'nr_szarzy' do szarze")

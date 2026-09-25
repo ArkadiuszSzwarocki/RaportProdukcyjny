@@ -84,6 +84,9 @@ def is_valid_surowiec(name):
 
     clean = str(name).strip().lower()
     raw_names, norm_names = _load_dictionary_names()
+    if not raw_names:
+        return True
+
     if clean in raw_names:
         return True
 
