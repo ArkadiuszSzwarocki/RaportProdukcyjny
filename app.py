@@ -92,14 +92,16 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', '8082'))
 
     # SSL configuration
-    cert_path = os.path.join('certs', 'cert.pem')
-    key_path = os.path.join('certs', 'key.pem')
+    cert_path = os.environ.get('TLS_CERT_FILE', '')
+    key_path = os.environ.get('TLS_KEY_FILE', '')
     ssl_context = None
     protocol = "http"
 
     use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
 
-    if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
+    if use_ssl and (not cert_path or not key_path or not os.path.isfile(cert_path) or not os.path.isfile(key_path)):
+        raise RuntimeError('USE_SSL=true wymaga poprawnych TLS_CERT_FILE i TLS_KEY_FILE poza repozytorium.')
+    if use_ssl:
         ssl_context = (cert_path, key_path)
         protocol = "https"
         app.config['PREFERRED_URL_SCHEME'] = 'https'

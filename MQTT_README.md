@@ -187,7 +187,7 @@ Sygnał Owijarki: iot-2/type/cMT2108X2/id/agroOwijarka/send
 Host:     4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:     8883 (TLS/SSL)
 User:     Lstech
-Pass:     Lstech123
+Pass:     CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 
 ---
@@ -262,7 +262,7 @@ Wszystkie ustawienia MQTT w pliku `.env`:
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 
 # Topicy do subskrypcji (domyślnie wszystkie)
 MQTT_SUBSCRIBE_TOPICS=#

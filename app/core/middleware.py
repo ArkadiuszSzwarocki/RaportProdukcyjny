@@ -184,6 +184,14 @@ def add_security_headers(app):
             response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             response.headers['X-XSS-Protection'] = '1; mode=block'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; "
+                "connect-src 'self' wss: https:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+            )
+            if request.is_secure or current_app.config.get('PREFERRED_URL_SCHEME') == 'https':
+                response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         except Exception:
             pass
         return response

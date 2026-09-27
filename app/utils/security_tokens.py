@@ -9,7 +9,9 @@ from flask import current_app
 
 def generate_internal_print_token(endpoint: str, expires_in_sec: int = 60) -> str:
     """Generate a cryptographic HMAC token for internal headless print rendering."""
-    secret = current_app.secret_key or 'default-internal-secret'
+    secret = current_app.secret_key
+    if not secret:
+        raise RuntimeError('Brak skonfigurowanego SECRET_KEY dla tokenu wewnętrznego.')
     if isinstance(secret, str):
         secret = secret.encode('utf-8')
     expires_at = int(time.time()) + expires_in_sec
@@ -28,7 +30,9 @@ def verify_internal_print_token(endpoint: str, token: str) -> bool:
         if time.time() > expires_at:
             return False
 
-        secret = current_app.secret_key or 'default-internal-secret'
+        secret = current_app.secret_key
+        if not secret:
+            return False
         if isinstance(secret, str):
             secret = secret.encode('utf-8')
         data = f"{endpoint}:{expires_at}".encode('utf-8')

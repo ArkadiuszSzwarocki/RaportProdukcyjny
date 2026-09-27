@@ -39,18 +39,19 @@ def check_imports():
         return 1
 
 def check_ssl():
-    """Checks for SSL certificates and reports status with requested wording."""
+    """Checks whether TLS paths are configured outside the repository."""
     print("\n--- Sprawdzanie certyfikatów SSL ---")
-    root = Path(__file__).parent.parent
-    cert = root / 'certs' / 'cert.pem'
-    key = root / 'certs' / 'key.pem'
+    cert_value = os.environ.get('TLS_CERT_FILE', '')
+    key_value = os.environ.get('TLS_KEY_FILE', '')
+    cert = Path(cert_value) if cert_value else None
+    key = Path(key_value) if key_value else None
     
-    if cert.exists() and key.exists():
-        print("[OK] Certyfikaty SSL są obecne - możliwe uruchomienie w trybie HTTPS.")
+    if cert and key and cert.exists() and key.exists():
+        print("[OK] Certyfikat i klucz TLS są dostępne poza repozytorium.")
         return 0
     else:
-        print("[OSTRZEŻENIE] [SSL] BRAK certyfikatów - uruchomiono w trybie nieszyfrowanym (http)")
-        return 0 # Still 0 because it's a valid mode, but the wording matches user request
+        print("[OSTRZEŻENIE] [SSL] Brak TLS_CERT_FILE/TLS_KEY_FILE; HTTPS nie zostanie uruchomiony.")
+        return 0
 
 def check_error_logs():
     """Checks recent lines of error.log and prints warnings/errors if present."""

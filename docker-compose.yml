@@ -12,7 +12,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       TZ: ${TZ:-Europe/Warsaw}
     ports:
-      - "${DB_PORT:-3306}:3306"
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./db-init:/docker-entrypoint-initdb.d
@@ -30,7 +30,8 @@ services:
     container_name: raportprodukcyjny_app
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: ${DB_USER:?DB_USER is required}
@@ -42,13 +43,17 @@ services:
       HOST: 0.0.0.0
       PRINTER_BRIDGE_URL: "${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}"
       PRINTER_CLIENT_BRIDGE_URL: "${PRINTER_CLIENT_BRIDGE_URL:-}"
-      USE_SSL: "${USE_SSL:-true}"
+      USE_SSL: "${USE_SSL:?USE_SSL is required}"
+      TLS_CERT_FILE: /run/secrets/tls-cert.pem
+      TLS_KEY_FILE: /run/secrets/tls-key.pem
     ports:
       - "5005:8082"  # [Port QNAP-a]:[Port aplikacji webowej w kontenerze]
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
       - ./config:/app/config
+      - "${TLS_CERT_HOST_PATH:?TLS_CERT_HOST_PATH is required}:/run/secrets/tls-cert.pem:ro"
+      - "${TLS_KEY_HOST_PATH:?TLS_KEY_HOST_PATH is required}:/run/secrets/tls-key.pem:ro"
     depends_on:
       db:
         condition: service_healthy

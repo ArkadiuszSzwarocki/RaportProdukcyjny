@@ -48,6 +48,14 @@ def api_lookup_pallet():
             'message': f'Nie znaleziono aktywnej palety dla kodu: "{code}". Paleta mogła zostać już wydana lub zarchiwizowana.'
         }), 404
 
+    if pallet.get('duplicate_sscc'):
+        return jsonify({
+            'success': False,
+            'duplicate_sscc': True,
+            'message': f'BŁĄD integralności danych: SSCC "{code}" występuje w więcej niż jednym magazynie. Wydanie zablokowane.',
+            'matches': pallet.get('matches', []),
+        }), 409
+
     return jsonify({
         'success': True,
         'pallet': pallet

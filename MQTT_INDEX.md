@@ -130,7 +130,7 @@ Wejdź: http://localhost:8082/admin/master/mqtt
 Host:  4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:  8883
 User:  Lstech
-Pass:  Lstech123
+Pass:  CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 📄 Źródło: MQTT_QUICK_REFERENCE.md
 

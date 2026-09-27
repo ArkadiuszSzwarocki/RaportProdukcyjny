@@ -297,15 +297,39 @@ class WarehouseDispatchRepository:
         conn = get_db_connection()
         try:
             with conn.cursor(dictionary=True) as cursor:
+                matches = []
                 for sql, params in queries:
                     try:
                         cursor.execute(sql, params)
-                        row = cursor.fetchone()
-                        if row:
-                            return dict(row)
+                        rows = cursor.fetchall() or []
+                        matches.extend(dict(row) for row in rows)
                     except Exception:
                         continue
-                return None
+
+                if not matches:
+                    return None
+
+                # SSCC is a global identifier. Never silently choose one record
+                # when the same number appears in more than one warehouse/table.
+                exact_matches = [
+                    row for row in matches
+                    if str(row.get('nr_palety') or '').strip().upper() == clean
+                ]
+                candidates = exact_matches or matches
+                if len(exact_matches) > 1:
+                    return {
+                        'duplicate_sscc': True,
+                        'nr_palety': clean,
+                        'matches': exact_matches,
+                    }
+
+                preferred = str(preferred_line or '').strip().upper()
+                candidates.sort(key=lambda row: (
+                    str(row.get('linia') or '').upper() == preferred,
+                    bool(row.get('lokalizacja')),
+                    int(row.get('id') or 0),
+                ), reverse=True)
+                return candidates[0]
         finally:
             if conn:
                 try:

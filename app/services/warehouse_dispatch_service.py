@@ -44,6 +44,11 @@ class WarehouseDispatchService:
         if not row:
             return None
 
+        if row.get('duplicate_sscc'):
+            # Keep the invariant visible to the API caller instead of loading
+            # an arbitrary pallet from one of the warehouse tables.
+            return row
+
         display_id = row.get('nr_palety')
         if not display_id:
             typ_prefix = 'SUR' if row.get('typ') == 'Surowiec' else ('OPK' if row.get('typ') == 'Opakowanie' else 'PAL')

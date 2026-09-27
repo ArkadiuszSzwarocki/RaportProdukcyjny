@@ -4,7 +4,7 @@ from datetime import date
 from flask import current_app, jsonify, request, session
 
 from app.db import get_db_connection, get_table_name
-from app.decorators import roles_required
+from app.decorators import roles_required, login_required
 from app.services.zasyp_start_notification_service import build_sound_url_if_exists
 
 
@@ -70,6 +70,7 @@ def register_production_notification_routes(
         return jsonify({"new_zwolnienie": False})
 
     @production_bp.route('/api/zasyp/ack_zwolnienie', methods=['POST'])
+    @login_required
     def api_ack_zwolnienie():
         """Operator potwierdził zwolnienie mieszalnika."""
         linia = (request.json.get('linia') if request.is_json else None) or request.form.get('linia') or 'AGRO'
@@ -261,6 +262,7 @@ def register_production_notification_routes(
         return jsonify({"new_event": False})
 
     @production_bp.route('/api/zasyp/ack_dosypka_added', methods=['POST'])
+    @login_required
     def api_ack_dosypka_added():
         """Acknowledge dosypka-added event timestamp to prevent replay after page refresh."""
         linia = (request.json.get('linia') if request.is_json else None) or request.form.get('linia') or request.args.get('linia') or 'AGRO'

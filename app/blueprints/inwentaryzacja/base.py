@@ -2,9 +2,14 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from app.services.inwentaryzacja_service import InwentaryzacjaService
 from app.db import get_db_connection, get_table_name
-from app.decorators import roles_required
+from app.decorators import roles_required, login_required_response
 
 inwentaryzacja_bp = Blueprint('inwentaryzacja', __name__, url_prefix='/magazyn/inwentaryzacja')
+
+
+@inwentaryzacja_bp.before_request
+def require_inventory_login():
+    return login_required_response()
 
 @inwentaryzacja_bp.route('/')
 def index():

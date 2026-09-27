@@ -85,6 +85,10 @@ def create_app(config_secret_key=None, init_db=True):
                 "CRITICAL SECURITY ERROR: Production requires a secure SECRET_KEY (min 32 characters). "
                 "Startup aborted."
             )
+        # Credentials stored in the database must never be encrypted with a
+        # hard-coded fallback or the Flask session secret.
+        from app.core.crypto_utils import _get_fernet_instance
+        _get_fernet_instance()
     else:
         if not _secret_key or _secret_key in _insecure_keys:
             import secrets

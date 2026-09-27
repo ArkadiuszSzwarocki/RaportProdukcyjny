@@ -456,7 +456,9 @@ def start_printer_server_public():
     """Allow starting print server using PIN."""
     payload = request.get_json(silent=True) or request.form or {}
     pin_value = str(payload.get('pin', '')).strip()
-    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '0606')).strip()
+    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '')).strip()
+    if not expected_pin:
+        return jsonify({'success': False, 'message': 'Sterowanie PIN-em nie jest skonfigurowane.'}), 503
 
     if pin_value != expected_pin:
         return jsonify({'success': False, 'message': 'Nieprawidłowy PIN.'}), 403
@@ -481,7 +483,9 @@ def stop_printer_server_public():
     """Allow stopping print server using PIN."""
     payload = request.get_json(silent=True) or request.form or {}
     pin_value = str(payload.get('pin', '')).strip()
-    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '0606')).strip()
+    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '')).strip()
+    if not expected_pin:
+        return jsonify({'success': False, 'message': 'Sterowanie PIN-em nie jest skonfigurowane.'}), 503
 
     if pin_value != expected_pin:
         return jsonify({'success': False, 'message': 'Nieprawidłowy PIN.'}), 403
@@ -744,6 +748,5 @@ def zmien_moje_haslo():
         return jsonify({'success': False, 'message': 'Błąd serwera podczas zmiany hasła.'}), 500
     finally:
         conn.close()
-
 
 

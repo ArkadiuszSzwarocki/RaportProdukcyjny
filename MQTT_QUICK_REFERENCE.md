@@ -5,7 +5,7 @@
 Host:     4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:     8883 (TLS)
 User:     Lstech
-Pass:     Lstech123
+Pass:     CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 
 ---
@@ -99,7 +99,7 @@ from datetime import datetime
 BROKER = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 PORT = 8883
 USER = "Lstech"
-PASS = "Lstech123"
+PASS = "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD"
 
 # Callback
 def on_message(client, userdata, msg):
@@ -224,7 +224,7 @@ python mqtt_test_suite.py
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 MQTT_SUBSCRIBE_TOPICS=#
 MQTT_RECENT_MESSAGES_LIMIT=60
 ```
