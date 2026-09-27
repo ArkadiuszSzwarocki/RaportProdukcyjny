@@ -20,7 +20,7 @@
         {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('maluchy.index', linia='PSD') }}"
             class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
-            🪣 Maluchy (Wiadra)
+            Maluchy (Wiadra)
         </a>
         {% endif %}
         {% endif %}
@@ -39,7 +39,7 @@
         </a>
         <a href="{{ url_for('production.przestoje_list', linia='PSD') }}"
             class="nav-sub-item {% if 'przestoje' in request.path and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
-            ⚠️ Przestoje PSD
+            Przestoje PSD
         </a>
         {% endif %}
 
@@ -65,7 +65,7 @@
 
         <a href="/warehouse-v2/psd/raport_palet" 
            class="nav-sub-item {% if request.path == '/warehouse-v2/psd/raport_palet' %}active{% endif %}">
-          📊 Raport Palet
+          Raport Palet
         </a>
     </div>
 </div>
