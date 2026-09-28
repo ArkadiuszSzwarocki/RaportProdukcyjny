@@ -106,8 +106,12 @@ def create_app(config_secret_key=None, init_db=True):
     if cookie_secure_raw is not None:
         app.config['SESSION_COOKIE_SECURE'] = str(cookie_secure_raw).strip().lower() in ('true', '1', 'yes')
     else:
-        # Secure by default unless running in debug/testing mode
-        app.config['SESSION_COOKIE_SECURE'] = not (app.debug or app.testing)
+        # Default to False unless SSL is enabled or explicitly requested.
+        # Intranet / LAN environments run on plain HTTP (e.g. 192.168.x.x);
+        # setting Secure=True over plain HTTP causes modern browsers to drop session cookies,
+        # logging users out immediately upon redirect.
+        use_ssl = str(os.environ.get('USE_SSL', 'false')).strip().lower() in ('true', '1', 'yes')
+        app.config['SESSION_COOKIE_SECURE'] = use_ssl
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
@@ -187,8 +191,15 @@ def create_app(config_secret_key=None, init_db=True):
         # Check if reloader is enabled via environment variable
         reloader_enabled = os.environ.get('FLASK_USE_RELOADER') == 'true' or os.environ.get('RELOADER_ENABLED') == 'true'
         
+        flask_env = str(os.environ.get('FLASK_ENV', '')).lower()
+        debug_mode = (
+            os.environ.get('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes') or
+            os.environ.get('DEBUG', 'false').lower() == 'true' or
+            flask_env == 'development'
+        )
         is_reloader_parent = (
-            (reloader_enabled or main_script.endswith('app.py') or 'app.py' in main_script)
+            debug_mode
+            and (reloader_enabled or main_script.endswith('app.py') or 'app.py' in main_script)
             and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
         )
         

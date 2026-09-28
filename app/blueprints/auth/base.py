@@ -377,8 +377,11 @@ def login():
                 except Exception:
                     pass
                 try:
-                    session['last_activity'] = time.time()
-                    session['accepted_concurrent_ts'] = time.time()
+                    now_ts = time.time()
+                    session['last_activity'] = now_ts
+                    session['last_session_active_check'] = now_ts
+                    session['session_active_cached'] = True
+                    session['accepted_concurrent_ts'] = now_ts
                 except Exception:
                     pass
                 

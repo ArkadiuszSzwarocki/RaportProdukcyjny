@@ -223,7 +223,11 @@ class ScannerMovementService:
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
 
-            is_loc_available, error_msg = check_rack_location_availability(nowa_lokalizacja, current_nr_palety=pallet.get('nr_palety'))
+            is_loc_available, error_msg = check_rack_location_availability(
+                nowa_lokalizacja,
+                current_nr_palety=pallet.get('nr_palety'),
+                product_name=pallet.get('nazwa')
+            )
             if not is_loc_available:
                 return False, error_msg
 

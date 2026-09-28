@@ -480,34 +480,56 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     }
                 } else {
                     const isInd = (rack.depth_m >= 1.2);
-                    const palletGroup = createRealisticPalletGroup(isInd);
-                    slotGroup.add(palletGroup);
+                    
+                    slotPallets.forEach((p, pIdx) => {
+                        const yOffset = pIdx * 0.85;
+                        const subGroup = new THREE.Group();
+                        subGroup.position.set(0, yOffset, 0);
+
+                        const palletGroup = createRealisticPalletGroup(isInd);
+                        subGroup.add(palletGroup);
+
+                        const prodName = p ? (p.product_name || p.nazwa_produktu || 'SUROWIEC SYPKI') : 'SUROWIEC SYPKI';
+                        const batchNum = p ? (p.batch || p.partia || 'PL-2026') : 'PL-2026';
+                        let weightStr = (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
+                        if (p) {
+                            if (p.weight_kg !== undefined && p.weight_kg !== null && !isNaN(Number(p.weight_kg))) {
+                                weightStr = `${Number(p.weight_kg).toFixed(0)} kg`;
+                            } else if (p.amount !== undefined && p.amount !== null) {
+                                weightStr = `${p.amount} ${p.unit || 'kg'}`;
+                            }
+                        }
+
+                        if (slot.payload_type === 'BIG_BAG') {
+                            const bigBagGroup = createRealisticBigBagGroup(prodName, batchNum, weightStr);
+                            subGroup.add(bigBagGroup);
+                        } else {
+                            const pinwheelStack = createRealisticPinwheelStack(prodName, batchNum, weightStr);
+                            subGroup.add(pinwheelStack);
+                        }
+
+                        slotGroup.add(subGroup);
+                    });
+
+                    // Multi-pallet badge if stacked (e.g. 2 Hydro pallets on level 1)
+                    if (slotPallets.length > 1) {
+                        const multiTex = getShelfMultiItemBadgeTexture(slotPallets.length);
+                        const multiMat = new THREE.SpriteMaterial({ map: multiTex, depthTest: false, transparent: true });
+                        const multiSprite = new THREE.Sprite(multiMat);
+                        const spriteY = (slotPallets.length * 0.85) + 0.65;
+                        multiSprite.position.set(0, spriteY, 0);
+                        multiSprite.scale.set(0.70, 0.20, 1);
+                        multiSprite.renderOrder = 998;
+                        slotGroup.add(multiSprite);
+                    }
 
                     const p = slotPallets[0];
-                    const prodName = p ? (p.product_name || p.nazwa_produktu || 'SUROWIEC SYPKI') : 'SUROWIEC SYPKI';
-                    const batchNum = p ? (p.batch || p.partia || 'PL-2026') : 'PL-2026';
-                    let weightStr = (slot.payload_type === 'BIG_BAG' ? '1000 kg' : '25.0 kg');
-                    if (p) {
-                        if (p.weight_kg !== undefined && p.weight_kg !== null && !isNaN(Number(p.weight_kg))) {
-                            weightStr = `${Number(p.weight_kg).toFixed(0)} kg`;
-                        } else if (p.amount !== undefined && p.amount !== null) {
-                            weightStr = `${p.amount} ${p.unit || 'kg'}`;
-                        }
-                    }
-
-                    if (slot.payload_type === 'BIG_BAG') {
-                        const bigBagGroup = createRealisticBigBagGroup(prodName, batchNum, weightStr);
-                        slotGroup.add(bigBagGroup);
-                    } else {
-                        const pinwheelStack = createRealisticPinwheelStack(prodName, batchNum, weightStr);
-                        slotGroup.add(pinwheelStack);
-                    }
-
                     if (p && (p.is_first_fifo || p.is_expired || p.is_expiring_soon)) {
                         const badgeTex = getPalletStatusBadgeTexture(p.is_first_fifo, p.fifo_rank, p.is_expired, p.is_expiring_soon, p.days_to_exp);
                         const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
                         const badgeSprite = new THREE.Sprite(badgeMat);
-                        const spriteY = (slot.payload_type === 'BIG_BAG') ? 1.48 : 1.28;
+                        const baseSpriteY = (slot.payload_type === 'BIG_BAG') ? 1.48 : 1.28;
+                        const spriteY = (slotPallets.length > 1) ? baseSpriteY + 0.85 : baseSpriteY;
                         badgeSprite.position.set(0, spriteY, 0);
                         badgeSprite.scale.set(0.72, 0.22, 1);
                         badgeSprite.renderOrder = 999;
@@ -515,9 +537,9 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     }
 
                     if (slot.is_blocked) {
-                        const blockBoxGeo = new THREE.BoxGeometry(1.24, 1.05, 0.84);
+                        const blockBoxGeo = new THREE.BoxGeometry(1.24, slotPallets.length > 1 ? 1.75 : 1.05, 0.84);
                         const blockMesh = new THREE.Mesh(blockBoxGeo, sharedMats.blocked);
-                        blockMesh.position.set(0, 0.62, 0);
+                        blockMesh.position.set(0, slotPallets.length > 1 ? 0.95 : 0.62, 0);
                         blockMesh.material.transparent = true;
                         blockMesh.material.opacity = 0.45;
                         slotGroup.add(blockMesh);

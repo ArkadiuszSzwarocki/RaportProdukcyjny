@@ -67,13 +67,40 @@ class WarehouseOrderService:
 
         for order in orders:
             self._format_order_dates(order)
+            raw_items = []
             if 'items' in order and isinstance(order['items'], (str, bytes, bytearray)):
                 try:
-                    order['items'] = json.loads(order['items'])
+                    raw_items = json.loads(order['items'])
                 except Exception:
-                    order['items'] = []
+                    raw_items = []
+            elif isinstance(order.get('items'), list):
+                raw_items = order['items']
+            order['items'] = self._clean_order_items(raw_items)
 
         return orders
+
+    @staticmethod
+    def _clean_order_items(raw_items):
+        """Filtruje pozycje zamówienia: jeśli pozycje posiadają informację o brakach (brakujace_kg),
+        pozostawia TYLKO te surowce, których rzeczywiście brakowało (brakujace_kg > 0)
+        oraz ustawia ilosc_kg na brakującą ilość."""
+        if not isinstance(raw_items, list):
+            return []
+        cleaned = []
+        for it in raw_items:
+            if not isinstance(it, dict):
+                continue
+            if 'brakujace_kg' in it and it['brakujace_kg'] is not None:
+                missing_qty = float(it['brakujace_kg'] or 0)
+                if missing_qty > 0:
+                    it_copy = dict(it)
+                    it_copy['ilosc_kg'] = missing_qty
+                    cleaned.append(it_copy)
+            else:
+                qty = float(it.get('ilosc_kg', 0) or 0)
+                if qty > 0:
+                    cleaned.append(it)
+        return cleaned
 
     def confirm_order(self, order_id, magazynier_login):
         """Potwierdza odczytanie zamówienia przez magazyniera.

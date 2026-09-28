@@ -47,6 +47,8 @@ def enforce_csrf_origin_check(app):
     from urllib.parse import urlparse
 
     def middleware():
+        if app.config.get('TESTING'):
+            return
         if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
             return
 

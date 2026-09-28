@@ -42,7 +42,8 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'modals.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_block.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
         ]
         mtimes = []
@@ -369,7 +370,8 @@ def inject_globals():
     except Exception:
         app_version = 'N/A'
 
-    static_version = 59
+    # Increase this number to force browser to reload static files (css/js)
+    static_version = 61
     return dict(static_version=static_version, app_version=app_version, db_name=active_db)
 
 

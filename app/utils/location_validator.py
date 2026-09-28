@@ -184,11 +184,29 @@ def is_rack_location(location_code):
     normalized = str(location_code).strip().upper()
     return re.match(r'^R\d+$', normalized) is not None
 
-def check_rack_location_availability(location_code, current_nr_palety=None):
+def is_rack_level_1(location_code):
+    """
+    Sprawdza czy kod lokalizacji to poziom 1 na regale wysokiego składowania (np. R010101, R-01-01-01).
+    Format regału: R + regał (2 cyfry) + kolumna/gniazdo (2 cyfry) + poziom (2 cyfry).
+    Poziom 1 kończy się na '01'.
+    """
+    if not location_code:
+        return False
+    norm = normalize_warehouse_location(location_code)
+    clean = re.sub(r'[^A-Z0-9]', '', str(norm or location_code).strip().upper())
+    if clean.isdigit() and len(clean) == 6:
+        clean = 'R' + clean
+    m = re.match(r'^R(\d{2})(\d{2})(\d{2})$', clean)
+    if m:
+        return m.group(3) == '01'
+    return False
+
+def check_rack_location_availability(location_code, current_nr_palety=None, product_name=None):
     """
     Sprawdza czy miejsce paletowe na regale jest wolne (nie zajęte przez inną paletę).
     Zwraca (is_valid, error_msg).
     Dla regału półkowego R09 (R090101 - R090406) dozwolone jest przechowywanie wielu asortymentów / palet na jednej półce!
+    Dla surowca Hydro dozwolone jest piętrowanie na poziomie 1 (np. R010101) - do 2 palet Hydro na jednym miejscu.
     """
     if not location_code or not is_rack_location(location_code):
         return True, None
@@ -201,24 +219,80 @@ def check_rack_location_availability(location_code, current_nr_palety=None):
     conn = get_db_connection()
     try:
         cur = conn.cursor(dictionary=True)
-        tables = ['magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki', 'magazyn_palety']
+
+        # Jeśli nie podano nazwy produktu, ale podano nr_palety, sprawdź czy to surowiec Hydro
+        if not product_name and current_nr_palety:
+            try:
+                for t_name in ['magazyn_surowce', 'magazyn_agro_surowce']:
+                    cur.execute(f"SELECT nazwa FROM {t_name} WHERE nr_palety = %s LIMIT 1", (str(current_nr_palety).strip(),))
+                    r_p = cur.fetchone()
+                    if r_p and r_p.get('nazwa'):
+                        product_name = r_p['nazwa']
+                        break
+            except Exception:
+                pass
+
+        is_lvl1 = is_rack_level_1(normalized)
+        is_target_hydro = str(product_name or '').strip().lower() == 'hydro'
+
+        tables = [
+            ('magazyn_surowce', 'stan_magazynowy', 'nazwa'),
+            ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa'),
+            ('magazyn_opakowania', 'stan_magazynowy', 'nazwa'),
+            ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa'),
+            ('magazyn_dodatki', 'stan_magazynowy', 'nazwa'),
+            ('magazyn_palety', 'waga_netto', 'produkt'),
+            ('magazyn_palety_agro', 'waga_netto', 'produkt')
+        ]
         
-        for t in tables:
-            if t == 'magazyn_palety':
-                query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND waga_netto > 0"
-            else:
-                query = f"SELECT nr_palety FROM {t} WHERE lokalizacja = %s AND stan_magazynowy > 0"
+        existing_pallets = []
+        for t, qty_col, name_col in tables:
+            try:
+                query = f"SELECT nr_palety, {name_col} as product_name FROM {t} WHERE lokalizacja = %s AND {qty_col} > 0"
+                params = [normalized]
+                if current_nr_palety:
+                    query += " AND (nr_palety IS NULL OR nr_palety != %s)"
+                    params.append(str(current_nr_palety).strip())
+                    
+                cur.execute(query, tuple(params))
+                rows = cur.fetchall()
+                if rows:
+                    existing_pallets.extend(rows)
+            except Exception:
+                pass
+
+        if not existing_pallets:
+            return True, None
+
+        # Gniazdo ma już co najmniej 1 paletę
+        if is_lvl1 and is_target_hydro:
+            # Sprawdź czy wszystkie obecne palety to również Hydro
+            all_existing_are_hydro = all(
+                str(p.get('product_name') or '').strip().lower() == 'hydro'
+                for p in existing_pallets
+            )
+            if not all_existing_are_hydro:
+                first_other = next((p for p in existing_pallets if str(p.get('product_name') or '').strip().lower() != 'hydro'), existing_pallets[0])
+                other_name = first_other.get('product_name') or 'inny towar'
+                other_nr = first_other.get('nr_palety') or ''
+                return False, f"Lokalizacja {normalized} jest zajęta przez {other_name} ({other_nr}). Piętrowanie Hydro jest możliwe tylko na innej palecie Hydro."
             
-            params = [location_code]
-            if current_nr_palety:
-                query += " AND nr_palety != %s"
-                params.append(current_nr_palety)
-                
-            cur.execute(query, tuple(params))
-            row = cur.fetchone()
-            if row:
-                return False, f"Lokalizacja {location_code} jest zajęta przez paletę {row['nr_palety']}!"
-        return True, None
+            if len(existing_pallets) >= 2:
+                nr_list = ", ".join(str(p.get('nr_palety') or 'brak') for p in existing_pallets)
+                return False, f"Lokalizacja {normalized} osiągnęła maksymalną pojemność (2 palety Hydro: {nr_list})!"
+
+            # Dopuszczamy 2. paletę Hydro na poziomie 1
+            return True, None
+
+        # W każdym innym wypadku regał jest zajęty
+        occupied_p = existing_pallets[0]
+        occupied_name = occupied_p.get('product_name') or 'towar'
+        occupied_nr = occupied_p.get('nr_palety') or ''
+        if is_lvl1:
+            return False, f"Lokalizacja {normalized} jest zajęta przez paletę {occupied_nr} ({occupied_name}). Piętrowanie na poziomie 1 dozwolone jest wyłącznie dla surowca Hydro."
+        else:
+            return False, f"Lokalizacja {normalized} jest zajęta przez paletę {occupied_nr} ({occupied_name})!"
+
     except Exception as e:
         return False, f"Błąd podczas sprawdzania dostępności lokalizacji: {e}"
     finally:

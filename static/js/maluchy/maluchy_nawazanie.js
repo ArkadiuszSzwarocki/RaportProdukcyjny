@@ -332,12 +332,30 @@
     }
 
     // ── RENDER ACTIVE BUCKET ──
+    // ── RENDER ACTIVE BUCKET ──
     function renderActiveBucket(bucket) {
         if (!bucket) return;
         cardNawazanie.style.display = 'block';
         cardBucketDetails.style.display = 'block';
         activeBucketDisplay.textContent = bucket.kod_wiadra;
         detailsBucketCode.textContent = bucket.kod_wiadra;
+
+        const recipeNameEl = document.getElementById('detailsRecipeName');
+        const planBadgeEl = document.getElementById('detailsPlanBadge');
+        if (recipeNameEl) {
+            let rName = bucket.plan_produkt || '';
+            let rPlan = bucket.plan_id ? `Zlecenie #${bucket.plan_id}` : '';
+            if (!rName || rName === '—') {
+                if (selectPlanId && selectPlanId.options && selectPlanId.selectedIndex >= 0) {
+                    const optText = selectPlanId.options[selectPlanId.selectedIndex].text || '';
+                    rName = optText.split('-')[1] ? optText.split('-')[1].trim() : optText;
+                    rPlan = `Zlecenie #${selectPlanId.value}`;
+                }
+            }
+            recipeNameEl.textContent = rName || '—';
+            if (planBadgeEl) planBadgeEl.textContent = rPlan || `Linia ${bucket.linia || linia}`;
+        }
+
         const items = bucket.pozycje || [];
         if (detailsItemsCount) {
             detailsItemsCount.textContent = `${items.length} pozycji`;
@@ -412,6 +430,38 @@
                </div>`
             : '';
 
+        // Receptura / Produkt przypisany do wiadra
+        let recipeName = (b.plan_produkt && b.plan_produkt !== '—') ? b.plan_produkt : '';
+        if (!recipeName && selectPlanId && selectPlanId.options && selectPlanId.selectedIndex >= 0 && String(selectPlanId.value) === String(b.plan_id)) {
+            const optText = selectPlanId.options[selectPlanId.selectedIndex].text || '';
+            recipeName = optText.split('-')[1] ? optText.split('-')[1].trim() : optText;
+        }
+        if (!recipeName) recipeName = '—';
+
+        const recipeCodeBadge = b.plan_nr_receptury ? `<span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 7px; border-radius: 5px; font-weight: 800; margin-left: 6px;">Kod: ${b.plan_nr_receptury}</span>` : '';
+        const orderText = b.plan_id ? `#${b.plan_id}` : '—';
+        const planDateStr = b.plan_data ? ` (${b.plan_data})` : '';
+
+        const recipeDetailsBox = `
+            <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #1e40af; letter-spacing: 0.5px;">
+                        🎯 Przypisana Receptura / Produkt:
+                    </div>
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; display: flex; align-items: center; flex-wrap: wrap;">
+                        <span>${recipeName}</span>
+                        ${recipeCodeBadge}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 11px; font-weight: 700; color: #64748b;">Zlecenie Zasypu:</div>
+                    <div style="font-size: 12px; font-weight: 800; color: #1e40af; background: #dbeafe; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; display: inline-block; margin-top: 2px;">
+                        Zlecenie ${orderText}${planDateStr}
+                    </div>
+                </div>
+            </div>
+        `;
+
         const itemsHtml = items.length > 0
             ? items.map(p => `
                 <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
@@ -451,6 +501,7 @@
                     </div>
                 </div>
                 <div class="m-bucket-items-preview" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                    ${recipeDetailsBox}
                     ${ssccInfo}
                     <div style="font-weight: 800; color: #475569; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
                         Składniki w wiadrze ${b.kod_wiadra}:

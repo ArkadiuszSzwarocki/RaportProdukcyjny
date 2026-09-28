@@ -210,7 +210,12 @@ class WarehouseV2Service:
                 if not is_trf_valid:
                     return False, trf_err_msg
 
-                is_loc_available, loc_error_msg = check_rack_location_availability(new_location, current_nr_palety=nr_palety)
+                p_name_reloc = row.get('nazwa') or row.get('produkt')
+                is_loc_available, loc_error_msg = check_rack_location_availability(
+                    new_location,
+                    current_nr_palety=nr_palety,
+                    product_name=p_name_reloc
+                )
                 if not is_loc_available:
                     return False, loc_error_msg
             

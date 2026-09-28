@@ -532,21 +532,16 @@ def _print_spooler_loop(interval_seconds: int = 5):
                 conn = get_db_connection()
                 try:
                     cursor = conn.cursor(dictionary=True)
-                    
-                    # Ensure only one worker processes the print queue
-                    cursor.execute("SELECT GET_LOCK('print_spooler_daemon_leader', 0)")
-                    lock_result = cursor.fetchone()
-                    got_lock = list(lock_result.values())[0] if lock_result else 0
-                    
-                    if not got_lock:
-                        continue
 
-                    # Szukamy zadań PENDING lub ERROR z liczbą prób < 3
+                    # Szukamy zadań PENDING lub ERROR z liczbą prób < 3 z ostatnich 48h
+                    # Priorytet dla najświeższych zadań PENDING, aby użytkownik natychmiast otrzymał wydruk
                     cursor.execute("""
                         SELECT id, printer_ip, printer_name, zpl_content, retry_count
                         FROM print_jobs 
-                        WHERE status = 'PENDING' OR (status = 'ERROR' AND retry_count < 3)
-                        ORDER BY id ASC LIMIT 5
+                        WHERE (status = 'PENDING' OR (status = 'ERROR' AND retry_count < 3))
+                          AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+                        ORDER BY (status = 'PENDING') DESC, id DESC
+                        LIMIT 5
                     """)
                     jobs = cursor.fetchall()
 
@@ -557,9 +552,14 @@ def _print_spooler_loop(interval_seconds: int = 5):
                         name = job['printer_name']
                         retry = job['retry_count']
 
-                        # Ustawiamy status na PRINTING
-                        cursor.execute("UPDATE print_jobs SET status='PRINTING' WHERE id=%s", (job_id,))
+                        # Ustawiamy status na PRINTING atomowo
+                        cursor.execute(
+                            "UPDATE print_jobs SET status='PRINTING' WHERE id=%s AND status IN ('PENDING', 'ERROR')",
+                            (job_id,)
+                        )
                         conn.commit()
+                        if cursor.rowcount == 0:
+                            continue
 
                         try:
                             # Wysyłka do mostka
@@ -595,9 +595,6 @@ def _print_spooler_loop(interval_seconds: int = 5):
                             cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
                                            (err, retry + 1, job_id))
                             conn.commit()
-                            
-                    if got_lock:
-                        cursor.execute("SELECT RELEASE_LOCK('print_spooler_daemon_leader')")
                 finally:
                     conn.close()
             except Exception as error:
@@ -609,7 +606,7 @@ def _print_spooler_loop(interval_seconds: int = 5):
         _safe_log_exception('Print Spooler monitor terminating unexpectedly')
 
 def _cleanup_old_print_jobs(max_age_days: int = 14, interval_seconds: int = 86400):
-    """Background thread: removes completed (DONE) print jobs older than max_age_days."""
+    """Background thread: removes completed (DONE) print jobs older than max_age_days and old error/cancelled jobs."""
     try:
         from app.db import get_db_connection
         _safe_log_info(f'Started Print Jobs Cleanup daemon thread (retention: {max_age_days}d)')
@@ -620,8 +617,8 @@ def _cleanup_old_print_jobs(max_age_days: int = 14, interval_seconds: int = 8640
                     cursor = conn.cursor()
                     cursor.execute("""
                         DELETE FROM print_jobs 
-                        WHERE status = 'DONE' 
-                          AND updated_at < NOW() - INTERVAL %s DAY
+                        WHERE (status = 'DONE' AND updated_at < NOW() - INTERVAL %s DAY)
+                           OR (status IN ('ERROR', 'CANCELLED') AND updated_at < NOW() - INTERVAL 7 DAY)
                     """, (max_age_days,))
                     deleted_count = cursor.rowcount
                     conn.commit()

@@ -605,3 +605,29 @@ def api_send_osip_report(dostawa_id):
     return jsonify({'success': False, 'error': message}), 400
 
 
+@magazyn_dostawy_bp.route('/<dostawa_id>')
+def dostawa_fallback_redirect(dostawa_id):
+    """Fallback redirect dla bezpośrednich adresów URL typu /magazyn-dostawy/<dostawa_id>."""
+    linia = request.args.get('linia', 'ALL')
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, status, supplier, lokalizacja_z FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+        order = cursor.fetchone()
+        if not order:
+            return redirect(url_for('magazyn_dostawy.oczekujace', linia=linia))
+        
+        status = str(order.get('status') or '').upper()
+        if status == 'COMPLETED':
+            return redirect(url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=dostawa_id, linia=linia))
+        
+        # Jeśli to ruch oczekujący na przyjęcie (lub w toku)
+        return redirect(url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=dostawa_id, linia=linia))
+    except Exception as e:
+        print(f"Błąd dostawa_fallback_redirect: {e}")
+        return redirect(url_for('magazyn_dostawy.oczekujace', linia=linia))
+    finally:
+        conn.close()
+
+
+

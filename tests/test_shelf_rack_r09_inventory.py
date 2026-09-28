@@ -45,7 +45,7 @@ def test_scanner_lookup_returns_multi_item_shelf_for_r09():
         [{'id': 303, 'ilosc': 800.0, 'nazwa': 'Wyrób C', 'lokalizacja': 'R090101', 'nr_palety': 'PAL000003', 'nr_partii': 'P03', 'data_produkcji': None, 'data_przydatnosci': None}],
     ]
 
-    with patch('app.services.scanner_service.get_db_connection', return_value=mock_conn):
+    with patch('app.services.scanner.scanner_location_query_service.get_db_connection', return_value=mock_conn):
         result = ScannerService.lookup_by_location('R090101', linia='AGRO')
 
     assert result is not None

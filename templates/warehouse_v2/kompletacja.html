@@ -143,9 +143,9 @@ function loadActivePickingOrders() {
                 var createdStr = o.created_at || '—';
 
                 var deleteBtnHtml = '';
-                if (CAN_DELETE_PICKING) {
+                if (CAN_DELETE_PICKING || completed === 0) {
                     deleteBtnHtml = `
-                        <button type="button" onclick="deletePickingOrder('${o.order_ref}', this)" style="background: #fee2e2; color: #ef4444; border: 1.5px solid #fca5a5; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#ef4444'; this.style.color='#ffffff';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';" title="Trwale usuń dyspozycję">
+                        <button type="button" onclick="deletePickingOrder('${o.order_ref}', this)" style="background: #fee2e2; color: #ef4444; border: 1.5px solid #fca5a5; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#ef4444'; this.style.color='#ffffff';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';" title="Usuń dyspozycję">
                             <span class="material-icons" style="font-size: 18px;">delete</span>
                             Usuń
                         </button>

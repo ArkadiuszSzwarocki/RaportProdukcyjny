@@ -131,10 +131,10 @@ class PickingRepository:
             """
             if operator_login:
                 base_query += " WHERE operator_login = %s"
-                base_query += " GROUP BY order_ref, operator_login HAVING completed_items < total_items ORDER BY MIN(created_at) DESC"
+                base_query += " GROUP BY order_ref, operator_login HAVING pending_items > 0 ORDER BY MIN(created_at) DESC"
                 cursor.execute(base_query, (operator_login,))
             else:
-                base_query += " GROUP BY order_ref, operator_login HAVING completed_items < total_items ORDER BY MIN(created_at) DESC"
+                base_query += " GROUP BY order_ref, operator_login HAVING pending_items > 0 ORDER BY MIN(created_at) DESC"
                 cursor.execute(base_query)
 
             orders = cursor.fetchall()

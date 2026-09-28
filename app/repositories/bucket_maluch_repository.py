@@ -52,16 +52,41 @@ class BucketMaluchRepository:
             conn.close()
 
     @staticmethod
+    @staticmethod
+    def _format_bucket_dates(row: Dict[str, Any]) -> Dict[str, Any]:
+        if not row:
+            return row
+        for dt_col in ['data_produkcji', 'data_przydatnosci', 'data_rozpoczecia', 'data_skompletowania', 'data_zasypania', 'created_at']:
+            if row.get(dt_col) and hasattr(row[dt_col], 'strftime'):
+                row[dt_col] = row[dt_col].strftime('%Y-%m-%d %H:%M')
+        if row.get('plan_data') and hasattr(row['plan_data'], 'strftime'):
+            row['plan_data'] = row['plan_data'].strftime('%Y-%m-%d')
+        return row
+
+    @staticmethod
     def find_by_sscc(nr_sscc: str) -> Optional[Dict[str, Any]]:
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT * FROM wiaderka_maluchy WHERE nr_sscc = %s ORDER BY id DESC LIMIT 1", (nr_sscc.strip(),))
+            cur.execute(
+                """
+                SELECT b.*, 
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                WHERE b.nr_sscc = %s 
+                ORDER BY b.id DESC LIMIT 1
+                """,
+                (nr_sscc.strip(),)
+            )
             row = cur.fetchone()
             if not row:
                 return None
             row['pozycje'] = BucketMaluchRepository.get_items_for_bucket(row['id'])
-            return row
+            return BucketMaluchRepository._format_bucket_dates(row)
         finally:
             conn.close()
 
@@ -70,12 +95,24 @@ class BucketMaluchRepository:
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT * FROM wiaderka_maluchy WHERE id = %s", (bucket_id,))
+            cur.execute(
+                """
+                SELECT b.*, 
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                WHERE b.id = %s
+                """,
+                (bucket_id,)
+            )
             row = cur.fetchone()
             if not row:
                 return None
             row['pozycje'] = BucketMaluchRepository.get_items_for_bucket(bucket_id)
-            return row
+            return BucketMaluchRepository._format_bucket_dates(row)
         finally:
             conn.close()
 
@@ -87,24 +124,37 @@ class BucketMaluchRepository:
             if linia:
                 cur.execute(
                     """
-                    SELECT * FROM wiaderka_maluchy 
-                    WHERE kod_wiadra = %s AND linia = %s AND status IN ('w_trakcie_nawazania', 'skompletowane')
-                    ORDER BY id DESC LIMIT 1
+                    SELECT b.*, 
+                           CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                           CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                           CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                    FROM wiaderka_maluchy b
+                    LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                    LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                    WHERE b.kod_wiadra = %s AND b.linia = %s AND b.status IN ('w_trakcie_nawazania', 'skompletowane')
+                    ORDER BY b.id DESC LIMIT 1
                     """,
                     (kod_wiadra.strip().upper(), linia.upper()),
                 )
             else:
                 cur.execute(
                     """
-                    SELECT * FROM wiaderka_maluchy 
-                    WHERE kod_wiadra = %s AND status IN ('w_trakcie_nawazania', 'skompletowane')
-                    ORDER BY id DESC LIMIT 1
+                    SELECT b.*, 
+                           CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                           CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                           CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                    FROM wiaderka_maluchy b
+                    LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                    LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                    WHERE b.kod_wiadra = %s AND b.status IN ('w_trakcie_nawazania', 'skompletowane')
+                    ORDER BY b.id DESC LIMIT 1
                     """,
                     (kod_wiadra.strip().upper(),),
                 )
             row = cur.fetchone()
             if row:
                 row['pozycje'] = BucketMaluchRepository.get_items_for_bucket(row['id'])
+                BucketMaluchRepository._format_bucket_dates(row)
             return row
         finally:
             conn.close()
@@ -116,15 +166,22 @@ class BucketMaluchRepository:
             cur = conn.cursor(dictionary=True)
             cur.execute(
                 """
-                SELECT * FROM wiaderka_maluchy 
-                WHERE kod_wiadra = %s
-                ORDER BY id DESC LIMIT 1
+                SELECT b.*, 
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                WHERE b.kod_wiadra = %s
+                ORDER BY b.id DESC LIMIT 1
                 """,
                 (kod_wiadra.strip().upper(),),
             )
             row = cur.fetchone()
             if row:
                 row['pozycje'] = BucketMaluchRepository.get_items_for_bucket(row['id'])
+                BucketMaluchRepository._format_bucket_dates(row)
             return row
         finally:
             conn.close()
@@ -254,15 +311,22 @@ class BucketMaluchRepository:
             cur = conn.cursor(dictionary=True)
             cur.execute(
                 """
-                SELECT * FROM wiaderka_maluchy 
-                WHERE plan_id = %s AND linia = %s
-                ORDER BY id DESC
+                SELECT b.*, 
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                WHERE b.plan_id = %s AND b.linia = %s
+                ORDER BY b.id DESC
                 """,
                 (plan_id, linia.upper()),
             )
-            buckets = cur.fetchall()
+            buckets = cur.fetchall() or []
             for b in buckets:
                 b['pozycje'] = BucketMaluchRepository.get_items_for_bucket(b['id'])
+                BucketMaluchRepository._format_bucket_dates(b)
             return buckets
         finally:
             conn.close()
@@ -274,15 +338,22 @@ class BucketMaluchRepository:
             cur = conn.cursor(dictionary=True)
             cur.execute(
                 """
-                SELECT * FROM wiaderka_maluchy 
-                WHERE szarza_id = %s AND plan_id = %s AND linia = %s AND status = 'wrzucone_do_mieszalnika'
-                ORDER BY data_zasypania ASC, id ASC
+                SELECT b.*, 
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                FROM wiaderka_maluchy b
+                LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
+                LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                WHERE b.szarza_id = %s AND b.plan_id = %s AND b.linia = %s AND b.status = 'wrzucone_do_mieszalnika'
+                ORDER BY b.data_zasypania ASC, b.id ASC
                 """,
                 (szarza_id, plan_id, linia.upper()),
             )
-            buckets = cur.fetchall()
+            buckets = cur.fetchall() or []
             for b in buckets:
                 b['pozycje'] = BucketMaluchRepository.get_items_for_bucket(b['id'])
+                BucketMaluchRepository._format_bucket_dates(b)
             return buckets
         finally:
             conn.close()
@@ -307,6 +378,7 @@ class BucketMaluchRepository:
             query = f"""
                 SELECT b.*, 
                        CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
+                       CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
                        CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
                 FROM wiaderka_maluchy b
                 LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
@@ -319,11 +391,7 @@ class BucketMaluchRepository:
             buckets = cur.fetchall() or []
             for b in buckets:
                 b['pozycje'] = BucketMaluchRepository.get_items_for_bucket(b['id'])
-                for dt_col in ['data_produkcji', 'data_przydatnosci', 'data_rozpoczecia', 'data_skompletowania', 'data_zasypania', 'created_at']:
-                    if b.get(dt_col) and hasattr(b[dt_col], 'strftime'):
-                        b[dt_col] = b[dt_col].strftime('%Y-%m-%d %H:%M')
-                if b.get('plan_data') and hasattr(b['plan_data'], 'strftime'):
-                    b['plan_data'] = b['plan_data'].strftime('%Y-%m-%d')
+                BucketMaluchRepository._format_bucket_dates(b)
             return buckets
         finally:
             conn.close()
