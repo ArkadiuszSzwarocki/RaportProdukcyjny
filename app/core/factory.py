@@ -182,6 +182,7 @@ def create_app(config_secret_key=None, init_db=True):
     
     # Start background daemon threads (skip when running under pytest to avoid
     # background DB connections during test collection)
+    is_reloader_parent = False
     if 'PYTEST_CURRENT_TEST' not in os.environ:
         # Detect if we are in the parent process of Flask's Werkzeug reloader (app.py debug run)
         # to avoid starting background threads twice (once in parent, once in child worker).
