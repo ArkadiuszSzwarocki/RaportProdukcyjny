@@ -50,6 +50,14 @@ instance/
 .env
 .env.local
 
+# TLS private keys must never enter version control.
+certs/*.key
+certs/*.pem
+*.pem
+*.key
+*.pfx
+*.p12
+
 # Logs
 *.log
 logs/

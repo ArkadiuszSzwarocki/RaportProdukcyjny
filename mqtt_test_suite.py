@@ -5,15 +5,21 @@ Użycie: python mqtt_test_suite.py
 """
 
 import json
+import os
 import time
 import paho.mqtt.client as mqtt
 from datetime import datetime
 
 # ============= KONFIGURACJA =============
-MQTT_HOST = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
-MQTT_PORT = 8883
-MQTT_USER = "Lstech"
-MQTT_PW = "Lstech123"
+MQTT_HOST = os.getenv("MQTT_BROKER_HOST", "").strip()
+MQTT_PORT = int(os.getenv("MQTT_BROKER_PORT", "8883"))
+MQTT_USER = os.getenv("MQTT_BROKER_USERNAME", "").strip()
+MQTT_PW = os.getenv("MQTT_BROKER_PASSWORD", "").strip()
+
+if not MQTT_HOST or not MQTT_USER or not MQTT_PW:
+    raise RuntimeError(
+        "Ustaw MQTT_BROKER_HOST, MQTT_BROKER_USERNAME i MQTT_BROKER_PASSWORD przed uruchomieniem testu."
+    )
 
 # ============= TOPICY =============
 TOPIC_PAKOWACZKA = "iot-2/type/cMT2108X2/id/agroPakowaczka"

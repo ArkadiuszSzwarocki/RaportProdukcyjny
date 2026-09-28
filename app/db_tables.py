@@ -5,7 +5,8 @@ AGRO_TABLE_MAP = {
     'dosypki': 'dosypki_agro',
     'palety_workowanie': 'palety_agro',
     'magazyn_ruch': 'magazyn_agro_ruch',
-    'bufor': 'bufor_agro'
+    'bufor': 'bufor_agro',
+    'magazyn_palety': 'magazyn_palety_agro'
 }
 
 

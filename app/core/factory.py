@@ -85,6 +85,10 @@ def create_app(config_secret_key=None, init_db=True):
                 "CRITICAL SECURITY ERROR: Production requires a secure SECRET_KEY (min 32 characters). "
                 "Startup aborted."
             )
+        # Credentials stored in the database must never be encrypted with a
+        # hard-coded fallback or the Flask session secret.
+        from app.core.crypto_utils import _get_fernet_instance
+        _get_fernet_instance()
     else:
         if not _secret_key or _secret_key in _insecure_keys:
             import secrets
@@ -200,9 +204,9 @@ def create_app(config_secret_key=None, init_db=True):
         )
         
         if is_reloader_parent:
-            app.logger.info('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
+            app.logger.debug('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
         else:
-            app.logger.info('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
+            app.logger.debug('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
             start_daemon_threads(app, cleanup_enabled=True)
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')

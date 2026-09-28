@@ -11,7 +11,7 @@ class PlanningMutationService:
 
     @staticmethod
     def create_plan(data_planu, produkt, tonaz, sekcja, typ_produkcji='worki_zgrzewane_25', 
-                   status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None, linia='PSD'):
+                   status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None, linia='PSD', rodzaj_palety=None):
         """Create a new production plan.
         
         Args:

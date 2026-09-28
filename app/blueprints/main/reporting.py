@@ -7,6 +7,7 @@ from typing import Tuple, Union
 from flask import Response, current_app, flash, jsonify, redirect, request, send_file, session, url_for
 
 from app import db
+from app.db import get_db_connection
 from app.decorators import login_required, roles_required
 from app.services.report_generation_service import ReportGenerationService
 

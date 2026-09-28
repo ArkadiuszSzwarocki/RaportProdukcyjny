@@ -2,7 +2,7 @@
 Handles login, logout, and user-specific interface settings (e.g., bug icon acknowledgment).
 """
 
-from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app, url_for
 from datetime import datetime
 import time
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -289,7 +289,6 @@ def login():
             conn = get_db_connection(retries=1)
             cursor = conn.cursor()
         except Exception as e:
-            from flask import current_app
             current_app.logger.error("Błąd połączenia z bazą danych podczas logowania: %s", e)
             flash("Błąd połączenia z bazą danych! Sprawdź plik .env lub sieć.", 'danger')
             return redirect('/login')
@@ -299,7 +298,6 @@ def login():
             cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL), grupa FROM uzytkownicy WHERE login = %s", (login_field,))
             row = cursor.fetchone()
         except Exception as e:
-            from flask import current_app
             current_app.logger.error("Błąd zapytania podczas logowania: %s", e)
             cursor.close()
             conn.close()
@@ -347,7 +345,6 @@ def login():
                 session['show_bug_icon_intro'] = True
                 
                 # Log login with current process PID
-                from flask import current_app
                 from app.core.audit import audit_log, security_audit_log
                 current_app.logger.info("Użytkownik '%s' zalogował się (rola: %s)", login_field, (rola or '').lower())
                 audit_log('Zalogował się')
@@ -415,7 +412,6 @@ def login():
         return redirect(target)
     
     try:
-        import time
         t0 = time.time()
         html = render_template('login.html')
         t1 = time.time()
@@ -463,7 +459,9 @@ def start_printer_server_public():
     """Allow starting print server using PIN."""
     payload = request.get_json(silent=True) or request.form or {}
     pin_value = str(payload.get('pin', '')).strip()
-    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '0606')).strip()
+    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '')).strip()
+    if not expected_pin:
+        return jsonify({'success': False, 'message': 'Sterowanie PIN-em nie jest skonfigurowane.'}), 503
 
     if pin_value != expected_pin:
         return jsonify({'success': False, 'message': 'Nieprawidłowy PIN.'}), 403
@@ -488,7 +486,9 @@ def stop_printer_server_public():
     """Allow stopping print server using PIN."""
     payload = request.get_json(silent=True) or request.form or {}
     pin_value = str(payload.get('pin', '')).strip()
-    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '0606')).strip()
+    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '')).strip()
+    if not expected_pin:
+        return jsonify({'success': False, 'message': 'Sterowanie PIN-em nie jest skonfigurowane.'}), 503
 
     if pin_value != expected_pin:
         return jsonify({'success': False, 'message': 'Nieprawidłowy PIN.'}), 403
@@ -751,6 +751,5 @@ def zmien_moje_haslo():
         return jsonify({'success': False, 'message': 'Błąd serwera podczas zmiany hasła.'}), 500
     finally:
         conn.close()
-
 
 

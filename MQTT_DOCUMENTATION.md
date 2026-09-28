@@ -26,7 +26,7 @@ Protokół: MQTT 3.1.1
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 MQTT_SUBSCRIBE_TOPICS=#              # Defaults to wildcard (wszystkie topicy)
 MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomości
 ```
@@ -37,7 +37,7 @@ MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomo
 
 ### Parametry Połączenia
 - **Username:** `Lstech`
-- **Password:** `Lstech123`
+- **Password:** `CHANGE_THIS_TO_YOUR_MQTT_PASSWORD`
 - **TLS/SSL:** Tak (port 8883)
 - **QoS (Quality of Service):** 
   - **Publikacja (wysyłanie komend):** QoS 1 (at least once) – gwarantuje dostarczenie
@@ -48,7 +48,7 @@ MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomo
 import paho.mqtt.client as mqtt
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()  # Włącz SSL/TLS
 
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883, 60)
@@ -439,7 +439,7 @@ curl -X GET http://localhost:8082/api/machines/telemetry/live \
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 
 # Topicy do subskrypcji (domyślnie #)
 MQTT_SUBSCRIBE_TOPICS=#

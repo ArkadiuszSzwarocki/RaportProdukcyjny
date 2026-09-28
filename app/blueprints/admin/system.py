@@ -1016,6 +1016,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @dynamic_role_required('ustawienia')
     def admin_send_daily_warehouse_report():
         """Wymusza wysyłkę dziennego raportu zbiorczego dla wskazanego dnia (lub bieżącego)."""
+        from datetime import datetime
         payload = request.get_json() or {}
         date_str = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
         force = bool(payload.get('force', True))

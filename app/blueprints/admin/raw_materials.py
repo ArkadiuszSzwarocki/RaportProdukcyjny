@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app.db import get_db_connection
+from app.decorators import dynamic_role_required
 
 def register_admin_raw_materials_routes(admin_bp):
 
     @admin_bp.route('/admin/slownik-surowcow', methods=['GET'])
+    @dynamic_role_required('ustawienia')
     def raw_materials_index():
         conn = get_db_connection()
         try:
@@ -15,6 +17,7 @@ def register_admin_raw_materials_routes(admin_bp):
         return render_template('admin/raw_materials.html', items=items)
 
     @admin_bp.route('/admin/slownik-surowcow/zapisz', methods=['POST'])
+    @dynamic_role_required('ustawienia')
     def raw_materials_save():
         data = request.form
         item_id = data.get('id')
@@ -52,6 +55,7 @@ def register_admin_raw_materials_routes(admin_bp):
         return redirect(url_for('admin.raw_materials_index'))
 
     @admin_bp.route('/admin/slownik-surowcow/usun/<int:item_id>', methods=['POST'])
+    @dynamic_role_required('ustawienia')
     def raw_materials_delete(item_id):
         conn = get_db_connection()
         try:

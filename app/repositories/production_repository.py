@@ -296,7 +296,7 @@ def _auto_confirm_existing_palety(cursor):
     except Exception as e:
         print(f"[INFO] Auto-confirm migration skipped or already applied: {e}")
 
-def rollover_unfinished(from_date, to_date):
+def rollover_unfinished(from_date, to_date, linia=None):
     """Przenosi niezakończone zlecenia z `from_date` na `to_date`.
     Zlecenia przenoszone są jako nowe wiersze z datą docelową, statusem
     'zaplanowane' (reset real_start/real_stop) i odpowiednią kolejnością.

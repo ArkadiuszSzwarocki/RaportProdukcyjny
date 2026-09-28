@@ -21,6 +21,7 @@
     <!-- GLOBAL LAYOUT ASSETS -->
     {% include 'includes/_layout_styles.html' %}
     {% include 'includes/_layout_scripts.html' %}
+    <script src="{{ url_for('static', filename='js/watchdog_tracker.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
     <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
     <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
@@ -83,6 +84,7 @@
     <!-- GLOBAL SCRIPTS -->
     {% include 'includes/_layout_footer_scripts.html' %}
     {% block footer_scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/watchdog_tracker.js') }}"></script>
 </body>
 
 </html>

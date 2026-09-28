@@ -111,7 +111,8 @@ class DeliverySaveService:
 
                 items = ExternalDeliveryProcessor.process_reception(
                     cursor, items, linia, supplier, order_ref, physical_insert_loc,
-                    printer_info, old_data, old_items, login
+                    printer_info, old_data, old_items, login,
+                    connection=conn, delivery_id=dostawa_id,
                 )
 
             # Step 4: Deduplicate items by ID

@@ -14,8 +14,8 @@
         <span class="material-icons" style="color: #ef4444;">warning</span>
         <h3 style="margin: 0; color: #991b1b; font-size: 16px;">Kończący się termin przydatności (FEFO)</h3>
     </div>
-    <div style="max-height: 200px; overflow-y: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <div style="max-height: 200px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table style="width: 100%; min-width: 340px; border-collapse: collapse; font-size: 13px;">
             <thead>
                 <tr style="border-bottom: 1px solid #fca5a5; color: #991b1b; text-align: left;">
                     <th style="padding: 5px;">Nr Palety</th>
@@ -173,7 +173,7 @@ function setViewMode(mode) {
 <script src="{{ url_for('static', filename='js/warehouse_v2/modals.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_delete.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_move.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ static_version }}&history_ui=3"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_block.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/filters.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/sorting.js') }}?v={{ static_version }}"></script>

@@ -154,10 +154,14 @@ def panel_hours_page():
         data_do = request.args.get('data_do', datetime.now().strftime('%Y-%m-%d'))
         
         # Build employee summary using the dedicated service function
-        summary = build_employee_summary(data_od, data_do)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        prac_id = request.args.get('pracownik_id', 0)
+        summary = build_employee_summary(cursor, prac_id, data_od, data_do)
         
         # Build hours calendar data
-        calendar_data = build_hours_calendar(data_od, data_do)
+        now_dt = datetime.now()
+        calendar_data = build_hours_calendar(cursor, prac_id, now_dt.year, now_dt.month)
         
         return render_template('panel_hours.html', 
                               summary=summary, 

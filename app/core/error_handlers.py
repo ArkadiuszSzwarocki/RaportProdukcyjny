@@ -86,8 +86,15 @@ def setup_logging(app):
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
 
+    log_level_name = os.environ.get('LOG_LEVEL', 'WARNING').upper()
+    default_log_level = getattr(logging, log_level_name, logging.WARNING)
+
+    # Silence server access loggers to prevent request latency and console flood
+    logging.getLogger('waitress').setLevel(logging.ERROR)
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
     # ------------------------------------------------------------------
-    # Main app logger (INFO level in production to eliminate debug noise)
+    # Main app logger (WARNING level by default to eliminate trace noise)
     # ------------------------------------------------------------------
     # During pytest runs avoid writing to rotating files to prevent Windows
     # permission errors when pytest/other processes rotate logs concurrently.
@@ -110,18 +117,15 @@ def setup_logging(app):
         handler = SafeTimedRotatingFileHandler(
             log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
         )
-        # INFO level: debug-trace messages stay out of the file log
-        handler.setLevel(logging.INFO)
+        # WARNING+ level: avoid disk I/O bottlenecks on routine requests
+        handler.setLevel(default_log_level)
         formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
         handler.setFormatter(formatter)
-        app.logger.setLevel(logging.INFO)
+        app.logger.setLevel(default_log_level)
         app.logger.addHandler(handler)
         # Noise filter suppresses known harmless 404/405 probes
         noise_filter = NoiseFilter()
         handler.addFilter(noise_filter)
-        # Do NOT attach werkzeug to the app handler — its HTTP access lines
-        # (e.g. "GET /planista HTTP/1.1 200 –") are noise in app.log.
-        # werkzeug writes to stderr by default which is fine.
 
     # ------------------------------------------------------------------
     # Dedicated error logger
@@ -140,7 +144,7 @@ def setup_logging(app):
     # Audit logger — human-readable record of user actions
     # ------------------------------------------------------------------
     audit_logger = logging.getLogger('audit')
-    audit_logger.setLevel(logging.INFO)
+    audit_logger.setLevel(default_log_level)
     # Don't propagate to root logger (avoids duplicate lines in app.log)
     audit_logger.propagate = False
     if not use_stream:
@@ -148,7 +152,7 @@ def setup_logging(app):
         audit_handler = SafeTimedRotatingFileHandler(
             audit_log_path, when='midnight', interval=1, backupCount=90, encoding='utf-8', delay=True
         )
-        audit_handler.setLevel(logging.INFO)
+        audit_handler.setLevel(default_log_level)
         audit_formatter = logging.Formatter('%(asctime)s AUDIT: %(message)s')
         audit_handler.setFormatter(audit_formatter)
         if not audit_logger.handlers:
@@ -165,13 +169,13 @@ def setup_logging(app):
     # Dedicated palety logger (unchanged)
     # ------------------------------------------------------------------
     palety_logger = logging.getLogger('palety_logger')
-    palety_logger.setLevel(logging.INFO)
+    palety_logger.setLevel(default_log_level)
     palety_log_path = os.path.join(logs_dir, 'palety.log')
     # Rotate palety log daily and keep 30 days
     palety_handler = SafeTimedRotatingFileHandler(
         palety_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
     )
-    palety_handler.setLevel(logging.INFO)
+    palety_handler.setLevel(default_log_level)
     palety_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
     palety_handler.setFormatter(palety_formatter)
     if not palety_logger.handlers:
@@ -181,12 +185,12 @@ def setup_logging(app):
     # Status changes logger — dedicated file for plan status diagnostics
     # ------------------------------------------------------------------
     status_logger = logging.getLogger('status_changes')
-    status_logger.setLevel(logging.INFO)
+    status_logger.setLevel(default_log_level)
     status_log_path = os.path.join(logs_dir, 'status_changes.log')
     status_handler = SafeTimedRotatingFileHandler(
         status_log_path, when='midnight', interval=1, backupCount=60, encoding='utf-8', delay=True
     )
-    status_handler.setLevel(logging.INFO)
+    status_handler.setLevel(default_log_level)
     status_formatter = logging.Formatter('%(asctime)s STATUS: %(message)s')
     status_handler.setFormatter(status_formatter)
     # Avoid duplicate handlers on repeated app create
@@ -273,6 +277,21 @@ def register_error_handlers(app):
             # Log structured header for easier parsing in Error Trap view
             app.logger.error(f"[TRAP_HEADER] URL: {path} | ACTION: {action} | ERR_REF: ERR-{err_ref}")
             app.logger.exception('Unhandled exception [ERR-%s] on %s %s: %s', err_ref, request.method, request.path, error_msg)
+
+            # Dispatch backend error to Watchdog
+            try:
+                import traceback
+                tb_details = traceback.format_exc()
+                from app.services.watchdog_service import WatchdogService
+                WatchdogService.send_log(
+                    app_name="RaportProdukcyjny",
+                    error_type="Backend Exception",
+                    details=tb_details,
+                    file_path=request.url,
+                    line_num=""
+                )
+            except Exception:
+                pass
         except Exception as e:
             import uuid
             err_ref = uuid.uuid4().hex[:8].upper()

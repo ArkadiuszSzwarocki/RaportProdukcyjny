@@ -10,6 +10,9 @@ from app.services.scanner.scanner_location_query_service import ScannerLocationQ
 from app.services.scanner.scanner_resolution_service import ScannerResolutionService
 from app.services.scanner.scanner_movement_service import ScannerMovementService
 from app.services.scanner.scanner_label_service import ScannerLabelService
+from app.db import get_db_connection, get_table_name
+
+__all__ = ["ScannerService", "get_db_connection", "get_table_name"]
 
 
 class ScannerService:
@@ -54,6 +57,11 @@ class ScannerService:
     @staticmethod
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
         return ScannerResolutionService.lookup_by_location(location_code, linia, try_all_lines)
+
+    @staticmethod
+    def lookup_scanned_code(scanned_code: str, linia: str = 'Agro') -> dict | None:
+        """Alias resolving scanned barcode or SSCC."""
+        return ScannerResolutionService.lookup_by_location(scanned_code, linia=linia)
 
     # Movement & Dispatch delegates
     @staticmethod

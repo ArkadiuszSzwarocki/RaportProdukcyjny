@@ -62,6 +62,17 @@ _data_lock = threading.Lock()
 _latest_machine_data["subscribed_topics"] = list(_SUBSCRIBE_TOPICS)
 
 
+def _get_required_mqtt_password():
+    """Return the MQTT password or fail closed when it is not configured."""
+    mqtt_password = (os.getenv("MQTT_BROKER_PASSWORD") or "").strip()
+    if not mqtt_password:
+        raise RuntimeError(
+            "Brak wymaganej zmiennej MQTT_BROKER_PASSWORD. "
+            "Mostek MQTT nie zostanie uruchomiony."
+        )
+    return mqtt_password
+
+
 def _first_or_default(value, default):
     if isinstance(value, list):
         return value[0] if value else default
@@ -351,7 +362,7 @@ def _run_mqtt_client():
     mqtt_host = os.getenv("MQTT_BROKER_HOST", "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud")
     mqtt_port = int(os.getenv("MQTT_BROKER_PORT", "8883"))
     mqtt_username = os.getenv("MQTT_BROKER_USERNAME", "Lstech")
-    mqtt_password = os.getenv("MQTT_BROKER_PASSWORD", "Lstech123")
+    mqtt_password = _get_required_mqtt_password()
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     global _active_mqtt_client
@@ -380,6 +391,9 @@ def start_mqtt_bridge():
     global _mqtt_thread
     if _mqtt_thread is not None and _mqtt_thread.is_alive():
         return
+    # Validate secrets synchronously so the caller gets a clear startup error
+    # instead of a silently failing background thread.
+    _get_required_mqtt_password()
     _mqtt_thread = threading.Thread(target=_run_mqtt_client, daemon=True, name="mqtt-bridge")
     _mqtt_thread.start()
     print("[MQTT-SERVER] Mostek MQTT uruchomiony w tle.")

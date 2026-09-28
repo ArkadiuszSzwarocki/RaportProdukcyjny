@@ -1,38 +1,45 @@
 from functools import wraps
 from flask import session, redirect, request, jsonify, current_app, render_template
 
+def login_required_response():
+    """Return an authentication error response, or ``None`` for an allowed request.
+
+    This helper is also used as a blueprint-wide guard so new routes cannot
+    accidentally become public merely by omitting ``@login_required``.
+    """
+    print_token = request.args.get('print_token')
+    if print_token:
+        from app.utils.security_tokens import verify_internal_print_token
+        if verify_internal_print_token(request.path, print_token):
+            return None
+
+    if 'zalogowany' in session:
+        return None
+
+    try:
+        is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+    except Exception:
+        is_xhr = accepts_json = False
+    try:
+        current_app.logger.info(
+            "[login_required] Unauthenticated request to %s from %s",
+            request.path, request.remote_addr,
+        )
+    except Exception:
+        pass
+    if is_xhr or accepts_json:
+        return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+    return redirect('/login')
+
+
 # 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Allow internal print rendering ONLY when bearing a valid cryptographic HMAC token
-        print_token = request.args.get('print_token')
-        if print_token:
-            from app.utils.security_tokens import verify_internal_print_token
-            if verify_internal_print_token(request.path, print_token):
-                return f(*args, **kwargs)
-            
-        if 'zalogowany' not in session:
-            # If request looks like AJAX/JSON (X-Requested-With or Accepts JSON), return 401 JSON
-            try:
-                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
-            except Exception:
-                is_xhr = False; accepts_json = False
-            # Log unauthenticated requests for diagnostics (avoid logging cookies/credentials)
-            try:
-                if is_xhr or accepts_json:
-                    current_app.logger.info(
-                        "[login_required] Unauthenticated AJAX to %s from %s Accept=%s X-Requested-With=%s User-Agent=%s",
-                        request.path, request.remote_addr, request.headers.get('Accept'), request.headers.get('X-Requested-With'), request.headers.get('User-Agent')
-                    )
-                else:
-                    current_app.logger.info("[login_required] Unauthenticated page request to %s from %s", request.path, request.remote_addr)
-            except Exception:
-                pass
-            if is_xhr or accepts_json:
-                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
-            return redirect('/login')
+        auth_response = login_required_response()
+        if auth_response is not None:
+            return auth_response
         return f(*args, **kwargs)
     return decorated_function
 

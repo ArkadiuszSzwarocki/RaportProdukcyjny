@@ -42,9 +42,9 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'modals.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_block.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -355,12 +355,23 @@ def inject_translations():
 
 def inject_globals():
     """Inject global variables into all Jinja templates."""
-    active_db = getattr(g, 'active_db', get_active_database_name())
-    app_version = get_app_version()
-    
+    try:
+        from flask import g
+        from app.core.database import get_active_database_name
+        active_db = getattr(g, 'active_db', None) or get_active_database_name()
+    except Exception:
+        active_db = 'biblioteka'
+
+    try:
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        version_path = os.path.join(project_root, 'VERSION')
+        with open(version_path, 'r', encoding='utf-8') as f:
+            app_version = f.read().strip()
+    except Exception:
+        app_version = 'N/A'
+
     # Increase this number to force browser to reload static files (css/js)
-    static_version = 60
-    
+    static_version = 61
     return dict(static_version=static_version, app_version=app_version, db_name=active_db)
 
 

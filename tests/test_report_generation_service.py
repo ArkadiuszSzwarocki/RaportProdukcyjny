@@ -107,13 +107,12 @@ class TestGenerateReportFiles:
     proper tuple structure. Real file generation testing is done at integration level.
     """
     
-    def test_generate_reports_returns_tuple(self):
+    def test_generate_reports_returns_tuple(self, app):
         """Test that method returns tuple of 3 elements (xls, txt, pdf)."""
-        # The method safely handles missing generator_raportow module
-        result = ReportGenerationService._generate_report_files()
-        
-        assert isinstance(result, tuple)
-        assert len(result) == 3
+        with app.app_context():
+            result = ReportGenerationService._generate_report_files()
+            assert isinstance(result, tuple)
+            assert len(result) == 3
 
 
 class TestCreateReportZip:

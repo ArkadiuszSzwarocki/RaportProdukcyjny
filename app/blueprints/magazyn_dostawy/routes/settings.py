@@ -71,6 +71,26 @@ def api_delete_lokalizacja(loc_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+_network_printers_cache = {'data': [], 'expires_at': 0.0}
+
+
+def _get_cached_network_printers():
+    """Retrieve network printers with a 60-second TTL cache to prevent socket lag."""
+    import time
+    now = time.time()
+    if now < _network_printers_cache['expires_at']:
+        return _network_printers_cache['data']
+    try:
+        from app.services.print_server import get_printer
+        printers = get_printer().list_network_printers()
+        _network_printers_cache['data'] = printers or []
+        _network_printers_cache['expires_at'] = now + 60.0
+        return _network_printers_cache['data']
+    except Exception:
+        _network_printers_cache['expires_at'] = now + 30.0
+        return _network_printers_cache['data']
+
+
 @magazyn_dostawy_bp.route('/api/active-printers', methods=['GET'])
 @login_required
 def active_printers_api():
@@ -100,10 +120,9 @@ def active_printers_api():
         except Exception:
             pass
 
-    # 2. Następnie pobieramy drukarki sieciowe z mostka i dodajemy te, których nie ma w bazie
+    # 2. Następnie pobieramy drukarki sieciowe z mostka (z bufora podręcznego)
     try:
-        from app.services.print_server import get_printer
-        network_printers = get_printer().list_network_printers()
+        network_printers = _get_cached_network_printers()
         for p in network_printers:
             ip = str(p.get('ip') or '').strip()
             if not ip or ip in seen_ips:
@@ -118,11 +137,8 @@ def active_printers_api():
                 'source': 'network',
             })
             seen_ips.add(ip)
-    except Exception as network_err:
-        try:
-            current_app.logger.warning('active_printers_api: network printers unavailable: %s', network_err)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return jsonify({'success': True, 'printers': printers})
 

@@ -25,7 +25,7 @@ import json
 BROKER = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 PORT = 8883
 USER = "Lstech"
-PASS = "Lstech123"
+PASS = "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD"
 
 def on_message(client, userdata, msg):
     data = json.loads(msg.payload.decode())
@@ -129,7 +129,7 @@ import json
 from datetime import datetime
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883)
 
@@ -214,7 +214,7 @@ from datetime import datetime
 import time
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883)
 
@@ -478,7 +478,7 @@ client.publish("iot-2/type/cMT2108X2/id/nieistniejacy", "{...}", qos=1)
 2. Zmień hasło dla usera `Lstech`
 3. Zaktualizuj `.env`:
    ```env
-   MQTT_BROKER_PASSWORD=NoweHaslo123
+   MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_A_NEW_STRONG_PASSWORD
    ```
 4. Reboot aplikacji:
    ```bash

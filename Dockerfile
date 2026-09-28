@@ -33,8 +33,10 @@ EXPOSE 8082
 # UTWÓRZ KATALOGI I NADAJ UPRAWNIENIA
 RUN mkdir -p /app/raporty /app/logs /app/certs && \
     chown -R appuser:appgroup /app && \
-    chmod -R 755 /app
+    chmod 750 /app && \
+    chmod 700 /app/certs && \
+    chmod 750 /app/raporty /app/logs
 
 USER appuser
 
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "wsgi:app"]

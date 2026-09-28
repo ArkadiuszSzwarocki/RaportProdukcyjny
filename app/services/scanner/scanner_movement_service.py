@@ -1,8 +1,29 @@
 from datetime import datetime
-from app.db import get_db_connection, get_table_name
+from app.db import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
+
+
+def get_db_connection(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_db_connection', _core_get_db_connection)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_db_connection(*args, **kwargs)
+
+
+def get_table_name(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_table_name', _core_get_table_name)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_table_name(*args, **kwargs)
+
+
 from app.services.tank_validation_service import TankValidationService
 from app.utils.location_validator import is_deleted_station_code, check_rack_location_availability
 from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 class ScannerMovementService:
     """Obsługuje fizyczne ruchy magazynowe skanera: przekazywanie na produkcję i przesunięcia regałowe."""
@@ -109,20 +130,23 @@ class ScannerMovementService:
                     plan_id_val, komentarz, zbiornik_val
                 )
             )
+            movement_id = cur.lastrowid
 
-            try:
-                cur.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) "
-                    "VALUES (%s, %s, %s, %s, 'WYDANIE_PRODUKCJA', %s, %s, %s, %s)",
-                    (
-                        surowiec_id, pallet_sscc, linia, pallet_type.lower(),
-                        lokalizacja_zrodlowa or 'Magazyn', zbiornik_val,
-                        f"Wydanie do stacji {zbiornik_val} (ilość: {ilosc:.1f} kg)",
-                        worker_login
-                    )
-                )
-            except Exception as hist_err:
-                print("Błąd zapisu palety_historia w dispatch_to_production:", hist_err)
+            operation_id = f"{table_ruch}:{movement_id}"
+            history_saved = MovementRecorder.record_movement(
+                surowiec_id, linia, pallet_type, 'WYDANIE_PRODUKCJA',
+                lokalizacja_zrodlowa or 'MAGAZYN', zbiornik_val,
+                f"Wydanie do stacji {zbiornik_val} (ilość: {ilosc:.1f} kg)",
+                worker_login, pallet_sscc,
+                cursor=cur,
+                connection=conn,
+                operation_id=operation_id,
+                quantity_before=stan,
+                quantity_after=stan_po,
+                occurred_at=now,
+            )
+            if not history_saved:
+                raise RuntimeError("Nie udało się zapisać historii wydania na produkcję")
 
             conn.commit()
 
@@ -150,6 +174,7 @@ class ScannerMovementService:
         nowa_lokalizacja: str,
         worker_login: str,
         linia: str = 'Agro',
+        pallet_type: str = 'Surowiec',
     ) -> tuple[bool, str]:
         """Przenosi paletę na nową lokalizację i zapisuje historię w magazyn_ruch."""
         nowa_lokalizacja = str(nowa_lokalizacja or '').strip().upper()
@@ -226,6 +251,22 @@ class ScannerMovementService:
                     f"Przesunięcie skanerem: {stara_lokalizacja or 'Brak'} -> {nowa_lokalizacja}"
                 )
             )
+            movement_id = cur.lastrowid
+            operation_id = f"{table_ruch}:{movement_id}"
+            history_saved = MovementRecorder.record_movement(
+                surowiec_id, linia, 'Surowiec', 'PRZESUNIECIE',
+                stara_lokalizacja or 'NIEZNANE', nowa_lokalizacja,
+                f"Przesunięcie skanerem: {stara_lokalizacja or 'Brak'} -> {nowa_lokalizacja}",
+                worker_login, pallet.get('nr_palety'),
+                cursor=cur,
+                connection=conn,
+                operation_id=operation_id,
+                quantity_before=stan,
+                quantity_after=stan,
+                occurred_at=now,
+            )
+            if not history_saved:
+                raise RuntimeError("Nie udało się zapisać historii przesunięcia")
             conn.commit()
 
             try:

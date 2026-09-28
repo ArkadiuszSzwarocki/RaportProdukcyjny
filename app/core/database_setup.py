@@ -88,6 +88,7 @@ def _create_tables(cursor):
             tonaz_rzeczywisty FLOAT,
             kolejnosc INT DEFAULT 0,
             typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
+            typ_zlecenia VARCHAR(50) DEFAULT '',
             wyjasnienie_rozbieznosci TEXT,
             data_produkcji DATE DEFAULT NULL,
             rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'
@@ -171,6 +172,8 @@ def _create_tables(cursor):
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             dispatched_at DATETIME NULL,
             completed_at DATETIME NULL,
+            email_sent_at DATETIME NULL,
+            email_sent_to VARCHAR(255) NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     """)
@@ -277,21 +280,44 @@ def _create_tables(cursor):
     except Exception:
         pass
     
-    cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dziennik_zmiany (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_wpisu DATE,
+            sekcja VARCHAR(50),
+            problem TEXT,
+            czas_start DATETIME,
+            czas_stop DATETIME,
+            status VARCHAR(30) DEFAULT 'zgłoszone',
+            kategoria VARCHAR(50),
+            pracownik_id INT,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            data_zakonczenia DATETIME NULL
+        )
+    """)
 
     # Tabela historii ruchów palet (traceability)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS palety_historia (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            event_id CHAR(36) NULL,
             paleta_id INT NULL,
+            nr_palety VARCHAR(100) NULL,
             linia VARCHAR(20) NOT NULL,
             typ_palety VARCHAR(50) DEFAULT 'wyrob_gotowy',
+            entity_type VARCHAR(50) NULL,
+            operation_id VARCHAR(100) NULL,
             akcja VARCHAR(50) NOT NULL,
             lokalizacja_zrodlowa VARCHAR(100) NULL,
             lokalizacja_docelowa VARCHAR(100) NULL,
+            quantity_before DECIMAL(14,3) NULL,
+            quantity_after DECIMAL(14,3) NULL,
             komentarz TEXT NULL,
             user_login VARCHAR(100) NULL,
-            data_ruchu DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_ruchu DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_palety_historia_event_id (event_id),
+            INDEX idx_ph_sscc_time (nr_palety, data_ruchu),
+            INDEX idx_ph_operation_id (operation_id)
         )
     """)
 
@@ -301,6 +327,12 @@ def _create_tables(cursor):
             nazwa VARCHAR(255) NOT NULL,
             stan_magazynowy FLOAT DEFAULT 0,
             lokalizacja VARCHAR(64) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_partii VARCHAR(100) DEFAULT NULL,
+            data_produkcji DATE DEFAULT NULL,
+            data_przydatnosci DATE DEFAULT NULL,
+            typ_opakowania VARCHAR(50) DEFAULT 'bags',
+            is_blocked TINYINT(1) DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_magazyn_surowce_nazwa (nazwa(250)),
@@ -314,12 +346,105 @@ def _create_tables(cursor):
                    "typ_opakowania VARCHAR(50) DEFAULT 'Karton',"
                    "stan_magazynowy FLOAT DEFAULT 0,"
                    "lokalizacja VARCHAR(64) DEFAULT NULL,"
+                   "nr_palety VARCHAR(100) DEFAULT NULL,"
                    "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
                    "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                    "INDEX idx_magazyn_opakowania_nazwa (nazwa(250)),"
                    "INDEX idx_magazyn_opakowania_lokal (lokalizacja),"
                    "INDEX idx_magazyn_opakowania_typ (typ_opakowania)"
                    ")")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_dostawy (
+            id VARCHAR(64) PRIMARY KEY,
+            order_ref VARCHAR(100) NULL,
+            supplier VARCHAR(255) NULL,
+            delivery_date DATE NULL,
+            status VARCHAR(50) DEFAULT 'OCZEKUJE',
+            items JSON NULL,
+            created_by VARCHAR(100) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            requires_lab TINYINT(1) DEFAULT 0,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            lokalizacja_z VARCHAR(100) NULL,
+            lokalizacja_do VARCHAR(100) NULL,
+            INDEX idx_md_status (status),
+            INDEX idx_md_linia (linia),
+            INDEX idx_md_created_at (created_at)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS slownik_surowcow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL UNIQUE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_dodatki (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL,
+            linia VARCHAR(20) DEFAULT 'PSD',
+            stan_magazynowy FLOAT DEFAULT 0,
+            lokalizacja VARCHAR(100) NULL,
+            nr_palety VARCHAR(100) NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_archiwum (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            original_id INT NULL,
+            nr_palety VARCHAR(50) NULL,
+            nazwa VARCHAR(255) NULL,
+            typ_palety VARCHAR(50) NULL,
+            linia VARCHAR(10) NULL,
+            nr_partii VARCHAR(100) NULL,
+            waga_ostatnia FLOAT NULL,
+            lokalizacja_ostatnia VARCHAR(100) NULL,
+            data_archiwizacji DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_login VARCHAR(100) NULL,
+            komentarz TEXT NULL,
+            INDEX idx_ma_nr_palety (nr_palety),
+            INDEX idx_ma_original_id (original_id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kod_wiadra VARCHAR(50),
+            nr_sscc VARCHAR(50),
+            plan_id INT,
+            szarza_id INT,
+            status VARCHAR(50),
+            waga_calkowita DECIMAL(10,2) DEFAULT 0,
+            operator_nawazyl_login VARCHAR(100),
+            data_produkcji DATETIME,
+            data_przydatnosci DATETIME,
+            data_rozpoczecia DATETIME,
+            data_skompletowania DATETIME,
+            data_zakonczenia DATETIME,
+            operator VARCHAR(100),
+            linia VARCHAR(50),
+            mieszalnik_kod VARCHAR(50),
+            data_zasypania DATETIME,
+            operator_zasypal_login VARCHAR(100)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wiaderka_maluchy_pozycje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            wiaderko_id INT,
+            stacja_kod VARCHAR(50),
+            surowiec_nazwa VARCHAR(255),
+            waga_faktyczna DECIMAL(10,2) DEFAULT 0,
+            data_nawazenia DATETIME,
+            operator_login VARCHAR(100)
+        )
+    """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS slownik_surowcow (
@@ -375,6 +500,8 @@ def _create_tables(cursor):
             szarza_id INT NULL,
             nazwa VARCHAR(255) NOT NULL,
             kg FLOAT NOT NULL,
+            kg_wydozowane FLOAT NULL,
+            kg_planowane FLOAT NULL,
             data_zlecenia DATETIME DEFAULT CURRENT_TIMESTAMP,
             pracownik_id INT NULL,
             potwierdzone BOOLEAN DEFAULT 0,
@@ -1114,9 +1241,13 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
     _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "kg_wydozowane", "FLOAT NULL", "Dodawanie kolumny 'kg_wydozowane' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "kg_planowane", "FLOAT NULL", "Dodawanie kolumny 'kg_planowane' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowana", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'anulowana' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "data_anulowania", "DATETIME NULL", "Dodawanie kolumny 'data_anulowania' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowal_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'anulowal_login' do dosypek")
+    _add_column_if_missing(cursor, "dziennik_zmiany", "linia", "VARCHAR(20) DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do dziennik_zmiany")
+    _add_column_if_missing(cursor, "dziennik_zmiany", "data_zakonczenia", "DATETIME NULL", "Dodawanie kolumny 'data_zakonczenia' do dziennik_zmiany")
     
     # szarze columns
     _add_column_if_missing(cursor, "szarze", "nr_szarzy", "INT NULL", "Dodawanie kolumny 'nr_szarzy' do szarze")
@@ -1342,6 +1473,14 @@ def _migrate_columns(cursor):
         typ_default = "VARCHAR(50) DEFAULT 'Karton'" if tbl.endswith('opakowania') else "VARCHAR(50) DEFAULT 'bags'"
         _add_column_if_missing(cursor, tbl, "typ_opakowania", typ_default, f"Dodawanie kolumny 'typ_opakowania' do {tbl}")
         _add_column_if_missing(cursor, tbl, "is_blocked", "BOOLEAN DEFAULT 0", f"Dodawanie kolumny 'is_blocked' do {tbl}")
+
+    for tbl in ["magazyn_surowce", "magazyn_agro_surowce", "magazyn_opakowania", "magazyn_agro_opakowania", "magazyn_dodatki"]:
+        _add_column_if_missing(cursor, tbl, "nr_palety", "VARCHAR(100) NULL", f"Dodawanie kolumny 'nr_palety' do {tbl}")
+
+    _add_column_if_missing(cursor, "osip_transfers", "email_sent_at", "DATETIME NULL", "Dodawanie kolumny 'email_sent_at' do osip_transfers")
+    _add_column_if_missing(cursor, "osip_transfers", "email_sent_to", "VARCHAR(255) NULL", "Dodawanie kolumny 'email_sent_to' do osip_transfers")
+    _add_column_if_missing(cursor, "plan_produkcji", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' do plan_produkcji")
+    _add_column_if_missing(cursor, "wiaderka_maluchy", "data_skompletowania", "DATETIME NULL", "Dodawanie kolumny 'data_skompletowania' do wiaderka_maluchy")
     
     # Inwentaryzacja wpisy packaging type
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
@@ -1565,6 +1704,47 @@ def _migrate_columns(cursor):
             print("[OK] Added column nr_palety and index to palety_historia")
     except Exception as e:
         print(f"[WARN] Failed to add column nr_palety to palety_historia: {e}")
+
+    # Traceability v2: stable event identity, unambiguous entity type and quantities.
+    _add_column_if_missing(cursor, "palety_historia", "event_id", "CHAR(36) NULL", "Dodawanie event_id do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "entity_type", "VARCHAR(50) NULL", "Dodawanie entity_type do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "operation_id", "VARCHAR(100) NULL", "Dodawanie operation_id do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "quantity_before", "DECIMAL(14,3) NULL", "Dodawanie quantity_before do palety_historia")
+    _add_column_if_missing(cursor, "palety_historia", "quantity_after", "DECIMAL(14,3) NULL", "Dodawanie quantity_after do palety_historia")
+    try:
+        cursor.execute("UPDATE palety_historia SET event_id = UUID() WHERE event_id IS NULL OR event_id = ''")
+        cursor.execute("UPDATE palety_historia SET entity_type = typ_palety WHERE entity_type IS NULL OR entity_type = ''")
+        try:
+            cursor.execute("ALTER TABLE palety_historia MODIFY event_id CHAR(36) NOT NULL DEFAULT (UUID())")
+        except Exception as default_error:
+            print(f"[WARN] Database UUID default not supported: {default_error}")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'uq_palety_historia_event_id'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD UNIQUE INDEX uq_palety_historia_event_id (event_id)")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'idx_ph_sscc_time'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD INDEX idx_ph_sscc_time (nr_palety, data_ruchu)")
+        cursor.execute("SHOW INDEX FROM palety_historia WHERE Key_name = 'idx_ph_operation_id'")
+        if not cursor.fetchall():
+            cursor.execute("ALTER TABLE palety_historia ADD INDEX idx_ph_operation_id (operation_id)")
+        cursor.execute("""
+            SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
+            WHERE TRIGGER_SCHEMA = DATABASE()
+              AND TRIGGER_NAME = 'bi_palety_historia_trace'
+        """)
+        if not cursor.fetchone():
+            try:
+                cursor.execute("""
+                    CREATE TRIGGER bi_palety_historia_trace
+                    BEFORE INSERT ON palety_historia
+                    FOR EACH ROW
+                    SET NEW.event_id = COALESCE(NULLIF(NEW.event_id, ''), UUID()),
+                        NEW.entity_type = COALESCE(NULLIF(NEW.entity_type, ''), NEW.typ_palety)
+                """)
+            except Exception as trigger_error:
+                print(f"[WARN] Traceability trigger not installed: {trigger_error}")
+    except Exception as e:
+        print(f"[WARN] Failed to add traceability indexes to palety_historia: {e}")
 
     # Clean up any past bug reports ("Robaczek") from downtime tables for PSD line
     try:
@@ -1813,6 +1993,7 @@ def setup_database():
         # startup. Only run it when explicitly requested via environment variable
         # `AUTO_CONFIRM_PALET=1` to avoid unexpected automatic acceptance.
         if os.environ.get('AUTO_CONFIRM_PALET') == '1':
+            from app.repositories.production_repository import _auto_confirm_existing_palety
             _auto_confirm_existing_palety(cursor)
         else:
             print("[INFO] Skipping auto-confirm palet on startup (AUTO_CONFIRM_PALET not set)")

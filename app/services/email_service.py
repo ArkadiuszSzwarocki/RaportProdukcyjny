@@ -167,7 +167,7 @@ class EmailService:
                 source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
                 linia_val = 'AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None)
                 EmailLogService.log_email_attempt(
-                    sender=sender_str,
+                    sender=config.get('username', 'system') if config else 'system',
                     recipients=to_emails,
                     subject=subject,
                     source=source_label,

@@ -5,11 +5,22 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 class WarehouseV2Service:
     @staticmethod
-    @staticmethod
     def get_pallet_history(pallet_id, pallet_type, linia='PSD', sscc=None):
         """Zwraca historię ruchów palety ściśle odseparowaną wg typu i unikalnego identyfikatora."""
         from app.services.warehouse_v2.pallet_history_service import PalletHistoryService
         return PalletHistoryService.get_pallet_history(pallet_id, pallet_type, linia=linia, sscc=sscc)
+
+    @staticmethod
+    def update_material_type(pallet_id, pallet_type, new_material_type, worker_login, linia='PSD'):
+        """Aktualizuje typ materiału dla opakowania / surowca."""
+        from app.services.warehouse_v2.pallet_material_service import PalletMaterialService
+        return PalletMaterialService.update_material_type(pallet_id, pallet_type, new_material_type, worker_login, linia)
+
+    @staticmethod
+    def bulk_update_material_type(pallet_ids, pallet_type, new_material_type, worker_login, linia='PSD'):
+        """Masowo aktualizuje typ materiału dla listy palet."""
+        from app.services.warehouse_v2.pallet_material_service import PalletMaterialService
+        return PalletMaterialService.bulk_update_material_type(pallet_ids, pallet_type, new_material_type, worker_login, linia)
 
     @staticmethod
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):

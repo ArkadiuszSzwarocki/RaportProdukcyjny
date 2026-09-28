@@ -458,6 +458,7 @@ def raport_przesuniecia(dostawa_id):
         reported_totals_by_unit = {}
         moved_totals_by_unit = {}
         rejected_totals_by_unit = {}
+        pending_totals_by_unit = {}
         all_target_locations = set() # reload trigger
         for idx, item in enumerate(items, start=1):
             qty_raw = item.get('quantity') or item.get('netWeight') or item.get('unitsPerPallet') or 0
@@ -523,8 +524,6 @@ def raport_przesuniecia(dostawa_id):
             elif rejected:
                 rejected_totals_by_unit[unit] = rejected_totals_by_unit.get(unit, 0.0) + qty
             else:
-                if 'pending_totals_by_unit' not in locals():
-                    pending_totals_by_unit = {}
                 pending_totals_by_unit[unit] = pending_totals_by_unit.get(unit, 0.0) + qty
 
         summary_rows = []

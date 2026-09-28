@@ -205,7 +205,7 @@ Sygnał Owijarki: iot-2/type/cMT2108X2/id/agroOwijarka/send
 Host:     4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:     8883 (TLS/SSL)
 User:     Lstech
-Pass:     Lstech123
+Pass:     CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 
 ---
@@ -280,7 +280,7 @@ Wszystkie ustawienia MQTT w pliku `.env`:
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 
 # Topicy do subskrypcji (domyślnie wszystkie)
 MQTT_SUBSCRIBE_TOPICS=#
@@ -435,7 +435,7 @@ python mqtt_test_suite.py
 Host:     4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:     8883 (TLS)
 User:     Lstech
-Pass:     Lstech123
+Pass:     CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 
 ---
@@ -529,7 +529,7 @@ from datetime import datetime
 BROKER = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 PORT = 8883
 USER = "Lstech"
-PASS = "Lstech123"
+PASS = "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD"
 
 # Callback
 def on_message(client, userdata, msg):
@@ -654,7 +654,7 @@ python mqtt_test_suite.py
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 MQTT_SUBSCRIBE_TOPICS=#
 MQTT_RECENT_MESSAGES_LIMIT=60
 ```
@@ -1070,7 +1070,7 @@ class Config:
     MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud")
     MQTT_BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", "8883"))
     MQTT_BROKER_USERNAME = os.getenv("MQTT_BROKER_USERNAME", "Lstech")
-    MQTT_BROKER_PASSWORD = os.getenv("MQTT_BROKER_PASSWORD", "Lstech123")
+    MQTT_BROKER_PASSWORD = os.getenv("MQTT_BROKER_PASSWORD", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
     MQTT_SUBSCRIBE_TOPICS = os.getenv("MQTT_SUBSCRIBE_TOPICS", "#")
     MQTT_RECENT_MESSAGES_LIMIT = int(os.getenv("MQTT_RECENT_MESSAGES_LIMIT", "60"))
 ```
@@ -1110,7 +1110,7 @@ import json
 BROKER = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 PORT = 8883
 USER = "Lstech"
-PASS = "Lstech123"
+PASS = "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD"
 
 def on_message(client, userdata, msg):
     data = json.loads(msg.payload.decode())
@@ -1214,7 +1214,7 @@ import json
 from datetime import datetime
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883)
 
@@ -1299,7 +1299,7 @@ from datetime import datetime
 import time
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883)
 
@@ -1563,7 +1563,7 @@ client.publish("iot-2/type/cMT2108X2/id/nieistniejacy", "{...}", qos=1)
 2. Zmień hasło dla usera `Lstech`
 3. Zaktualizuj `.env`:
    ```env
-   MQTT_BROKER_PASSWORD=NoweHaslo123
+   MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_A_NEW_STRONG_PASSWORD
    ```
 4. Reboot aplikacji:
    ```bash
@@ -1710,7 +1710,7 @@ Protokół: MQTT 3.1.1
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 MQTT_SUBSCRIBE_TOPICS=#              # Defaults to wildcard (wszystkie topicy)
 MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomości
 ```
@@ -1721,7 +1721,7 @@ MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomo
 
 ### Parametry Połączenia
 - **Username:** `Lstech`
-- **Password:** `Lstech123`
+- **Password:** `CHANGE_THIS_TO_YOUR_MQTT_PASSWORD`
 - **TLS/SSL:** Tak (port 8883)
 - **QoS (Quality of Service):** 
   - **Publikacja (wysyłanie komend):** QoS 1 (at least once) – gwarantuje dostarczenie
@@ -1732,7 +1732,7 @@ MQTT_RECENT_MESSAGES_LIMIT=60        # Ilość przechowywanych ostatnich wiadomo
 import paho.mqtt.client as mqtt
 
 client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.username_pw_set("Lstech", "Lstech123")
+client.username_pw_set("Lstech", "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD")
 client.tls_set()  # Włącz SSL/TLS
 
 client.connect("4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud", 8883, 60)
@@ -2123,7 +2123,7 @@ curl -X GET http://localhost:8082/api/machines/telemetry/live \
 MQTT_BROKER_HOST=4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 MQTT_BROKER_PORT=8883
 MQTT_BROKER_USERNAME=Lstech
-MQTT_BROKER_PASSWORD=Lstech123
+MQTT_BROKER_PASSWORD=CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 
 # Topicy do subskrypcji (domyślnie #)
 MQTT_SUBSCRIBE_TOPICS=#
@@ -2341,7 +2341,7 @@ Wejdź: http://localhost:8082/admin/master/mqtt
 Host:  4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud
 Port:  8883
 User:  Lstech
-Pass:  Lstech123
+Pass:  CHANGE_THIS_TO_YOUR_MQTT_PASSWORD
 ```
 📄 Źródło: MQTT_QUICK_REFERENCE.md
 
@@ -2600,7 +2600,7 @@ from datetime import datetime
 MQTT_HOST = "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 MQTT_USER = "Lstech"
-MQTT_PW = "Lstech123"
+MQTT_PW = "CHANGE_THIS_TO_YOUR_MQTT_PASSWORD"
 
 # ============= TOPICY =============
 TOPIC_PAKOWACZKA = "iot-2/type/cMT2108X2/id/agroPakowaczka"

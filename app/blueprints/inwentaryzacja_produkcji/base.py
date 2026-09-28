@@ -2,12 +2,17 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from app.services.inwentaryzacja_produkcji_service import InwentaryzacjaProdukcjiService
 from app.db import get_db_connection
-from app.decorators import roles_required
+from app.decorators import roles_required, login_required_response
 
 inwentaryzacja_produkcji_bp = Blueprint(
     'inwentaryzacja_produkcji', __name__,
     url_prefix='/produkcja/inwentaryzacja'
 )
+
+
+@inwentaryzacja_produkcji_bp.before_request
+def require_production_inventory_login():
+    return login_required_response()
 
 
 @inwentaryzacja_produkcji_bp.route('/')

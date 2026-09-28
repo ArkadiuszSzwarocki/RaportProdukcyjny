@@ -9,6 +9,7 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 
 class DeliveryQueries:
 
+    @staticmethod
     def get_dostawy(linia='PSD'):
             conn = get_db_connection()
             try:
@@ -31,6 +32,7 @@ class DeliveryQueries:
             finally:
                 conn.close()
 
+    @staticmethod
     def get_oczekujace(linia='PSD'):
             conn = get_db_connection()
             try:
@@ -66,6 +68,7 @@ class DeliveryQueries:
             finally:
                 conn.close()
 
+    @staticmethod
     def get_pending_production_pallets(linia='PSD'):
             """Fetches pallets with status 'do_przyjecia' from production tables."""
             conn = get_db_connection()
@@ -138,6 +141,7 @@ class DeliveryQueries:
                 row['linia'] = normalized_line
             return rows
 
+    @staticmethod
     def get_raport(date_from=None, date_to=None):
             conn = get_db_connection()
             try:

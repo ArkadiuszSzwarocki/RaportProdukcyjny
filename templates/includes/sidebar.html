@@ -7,6 +7,10 @@
 
 <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
 <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+    <style>
+        /* Sidebar navigation is text-only; icons remain available in page content. */
+        .sidebar .material-icons { display: none !important; }
+    </style>
     
     {% include 'includes/sidebar/_sidebar_header.html' %}
 

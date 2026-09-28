@@ -18,6 +18,61 @@ class PalletHistoryService:
         return datetime.min
 
     @staticmethod
+    def _as_float(value):
+        try:
+            return float(value) if value is not None and value != '' else None
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _quantity_from_comment(comment):
+        text = str(comment or '').replace(',', '.')
+        for pattern in (
+            r'(?:ilość|ilosc)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)',
+            r'(?:odcięto|odcieto)\s+([0-9]+(?:\.[0-9]+)?)',
+            r'(?:pobrano|wydano)\s+([0-9]+(?:\.[0-9]+)?)',
+        ):
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return PalletHistoryService._as_float(match.group(1))
+        return None
+
+    @staticmethod
+    def _enrich_quantities(events, current_quantity):
+        """Fill quantity on every event; mark values reconstructed from older data."""
+        known_after = PalletHistoryService._as_float(current_quantity)
+        for event in events:  # newest -> oldest
+            before = PalletHistoryService._as_float(event.get('quantity_before'))
+            after = PalletHistoryService._as_float(event.get('quantity_after'))
+            inferred = False
+
+            if after is None and known_after is not None:
+                after = known_after
+                inferred = True
+
+            action = str(event.get('typ_ruchu') or '').upper()
+            delta = PalletHistoryService._quantity_from_comment(event.get('komentarz'))
+            if before is None and after is not None:
+                if 'UTWORZ' in action and 'PODZIAL_ODJECIE' not in action:
+                    before = 0.0
+                elif delta is not None and any(key in action for key in ('WYDA', 'ZUZYC', 'POBRAN', 'PODZIAL_ODJECIE')):
+                    before = after + abs(delta)
+                else:
+                    before = after
+                inferred = True
+
+            if after is not None:
+                event['quantity_after'] = round(after, 3)
+            if before is not None:
+                event['quantity_before'] = round(before, 3)
+                known_after = before
+            elif after is not None:
+                known_after = after
+            event['quantity_is_estimated'] = inferred
+
+        return events
+
+    @staticmethod
     def get_pallet_history(pallet_id, pallet_type, linia='PSD', sscc=None):
         """Fetch comprehensive pallet movement and lifecycle history from all sources."""
         conn = get_db_connection()
@@ -30,6 +85,7 @@ class PalletHistoryService:
             real_id = None
             nr_pal_sscc = str(sscc).strip() if sscc else None
             pw_id = None
+            current_quantity = None
             
             # Find identity across warehouse tables
             search_tables = []
@@ -50,6 +106,10 @@ class PalletHistoryService:
                     row_found = cursor.fetchone()
                     if row_found:
                         real_id = row_found.get('id')
+                        current_quantity = next((
+                            row_found.get(key) for key in ('stan_magazynowy', 'waga_netto', 'waga_potwierdzona', 'waga')
+                            if row_found.get(key) is not None
+                        ), current_quantity)
                         if not nr_pal_sscc and row_found.get('nr_palety'):
                             nr_pal_sscc = row_found.get('nr_palety')
                         if row_found.get('paleta_workowanie_id'):
@@ -101,8 +161,10 @@ class PalletHistoryService:
             # 1. Fetch from palety_historia strictly by SSCC (nr_palety)
             if target_sscc:
                 sql_q = f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
-                           lokalizacja_zrodlowa, lokalizacja_docelowa
+                    SELECT id, event_id, operation_id, akcja as typ_ruchu, komentarz,
+                           user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa,
+                           quantity_before, quantity_after
                     FROM palety_historia
                     WHERE {type_filter_clause} AND nr_palety = %s
                     ORDER BY data_ruchu DESC
@@ -110,8 +172,10 @@ class PalletHistoryService:
                 cursor.execute(sql_q, tuple(type_params + [target_sscc]))
             else:
                 sql_q = f"""
-                    SELECT id, akcja as typ_ruchu, komentarz, user_login as autor_login, data_ruchu as autor_data,
-                           lokalizacja_zrodlowa, lokalizacja_docelowa
+                    SELECT id, event_id, operation_id, akcja as typ_ruchu, komentarz,
+                           user_login as autor_login, data_ruchu as autor_data,
+                           lokalizacja_zrodlowa, lokalizacja_docelowa,
+                           quantity_before, quantity_after
                     FROM palety_historia
                     WHERE {type_filter_clause} AND {id_ph_clause} AND (linia = %s OR linia IS NULL OR linia = '')
                     ORDER BY data_ruchu DESC
@@ -127,7 +191,8 @@ class PalletHistoryService:
                         if target_sscc:
                             cursor.execute(f"""
                                 SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
-                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa
+                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa,
+                                       NULL as quantity_before, ilosc_po as quantity_after
                                 FROM {t_ruch} 
                                 WHERE komentarz LIKE %s
                                 ORDER BY id DESC
@@ -135,7 +200,8 @@ class PalletHistoryService:
                         elif id_candidates:
                             cursor.execute(f"""
                                 SELECT id, typ_ruchu, autor_login, COALESCE(autor_data, created_at) as autor_data, komentarz,
-                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa
+                                       NULL as lokalizacja_zrodlowa, lokalizacja as lokalizacja_docelowa,
+                                       NULL as quantity_before, ilosc_po as quantity_after
                                 FROM {t_ruch} 
                                 WHERE surowiec_id IN ({', '.join(['%s'] * len(id_candidates))})
                                 ORDER BY id DESC
@@ -498,6 +564,6 @@ class PalletHistoryService:
 
                     deduped.append(h)
 
-            return deduped
+            return PalletHistoryService._enrich_quantities(deduped, current_quantity)
         finally:
             conn.close()

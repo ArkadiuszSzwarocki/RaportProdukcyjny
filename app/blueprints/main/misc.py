@@ -2,6 +2,7 @@ import json
 from typing import Tuple
 
 from flask import current_app, jsonify, redirect, request, session, url_for, flash
+from app.decorators import login_required
 
 
 def register_main_misc_routes(main_bp):
@@ -49,6 +50,7 @@ def register_main_misc_routes(main_bp):
 
 
     @main_bp.route('/debug/modal-move', methods=['POST'])
+    @login_required
     def debug_modal_move() -> Tuple[str, int]:
         """Log modal-move debug data from client (AJAX)."""
         try:

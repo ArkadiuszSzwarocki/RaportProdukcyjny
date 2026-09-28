@@ -15,8 +15,14 @@ from datetime import datetime
 from app.services.scanner_service import ScannerService
 from app.services.warehouse_v2_service import WarehouseV2Service
 from app.services.print_server import get_printer
+from app.decorators import login_required_response
 
 scanner_bp = Blueprint('scanner', __name__, url_prefix='/agro/scanner')
+
+
+@scanner_bp.before_request
+def require_scanner_login():
+    return login_required_response()
 
 
 def _linia():

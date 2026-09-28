@@ -21,9 +21,11 @@ limit_request_field_size = 8190
 
 # Optional SSL configuration
 use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
-cert_path = os.path.join("certs", "cert.pem")
-key_path = os.path.join("certs", "key.pem")
+cert_path = os.environ.get("TLS_CERT_FILE", "")
+key_path = os.environ.get("TLS_KEY_FILE", "")
 
-if use_ssl and os.path.exists(cert_path) and os.path.exists(key_path):
+if use_ssl:
+    if not cert_path or not key_path or not os.path.isfile(cert_path) or not os.path.isfile(key_path):
+        raise RuntimeError("USE_SSL=true wymaga poprawnych TLS_CERT_FILE i TLS_KEY_FILE poza repozytorium.")
     keyfile = key_path
     certfile = cert_path

@@ -41,7 +41,7 @@ def send_push_notification(subscription_info: dict, title: str, body: str, url: 
         return False
 
     try:
-        from pywebpush import webpush, WebPushException
+        from pywebpush import webpush, WebPushException  # pylint: disable=import-error
 
         payload = json.dumps({
             "title": title,
@@ -61,9 +61,10 @@ def send_push_notification(subscription_info: dict, title: str, body: str, url: 
     except Exception as exc:
         # Import here to avoid circular at module load time
         try:
-            from pywebpush import WebPushException
+            from pywebpush import WebPushException  # pylint: disable=import-error
             if isinstance(exc, WebPushException):
-                status_code = exc.response.status_code if exc.response is not None else None
+                resp = getattr(exc, 'response', None)
+                status_code = getattr(resp, 'status_code', None) if resp is not None else None
                 if status_code in (404, 410):
                     # Subscription expired/revoked — caller should delete it
                     logger.info("[PUSH] Subscription gone (%s) for endpoint: %s",

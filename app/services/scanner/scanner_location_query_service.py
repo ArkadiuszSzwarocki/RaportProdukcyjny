@@ -2,7 +2,49 @@
 from __future__ import annotations
 
 import re
-from app.core.database import get_db_connection, get_table_name
+from app.core.database import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
+
+
+def get_db_connection(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_db_connection', _core_get_db_connection)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_db_connection(*args, **kwargs)
+
+
+def get_table_name(*args, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss, 'get_table_name', _core_get_table_name)
+        return fn(*args, **kwargs)
+    except Exception:
+        return _core_get_table_name(*args, **kwargs)
+
+
+def _lookup_inventory_row(cur, base_table: str, linia: str, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss.ScannerService, '_lookup_inventory_row', None)
+        if fn:
+            return fn(cur, base_table, linia, **kwargs)
+    except Exception:
+        pass
+    return ScannerLookupService.lookup_inventory_row(cur, base_table, linia, **kwargs)
+
+
+def _lookup_finished_goods(cur, linia: str, **kwargs):
+    try:
+        import app.services.scanner_service as _ss
+        fn = getattr(_ss.ScannerService, '_lookup_finished_goods', None)
+        if fn:
+            return fn(cur, linia, **kwargs)
+    except Exception:
+        pass
+    return ScannerLookupService.lookup_finished_goods(cur, linia, **kwargs)
+
+
 from app.services.scanner.scanner_code_normalizer import ScannerCodeNormalizer
 from app.services.scanner.scanner_item_normalizer import ScannerItemNormalizer
 from app.services.scanner.scanner_lookup_service import ScannerLookupService
@@ -80,91 +122,6 @@ class ScannerLocationQueryService:
                 }]
             finally:
                 conn.close()
-
-        results = []
-        normalized_for_lookup = str(location_code).upper()
-        conn = get_db_connection()
-        try:
-            cur = conn.cursor(dictionary=True)
-            inventory_sources = [
-                ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
-                ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
-                ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
-                ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
-            ]
-            
-            for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                table_name = get_table_name(base_table, linia)
-                try:
-                    sql = (
-                        f"SELECT id, {qty_col} AS ilosc, {name_col} AS nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
-                        f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                        f"data_produkcji, data_przydatnosci "
-                        f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} DESC, id DESC"
-                    )
-                    cur.execute(sql, (normalized_for_lookup,))
-                    rows = cur.fetchall()
-                    for row in rows:
-                        if base_table == 'magazyn_surowce' and float(row.get('ilosc') or 0) <= 0:
-                            prod_qty, prod_tank = ScannerLookupService.get_active_production_qty(cur, row['id'], linia)
-                            if prod_qty > 0:
-                                row['ilosc'] = prod_qty
-                                if prod_tank:
-                                    row['lokalizacja'] = prod_tank
-                        results.append(ScannerItemNormalizer.normalize_lookup_item(
-                            row,
-                            inventory_type=inv_type,
-                            inventory_key=code_prefix,
-                            code_prefix=code_prefix,
-                            can_dispatch=can_dispatch,
-                            can_split=can_split,
-                            can_print_label=can_print,
-                        ))
-                except Exception:
-                    pass
-            
-            is_raw_pallet_check = ScannerCodeNormalizer.is_sscc_code(location_code) or bool(re.match(r'^SUR-?\d+$', location_code, re.I))
-            if not results and is_raw_pallet_check:
-                try:
-                    table_ruch = get_table_name('magazyn_ruch', linia)
-                    sql = (
-                        f"SELECT r.*, m.nazwa, m.nr_partii, m.data_produkcji, m.data_przydatnosci "
-                        f"FROM {table_ruch} r "
-                        f"LEFT JOIN {get_table_name('magazyn_surowce', linia)} m ON r.surowiec_id = m.id "
-                        f"WHERE UPPER(COALESCE(r.nr_palety, '')) = %s "
-                        f"ORDER BY r.created_at DESC, r.id DESC LIMIT 1"
-                    )
-                    cur.execute(sql, (normalized_for_lookup,))
-                    row = cur.fetchone()
-                    if row:
-                        s_id = row.get('surowiec_id') or row.get('id')
-                        prod_qty, prod_tank = ScannerLookupService.get_active_production_qty(cur, s_id, linia)
-                        actual_qty = prod_qty if prod_qty > 0 else abs(float(row.get('ilosc', 0) or 0))
-                        actual_loc = prod_tank or (row.get('lokalizacja_do') or row.get('lokalizacja') or '').strip().upper()
-                        results.append({
-                            'id': s_id,
-                            'nazwa': row.get('nazwa') or '',
-                            'stan_magazynowy': actual_qty,
-                            'lokalizacja': actual_loc,
-                            'nr_palety': row.get('nr_palety') or '',
-                            'nr_partii': row.get('nr_partii') or '',
-                            'data_produkcji': row.get('data_produkcji').strftime('%Y-%m-%d') if row.get('data_produkcji') else '',
-                            'data_przydatnosci': row.get('data_przydatnosci').strftime('%Y-%m-%d') if row.get('data_przydatnosci') else '',
-                            'inventory_type': 'Surowiec (Produkcja)',
-                            'inventory_key': 'SUR',
-                            'inventory_code': f"SUR-{s_id}",
-                            'can_dispatch': False,
-                            'can_split': False,
-                            'can_print_label': False,
-                            'unit': 'kg',
-                        })
-                except Exception:
-                    pass
-        finally:
-            conn.close()
-
-        if results:
-            return results
 
         if not is_sscc_flag and (location_code.startswith(('OS', 'BB', 'MZ', 'KO', 'PSD', 'MIX', 'BF_', 'LP')) or location_code == 'MASZYNA'):
             conn = get_db_connection()
@@ -244,6 +201,8 @@ class ScannerLocationQueryService:
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
+            results = []
+            normalized_for_lookup = str(location_code).upper()
 
             inventory_sources = [
                 ('magazyn_surowce', 'stan_magazynowy', 'Surowiec', 'SUR', True, True, True),
@@ -307,7 +266,7 @@ class ScannerLocationQueryService:
             if prefixed_type:
                 prefixed_row = None
                 if prefixed_type == 'PAL':
-                    prefixed_row = ScannerLookupService.lookup_finished_goods(cur, linia, item_id=prefixed_id)
+                    prefixed_row = _lookup_finished_goods(cur, linia, item_id=prefixed_id)
                     if prefixed_row:
                         results.append(ScannerItemNormalizer.normalize_lookup_item(
                             prefixed_row,
@@ -323,7 +282,7 @@ class ScannerLocationQueryService:
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                     if code_prefix != prefixed_type:
                         continue
-                    prefixed_row = ScannerLookupService.lookup_inventory_row(
+                    prefixed_row = _lookup_inventory_row(
                         cur,
                         base_table,
                         linia,
@@ -346,7 +305,7 @@ class ScannerLocationQueryService:
 
             if is_sscc or is_partial_sscc or is_new_pallet_format:
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                    sscc_row = ScannerLookupService.lookup_inventory_row(
+                    sscc_row = _lookup_inventory_row(
                         cur,
                         base_table,
                         linia,
@@ -368,7 +327,7 @@ class ScannerLocationQueryService:
                         if not is_sscc:
                             return results
 
-                fg_row = ScannerLookupService.lookup_finished_goods(
+                fg_row = _lookup_finished_goods(
                     cur, 
                     linia, 
                     pallet_no=location_code if (is_sscc or is_new_pallet_format) else None,
@@ -390,7 +349,7 @@ class ScannerLocationQueryService:
                         return results
 
             for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                row = ScannerLookupService.lookup_inventory_row(
+                row = _lookup_inventory_row(
                     cur,
                     base_table,
                     linia,
@@ -411,7 +370,7 @@ class ScannerLocationQueryService:
                     if not is_sscc:
                         return results
 
-            row = ScannerLookupService.lookup_finished_goods(cur, linia, location_code=location_code)
+            row = _lookup_finished_goods(cur, linia, location_code=location_code)
             if row:
                 val = ScannerItemNormalizer.normalize_lookup_item(
                     row,
@@ -428,7 +387,7 @@ class ScannerLocationQueryService:
                     return results
 
             if prefixed_type is None:
-                row = ScannerLookupService.lookup_finished_goods(cur, linia, pallet_no=location_code)
+                row = _lookup_finished_goods(cur, linia, pallet_no=location_code)
                 if row:
                     val = ScannerItemNormalizer.normalize_lookup_item(
                         row,
@@ -446,7 +405,7 @@ class ScannerLocationQueryService:
 
             if numeric_id is not None:
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                    row = ScannerLookupService.lookup_inventory_row(
+                    row = _lookup_inventory_row(
                         cur,
                         base_table,
                         linia,
@@ -467,7 +426,7 @@ class ScannerLocationQueryService:
                         if not is_sscc:
                             return results
 
-                row = ScannerLookupService.lookup_finished_goods(cur, linia, item_id=numeric_id)
+                row = _lookup_finished_goods(cur, linia, item_id=numeric_id)
                 if row:
                     val = ScannerItemNormalizer.normalize_lookup_item(
                         row,
@@ -553,7 +512,7 @@ class ScannerLocationQueryService:
             if not results and re.match(r'^\d{6}$', location_code):
                 rack_with_r = f"R{location_code}"
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                    row = ScannerLookupService.lookup_inventory_row(
+                    row = _lookup_inventory_row(
                         cur,
                         base_table,
                         linia,
@@ -572,7 +531,7 @@ class ScannerLocationQueryService:
                         ))
                         return results
 
-                row = ScannerLookupService.lookup_finished_goods(cur, linia, location_code=rack_with_r)
+                row = _lookup_finished_goods(cur, linia, location_code=rack_with_r)
                 if row:
                     results.append(ScannerItemNormalizer.normalize_lookup_item(
                         row,

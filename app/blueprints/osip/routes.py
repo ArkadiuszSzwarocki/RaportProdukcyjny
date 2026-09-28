@@ -1,7 +1,7 @@
 """
 Trasy (Routes & API endpoints) dla modułu OSIP oraz Transferów Wewnętrznych.
 """
-from flask import render_template, request, jsonify, session, redirect, url_for
+from flask import render_template, request, jsonify, session, redirect, url_for, flash
 from app.blueprints.osip import osip_bp
 from app.services.osip_warehouse_service import OsipWarehouseService
 from app.services.osip_transfer_service import OsipTransferService

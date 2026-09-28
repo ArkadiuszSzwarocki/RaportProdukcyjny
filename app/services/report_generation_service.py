@@ -12,9 +12,12 @@ from datetime import date
 from typing import Tuple, Optional, Dict
 from pathlib import Path
 import os
+import logging
 from zipfile import ZipFile
 
 from app.db import get_db_connection, get_table_name
+
+logger = logging.getLogger(__name__)
 
 
 class ReportGenerationService:
@@ -138,8 +141,14 @@ class ReportGenerationService:
             # Generator returns tuple of (xls, txt, pdf)
             xls_path, txt_path, pdf_path = generuj_paczke_raportow(str(date.today()), '', linia=linia)
         except Exception as e:
-            from flask import current_app
-            current_app.logger.exception('Report generation failed: %s', e)
+            try:
+                from flask import current_app, has_app_context
+                if has_app_context():
+                    current_app.logger.exception('Report generation failed: %s', e)
+                else:
+                    logger.exception('Report generation failed: %s', e)
+            except Exception:
+                logger.exception('Report generation failed: %s', e)
         
         return xls_path, txt_path, pdf_path
 
