@@ -54,3 +54,6 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          # MySQL 8 uses caching_sha2_password; the CI container exposes TLS.
+          # Do not attempt this authentication over an unencrypted connection.
+          USE_SSL: 'true'

@@ -46,6 +46,7 @@ jobs:
           DB_USER: root
           DB_PASSWORD: password
           DB_NAME: test_db
+          USE_SSL: 'true'
 
   build:
     runs-on: ubuntu-latest

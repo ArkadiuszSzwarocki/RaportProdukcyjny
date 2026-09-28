@@ -60,6 +60,7 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          USE_SSL: 'true'
 
       - name: Coverage report
         run: |
@@ -73,6 +74,7 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          USE_SSL: 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
