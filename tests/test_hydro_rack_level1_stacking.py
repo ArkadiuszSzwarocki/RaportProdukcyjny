@@ -148,6 +148,9 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
     mock_cursor = MagicMock()
     mock_conn = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
+    # MySQL returns an integer identifier after INSERT.  A bare MagicMock
+    # cannot be persisted in the delivery item's JSON metadata.
+    mock_cursor.lastrowid = 42
 
     # Mock order fetching in accept_item
     import json
@@ -177,7 +180,7 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
             lokalizacja='R010101',
             login='admin'
         )
-    assert ok is True
+    assert ok is True, msg
 
 
 def test_dostawa_fallback_redirect(authenticated_client):
