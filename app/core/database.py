@@ -69,6 +69,10 @@ def set_active_database_name(database_name, verify_connection=True):
     with _DB_CONFIG_LOCK:
         DB_CONFIG['database'] = target_name
     
+    global _DB_POOL
+    with _DB_POOL_LOCK:
+        _DB_POOL = None
+    
     _persist_database_name(target_name)
     
     # Automatically initialize / migrate tables in the newly active database!
@@ -80,8 +84,46 @@ def set_active_database_name(database_name, verify_connection=True):
         
     return target_name
 
+_DB_POOL = None
+_DB_POOL_LOCK = threading.Lock()
+
+def _get_or_create_pool():
+    """Lazily initialize or return MySQL connection pool matching current DB_CONFIG."""
+    global _DB_POOL
+    with _DB_POOL_LOCK:
+        with _DB_CONFIG_LOCK:
+            target_db = DB_CONFIG.get('database')
+            target_host = DB_CONFIG.get('host')
+            pool_config = dict(DB_CONFIG)
+
+        current_pool_db = getattr(_DB_POOL, '_pool_database', None) if _DB_POOL else None
+        current_pool_host = getattr(_DB_POOL, '_pool_host', None) if _DB_POOL else None
+
+        if _DB_POOL is None or current_pool_db != target_db or current_pool_host != target_host:
+            try:
+                from mysql.connector import pooling
+                pool = pooling.MySQLConnectionPool(
+                    pool_name="app_db_pool",
+                    pool_size=10,
+                    pool_reset_session=True,
+                    **pool_config
+                )
+                pool._pool_database = target_db
+                pool._pool_host = target_host
+                _DB_POOL = pool
+            except Exception:
+                _DB_POOL = None
+        return _DB_POOL
+
 def get_db_connection(retries=2):
-    """Get database connection with retry and fallback host logic"""
+    """Get database connection from connection pool with fallback host logic."""
+    try:
+        pool = _get_or_create_pool()
+        if pool:
+            return pool.get_connection()
+    except Exception:
+        pass
+
     last_error = None
     with _DB_CONFIG_LOCK:
         base_config = dict(DB_CONFIG)

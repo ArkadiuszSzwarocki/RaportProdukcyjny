@@ -211,16 +211,18 @@ def create_app(config_secret_key=None, init_db=True):
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')
     
-    # Initialize database (skip during pytest to allow monkeypatching)
-    if init_db:
+    # Initialize database (skip during pytest, reloader parent, or when SKIP_DB_SETUP is enabled)
+    skip_db_setup = os.environ.get('SKIP_DB_SETUP', 'false').lower() in ('true', '1') or is_reloader_parent
+    if init_db and not skip_db_setup:
         try:
-            # Check if we're running under pytest
             if 'PYTEST_CURRENT_TEST' not in os.environ:
                 db.setup_database()
             else:
                 app.logger.debug('Skipping setup_database() under pytest')
         except Exception as e:
             app.logger.exception('setup_database() failed or skipped: %s', e)
+    elif skip_db_setup:
+        app.logger.debug('Skipping setup_database() (SKIP_DB_SETUP=%s, is_reloader_parent=%s)', os.environ.get('SKIP_DB_SETUP'), is_reloader_parent)
     
     # Poinstruowanie aplikacji, aby czytała oryginalne nagłówki przekazane przez Nginxa:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
