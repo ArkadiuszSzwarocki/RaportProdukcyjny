@@ -92,11 +92,70 @@ class AcceptanceService:
                 table_opk = get_table_name('magazyn_opakowania', linia)
                 table_got = get_table_name('magazyn_palety', linia)
 
+                # Internal transfers resolve a pallet across both production
+                # lines. Keep the exact table found by that lookup; rebuilding
+                # it from dostawa.linia can update a different row with the
+                # same numeric id and leave the real pallet in OCZEKUJĄCE.
+                source_table_hint = str(target.get('sourceTable') or '').strip()
+                # Surowce są wspólne dla PSD i AGRO. Nie ma osobnej tabeli
+                # magazyn_agro_surowce — linia dokumentu nie może zmieniać
+                # tabeli surowców.
+                allowed_sur = {'magazyn_surowce'}
+                allowed_opk = {'magazyn_opakowania', 'magazyn_agro_opakowania'}
+                allowed_got = {'magazyn_palety', 'magazyn_palety_agro'}
+                if source_table_hint in allowed_sur:
+                    table_sur = source_table_hint
+                elif source_table_hint in allowed_opk:
+                    table_opk = source_table_hint
+                elif source_table_hint in allowed_got:
+                    table_got = source_table_hint
+
                 product_name = target.get('productName') or 'Brak nazwy'
                 p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
                 pkg_form_raw = str(target.get('packageForm') or '').strip().lower()
                 unit_raw = str(target.get('unit') or '').strip().lower()
                 is_opk_pkg = pkg_form_raw in ('packaging', 'tasma', 'taśma', 'karton') or unit_raw == 'szt' or p_type_scanned == 'opakowanie'
+
+                # Resolve legacy/inconsistent documents by the physical SSCC
+                # (or source id), not by the document line. This prevents an
+                # AGRO/ALL document from updating a PSD row with the same id.
+                source_identity = target.get('sourcePalletId') or target.get('sourcePalletNo') or target.get('nr_palety')
+                if source_identity and not source_table_hint:
+                    if p_type_scanned in ('wyrob_gotowy', 'wyrób gotowy', 'wyrob gotowy', 'magazyn', 'produkcja'):
+                        table_candidates, qty_column = sorted(allowed_got), 'waga_netto'
+                    elif is_opk_pkg:
+                        table_candidates, qty_column = sorted(allowed_opk), 'stan_magazynowy'
+                    else:
+                        table_candidates, qty_column = sorted(allowed_sur), 'stan_magazynowy'
+
+                    found_tables = []
+                    for candidate in table_candidates:
+                        try:
+                            if str(source_identity).isdigit():
+                                cursor.execute(
+                                    f"SELECT id FROM {candidate} WHERE (id = %s OR nr_palety = %s) AND {qty_column} > 0 LIMIT 1",
+                                    (int(source_identity), str(source_identity)),
+                                )
+                            else:
+                                cursor.execute(
+                                    f"SELECT id FROM {candidate} WHERE nr_palety = %s AND {qty_column} > 0 LIMIT 1",
+                                    (str(source_identity),),
+                                )
+                            if cursor.fetchone():
+                                found_tables.append(candidate)
+                        except Exception:
+                            continue
+
+                    if len(found_tables) > 1:
+                        return False, f"SSCC {target.get('sourcePalletNo') or target.get('nr_palety') or source_identity} występuje w wielu aktywnych tabelach magazynowych.", None
+                    if len(found_tables) == 1:
+                        source_table_hint = found_tables[0]
+                        if source_table_hint in allowed_sur:
+                            table_sur = source_table_hint
+                        elif source_table_hint in allowed_opk:
+                            table_opk = source_table_hint
+                        elif source_table_hint in allowed_got:
+                            table_got = source_table_hint
 
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
                 nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if is_opk_pkg else 'surowiec'))
@@ -227,6 +286,15 @@ class AcceptanceService:
                     p_row = cursor.fetchone()
                     pallet_id = p_row['id'] if p_row else None
 
+                # Persist the resolved physical table with the item. Future
+                # retries/putaway confirmations must use the same source and
+                # must not infer it from the document line.
+                target['sourceTable'] = (
+                    table_opk if p_type == 'opakowanie' else
+                    ('magazyn_dodatki' if p_type == 'dodatek' else
+                     (table_got if p_type == 'wyrob_gotowy' else table_sur))
+                )
+                target['sourcePalletId'] = pallet_id
                 target['accepted'] = True
                 target['accepted_by'] = login
                 target['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -643,8 +711,8 @@ class AcceptanceService:
                 # 4. Log history
                 cursor.execute("""
                     INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'LINIA', %s, %s, %s)
-                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
+                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'OCZEKUJĄCE', %s, %s, %s)
+                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG z OCZEKUJĄCE: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
 
                 conn.commit()
                 

@@ -640,8 +640,15 @@ def api_workflow_confirm_putaway(dostawa_id):
                 UPDATE magazyn_dostawy SET items = %s, status = %s WHERE id = %s
             """, (json.dumps(items), new_status, dostawa_id))
             conn.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        # Do not report a successful putaway when the item state/history could
+        # not be persisted. The physical acceptance is already committed by
+        # AcceptanceService, so surface the inconsistency for retry/recovery.
+        current_app.logger.exception("Putaway metadata update failed for %s/%s", dostawa_id, item_id)
+        return jsonify({
+            "success": False,
+            "error": f"Paleta została przyjęta fizycznie, ale nie zapisano potwierdzenia putaway: {exc}"
+        }), 500
     finally:
         conn.close()
 

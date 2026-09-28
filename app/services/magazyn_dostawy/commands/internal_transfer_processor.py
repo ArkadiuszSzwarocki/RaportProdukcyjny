@@ -8,9 +8,16 @@ class InternalTransferProcessor:
     """Processes internal warehouse transfer orders (MM) and pallet reservations strictly against active database state."""
 
     @classmethod
-    def _find_active_pallet_by_sscc(cls, cursor, p_nr: str, linia: str) -> Tuple[dict | None, str | None]:
-        """Strictly searches the database for an active pallet by its SSCC/nr_palety with positive stock."""
+    def _find_active_pallet_by_sscc(cls, cursor, p_nr: str, linia: str) -> Tuple[dict | None, str | None, str | None]:
+        """Find an active SSCC and retain the exact source table.
+
+        The table cannot be reconstructed safely from the document line: legacy
+        deliveries may contain PSD stock in an AGRO/ALL document (and vice
+        versa).  Returning the table prevents the acceptance step from updating
+        a different row with the same numeric id.
+        """
         clean_nr = str(p_nr).strip().upper()
+        matches = []
         
         # Check all possible lines and warehouse tables
         for l_code in [linia, 'PSD', 'AGRO']:
@@ -26,7 +33,7 @@ class InternalTransferProcessor:
                 )
                 res = cursor.fetchone()
                 if res:
-                    return res, t_type
+                    matches.append((res, t_type, tbl))
 
             cursor.execute(
                 f"SELECT id, nr_palety, stan_magazynowy, lokalizacja, nazwa FROM magazyn_dodatki "
@@ -35,7 +42,7 @@ class InternalTransferProcessor:
             )
             res = cursor.fetchone()
             if res:
-                return res, 'dodatek'
+                matches.append((res, 'dodatek', 'magazyn_dodatki'))
 
             cursor.execute(
                 f"SELECT id, nr_palety, waga_netto AS stan_magazynowy, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
@@ -45,9 +52,16 @@ class InternalTransferProcessor:
             )
             res = cursor.fetchone()
             if res:
-                return res, 'wyrob_gotowy'
+                matches.append((res, 'wyrob_gotowy', table_got))
 
-        return None, None
+        # One SSCC must identify one physical pallet.  Refuse ambiguous data
+        # instead of silently selecting the first table returned by SQL.
+        unique = {(str(row.get('id')), table): (row, typ, table) for row, typ, table in matches}
+        if len(unique) == 1:
+            return next(iter(unique.values()))
+        if len(unique) > 1:
+            raise ValueError(f"SSCC {clean_nr} występuje w wielu aktywnych tabelach magazynowych.")
+        return None, None, None
 
     @classmethod
     def _is_pallet_archived_or_zero(cls, cursor, p_nr: str, p_id: Any = None) -> Tuple[bool, str]:
@@ -150,9 +164,15 @@ class InternalTransferProcessor:
             # Strict lookup by SSCC/nr_palety in DB
             p_res = None
             p_type = None
+            source_table = None
 
             if p_nr:
-                p_res, p_type = cls._find_active_pallet_by_sscc(cursor, p_nr, linia)
+                try:
+                    p_res, p_type, source_table = cls._find_active_pallet_by_sscc(cursor, p_nr, linia)
+                except ValueError as exc:
+                    return False, str(exc)
+            else:
+                source_table = None
 
             # Fallback to ID lookup only if SSCC not provided
             if not p_res and p_id and not p_nr:
@@ -169,6 +189,7 @@ class InternalTransferProcessor:
                         p_res = cursor.fetchone()
                         if p_res:
                             p_type = t_type
+                            source_table = tbl
                             break
                     if p_res:
                         break
@@ -199,6 +220,7 @@ class InternalTransferProcessor:
             item['sourceSpot'] = db_actual_spot or source_spot
             item['sourcePalletId'] = actual_id
             item['scannedType'] = p_type
+            item['sourceTable'] = source_table
             item['sourcePalletNo'] = actual_nr
             item['nr_palety'] = actual_nr
             item['accepted'] = False

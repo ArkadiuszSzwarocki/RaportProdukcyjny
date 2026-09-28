@@ -399,8 +399,8 @@ class WarehousePalletService:
                                 
                                 # Log to palety_historia
                                 cursor.execute(
-                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s)",
-                                    (paleta_id, linia, lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", user_login)
+                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s, %s)",
+                                    (paleta_id, linia, 'OCZEKUJĄCE', lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", user_login)
                                 )
                             except mysql.connector.Error as e:
                                 current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)

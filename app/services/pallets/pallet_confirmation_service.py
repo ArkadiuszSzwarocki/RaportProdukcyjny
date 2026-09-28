@@ -391,12 +391,12 @@ class PalletConfirmationService:
                                 if 'nr_palety' in cols_ph:
                                     cursor.execute(
                                         "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s, %s)",
-                                        (paleta_id, nr_palety, linia, f"Produkcja {linia}", loc_target, hist_kom, user_login)
+                                        (paleta_id, nr_palety, linia, 'OCZEKUJĄCE', loc_target, hist_kom, user_login)
                                     )
                                 else:
                                     cursor.execute(
                                         "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s, %s)",
-                                        (paleta_id, linia, f"Produkcja {linia}", loc_target, hist_kom, user_login)
+                                        (paleta_id, linia, 'OCZEKUJĄCE', loc_target, hist_kom, user_login)
                                     )
                             except Exception as e:
                                 current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
