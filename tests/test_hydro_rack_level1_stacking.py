@@ -168,7 +168,9 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
     mock_cursor.fetchall.return_value = []
 
     with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn), \
-         patch('app.utils.location_validator.check_rack_location_availability', return_value=(True, None)):
+         patch('app.utils.location_validator.check_rack_location_availability', return_value=(True, None)), \
+         patch('app.utils.surowiec_validator.is_valid_surowiec', return_value=True), \
+         patch('app.services.magazyn_dostawy.acceptance_service.MovementRecorder.record_movement', return_value=True):
         ok, msg, extra = AcceptanceService.accept_item(
             dostawa_id=1,
             item_id=10,

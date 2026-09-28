@@ -42,7 +42,8 @@ def test_start_picking_orders_only_missing_items():
         ]
     }
 
-    with patch.object(service, '_check_pending_deliveries', return_value=[]):
+    with patch.object(service, '_check_pending_deliveries', return_value=[]), \
+         patch('app.services.picking_service.validate_surowiec_name', return_value=(True, None)):
         success, message, payload = service.start_picking(calculation_results, 'testUser')
 
     assert success is True
@@ -81,7 +82,8 @@ def test_start_picking_no_order_created_when_all_in_stock():
         ]
     }
 
-    with patch.object(service, '_check_pending_deliveries', return_value=[]):
+    with patch.object(service, '_check_pending_deliveries', return_value=[]), \
+         patch('app.services.picking_service.validate_surowiec_name', return_value=(True, None)):
         success, message, payload = service.start_picking(calculation_results, 'testUser')
 
     assert success is True
