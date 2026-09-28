@@ -291,12 +291,17 @@ const PickingViewModule = (function () {
             .then(function (data) {
                 if (data.success) {
                     if (typeof showToast === 'function') {
-                        showToast(data.message || 'Zamówienie anulowane.', 'info');
+                        showToast(data.message || 'Dyspozycja anulowana.', 'info');
+                    } else {
+                        alert(data.message || 'Dyspozycja anulowana.');
                     }
                     closePickingModal();
                     window.dispatchEvent(new CustomEvent('ordersChanged'));
                     if (typeof window.refreshSidebarBadges === 'function') {
                         window.refreshSidebarBadges();
+                    }
+                    if (typeof loadActivePickingOrders === 'function') {
+                        loadActivePickingOrders();
                     }
                 } else {
                     alert(data.message || 'Błąd anulowania.');
@@ -408,6 +413,9 @@ const PickingViewModule = (function () {
                     window.dispatchEvent(new CustomEvent('ordersChanged'));
                     if (typeof window.refreshSidebarBadges === 'function') {
                         window.refreshSidebarBadges();
+                    }
+                    if (typeof loadActivePickingOrders === 'function') {
+                        loadActivePickingOrders();
                     }
                 } else {
                     alert(data.message || 'Błąd usuwania dyspozycji.');

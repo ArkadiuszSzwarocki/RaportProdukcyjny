@@ -16,7 +16,7 @@ param(
     [string]$PythonExe = "python",
     [string]$AppFile = "app.py",
     [int]$Retries = 3,
-    [int]$WaitSec = 10
+    [int]$WaitSec = 20
 )
 
 function Write-Info($msg) {
@@ -49,16 +49,21 @@ for ($attempt = 1; $attempt -le $Retries; $attempt++) {
     Write-Info "Starting $PythonExe $AppFile..."
     $proc = Start-Process -FilePath $PythonExe -ArgumentList $AppFile -WorkingDirectory (Get-Location).Path -PassThru
 
-    Start-Sleep -Seconds ($WaitSec + 1)
+    $started = $false
+    for ($i = 0; $i -lt 15; $i++) {
+        Start-Sleep -Seconds 2
+        $newConn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($newConn -and $newConn.OwningProcess -gt 0) {
+            Write-Info "Server started OK (pid=$($newConn.OwningProcess)) after $(($i + 1) * 2)s."
+            $started = $true
+            exit 0
+        }
+    }
 
-    $newConn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($newConn -and $newConn.OwningProcess -gt 0) {
-        Write-Info "Server started OK (pid=$($newConn.OwningProcess))."
-        exit 0
-    } else {
-        Write-Info "Server not listening yet. Stopping started process (pid=$($proc.Id)) and retrying..."
+    if (-not $started) {
+        Write-Info "Server not listening yet after 30s. Stopping started process (pid=$($proc.Id)) and retrying..."
         try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-        Start-Sleep -Seconds $WaitSec
+        Start-Sleep -Seconds 3
     }
 }
 

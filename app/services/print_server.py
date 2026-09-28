@@ -87,7 +87,7 @@ class PrintServer:
             base_value = base_value[:-7]
 
         if '://' not in base_value:
-            base_value = f'https://{base_value}'
+            base_value = f'http://{base_value}'
 
         return base_value.rstrip('/')
 
@@ -112,7 +112,7 @@ class PrintServer:
             alt_base = f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}".rstrip('/')
             _append(alt_base)
 
-        for local_cand in ('http://127.0.0.1:3001', 'https://127.0.0.1:3001', 'http://localhost:3001', 'https://localhost:3001'):
+        for local_cand in ('http://127.0.0.1:3001', 'http://localhost:3001'):
             _append(local_cand)
 
         return candidates
@@ -121,16 +121,23 @@ class PrintServer:
         normalized_path = '/' + str(path or '').lstrip('/')
         last_error = None
 
-        for bridge_base in self._bridge_base_candidates():
-            url = f"{bridge_base}{normalized_path}"
-            try:
-                response = requests.request(method=method, url=url, verify=False, **kwargs)
-                # Zapamiętaj działający wariant URL (np. HTTP zamiast HTTPS) dla kolejnych żądań.
-                self.bridge_url = bridge_base
-                return response, bridge_base
-            except requests.RequestException as request_error:
-                last_error = request_error
-                continue
+        for attempt in range(2):
+            for bridge_base in self._bridge_base_candidates():
+                url = f"{bridge_base}{normalized_path}"
+                try:
+                    response = requests.request(method=method, url=url, verify=False, **kwargs)
+                    self.bridge_url = bridge_base
+                    return response, bridge_base
+                except requests.RequestException as request_error:
+                    last_error = request_error
+                    continue
+
+            # Jeśli za pierwszym razem nie udało się połączyć, a mamy włączony autostart na maszynie lokalnej, uruchom mostek
+            if attempt == 0 and self.bridge_autostart and self._is_local_bridge_target():
+                try:
+                    self._ensure_bridge_running()
+                except Exception:
+                    pass
 
         if last_error:
             raise last_error

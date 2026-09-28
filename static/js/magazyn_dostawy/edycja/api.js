@@ -203,10 +203,7 @@ async function savePrzesuniecie() {
             if (typeof window.refreshSidebarBadges === 'function') {
                 window.refreshSidebarBadges();
             }
-            const savedId = data.id || window.EdycjaConfig.dostawaId;
-            const targetUrl = savedId 
-                ? `/magazyn-dostawy/${savedId}?linia=${window.EdycjaConfig.linia}`
-                : (window.EdycjaConfig.urlOczekujace || ('/magazyn-dostawy/oczekujace?linia=' + window.EdycjaConfig.linia));
+            const targetUrl = window.EdycjaConfig.urlOczekujace || ('/magazyn-dostawy/oczekujace?linia=' + encodeURIComponent(window.EdycjaConfig.linia || 'ALL'));
             setTimeout(() => {
                 window.location.href = targetUrl;
             }, 600);

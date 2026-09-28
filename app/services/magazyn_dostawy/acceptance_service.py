@@ -114,14 +114,24 @@ class AcceptanceService:
                 is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)
 
                 if not is_open:
-                    cursor.execute(f"SELECT 1 FROM {table_sur} WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
-                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w surowcach!", None
-                    cursor.execute(f"SELECT 1 FROM {table_opk} WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
-                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w opakowaniach!", None
-                    cursor.execute(f"SELECT 1 FROM magazyn_dodatki WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
-                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w dodatkach!", None
-                    cursor.execute(f"SELECT 1 FROM {table_got} WHERE lokalizacja = %s AND waga_netto > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
-                    if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
+                    from app.utils.location_validator import is_rack_location, check_rack_location_availability
+                    if is_rack_location(lokalizacja):
+                        is_avail, err_msg = check_rack_location_availability(
+                            lokalizacja,
+                            current_nr_palety=nr_palety,
+                            product_name=product_name
+                        )
+                        if not is_avail:
+                            return False, err_msg, None
+                    else:
+                        cursor.execute(f"SELECT 1 FROM {table_sur} WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                        if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w surowcach!", None
+                        cursor.execute(f"SELECT 1 FROM {table_opk} WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                        if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w opakowaniach!", None
+                        cursor.execute(f"SELECT 1 FROM magazyn_dodatki WHERE lokalizacja = %s AND stan_magazynowy > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                        if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w dodatkach!", None
+                        cursor.execute(f"SELECT 1 FROM {table_got} WHERE lokalizacja = %s AND waga_netto > 0 AND (nr_palety IS NULL OR nr_palety != %s)", (lokalizacja, nr_palety))
+                        if cursor.fetchone(): return False, f"Lokalizacja {lokalizacja} zajęta w wyrobach gotowych!", None
 
                 pallet_id = None
                 source_pallet_id = target.get('sourcePalletId')

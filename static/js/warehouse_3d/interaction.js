@@ -82,13 +82,20 @@ function onDocumentPointerDown(event) {
         }
 
         const isTargetShelf = Boolean(targetRack.is_shelving || targetRack.rack_type === 'SHELVING' || targetRack.rack_id === 'R09' || targetSlot.is_shelf);
-        const canDrop = (!targetSlot.is_occupied || isTargetShelf);
+        const movingPallet = dragState.singleItemPallet;
+        const isHydro = String(movingPallet?.product_name || movingPallet?.nazwa || '').trim().toLowerCase() === 'hydro';
+        const isTargetLvl1 = Boolean(targetSlot.location_code && targetSlot.location_code.endsWith('01'));
+        const targetPallets = (targetSlot.pallets && targetSlot.pallets.length > 0) ? targetSlot.pallets : (targetSlot.pallet ? [targetSlot.pallet] : []);
+        const targetAllHydro = targetPallets.every(p => String(p.product_name || p.nazwa || '').trim().toLowerCase() === 'hydro');
+        const canStackHydro = isTargetLvl1 && isHydro && targetPallets.length < 2 && targetAllHydro;
+
+        const canDrop = (!targetSlot.is_occupied || isTargetShelf || canStackHydro);
 
         if (canDrop) {
             executePallet3DMove(dragState.singleItemPallet, targetSlot.location_code);
             cancelSingleItemRelocate();
         } else {
-            notifyUser(`⛔ Gniazdo ${targetSlot.location_code} jest zajęte. Wybierz wolne miejsce lub półkę.`, 'error');
+            notifyUser(`⛔ Gniazdo ${targetSlot.location_code} jest zajęte. Wybierz wolne miejsce, półkę lub poziom 1 dla surowca Hydro.`, 'error');
         }
         return;
     }
@@ -173,7 +180,13 @@ function onDocumentPointerMove(event) {
                     dragState.targetMesh = hit.object;
 
                     const isTargetShelf = Boolean(r.is_shelving || r.rack_type === 'SHELVING' || r.rack_id === 'R09' || s.is_shelf);
-                    const canDrop = (!s.is_occupied || isTargetShelf);
+                    const isHydro = String(dragState.pallet?.product_name || dragState.pallet?.nazwa || '').trim().toLowerCase() === 'hydro';
+                    const isTargetLvl1 = Boolean(s.location_code && s.location_code.endsWith('01'));
+                    const targetPallets = (s.pallets && s.pallets.length > 0) ? s.pallets : (s.pallet ? [s.pallet] : []);
+                    const targetAllHydro = targetPallets.every(p => String(p.product_name || p.nazwa || '').trim().toLowerCase() === 'hydro');
+                    const canStackHydro = isTargetLvl1 && isHydro && targetPallets.length < 2 && targetAllHydro;
+
+                    const canDrop = (!s.is_occupied || isTargetShelf || canStackHydro);
 
                     showDropZoneHighlight(hit.object, s, r, canDrop);
 
@@ -221,8 +234,13 @@ async function onDocumentPointerUp(event) {
         const pallet = dragState.pallet;
 
         const isTargetShelf = targetRack && Boolean(targetRack.is_shelving || targetRack.rack_type === 'SHELVING' || targetRack.rack_id === 'R09' || (targetSlot && targetSlot.is_shelf));
+        const isHydro = String(pallet?.product_name || pallet?.nazwa || '').trim().toLowerCase() === 'hydro';
+        const isTargetLvl1 = Boolean(targetSlot && targetSlot.location_code && targetSlot.location_code.endsWith('01'));
+        const targetPallets = targetSlot ? ((targetSlot.pallets && targetSlot.pallets.length > 0) ? targetSlot.pallets : (targetSlot.pallet ? [targetSlot.pallet] : [])) : [];
+        const targetAllHydro = targetPallets.every(p => String(p.product_name || p.nazwa || '').trim().toLowerCase() === 'hydro');
+        const canStackHydro = isTargetLvl1 && isHydro && targetPallets.length < 2 && targetAllHydro;
 
-        if (targetSlot && (!targetSlot.is_occupied || isTargetShelf) && pallet) {
+        if (targetSlot && (!targetSlot.is_occupied || isTargetShelf || canStackHydro) && pallet) {
             await executePallet3DMove(pallet, targetSlot.location_code);
         } else {
             if (dragState.slotGroup && dragState.originalPos) {

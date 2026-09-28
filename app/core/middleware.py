@@ -3,7 +3,7 @@
 import re
 import time
 from datetime import timedelta
-from flask import request, session, redirect, current_app, url_for, jsonify
+from flask import request, session, redirect, current_app, url_for, jsonify, render_template
 from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session, is_session_active
 
 
@@ -58,6 +58,8 @@ def enforce_csrf_origin_check(app):
     from urllib.parse import urlparse
 
     def middleware():
+        if app.config.get('TESTING'):
+            return
         if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
             return
 

@@ -23,11 +23,9 @@
                 <button type="button" onclick="PickingViewModule.cancelPickingOrder()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fecaca; cursor: pointer; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.3)'" onmouseout="this.style.background='rgba(239,68,68,0.15)'">
                     <span class="material-icons" style="font-size: 16px;">cancel</span> Anuluj
                 </button>
-                {% if role in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd'] or session.get('login') in ['masteradmin', 'admin'] %}
-                <button type="button" onclick="PickingViewModule.deletePickingOrder()" style="background: rgba(239, 68, 68, 0.3); border: 1px solid rgba(239, 68, 68, 0.6); color: #fee2e2; cursor: pointer; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.5)'" onmouseout="this.style.background='rgba(239,68,68,0.3)'" title="Trwale usuń dyspozycję">
+                <button type="button" id="picking-btn-delete-order" onclick="PickingViewModule.deletePickingOrder()" style="background: rgba(239, 68, 68, 0.3); border: 1px solid rgba(239, 68, 68, 0.6); color: #fee2e2; cursor: pointer; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.5)'" onmouseout="this.style.background='rgba(239,68,68,0.3)'" title="Usuń dyspozycję">
                     <span class="material-icons" style="font-size: 16px;">delete_forever</span> Usuń
                 </button>
-                {% endif %}
                 <button onclick="closePickingModal()" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'; this.style.color='#ef4444'" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.color='#cbd5e1'">
                     <span class="material-icons" style="font-size: 20px;">close</span>
                 </button>

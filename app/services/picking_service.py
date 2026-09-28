@@ -137,20 +137,25 @@ class PickingService:
         order_tons = calculation_results.get('order_tons', 0)
         order_items = []
         for s in summary_surowce:
-            order_items.append({
-                'surowiec_nazwa': s['surowiec_nazwa'],
-                'ilosc_kg': s['potrzebne_kg'],
-                'pokryte_kg': s['alokowane_kg'],
-                'brakujace_kg': s['brakujace_kg'],
-                'order_ref': order_ref
-            })
+            missing_kg = round(float(s.get('brakujace_kg', 0) or 0), 2)
+            if missing_kg > 0:
+                order_items.append({
+                    'surowiec_nazwa': s['surowiec_nazwa'],
+                    'ilosc_kg': missing_kg,
+                    'pokryte_kg': round(float(s.get('alokowane_kg', 0) or 0), 2),
+                    'brakujace_kg': missing_kg,
+                    'potrzebne_kg': round(float(s.get('potrzebne_kg', 0) or 0), 2),
+                    'order_ref': order_ref
+                })
 
-        # Zapisz zawsze do tabeli magazyn_zamowienia (widok Zamówienia)
-        order_id = self._order_repo.create(
-            items=order_items,
-            operator_login=operator_login,
-            komentarz=f"Dyspozycja {order_ref} (Zlecenie {order_tons} t)"
-        )
+        # Zapisz do tabeli magazyn_zamowienia TYLKO jeśli wystąpiły brakujące surowce
+        order_id = None
+        if order_items:
+            order_id = self._order_repo.create(
+                items=order_items,
+                operator_login=operator_login,
+                komentarz=f"Dyspozycja {order_ref} (Brakujące na zlecenie {order_tons} t)"
+            )
 
         inserted = 0
         if picking_rows:
@@ -168,7 +173,16 @@ class PickingService:
             'summary': summary_surowce,
         }
 
-        msg = f"Dyspozycja {order_ref} utworzona (Zamówienie #{order_id}, {inserted} palet do pobrania FIFO)." if inserted > 0 else f"Zamówienie #{order_id} ({order_ref}) zarejestrowane. Brak palet na stanie do kompletacji."
+        if inserted > 0:
+            if order_id:
+                msg = f"Dyspozycja {order_ref} utworzona ({inserted} palet FIFO). Zgłoszono zamówienie #{order_id} na brakujące surowce."
+            else:
+                msg = f"Dyspozycja {order_ref} utworzona ({inserted} palet FIFO). Wszystkie surowce są na stanie magazynu."
+        else:
+            if order_id:
+                msg = f"Zarejestrowano zamówienie #{order_id} ({order_ref}) na brakujące surowce. Brak dostępnych palet na stanie do kompletacji."
+            else:
+                msg = f"Dyspozycja {order_ref} zarejestrowana."
         return True, msg, payload
 
     def get_picking_order_details(self, order_ref):
@@ -356,13 +370,23 @@ class PickingService:
         Returns:
             tuple[bool, str]: (success, message).
         """
+        items = self._picking_repo.get_by_order_ref(order_ref)
+        if not items:
+            return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
+
         cancelled = self._picking_repo.cancel_order(order_ref)
         if cancelled == 0:
+            # Sprawdź, czy pozycje nie są już przypadkiem w całości anulowane/zrealizowane
+            has_pending = any(it.get('status') == 'OCZEKUJE' for it in items)
+            if not has_pending:
+                return True, f"Dyspozycja {order_ref} została anulowana."
             return False, f"Brak oczekujących pozycji do anulowania w {order_ref}."
         return True, f"Anulowano {cancelled} pozycji w dyspozycji {order_ref}."
 
     def delete_picking_order(self, order_ref, user_role):
-        """Trwale usuwa dyspozycję kompletacji (uprawnienia dla masteradmin, admin, zarzad).
+        """Trwale usuwa dyspozycję kompletacji.
+        Dostępne dla masteradmin, admin, zarzad, LUB dla każdego użytkownika jeśli w dyspozycji
+        żadna paleta nie została jeszcze zrealizowana (0 pozycji skompletowanych).
 
         Args:
             order_ref: Referencja zamówienia kompletacji.
@@ -371,19 +395,22 @@ class PickingService:
         Returns:
             tuple[bool, str]: (sukces, komunikat).
         """
-        role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
-        if role_norm not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
-            return False, "Brak uprawnień. Usuwanie dostępne tylko dla ról: MasterAdmin, Admin oraz Zarząd."
-
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
+
+        role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
+        is_admin = role_norm in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']
+        has_completed = any(it.get('status') == 'SKOMPLETOWANA' for it in items)
+
+        if has_completed and not is_admin:
+            return False, "Brak uprawnień. W dyspozycji rozpoczęto już realizację palet — usuwanie dostępne tylko dla administratora."
 
         deleted_rows = self._picking_repo.delete_order(order_ref)
         if deleted_rows == 0:
             return False, f"Nie udało się usunąć dyspozycji {order_ref}."
 
-        return True, f"Dyspozycja {order_ref} ({deleted_rows} pozycji) została trwale usunięta."
+        return True, f"Dyspozycja {order_ref} ({deleted_rows} pozycji) została usunięta."
 
     def get_active_orders(self, operator_login=None):
         """Returns list of active picking orders.

@@ -67,14 +67,23 @@ const OrdersModule = (function () {
             var komentarz = o.komentarz ? '<div style="margin-top:8px; font-size:12px; color:#64748b;"><strong>Komentarz:</strong> ' + _escapeHtml(o.komentarz) + '</div>' : '';
 
             var itemsHtml = '';
-            if (Array.isArray(o.items) && o.items.length > 0) {
+            var displayedItems = Array.isArray(o.items) ? o.items.filter(function(it) {
+                if (!it) return false;
+                if (it.brakujace_kg !== undefined && it.brakujace_kg !== null) {
+                    return parseFloat(it.brakujace_kg) > 0;
+                }
+                return (parseFloat(it.ilosc_kg) || 0) > 0;
+            }) : [];
+
+            if (displayedItems.length > 0) {
                 itemsHtml = '<ul style="margin:0; padding-left:16px; list-style-type:disc;">';
-                o.items.forEach(function(it) {
-                    itemsHtml += '<li><strong>' + _escapeHtml(it.surowiec_nazwa) + '</strong> — ' + _formatKg(it.ilosc_kg) + ' kg</li>';
+                displayedItems.forEach(function(it) {
+                    var displayQty = (it.brakujace_kg !== undefined && it.brakujace_kg !== null) ? it.brakujace_kg : it.ilosc_kg;
+                    itemsHtml += '<li><strong>' + _escapeHtml(it.surowiec_nazwa) + '</strong> — ' + _formatKg(displayQty) + ' kg</li>';
                 });
                 itemsHtml += '</ul>';
             } else {
-                itemsHtml = '<span style="color:#94a3b8;">Brak pozycji</span>';
+                itemsHtml = '<span style="color:#94a3b8;">Brak pozycji (100% na stanie)</span>';
             }
 
             var statusHtml = isNowe

@@ -117,10 +117,7 @@ function renderRackGrid(prefix) {
                 }
             }
 
-            let indicatorNum = hasPallet ? '1' : '0';
-            if (normPrefix === 'R09' && hasPallet) {
-                indicatorNum = String(activeItemCount > 0 ? activeItemCount : 1);
-            }
+            let indicatorNum = hasPallet ? String(activeItemCount > 0 ? activeItemCount : 1) : '0';
             const numColor = hasPallet ? (hasCounted ? '#166534' : '#2563eb') : '#94a3b8';
             
             cell.innerHTML = `
@@ -233,9 +230,8 @@ function markCellDone(locId, isEmpty) {
         const row = locId.slice(-2);
         
         const items = rackData[locId] || [];
-        const isR09 = locId.startsWith('R09');
         let val = isEmpty ? '0' : '1';
-        if (isR09 && !isEmpty) {
+        if (!isEmpty) {
             const countedActive = items.filter(i => i.nazwa !== 'PUSTE GNIAZDO' && i.counted && parseFloat(i.waga_faktyczna || 0) > 0).length;
             val = String(countedActive > 0 ? countedActive : 1);
         }
