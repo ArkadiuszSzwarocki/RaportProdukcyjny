@@ -1,0 +1,26 @@
+services:
+  app:
+    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    container_name: raportprodukcyjny
+    env_file:
+      # This file is intentionally not part of the image. Copy the existing
+      # production .env next to this compose file on the QNAP.
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8082
+      FLASK_ENV: production
+      FLASK_DEBUG: "false"
+    ports:
+      - "5005:8082"
+    volumes:
+      - ./logs:/app/logs
+      - ./raporty:/app/raporty
+      - ./config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
