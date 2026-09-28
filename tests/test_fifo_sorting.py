@@ -9,6 +9,10 @@ def client():
     app.config['TESTING'] = True
     app.config['SECRET_KEY'] = 'test-secret'
     with app.test_client() as client:
+        with client.session_transaction() as session:
+            session['zalogowany'] = True
+            session['login'] = 'testuser'
+            session['rola'] = 'magazynier'
         yield client
 
 def test_available_pallets_fifo_order_and_badges(client):

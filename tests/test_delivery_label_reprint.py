@@ -12,6 +12,10 @@ def app_client():
     app.register_blueprint(magazyn_dostawy_bp)
     
     with app.test_client() as client:
+        with client.session_transaction() as session:
+            session['zalogowany'] = True
+            session['login'] = 'testuser'
+            session['rola'] = 'magazynier'
         with app.app_context():
             yield client
 

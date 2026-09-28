@@ -191,7 +191,9 @@ def mock_get_db_connection(mock_db_connection):
 def authenticated_client(client, app):
     """Create an authenticated test client with session."""
     with client.session_transaction() as sess:
+        sess['zalogowany'] = True
         sess['user_id'] = 1
+        sess['login'] = 'testuser'
         sess['username'] = 'testuser'
         sess['rola'] = 'pracownik'
         sess['pracownik_id'] = 100
@@ -202,7 +204,9 @@ def authenticated_client(client, app):
 def admin_client(client, app):
     """Create an admin authenticated test client."""
     with client.session_transaction() as sess:
+        sess['zalogowany'] = True
         sess['user_id'] = 1
+        sess['login'] = 'admin'
         sess['username'] = 'admin'
         sess['rola'] = 'admin'
         sess['pracownik_id'] = 1

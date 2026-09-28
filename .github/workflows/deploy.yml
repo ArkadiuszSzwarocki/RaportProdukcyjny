@@ -46,6 +46,7 @@ jobs:
           DB_USER: root
           DB_PASSWORD: password
           DB_NAME: test_db
+          PRINTER_SERVER_START_PIN: '0606'
           USE_SSL: 'true'
 
   build:

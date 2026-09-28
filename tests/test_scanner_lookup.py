@@ -60,7 +60,7 @@ def test_lookup_returns_packaging_for_location():
     assert result['can_dispatch'] is False
 
 
-def test_lookup_route_returns_inventory_payload(client):
+def test_lookup_route_returns_inventory_payload(authenticated_client):
     payload = {
         'id': 7,
         'nazwa': 'Test item',
@@ -75,7 +75,7 @@ def test_lookup_route_returns_inventory_payload(client):
     }
 
     with patch('app.blueprints.routes_scanner.ScannerService.lookup_by_location', return_value=payload):
-        response = client.post('/agro/scanner/lookup', json={'code': 'PAL-7', 'linia': 'AGRO'})
+        response = authenticated_client.post('/agro/scanner/lookup', json={'code': 'PAL-7', 'linia': 'AGRO'})
 
     assert response.status_code == 200
     data = response.get_json()

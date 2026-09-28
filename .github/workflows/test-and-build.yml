@@ -60,6 +60,7 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          PRINTER_SERVER_START_PIN: '0606'
           USE_SSL: 'true'
 
       - name: Coverage report
@@ -74,6 +75,7 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          PRINTER_SERVER_START_PIN: '0606'
           USE_SSL: 'true'
 
       - name: Upload coverage to Codecov
