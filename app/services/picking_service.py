@@ -6,8 +6,11 @@ and automatic relocation to MP01. Orchestrates PickingRepository and
 WarehouseOrderRepository for stock data.
 """
 from datetime import datetime
+import uuid
+
 from app.repositories.picking_repository import PickingRepository
 from app.repositories.warehouse_order_repository import WarehouseOrderRepository
+from app.services.warehouse_order_service import WarehouseOrderService
 from app.core.database import get_db_connection
 from app.utils.surowiec_validator import validate_surowiec_name
 
@@ -15,185 +18,269 @@ from app.utils.surowiec_validator import validate_surowiec_name
 class PickingService:
     """Business logic for the picking / completion workflow."""
 
+    _CREATE_LOCK_NAME = 'warehouse_picking_create'
+    _CREATE_LOCK_TIMEOUT_SECONDS = 10
+
     def __init__(self):
         self._picking_repo = PickingRepository()
         self._order_repo = WarehouseOrderRepository()
 
-    def start_picking(self, calculation_results, operator_login):
-        """Creates a picking order from calculator results, allocating FIFO pallets.
+    @staticmethod
+    def _recipe_from_request(calculation_request):
+        """Build a trusted recipe input from calculator data.
 
-        Workflow:
-        1. Generate unique order_ref (PICK-YYYYMMDD-SEQ).
-        2. For each surowiec in results, select active pallets (FIFO order)
-           up to the required quantity.
-        3. Blocked pallets are recorded with status POMINIETA.
-        4. Pending deliveries are noted as informational (passive).
-        5. Persist via PickingRepository.
-
-        Args:
-            calculation_results: Dict with 'items' list from calculate_and_check_stock.
-                Each item: surowiec_nazwa, potrzebne_kg, palety_fifo, ...
-            operator_login: Login of the operator creating the order.
-
-        Returns:
-            tuple[bool, str, dict]: (success, message, payload with order_ref + summary).
+        The browser may send previously rendered stock rows, but only material name and
+        recipe rate are reused. Pallet IDs, locations and quantities are always reloaded
+        from the database immediately before the picking order is created.
         """
-        items = calculation_results.get('items', [])
-        if not items:
-            return False, "Brak surowców do kompletacji.", {}
+        source_items = calculation_request.get('recipe_items') or calculation_request.get('items') or []
+        recipe = []
+        for item in source_items:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get('surowiec_nazwa') or '').strip()
+            rate = item.get('przelicznik_na_1t')
+            if name and rate is not None:
+                recipe.append({
+                    'surowiec_nazwa': name,
+                    'przelicznik_na_1t': rate,
+                })
+        return recipe
 
-        seq = self._picking_repo.get_next_order_sequence()
+    @staticmethod
+    def _build_order_ref(sequence):
+        """Build a readable but collision-resistant picking reference."""
         today_str = datetime.now().strftime('%Y%m%d')
-        order_ref = f"PICK-{today_str}-{seq:03d}"
+        suffix = uuid.uuid4().hex[:4].upper()
+        return f"PICK-{today_str}-{sequence:03d}-{suffix}"
 
-        picking_rows = []
-        summary_surowce = []
-        total_allocated = 0
-        total_blocked = 0
-        total_missing = 0
+    def start_picking(self, calculation_request, operator_login):
+        """Create a picking order after a fresh stock calculation.
 
-        for item in items:
-            nazwa = str(item.get('surowiec_nazwa', '')).strip()
-            is_valid, err_msg = validate_surowiec_name(nazwa)
-            if not is_valid:
-                return False, err_msg, {}
+        Important invariants:
+        - stock is recalculated on the server at creation time;
+        - OSIP/MS01/BFMS01 exclusions and active reservations come from check_stock();
+        - blocked pallets are informational and are never inserted as real picking rows;
+        - every partial/complete shortage gets a placeholder so it can be filled later;
+        - an advisory DB lock serializes picking creation to avoid double allocation.
+        """
+        recipe_items = self._recipe_from_request(calculation_request)
+        if not recipe_items:
+            return False, "Brak poprawnej receptury do ponownego sprawdzenia magazynu.", {}
 
-            needed_kg = float(item.get('potrzebne_kg', 0))
-            palety_fifo = item.get('palety_fifo', [])
+        order_tons = calculation_request.get('order_tons', 0)
+        linia = str(calculation_request.get('linia') or 'AGRO').upper()
+        if linia not in ('AGRO', 'PSD'):
+            linia = 'AGRO'
 
-            allocated_kg = 0.0
-            blocked_kg = 0.0
-            item_rows = []
+        lock_conn = None
+        lock_cursor = None
+        lock_acquired = False
+        order_ref = None
+        try:
+            lock_conn = get_db_connection()
+            lock_cursor = lock_conn.cursor()
+            lock_cursor.execute(
+                "SELECT GET_LOCK(%s, %s)",
+                (self._CREATE_LOCK_NAME, self._CREATE_LOCK_TIMEOUT_SECONDS),
+            )
+            lock_row = lock_cursor.fetchone()
+            lock_acquired = bool(lock_row and int(lock_row[0] or 0) == 1)
+            if not lock_acquired:
+                return False, (
+                    "Magazyn jest właśnie rezerwowany przez inną kompletację. "
+                    "Spróbuj ponownie za chwilę."
+                ), {}
 
-            for pallet in palety_fifo:
-                pallet_kg = float(pallet.get('stan_magazynowy', 0))
-                is_blocked = bool(pallet.get('is_blocked'))
-                is_mp01 = (str(pallet.get('lokalizacja') or '').strip().upper() == 'MP01')
-                status = 'POMINIETA' if is_blocked else ('SKOMPLETOWANA' if is_mp01 else 'OCZEKUJE')
+            # Nie ufamy paletom przesłanym przez przeglądarkę. Ponownie liczymy stan
+            # dopiero po uzyskaniu blokady, aby druga kompletacja nie mogła przejąć
+            # tych samych palet pomiędzy sprawdzeniem i zapisem.
+            calculator = WarehouseOrderService()
+            ok, message, fresh_calculation = calculator.calculate_and_check_stock(
+                recipe_items,
+                order_tons,
+                linia,
+            )
+            if not ok:
+                return False, message, {}
 
-                row = {
-                    'order_ref': order_ref,
-                    'surowiec_nazwa': nazwa,
-                    'paleta_id': pallet.get('id', 0),
-                    'nr_palety': pallet.get('nr_palety', ''),
-                    'lokalizacja_zrodlowa': pallet.get('lokalizacja', ''),
-                    'ilosc_kg': pallet_kg,
-                    'nr_partii': pallet.get('nr_partii', ''),
-                    'fifo_rank': pallet.get('fifo_rank'),
-                    'is_blocked': is_blocked,
-                    'powod_blokady': pallet.get('powod_blokady', ''),
-                    'status': status,
-                    'operator_login': operator_login,
-                }
+            items = fresh_calculation.get('items', [])
+            if not items:
+                return False, "Brak surowców do kompletacji po ponownym przeliczeniu.", {}
 
-                if is_blocked:
-                    blocked_kg += pallet_kg
-                    total_blocked += 1
-                else:
+            sequence = self._picking_repo.get_next_order_sequence()
+            order_ref = self._build_order_ref(sequence)
+
+            picking_rows = []
+            summary_surowce = []
+            total_allocated = 0
+            total_blocked = 0
+            total_missing = 0
+
+            for item in items:
+                nazwa = str(item.get('surowiec_nazwa') or '').strip()
+                is_valid, err_msg = validate_surowiec_name(nazwa)
+                if not is_valid:
+                    return False, err_msg, {}
+
+                needed_kg = float(item.get('potrzebne_kg') or 0)
+                palety_fifo = item.get('palety_fifo') or []
+                allocated_kg = 0.0
+                item_rows = []
+
+                blocked_pallets = [p for p in palety_fifo if p.get('is_blocked')]
+                total_blocked += len(blocked_pallets)
+                blocked_kg = sum(float(p.get('stan_magazynowy') or 0) for p in blocked_pallets)
+
+                for pallet in palety_fifo:
+                    if pallet.get('is_blocked'):
+                        continue
+
+                    pallet_kg = float(pallet.get('stan_magazynowy') or 0)
+                    if pallet_kg <= 0:
+                        continue
+
+                    source_location = str(pallet.get('lokalizacja') or '').strip().upper()
+                    is_mp01 = source_location == 'MP01'
+                    row = {
+                        'order_ref': order_ref,
+                        'surowiec_nazwa': nazwa,
+                        'paleta_id': pallet.get('id', 0),
+                        'nr_palety': pallet.get('nr_palety', ''),
+                        'lokalizacja_zrodlowa': source_location,
+                        'ilosc_kg': pallet_kg,
+                        'nr_partii': pallet.get('nr_partii', ''),
+                        'fifo_rank': pallet.get('fifo_rank'),
+                        'is_blocked': False,
+                        'powod_blokady': '',
+                        'status': 'SKOMPLETOWANA' if is_mp01 else 'OCZEKUJE',
+                        'operator_login': operator_login,
+                    }
+                    item_rows.append(row)
                     allocated_kg += pallet_kg
                     total_allocated += 1
+                    if allocated_kg >= needed_kg:
+                        break
 
-                item_rows.append(row)
+                missing_kg = max(0.0, needed_kg - allocated_kg)
+                if missing_kg > 0:
+                    total_missing += 1
+                    # Placeholder powstaje również przy braku częściowym. Dzięki temu
+                    # sync_pending_pallets może później dobrać nowe palety z PZ/MM.
+                    item_rows.append({
+                        'order_ref': order_ref,
+                        'surowiec_nazwa': nazwa,
+                        'paleta_id': 0,
+                        'nr_palety': 'BRAK DO UZUPEŁNIENIA',
+                        'lokalizacja_zrodlowa': 'BRAK',
+                        'ilosc_kg': round(missing_kg, 2),
+                        'nr_partii': '',
+                        'fifo_rank': None,
+                        'is_blocked': True,
+                        'powod_blokady': (
+                            f'Brak do uzupełnienia: {missing_kg:.2f} kg '
+                            f'(zapotrzebowanie: {needed_kg:.2f} kg)'
+                        ),
+                        'status': 'POMINIETA',
+                        'operator_login': operator_login,
+                    })
 
-                if not is_blocked and allocated_kg >= needed_kg:
-                    break
-
-            if not item_rows:
-                # Brak palet na stanie magazynowym dla tego surowca
-                item_rows.append({
-                    'order_ref': order_ref,
+                picking_rows.extend(item_rows)
+                pending_deliveries = self._check_pending_deliveries(nazwa)
+                summary_surowce.append({
                     'surowiec_nazwa': nazwa,
-                    'paleta_id': 0,
-                    'nr_palety': 'BRAK NA STANIE',
-                    'lokalizacja_zrodlowa': 'BRAK',
-                    'ilosc_kg': needed_kg,
-                    'nr_partii': '',
-                    'fifo_rank': None,
-                    'is_blocked': True,
-                    'powod_blokady': f'Brak dostępnych palet na stanie magazynowym (Zapotrzebowanie: {needed_kg:.2f} kg)',
-                    'operator_login': operator_login,
-                })
-                total_blocked += 1
-
-            picking_rows.extend(item_rows)
-
-            missing_kg = max(0.0, needed_kg - allocated_kg)
-            if missing_kg > 0:
-                total_missing += 1
-
-            pending_deliveries = self._check_pending_deliveries(nazwa)
-
-            summary_surowce.append({
-                'surowiec_nazwa': nazwa,
-                'potrzebne_kg': round(needed_kg, 2),
-                'alokowane_kg': round(allocated_kg, 2),
-                'zablokowane_kg': round(blocked_kg, 2),
-                'brakujace_kg': round(missing_kg, 2),
-                'palet_alokowanych': len([r for r in item_rows if not r['is_blocked']]),
-                'palet_zablokowanych': len([r for r in item_rows if r['is_blocked']]),
-                'dostawy_oczekujace': pending_deliveries,
-            })
-
-        order_tons = calculation_results.get('order_tons', 0)
-        order_items = []
-        for s in summary_surowce:
-            missing_kg = round(float(s.get('brakujace_kg', 0) or 0), 2)
-            if missing_kg > 0:
-                order_items.append({
-                    'surowiec_nazwa': s['surowiec_nazwa'],
-                    'ilosc_kg': missing_kg,
-                    'pokryte_kg': round(float(s.get('alokowane_kg', 0) or 0), 2),
-                    'brakujace_kg': missing_kg,
-                    'potrzebne_kg': round(float(s.get('potrzebne_kg', 0) or 0), 2),
-                    'order_ref': order_ref
+                    'potrzebne_kg': round(needed_kg, 2),
+                    'alokowane_kg': round(allocated_kg, 2),
+                    'zablokowane_kg': round(blocked_kg, 2),
+                    'brakujace_kg': round(missing_kg, 2),
+                    'palet_alokowanych': len([r for r in item_rows if r.get('paleta_id', 0) > 0]),
+                    'palet_zablokowanych': len(blocked_pallets),
+                    'dostawy_oczekujace': pending_deliveries,
                 })
 
-        # Zapisz do tabeli magazyn_zamowienia TYLKO jeśli wystąpiły brakujące surowce
-        order_id = None
-        if order_items:
-            order_id = self._order_repo.create(
-                items=order_items,
-                operator_login=operator_login,
-                komentarz=f"Dyspozycja {order_ref} (Brakujące na zlecenie {order_tons} t)"
-            )
+            order_items = []
+            for summary in summary_surowce:
+                missing_kg = round(float(summary.get('brakujace_kg') or 0), 2)
+                if missing_kg > 0:
+                    order_items.append({
+                        'surowiec_nazwa': summary['surowiec_nazwa'],
+                        'ilosc_kg': missing_kg,
+                        'pokryte_kg': round(float(summary.get('alokowane_kg') or 0), 2),
+                        'brakujace_kg': missing_kg,
+                        'potrzebne_kg': round(float(summary.get('potrzebne_kg') or 0), 2),
+                        'order_ref': order_ref,
+                    })
 
-        inserted = 0
-        if picking_rows:
-            inserted = self._picking_repo.create_picking_items(picking_rows)
+            # Najpierw zapisujemy dyspozycję. Gdy później nie uda się utworzyć
+            # zamówienia braków, usuwamy dyspozycję kompensacyjnie.
+            inserted = self._picking_repo.create_picking_items(picking_rows) if picking_rows else 0
+            if picking_rows and inserted <= 0:
+                return False, "Nie udało się zapisać listy kompletacyjnej.", {}
 
-        payload = {
-            'order_ref': order_ref,
-            'order_id': order_id,
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'operator_login': operator_login,
-            'total_allocated': total_allocated,
-            'total_blocked': total_blocked,
-            'total_missing_surowce': total_missing,
-            'inserted_rows': inserted,
-            'summary': summary_surowce,
-        }
+            order_id = None
+            try:
+                if order_items:
+                    order_id = self._order_repo.create(
+                        items=order_items,
+                        operator_login=operator_login,
+                        komentarz=(
+                            f"Dyspozycja {order_ref} "
+                            f"(brakujące na zlecenie {fresh_calculation.get('order_tons', order_tons)} t)"
+                        ),
+                    )
+            except Exception:
+                if order_ref:
+                    try:
+                        self._picking_repo.delete_order(order_ref)
+                    except Exception:
+                        pass
+                raise
 
-        if inserted > 0:
+            payload = {
+                'order_ref': order_ref,
+                'order_id': order_id,
+                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'operator_login': operator_login,
+                'total_allocated': total_allocated,
+                'total_blocked': total_blocked,
+                'total_missing_surowce': total_missing,
+                'inserted_rows': inserted,
+                'summary': summary_surowce,
+                'calculation': fresh_calculation,
+            }
+
             if order_id:
-                msg = f"Dyspozycja {order_ref} utworzona ({inserted} palet FIFO). Zgłoszono zamówienie #{order_id} na brakujące surowce."
+                msg = (
+                    f"Dyspozycja {order_ref} utworzona ({inserted} pozycji). "
+                    f"Zgłoszono zamówienie #{order_id} wyłącznie na brakujące ilości."
+                )
             else:
-                msg = f"Dyspozycja {order_ref} utworzona ({inserted} palet FIFO). Wszystkie surowce są na stanie magazynu."
-        else:
-            if order_id:
-                msg = f"Zarejestrowano zamówienie #{order_id} ({order_ref}) na brakujące surowce. Brak dostępnych palet na stanie do kompletacji."
-            else:
-                msg = f"Dyspozycja {order_ref} zarejestrowana."
-        return True, msg, payload
+                msg = (
+                    f"Dyspozycja {order_ref} utworzona ({inserted} pozycji). "
+                    "Wszystkie surowce są pokryte aktualnym stanem magazynu."
+                )
+            return True, msg, payload
+        except Exception as exc:
+            return False, f"Nie udało się utworzyć dyspozycji kompletacji: {exc}", {}
+        finally:
+            if lock_acquired and lock_cursor:
+                try:
+                    lock_cursor.execute("SELECT RELEASE_LOCK(%s)", (self._CREATE_LOCK_NAME,))
+                except Exception:
+                    pass
+            if lock_cursor:
+                try:
+                    lock_cursor.close()
+                except Exception:
+                    pass
+            if lock_conn:
+                try:
+                    lock_conn.close()
+                except Exception:
+                    pass
 
     def get_picking_order_details(self, order_ref):
-        """Fetches full picking order data grouped by surowiec.
-
-        Args:
-            order_ref: Picking order reference string.
-
-        Returns:
-            dict: Order details with items grouped by surowiec, progress stats.
-        """
+        """Fetches full picking order data grouped by surowiec."""
         self.sync_pending_pallets(order_ref)
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
@@ -248,51 +335,52 @@ class PickingService:
         if not items:
             return
 
-        placeholders = [it for it in items if it.get('paleta_id') == 0 and it.get('status') == 'POMINIETA']
+        placeholders = [
+            item for item in items
+            if item.get('paleta_id') == 0 and item.get('status') == 'POMINIETA'
+        ]
         if not placeholders:
             return
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            for ph in placeholders:
-                ph_id = ph['id']
-                nazwa = ph['surowiec_nazwa']
-                needed_kg = float(ph.get('ilosc_kg', 0))
-                operator_login = ph.get('operator_login', '')
+            for placeholder in placeholders:
+                placeholder_id = placeholder['id']
+                nazwa = placeholder['surowiec_nazwa']
+                needed_kg = float(placeholder.get('ilosc_kg') or 0)
+                operator_login = placeholder.get('operator_login', '')
 
                 stock_check = self._order_repo.check_stock([nazwa])
                 stock_data = stock_check.get('stock_data', {}).get(nazwa, {})
                 palety_fifo = stock_data.get('palety_fifo', [])
                 active_pallets = [p for p in palety_fifo if not p.get('is_blocked')]
-
                 if not active_pallets:
                     continue
 
-                # Wyklucz palety już przypisane do aktywnych kompletacji
                 cursor.execute(
-                    "SELECT paleta_id FROM magazyn_kompletacja WHERE status = 'OCZEKUJE' AND paleta_id > 0"
+                    "SELECT paleta_id FROM magazyn_kompletacja "
+                    "WHERE status IN ('OCZEKUJE', 'SKOMPLETOWANA') AND paleta_id > 0"
                 )
                 allocated_ids = {row['paleta_id'] for row in cursor.fetchall()}
-
                 newly_available = [p for p in active_pallets if p['id'] not in allocated_ids]
                 if not newly_available:
                     continue
 
                 accumulated = 0.0
                 new_rows = []
-                for p in newly_available:
-                    p_kg = float(p.get('stan_magazynowy', 0))
-                    accumulated += p_kg
+                for pallet in newly_available:
+                    pallet_kg = float(pallet.get('stan_magazynowy') or 0)
+                    accumulated += pallet_kg
                     new_rows.append({
                         'order_ref': order_ref,
                         'surowiec_nazwa': nazwa,
-                        'paleta_id': p['id'],
-                        'nr_palety': p.get('nr_palety', ''),
-                        'lokalizacja_zrodlowa': p.get('lokalizacja', ''),
-                        'ilosc_kg': p_kg,
-                        'nr_partii': p.get('nr_partii', ''),
-                        'fifo_rank': p.get('fifo_rank'),
+                        'paleta_id': pallet['id'],
+                        'nr_palety': pallet.get('nr_palety', ''),
+                        'lokalizacja_zrodlowa': pallet.get('lokalizacja', ''),
+                        'ilosc_kg': pallet_kg,
+                        'nr_partii': pallet.get('nr_partii', ''),
+                        'fifo_rank': pallet.get('fifo_rank'),
                         'is_blocked': False,
                         'powod_blokady': '',
                         'operator_login': operator_login,
@@ -303,10 +391,16 @@ class PickingService:
                 if new_rows:
                     self._picking_repo.create_picking_items(new_rows)
                     if accumulated >= needed_kg:
-                        cursor.execute("DELETE FROM magazyn_kompletacja WHERE id = %s", (ph_id,))
+                        cursor.execute(
+                            "DELETE FROM magazyn_kompletacja WHERE id = %s",
+                            (placeholder_id,),
+                        )
                     else:
-                        rem_kg = max(0.0, needed_kg - accumulated)
-                        cursor.execute("UPDATE magazyn_kompletacja SET ilosc_kg = %s WHERE id = %s", (rem_kg, ph_id))
+                        remaining_kg = max(0.0, needed_kg - accumulated)
+                        cursor.execute(
+                            "UPDATE magazyn_kompletacja SET ilosc_kg = %s WHERE id = %s",
+                            (remaining_kg, placeholder_id),
+                        )
                     conn.commit()
         except Exception:
             pass
@@ -314,37 +408,22 @@ class PickingService:
             conn.close()
 
     def confirm_pick_by_sscc(self, order_ref, sscc_code, magazynier_login):
-        """Confirms a pick by scanning SSCC barcode. Moves pallet to MP01.
-
-        Args:
-            order_ref: Picking order reference.
-            sscc_code: Scanned SSCC barcode string.
-            magazynier_login: Login of the warehouse worker.
-
-        Returns:
-            tuple[bool, str, dict]: (success, message, updated_item_data).
-        """
+        """Confirms a pick by scanning SSCC barcode. Moves pallet to MP01."""
         sscc_clean = str(sscc_code).strip()
         if not sscc_clean:
             return False, "Pusty kod SSCC.", {}
 
         item = self._picking_repo.find_item_by_sscc(order_ref, sscc_clean)
         if not item:
-            return False, f"Paleta SSCC '{sscc_clean}' nie została znaleziona w dyspozycji {order_ref} lub jest już skompletowana.", {}
+            return False, (
+                f"Paleta SSCC '{sscc_clean}' nie została znaleziona w dyspozycji "
+                f"{order_ref} lub jest już skompletowana."
+            ), {}
 
         return self._execute_pick_confirmation(item, magazynier_login)
 
     def confirm_pick_by_id(self, item_id, magazynier_login):
-        """Confirms a pick by item ID (manual confirmation). Moves pallet to MP01.
-
-        Args:
-            item_id: ID of the magazyn_kompletacja row.
-            magazynier_login: Login of the warehouse worker.
-
-        Returns:
-            tuple[bool, str, dict]: (success, message, updated_item_data).
-        """
-        items = self._picking_repo.get_by_order_ref('')
+        """Confirms a pick by item ID (manual confirmation). Moves pallet to MP01."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -362,49 +441,34 @@ class PickingService:
         return self._execute_pick_confirmation(item, magazynier_login)
 
     def cancel_picking_order(self, order_ref):
-        """Cancels all pending items in a picking order.
-
-        Args:
-            order_ref: Picking order reference.
-
-        Returns:
-            tuple[bool, str]: (success, message).
-        """
+        """Cancels all pending items in a picking order."""
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
 
         cancelled = self._picking_repo.cancel_order(order_ref)
         if cancelled == 0:
-            # Sprawdź, czy pozycje nie są już przypadkiem w całości anulowane/zrealizowane
-            has_pending = any(it.get('status') == 'OCZEKUJE' for it in items)
+            has_pending = any(item.get('status') == 'OCZEKUJE' for item in items)
             if not has_pending:
                 return True, f"Dyspozycja {order_ref} została anulowana."
             return False, f"Brak oczekujących pozycji do anulowania w {order_ref}."
         return True, f"Anulowano {cancelled} pozycji w dyspozycji {order_ref}."
 
     def delete_picking_order(self, order_ref, user_role):
-        """Trwale usuwa dyspozycję kompletacji.
-        Dostępne dla masteradmin, admin, zarzad, LUB dla każdego użytkownika jeśli w dyspozycji
-        żadna paleta nie została jeszcze zrealizowana (0 pozycji skompletowanych).
-
-        Args:
-            order_ref: Referencja zamówienia kompletacji.
-            user_role: Rola użytkownika.
-
-        Returns:
-            tuple[bool, str]: (sukces, komunikat).
-        """
+        """Trwale usuwa dyspozycję kompletacji."""
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
 
         role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
         is_admin = role_norm in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']
-        has_completed = any(it.get('status') == 'SKOMPLETOWANA' for it in items)
+        has_completed = any(item.get('status') == 'SKOMPLETOWANA' for item in items)
 
         if has_completed and not is_admin:
-            return False, "Brak uprawnień. W dyspozycji rozpoczęto już realizację palet — usuwanie dostępne tylko dla administratora."
+            return False, (
+                "Brak uprawnień. W dyspozycji rozpoczęto już realizację palet — "
+                "usuwanie dostępne tylko dla administratora."
+            )
 
         deleted_rows = self._picking_repo.delete_order(order_ref)
         if deleted_rows == 0:
@@ -413,26 +477,11 @@ class PickingService:
         return True, f"Dyspozycja {order_ref} ({deleted_rows} pozycji) została usunięta."
 
     def get_active_orders(self, operator_login=None):
-        """Returns list of active picking orders.
-
-        Args:
-            operator_login: Optional filter by operator.
-
-        Returns:
-            list[dict]: Active picking orders with progress stats.
-        """
+        """Returns list of active picking orders."""
         return self._picking_repo.get_active_orders(operator_login)
 
     def _execute_pick_confirmation(self, item, magazynier_login):
-        """Internal: confirms pick, moves pallet to MP01, logs movement.
-
-        Args:
-            item: Dict from magazyn_kompletacja row.
-            magazynier_login: Warehouse worker login.
-
-        Returns:
-            tuple[bool, str, dict]: (success, message, item_data).
-        """
+        """Confirm a pick only if the pallet is still in the expected source location."""
         paleta_id = item.get('paleta_id')
         item_id = item.get('id')
         order_ref = item.get('order_ref', '')
@@ -440,13 +489,19 @@ class PickingService:
 
         move_ok = self._move_pallet_to_mp01(paleta_id, source_loc, magazynier_login)
         if not move_ok:
-            return False, f"Nie udało się przenieść palety #{paleta_id} na MP01.", {}
+            return False, (
+                f"Paleta #{paleta_id} nie jest już dostępna w lokalizacji {source_loc} "
+                "lub została zablokowana. Odśwież kompletację."
+            ), {}
 
         updated = self._picking_repo.mark_item_completed(item_id, magazynier_login)
         if updated == 0:
             return False, "Pozycja została już skompletowana przez innego operatora.", {}
 
-        return True, f"✅ Paleta {item.get('nr_palety', '')} przeniesiona na MP01 i oznaczona jako skompletowana.", {
+        return True, (
+            f"✅ Paleta {item.get('nr_palety', '')} przeniesiona na MP01 "
+            "i oznaczona jako skompletowana."
+        ), {
             'item_id': item_id,
             'paleta_id': paleta_id,
             'nr_palety': item.get('nr_palety', ''),
@@ -457,28 +512,28 @@ class PickingService:
         }
 
     def _move_pallet_to_mp01(self, paleta_id, source_location, magazynier_login):
-        """Moves a raw material pallet to MP01 in magazyn_surowce and logs movement.
+        """Move a pallet only when its current DB state still matches the picking row."""
+        if not paleta_id or not source_location:
+            return False
 
-        Args:
-            paleta_id: ID of the pallet in magazyn_surowce.
-            source_location: Previous location string.
-            magazynier_login: Who performed the move.
-
-        Returns:
-            bool: True if update succeeded.
-        """
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-
             cursor.execute(
                 """
                 UPDATE magazyn_surowce
                 SET lokalizacja = 'MP01'
                 WHERE id = %s
+                  AND stan_magazynowy > 0
+                  AND COALESCE(is_blocked, 0) = 0
+                  AND UPPER(TRIM(COALESCE(lokalizacja, ''))) = UPPER(TRIM(%s))
                 """,
-                (paleta_id,)
+                (paleta_id, source_location)
             )
+            moved_rows = cursor.rowcount
+            if moved_rows != 1:
+                conn.rollback()
+                return False
 
             try:
                 cursor.execute(
@@ -490,17 +545,19 @@ class PickingService:
                     """,
                     (
                         paleta_id,
-                        source_location or '',
+                        source_location,
                         magazynier_login,
-                        f'Kompletacja FIFO → MP01',
+                        'Kompletacja FIFO → MP01',
                         datetime.now(),
                     )
                 )
             except Exception:
+                # Log ruchu jest pomocniczy; właściwy ruch palety nie powinien być
+                # cofany tylko dlatego, że starszy schemat nie ma wymaganych kolumn.
                 pass
 
             conn.commit()
-            return cursor.rowcount > 0 or True
+            return True
         except Exception:
             conn.rollback()
             return False
@@ -509,14 +566,7 @@ class PickingService:
 
     @staticmethod
     def _check_pending_deliveries(surowiec_nazwa):
-        """Checks magazyn_dostawy for pending deliveries containing a given raw material (passive info).
-
-        Args:
-            surowiec_nazwa: Name of the raw material.
-
-        Returns:
-            list[dict]: Pending delivery summaries (delivery_id, expected date, qty).
-        """
+        """Checks pending deliveries containing a given raw material (passive info)."""
         if not surowiec_nazwa:
             return []
 
@@ -537,8 +587,8 @@ class PickingService:
             norm_name = surowiec_nazwa.strip().lower()
             matches = []
 
-            for d in deliveries:
-                raw_items = d.get('items', '')
+            for delivery in deliveries:
+                raw_items = delivery.get('items', '')
                 if not raw_items:
                     continue
                 try:
@@ -549,22 +599,24 @@ class PickingService:
                 if not isinstance(parsed, list):
                     continue
 
-                for pi in parsed:
-                    item_name = str(pi.get('nazwa', '') or pi.get('surowiec', '') or '').strip().lower()
-                    if item_name and (norm_name in item_name or item_name in norm_name):
+                for pending_item in parsed:
+                    item_name = str(
+                        pending_item.get('nazwa', '') or pending_item.get('surowiec', '') or ''
+                    ).strip().lower()
+                    if item_name and item_name == norm_name:
                         date_str = ''
-                        if d.get('created_at'):
+                        if delivery.get('created_at'):
                             try:
-                                date_str = d['created_at'].strftime('%Y-%m-%d %H:%M')
+                                date_str = delivery['created_at'].strftime('%Y-%m-%d %H:%M')
                             except Exception:
-                                date_str = str(d['created_at'])
+                                date_str = str(delivery['created_at'])
 
                         matches.append({
-                            'delivery_id': d.get('id'),
-                            'status': d.get('status', ''),
+                            'delivery_id': delivery.get('id'),
+                            'status': delivery.get('status', ''),
                             'date': date_str,
                             'item_name': item_name,
-                            'qty': pi.get('ilosc_kg', pi.get('ilosc', 0)),
+                            'qty': pending_item.get('ilosc_kg', pending_item.get('ilosc', 0)),
                         })
                         break
 
