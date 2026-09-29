@@ -3,7 +3,7 @@
 import os
 import time
 
-from flask import request, session
+from flask import jsonify, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.core.database import get_db_connection
@@ -38,13 +38,7 @@ def _env_bool(name, default=False):
 
 
 def apply_proxy_policy(app):
-    """Trust a configured proxy, then remove raw spoofable forwarding headers.
-
-    ``ProxyFix`` is the outer middleware so it first converts the forwarding
-    information supplied by the trusted proxy into standard WSGI values such as
-    ``REMOTE_ADDR``. The inner stripper then removes the original headers so
-    application code cannot independently trust attacker-controlled values.
-    """
+    """Trust a configured proxy, then remove raw spoofable forwarding headers."""
     stripped_app = StripForwardedHeadersMiddleware(app.wsgi_app)
     if _env_bool('TRUST_PROXY_HEADERS', False):
         hops = max(1, int(os.environ.get('TRUSTED_PROXY_HOPS', '1')))
@@ -59,14 +53,24 @@ def apply_proxy_policy(app):
         app.wsgi_app = stripped_app
 
 
+def register_legacy_secret_rejection(app):
+    """Reject credentials that older clients attempted to put in URLs."""
+
+    @app.before_request
+    def _reject_query_string_secrets():
+        if 'print_token' in request.args:
+            return jsonify({
+                'success': False,
+                'error': 'Query-string print tokens are no longer supported.',
+            }), 400
+        return None
+
+
 def register_role_integrity_check(app):
     """Keep privileged role information tied to the active database record."""
 
     @app.before_request
     def _sync_authenticated_role():
-        # Unit/integration route tests often construct isolated Flask sessions
-        # deliberately. DB-backed role enforcement is covered by dedicated tests
-        # and remains enabled in every non-test deployment.
         if app.config.get('TESTING'):
             return None
         if not session.get('zalogowany'):
@@ -101,8 +105,6 @@ def register_role_integrity_check(app):
                 session['rola'] = db_role
             session['_role_integrity_checked_at'] = now
         except Exception as exc:
-            # DB-backed session validation also runs for authenticated users and
-            # is fail-closed. Log here without inventing a role from the login.
             app.logger.warning('Role integrity check failed for user %s: %s', user_id, exc)
         finally:
             if cursor:
