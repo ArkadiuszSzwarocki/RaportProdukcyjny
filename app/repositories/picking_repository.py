@@ -13,17 +13,7 @@ class PickingRepository:
 
     @staticmethod
     def create_picking_items(items):
-        """Bulk-inserts picking allocation rows into magazyn_kompletacja.
-
-        Args:
-            items: List of dicts with keys:
-                order_ref, surowiec_nazwa, paleta_id, nr_palety,
-                lokalizacja_zrodlowa, ilosc_kg, nr_partii, fifo_rank,
-                is_blocked, powod_blokady, operator_login.
-
-        Returns:
-            int: Number of inserted rows.
-        """
+        """Bulk-inserts picking allocation rows into magazyn_kompletacja."""
         if not items:
             return 0
 
@@ -42,7 +32,7 @@ class PickingRepository:
             rows = []
             for item in items:
                 source_loc = str(item.get('lokalizacja_zrodlowa') or '').strip().upper()
-                is_mp01 = (source_loc == 'MP01')
+                is_mp01 = source_loc == 'MP01'
                 is_blocked = bool(item.get('is_blocked'))
 
                 if item.get('status'):
@@ -55,7 +45,9 @@ class PickingRepository:
                     status = 'OCZEKUJE'
 
                 completed_at = now if status == 'SKOMPLETOWANA' else None
-                magazynier_login = (item.get('operator_login') or 'SYSTEM (MP01)') if status == 'SKOMPLETOWANA' else None
+                magazynier_login = (
+                    item.get('operator_login') or 'SYSTEM (MP01)'
+                ) if status == 'SKOMPLETOWANA' else None
 
                 rows.append((
                     item['order_ref'],
@@ -82,14 +74,7 @@ class PickingRepository:
 
     @staticmethod
     def get_by_order_ref(order_ref):
-        """Fetches all picking items for a given order reference.
-
-        Args:
-            order_ref: Unique picking order reference string.
-
-        Returns:
-            list[dict]: Picking items sorted by surowiec + fifo_rank.
-        """
+        """Fetch all picking items for one order reference."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -107,13 +92,10 @@ class PickingRepository:
 
     @staticmethod
     def get_active_orders(operator_login=None):
-        """Fetches distinct active picking orders (having at least one OCZEKUJE item).
+        """Fetch active picking orders.
 
-        Args:
-            operator_login: Optional filter by operator who created the order.
-
-        Returns:
-            list[dict]: Distinct order references with summary stats.
+        An order is active when it has a pallet waiting for collection OR an unresolved
+        shortage placeholder (paleta_id=0, POMINIETA) waiting for future stock.
         """
         conn = get_db_connection()
         try:
@@ -122,39 +104,35 @@ class PickingRepository:
                 SELECT
                     order_ref,
                     operator_login,
-                    MIN(created_at) as created_at,
-                    COUNT(*) as total_items,
-                    SUM(CASE WHEN status = 'SKOMPLETOWANA' THEN 1 ELSE 0 END) as completed_items,
-                    SUM(CASE WHEN status = 'OCZEKUJE' THEN 1 ELSE 0 END) as pending_items,
-                    SUM(CASE WHEN status = 'POMINIETA' THEN 1 ELSE 0 END) as skipped_items
+                    MIN(created_at) AS created_at,
+                    COUNT(*) AS total_items,
+                    SUM(CASE WHEN status = 'SKOMPLETOWANA' THEN 1 ELSE 0 END) AS completed_items,
+                    SUM(CASE WHEN status = 'OCZEKUJE' THEN 1 ELSE 0 END) AS pending_items,
+                    SUM(CASE WHEN status = 'POMINIETA' THEN 1 ELSE 0 END) AS skipped_items,
+                    SUM(CASE WHEN status = 'POMINIETA' AND paleta_id = 0 THEN 1 ELSE 0 END) AS shortage_items
                 FROM magazyn_kompletacja
             """
+            group_and_having = (
+                " GROUP BY order_ref, operator_login "
+                "HAVING pending_items > 0 OR shortage_items > 0 "
+                "ORDER BY MIN(created_at) DESC"
+            )
             if operator_login:
-                base_query += " WHERE operator_login = %s"
-                base_query += " GROUP BY order_ref, operator_login HAVING pending_items > 0 ORDER BY MIN(created_at) DESC"
-                cursor.execute(base_query, (operator_login,))
+                cursor.execute(base_query + " WHERE operator_login = %s" + group_and_having, (operator_login,))
             else:
-                base_query += " GROUP BY order_ref, operator_login HAVING pending_items > 0 ORDER BY MIN(created_at) DESC"
-                cursor.execute(base_query)
+                cursor.execute(base_query + group_and_having)
 
             orders = cursor.fetchall()
-            for o in orders:
-                if o.get('created_at'):
-                    o['created_at'] = o['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            for order in orders:
+                if order.get('created_at'):
+                    order['created_at'] = order['created_at'].strftime('%Y-%m-%d %H:%M:%S')
             return orders
         finally:
             conn.close()
 
     @staticmethod
     def get_all_orders(limit=50):
-        """Fetches all picking orders (active + completed) for history view.
-
-        Args:
-            limit: Maximum number of distinct orders to return.
-
-        Returns:
-            list[dict]: Distinct order references with summary stats.
-        """
+        """Fetch all picking orders (active + completed) for history view."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -163,13 +141,14 @@ class PickingRepository:
                 SELECT
                     order_ref,
                     operator_login,
-                    MIN(created_at) as created_at,
-                    MAX(completed_at) as last_completed_at,
-                    COUNT(*) as total_items,
-                    SUM(CASE WHEN status = 'SKOMPLETOWANA' THEN 1 ELSE 0 END) as completed_items,
-                    SUM(CASE WHEN status = 'OCZEKUJE' THEN 1 ELSE 0 END) as pending_items,
-                    SUM(CASE WHEN status = 'POMINIETA' THEN 1 ELSE 0 END) as skipped_items,
-                    SUM(CASE WHEN status = 'ANULOWANA' THEN 1 ELSE 0 END) as cancelled_items
+                    MIN(created_at) AS created_at,
+                    MAX(completed_at) AS last_completed_at,
+                    COUNT(*) AS total_items,
+                    SUM(CASE WHEN status = 'SKOMPLETOWANA' THEN 1 ELSE 0 END) AS completed_items,
+                    SUM(CASE WHEN status = 'OCZEKUJE' THEN 1 ELSE 0 END) AS pending_items,
+                    SUM(CASE WHEN status = 'POMINIETA' THEN 1 ELSE 0 END) AS skipped_items,
+                    SUM(CASE WHEN status = 'POMINIETA' AND paleta_id = 0 THEN 1 ELSE 0 END) AS shortage_items,
+                    SUM(CASE WHEN status = 'ANULOWANA' THEN 1 ELSE 0 END) AS cancelled_items
                 FROM magazyn_kompletacja
                 GROUP BY order_ref, operator_login
                 ORDER BY MIN(created_at) DESC
@@ -178,26 +157,18 @@ class PickingRepository:
                 (limit,)
             )
             orders = cursor.fetchall()
-            for o in orders:
-                if o.get('created_at'):
-                    o['created_at'] = o['created_at'].strftime('%Y-%m-%d %H:%M:%S')
-                if o.get('last_completed_at'):
-                    o['last_completed_at'] = o['last_completed_at'].strftime('%Y-%m-%d %H:%M:%S')
+            for order in orders:
+                if order.get('created_at'):
+                    order['created_at'] = order['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+                if order.get('last_completed_at'):
+                    order['last_completed_at'] = order['last_completed_at'].strftime('%Y-%m-%d %H:%M:%S')
             return orders
         finally:
             conn.close()
 
     @staticmethod
     def mark_item_completed(item_id, magazynier_login):
-        """Marks a single picking item as completed.
-
-        Args:
-            item_id: ID of the magazyn_kompletacja row.
-            magazynier_login: Login of the warehouse worker who scanned.
-
-        Returns:
-            int: Number of updated rows (0 if not found or already completed).
-        """
+        """Mark a single pending picking item as completed."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -218,15 +189,7 @@ class PickingRepository:
 
     @staticmethod
     def mark_item_skipped(item_id, reason=''):
-        """Marks a single picking item as skipped.
-
-        Args:
-            item_id: ID of the magazyn_kompletacja row.
-            reason: Reason for skipping.
-
-        Returns:
-            int: Number of updated rows.
-        """
+        """Mark a single pending picking item as skipped."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -247,14 +210,7 @@ class PickingRepository:
 
     @staticmethod
     def cancel_order(order_ref):
-        """Cancels all pending items in a picking order.
-
-        Args:
-            order_ref: Picking order reference.
-
-        Returns:
-            int: Number of cancelled rows.
-        """
+        """Cancel pending pallets and unresolved shortage placeholders."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -263,7 +219,11 @@ class PickingRepository:
                 UPDATE magazyn_kompletacja
                 SET status = 'ANULOWANA',
                     completed_at = %s
-                WHERE order_ref = %s AND status = 'OCZEKUJE'
+                WHERE order_ref = %s
+                  AND (
+                      status = 'OCZEKUJE'
+                      OR (status = 'POMINIETA' AND paleta_id = 0)
+                  )
                 """,
                 (datetime.now(), order_ref)
             )
@@ -274,14 +234,7 @@ class PickingRepository:
 
     @staticmethod
     def delete_order(order_ref):
-        """Trwale usuwa wszystkie pozycje dyspozycji kompletacji.
-
-        Args:
-            order_ref: Unikalny identyfikator dyspozycji (np. PICK-20260919-001).
-
-        Returns:
-            int: Liczba usuniętych wierszy.
-        """
+        """Permanently delete all rows of a picking order."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -296,15 +249,7 @@ class PickingRepository:
 
     @staticmethod
     def find_item_by_sscc(order_ref, sscc_code):
-        """Finds a pending picking item by SSCC code within a specific order.
-
-        Args:
-            order_ref: Picking order reference.
-            sscc_code: Scanned SSCC barcode.
-
-        Returns:
-            dict | None: Matching picking item or None.
-        """
+        """Find a pending picking item by SSCC within a specific order."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -324,10 +269,10 @@ class PickingRepository:
 
     @staticmethod
     def get_next_order_sequence():
-        """Generates the next sequential number for today's picking orders.
+        """Return the next daily sequence without reusing a number after deletion.
 
-        Returns:
-            int: Next sequence number (1-based).
+        Handles both historical PICK-YYYYMMDD-001 references and the newer
+        collision-resistant PICK-YYYYMMDD-001-ABCD form.
         """
         conn = get_db_connection()
         try:
@@ -335,10 +280,22 @@ class PickingRepository:
             today_prefix = datetime.now().strftime('%Y%m%d')
             pattern = f'PICK-{today_prefix}-%'
             cursor.execute(
-                "SELECT COUNT(DISTINCT order_ref) as cnt FROM magazyn_kompletacja WHERE order_ref LIKE %s",
+                """
+                SELECT MAX(
+                    CAST(
+                        SUBSTRING_INDEX(
+                            SUBSTRING_INDEX(order_ref, '-', 3),
+                            '-',
+                            -1
+                        ) AS UNSIGNED
+                    )
+                ) AS max_seq
+                FROM magazyn_kompletacja
+                WHERE order_ref LIKE %s
+                """,
                 (pattern,)
             )
-            row = cursor.fetchone()
-            return (row.get('cnt', 0) if row else 0) + 1
+            row = cursor.fetchone() or {}
+            return int(row.get('max_seq') or 0) + 1
         finally:
             conn.close()
