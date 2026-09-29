@@ -64,6 +64,8 @@ jobs:
           PRINTER_SERVER_START_PIN: "0606"
           USE_SSL: "false"
           PRINTER_BRIDGE_AUTOSTART: "false"
+          ENABLE_BACKGROUND_DAEMONS: "false"
+          SKIP_DB_SETUP: "true"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -94,6 +96,8 @@ jobs:
             -e FLASK_ENV=testing \
             -e SECRET_KEY=ci-test-secret-key \
             -e PRINTER_BRIDGE_AUTOSTART=false \
+            -e ENABLE_BACKGROUND_DAEMONS=false \
+            -e SKIP_DB_SETUP=true \
             raportprodukcyjny:${{ github.sha }} \
             python -c "import wsgi; from app import app; print('[OK] wsgi and app loaded successfully')"
 
