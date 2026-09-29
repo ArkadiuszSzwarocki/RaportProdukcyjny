@@ -154,13 +154,20 @@ def client(app):
 
     ``get_db_connection`` is patched to return a MagicMock so that routes
     which probe the database (e.g. the health-check endpoint) behave as if a
-    database is available.  Tests that want to simulate a DB failure can still
-    override the patch inside their own ``with patch(...)`` block.
+    database is available.  The generic route tests build authenticated Flask
+    sessions directly and therefore do not create matching ``aktywne_sesje``
+    rows.  Their middleware session-status lookup is mocked as active here;
+    fail-closed database-backed session behaviour is covered explicitly by
+    ``tests/test_session_repository_security.py``.
+
+    Tests that need to exercise a deactivated session can still override
+    ``app.core.middleware.is_session_active`` in their own patch context.
     """
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
-    with patch('app.db.get_db_connection', return_value=mock_conn):
+    with patch('app.db.get_db_connection', return_value=mock_conn), \
+         patch('app.core.middleware.is_session_active', return_value=True):
         yield app.test_client()
 
 
@@ -235,8 +242,7 @@ def mock_query_helper():
             (3, 'Czesław', 'Lewandowski'),
         ]
         mock.get_obsada_zmiany.return_value = [
-            (1, 'Adam', 'Kowalski', 'sekcja1'),
-            (2, 'Beata', 'Nowak', 'sekcja1'),
+            (1, 'Adam', 'sekcja1', datetime(2026, 2, 7, 6, 0), datetime(2026, 2, 7, 14, 0)),
         ]
         mock.get_dziennik_zmiany.return_value = [
             (1, 'Adam', 'sekcja1', datetime(2026, 2, 7, 6, 0), datetime(2026, 2, 7, 14, 0)),
