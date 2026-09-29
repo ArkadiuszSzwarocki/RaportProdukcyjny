@@ -62,6 +62,8 @@ certs/*.pem
 *.log
 logs/
 flask_startup.log
+.machine_error_logs.json
+.machine_reject_logs.json
 
 # Debug files
 debug_*.log
@@ -140,6 +142,7 @@ OPERATIONS_CHECKLIST.md
 scripts/legacy/
 tests/legacy/
 tests/playdoh/
+tools/archive/
 
 # Test artifact images generated during runs
 tests/*.png
