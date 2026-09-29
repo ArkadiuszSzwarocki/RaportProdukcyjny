@@ -1,84 +1,231 @@
-"""Login Rate Limiter Service.
-Provides thread-safe in-memory rate limiting for login attempts to prevent brute-force attacks.
-"""
+"""Distributed login rate limiting backed by MySQL with an in-process fallback."""
 
-import time
+import hashlib
 import threading
-from typing import Tuple, Dict, List
+import time
+from typing import Dict, List, Tuple
+
+from app.core.database import get_db_connection
 
 
 class LoginRateLimiterService:
-    """Thread-safe rate limiter for authentication endpoints."""
+    """Rate limiter shared across Gunicorn workers through the application DB."""
 
     def __init__(self, max_attempts: int = 5, window_seconds: int = 300, lockout_seconds: int = 300):
-        self._max_attempts = max_attempts
-        self._window_seconds = window_seconds
-        self._lockout_seconds = lockout_seconds
+        self._max_attempts = int(max_attempts)
+        self._window_seconds = int(window_seconds)
+        self._lockout_seconds = int(lockout_seconds)
         self._lock = threading.Lock()
         self._attempts: Dict[str, List[float]] = {}
         self._lockouts: Dict[str, float] = {}
 
     def _get_key(self, ip_address: str, username: str) -> str:
-        clean_ip = (ip_address or '').strip().lower()
-        clean_user = (username or '').strip().lower()
-        return f"{clean_ip}:{clean_user}"
+        raw = f"{(ip_address or '').strip().lower()}:{(username or '').strip().lower()}"
+        # Hashing keeps potentially sensitive usernames/IPs out of the rate-limit table.
+        return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
-    def is_rate_limited(self, ip_address: str, username: str) -> Tuple[bool, int]:
-        """Check if the given IP/username combination is currently rate-limited.
-        
-        Returns:
-            Tuple[bool, int]: (is_limited, remaining_lockout_seconds)
-        """
-        key = self._get_key(ip_address, username)
-        now = time.time()
+    @staticmethod
+    def _ensure_table(cursor) -> None:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_rate_limits (
+                rate_key CHAR(64) PRIMARY KEY,
+                attempt_count INT NOT NULL DEFAULT 0,
+                window_started_at DOUBLE NOT NULL DEFAULT 0,
+                lockout_until DOUBLE NOT NULL DEFAULT 0,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
 
+    def _memory_is_limited(self, key: str, now: float) -> Tuple[bool, int]:
         with self._lock:
-            # Check active lockout
             lockout_expiry = self._lockouts.get(key, 0)
             if now < lockout_expiry:
-                remaining = int(lockout_expiry - now) + 1
-                return True, remaining
-
-            # Cleanup expired lockout
-            if key in self._lockouts:
-                del self._lockouts[key]
-
-            # Filter attempts inside the active window
-            history = self._attempts.get(key, [])
-            valid_history = [t for t in history if now - t < self._window_seconds]
-            self._attempts[key] = valid_history
-
-            if len(valid_history) >= self._max_attempts:
-                # Trigger lockout
+                return True, int(lockout_expiry - now) + 1
+            self._lockouts.pop(key, None)
+            history = [t for t in self._attempts.get(key, []) if now - t < self._window_seconds]
+            self._attempts[key] = history
+            if len(history) >= self._max_attempts:
                 self._lockouts[key] = now + self._lockout_seconds
                 return True, self._lockout_seconds
-
             return False, 0
 
-    def record_failed_attempt(self, ip_address: str, username: str) -> Tuple[bool, int]:
-        """Record a failed login attempt and return if lockout was reached."""
+    def _memory_record_failure(self, key: str, now: float) -> Tuple[bool, int]:
+        with self._lock:
+            history = [t for t in self._attempts.get(key, []) if now - t < self._window_seconds]
+            history.append(now)
+            self._attempts[key] = history
+            if len(history) >= self._max_attempts:
+                self._lockouts[key] = now + self._lockout_seconds
+                return True, self._lockout_seconds
+            return False, 0
+
+    def is_rate_limited(self, ip_address: str, username: str) -> Tuple[bool, int]:
         key = self._get_key(ip_address, username)
         now = time.time()
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            self._ensure_table(cursor)
+            cursor.execute(
+                "SELECT attempt_count, window_started_at, lockout_until "
+                "FROM login_rate_limits WHERE rate_key = %s FOR UPDATE",
+                (key,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                conn.commit()
+                return False, 0
 
-        with self._lock:
-            history = self._attempts.get(key, [])
-            valid_history = [t for t in history if now - t < self._window_seconds]
-            valid_history.append(now)
-            self._attempts[key] = valid_history
+            lockout_until = float(row.get('lockout_until') or 0)
+            if now < lockout_until:
+                conn.commit()
+                return True, int(lockout_until - now) + 1
 
-            if len(valid_history) >= self._max_attempts:
-                self._lockouts[key] = now + self._lockout_seconds
+            started = float(row.get('window_started_at') or 0)
+            count = int(row.get('attempt_count') or 0)
+            if not started or now - started >= self._window_seconds:
+                cursor.execute(
+                    "UPDATE login_rate_limits SET attempt_count = 0, window_started_at = %s, "
+                    "lockout_until = 0 WHERE rate_key = %s",
+                    (now, key),
+                )
+                conn.commit()
+                return False, 0
+
+            if count >= self._max_attempts:
+                expiry = now + self._lockout_seconds
+                cursor.execute(
+                    "UPDATE login_rate_limits SET lockout_until = %s WHERE rate_key = %s",
+                    (expiry, key),
+                )
+                conn.commit()
                 return True, self._lockout_seconds
 
+            conn.commit()
             return False, 0
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            # Database failures must not completely remove brute-force protection.
+            return self._memory_is_limited(key, now)
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def record_failed_attempt(self, ip_address: str, username: str) -> Tuple[bool, int]:
+        key = self._get_key(ip_address, username)
+        now = time.time()
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            self._ensure_table(cursor)
+            cursor.execute(
+                "SELECT attempt_count, window_started_at FROM login_rate_limits "
+                "WHERE rate_key = %s FOR UPDATE",
+                (key,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                count = 1
+                started = now
+                cursor.execute(
+                    "INSERT INTO login_rate_limits "
+                    "(rate_key, attempt_count, window_started_at, lockout_until) "
+                    "VALUES (%s, %s, %s, 0)",
+                    (key, count, started),
+                )
+            else:
+                started = float(row.get('window_started_at') or 0)
+                old_count = int(row.get('attempt_count') or 0)
+                if not started or now - started >= self._window_seconds:
+                    started = now
+                    count = 1
+                else:
+                    count = old_count + 1
+                cursor.execute(
+                    "UPDATE login_rate_limits SET attempt_count = %s, window_started_at = %s, "
+                    "lockout_until = 0 WHERE rate_key = %s",
+                    (count, started, key),
+                )
+
+            if count >= self._max_attempts:
+                expiry = now + self._lockout_seconds
+                cursor.execute(
+                    "UPDATE login_rate_limits SET lockout_until = %s WHERE rate_key = %s",
+                    (expiry, key),
+                )
+                conn.commit()
+                return True, self._lockout_seconds
+
+            conn.commit()
+            return False, 0
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return self._memory_record_failure(key, now)
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def reset_attempts(self, ip_address: str, username: str) -> None:
-        """Reset attempt history after successful login."""
         key = self._get_key(ip_address, username)
-        with self._lock:
-            self._attempts.pop(key, None)
-            self._lockouts.pop(key, None)
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            self._ensure_table(cursor)
+            cursor.execute("DELETE FROM login_rate_limits WHERE rate_key = %s", (key,))
+            conn.commit()
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            with self._lock:
+                self._attempts.pop(key, None)
+                self._lockouts.pop(key, None)
 
 
-# Singleton instance
 login_rate_limiter = LoginRateLimiterService()
