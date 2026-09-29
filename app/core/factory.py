@@ -10,7 +10,11 @@ from app.config import SECRET_KEY
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
 from app.core.error_handlers import setup_logging, register_error_handlers
-from app.core.security_hardening import apply_proxy_policy, register_role_integrity_check
+from app.core.security_hardening import (
+    apply_proxy_policy,
+    register_legacy_secret_rejection,
+    register_role_integrity_check,
+)
 from app.blueprints.admin import admin_bp
 from app.blueprints.api import api_bp
 from app.blueprints.planista import planista_bp
@@ -191,8 +195,6 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
         app.logger.debug('Skipping background daemons under pytest')
         return
 
-    # Production web workers never start daemon loops unless explicitly opted in.
-    # Deployments should run one dedicated daemon process instead.
     default_enabled = not _is_production()
     enabled = _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)
     if not enabled:
@@ -224,6 +226,8 @@ def create_app(config_secret_key=None, init_db=True):
     app.jinja_env.cache = None
     app.config['TEMPLATES_AUTO_RELOAD'] = not _is_production()
 
+    # URL credentials are rejected before the legacy CSRF middleware can see them.
+    register_legacy_secret_rejection(app)
     register_middleware(app)
     register_role_integrity_check(app)
     _register_blueprints(app)
