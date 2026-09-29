@@ -9,7 +9,6 @@ import json
 import re
 
 from app.core.database import get_db_connection, get_table_name
-from app.services.warehouse_reports.warehouse_document_classifier import WarehouseDocumentClassifier
 
 
 class WarehouseOrderRepository:
@@ -146,6 +145,51 @@ class WarehouseOrderRepository:
         return re.sub(r'[^A-Z0-9]', '', str(value or '').strip().upper())
 
     @classmethod
+    def _is_osip_location(cls, location):
+        """Rozpoznaje lokalizacje należące do OSIP bez importowania modułu raportowego."""
+        raw = str(location or '').strip().upper()
+        normalized = cls._norm_location(raw)
+        if not normalized:
+            return False
+        return bool(
+            'OSIP' in raw
+            or normalized.startswith('OS')
+            or normalized.startswith('BFOS')
+            or normalized == 'WTRANZYCIEOSIP'
+            or re.fullmatch(r'A\d{2}', normalized)
+        )
+
+    @classmethod
+    def _is_allowed_central_location(cls, location):
+        """Rozpoznaje regały i dozwolone strefy Magazynu Centralnego."""
+        raw = str(location or '').strip().upper()
+        if not raw:
+            return False
+
+        if cls._is_osip_location(raw):
+            return False
+
+        normalized = cls._norm_location(raw)
+        if normalized.startswith(('OS', 'MZ', 'KO', 'BB', 'LP')):
+            return False
+        if 'PODŁOGA' in raw or 'PODLOGA' in raw or 'MASZYNA' in raw:
+            return False
+
+        # Regały: R010101, RR030602, R-01-01-01 oraz zapis bez prefiksu 010102.
+        if re.fullmatch(r'(?:R|RR)?0[1-9]\d{4}', normalized):
+            return True
+        if re.fullmatch(r'0[1-9]\d{4}', normalized):
+            return True
+
+        allowed_buffers = {
+            'MP01', 'MPO1', 'BFMP01',
+            'BFMS01', 'MS01',
+            'PSD', 'PSD01', 'MGW01', 'MGW02',
+            'MOP01', 'MO01', 'MDO01', 'MD01', 'MDM01'
+        }
+        return normalized in allowed_buffers
+
+    @classmethod
     def _is_searchable_location(cls, location):
         """Zwraca True dla magazynu centralnego i regałów z wymaganymi wykluczeniami."""
         raw = str(location or '').strip().upper()
@@ -155,10 +199,10 @@ class WarehouseOrderRepository:
         normalized = cls._norm_location(raw)
         if normalized in {'MS01', 'BFMS01'}:
             return False
-        if WarehouseDocumentClassifier.is_osip_location(raw):
+        if cls._is_osip_location(raw):
             return False
 
-        return WarehouseDocumentClassifier.is_allowed_central_warehouse_location(raw)
+        return cls._is_allowed_central_location(raw)
 
     @staticmethod
     def _get_reserved_pallet_ids(cursor):
