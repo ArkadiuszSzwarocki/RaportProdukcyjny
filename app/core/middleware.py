@@ -189,7 +189,7 @@ def add_security_headers(app):
             response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
             response.headers['Content-Security-Policy'] = (
                 "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdn.jsdelivr.net; "
-                "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; "
                 "connect-src 'self' wss: https:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
             )
             if request.is_secure or current_app.config.get('PREFERRED_URL_SCHEME') == 'https':

@@ -333,8 +333,8 @@ def login():
                 
                 session['rola'] = normalized_role
                 
-                # Admin and Management (Zarzad) must always see everything (PSD + AGRO)
-                if normalized_role in ['admin', 'zarzad', 'masteradmin']:
+                # Admin, Management (Zarzad), and Leaders (Lider) must see everything (PSD + AGRO)
+                if normalized_role in ['admin', 'zarzad', 'masteradmin', 'lider']:
                     session['grupa'] = 'ALL'
                 else:
                     session['grupa'] = (grupa or '').strip()
