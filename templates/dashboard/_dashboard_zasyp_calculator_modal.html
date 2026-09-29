@@ -1,7 +1,6 @@
 <!-- KALKULATOR ZASYPU (ZAMÓWIENIA) MODAL -->
 <div id="zasyp-calculator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(5px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
     <div class="modal-content" style="background: #ffffff; width: 100%; max-width: 980px; border-radius: 18px; padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2);">
-        
         <!-- HEADER -->
         <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
             <div style="display: flex; align-items: center; gap: 14px;">
@@ -20,7 +19,6 @@
 
         <!-- BODY -->
         <div class="modal-body" style="padding: 28px; overflow-y: auto; background: #ffffff;">
-            
             <!-- WIELKOŚĆ ZLECENIA -->
             <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
                 <label style="display: block; font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
@@ -28,7 +26,7 @@
                 </label>
                 <div style="display: flex; align-items: center; gap: 12px; max-width: 360px;">
                     <div style="position: relative; flex: 1;">
-                        <input type="text" inputmode="decimal" id="calc-order-tons" placeholder="np. 30" style="width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 16px; font-weight: 700; color: #0f172a; background: #ffffff; box-sizing: border-box;">
+                        <input type="text" inputmode="decimal" id="calc-order-tons" placeholder="np. 30" oninput="document.getElementById('calc-results-section').style.display='none'; document.getElementById('calc-order-action-container').style.display='none';" style="width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 16px; font-weight: 700; color: #0f172a; background: #ffffff; box-sizing: border-box;">
                         <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 22px; pointer-events: none;">scale</span>
                     </div>
                     <span style="background: #e2e8f0; color: #334155; font-size: 14px; font-weight: 700; padding: 12px 16px; border-radius: 8px; border: 1.5px solid #cbd5e1; white-space: nowrap;">
@@ -48,7 +46,7 @@
                         <span class="material-icons" style="font-size: 18px;">add_circle</span> Dodaj surowiec
                     </button>
                 </div>
-                
+
                 <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 8px;" id="calc-items-table">
                     <thead>
                         <tr style="background: #f8fafc;">
@@ -81,7 +79,7 @@
                         <span class="material-icons" style="font-size: 18px; color: #2563eb;">print</span> Drukuj listę wydań FIFO
                     </button>
                 </div>
-                
+
                 <div id="calc-results-cards-container" style="display: flex; flex-direction: column; gap: 18px; margin-bottom: 20px;">
                     <!-- Karty wyników dla każdego asortymentu w ramkach -->
                 </div>
@@ -96,11 +94,7 @@
                 </div>
             </div>
 
-            <!-- DATALIST SUROWCÓW (FALLBACK) -->
-            <datalist id="calc-surowce-datalist">
-                <!-- Opcje wypełniane dynamicznie w JS -->
-            </datalist>
-
+            <datalist id="calc-surowce-datalist"></datalist>
         </div>
     </div>
 </div>
@@ -117,13 +111,11 @@
         <td style="padding: 10px 14px; vertical-align: top;">
             <div style="display: flex; align-items: center; gap: 8px;">
                 <input type="text" inputmode="decimal" class="calc-rate-input" placeholder="np. 20" style="flex: 1; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 700; color: #0f172a; background: #ffffff; box-sizing: border-box;">
-                <span style="background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; white-space: nowrap;">
-                    kg / 1 t
-                </span>
+                <span style="background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; white-space: nowrap;">kg / 1 t</span>
             </div>
         </td>
         <td style="padding: 10px 14px; text-align: center; vertical-align: top;">
-            <button type="button" class="btn-calc-row-remove" onclick="this.closest('tr').remove();" style="background: #fee2e2; border: 1px solid #fecaca; color: #ef4444; cursor: pointer; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Usuń wiersz" onmouseover="this.style.background='#fca5a5'; this.style.color='#b91c1c';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';">
+            <button type="button" class="btn-calc-row-remove" onclick="this.closest('tr').remove(); document.getElementById('calc-results-section').style.display='none'; document.getElementById('calc-order-action-container').style.display='none';" style="background: #fee2e2; border: 1px solid #fecaca; color: #ef4444; cursor: pointer; padding: 8px 12px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Usuń wiersz" onmouseover="this.style.background='#fca5a5'; this.style.color='#b91c1c';" onmouseout="this.style.background='#fee2e2'; this.style.color='#ef4444';">
                 <span class="material-icons" style="font-size: 18px;">delete_outline</span>
             </button>
         </td>
