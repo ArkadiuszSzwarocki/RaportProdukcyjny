@@ -6,9 +6,8 @@
 (function() {
     'use strict';
 
-    // Prefer same-origin proxy to eliminate HTTPS mixed content and CORS issues
+    // Same-origin proxy eliminates HTTPS mixed content, CORS, and LAN private IP leaking
     const PROXY_ENDPOINT = '/api/watchdog/log';
-    const DIRECT_ENDPOINT = 'http://192.168.0.57:3005/api/log';
 
     const recentErrors = new Set();
     let lastFreezeReport = 0;
@@ -34,23 +33,13 @@
 
             const jsonPayload = JSON.stringify(payload);
 
-            // 1. Try same-origin proxy (works seamlessly under HTTPS and HTTP)
+            // Dispatch via same-origin relative endpoint
             fetch(PROXY_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: jsonPayload,
                 keepalive: true
-            }).catch(() => {
-                // 2. Direct fallback only if we are on plain HTTP (browser blocks mixed content on HTTPS)
-                if (window.location.protocol === 'http:') {
-                    fetch(DIRECT_ENDPOINT, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: jsonPayload,
-                        keepalive: true
-                    }).catch(() => {});
-                }
-            });
+            }).catch(() => {});
         } catch (_) {}
     }
 
