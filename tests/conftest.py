@@ -242,7 +242,8 @@ def mock_query_helper():
             (3, 'Czesław', 'Lewandowski'),
         ]
         mock.get_obsada_zmiany.return_value = [
-            (1, 'Adam', 'sekcja1', datetime(2026, 2, 7, 6, 0), datetime(2026, 2, 7, 14, 0)),
+            (1, 'Adam', 'Kowalski', 'sekcja1'),
+            (2, 'Beata', 'Nowak', 'sekcja1'),
         ]
         mock.get_dziennik_zmiany.return_value = [
             (1, 'Adam', 'sekcja1', datetime(2026, 2, 7, 6, 0), datetime(2026, 2, 7, 14, 0)),
