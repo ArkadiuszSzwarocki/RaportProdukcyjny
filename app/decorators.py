@@ -313,6 +313,10 @@ def dynamic_role_required(page_name):
             # Find allowed roles from role_permissions.json
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+            if not os.path.exists(cfg_path) or os.path.getsize(cfg_path) == 0:
+                fallback_path = os.path.join(project_root, 'config_fallback', 'role_permissions.json')
+                if os.path.exists(fallback_path):
+                    cfg_path = fallback_path
             allowed_roles = []
             try:
                 if os.path.exists(cfg_path):

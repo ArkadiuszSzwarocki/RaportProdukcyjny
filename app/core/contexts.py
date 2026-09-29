@@ -66,11 +66,18 @@ _PERMS_CACHE = {'mtime': 0, 'data': {}}
 def _get_role_permissions(cfg_path):
     """Load role permissions with automatic mtime caching to avoid opening file on every check."""
     try:
-        if os.path.exists(cfg_path):
-            mtime = os.path.getmtime(cfg_path)
+        target_path = cfg_path
+        if not os.path.exists(target_path) or os.path.getsize(target_path) == 0:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            fallback_path = os.path.join(project_root, 'config_fallback', 'role_permissions.json')
+            if os.path.exists(fallback_path) and os.path.getsize(fallback_path) > 0:
+                target_path = fallback_path
+
+        if os.path.exists(target_path):
+            mtime = os.path.getmtime(target_path)
             if _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
                 return _PERMS_CACHE['data']
-            with open(cfg_path, 'r', encoding='utf-8') as f:
+            with open(target_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 _PERMS_CACHE['mtime'] = mtime
                 _PERMS_CACHE['data'] = data

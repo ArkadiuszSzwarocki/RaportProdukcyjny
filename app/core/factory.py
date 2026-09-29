@@ -64,6 +64,22 @@ def create_app(config_secret_key=None, init_db=True):
     # Log template folder path for diagnostics (skip verbose per-file listing)
     app.logger.debug('Flask template_folder=%s', template_folder)
     
+    # Restore missing config files from fallback if host volume mount is empty
+    cfg_dir = os.path.join(project_root, 'config')
+    cfg_fallback = os.path.join(project_root, 'config_fallback')
+    if os.path.isdir(cfg_fallback):
+        os.makedirs(cfg_dir, exist_ok=True)
+        for fname in os.listdir(cfg_fallback):
+            dst = os.path.join(cfg_dir, fname)
+            src = os.path.join(cfg_fallback, fname)
+            if (not os.path.exists(dst) or os.path.getsize(dst) == 0) and os.path.isfile(src):
+                try:
+                    import shutil
+                    shutil.copy2(src, dst)
+                    app.logger.info("Restored missing config file from fallback: %s", fname)
+                except Exception as ex:
+                    app.logger.warning("Could not restore config file %s: %s", fname, ex)
+    
     # Configure with secret key – always load from environment first so
     # container restarts (Watchtower) do not invalidate existing session cookies.
     _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY

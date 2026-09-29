@@ -16,7 +16,6 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
-      - ./config:/app/config
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/api/health', timeout=5)"]

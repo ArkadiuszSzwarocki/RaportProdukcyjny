@@ -25,3 +25,12 @@ własne środowisko, a nie MySQL działający na NAS lub w sieci.
 
 Po uruchomieniu sprawdź log kontenera. Poprawny start nie zawiera komunikatu
 `Can't connect to MySQL server on 'localhost:3307'`.
+
+## Aktualizacja aplikacji po commitach na GitHub
+
+1. Przejdź do katalogu aplikacji na QNAP (np. `/share/homes/Arecki`):
+```bash
+docker compose --env-file .env -f docker-compose.qnap.yml pull
+docker compose --env-file .env -f docker-compose.qnap.yml up -d
+```
+2. Po aktualizacji wyloguj się i zaloguj ponownie w przeglądarce, aby odświeżyć ciasteczko sesji.

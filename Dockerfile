@@ -32,6 +32,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 EXPOSE 8082
 # UTWÓRZ KATALOGI I NADAJ UPRAWNIENIA
 RUN mkdir -p /app/raporty /app/logs /app/certs && \
+    cp -r /app/config /app/config_fallback && \
     chown -R appuser:appgroup /app && \
     chmod 750 /app && \
     chmod 700 /app/certs && \
