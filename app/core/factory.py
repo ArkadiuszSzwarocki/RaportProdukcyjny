@@ -4,13 +4,13 @@ import os
 from datetime import timedelta
 
 from flask import Flask
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
 from app.core.error_handlers import setup_logging, register_error_handlers
+from app.core.security_hardening import apply_proxy_policy, register_role_integrity_check
 from app.blueprints.admin import admin_bp
 from app.blueprints.api import api_bp
 from app.blueprints.planista import planista_bp
@@ -191,8 +191,8 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
         app.logger.debug('Skipping background daemons under pytest')
         return
 
-    # Background jobs must be explicitly enabled in production.  This prevents
-    # every Gunicorn worker from starting its own MQTT/cleanup/automation loops.
+    # Production web workers never start daemon loops unless explicitly opted in.
+    # Deployments should run one dedicated daemon process instead.
     default_enabled = not _is_production()
     enabled = _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)
     if not enabled:
@@ -201,7 +201,6 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
     if is_reloader_parent:
         app.logger.debug('Skipping background daemons in Werkzeug reloader parent')
         return
-
     start_daemon_threads(app, cleanup_enabled=True)
 
 
@@ -226,6 +225,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.config['TEMPLATES_AUTO_RELOAD'] = not _is_production()
 
     register_middleware(app)
+    register_role_integrity_check(app)
     _register_blueprints(app)
 
     if _debug_routes_enabled():
@@ -247,17 +247,7 @@ def create_app(config_secret_key=None, init_db=True):
         except Exception as exc:
             app.logger.exception('setup_database() failed or skipped: %s', exc)
 
-    # Only trust forwarding headers when the deployment explicitly declares a
-    # trusted reverse proxy. Direct clients must never be able to spoof them.
-    if _env_bool('TRUST_PROXY_HEADERS', False):
-        proxy_hops = max(1, int(os.environ.get('TRUSTED_PROXY_HOPS', '1')))
-        app.wsgi_app = ProxyFix(
-            app.wsgi_app,
-            x_for=proxy_hops,
-            x_proto=proxy_hops,
-            x_host=proxy_hops,
-            x_prefix=proxy_hops,
-        )
+    apply_proxy_policy(app)
 
     try:
         from app.cli import register_cli_commands
