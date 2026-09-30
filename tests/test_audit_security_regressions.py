@@ -225,6 +225,50 @@ def test_legacy_admin_bridge_status_uses_secure_client(app):
     assert app.view_functions['admin.admin_printer_server_status'] is secure_admin_printer_server_status
 
 
+def test_legacy_printer_settings_socket_probe_is_replaced(app):
+    from app.core.runtime_security_hardening import secure_admin_printer_settings
+
+    assert app.view_functions['admin.admin_ustawienia_drukarki'] is secure_admin_printer_settings
+
+
+def test_plaintext_login_password_qr_is_disabled(app):
+    from flask import session
+
+    view = app.view_functions['admin.admin_qr_generator_drukuj']
+    with app.test_request_context(
+        '/admin/ustawienia/qr-generator/drukuj',
+        method='POST',
+        json={'mode': 'login', 'login': 'audit', 'password': 'Secret123!'},
+    ):
+        session['zalogowany'] = True
+        session['rola'] = 'masteradmin'
+        response, status = view()
+
+    assert status == 410
+    assert response.get_json()['success'] is False
+
+
+def test_runtime_database_switch_requires_masteradmin_and_explicit_opt_in(app, monkeypatch):
+    from flask import session
+
+    view = app.view_functions['admin.admin_secret_db_switch']
+    monkeypatch.delenv('ALLOW_RUNTIME_DB_SWITCH', raising=False)
+
+    with app.test_request_context('/admin/sekretna-baza/switch', method='POST'):
+        session['zalogowany'] = True
+        session['rola'] = 'admin'
+        response, status = view()
+        assert status == 403
+        assert response.get_json()['success'] is False
+
+    with app.test_request_context('/admin/sekretna-baza/switch', method='POST'):
+        session['zalogowany'] = True
+        session['rola'] = 'masteradmin'
+        response, status = view()
+        assert status == 403
+        assert response.get_json()['success'] is False
+
+
 def test_acceptance_service_insecure_print_thread_is_replaced(app):
     from app.core.legacy_print_hardening import secure_accept_item
     from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
