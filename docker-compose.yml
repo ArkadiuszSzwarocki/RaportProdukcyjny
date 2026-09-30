@@ -11,8 +11,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       TZ: ${TZ:-Europe/Warsaw}
     ports:
-      # Optional host exposure for administration. Containers always use 3306.
-      - "${DB_HOST_PORT:-3307}:3306"
+      # Optional host administration is loopback-only by default. Containers use 3306.
+      - "127.0.0.1:${DB_HOST_PORT:-3307}:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./db-init:/docker-entrypoint-initdb.d:ro
@@ -26,7 +26,7 @@ services:
     restart: unless-stopped
 
   app:
-    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    image: ${APP_IMAGE:?APP_IMAGE must reference the tested sha image}
     container_name: raportprodukcyjny_app
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
@@ -78,7 +78,7 @@ services:
     restart: unless-stopped
 
   daemons:
-    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    image: ${APP_IMAGE:?APP_IMAGE must reference the tested sha image}
     container_name: raportprodukcyjny_daemons
     command: ["python", "scripts/run_daemons.py"]
     environment:
