@@ -12,13 +12,13 @@ Manifesty w tym katalogu zakładają produkcyjne wdrożenie przez Ingress. Sekre
 
 ## 1. Utwórz namespace i sekrety
 
-Najpierw utwórz namespace:
+Najpierw utwórz namespace i wartości niesekretne:
 
 ```bash
 kubectl apply -f k8s/00-namespace-config.yaml
 ```
 
-Następnie utwórz `app-secrets` poza repozytorium. Przykład z lokalnych zmiennych środowiskowych:
+Następnie utwórz `app-secrets` poza repozytorium:
 
 ```bash
 kubectl -n raportprodukcyjny create secret generic app-secrets \
@@ -27,7 +27,8 @@ kubectl -n raportprodukcyjny create secret generic app-secrets \
   --from-literal=DB_USER="$DB_USER" \
   --from-literal=DB_PASSWORD="$DB_PASSWORD" \
   --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
-  --from-literal=INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD"
+  --from-literal=INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" \
+  --from-literal=PRINTER_BRIDGE_TOKEN="$PRINTER_BRIDGE_TOKEN"
 ```
 
 Wymagania:
@@ -36,8 +37,9 @@ Wymagania:
 - `ENCRYPTION_KEY`: poprawny klucz Fernet;
 - `DB_USER`: użytkownik aplikacyjny MySQL;
 - `DB_PASSWORD`: hasło wyłącznie użytkownika aplikacyjnego;
-- `MYSQL_ROOT_PASSWORD`: inne, silne hasło administratora MySQL;
-- `INITIAL_ADMIN_PASSWORD`: silne hasło startowe administratora aplikacji.
+- `MYSQL_ROOT_PASSWORD`: **inne** silne hasło administratora MySQL;
+- `INITIAL_ADMIN_PASSWORD`: silne, jednorazowe hasło startowe administratora aplikacji;
+- `PRINTER_BRIDGE_TOKEN`: długi losowy sekret współdzielony wyłącznie przez aplikację i mostek druku.
 
 W produkcji preferowany jest zewnętrzny system sekretów, np. External Secrets Operator, Sealed Secrets lub natywny secret store dostawcy chmury.
 
@@ -48,13 +50,21 @@ W produkcji preferowany jest zewnętrzny system sekretów, np. External Secrets 
 Aplikacja WWW ma:
 
 - `TRUST_PROXY_HEADERS=true` i ufa jednemu hopowi Ingress;
+- `SESSION_COOKIE_SECURE=true` dla HTTPS zakończonego na Ingress;
+- `DB_SSL_DISABLED=false`, więc TLS do MySQL nie jest sterowany ustawieniem TLS serwera WWW;
 - `ENABLE_BACKGROUND_DAEMONS=false`, aby każdy worker Gunicorn nie uruchamiał osobnych pętli tła.
 
 Osobny Deployment `app-daemons` uruchamia dokładnie jeden proces `scripts/run_daemons.py`.
 
+### Mostek drukowania
+
+Mostek drukowania jest osobną, uwierzytelnioną usługą. `PRINTER_BRIDGE_TOKEN` musi być taki sam po obu stronach. Rzeczywisty `PRINTER_BRIDGE_URL` zależy od środowiska i **nie powinien zawierać konkretnego produkcyjnego IP w publicznym repo**. Ustaw go przez overlay/ConfigMap środowiska, np. prywatną nazwę DNS usługi albo adres bramy w sieci zakładowej.
+
+Jeżeli mostek działa poza klastrem, NetworkPolicy dopuszcza port `3001` tylko do prywatnych zakresów RFC1918. W środowisku produkcyjnym najlepiej zawęzić te zakresy jeszcze bardziej do konkretnego VLAN/subnetu drukarek.
+
 ## 3. Wdrożenie
 
-Przed wdrożeniem ustaw właściwą domenę w `03-ingress.yaml` oraz używany obraz aplikacji. W środowisku produkcyjnym zalecane jest przypięcie obrazu po digest zamiast korzystania z mutable tagu.
+Przed wdrożeniem ustaw właściwą domenę w `03-ingress.yaml`, używany obraz aplikacji oraz środowiskowy `PRINTER_BRIDGE_URL`. W produkcji zalecane jest przypięcie obrazu po digest zamiast mutable tagu.
 
 ```bash
 kubectl apply -f k8s/01-mysql.yaml
@@ -79,10 +89,11 @@ kubectl logs deployment/app-daemons -n raportprodukcyjny
 - Service aplikacji jest `ClusterIP`; ruch zewnętrzny przechodzi przez Ingress;
 - aplikacja działa jako użytkownik nie-root i ma usunięte Linux capabilities;
 - NetworkPolicy wpuszcza ruch WWW tylko z namespace `ingress-nginx`;
-- egress jest ograniczony do MySQL, DNS oraz jawnie wymienionych portów integracji;
+- egress jest ograniczony do MySQL, DNS i jawnie wymienionych portów integracji;
+- porty mostka/RAW printer są ograniczone do prywatnych zakresów sieci;
 - sekrety nie są częścią manifestów Git.
 
-Jeżeli środowisko wymaga innych usług wychodzących (np. niestandardowego portu MQTT, SMTP lub mostka drukowania), należy rozszerzyć NetworkPolicy w środowiskowym overlayu zamiast otwierać cały ruch.
+Jeżeli środowisko wymaga innych usług wychodzących, rozszerz NetworkPolicy w środowiskowym overlayu zamiast otwierać cały egress.
 
 ## Aktualizacja sekretu
 
@@ -96,6 +107,7 @@ kubectl -n raportprodukcyjny create secret generic app-secrets \
   --from-literal=DB_PASSWORD="$DB_PASSWORD" \
   --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
   --from-literal=INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" \
+  --from-literal=PRINTER_BRIDGE_TOKEN="$PRINTER_BRIDGE_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
