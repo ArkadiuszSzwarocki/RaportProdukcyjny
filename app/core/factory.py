@@ -7,6 +7,7 @@ from flask import Flask
 
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
+from app.core.admin_security_hardening import register_admin_security_hardening
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
 from app.core.error_handlers import setup_logging, register_error_handlers
@@ -234,6 +235,7 @@ def create_app(config_secret_key=None, init_db=True):
     _register_blueprints(app)
     register_legacy_print_hardening(app)
     register_runtime_security_hardening(app)
+    register_admin_security_hardening(app)
 
     if _debug_routes_enabled():
         register_debug_routes(app)
