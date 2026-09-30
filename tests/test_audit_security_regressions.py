@@ -130,6 +130,7 @@ def test_untrusted_forwarded_for_is_stripped(app, monkeypatch):
 
 
 def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
+    """Exercise CSRF independently from the DB-backed session validity check."""
     endpoint = '/__audit_mutation'
     if 'audit_mutation' not in app.view_functions:
         app.add_url_rule(endpoint, 'audit_mutation', lambda: 'ok', methods=['POST'])
@@ -138,12 +139,21 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     app.config['TESTING'] = False
     app.testing = False
 
+    # This test is specifically about CSRF. Keep the synthetic authenticated
+    # session active so the session middleware does not short-circuit to login
+    # before the origin check can be asserted.
+    monkeypatch.setattr('app.core.middleware.is_session_active', lambda _session_id: True)
+    monkeypatch.setattr('app.core.middleware.touch_active_session', lambda **_kwargs: True)
+
     client = app.test_client()
     with client.session_transaction() as sess:
         sess['zalogowany'] = True
         sess['user_id'] = 999
         sess['login'] = 'audit-user'
         sess['rola'] = 'pracownik'
+        sess['session_tracking_id'] = 'audit-session'
+        sess['session_active_cached'] = True
+        sess['last_session_active_check'] = 0
 
     response = client.post(endpoint)
     assert response.status_code == 403
