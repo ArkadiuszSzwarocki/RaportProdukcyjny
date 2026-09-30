@@ -40,6 +40,13 @@ def test_all_external_github_actions_are_pinned_to_full_commit_sha():
             )
 
 
+def test_spellcheck_is_pinned_and_failure_gating():
+    workflow = _text('.github/workflows/cspell.yml')
+    assert 'npm install -g cspell@10.3.5' in workflow
+    assert 'cspell --config .cspell.json "**/*"' in workflow
+    assert 'cspell --config .cspell.json "**/*" || true' not in workflow
+
+
 def test_production_k8s_config_does_not_commit_secret_values():
     manifest = _text('k8s/00-namespace-config.yaml')
     assert 'kind: Secret' not in manifest
@@ -72,7 +79,7 @@ def test_k8s_mysql_ingress_is_limited_to_application_pods():
 
 def test_compose_uses_mysql_internal_port_and_separate_root_password():
     compose = _text('docker-compose.yml')
-    assert '${DB_HOST_PORT:-3307}:3306' in compose
+    assert '127.0.0.1:${DB_HOST_PORT:-3307}:3306' in compose
     assert 'DB_PORT: 3306' in compose
     assert 'MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:' in compose
     assert 'MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:' not in compose
@@ -82,6 +89,14 @@ def test_compose_uses_mysql_internal_port_and_separate_root_password():
     assert 'ENABLE_BACKGROUND_DAEMONS: "false"' in compose
     assert 'ENABLE_BACKGROUND_DAEMONS: "true"' in compose
     assert "socket.create_connection(('127.0.0.1', 8082), 5)" in compose
+
+
+def test_compose_requires_explicit_tested_application_image():
+    compose = _text('docker-compose.yml')
+    env_example = _text('.env.example')
+    assert compose.count('${APP_IMAGE:?APP_IMAGE must reference the tested sha image}') == 2
+    assert 'raportprodukcyjny:latest' not in compose
+    assert 'APP_IMAGE=ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-REPLACE_WITH_TESTED_COMMIT_SHA' in env_example
 
 
 def test_docker_healthcheck_does_not_disable_tls_validation():
