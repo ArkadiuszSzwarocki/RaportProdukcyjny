@@ -62,9 +62,30 @@ Mostek drukowania jest osobną, uwierzytelnioną usługą. `PRINTER_BRIDGE_TOKEN
 
 Jeżeli mostek działa poza klastrem, NetworkPolicy dopuszcza port `3001` tylko do prywatnych zakresów RFC1918. W środowisku produkcyjnym najlepiej zawęzić te zakresy jeszcze bardziej do konkretnego VLAN/subnetu drukarek.
 
+### Repliki i wolumeny
+
+`app-logs-pvc` oraz `app-raporty-pvc` mają obecnie `ReadWriteOnce`. Z tego powodu bazowy manifest uruchamia **jedną replikę** aplikacji WWW i nie zawiera HPA. Próba skalowania 2–5 podów przy RWO może pozostawić część podów w stanie `Pending`, gdy scheduler rozłoży je na różne węzły.
+
+Autoskalowanie można włączyć dopiero po przeniesieniu raportów/logów na storage obsługujący `ReadWriteMany`, obiektowy backend albo po usunięciu współdzielonych mountów z podów WWW.
+
 ## 3. Wdrożenie
 
-Przed wdrożeniem ustaw właściwą domenę w `03-ingress.yaml`, używany obraz aplikacji oraz środowiskowy `PRINTER_BRIDGE_URL`. W produkcji zalecane jest przypięcie obrazu po digest zamiast mutable tagu.
+Manifest celowo zawiera fail-safe placeholder obrazu:
+
+```text
+ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-REPLACE_WITH_TESTED_COMMIT
+```
+
+**Nie wdrażaj tego placeholdera.** Przed `kubectl apply` zamień oba wystąpienia na dokładny obraz, który przeszedł testy, najlepiej digest `@sha256:...` albo tag `sha-<commit>`.
+
+Przykład z `kubectl set image` po zastosowaniu manifestu w kontrolowanym środowisku:
+
+```bash
+kubectl -n raportprodukcyjny set image deployment/app app=ghcr.io/arkadiuszszwarocki/raportprodukcyjny@sha256:<DIGEST>
+kubectl -n raportprodukcyjny set image deployment/app-daemons daemons=ghcr.io/arkadiuszszwarocki/raportprodukcyjny@sha256:<DIGEST>
+```
+
+Przed wdrożeniem ustaw także właściwą domenę w `03-ingress.yaml` i środowiskowy `PRINTER_BRIDGE_URL`.
 
 ```bash
 kubectl apply -f k8s/01-mysql.yaml
@@ -87,11 +108,14 @@ kubectl logs deployment/app-daemons -n raportprodukcyjny
 - aplikacja i MySQL nie mają automatycznie montowanego tokena ServiceAccount;
 - aplikacja nie ma RBAC do odczytu Secrets ani ConfigMaps;
 - Service aplikacji jest `ClusterIP`; ruch zewnętrzny przechodzi przez Ingress;
-- aplikacja działa jako użytkownik nie-root i ma usunięte Linux capabilities;
+- aplikacja działa jako użytkownik nie-root z UID/GID 1000, ma usunięte Linux capabilities i profil `seccomp: RuntimeDefault`;
 - NetworkPolicy wpuszcza ruch WWW tylko z namespace `ingress-nginx`;
 - egress jest ograniczony do MySQL, DNS i jawnie wymienionych portów integracji;
 - porty mostka/RAW printer są ograniczone do prywatnych zakresów sieci;
-- sekrety nie są częścią manifestów Git.
+- sekrety nie są częścią manifestów Git;
+- obrazy produkcyjne muszą być wskazane przez niezmienny digest albo konkretny testowany tag, nigdy `latest`.
+
+`readOnlyRootFilesystem` pozostaje wyłączone, ponieważ obecny panel administracyjny zapisuje część konfiguracji do `/app/config`. Włączenie tej opcji wymaga wcześniejszego przeniesienia zapisywalnej konfiguracji do osobnego wolumenu lub bazy danych.
 
 Jeżeli środowisko wymaga innych usług wychodzących, rozszerz NetworkPolicy w środowiskowym overlayu zamiast otwierać cały egress.
 
