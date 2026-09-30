@@ -249,12 +249,52 @@ class PrintServer:
         except (TypeError, ValueError):
             return _zpl_text(value, 30)
 
+    @staticmethod
+    def _valid_tank_code(raw_value) -> str:
+        """Return a sanitized production tank code or an empty string."""
+        candidate = _zpl_text(raw_value, 20).strip().upper()
+        if not candidate:
+            return ''
+        try:
+            from app.utils.location_validator import is_production_tank_code
+            return candidate if is_production_tank_code(candidate) else ''
+        except Exception:
+            return ''
+
+    @staticmethod
+    def _persist_generated_pallet_id(payload: dict, pallet_id: str, is_packaging: bool) -> None:
+        """Persist a generated SSCC when the label represents an existing DB record."""
+        record_id = payload.get('id')
+        if not record_id or not str(record_id).isdigit():
+            return
+        try:
+            from app.db import get_db_connection, get_table_name
+            table_name = get_table_name(
+                'magazyn_opakowania' if is_packaging else 'magazyn_surowce',
+                payload.get('linia') or 'AGRO',
+            )
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f'UPDATE {table_name} SET nr_palety = %s WHERE id = %s',
+                    (pallet_id, int(record_id)),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception:
+            # Label generation must not become unavailable only because the
+            # optional persistence refresh failed. The caller still receives
+            # and prints the newly generated standard SSCC.
+            return
+
     def build_pallet_label_zpl(self, label_data: dict, copies: int = 1) -> str:
         """Build a stable pallet/raw-material label without executable ZPL input."""
         from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
         from app.utils.pallet_label import is_packaging_item
 
-        payload = dict(label_data or {})
+        payload = label_data if isinstance(label_data, dict) else {}
         pallet_id = str(payload.get('nr_palety') or payload.get('nrPalety') or '').strip()
         name = str(payload.get('nazwa') or 'Brak nazwy').strip()
         unit = payload.get('jednostka') or payload.get('unit') or payload.get('jm') or 'kg'
@@ -266,9 +306,18 @@ class PrintServer:
                 type='opakowanie' if is_packaging else (payload.get('typ') or 'surowiec'),
                 record_id=payload.get('id'),
             )
+            # Keep the caller and any later DB/print operations on the same SSCC.
             payload['nr_palety'] = pallet_id
+            payload['nrPalety'] = pallet_id
+            payload['sscc'] = pallet_id
+            self._persist_generated_pallet_id(payload, pallet_id, is_packaging)
 
-        title = 'OPAKOWANIE' if is_packaging else 'SUROWIEC'
+        tank_code = '' if is_packaging else self._valid_tank_code(
+            payload.get('zbiornik') or payload.get('stacja')
+        )
+        title = 'OPAKOWANIE' if is_packaging else (
+            f'SUROWIEC -> {tank_code}' if tank_code else 'SUROWIEC'
+        )
         unit = 'szt.' if is_packaging else 'kg'
         quantity = self._format_qty_display(payload.get('ilosc'))
         batch = _zpl_text(payload.get('partia') or payload.get('nr_partii') or '---', 60)
@@ -280,14 +329,17 @@ class PrintServer:
         safe_id = _zpl_text(pallet_id, 64)
         copies = max(1, min(100, int(copies or 1)))
 
-        qr_data = json.dumps({
+        qr_payload = {
             'typ': title,
             'sscc': safe_id,
             'partia': batch,
             'prod': safe_name,
             'ilosc': quantity,
             'jm': unit,
-        }, ensure_ascii=False).replace('^', '').replace('~', '')
+        }
+        if tank_code:
+            qr_payload['zbiornik'] = tank_code
+        qr_data = json.dumps(qr_payload, ensure_ascii=False).replace('^', '').replace('~', '')
 
         return f"""^XA
 ^CI28
