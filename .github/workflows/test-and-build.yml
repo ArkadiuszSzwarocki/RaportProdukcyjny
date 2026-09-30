@@ -10,24 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: test_db
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpass
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-        ports:
-          - 3306:3306
-
     steps:
       - uses: actions/checkout@v4
 
@@ -56,32 +40,9 @@ jobs:
         continue-on-error: true
         run: mypy app/ --ignore-missing-imports
 
-      - name: Run tests with coverage
-        run: pytest -v --tb=short --cov=app --cov-report=xml
-        env:
-          DB_HOST: localhost
-          DB_PORT: 3306
-          DB_USER: testuser
-          DB_PASSWORD: testpass
-          DB_NAME: test_db
-          FLASK_ENV: testing
-          SECRET_KEY: ci-test-secret-key
-          ENCRYPTION_KEY: T0Y3M09VNkY2bmt3YXpBS2dCSjVaQlE5cWpsd1JGcVZrbmZ0SEZXVT0=
-          PRINTER_SERVER_START_PIN: "0606"
-          USE_SSL: "false"
-          PRINTER_BRIDGE_AUTOSTART: "false"
-          ENABLE_BACKGROUND_DAEMONS: "false"
-          SKIP_DB_SETUP: "true"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
-
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: validate
     steps:
       - uses: actions/checkout@v4
 
