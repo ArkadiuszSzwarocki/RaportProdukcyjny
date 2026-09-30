@@ -1,12 +1,12 @@
 """Runtime replacements for legacy print paths that cannot be safely removed at once.
 
-The project still contains large legacy blueprints.  This module replaces the
-risky transport boundary after blueprints are registered, keeping URL/endpoint
-compatibility while routing jobs through the authenticated, DB-backed print
-queue.
+The project still contains large legacy blueprints. This module replaces risky
+transport boundaries after blueprints are registered, keeping URL/endpoint
+compatibility while routing supported jobs through the authenticated, DB-backed
+print queue.
 """
 
-from flask import jsonify, request
+from flask import jsonify, redirect, request, url_for
 
 from app.core.database import get_db_connection
 from app.services.print_server import get_printer
@@ -62,7 +62,7 @@ def _load_authoritative_label(cursor, pallet_ref, line_hint=''):
 def secure_reprint_labels():
     """Secure replacement for ``magazyn_dostawy.dodruk_etykiet``.
 
-    The blueprint's existing before_request authentication still applies.  The
+    The blueprint's existing before_request authentication still applies. The
     replacement validates the printer against the DB, reloads pallet data from
     the DB, bounds batch/copy sizes, and queues jobs instead of spawning a
     fire-and-forget HTTP thread to the bridge.
@@ -153,18 +153,55 @@ def secure_reprint_labels():
     return jsonify(response)
 
 
+def secure_admin_zpl_test():
+    """Disable the legacy arbitrary-IP raw socket printer diagnostic.
+
+    The old master-admin test page accepted an arbitrary host and opened TCP
+    port 9100 directly from the application server. All printing must instead
+    use configured printers and the authenticated queue/bridge path.
+    """
+    if request.method == 'GET':
+        return redirect(url_for('admin.admin_ustawienia_drukarki'))
+    return jsonify({
+        'success': False,
+        'message': (
+            'Bezpośredni test IP został wyłączony. '
+            'Użyj skonfigurowanej drukarki z panelu ustawień.'
+        ),
+    }), 410
+
+
+def secure_admin_printer_server_status():
+    """Check the bridge through the authenticated/TLS-validating client."""
+    ok, message = get_printer().test_connection()
+    return jsonify({
+        'success': True,
+        'running': bool(ok),
+        'message': message,
+    })
+
+
 def _secure_legacy_bridge_request(method, path, timeout):
     """Route old printer start/stop helpers through the authenticated client."""
     printer = get_printer()
-    response, _ = printer._request_bridge(method, path, timeout=timeout)  # pylint: disable=protected-access
+    response, _ = printer._request_bridge(  # pylint: disable=protected-access
+        method,
+        path,
+        timeout=timeout,
+    )
     return response
 
 
 def register_legacy_print_hardening(app):
     """Install secure transports without changing existing public URLs."""
-    endpoint = 'magazyn_dostawy.dodruk_etykiet'
-    if endpoint in app.view_functions:
-        app.view_functions[endpoint] = secure_reprint_labels
+    replacements = {
+        'magazyn_dostawy.dodruk_etykiet': secure_reprint_labels,
+        'admin.admin_zpl_test': secure_admin_zpl_test,
+        'admin.admin_printer_server_status': secure_admin_printer_server_status,
+    }
+    for endpoint, replacement in replacements.items():
+        if endpoint in app.view_functions:
+            app.view_functions[endpoint] = replacement
 
     # auth.base still contains legacy local helper code for printer service
     # administration. Replace its network boundary so requests use the same
