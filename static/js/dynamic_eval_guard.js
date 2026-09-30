@@ -1,7 +1,7 @@
-/* Security compatibility shim: disable the browser's native eval primitive.
- * Legacy UI code calls window.eval() when rehydrating same-origin HTML fragments.
- * Keep that UI behavior without the eval primitive by executing the fragment as
- * a transient script node. A later frontend refactor can remove this shim too.
+/* Security compatibility shim for legacy fragment scripts.
+ * The application no longer permits the browser's native eval primitive.
+ * Legacy responses are rewritten server-side from window.eval(...) to the
+ * explicit helper below. Any eval call that escapes rewriting fails closed.
  */
 (function () {
     'use strict';
@@ -23,10 +23,19 @@
         return undefined;
     }
 
-    Object.defineProperty(window, 'eval', {
+    Object.defineProperty(window, 'executeTrustedFragmentScript', {
         configurable: false,
         enumerable: false,
         writable: false,
         value: executeTrustedFragmentScript
+    });
+
+    Object.defineProperty(window, 'eval', {
+        configurable: false,
+        enumerable: false,
+        writable: false,
+        value: function disabledNativeEval() {
+            throw new Error('Native eval is disabled by application security policy.');
+        }
     });
 })();
