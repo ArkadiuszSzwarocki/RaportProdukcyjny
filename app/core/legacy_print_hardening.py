@@ -315,21 +315,36 @@ def _secure_legacy_bridge_request(method, path, timeout):
 
 
 def register_legacy_print_hardening(app):
-    """Install secure transports/concurrency without changing public URLs."""
+    """Install secure print replacements and refuse insecure partial startup."""
     replacements = {
         'magazyn_dostawy.dodruk_etykiet': secure_reprint_labels,
         'admin.admin_zpl_test': secure_admin_zpl_test,
         'admin.admin_printer_server_status': secure_admin_printer_server_status,
     }
+
+    # Factory calls this after all blueprints are registered. If any legacy
+    # endpoint disappeared from the expected registration order, continuing
+    # could expose the original unauthenticated/raw-socket implementation.
+    missing_endpoints = [
+        endpoint for endpoint in replacements
+        if endpoint not in app.view_functions
+    ]
+    if missing_endpoints:
+        raise RuntimeError(
+            'Legacy print hardening could not be installed; missing endpoints: '
+            + ', '.join(sorted(missing_endpoints))
+        )
+
     for endpoint, replacement in replacements.items():
-        if endpoint in app.view_functions:
-            app.view_functions[endpoint] = replacement
+        app.view_functions[endpoint] = replacement
 
     try:
         from app.blueprints.auth import base as auth_base
         auth_base._request_bridge = _secure_legacy_bridge_request
     except Exception as exc:
-        app.logger.warning('Could not harden legacy printer helper: %s', exc)
+        raise RuntimeError(
+            'Could not install authenticated legacy printer bridge helper.'
+        ) from exc
 
     # Prevent one OS thread per newly created pallet. The legacy service only
     # uses threading.Thread for label dispatch, so a bounded executor adapter is
@@ -338,7 +353,9 @@ def register_legacy_print_hardening(app):
         from app.services.pallets import pallet_creation_service
         pallet_creation_service.threading = _BOUNDED_THREADING
     except Exception as exc:
-        app.logger.warning('Could not bound pallet creation print workers: %s', exc)
+        raise RuntimeError(
+            'Could not install bounded pallet creation print workers.'
+        ) from exc
 
     # AcceptanceService historically opened an unauthenticated localhost HTTP
     # request with verify=False in a new thread. Preserve its warehouse logic,
@@ -350,4 +367,16 @@ def register_legacy_print_hardening(app):
             _ORIGINAL_ACCEPT_ITEM = AcceptanceService.accept_item
         AcceptanceService.accept_item = staticmethod(secure_accept_item)
     except Exception as exc:
-        app.logger.warning('Could not harden acceptance label printing: %s', exc)
+        raise RuntimeError(
+            'Could not install secure acceptance label printing.'
+        ) from exc
+
+    # Verify the security-sensitive replacements actually became active. This
+    # catches future refactors that silently change endpoint names or imports.
+    for endpoint, replacement in replacements.items():
+        if app.view_functions.get(endpoint) is not replacement:
+            raise RuntimeError(f'Legacy print endpoint was not hardened: {endpoint}')
+
+    from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+    if AcceptanceService.accept_item is not secure_accept_item:
+        raise RuntimeError('AcceptanceService remained on the insecure legacy print path.')
