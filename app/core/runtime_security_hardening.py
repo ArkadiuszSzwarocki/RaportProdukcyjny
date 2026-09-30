@@ -40,6 +40,20 @@ def _truthy_login_required(original_view):
     return guarded
 
 
+def _session_or_internal_print_required(original_view):
+    """Allow a normal authenticated session or a valid header-only print token."""
+    @wraps(original_view)
+    def guarded(*args, **kwargs):
+        from app.decorators import login_required_response
+
+        denied = login_required_response()
+        if denied is not None:
+            return denied
+        return original_view(*args, **kwargs)
+
+    return guarded
+
+
 def _printer_access_allowed() -> bool:
     if not bool(session.get('zalogowany')):
         return False
@@ -147,24 +161,50 @@ def secure_admin_printer_settings():
     )
 
 
+def _wrap_once(app, endpoint, wrapper, marker):
+    original = app.view_functions.get(endpoint)
+    if original is None or getattr(original, marker, False):
+        return
+    guarded = wrapper(original)
+    setattr(guarded, marker, True)
+    app.view_functions[endpoint] = guarded
+
+
 def register_runtime_security_hardening(app) -> None:
     """Tighten legacy endpoints whose original checks/transports are too broad."""
-    endpoint = 'api.mqtt_simulate'
-    original = app.view_functions.get(endpoint)
-    if original is not None and not getattr(original, '_audit_admin_only', False):
-        guarded = _admin_only(original)
-        guarded._audit_admin_only = True
-        app.view_functions[endpoint] = guarded
+    _wrap_once(app, 'api.mqtt_simulate', _admin_only, '_audit_admin_only')
 
-    # Replace the legacy printer settings view completely: it used direct TCP
-    # probes and contained a source-controlled special-case printer address.
     if 'admin.admin_ustawienia_drukarki' in app.view_functions:
         app.view_functions['admin.admin_ustawienia_drukarki'] = secure_admin_printer_settings
 
-    # The legacy log view still uses ``'zalogowany' not in session`` locally.
-    endpoint = 'admin.admin_ustawienia_logi_drukowania'
-    original = app.view_functions.get(endpoint)
-    if original is not None and not getattr(original, '_audit_truthy_login', False):
-        guarded = _truthy_login_required(original)
-        guarded._audit_truthy_login = True
-        app.view_functions[endpoint] = guarded
+    _wrap_once(
+        app,
+        'admin.admin_ustawienia_logi_drukowania',
+        _truthy_login_required,
+        '_audit_truthy_login',
+    )
+
+    # Label previews can reveal current pallet/material data. Headless internal
+    # printing remains possible only through the signed header token accepted by
+    # login_required_response().
+    for endpoint in (
+        'magazyn_dostawy.podglad_etykiety',
+        'magazyn_dostawy.podglad_etykiety_system',
+        'magazyn_dostawy.podglad_etykiety_mix',
+    ):
+        _wrap_once(
+            app,
+            endpoint,
+            _session_or_internal_print_required,
+            '_audit_label_preview_auth',
+        )
+
+    # Error telemetry contains URLs, stack traces and usernames. It must not be
+    # an unauthenticated public relay to the internal Watchdog service.
+    for endpoint in ('api.log_frontend_error', 'api.log_watchdog_error'):
+        _wrap_once(
+            app,
+            endpoint,
+            _truthy_login_required,
+            '_audit_telemetry_auth',
+        )
