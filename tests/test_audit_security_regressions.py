@@ -5,6 +5,7 @@ remediation cannot silently regress during later refactors. The file is also
 part of the final audit CI checkpoint for PR #17.
 """
 
+import inspect
 from io import BytesIO
 
 from cryptography.fernet import Fernet
@@ -143,10 +144,6 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
     app.config['TESTING'] = False
     app.testing = False
-
-    # This test is specifically about CSRF. Keep the synthetic authenticated
-    # session active so the session middleware does not short-circuit to login
-    # before the origin check can be asserted.
     monkeypatch.setattr('app.core.middleware.is_session_active', lambda _session_id: True)
     monkeypatch.setattr('app.core.middleware.touch_active_session', lambda **_kwargs: True)
 
@@ -188,3 +185,27 @@ def test_pallet_creation_print_threads_use_bounded_executor(app):
     from app.services.pallets import pallet_creation_service
 
     assert pallet_creation_service.threading.Thread is _ExecutorBackedThread
+
+
+def test_mqtt_simulator_is_admin_only(app):
+    from flask import session
+
+    view = app.view_functions['api.mqtt_simulate']
+    with app.test_request_context('/api/mqtt_simulate', method='POST', json={}):
+        session['zalogowany'] = True
+        session['user_id'] = 44
+        session['login'] = 'ordinary-user'
+        session['rola'] = 'pracownik'
+        response, status = view()
+
+    assert status == 403
+    assert response.get_json()['success'] is False
+
+
+def test_auth_module_contains_no_legacy_bridge_or_username_privilege_bypass():
+    from app.blueprints.auth import base as auth_base
+
+    source = inspect.getsource(auth_base)
+    assert 'verify=False' not in source
+    assert "request.headers.get('X-Forwarded-For'" not in source
+    assert "login_field.lower().strip() == 'masteradmin'" not in source
