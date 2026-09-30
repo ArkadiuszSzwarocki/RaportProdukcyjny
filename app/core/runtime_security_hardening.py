@@ -1,5 +1,6 @@
 """Post-registration security guards for legacy runtime endpoints."""
 
+import os
 from functools import wraps
 
 from flask import current_app, flash, jsonify, redirect, render_template, request, session
@@ -11,6 +12,13 @@ def _normalized_role() -> str:
 
 def _wants_json() -> bool:
     return bool(request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json)
+
+
+def _env_bool(name, default=False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return bool(default)
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 def _admin_only(original_view):
@@ -49,6 +57,43 @@ def _session_or_internal_print_required(original_view):
         denied = login_required_response()
         if denied is not None:
             return denied
+        return original_view(*args, **kwargs)
+
+    return guarded
+
+
+def _reject_plaintext_credential_qr(original_view):
+    """Never allow reusable account passwords to be rendered into printable QR codes."""
+    @wraps(original_view)
+    def guarded(*args, **kwargs):
+        if bool(session.get('zalogowany')):
+            payload = request.get_json(silent=True) or {}
+            if str(payload.get('mode') or '').strip().lower() == 'login':
+                return jsonify({
+                    'success': False,
+                    'message': (
+                        'Drukowanie loginu i hasła w kodzie QR zostało wyłączone ze względów bezpieczeństwa.'
+                    ),
+                }), 410
+        return original_view(*args, **kwargs)
+
+    return guarded
+
+
+def _masteradmin_runtime_db_switch(original_view):
+    """Make global runtime database switching an explicit break-glass operation."""
+    @wraps(original_view)
+    def guarded(*args, **kwargs):
+        if _normalized_role() != 'masteradmin':
+            return jsonify({
+                'success': False,
+                'message': 'Przełączanie aktywnej bazy wymaga roli masteradmin.',
+            }), 403
+        if not _env_bool('ALLOW_RUNTIME_DB_SWITCH', False):
+            return jsonify({
+                'success': False,
+                'message': 'Przełączanie aktywnej bazy jest wyłączone w tym środowisku.',
+            }), 403
         return original_view(*args, **kwargs)
 
     return guarded
@@ -182,6 +227,29 @@ def register_runtime_security_hardening(app) -> None:
         'admin.admin_ustawienia_logi_drukowania',
         _truthy_login_required,
         '_audit_truthy_login',
+    )
+
+    # Legacy printer settings contained direct socket probes and a special-case
+    # private IP. The route is replaced wholesale by secure_admin_printer_settings,
+    # so no request can execute that source-controlled network exception.
+    if app.view_functions.get('admin.admin_ustawienia_drukarki') is not secure_admin_printer_settings:
+        raise RuntimeError('Legacy printer settings route remained active.')
+
+    # Reusable passwords must never be encoded into printable QR labels.
+    _wrap_once(
+        app,
+        'admin.admin_qr_generator_drukuj',
+        _reject_plaintext_credential_qr,
+        '_audit_no_credential_qr',
+    )
+
+    # Switching the global runtime database changes the security authority for
+    # every worker. Keep it disabled by default and require masteradmin + opt-in.
+    _wrap_once(
+        app,
+        'admin.admin_secret_db_switch',
+        _masteradmin_runtime_db_switch,
+        '_audit_runtime_db_switch',
     )
 
     # Label previews can reveal current pallet/material data. Headless internal
