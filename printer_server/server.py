@@ -146,7 +146,6 @@ def _normalize_network_target(value):
         return None
     if target.upper() == 'USB':
         return 'USB'
-    # A request may never choose its own port. Ports are bridge configuration.
     if ':' in target and target.count(':') == 1:
         raise ValueError('Port drukarki nie może być przekazany w żądaniu.')
     try:
@@ -163,7 +162,6 @@ def _resolve_zpl_target(data):
     printer_name = str(data.get('drukarka') or '').strip()
     requested_ip = str(data.get('ip') or '').strip()
 
-    # Existing tests use a direct target; production only accepts configured targets.
     if app.config.get('TESTING') and requested_ip:
         return _normalize_network_target(requested_ip), printer_name or None
 
@@ -178,7 +176,14 @@ def _resolve_zpl_target(data):
             if str(target or '').strip()
         }
         if normalized in allowed:
-            return normalized, printer_name or None
+            matched_name = next(
+                (
+                    name for name, target in PRINTER_IP_MAP.items()
+                    if _normalize_network_target(target) == normalized
+                ),
+                None,
+            )
+            return normalized, matched_name
 
     raise ValueError('Drukarka nie znajduje się na skonfigurowanej liście dozwolonych celów.')
 
@@ -241,7 +246,6 @@ def sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5):
                     return False, 'Brak taśmy barwiącej.'
         return True, 'OK'
     except Exception:
-        # Some print servers do not answer ~HS after accepting a job.
         return True, 'Brak zwrotnego statusu ~HS'
 
 
@@ -430,32 +434,30 @@ def drukuj_zpl():
 
 
 def _pdf_target():
+    """Resolve a PDF printer only from the configured allowlist."""
     printer_name = str(request.form.get('drukarka') or '').strip()
     requested_ip = str(request.form.get('ip') or '').strip()
-    if requested_ip:
-        # Network addresses are accepted only if they map to a configured printer.
-        try:
-            normalized = _normalize_network_target(requested_ip)
-        except ValueError:
-            normalized = None
-        allowed = {
-            _normalize_network_target(value)
-            for value in PRINTER_IP_MAP.values()
-            if str(value or '').strip() and str(value).upper() != 'USB'
-        }
-        if normalized and normalized in allowed:
-            # PDF printing through this endpoint uses a local Windows driver;
-            # prefer a configured human-readable printer name when available.
-            for name, value in PRINTER_IP_MAP.items():
-                if _normalize_network_target(value) == normalized:
-                    return name
+
     if printer_name:
+        if printer_name not in PRINTER_IP_MAP:
+            raise ValueError('Drukarka PDF nie znajduje się na skonfigurowanej liście.')
         return printer_name
-    try:
-        import win32print
-        return win32print.GetDefaultPrinter()
-    except Exception:
-        return None
+
+    if requested_ip:
+        normalized = _normalize_network_target(requested_ip)
+        for name, value in PRINTER_IP_MAP.items():
+            clean_value = str(value or '').strip()
+            if not clean_value or clean_value.upper() == 'USB':
+                continue
+            try:
+                allowed_target = _normalize_network_target(clean_value)
+            except ValueError:
+                continue
+            if allowed_target == normalized:
+                return name
+        raise ValueError('Drukarka PDF nie znajduje się na skonfigurowanej liście.')
+
+    raise ValueError('Wskaż skonfigurowaną drukarkę PDF.')
 
 
 @app.route('/drukuj-pdf', methods=['POST'])
@@ -466,9 +468,10 @@ def drukuj_pdf():
     uploaded = request.files['file']
     if not str(uploaded.filename or '').lower().endswith('.pdf'):
         return jsonify({'success': False, 'message': 'Dozwolone są wyłącznie pliki PDF.'}), 400
-    target_printer = _pdf_target()
-    if not target_printer:
-        return jsonify({'success': False, 'message': 'Brak skonfigurowanej drukarki PDF.'}), 400
+    try:
+        target_printer = _pdf_target()
+    except ValueError as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 400
 
     fd, pdf_path = tempfile.mkstemp(suffix='.pdf', prefix='drukowanie_')
     os.close(fd)
