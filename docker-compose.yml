@@ -37,6 +37,7 @@ services:
       DB_USER: ${DB_USER:?DB_USER is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       TZ: ${TZ:-Europe/Warsaw}
       PORT: 8082
