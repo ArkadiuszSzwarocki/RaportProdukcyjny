@@ -1,16 +1,55 @@
 """Runtime replacements for legacy print paths that cannot be safely removed at once.
 
-The project still contains large legacy blueprints. This module replaces risky
-transport boundaries after blueprints are registered, keeping URL/endpoint
-compatibility while routing supported jobs through the authenticated, DB-backed
-print queue.
+The project still contains large legacy blueprints and services. This module
+replaces risky transport/concurrency boundaries after blueprints are registered,
+keeping public API compatibility while routing jobs through the authenticated,
+DB-backed print queue.
 """
+
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 from flask import jsonify, redirect, request, url_for
 
 from app.core.database import get_db_connection
 from app.services.print_server import get_printer
 from app.utils.pallet_label import prepare_pallet_label_data
+
+
+_LEGACY_PRINT_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix='legacy-print')
+_ORIGINAL_ACCEPT_ITEM = None
+
+
+class _ExecutorBackedThread:
+    """Tiny Thread-compatible adapter backed by the bounded print executor."""
+
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None, **_ignored):
+        self._target = target
+        self._args = tuple(args or ())
+        self._kwargs = dict(kwargs or {})
+        self.daemon = daemon
+        self._future = None
+
+    def start(self):
+        if self._target is None:
+            return None
+        self._future = _LEGACY_PRINT_EXECUTOR.submit(
+            self._target,
+            *self._args,
+            **self._kwargs,
+        )
+        return None
+
+    def join(self, timeout=None):
+        if self._future is not None:
+            return self._future.result(timeout=timeout)
+        return None
+
+    def is_alive(self):
+        return bool(self._future and not self._future.done())
+
+
+_BOUNDED_THREADING = SimpleNamespace(Thread=_ExecutorBackedThread)
 
 
 def _bounded_copies(value):
@@ -60,13 +99,7 @@ def _load_authoritative_label(cursor, pallet_ref, line_hint=''):
 
 
 def secure_reprint_labels():
-    """Secure replacement for ``magazyn_dostawy.dodruk_etykiet``.
-
-    The blueprint's existing before_request authentication still applies. The
-    replacement validates the printer against the DB, reloads pallet data from
-    the DB, bounds batch/copy sizes, and queues jobs instead of spawning a
-    fire-and-forget HTTP thread to the bridge.
-    """
+    """Secure replacement for ``magazyn_dostawy.dodruk_etykiet``."""
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({'success': False, 'error': 'Wymagany obiekt JSON.'}), 400
@@ -153,13 +186,102 @@ def secure_reprint_labels():
     return jsonify(response)
 
 
-def secure_admin_zpl_test():
-    """Disable the legacy arbitrary-IP raw socket printer diagnostic.
+def _queue_accepted_pallet_label(details, requested_ip, requested_name):
+    """Queue an accepted-pallet label using only an active DB printer."""
+    if not isinstance(details, dict):
+        return
+    pallet_ref = str(details.get('nr_palety') or '').strip()
+    line = str(details.get('linia') or 'PSD').strip().upper()
+    if not pallet_ref:
+        return
 
-    The old master-admin test page accepted an arbitrary host and opened TCP
-    port 9100 directly from the application server. All printing must instead
-    use configured printers and the authenticated queue/bridge path.
-    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        clauses = []
+        params = []
+        if requested_name:
+            clauses.append('nazwa = %s')
+            params.append(str(requested_name).strip())
+        if requested_ip:
+            clauses.append('ip = %s')
+            params.append(str(requested_ip).strip())
+        if not clauses:
+            return
+        cursor.execute(
+            'SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 AND ('
+            + ' OR '.join(clauses)
+            + ') ORDER BY id ASC LIMIT 1',
+            tuple(params),
+        )
+        printer_row = cursor.fetchone()
+        if not printer_row:
+            return
+        label_data = _load_authoritative_label(cursor, pallet_ref, line)
+    finally:
+        conn.close()
+
+    if not label_data:
+        return
+
+    printer = get_printer()
+    kind = str(label_data.get('typ') or '').lower()
+    pallet_upper = pallet_ref.upper()
+    is_finished = (
+        kind in {'wyrob_gotowy', 'wyrób_gotowy', 'finished', 'gotowy'}
+        or pallet_upper.startswith(('PSD', 'AGR', 'WYR'))
+    )
+    if is_finished:
+        zpl = printer.build_finished_product_label_zpl(label_data, copies=2)
+    else:
+        zpl = printer.build_pallet_label_zpl(label_data, copies=2)
+    printer.queue_print_job(
+        zpl,
+        override_ip=str(printer_row.get('ip') or '').strip() or None,
+        override_name=str(printer_row.get('nazwa') or '').strip() or None,
+    )
+
+
+def secure_accept_item(
+    dostawa_id,
+    item_id,
+    lokalizacja,
+    login='system',
+    nr_partii=None,
+    data_produkcji=None,
+    data_przydatnosci=None,
+    printer_ip=None,
+    printer_name=None,
+):
+    """Run legacy acceptance without its insecure HTTP thread, then queue safely."""
+    if _ORIGINAL_ACCEPT_ITEM is None:
+        raise RuntimeError('AcceptanceService hardening was not initialized.')
+
+    result = _ORIGINAL_ACCEPT_ITEM(
+        dostawa_id,
+        item_id,
+        lokalizacja,
+        login,
+        nr_partii,
+        data_produkcji,
+        data_przydatnosci,
+        None,
+        None,
+    )
+    try:
+        success = bool(result and result[0])
+        details = result[2] if success and len(result) > 2 else None
+        if success and (printer_ip or printer_name):
+            _queue_accepted_pallet_label(details, printer_ip, printer_name)
+    except Exception:
+        # Printing is ancillary; an already committed warehouse acceptance must
+        # not be rolled back because a configured printer became unavailable.
+        pass
+    return result
+
+
+def secure_admin_zpl_test():
+    """Disable the legacy arbitrary-IP raw socket printer diagnostic."""
     if request.method == 'GET':
         return redirect(url_for('admin.admin_ustawienia_drukarki'))
     return jsonify({
@@ -193,7 +315,7 @@ def _secure_legacy_bridge_request(method, path, timeout):
 
 
 def register_legacy_print_hardening(app):
-    """Install secure transports without changing existing public URLs."""
+    """Install secure transports/concurrency without changing public URLs."""
     replacements = {
         'magazyn_dostawy.dodruk_etykiet': secure_reprint_labels,
         'admin.admin_zpl_test': secure_admin_zpl_test,
@@ -203,11 +325,29 @@ def register_legacy_print_hardening(app):
         if endpoint in app.view_functions:
             app.view_functions[endpoint] = replacement
 
-    # auth.base still contains legacy local helper code for printer service
-    # administration. Replace its network boundary so requests use the same
-    # token/TLS policy as every other bridge call.
     try:
         from app.blueprints.auth import base as auth_base
         auth_base._request_bridge = _secure_legacy_bridge_request
     except Exception as exc:
         app.logger.warning('Could not harden legacy printer helper: %s', exc)
+
+    # Prevent one OS thread per newly created pallet. The legacy service only
+    # uses threading.Thread for label dispatch, so a bounded executor adapter is
+    # behavior-compatible while applying backpressure.
+    try:
+        from app.services.pallets import pallet_creation_service
+        pallet_creation_service.threading = _BOUNDED_THREADING
+    except Exception as exc:
+        app.logger.warning('Could not bound pallet creation print workers: %s', exc)
+
+    # AcceptanceService historically opened an unauthenticated localhost HTTP
+    # request with verify=False in a new thread. Preserve its warehouse logic,
+    # suppress that legacy print block, then queue the label through PrintServer.
+    global _ORIGINAL_ACCEPT_ITEM
+    try:
+        from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+        if _ORIGINAL_ACCEPT_ITEM is None:
+            _ORIGINAL_ACCEPT_ITEM = AcceptanceService.accept_item
+        AcceptanceService.accept_item = staticmethod(secure_accept_item)
+    except Exception as exc:
+        app.logger.warning('Could not harden acceptance label printing: %s', exc)
