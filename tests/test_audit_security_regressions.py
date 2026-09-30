@@ -1,5 +1,7 @@
 """Regression tests for security guarantees introduced by the full audit."""
 
+from io import BytesIO
+
 from cryptography.fernet import Fernet
 
 
@@ -63,6 +65,33 @@ def test_printer_bridge_rejects_unconfigured_arbitrary_target(monkeypatch):
         server.app.config['TESTING'] = previous_testing
 
 
+def test_printer_bridge_pdf_rejects_unconfigured_local_printer(monkeypatch):
+    from printer_server import server
+
+    monkeypatch.setenv('PRINTER_BRIDGE_TOKEN', 'audit-test-token')
+    previous_testing = server.app.config.get('TESTING')
+    server.app.config['TESTING'] = False
+    original_map = dict(server.PRINTER_IP_MAP)
+    server.PRINTER_IP_MAP.clear()
+    server.PRINTER_IP_MAP['Approved Printer'] = '10.0.0.10'
+    try:
+        response = server.app.test_client().post(
+            '/drukuj-pdf',
+            headers={'Authorization': 'Bearer audit-test-token'},
+            data={
+                'drukarka': 'Unapproved Local Printer',
+                'file': (BytesIO(b'%PDF-1.4\n%%EOF'), 'audit.pdf'),
+            },
+            content_type='multipart/form-data',
+        )
+        assert response.status_code == 400
+        assert response.get_json()['success'] is False
+    finally:
+        server.PRINTER_IP_MAP.clear()
+        server.PRINTER_IP_MAP.update(original_map)
+        server.app.config['TESTING'] = previous_testing
+
+
 def test_production_factory_never_registers_debug_url_map(monkeypatch):
     monkeypatch.setenv('FLASK_ENV', 'production')
     monkeypatch.setenv('ENV', 'production')
@@ -105,9 +134,6 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     if 'audit_mutation' not in app.view_functions:
         app.add_url_rule(endpoint, 'audit_mutation', lambda: 'ok', methods=['POST'])
 
-    # This test deliberately exercises the production CSRF path. The normal
-    # pytest fixture sets this marker so other route tests are not forced to
-    # provide browser Origin headers; remove it only for this focused test.
     monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
     app.config['TESTING'] = False
     app.testing = False
