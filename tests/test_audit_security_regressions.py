@@ -1,7 +1,8 @@
 """Regression tests for security guarantees introduced by the full audit.
 
 This suite is intentionally kept close to the hardened entry points so audit
-remediation cannot silently regress during later refactors.
+remediation cannot silently regress during later refactors. The file is also
+part of the final audit CI checkpoint for PR #17.
 """
 
 from io import BytesIO
