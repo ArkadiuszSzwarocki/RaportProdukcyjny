@@ -16,6 +16,8 @@ class LoginRateLimiterService:
         self._window_seconds = int(window_seconds)
         self._lockout_seconds = int(lockout_seconds)
         self._lock = threading.Lock()
+        self._schema_lock = threading.Lock()
+        self._schema_ready = False
         self._attempts: Dict[str, List[float]] = {}
         self._lockouts: Dict[str, float] = {}
 
@@ -24,20 +26,26 @@ class LoginRateLimiterService:
         # Hashing keeps potentially sensitive usernames/IPs out of the rate-limit table.
         return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
-    @staticmethod
-    def _ensure_table(cursor) -> None:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS login_rate_limits (
-                rate_key CHAR(64) PRIMARY KEY,
-                attempt_count INT NOT NULL DEFAULT 0,
-                window_started_at DOUBLE NOT NULL DEFAULT 0,
-                lockout_until DOUBLE NOT NULL DEFAULT 0,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    ON UPDATE CURRENT_TIMESTAMP
+    def _ensure_table(self, cursor) -> None:
+        """Create the limiter table once per process instead of on every login."""
+        if self._schema_ready:
+            return
+        with self._schema_lock:
+            if self._schema_ready:
+                return
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS login_rate_limits (
+                    rate_key CHAR(64) PRIMARY KEY,
+                    attempt_count INT NOT NULL DEFAULT 0,
+                    window_started_at DOUBLE NOT NULL DEFAULT 0,
+                    lockout_until DOUBLE NOT NULL DEFAULT 0,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
-        )
+            self._schema_ready = True
 
     def _memory_is_limited(self, key: str, now: float) -> Tuple[bool, int]:
         with self._lock:
@@ -137,45 +145,45 @@ class LoginRateLimiterService:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             self._ensure_table(cursor)
+
+            # Ensure the row exists atomically before locking it. Two workers
+            # processing the first failure for the same account cannot race on
+            # separate INSERT operations anymore.
             cursor.execute(
-                "SELECT attempt_count, window_started_at FROM login_rate_limits "
-                "WHERE rate_key = %s FOR UPDATE",
+                "INSERT IGNORE INTO login_rate_limits "
+                "(rate_key, attempt_count, window_started_at, lockout_until) "
+                "VALUES (%s, 0, %s, 0)",
+                (key, now),
+            )
+            cursor.execute(
+                "SELECT attempt_count, window_started_at, lockout_until "
+                "FROM login_rate_limits WHERE rate_key = %s FOR UPDATE",
                 (key,),
             )
-            row = cursor.fetchone()
-            if not row:
-                count = 1
-                started = now
-                cursor.execute(
-                    "INSERT INTO login_rate_limits "
-                    "(rate_key, attempt_count, window_started_at, lockout_until) "
-                    "VALUES (%s, %s, %s, 0)",
-                    (key, count, started),
-                )
-            else:
-                started = float(row.get('window_started_at') or 0)
-                old_count = int(row.get('attempt_count') or 0)
-                if not started or now - started >= self._window_seconds:
-                    started = now
-                    count = 1
-                else:
-                    count = old_count + 1
-                cursor.execute(
-                    "UPDATE login_rate_limits SET attempt_count = %s, window_started_at = %s, "
-                    "lockout_until = 0 WHERE rate_key = %s",
-                    (count, started, key),
-                )
+            row = cursor.fetchone() or {}
 
-            if count >= self._max_attempts:
-                expiry = now + self._lockout_seconds
-                cursor.execute(
-                    "UPDATE login_rate_limits SET lockout_until = %s WHERE rate_key = %s",
-                    (expiry, key),
-                )
+            current_lockout = float(row.get('lockout_until') or 0)
+            if now < current_lockout:
                 conn.commit()
-                return True, self._lockout_seconds
+                return True, int(current_lockout - now) + 1
 
+            started = float(row.get('window_started_at') or 0)
+            old_count = int(row.get('attempt_count') or 0)
+            if not started or now - started >= self._window_seconds:
+                started = now
+                count = 1
+            else:
+                count = old_count + 1
+
+            lockout_until = now + self._lockout_seconds if count >= self._max_attempts else 0
+            cursor.execute(
+                "UPDATE login_rate_limits SET attempt_count = %s, window_started_at = %s, "
+                "lockout_until = %s WHERE rate_key = %s",
+                (count, started, lockout_until, key),
+            )
             conn.commit()
+            if lockout_until:
+                return True, self._lockout_seconds
             return False, 0
         except Exception:
             if conn:
