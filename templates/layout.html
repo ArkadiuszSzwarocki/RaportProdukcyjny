@@ -27,6 +27,8 @@
     <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
     <!-- Disable native eval before the legacy fragment runtime is loaded. -->
     <script src="{{ url_for('static', filename='js/dynamic_eval_guard.js') }}?v={{ static_version }}"></script>
+    <!-- Raw ZPL must never be posted by browser code directly to a printer bridge. -->
+    <script src="{{ url_for('static', filename='js/print_bridge_browser_guard.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='js/common/print-toast.js') }}?v={{ static_version }}"></script>
     {% block extra_css %}{% endblock %}
 </head>
