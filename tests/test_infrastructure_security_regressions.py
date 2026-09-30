@@ -10,10 +10,14 @@ def _text(relative_path):
     return (ROOT / relative_path).read_text(encoding='utf-8')
 
 
-def test_trivy_action_is_version_pinned():
+def test_trivy_action_is_version_pinned_and_gates_publish():
     workflow = _text('.github/workflows/deploy.yml')
     assert 'aquasecurity/trivy-action@master' not in workflow
     assert 'aquasecurity/trivy-action@0.28.0' in workflow
+    assert 'workflow_run:' in workflow
+    assert "workflow_run.conclusion == 'success'" in workflow
+    assert 'exit-code: "1"' in workflow
+    assert 'needs: scan' in workflow
 
 
 def test_production_k8s_config_does_not_commit_secret_values():
@@ -33,6 +37,17 @@ def test_k8s_web_service_is_internal_and_sa_cannot_read_secrets():
     assert 'resources: ["configmaps", "secrets"]' not in manifest
     assert 'automountServiceAccountToken: false' in manifest
     assert 'key: PRINTER_BRIDGE_TOKEN' in manifest
+    assert 'name: ENABLE_BACKGROUND_DAEMONS\n          value: "false"' in manifest
+    assert 'name: app-daemons' in manifest
+    assert 'name: ENABLE_BACKGROUND_DAEMONS\n          value: "true"' in manifest
+
+
+def test_k8s_mysql_ingress_is_limited_to_application_pods():
+    policy = _text('k8s/03-ingress.yaml')
+    assert 'name: mysql-ingress-policy' in policy
+    assert 'app: mysql' in policy
+    assert 'raportprodukcyjny-daemons' in policy
+    assert 'port: 3306' in policy
 
 
 def test_compose_uses_mysql_internal_port_and_separate_root_password():
@@ -42,6 +57,11 @@ def test_compose_uses_mysql_internal_port_and_separate_root_password():
     assert 'MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:' in compose
     assert 'MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:' not in compose
     assert 'DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}' in compose
+    assert 'daemons:' in compose
+    assert 'command: ["python", "scripts/run_daemons.py"]' in compose
+    assert 'ENABLE_BACKGROUND_DAEMONS: "false"' in compose
+    assert 'ENABLE_BACKGROUND_DAEMONS: "true"' in compose
+    assert "socket.create_connection(('127.0.0.1', 8082), 5)" in compose
 
 
 def test_docker_healthcheck_does_not_disable_tls_validation():
@@ -66,3 +86,6 @@ def test_runtime_artifacts_are_not_tracked_anymore():
     assert not (ROOT / '.machine_error_logs.json').exists()
     assert not (ROOT / '.machine_reject_logs.json').exists()
     assert not (ROOT / '0').exists()
+    assert not (ROOT / 'db_compare_tmp.py').exists()
+    assert not any(ROOT.glob('scratch_*.py'))
+    assert not (ROOT / 'tools' / 'archive').exists()
