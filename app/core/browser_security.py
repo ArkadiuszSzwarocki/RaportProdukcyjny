@@ -1,11 +1,56 @@
-"""Browser-facing response security headers."""
+"""Browser-facing response security headers and frontend response hardening."""
+
+SOCKET_IO_CDN_TAG = '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>'
+SOCKET_IO_SRI_TAG = (
+    '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js" '
+    'integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz" '
+    'crossorigin="anonymous"></script>'
+)
+_TEXT_MIMETYPES = {'text/html', 'application/javascript', 'text/javascript'}
+
+
+def _rewrite_frontend_security(response):
+    """Apply narrow, deterministic compatibility rewrites to browser code.
+
+    The legacy UI still contains a few ``window.eval(...)`` calls in very large
+    files. Rewriting them at the response boundary avoids native eval without a
+    risky whole-file rewrite. The explicit helper is installed before legacy JS.
+
+    Socket.IO is currently loaded from a versioned CDN URL. Attach an SRI hash
+    so a modified CDN response is rejected by the browser.
+    """
+    if getattr(response, 'direct_passthrough', False):
+        return response
+    if response.status_code in (204, 304):
+        return response
+
+    mimetype = str(getattr(response, 'mimetype', '') or '').lower()
+    if mimetype not in _TEXT_MIMETYPES:
+        return response
+
+    try:
+        original = response.get_data(as_text=True)
+    except (RuntimeError, UnicodeError):
+        return response
+
+    rewritten = original.replace(
+        'window.eval(',
+        'window.executeTrustedFragmentScript(',
+    )
+    if mimetype == 'text/html':
+        rewritten = rewritten.replace(SOCKET_IO_CDN_TAG, SOCKET_IO_SRI_TAG)
+
+    if rewritten != original:
+        response.set_data(rewritten)
+    return response
 
 
 def register_browser_security_headers(app) -> None:
-    """Add low-risk security headers without breaking the legacy inline-script UI."""
+    """Add low-risk security controls without breaking the legacy inline-script UI."""
 
     @app.after_request
     def _browser_security_headers(response):
+        response = _rewrite_frontend_security(response)
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
         response.headers.setdefault('Referrer-Policy', 'same-origin')
