@@ -67,12 +67,53 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/', timeout=5)",
+          "import socket; s=socket.create_connection(('127.0.0.1', 8082), 5); s.close()",
         ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+    networks:
+      - raportprodukcyjny_net
+    restart: unless-stopped
+
+  daemons:
+    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    container_name: raportprodukcyjny_daemons
+    command: ["python", "scripts/run_daemons.py"]
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      TZ: ${TZ:-Europe/Warsaw}
+      ENABLE_BACKGROUND_DAEMONS: "true"
+      SKIP_DB_SETUP: "true"
+      PRINTER_BRIDGE_URL: ${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}
+      PRINTER_BRIDGE_TOKEN: ${PRINTER_BRIDGE_TOKEN:?PRINTER_BRIDGE_TOKEN is required}
+      PRINTER_BRIDGE_AUTOSTART: ${PRINTER_BRIDGE_AUTOSTART:-false}
+      MQTT_BROKER_HOST: ${MQTT_BROKER_HOST:-}
+      MQTT_BROKER_PORT: ${MQTT_BROKER_PORT:-8883}
+      MQTT_BROKER_USERNAME: ${MQTT_BROKER_USERNAME:-}
+      MQTT_BROKER_PASSWORD: ${MQTT_BROKER_PASSWORD:-}
+      MQTT_SUBSCRIBE_TOPICS: ${MQTT_SUBSCRIBE_TOPICS:-#}
+      SMTP_SERVER: ${SMTP_SERVER:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    volumes:
+      - ./logs:/app/logs
+      - ./raporty:/app/raporty
+      - ./config:/app/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - raportprodukcyjny_net
     restart: unless-stopped
