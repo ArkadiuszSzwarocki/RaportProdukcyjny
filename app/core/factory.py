@@ -11,6 +11,7 @@ from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
 from app.core.error_handlers import setup_logging, register_error_handlers
 from app.core.legacy_print_hardening import register_legacy_print_hardening
+from app.core.runtime_security_hardening import register_runtime_security_hardening
 from app.core.security_hardening import (
     apply_proxy_policy,
     register_legacy_secret_rejection,
@@ -227,12 +228,12 @@ def create_app(config_secret_key=None, init_db=True):
     app.jinja_env.cache = None
     app.config['TEMPLATES_AUTO_RELOAD'] = not _is_production()
 
-    # URL credentials are rejected before the legacy CSRF middleware can see them.
     register_legacy_secret_rejection(app)
     register_middleware(app)
     register_role_integrity_check(app)
     _register_blueprints(app)
     register_legacy_print_hardening(app)
+    register_runtime_security_hardening(app)
 
     if _debug_routes_enabled():
         register_debug_routes(app)
