@@ -1,4 +1,8 @@
-"""Regression tests for security guarantees introduced by the full audit."""
+"""Regression tests for security guarantees introduced by the full audit.
+
+This suite is intentionally kept close to the hardened entry points so audit
+remediation cannot silently regress during later refactors.
+"""
 
 from io import BytesIO
 
