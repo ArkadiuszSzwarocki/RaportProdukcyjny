@@ -159,3 +159,17 @@ def test_legacy_admin_bridge_status_uses_secure_client(app):
     from app.core.legacy_print_hardening import secure_admin_printer_server_status
 
     assert app.view_functions['admin.admin_printer_server_status'] is secure_admin_printer_server_status
+
+
+def test_acceptance_service_insecure_print_thread_is_replaced(app):
+    from app.core.legacy_print_hardening import secure_accept_item
+    from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+
+    assert AcceptanceService.accept_item is secure_accept_item
+
+
+def test_pallet_creation_print_threads_use_bounded_executor(app):
+    from app.core.legacy_print_hardening import _ExecutorBackedThread
+    from app.services.pallets import pallet_creation_service
+
+    assert pallet_creation_service.threading.Thread is _ExecutorBackedThread
