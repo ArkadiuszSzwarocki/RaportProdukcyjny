@@ -18,7 +18,7 @@ class UserEmailSettingsRepository:
         'smtp_server': os.getenv('SMTP_SERVER', ''),
         'smtp_port': int(os.getenv('SMTP_PORT', 465)),
         'smtp_security': os.getenv('SMTP_SECURITY', 'SSL'),
-        'smtp_username': os.getenv('SMTP_USERNAME', ''),
+        'smtp_username': os.getenv('SMTP_USERNAME') or os.getenv('SMTP_USER', ''),
         'smtp_password': os.getenv('SMTP_PASSWORD', ''),
         'sender_name': os.getenv('SMTP_SENDER_NAME', 'Raport Produkcyjny')
     }
