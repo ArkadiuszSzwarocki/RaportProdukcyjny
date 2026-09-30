@@ -44,7 +44,12 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Lint with pylint
-        run: pylint --disable=all --enable=E,F app/ printer_server/
+        # These modules are deliberately optional/platform-specific. Keep all
+        # other E/F diagnostics enabled instead of disabling import-error globally.
+        run: >-
+          pylint --disable=all --enable=E,F
+          --ignored-modules=playwright.sync_api,win32print,win32api,win32ui,fitz,PIL.Image,PIL.ImageWin
+          app/ printer_server/
 
       - name: Type check with mypy
         continue-on-error: true
