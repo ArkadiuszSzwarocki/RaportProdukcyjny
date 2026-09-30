@@ -105,7 +105,7 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     if 'audit_mutation' not in app.view_functions:
         app.add_url_rule(endpoint, 'audit_mutation', lambda: 'ok', methods=['POST'])
 
-    # This test deliberately exercises the production CSRF path.  The normal
+    # This test deliberately exercises the production CSRF path. The normal
     # pytest fixture sets this marker so other route tests are not forced to
     # provide browser Origin headers; remove it only for this focused test.
     monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
@@ -121,3 +121,15 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
 
     response = client.post(endpoint)
     assert response.status_code == 403
+
+
+def test_legacy_admin_raw_socket_printer_test_is_replaced(app):
+    from app.core.legacy_print_hardening import secure_admin_zpl_test
+
+    assert app.view_functions['admin.admin_zpl_test'] is secure_admin_zpl_test
+
+
+def test_legacy_admin_bridge_status_uses_secure_client(app):
+    from app.core.legacy_print_hardening import secure_admin_printer_server_status
+
+    assert app.view_functions['admin.admin_printer_server_status'] is secure_admin_printer_server_status
