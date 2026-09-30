@@ -39,16 +39,13 @@ def _validate_permissions_payload(payload, current_permissions):
     if set(payload) != expected_pages:
         return False, 'Nie wolno dodawać, usuwać ani pomijać kluczy stron w edytorze uprawnień.'
 
-    expected_roles = set()
-    for page_config in current_permissions.values():
-        if isinstance(page_config, dict):
-            expected_roles.update(page_config)
-    if not expected_roles:
-        return False, 'Bieżący schemat ról jest pusty.'
-
     for page, page_config in payload.items():
         if not isinstance(page, str) or len(page) > 120:
             return False, 'Nieprawidłowy klucz strony.'
+        current_page_config = current_permissions.get(page)
+        if not isinstance(current_page_config, dict) or not current_page_config:
+            return False, f'Nie można zweryfikować schematu ról dla {page}.'
+        expected_roles = set(current_page_config)
         if not isinstance(page_config, dict) or set(page_config) != expected_roles:
             return False, f'Nieprawidłowy zestaw ról dla {page}.'
         for role, values in page_config.items():
@@ -111,7 +108,7 @@ def secure_permissions_save():
 
 
 def secure_verify_app():
-    """Run the fixed verifier without returning stdout/stderr to the browser."""
+    """Run the fixed verifier without returning or logging stdout/stderr."""
     denied = _masteradmin_required_json()
     if denied is not None:
         return denied
@@ -131,13 +128,8 @@ def secure_verify_app():
         )
         if result.returncode == 0:
             return jsonify({'success': True, 'message': 'Weryfikacja aplikacji zakończyła się poprawnie.'})
-        current_app.logger.error(
-            'verify_app.py failed with code %s; stdout=%r stderr=%r',
-            result.returncode,
-            result.stdout[-4000:],
-            result.stderr[-4000:],
-        )
-        return jsonify({'success': False, 'message': 'Weryfikacja aplikacji wykryła problemy. Szczegóły zapisano w logu.'}), 500
+        current_app.logger.error('verify_app.py failed with code %s.', result.returncode)
+        return jsonify({'success': False, 'message': 'Weryfikacja aplikacji wykryła problemy. Szczegóły zapisano w logu serwera.'}), 500
     except subprocess.TimeoutExpired:
         current_app.logger.error('verify_app.py exceeded 30-second timeout.')
         return jsonify({'success': False, 'message': 'Weryfikacja przekroczyła limit czasu.'}), 504
