@@ -48,3 +48,22 @@ def test_next_sequence_uses_max_not_count_so_deleted_numbers_are_not_reused():
     assert 'MAX(' in sql
     assert 'COUNT(' not in sql
     assert 'SUBSTRING_INDEX' in sql
+
+
+def test_picking_service_cancel_and_delete_order():
+    from app.services.picking_service import PickingService
+
+    service = PickingService()
+
+    with patch.object(PickingRepository, 'get_by_order_ref', return_value=[{'id': 1, 'status': 'OCZEKUJE'}]), \
+         patch.object(PickingRepository, 'cancel_order', return_value=1):
+        ok, msg = service.cancel_picking_order('PICK-20260930-001')
+        assert ok is True
+        assert 'Anulowano 1 pozycji' in msg
+
+    with patch.object(PickingRepository, 'get_by_order_ref', return_value=[{'id': 1, 'status': 'OCZEKUJE'}]), \
+         patch.object(PickingRepository, 'delete_order', return_value=1):
+        ok, msg = service.delete_picking_order('PICK-20260930-001')
+        assert ok is True
+        assert 'została usunięta' in msg
+

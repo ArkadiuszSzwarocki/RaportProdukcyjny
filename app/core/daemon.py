@@ -1044,7 +1044,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
                     )
                     next_heartbeat_at = now_ts + 15
                 
-                time.sleep(1.0) # Check every second (highly sufficient and responsive for counter changes)
+                time.sleep(2.0) # Check every 2 seconds
                 
         auto_reg_thread = threading.Thread(target=_agro_pallet_auto_register_loop, daemon=True)
         auto_reg_thread.start()

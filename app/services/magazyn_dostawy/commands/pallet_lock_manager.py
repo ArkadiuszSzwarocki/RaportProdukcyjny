@@ -15,7 +15,7 @@ class PalletLockManager:
             return
 
         for it in items:
-            pid = it.get('sourcePalletId') or it.get('id')
+            pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
             pnr = it.get('sourcePalletNo') or it.get('nr_palety')
             if not pid and not pnr:
                 continue
@@ -78,7 +78,7 @@ class PalletLockManager:
             cursor = conn.cursor(dictionary=True)
             eligible_items = []
             for it in items:
-                pid = it.get('sourcePalletId') or it.get('id')
+                pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
                 pnr = it.get('sourcePalletNo') or it.get('nr_palety')
                 if not pid and not pnr:
                     continue
@@ -135,12 +135,14 @@ class PalletLockManager:
                 if not isinstance(items_list, list):
                     continue
                 for it in items_list:
-                    if not isinstance(it, dict) or it.get('accepted') or it.get('rejected'):
+                    if not isinstance(it, dict) or it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at'):
                         continue
-                    if it.get('id'):
-                        active_pids.add(str(it['id']))
                     if it.get('sourcePalletId'):
                         active_pids.add(str(it['sourcePalletId']))
+                    elif it.get('pallet_id'):
+                        active_pids.add(str(it['pallet_id']))
+                    elif it.get('surowiec_id'):
+                        active_pids.add(str(it['surowiec_id']))
                     if it.get('nr_palety'):
                         active_pnrs.add(str(it['nr_palety']).strip().upper())
                     if it.get('sourcePalletNo'):

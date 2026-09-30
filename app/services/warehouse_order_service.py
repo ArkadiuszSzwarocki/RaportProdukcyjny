@@ -136,8 +136,13 @@ class WarehouseOrderService:
             tuple[bool, str]: (sukces, komunikat).
         """
         role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
-        if role_norm not in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']:
-            return False, "Brak uprawnień. Usuwanie dostępne tylko dla ról: MasterAdmin, Admin oraz Zarząd."
+        allowed_roles = [
+            'masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd',
+            'lider', 'liderzmiany', 'kierownik', 'brygadzista', 'planista',
+            'magazynier', 'magazyn', 'operator'
+        ]
+        if role_norm not in allowed_roles:
+            return False, "Brak uprawnień do usuwania zamówienia."
 
         order = self._repository.get_by_id(order_id)
         if not order:

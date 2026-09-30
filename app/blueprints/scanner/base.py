@@ -114,23 +114,31 @@ def restore_pallet():
 @scanner_bp.route('/validate-station', methods=['POST'])
 def validate_station():
     data = request.get_json(silent=True) or {}
-    zbiornik = str(data.get('zbiornik') or '').strip().upper()
+    raw_zbiornik = str(data.get('zbiornik') or '').strip().upper()
     surowiec_nazwa = str(data.get('surowiec_nazwa') or '').strip()
     surowiec_id = data.get('surowiec_id')
     pallet_type = data.get('pallet_type') or 'Surowiec'
 
-    if not zbiornik:
+    if not raw_zbiornik:
         return jsonify({'success': False, 'error': 'Brak kodu lokalizacji/stacji'}), 400
 
-    from app.utils.location_validator import is_production_tank_code, is_deleted_station_code
-    if is_deleted_station_code(zbiornik):
+    from app.utils.location_validator import (
+        is_production_tank_code,
+        is_deleted_station_code,
+        normalize_production_tank_code,
+        validate_production_tank,
+    )
+
+    norm_zbiornik = normalize_production_tank_code(raw_zbiornik)
+
+    if is_deleted_station_code(raw_zbiornik) or is_deleted_station_code(norm_zbiornik):
         return jsonify({
             'success': False,
             'is_production': True,
-            'error': f'❌ Stacja {zbiornik} została wycofana/usunięta z systemu!'
+            'error': f'❌ Stacja {norm_zbiornik or raw_zbiornik} została wycofana/usunięta z systemu!'
         }), 400
 
-    if not is_production_tank_code(zbiornik):
+    if not is_production_tank_code(raw_zbiornik) and not is_production_tank_code(norm_zbiornik):
         # Nie jest to stacja produkcyjna (np. regał magazynowy)
         return jsonify({'success': True, 'is_production': False})
 
@@ -139,19 +147,19 @@ def validate_station():
         return jsonify({
             'success': False,
             'is_production': True,
-            'error': f'❌ Wyrobów gotowych nie można przekazać na stację produkcyjną ({zbiornik})!'
+            'error': f'❌ Wyrobów gotowych nie można przekazać na stację produkcyjną ({norm_zbiornik})!'
         }), 400
 
     if pallet_type == 'Opakowanie':
         return jsonify({
             'success': False,
             'is_production': True,
-            'error': f'❌ Opakowań nie można wydawać do stacji produkcyjnej ({zbiornik})!'
+            'error': f'❌ Opakowań nie można wydawać do stacji produkcyjnej ({norm_zbiornik})!'
         }), 400
 
     from app.services.tank_validation_service import TankValidationService
     is_valid, err_msg = TankValidationService.validate_tank_material(
-        kod_zbiornika=zbiornik,
+        kod_zbiornika=norm_zbiornik,
         surowiec_nazwa=surowiec_nazwa,
         surowiec_id=surowiec_id
     )
@@ -166,6 +174,7 @@ def validate_station():
     return jsonify({
         'success': True,
         'is_production': True,
+        'normalized_station': norm_zbiornik,
         'message': 'OK'
     })
 

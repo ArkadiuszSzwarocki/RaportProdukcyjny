@@ -104,7 +104,7 @@ def _get_or_create_pool():
                 from mysql.connector import pooling
                 pool = pooling.MySQLConnectionPool(
                     pool_name="app_db_pool",
-                    pool_size=10,
+                    pool_size=32,
                     pool_reset_session=True,
                     **pool_config
                 )
@@ -116,7 +116,7 @@ def _get_or_create_pool():
         return _DB_POOL
 
 def get_db_connection(retries=2):
-    """Get database connection from connection pool with fallback host logic."""
+    """Get database connection from connection pool with direct connect fallback."""
     try:
         pool = _get_or_create_pool()
         if pool:
@@ -130,8 +130,6 @@ def get_db_connection(retries=2):
 
     primary_host = base_config.get('host', '127.0.0.1')
     candidate_hosts = [primary_host]
-    if primary_host not in ('127.0.0.1', 'localhost'):
-        candidate_hosts.extend(['127.0.0.1', 'localhost'])
 
     num_retries = max(1, int(retries or 1))
     for host in candidate_hosts:
@@ -143,9 +141,11 @@ def get_db_connection(retries=2):
             except mysql.connector.Error as e:
                 last_error = e
                 if attempt < retries - 1:
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                 continue
-    raise last_error
+    if last_error:
+        raise last_error
+    raise RuntimeError("Failed to establish database connection")
 
 def get_table_name(base_table, linia='PSD'):
     """Return table name based on production line (PSD or AGRO)."""

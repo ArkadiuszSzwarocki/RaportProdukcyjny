@@ -86,6 +86,17 @@ class ScannerResolutionService:
         if results:
             from app.utils.location_validator import is_production_tank_code
             
+            scan_code_upper = str(location_code or '').strip().upper()
+            expected_inv_key = None
+            if scan_code_upper.startswith('SUR'):
+                expected_inv_key = 'SUR'
+            elif scan_code_upper.startswith('OPK'):
+                expected_inv_key = 'OPK'
+            elif scan_code_upper.startswith('DOD'):
+                expected_inv_key = 'DOD'
+            elif scan_code_upper.startswith(('PAL', 'PSD', 'AGR', 'AGR-')):
+                expected_inv_key = 'WYROB_GOTOWY'
+
             def sort_key(item):
                 loc = str(item.get('lokalizacja') or '').upper()
                 is_oczek = 'OCZEK' in loc
@@ -97,7 +108,18 @@ class ScannerResolutionService:
                 has_qty = (qty > 0) and not is_used_up
                 not_oczek = not is_oczek
                 is_warehouse = (not is_prod) and not_oczek
-                return (not is_used_up, has_qty, not_oczek, is_warehouse, qty, item_id)
+
+                item_key = str(item.get('inventory_key') or '').upper()
+                if not item_key:
+                    itype = str(item.get('inventory_type') or '').upper()
+                    if 'SUROWIEC' in itype: item_key = 'SUR'
+                    elif 'OPAKOWANIE' in itype: item_key = 'OPK'
+                    elif 'DODATEK' in itype: item_key = 'DOD'
+                    elif 'WYRÓB' in itype or 'WYROB' in itype: item_key = 'WYROB_GOTOWY'
+
+                prefix_match = bool(expected_inv_key is not None and (item_key == expected_inv_key or (expected_inv_key == 'WYROB_GOTOWY' and item_key in ('PAL', 'WYROB_GOTOWY'))))
+
+                return (prefix_match, not is_used_up, has_qty, not_oczek, is_warehouse, qty > 0, item_id)
                 
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]

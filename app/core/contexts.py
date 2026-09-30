@@ -7,10 +7,34 @@ These inject helper functions and variables into all templates.
 import os
 import json
 import time
+import threading
 from flask import session, request, current_app
 
-# Global translation cache
+# Global caches
 _translations_cache = {}
+_CONTEXT_CACHE = {}
+_CONTEXT_CACHE_LOCK = threading.Lock()
+
+
+def _get_cached_context(key, ttl_seconds, fetcher_fn):
+    """Retrieve value from memory cache or compute using fetcher_fn if expired."""
+    now = time.time()
+    with _CONTEXT_CACHE_LOCK:
+        cached = _CONTEXT_CACHE.get(key)
+        if cached and (now - cached['ts']) < ttl_seconds:
+            return cached['val']
+    try:
+        val = fetcher_fn()
+    except Exception:
+        # If fetcher fails, fallback to stale cache if present
+        with _CONTEXT_CACHE_LOCK:
+            cached = _CONTEXT_CACHE.get(key)
+            if cached:
+                return cached['val']
+        raise
+    with _CONTEXT_CACHE_LOCK:
+        _CONTEXT_CACHE[key] = {'ts': time.time(), 'val': val}
+    return val
 
 
 def _normalize_role_name(raw_role):
@@ -25,10 +49,8 @@ def _normalize_role_name(raw_role):
     return role_aliases.get(role, role)
 
 
-def inject_static_version():
-    """Inject cache-busting static file version based on CSS modification time."""
+def _compute_static_version():
     try:
-        # Use the latest modification time among key static assets (style + scripts)
         candidates = [
             os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
             os.path.join(current_app.root_path, 'static', 'css', 'sidebar.css'),
@@ -53,9 +75,16 @@ def inject_static_version():
             except Exception:
                 continue
         if mtimes:
-            v = max(mtimes)
-        else:
-            v = int(time.time())
+            return max(mtimes)
+        return int(time.time())
+    except Exception:
+        return int(time.time())
+
+
+def inject_static_version():
+    """Inject cache-busting static file version based on CSS modification time (cached 30s)."""
+    try:
+        v = _get_cached_context('static_version', 30.0, _compute_static_version)
     except Exception:
         v = int(time.time())
     return dict(static_version=v)
@@ -402,40 +431,36 @@ def inject_app_version():
     return dict(app_version=version)
 
 
-def inject_bug_report_counters():
-    """Inject unread bug reports count for templates (shown where applicable)."""
+def _fetch_bug_report_counters():
+    from app.db import get_db_connection
+    conn = get_db_connection()
     try:
-        if not session.get('zalogowany'):
-            return dict(unread_bug_reports_count=0)
-
-        from app.db import get_db_connection
-        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM zgloszenia_bledow WHERE status = 'nowy'")
         row = cursor.fetchone()
-        conn.close()
         count = int(row[0]) if row else 0
         return dict(unread_bug_reports_count=count)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def inject_bug_report_counters():
+    """Inject unread bug reports count for templates (cached 5s)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(unread_bug_reports_count=0)
+        return _get_cached_context('bug_report_counters', 5.0, _fetch_bug_report_counters)
     except Exception:
         return dict(unread_bug_reports_count=0)
 
 
-def inject_delivery_counters():
-    """Wstrzykuje licznik oczekujących przyjęć dla PSD/AGRO/ALL."""
-    conn = None
+def _fetch_delivery_counters():
+    from app.db import get_db_connection
+    conn = get_db_connection()
     try:
-        if not session.get('zalogowany'):
-            return dict(
-                pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
-                pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
-                pending_transfer_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
-                pending_transfer_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
-                pending_external_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
-                pending_external_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
-            )
-
-        from app.db import get_db_connection
-        conn = get_db_connection()
         cursor = conn.cursor()
         counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
@@ -450,7 +475,6 @@ def inject_delivery_counters():
         total_external_orders = 0
         total_external_pallets = 0
 
-        # 1) Oczekujące dostawy/przesunięcia z modułu magazyn_dostawy
         cursor.execute(
             """
             SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, items, lokalizacja_z
@@ -458,7 +482,6 @@ def inject_delivery_counters():
             WHERE UPPER(TRIM(COALESCE(status, ''))) IN ('OCZEKUJE', 'PENDING', 'PUTAWAY_IN_PROGRESS')
             """
         )
-        import json
         for row in cursor.fetchall():
             l = (row[0] or '').upper()
             qty = 1
@@ -478,7 +501,7 @@ def inject_delivery_counters():
                         1 for item in items_arr
                         if not item.get('rejected') and (not item.get('accepted') or not item.get('putaway_confirmed_at'))
                     )
-                except:
+                except Exception:
                     pass
             
             total_pallets += pallets_in_order
@@ -522,6 +545,26 @@ def inject_delivery_counters():
             pending_external_orders=external_counts,
             pending_external_pallets=external_pallet_counts
         )
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def inject_delivery_counters():
+    """Wstrzykuje licznik oczekujących przyjęć dla PSD/AGRO/ALL (cached 5s)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(
+                pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_transfer_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_transfer_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_external_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
+                pending_external_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+            )
+        return _get_cached_context('delivery_counters', 5.0, _fetch_delivery_counters)
     except Exception:
         return dict(
             pending_deliveries={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
@@ -531,46 +574,37 @@ def inject_delivery_counters():
             pending_external_orders={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0},
             pending_external_pallets={'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         )
+
+
+def _fetch_pending_orders_count():
+    from app.db import get_db_connection
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM magazyn_zamowienia WHERE status = 'NOWE'")
+        count = cursor.fetchone()[0]
+        return dict(pending_orders_count=count)
     finally:
         try:
-            if conn:
-                conn.close()
+            conn.close()
         except Exception:
             pass
 
 
 def inject_pending_orders_count():
-    """Wstrzykuje liczbę nowych zamówień magazynowych (status=NOWE)."""
-    conn = None
+    """Wstrzykuje liczbę nowych zamówień magazynowych (status=NOWE, cached 5s)."""
     try:
         if not session.get('zalogowany'):
             return dict(pending_orders_count=0)
-
-        from app.db import get_db_connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM magazyn_zamowienia WHERE status = 'NOWE'")
-        count = cursor.fetchone()[0]
-        return dict(pending_orders_count=count)
+        return _get_cached_context('pending_orders_count', 5.0, _fetch_pending_orders_count)
     except Exception:
         return dict(pending_orders_count=0)
-    finally:
-        try:
-            if conn:
-                conn.close()
-        except Exception:
-            pass
 
 
-def inject_pending_picking_count():
-    """Wstrzykuje liczbę aktywnych dyspozycji kompletacji."""
-    conn = None
+def _fetch_pending_picking_count():
+    from app.db import get_db_connection
+    conn = get_db_connection()
     try:
-        if not session.get('zalogowany'):
-            return dict(pending_picking_count=0)
-
-        from app.db import get_db_connection
-        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -582,14 +616,21 @@ def inject_pending_picking_count():
         row = cursor.fetchone()
         count = row[0] if row else 0
         return dict(pending_picking_count=count)
-    except Exception:
-        return dict(pending_picking_count=0)
     finally:
         try:
-            if conn:
-                conn.close()
+            conn.close()
         except Exception:
             pass
+
+
+def inject_pending_picking_count():
+    """Wstrzykuje liczbę aktywnych dyspozycji kompletacji (cached 5s)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(pending_picking_count=0)
+        return _get_cached_context('pending_picking_count', 5.0, _fetch_pending_picking_count)
+    except Exception:
+        return dict(pending_picking_count=0)
 
 
 def inject_today_date():
@@ -598,48 +639,48 @@ def inject_today_date():
     return dict(dzisiaj=str(date.today()))
 
 
+def _fetch_database_info():
+    from app.db import get_active_database_name
+    db_name = get_active_database_name()
+    is_test_db = 'test' in db_name.lower()
+    return dict(db_name=db_name, is_test_db=is_test_db)
+
+
 def inject_database_info():
-    """Wstrzykuje informacje o podłączonej bazie danych (np. czy to baza testowa)."""
+    """Wstrzykuje informacje o podłączonej bazie danych (cached 5s)."""
     try:
-        from app.db import get_active_database_name
-        db_name = get_active_database_name()
-        is_test_db = 'test' in db_name.lower()
-        print(f"[DEBUG context] inject_database_info: db_name={db_name}, is_test={is_test_db}")
-        return dict(db_name=db_name, is_test_db=is_test_db)
-    except Exception as e:
-        print(f"[ERROR context] inject_database_info failed: {e}")
+        return _get_cached_context('database_info', 5.0, _fetch_database_info)
+    except Exception:
         return dict(db_name='Unknown', is_test_db=False)
 
 
+def _fetch_system_errors_count():
+    error_log_path = os.path.join(current_app.root_path, 'logs', 'error.log')
+    if not os.path.exists(error_log_path):
+        return dict(system_errors_count=0)
+    with open(error_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+        text = f.read()
+    count = text.count('[TRAP_HEADER]') + text.count(' ERROR: ')
+    return dict(system_errors_count=count)
+
+
 def inject_system_errors_count():
-    """Inject unread system errors count for templates (based on error.log)."""
+    """Inject unread system errors count for templates (cached 15s)."""
     try:
         if not session.get('zalogowany'):
             return dict(system_errors_count=0)
         role = str(session.get('rola', '')).lower()
         if role not in ['masteradmin', 'admin']:
             return dict(system_errors_count=0)
-        import os
-        from flask import current_app
-        error_log_path = os.path.join(current_app.root_path, 'logs', 'error.log')
-        if not os.path.exists(error_log_path):
-            return dict(system_errors_count=0)
-        with open(error_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-            text = f.read()
-        count = text.count('[TRAP_HEADER]') + text.count(' ERROR: ')
-        return dict(system_errors_count=count)
+        return _get_cached_context('system_errors_count', 15.0, _fetch_system_errors_count)
     except Exception:
         return dict(system_errors_count=0)
 
 
-def inject_osip_transfers_count():
-    """Wstrzykuje liczbę aktywnych transferów OSIP i palet do przyjęcia."""
+def _fetch_osip_transfers_count():
+    from app.core.database import get_db_connection
+    conn = get_db_connection()
     try:
-        if not session.get('zalogowany'):
-            return dict(osip_transfers_count=0, osip_unreceived_pallets_count=0)
-
-        from app.core.database import get_db_connection
-        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute("""
@@ -649,17 +690,27 @@ def inject_osip_transfers_count():
                 WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
             """)
             rows = cursor.fetchall()
-            
             transfers_count = len(rows)
             unreceived_pallets_count = sum(int(r['unreceived_count'] or 0) for r in rows)
-            
             return dict(
                 osip_transfers_count=transfers_count,
                 osip_unreceived_pallets_count=unreceived_pallets_count
             )
         finally:
             cursor.close()
+    finally:
+        try:
             conn.close()
+        except Exception:
+            pass
+
+
+def inject_osip_transfers_count():
+    """Wstrzykuje liczbę aktywnych transferów OSIP i palet do przyjęcia (cached 5s)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(osip_transfers_count=0, osip_unreceived_pallets_count=0)
+        return _get_cached_context('osip_transfers_count', 5.0, _fetch_osip_transfers_count)
     except Exception:
         return dict(osip_transfers_count=0, osip_unreceived_pallets_count=0)
 

@@ -233,19 +233,19 @@ class WarehouseOrderRepository:
 
     @classmethod
     def check_stock(cls, surowce_names, linia='AGRO'):
-        """Sprawdza zapotrzebowanie w magazynie centralnym i na regałach.
+        """Sprawdza zapotrzebowanie w magazynie centralnym i na regałach oraz przesunięcia w toku z MS01/BFMS01.
 
         Zasady:
-        - przeszukiwane są wszystkie rozpoznane lokalizacje Magazynu Centralnego i regały;
-        - OSIP, MS01 oraz BFMS01/BF_MS01 są zawsze wykluczone;
+        - przeszukiwane są wszystkie rozpoznane lokalizacje Magazynu Centralnego (MP01, regały R...);
+        - uwzględniane są aktywne przesunięcia z MS01 / BFMS01 zmierzające do magazynu produkcyjnego;
+        - wykluczone są stacjonarne stany na OSIP, MS01 oraz BFMS01;
         - palety zablokowane są raportowane informacyjnie, ale nie pokrywają zapotrzebowania;
-        - palety już przypisane do kompletacji nie są ponownie dostępne;
-        - nazwa surowca jest dopasowywana dokładnie po normalizacji, bez częściowych dopasowań.
+        - nazwa surowca jest dopasowywana dokładnie po normalizacji.
         """
         scanned_zones = [
-            'Magazyn Centralny i regały',
-            'Wykluczone: OSIP, MS01, BFMS01 / BF_MS01',
-            'Pominięte: palety już przypisane do kompletacji'
+            'Magazyn Centralny i regały (MP01, regały R...)',
+            'Przesunięcia w toku z MS01 / BFMS01 do produkcji',
+            'Wykluczone: OSIP, stacjonarne MS01 / BFMS01'
         ]
         if not surowce_names:
             return {'stock_data': {}, 'scanned_zones': scanned_zones}
@@ -254,7 +254,6 @@ class WarehouseOrderRepository:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            reserved_ids = cls._get_reserved_pallet_ids(cursor)
 
             fallback_query = f"""
                 SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii,
@@ -293,6 +292,80 @@ class WarehouseOrderRepository:
                 if cls._is_searchable_location(row.get('lokalizacja'))
             ]
 
+            # Pobierz pozycje w aktywnych przesunięciach z MS01 / BFMS01 w kierunku magazynu produkcyjnego
+            incoming_transfers_by_name = {}
+            try:
+                cursor.execute(
+                    """
+                    SELECT id, order_ref, supplier, lokalizacja_z, lokalizacja_do, status, created_at, items, linia
+                    FROM magazyn_dostawy
+                    WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
+                    """
+                )
+                transfer_orders = cursor.fetchall()
+                for ord_row in transfer_orders:
+                    raw_items = ord_row.get('items')
+                    if not raw_items:
+                        continue
+                    try:
+                        items_list = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                    except Exception:
+                        continue
+                    if not isinstance(items_list, list):
+                        continue
+
+                    ord_src_raw = str(ord_row.get('lokalizacja_z') or '').strip().upper()
+
+                    for it in items_list:
+                        if not isinstance(it, dict) or it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at'):
+                            continue
+
+                        # Sprawdź lokalizację źródłową pozycji lub zlecenia
+                        src_spot = str(it.get('sourceSpot') or it.get('originalSpot') or ord_src_raw or '').strip().upper()
+                        src_norm = cls._norm_location(src_spot)
+
+                        # Uwzględniamy wyłącznie ruchy idące Z magazynu MS01 / BFMS01 lub dostawy zewnętrznej
+                        if src_norm not in {'MS01', 'BFMS01', 'DOSTAWA'} and not src_spot.startswith(('MS', 'BFMS', 'BF_MS')):
+                            continue
+
+                        prod_name = str(it.get('productName') or it.get('nazwa') or '').strip()
+                        prod_norm = cls._norm_str(prod_name)
+                        if not prod_norm:
+                            continue
+
+                        raw_qty = it.get('netWeight') or it.get('quantity') or it.get('ilosc') or it.get('unitsPerPallet') or it.get('stan_magazynowy') or 0.0
+                        try:
+                            qty = float(raw_qty)
+                        except (ValueError, TypeError):
+                            qty = 0.0
+
+                        if qty <= 0:
+                            continue
+
+                        p_nr = str(it.get('nr_palety') or it.get('sourcePalletNo') or f"TRF-{ord_row.get('id', '')[:8]}").strip()
+                        p_batch = str(it.get('nr_partii') or '—').strip()
+                        trf_ref = ord_row.get('order_ref') or f"#{str(ord_row.get('id', ''))[:8]}"
+                        src_label = src_spot if src_spot else 'MS01'
+
+                        trf_pallet = {
+                            'id': it.get('sourcePalletId') or it.get('id') or 0,
+                            'nr_palety': p_nr,
+                            'lokalizacja': f"W PRZESUNIĘCIU ({src_label} ➔ MP01)",
+                            'nr_partii': p_batch,
+                            'stan_magazynowy': round(qty, 2),
+                            'data': cls._format_fifo_date(ord_row),
+                            'is_blocked': False,
+                            'is_in_transit': True,
+                            'powod_blokady': '',
+                            'status_label': f"W drodze z {src_label} ({trf_ref})"
+                        }
+
+                        if prod_norm not in incoming_transfers_by_name:
+                            incoming_transfers_by_name[prod_norm] = []
+                        incoming_transfers_by_name[prod_norm].append(trf_pallet)
+            except Exception as trf_err:
+                print(f"Error checking incoming transfers in check_stock: {trf_err}")
+
             final_stock = {}
             for requested_name in surowce_names:
                 clean_name = str(requested_name or '').strip()
@@ -311,9 +384,6 @@ class WarehouseOrderRepository:
                             continue
 
                         pallet_id = row.get('id')
-                        if pallet_id in reserved_ids:
-                            continue
-
                         qty = float(row.get('stan_magazynowy') or 0)
                         is_blocked = bool(row.get('is_blocked'))
                         location = str(row.get('lokalizacja') or '').strip().upper() or 'BRAK'
@@ -337,10 +407,18 @@ class WarehouseOrderRepository:
                             active_locations.add(location)
                             active_pallets.append(pallet)
 
-                # Wiersze z bazy są już w kolejności FIFO; rank nadajemy wyłącznie paletom dostępnym.
+                    # Dołącz przesunięcia w drodze z MS01 / BFMS01
+                    in_transit_pallets = incoming_transfers_by_name.get(requested_norm, [])
+                    for trf_p in in_transit_pallets:
+                        active_total += trf_p['stan_magazynowy']
+                        active_locations.add(trf_p['lokalizacja'])
+                        active_pallets.append(trf_p)
+
+                # Wiersze z bazy są w kolejności FIFO; rank nadajemy paletom dostępnym.
                 for index, pallet in enumerate(active_pallets, start=1):
                     pallet['fifo_rank'] = index
-                    pallet['status_label'] = f"Wydaj #{index} (FIFO)"
+                    if not pallet.get('status_label'):
+                        pallet['status_label'] = f"Wydaj #{index} (FIFO)"
 
                 for pallet in blocked_pallets:
                     pallet['fifo_rank'] = None

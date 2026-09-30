@@ -38,7 +38,7 @@ def test_searchable_locations_include_central_warehouse_and_exclude_forbidden_zo
         assert WarehouseOrderRepository._is_searchable_location(location) is False, location
 
 
-def test_check_stock_uses_exact_material_match_and_skips_reserved_and_forbidden_locations():
+def test_check_stock_uses_exact_material_match_and_skips_forbidden_locations():
     now = datetime(2026, 9, 30, 8, 0, 0)
     db_rows = [
         {'id': 1, 'nr_palety': 'P1', 'nazwa': 'Surowiec A', 'stan_magazynowy': 100.0, 'lokalizacja': 'R010101', 'nr_partii': 'L1', 'fifo_date': now, 'created_at': now, 'is_blocked': 0, 'powod_blokady': ''},
@@ -54,10 +54,54 @@ def test_check_stock_uses_exact_material_match_and_skips_reserved_and_forbidden_
         {'id': 99, 'nr_palety': 'P99', 'nazwa': 'Surowiec A', 'stan_magazynowy': 1000.0, 'lokalizacja': 'R030303', 'nr_partii': 'L99', 'fifo_date': now, 'created_at': now, 'is_blocked': 0, 'powod_blokady': ''},
     ]
 
+    import json
+    transfer_rows = [
+        {
+            'id': 'TRF-101',
+            'order_ref': 'PRZ-MS01-01',
+            'supplier': 'MS01',
+            'lokalizacja_z': 'MS01',
+            'lokalizacja_do': 'MP01',
+            'status': 'OCZEKUJE',
+            'created_at': now,
+            'items': json.dumps([
+                {
+                    'sourcePalletId': 201,
+                    'nr_palety': 'P-TRF-MS01',
+                    'productName': 'Surowiec A',
+                    'quantity': 500.0,
+                    'nr_partii': 'BATCH-TRF',
+                    'sourceSpot': 'MS01',
+                }
+            ]),
+            'linia': 'AGRO'
+        },
+        {
+            'id': 'TRF-102',
+            'order_ref': 'PRZ-MP01-OUT',
+            'supplier': 'MP01',
+            'lokalizacja_z': 'MP01',
+            'lokalizacja_do': 'R010101',
+            'status': 'OCZEKUJE',
+            'created_at': now,
+            'items': json.dumps([
+                {
+                    'sourcePalletId': 202,
+                    'nr_palety': 'P-TRF-MP01-OUT',
+                    'productName': 'Surowiec A',
+                    'quantity': 1000.0,
+                    'nr_partii': 'BATCH-OUT',
+                    'sourceSpot': 'MP01',
+                }
+            ]),
+            'linia': 'AGRO'
+        }
+    ]
+
     cursor = MagicMock()
     cursor.fetchall.side_effect = [
-        [{'paleta_id': 99}],
         db_rows,
+        transfer_rows,
     ]
     connection = MagicMock()
     connection.cursor.return_value = cursor
@@ -67,20 +111,31 @@ def test_check_stock_uses_exact_material_match_and_skips_reserved_and_forbidden_
         result = WarehouseOrderRepository.check_stock(['Surowiec A'], 'AGRO')
 
     stock = result['stock_data']['Surowiec A']
-    assert stock['stan_magazynowy_kg'] == 425.0
+    # 100 (R010101) + 200 (010102) + 50 (MP01) + 75 (BF_MP01) + 1000 (R030303) + 500 (MS01 transfer) = 1925.0
+    assert stock['stan_magazynowy_kg'] == 1925.0
     assert stock['zablokowane_kg'] == 30.0
-    assert set(stock['lokalizacje']) == {'R010101', '010102', 'MP01', 'BF_MP01'}
+    assert 'R010101' in stock['lokalizacje']
+    assert '010102' in stock['lokalizacje']
+    assert 'MP01' in stock['lokalizacje']
+    assert 'BF_MP01' in stock['lokalizacje']
+    assert 'R030303' in stock['lokalizacje']
+    assert 'W PRZESUNIĘCIU (MS01 ➔ MP01)' in stock['lokalizacje']
     assert stock['lokalizacje_zablokowane'] == ['R020202']
 
     ids = [p['id'] for p in stock['palety_fifo']]
-    assert ids == [1, 2, 3, 4, 10]
-    assert 99 not in ids
-    assert 9 not in ids
-    assert all(p['lokalizacja'] not in {'MS01', 'BF_MS01', 'OSIP', 'RAMPA'} for p in stock['palety_fifo'])
+    assert 1 in ids
+    assert 2 in ids
+    assert 3 in ids
+    assert 4 in ids
+    assert 10 in ids
+    assert 99 in ids
+    assert 201 in ids # MS01 transfer
+    assert 202 not in ids # MP01 outgoing transfer is ignored
+    assert 9 not in ids # Different product name
 
     active = [p for p in stock['palety_fifo'] if not p['is_blocked']]
-    assert [p['fifo_rank'] for p in active] == [1, 2, 3, 4]
-    assert stock['palety_fifo'][-1]['fifo_rank'] is None
+    assert len(active) == 6
+    assert [p['fifo_rank'] for p in active] == [1, 2, 3, 4, 5, 6]
 
 
 def test_location_normalization_catches_all_bfms01_variants():

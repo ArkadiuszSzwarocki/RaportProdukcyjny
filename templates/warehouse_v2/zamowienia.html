@@ -438,7 +438,7 @@
 <div class="order-toast" id="orderToast"></div>
 
 <script>
-    window.CAN_DELETE_ORDERS = {{ 'true' if (role in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd'] or session.get('login') in ['masteradmin', 'admin']) else 'false' }};
+    window.CAN_DELETE_ORDERS = {{ 'true' if (role in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd', 'lider', 'liderzmiany', 'kierownik', 'brygadzista', 'planista', 'magazynier', 'magazyn', 'operator'] or session.get('login') in ['masteradmin', 'admin', 'lider']) else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/orders.js') }}?v={{ static_version }}"></script>
 

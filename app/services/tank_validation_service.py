@@ -195,9 +195,13 @@ class TankValidationService:
 
         Returns (is_valid, error_message).
         """
-        norm_tank = _normalize_tank_code(kod_zbiornika)
-        if not norm_tank:
-            return True, None
+        if not kod_zbiornika or not str(kod_zbiornika).strip():
+            return False, "⚠️ Brak kodu stacji/zbiornika!"
+
+        from app.utils.location_validator import validate_production_tank
+        is_tank_ok, norm_tank, tank_err = validate_production_tank(kod_zbiornika)
+        if not is_tank_ok:
+            return False, tank_err
 
         rule = TankValidationRepository.get_rule_by_tank(norm_tank)
         assigned_name = ""

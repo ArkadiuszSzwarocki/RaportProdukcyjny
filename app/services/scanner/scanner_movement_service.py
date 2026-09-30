@@ -59,6 +59,20 @@ class ScannerMovementService:
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
+            if not pallet and pallet_type != 'Dodatek':
+                alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
+                alt_table = get_table_name('magazyn_opakowania', alt_linia) if pallet_type == 'Opakowanie' else get_table_name('magazyn_surowce', alt_linia)
+                cur.execute(
+                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {alt_table} WHERE id = %s",
+                    (surowiec_id,)
+                )
+                alt_pallet = cur.fetchone()
+                if alt_pallet:
+                    pallet = alt_pallet
+                    table_surowce = alt_table
+                    linia = alt_linia
+                    table_ruch = get_table_name('magazyn_ruch', linia)
+
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje", None
 
@@ -83,14 +97,12 @@ class ScannerMovementService:
             now = datetime.now()
             plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
             
-            zbiornik_normalized = str(zbiornik or '').strip().upper() if zbiornik else None
-            if not zbiornik_normalized:
-                return False, "⚠️ Brak kodu zbiornika! Podaj zbiornik (np. BB02, MZ07) aby przenieść surowiec na produkcję.", None
-
-            if is_deleted_station_code(zbiornik_normalized):
-                return False, f"❌ Stacja/zbiornik {zbiornik_normalized} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40.", None
+            from app.utils.location_validator import validate_production_tank
+            is_tank_ok, norm_tank, tank_err = validate_production_tank(zbiornik)
+            if not is_tank_ok:
+                return False, tank_err, None
             
-            zbiornik_val = zbiornik_normalized
+            zbiornik_val = norm_tank
             lokalizacja_val = zbiornik_val
 
             is_valid_mat, err_mat = TankValidationService.validate_tank_material(

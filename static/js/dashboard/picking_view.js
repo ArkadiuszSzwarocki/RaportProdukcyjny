@@ -300,7 +300,9 @@ const PickingViewModule = (function () {
                     if (typeof window.refreshSidebarBadges === 'function') {
                         window.refreshSidebarBadges();
                     }
-                    if (typeof loadActivePickingOrders === 'function') {
+                    if (typeof loadCurrentPickingTab === 'function') {
+                        loadCurrentPickingTab();
+                    } else if (typeof loadActivePickingOrders === 'function') {
                         loadActivePickingOrders();
                     }
                 } else {
@@ -414,7 +416,9 @@ const PickingViewModule = (function () {
                     if (typeof window.refreshSidebarBadges === 'function') {
                         window.refreshSidebarBadges();
                     }
-                    if (typeof loadActivePickingOrders === 'function') {
+                    if (typeof loadCurrentPickingTab === 'function') {
+                        loadCurrentPickingTab();
+                    } else if (typeof loadActivePickingOrders === 'function') {
                         loadActivePickingOrders();
                     }
                 } else {
