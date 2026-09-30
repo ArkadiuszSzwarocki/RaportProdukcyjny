@@ -135,6 +135,30 @@ def test_untrusted_forwarded_for_is_stripped(app, monkeypatch):
     assert response.get_data(as_text=True) != '203.0.113.99'
 
 
+def test_trusted_proxy_sets_remote_addr_but_hides_raw_forwarded_header(monkeypatch):
+    from flask import Flask, request
+    from app.core.security_hardening import apply_proxy_policy
+
+    monkeypatch.setenv('TRUST_PROXY_HEADERS', 'true')
+    monkeypatch.setenv('TRUSTED_PROXY_HOPS', '1')
+
+    proxy_app = Flask(__name__)
+
+    @proxy_app.get('/ip')
+    def _ip_probe():
+        raw_forwarded = request.headers.get('X-Forwarded-For', '')
+        return f'{request.remote_addr}|{raw_forwarded}'
+
+    apply_proxy_policy(proxy_app)
+    response = proxy_app.test_client().get(
+        '/ip',
+        headers={'X-Forwarded-For': '203.0.113.77'},
+    )
+
+    assert response.status_code == 200
+    assert response.get_data(as_text=True) == '203.0.113.77|'
+
+
 def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     """Exercise CSRF independently from the DB-backed session validity check."""
     endpoint = '/__audit_mutation'
@@ -158,6 +182,34 @@ def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
         sess['last_session_active_check'] = 0
 
     response = client.post(endpoint)
+    assert response.status_code == 403
+
+
+def test_authenticated_cross_origin_mutation_is_rejected(app, monkeypatch):
+    endpoint = '/__audit_cross_origin_mutation'
+    if 'audit_cross_origin_mutation' not in app.view_functions:
+        app.add_url_rule(endpoint, 'audit_cross_origin_mutation', lambda: 'ok', methods=['POST'])
+
+    monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
+    app.config['TESTING'] = False
+    app.testing = False
+    monkeypatch.setattr('app.core.middleware.is_session_active', lambda _session_id: True)
+    monkeypatch.setattr('app.core.middleware.touch_active_session', lambda **_kwargs: True)
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['user_id'] = 998
+        sess['login'] = 'audit-origin-user'
+        sess['rola'] = 'pracownik'
+        sess['session_tracking_id'] = 'audit-origin-session'
+        sess['session_active_cached'] = True
+        sess['last_session_active_check'] = 0
+
+    response = client.post(
+        endpoint,
+        headers={'Origin': 'https://evil.example'},
+    )
     assert response.status_code == 403
 
 
