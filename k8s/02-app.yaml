@@ -12,12 +12,11 @@ metadata:
   name: app
   namespace: raportprodukcyjny
 spec:
-  replicas: 2
+  # The shared logs/reports PVCs are ReadWriteOnce. Keep a single web replica
+  # unless the deployment overlay replaces them with ReadWriteMany/object storage.
+  replicas: 1
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+    type: Recreate
   selector:
     matchLabels:
       app: raportprodukcyjny
@@ -34,11 +33,16 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: app
-        image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
-        imagePullPolicy: Always
+        # Deployment tooling MUST replace this fail-safe placeholder with the
+        # exact tested image tag/digest before kubectl apply.
+        image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-REPLACE_WITH_TESTED_COMMIT
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8082
           name: http
@@ -142,11 +146,14 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: daemons
-        image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
-        imagePullPolicy: Always
+        image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-REPLACE_WITH_TESTED_COMMIT
+        imagePullPolicy: IfNotPresent
         command: ["python", "scripts/run_daemons.py"]
         envFrom:
         - configMapRef:
@@ -197,6 +204,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
+          readOnlyRootFilesystem: false
         volumeMounts:
         - name: logs
           mountPath: /app/logs
@@ -225,30 +233,3 @@ spec:
     targetPort: 8082
     protocol: TCP
     name: http
-
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: app-hpa
-  namespace: raportprodukcyjny
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: app
-  minReplicas: 2
-  maxReplicas: 5
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
