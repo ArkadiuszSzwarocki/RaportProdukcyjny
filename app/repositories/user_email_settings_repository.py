@@ -12,13 +12,15 @@ import os
 class UserEmailSettingsRepository:
     """Obsługa operacji CRUD na tabeli uzytkownik_email_settings dla kont użytkowników oraz konta systemowego (user_id=0)."""
 
+    # Never ship a real provider/account as an implicit fallback. Production
+    # must supply SMTP settings through environment or encrypted database data.
     DEFAULT_SYSTEM_CONFIG = {
-        'smtp_server': os.getenv('SMTP_SERVER', 'smtp.wp.pl'),
+        'smtp_server': os.getenv('SMTP_SERVER', ''),
         'smtp_port': int(os.getenv('SMTP_PORT', 465)),
         'smtp_security': os.getenv('SMTP_SECURITY', 'SSL'),
-        'smtp_username': os.getenv('SMTP_USERNAME', 'Arkadiusz.szwarocki@wp.pl'),
+        'smtp_username': os.getenv('SMTP_USERNAME', ''),
         'smtp_password': os.getenv('SMTP_PASSWORD', ''),
-        'sender_name': os.getenv('SMTP_SENDER_NAME', 'Raport Produkcyjny AGRO')
+        'sender_name': os.getenv('SMTP_SENDER_NAME', 'Raport Produkcyjny')
     }
 
     def get_system_config(self) -> UserEmailSettingsModel:
@@ -55,11 +57,11 @@ class UserEmailSettingsRepository:
             smtp_security=smtp_security,
             smtp_username=smtp_username,
             smtp_password=smtp_password,
-            sender_name=sender_name or 'Raport Produkcyjny AGRO'
+            sender_name=sender_name or 'Raport Produkcyjny'
         )
 
     def reset_system_config(self) -> UserEmailSettingsModel:
-        """Resetuje konto systemowe do pierwotnych parametrów domyślnych."""
+        """Resetuje konto systemowe do parametrów dostarczonych przez środowisko."""
         return self.save_system_config(
             smtp_server=self.DEFAULT_SYSTEM_CONFIG['smtp_server'],
             smtp_port=self.DEFAULT_SYSTEM_CONFIG['smtp_port'],
