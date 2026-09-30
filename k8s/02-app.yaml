@@ -71,6 +71,11 @@ spec:
             secretKeyRef:
               name: app-secrets
               key: INITIAL_ADMIN_PASSWORD
+        - name: PRINTER_BRIDGE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: PRINTER_BRIDGE_TOKEN
         - name: ENABLE_BACKGROUND_DAEMONS
           value: "false"
         resources:
@@ -172,6 +177,11 @@ spec:
             secretKeyRef:
               name: app-secrets
               key: INITIAL_ADMIN_PASSWORD
+        - name: PRINTER_BRIDGE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: PRINTER_BRIDGE_TOKEN
         - name: ENABLE_BACKGROUND_DAEMONS
           value: "true"
         - name: SKIP_DB_SETUP
