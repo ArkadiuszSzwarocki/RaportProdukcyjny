@@ -1,8 +1,9 @@
-"""Compatibility facade for legacy ``app.db`` imports.
+"""Compatibility facade for legacy ``app.db`` named imports.
 
-New code should import directly from ``app.core.database`` or a repository.
-The facade remains temporarily because many routes still use named imports, but
-it no longer performs wildcard imports or emits a warning for every process.
+New code should import directly from ``app.core.database`` or the relevant
+repository.  This facade intentionally performs no wildcard/eager imports so
+loading ``app.db`` cannot pull every repository into the import graph and
+create circular-import side effects.
 """
 
 from importlib import import_module
@@ -16,23 +17,29 @@ _MODULE_NAMES = (
     'app.repositories.session_repository',
     'app.repositories.push_repository',
 )
-_MODULES = tuple(import_module(name) for name in _MODULE_NAMES)
 
 
 def __getattr__(name):
-    for module in _MODULES:
-        if hasattr(module, name):
-            return getattr(module, name)
+    """Resolve a legacy attribute on first use and cache the result."""
+    for module_name in _MODULE_NAMES:
+        module = import_module(module_name)
+        try:
+            value = getattr(module, name)
+        except AttributeError:
+            continue
+        globals()[name] = value
+        return value
     raise AttributeError(f"module 'app.db' has no attribute {name!r}")
 
 
 def __dir__():
-    return sorted(set(globals()) | set(__all__))
-
-
-__all__ = sorted({
-    name
-    for module in _MODULES
-    for name in vars(module)
-    if not name.startswith('_')
-})
+    """Expose available legacy names for interactive diagnostics only."""
+    names = set(globals())
+    for module_name in _MODULE_NAMES:
+        try:
+            module = import_module(module_name)
+            names.update(name for name in vars(module) if not name.startswith('_'))
+        except Exception:
+            # ``dir(app.db)`` must never break application startup diagnostics.
+            continue
+    return sorted(names)
