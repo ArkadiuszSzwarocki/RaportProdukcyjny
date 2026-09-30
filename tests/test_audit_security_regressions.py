@@ -100,12 +100,18 @@ def test_untrusted_forwarded_for_is_stripped(app, monkeypatch):
     assert response.get_data(as_text=True) != '203.0.113.99'
 
 
-def test_authenticated_mutation_without_origin_is_rejected(app):
+def test_authenticated_mutation_without_origin_is_rejected(app, monkeypatch):
     endpoint = '/__audit_mutation'
     if 'audit_mutation' not in app.view_functions:
         app.add_url_rule(endpoint, 'audit_mutation', lambda: 'ok', methods=['POST'])
 
+    # This test deliberately exercises the production CSRF path.  The normal
+    # pytest fixture sets this marker so other route tests are not forced to
+    # provide browser Origin headers; remove it only for this focused test.
+    monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
     app.config['TESTING'] = False
+    app.testing = False
+
     client = app.test_client()
     with client.session_transaction() as sess:
         sess['zalogowany'] = True
