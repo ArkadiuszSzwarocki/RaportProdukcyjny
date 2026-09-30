@@ -21,6 +21,9 @@ def test_production_k8s_config_does_not_commit_secret_values():
     assert 'kind: Secret' not in manifest
     assert 'CHANGE_THIS_TO_' not in manifest
     assert 'DB_PORT: "3306"' in manifest
+    assert 'DB_SSL_DISABLED: "false"' in manifest
+    assert 'SESSION_COOKIE_SECURE: "true"' in manifest
+    assert 'TRUST_PROXY_HEADERS: "true"' in manifest
 
 
 def test_k8s_web_service_is_internal_and_sa_cannot_read_secrets():
@@ -29,6 +32,16 @@ def test_k8s_web_service_is_internal_and_sa_cannot_read_secrets():
     assert 'type: ClusterIP' in manifest
     assert 'resources: ["configmaps", "secrets"]' not in manifest
     assert 'automountServiceAccountToken: false' in manifest
+    assert 'key: PRINTER_BRIDGE_TOKEN' in manifest
+
+
+def test_compose_uses_mysql_internal_port_and_separate_root_password():
+    compose = _text('docker-compose.yml')
+    assert '${DB_HOST_PORT:-3307}:3306' in compose
+    assert 'DB_PORT: 3306' in compose
+    assert 'MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:' in compose
+    assert 'MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:' not in compose
+    assert 'DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}' in compose
 
 
 def test_docker_healthcheck_does_not_disable_tls_validation():
