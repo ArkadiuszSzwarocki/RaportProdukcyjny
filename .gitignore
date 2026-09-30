@@ -109,6 +109,8 @@ tmp/
 *.zip
 cookies.txt
 session.sql
+scratch_*.py
+db_compare_tmp.py
 
 # Debug / trace output files (root-level one-offs)
 active_db_local.txt
