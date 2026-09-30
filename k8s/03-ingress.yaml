@@ -77,8 +77,7 @@ spec:
       port: 53
     - protocol: UDP
       port: 53
-  # Explicitly permit only protocols used by configured integrations.
-  # Narrow 0.0.0.0/0 to concrete CIDRs in site-specific overlays where possible.
+  # Public integrations: web/TLS, SMTP and MQTT only.
   - to:
     - ipBlock:
         cidr: 0.0.0.0/0
@@ -95,6 +94,16 @@ spec:
       port: 1883
     - protocol: TCP
       port: 8883
+  # Printer bridge/raw printer traffic is LAN-only. Site overlays can narrow
+  # these private ranges further to the actual printer VLAN/subnet.
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    - ipBlock:
+        cidr: 172.16.0.0/12
+    - ipBlock:
+        cidr: 192.168.0.0/16
+    ports:
     - protocol: TCP
       port: 3001
     - protocol: TCP
