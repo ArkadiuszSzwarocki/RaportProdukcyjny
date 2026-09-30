@@ -1,5 +1,6 @@
 """Static regression tests for deployment/security findings from the audit."""
 
+import re
 from pathlib import Path
 
 
@@ -10,14 +11,33 @@ def _text(relative_path):
     return (ROOT / relative_path).read_text(encoding='utf-8')
 
 
-def test_trivy_action_is_version_pinned_and_gates_publish():
+def test_trivy_action_is_immutable_and_gates_publish():
     workflow = _text('.github/workflows/deploy.yml')
     assert 'aquasecurity/trivy-action@master' not in workflow
-    assert 'aquasecurity/trivy-action@0.28.0' in workflow
+    assert 'aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2' in workflow
     assert 'workflow_run:' in workflow
     assert "workflow_run.conclusion == 'success'" in workflow
     assert 'exit-code: "1"' in workflow
     assert 'needs: scan' in workflow
+
+
+def test_all_external_github_actions_are_pinned_to_full_commit_sha():
+    workflows_dir = ROOT / '.github' / 'workflows'
+    uses_pattern = re.compile(r'^\s*-?\s*uses:\s*([^\s#]+)', re.MULTILINE)
+    sha_pattern = re.compile(r'^[0-9a-f]{40}$')
+
+    for workflow_path in workflows_dir.glob('*.yml'):
+        workflow = workflow_path.read_text(encoding='utf-8')
+        for action_ref in uses_pattern.findall(workflow):
+            if action_ref.startswith('./'):
+                continue
+            assert '@' in action_ref, f'Missing immutable ref in {workflow_path.name}: {action_ref}'
+            action_name, ref = action_ref.rsplit('@', 1)
+            assert action_name, f'Invalid action reference in {workflow_path.name}: {action_ref}'
+            assert sha_pattern.fullmatch(ref), (
+                f'GitHub Action must be pinned to a 40-char commit SHA in '
+                f'{workflow_path.name}: {action_ref}'
+            )
 
 
 def test_production_k8s_config_does_not_commit_secret_values():
