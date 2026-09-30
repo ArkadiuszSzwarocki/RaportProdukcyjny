@@ -1,17 +1,23 @@
+"""Application request/response middleware."""
+
 import os
 import re
 import time
-from datetime import timedelta
-from flask import request, session, redirect, current_app, url_for, jsonify, render_template
-from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session, is_session_active
+from urllib.parse import urlparse
+
+from flask import current_app, jsonify, redirect, render_template, request, session, url_for
+
+from app.db import (
+    deactivate_active_session,
+    ensure_session_tracking_id,
+    get_db_connection,
+    is_session_active,
+    touch_active_session,
+)
 
 
 def register_middleware(app):
-    """Register all middleware functions with the Flask app.
-    
-    Args:
-        app: Flask application instance
-    """
+    """Register request/response middleware in security-sensitive order."""
     app.before_request(record_request_start_time(app))
     app.before_request(log_request_info(app))
     app.before_request(enforce_csrf_origin_check(app))
@@ -25,315 +31,294 @@ def register_middleware(app):
 
 
 def log_request_info(app):
-    """Middleware: Log incoming requests (disabled by default for maximum throughput)."""
-    enable_req_log = os.environ.get('ENABLE_REQUEST_LOGGING', 'false').lower() == 'true'
-    if not enable_req_log:
+    if os.environ.get('ENABLE_REQUEST_LOGGING', 'false').lower() != 'true':
         return lambda: None
 
     def middleware():
         try:
-            p = request.path or ''
-            if p.startswith('/static/') or p == '/favicon.ico' or p.startswith('/.well-known'):
-                return
-            full = getattr(request, 'full_path', None) or request.path
-            app.logger.debug('Incoming request: %s %s', request.method, full)
+            path = request.path or ''
+            if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known'):
+                return None
+            full_path = getattr(request, 'full_path', None) or path
+            app.logger.debug('Incoming request: %s %s', request.method, full_path)
         except Exception:
             pass
+        return None
+
     return middleware
 
 
+def _csrf_error(app, message, *, log_message=None):
+    if log_message:
+        app.logger.warning(log_message)
+    try:
+        wants_json = (
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or request.is_json
+            or request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+        )
+    except Exception:
+        wants_json = False
+    if wants_json:
+        return jsonify({'success': False, 'error': message}), 403
+    return render_template(
+        'errors/403.html',
+        page_url=request.path,
+        user_role=session.get('rola', ''),
+    ), 403
+
+
 def enforce_csrf_origin_check(app):
-    """Middleware: Defend state-changing requests (POST, PUT, DELETE, PATCH) against CSRF via Origin/Referer verification."""
-    from urllib.parse import urlparse
+    """Protect state-changing browser requests using origin verification.
+
+    Session-authenticated mutating requests fail closed when Origin/Referer is
+    absent.  Cross-origin requests are rejected regardless of response type.
+    Internal headless print rendering may bypass the check only with a valid,
+    short-lived HMAC in ``X-Internal-Print-Token``; URL tokens are not accepted.
+    """
 
     def middleware():
-        if app.config.get('TESTING'):
-            return
+        if app.config.get('TESTING') or app.testing or 'PYTEST_CURRENT_TEST' in os.environ:
+            return None
         if request.method not in ('POST', 'PUT', 'DELETE', 'PATCH'):
-            return
+            return None
 
-        # Bypass CSRF checks in testing environment
-        if app.testing or app.config.get('TESTING') or 'PYTEST_CURRENT_TEST' in os.environ:
-            return
-
-        # Exclude internal print rendering ONLY when bearing a valid cryptographic HMAC token
-        print_token = request.args.get('print_token')
-        if print_token:
+        internal_token = str(request.headers.get('X-Internal-Print-Token') or '').strip()
+        if internal_token:
             from app.utils.security_tokens import verify_internal_print_token
-            if verify_internal_print_token(request.path, print_token):
-                return
+            if verify_internal_print_token(request.path, internal_token):
+                return None
+            return _csrf_error(
+                app,
+                'Forbidden: invalid internal request token.',
+                log_message=f'[CSRF_BLOCKED] Invalid internal print token for {request.path}',
+            )
 
         origin = request.headers.get('Origin')
         referer = request.headers.get('Referer')
-        target_source = origin or referer
+        source = origin or referer
 
-        # Enforce fail-closed for authenticated session-based requests missing origin/referer
-        if not target_source:
-            if session.get('login') or session.get('user_id'):
-                app.logger.warning(
-                    "[CSRF_BLOCKED] Missing Origin and Referer on mutating request for authenticated session: %s %s",
-                    request.method, request.path
+        if not source:
+            if session.get('login') or session.get('user_id') or session.get('zalogowany'):
+                return _csrf_error(
+                    app,
+                    'Forbidden: Missing origin verification headers.',
+                    log_message=(
+                        f'[CSRF_BLOCKED] Missing Origin/Referer on authenticated '
+                        f'{request.method} {request.path}'
+                    ),
                 )
-                try:
-                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
-                except Exception:
-                    is_xhr = accepts_json = False
-
-                if is_xhr or accepts_json:
-                    return jsonify({'success': False, 'error': 'Forbidden: Missing origin verification headers.'}), 403
-                return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola', '')), 403
-            return
+            return None
 
         try:
-            parsed = urlparse(target_source)
+            parsed = urlparse(source)
             source_netloc = (parsed.netloc or '').lower()
             expected_host = (request.host or '').lower()
-
-            if not source_netloc or (expected_host and source_netloc != expected_host):
-                app.logger.warning(
-                    "[CSRF_BLOCKED] Cross-origin request rejected. Source: %s, Expected Host: %s, Path: %s",
-                    source_netloc, expected_host, request.path
+            if not source_netloc or not expected_host or source_netloc != expected_host:
+                return _csrf_error(
+                    app,
+                    'Forbidden: Cross-origin request blocked.',
+                    log_message=(
+                        f'[CSRF_BLOCKED] Cross-origin source={source_netloc!r} '
+                        f'host={expected_host!r} path={request.path}'
+                    ),
                 )
-                try:
-                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
-                except Exception:
-                    is_xhr = accepts_json = False
-
-                if is_xhr or accepts_json:
-                    return jsonify({'success': False, 'error': 'Forbidden: Cross-origin request blocked.'}), 403
-                return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola', '')), 403
         except Exception as exc:
-            app.logger.error("[CSRF_ERROR] Exception parsing origin/referer: %s. Denying request for safety.", exc)
-            return jsonify({'success': False, 'error': 'Forbidden: Invalid request origin.'}), 403
+            app.logger.error('[CSRF_ERROR] Invalid Origin/Referer: %s', exc)
+            return _csrf_error(app, 'Forbidden: Invalid request origin.')
+        return None
 
     return middleware
 
 
 def record_request_start_time(app):
-    """Middleware: Monitor request start time (no-op unless slow-request logging is enabled)."""
-    enable_slow_log = os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() == 'true'
-    if not enable_slow_log:
+    if os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() != 'true':
         return lambda: None
 
     from flask import g
+
     def middleware():
-        try:
-            g._request_start_time = time.time()
-        except Exception:
-            pass
+        g._request_start_time = time.time()
+        return None
+
     return middleware
 
 
 def log_slow_requests(app):
-    """Middleware: Log requests exceeding slow threshold (disabled by default to prevent I/O blocking)."""
-    enable_slow_log = os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() == 'true'
-    if not enable_slow_log:
+    if os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() != 'true':
         return lambda response: response
 
     from flask import g
+
     def middleware(response):
         try:
-            start_time = getattr(g, '_request_start_time', None)
-            if start_time:
-                duration = time.time() - start_time
+            started = getattr(g, '_request_start_time', None)
+            if started:
+                duration = time.time() - started
                 if duration > 15.0:
-                    user = session.get('login', 'anonymous')
-                    app.logger.warning('SLOW REQUEST: %s %s took %.2fs (User: %s)', request.method, request.path, duration, user)
+                    app.logger.warning(
+                        'SLOW REQUEST: %s %s took %.2fs (User: %s)',
+                        request.method,
+                        request.path,
+                        duration,
+                        session.get('login', 'anonymous'),
+                    )
         except Exception:
             pass
         return response
+
     return middleware
 
 
 def add_cache_headers(app):
-    """Middleware: Add caching headers for static assets and favicon, and disable caching for dynamic routes.
-    
-    Args:
-        app: Flask application instance
-        
-    Returns:
-        Middleware function for after_request
-    """
     def middleware(response):
         try:
-            p = request.path or ''
-            # Add caching for static assets and favicon to reduce repeated requests
-            if p.startswith('/static/') or p == '/favicon.ico' or p.startswith('/.well-known'):
-                # cache for 1 day
+            path = request.path or ''
+            if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known'):
                 response.headers['Cache-Control'] = 'public, max-age=86400'
             else:
-                # Disable browser and intermediate caching for dynamic views to prevent BFCache session leaks
                 response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
                 response.headers['Pragma'] = 'no-cache'
                 response.headers['Expires'] = '0'
         except Exception:
             pass
         return response
+
     return middleware
 
 
 def add_security_headers(app):
-    """Middleware: Attach defensive security headers to HTTP responses.
-    
-    Enforces protections against Clickjacking, MIME-type sniffing,
-    and cross-origin leaks.
-    """
     def middleware(response):
         try:
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-            response.headers['X-XSS-Protection'] = '1; mode=block'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
             response.headers['Content-Security-Policy'] = (
-                "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdn.jsdelivr.net; "
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; "
-                "connect-src 'self' wss: https:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data: https://fonts.gstatic.com; "
+                "connect-src 'self' wss: https:; "
+                "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
             )
             if request.is_secure or current_app.config.get('PREFERRED_URL_SCHEME') == 'https':
                 response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         except Exception:
             pass
         return response
+
     return middleware
 
 
 def ensure_pracownik_mapping(app):
-    """Middleware: Ensure logged-in users have pracownik_id mapped in session.
-    
-    Attempts to:
-    1. Read existing pracownik_id from uzytkownicy table
-    2. Auto-map based on login if not found (searches pracownicy by tokenized name)
-    3. Update database if auto-mapping succeeds
-    
-    Args:
-        app: Flask application instance
-        
-    Returns:
-        Middleware function for before_request
-    """
+    """Populate missing user/employee IDs for a logged-in account."""
+
     def middleware():
+        if not session.get('zalogowany') or not session.get('login'):
+            return None
+        if 'pracownik_id' in session and session.get('user_id') is not None:
+            return None
+
+        conn = None
+        cursor = None
         try:
-            # If logged but user/pracownik mapping is incomplete in session, attempt to read from DB
-            if session.get('zalogowany') and session.get('login') and ('pracownik_id' not in session or session.get('user_id') is None):
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login=%s", (session.get('login'),))
-                r = cursor.fetchone()
-                try:
-                    if r:
-                        if r[0] is not None:
-                            session['user_id'] = int(r[0])
-                        # Always set the key (even as None) to prevent subsequent DB hits on every request
-                        session['pracownik_id'] = int(r[1]) if r[1] is not None else None
-                    else:
-                        # Try a best-effort automatic mapping on first login: tokenize login and search pracownicy
-                        try:
-                            l = session.get('login').lower()
-                            l_alpha = re.sub(r"[^a-ząćęłńóśżź ]+", ' ', l)
-                            tokens = [t.strip() for t in re.split(r"\s+|[_\.\-]", l_alpha) if t.strip()]
-                            if tokens:
-                                where_clauses = " AND ".join(["LOWER(imie_nazwisko) LIKE %s" for _ in tokens])
-                                params = tuple([f"%{t}%" for t in tokens])
-                                q = f"SELECT id FROM pracownicy WHERE {where_clauses} LIMIT 2"
-                                cursor.execute(q, params)
-                                rows = cursor.fetchall()
-                                if len(rows) == 1:
-                                    prac_id = int(rows[0][0])
-                                    try:
-                                        cursor.execute("UPDATE uzytkownicy SET pracownik_id=%s WHERE login=%s", (prac_id, session.get('login')))
-                                        conn.commit()
-                                        session['pracownik_id'] = prac_id
-                                        try:
-                                            app.logger.info('Auto-mapped login %s -> pracownik_id=%s', session.get('login'), prac_id)
-                                        except Exception:
-                                            pass
-                                    except Exception:
-                                        try:
-                                            conn.rollback()
-                                        except Exception:
-                                            pass
-                        except Exception:
-                            try:
-                                app.logger.exception('Error during auto-mapping attempt')
-                            except Exception:
-                                pass
-                finally:
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT id, pracownik_id FROM uzytkownicy WHERE login = %s LIMIT 1',
+                (session.get('login'),),
+            )
+            row = cursor.fetchone()
+            if row:
+                session['user_id'] = int(row[0]) if row[0] is not None else None
+                session['pracownik_id'] = int(row[1]) if row[1] is not None else None
+                return None
+
+            # Best-effort legacy employee mapping; all token values remain SQL parameters.
+            login = str(session.get('login') or '').lower()
+            login_alpha = re.sub(r'[^a-ząćęłńóśżź ]+', ' ', login)
+            tokens = [token.strip() for token in re.split(r'\s+|[_\.\-]', login_alpha) if token.strip()]
+            if not tokens:
+                return None
+            where = ' AND '.join('LOWER(imie_nazwisko) LIKE %s' for _ in tokens)
+            cursor.execute(
+                f'SELECT id FROM pracownicy WHERE {where} LIMIT 2',
+                tuple(f'%{token}%' for token in tokens),
+            )
+            rows = cursor.fetchall()
+            if len(rows) == 1:
+                employee_id = int(rows[0][0])
+                cursor.execute(
+                    'UPDATE uzytkownicy SET pracownik_id = %s WHERE login = %s',
+                    (employee_id, session.get('login')),
+                )
+                conn.commit()
+                session['pracownik_id'] = employee_id
         except Exception:
-            try:
-                app.logger.exception('Error ensuring pracownik mapping')
-            except Exception:
-                pass
+            app.logger.exception('Error ensuring pracownik mapping')
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        return None
+
     return middleware
 
 
 def ensure_default_language(app):
-    """Middleware: Ensure `session['app_language']` defaults to Polish ('pl').
-
-    Sets the language in session when it's not already present. This ensures
-    templates and translation helper default to Polish after app start.
-    """
     def middleware():
-        try:
-            # Only set default if not already configured in session/cookies
-            if session.get('app_language') is None:
-                session['app_language'] = 'pl'
-        except Exception:
-            try:
-                app.logger.exception('Failed to set default app_language in session')
-            except Exception:
-                pass
+        if session.get('app_language') is None:
+            session['app_language'] = 'pl'
+        return None
+
     return middleware
 
 
 def track_active_session(app):
-    """Persist lightweight online presence for logged-in users and validate session status."""
-    def middleware():
-        try:
-            if not session.get('zalogowany') or not session.get('user_id') or not session.get('login'):
-                return
+    """Persist online presence and enforce DB-backed session invalidation."""
 
-            session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
-            
-            # Check if this session has been deactivated (e.g. from logout on another device)
-            # Rate-limit database active check to at most once every 15 seconds to avoid heavy DB overhead
+    def middleware():
+        if not session.get('zalogowany') or not session.get('user_id') or not session.get('login'):
+            return None
+        try:
+            session['session_tracking_id'] = ensure_session_tracking_id(
+                session.get('session_tracking_id')
+            )
             now_ts = time.time()
             last_active_check = float(session.get('last_session_active_check') or 0)
-            is_active = True
-            
-            if now_ts - last_active_check >= 15:
-                is_active = is_session_active(session.get('session_tracking_id'))
-                session['last_session_active_check'] = now_ts
-                session['session_active_cached'] = is_active
-            else:
-                is_active = session.get('session_active_cached', True)
 
-            if not is_active:
-                try:
-                    app.logger.info("Session %s was deactivated in DB. Force logging out user %s.", 
-                                    session.get('session_tracking_id'), session.get('login'))
-                except Exception:
-                    pass
+            if now_ts - last_active_check >= 15:
+                active = is_session_active(session.get('session_tracking_id'))
+                session['last_session_active_check'] = now_ts
+                session['session_active_cached'] = active
+            else:
+                active = bool(session.get('session_active_cached', True))
+
+            if not active:
+                app.logger.info(
+                    'Session %s was deactivated; logging out %s.',
+                    session.get('session_tracking_id'),
+                    session.get('login'),
+                )
                 session.clear()
-                
-                try:
-                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
-                except Exception:
-                    is_xhr = False; accepts_json = False
-                
-                if is_xhr or accepts_json:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
                     return jsonify({'success': False, 'error': 'unauthenticated'}), 401
                 return redirect(url_for('auth.login', timeout=1))
 
-            now_ts = time.time()
-            # Run periodic session housekeeping at most once per hour
             last_cleanup = float(getattr(app, '_last_session_cleanup', 0))
             if now_ts - last_cleanup > 3600:
                 setattr(app, '_last_session_cleanup', now_ts)
@@ -341,89 +326,62 @@ def track_active_session(app):
                     from app.repositories.session_repository import cleanup_abandoned_sessions
                     cleanup_abandoned_sessions(max_inactive_hours=24)
                 except Exception:
-                    pass
+                    app.logger.exception('Session cleanup failed')
 
             last_ping = float(session.get('last_presence_ping') or 0)
-            if now_ts - last_ping < 20:
-                return
-
-            forwarded_for = request.headers.get('X-Forwarded-For', '')
-            client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr)
-            touch_active_session(
-                session_id=session.get('session_tracking_id'),
-                user_id=session.get('user_id'),
-                login=session.get('login'),
-                role=session.get('rola'),
-                pracownik_id=session.get('pracownik_id'),
-                display_name=session.get('imie_nazwisko') or session.get('login'),
-                last_path=request.path,
-                ip_address=client_ip,
-            )
-            session['last_presence_ping'] = now_ts
+            if now_ts - last_ping >= 20:
+                touch_active_session(
+                    session_id=session.get('session_tracking_id'),
+                    user_id=session.get('user_id'),
+                    login=session.get('login'),
+                    role=session.get('rola'),
+                    pracownik_id=session.get('pracownik_id'),
+                    display_name=session.get('imie_nazwisko') or session.get('login'),
+                    last_path=request.path,
+                    ip_address=request.remote_addr,
+                )
+                session['last_presence_ping'] = now_ts
         except Exception:
-            try:
-                app.logger.exception('Failed to update active session heartbeat')
-            except Exception:
-                pass
+            app.logger.exception('Failed to update active session heartbeat')
+        return None
+
     return middleware
 
 
 def enforce_session_timeout(app):
-    """Middleware: enforce server-side inactivity logout based on `app.config['SESSION_TIMEOUT_MINUTES']`.
+    """Log out sessions that exceed the configured inactivity timeout."""
 
-    If user's last activity (stored in `session['last_activity']`) is older than the configured
-    timeout, the session is cleared and the active session is deactivated in the DB.
-    Returns 401 status for AJAX/JSON requests or a redirect to `/login` when timed out.
-    """
     def middleware():
+        if not session.get('zalogowany'):
+            return None
         try:
-            timeout_min = int(app.config.get('SESSION_TIMEOUT_MINUTES', 720))
-            if not session.get('zalogowany'):
-                return
-
+            timeout_minutes = int(app.config.get('SESSION_TIMEOUT_MINUTES', 720))
             now_ts = time.time()
             last_activity = float(session.get('last_activity') or 0)
-            # If last_activity is missing, set it now so we don't immediately logout newly logged users
             if last_activity == 0:
                 session['last_activity'] = now_ts
-                return
+                return None
 
             idle_seconds = now_ts - last_activity
-            # Debug log to catch "flashing" session timeout issues (DEBUG level to avoid flooding console)
-            try:
-                app.logger.debug(f"Session check: user={session.get('login')}, role={session.get('rola')}, idle={idle_seconds:.1f}s, limit={timeout_min}m, zalogowany={session.get('zalogowany')}")
-            except Exception:
-                pass
-            
-            if idle_seconds > (timeout_min * 60):
-                try:
-                    current_app.logger.info('Session timeout: logging out %s after %s seconds idle (limit: %d min)', 
-                                            session.get('login'), int(idle_seconds), timeout_min)
-                except Exception:
-                    pass
-                # Deactivate tracked session in DB
+            if idle_seconds > timeout_minutes * 60:
+                current_app.logger.info(
+                    'Session timeout: logging out %s after %s seconds idle (limit: %d min)',
+                    session.get('login'),
+                    int(idle_seconds),
+                    timeout_minutes,
+                )
                 try:
                     deactivate_active_session(session.get('session_tracking_id'))
                 except Exception:
-                    pass
+                    app.logger.exception('Failed to deactivate timed-out session')
                 session.clear()
-                
-                try:
-                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
-                except Exception:
-                    is_xhr = False; accepts_json = False
-                
-                if is_xhr or accepts_json:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
                     return jsonify({'success': False, 'error': 'unauthenticated', 'timeout': True}), 401
-                # Redirect to login with a timeout flag so the login page can show a message
                 return redirect(url_for('auth.login', timeout=1))
 
-            # Otherwise refresh last_activity
             session['last_activity'] = now_ts
         except Exception:
-            try:
-                app.logger.exception('Error enforcing session timeout')
-            except Exception:
-                pass
+            app.logger.exception('Error enforcing session timeout')
+        return None
+
     return middleware
