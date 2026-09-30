@@ -53,14 +53,14 @@ def register_admin_backup_routes(admin_bp):
                 flash('Kopia zapasowa została utworzona pomyślnie.', 'success')
                 current_app.logger.info('[BACKUP] Ręczny backup wykonany pomyślnie przez %s', session.get('login'))
             else:
-                flash('Nie udało się utworzyć kopii zapasowej. Szczegóły zapisano w logu.', 'danger')
-                current_app.logger.error('[BACKUP] Błąd ręcznego backupu: %s', result.stderr)
+                flash('Nie udało się utworzyć kopii zapasowej. Szczegóły zapisano w logu serwera.', 'danger')
+                current_app.logger.error('[BACKUP] Ręczny backup zakończył się kodem %s.', result.returncode)
         except subprocess.TimeoutExpired:
             flash('Tworzenie kopii zapasowej przekroczyło limit czasu.', 'danger')
             current_app.logger.error('[BACKUP] Ręczny backup przekroczył limit 300 s.')
-        except Exception as error:
+        except Exception:
             flash('Wystąpił błąd podczas tworzenia kopii zapasowej.', 'danger')
-            current_app.logger.exception('[BACKUP] Wyjątek podczas ręcznego backupu: %s', error)
+            current_app.logger.exception('[BACKUP] Wyjątek podczas ręcznego backupu.')
 
         return redirect(url_for('admin.admin_ustawienia_backups'))
 
