@@ -5,7 +5,7 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
 WORKDIR /app
-RUN groupadd -r appgroup || true && useradd -m -u 1000 -g appgroup appuser
+RUN groupadd -r -g 1000 appgroup || true && useradd -m -u 1000 -g 1000 appuser
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-mysql-client \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /root/.local /home/appuser/.local
 ENV PATH=/home/appuser/.local/bin:$PATH
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appgroup . .
 
 ENV TZ=Europe/Warsaw
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
