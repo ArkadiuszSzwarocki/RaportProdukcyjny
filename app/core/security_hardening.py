@@ -145,16 +145,29 @@ def register_role_integrity_check(app):
     """Keep role/group information tied to the active database account."""
 
     @app.before_request
+    def _normalize_legacy_logged_in_flag():
+        # Several legacy modules historically checked only whether the key was
+        # present. Removing a false flag before route decorators run makes those
+        # checks fail safely without retaining stale role/group information.
+        if 'zalogowany' in session and not bool(session.get('zalogowany')):
+            session.clear()
+        return None
+
+    @app.before_request
     def _sync_authenticated_role_before_request():
         _authoritative_role_sync(app, force=False)
         return None
 
     @app.after_request
     def _sync_authenticated_role_before_cookie(response):
-        # A successful login can populate the session during the view, after
-        # before_request has already run. Force a DB check now so any legacy
-        # role manipulation in the login view cannot reach the browser cookie.
-        if session.get('zalogowany'):
+        # before_request runs before the login view populates the session. Force
+        # one authoritative lookup only after a successful login submission so
+        # a legacy login-specific role override can never reach the cookie.
+        if (
+            request.endpoint == 'auth.login'
+            and request.method == 'POST'
+            and session.get('zalogowany')
+        ):
             _authoritative_role_sync(app, force=True)
         return response
 
