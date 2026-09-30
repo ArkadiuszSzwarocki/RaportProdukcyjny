@@ -11,23 +11,27 @@ AGRO_TABLE_MAP = {
     'magazyn_palety': 'magazyn_palety_agro',
 }
 
-# These inventory tables are shared or have their own repository-level mapping,
-# but are still legitimate callers of get_table_name().  Keep the allowlist
-# explicit so a request-controlled identifier can never become an SQL table.
+# Shared tables do not change their physical identifier with the production
+# line.  They are nevertheless kept on an explicit allowlist because MySQL
+# identifiers cannot be passed as query parameters.
 _SHARED_ALLOWED_TABLES = {
     'magazyn_surowce',
     'magazyn_opakowania',
+    'magazyn_dodatki',
+    'raporty_koncowe',
 }
 
 _ALLOWED_BASE_TABLES = set(AGRO_TABLE_MAP) | _SHARED_ALLOWED_TABLES
+_SHARED_LINE_CONTEXTS = {'PSD', 'AGRO', 'OSIP', 'ALL', ''}
 
 
 def resolve_table_name(base_table, linia='PSD'):
-    """Resolve a known logical table name for PSD/AGRO.
+    """Resolve a known logical table name without reflecting user input into SQL.
 
-    Table names cannot be parameterized by MySQL, so every dynamic identifier
-    must come from this explicit allowlist.  Unknown input is rejected instead
-    of being reflected into an f-string SQL statement.
+    Dynamic table names are accepted only when both the logical table and the
+    line context are known.  Shared inventory/report tables may be requested
+    from PSD, AGRO or OSIP but always resolve to the same physical identifier.
+    Line-specific production tables keep the PSD/AGRO mapping and reject OSIP.
     """
     normalized_base = str(base_table or '').strip()
     if normalized_base == 'zasypy':
@@ -37,10 +41,16 @@ def resolve_table_name(base_table, linia='PSD'):
         raise ValueError(f'Niedozwolona logiczna nazwa tabeli: {normalized_base!r}')
 
     normalized_line = str(linia or 'PSD').strip().upper()
+
+    if normalized_base in _SHARED_ALLOWED_TABLES:
+        if normalized_line in _SHARED_LINE_CONTEXTS:
+            return normalized_base
+        raise ValueError(f'Niedozwolona linia produkcyjna: {normalized_line!r}')
+
     if normalized_line == 'AGRO':
-        return AGRO_TABLE_MAP.get(normalized_base, normalized_base)
+        return AGRO_TABLE_MAP[normalized_base]
     if normalized_line in ('PSD', 'ALL', ''):
         return normalized_base
 
-    # Unknown line values must not silently affect identifier selection.
+    # Unknown line values must never affect identifier selection.
     raise ValueError(f'Niedozwolona linia produkcyjna: {normalized_line!r}')
