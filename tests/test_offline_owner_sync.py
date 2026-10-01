@@ -12,7 +12,7 @@ def offline_client(monkeypatch):
     app.secret_key = 'test-offline-owner'
     bp = Blueprint('offline_test', __name__)
     register_api_scanner_sync_routes(bp)
-    app.register_blueprint(bp)
+    app.register_blueprint(bp, url_prefix='/api')
     register_browser_security_headers(app)
     process = Mock(return_value={'items': []})
     monkeypatch.setattr('app.services.scanner_sync_service.ScannerSyncService.process_sync_batch', process)
@@ -34,6 +34,17 @@ def test_scanner_rejects_queue_without_matching_owner(offline_client, owner):
 
 def test_scanner_uses_authenticated_login(offline_client):
     client, process = offline_client
+    events = [{'client_uuid': 'scan', 'scanned_code': 'code'}]
+    response = client.post('/api/scanner/sync-batch', json={'owner_user_id': '29', 'events': events})
+    assert response.status_code == 200
+    process.assert_called_once_with(events=events, user_login='current-user')
+
+
+def test_scanner_sync_is_reachable_at_frontend_url(client, monkeypatch):
+    process = Mock(return_value={'items': []})
+    monkeypatch.setattr('app.services.scanner_sync_service.ScannerSyncService.process_sync_batch', process)
+    with client.session_transaction() as session:
+        session.update(zalogowany=True, user_id=29, login='current-user', rola='admin', grupa='ALL')
     events = [{'client_uuid': 'scan', 'scanned_code': 'code'}]
     response = client.post('/api/scanner/sync-batch', json={'owner_user_id': '29', 'events': events})
     assert response.status_code == 200

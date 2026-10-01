@@ -5,7 +5,7 @@ from app.decorators import login_required
 def register_api_scanner_sync_routes(bp: Blueprint):
     """Register endpoints for offline scanner batch synchronization."""
 
-    @bp.route('/api/scanner/sync-batch', methods=['POST'])
+    @bp.route('/scanner/sync-batch', methods=['POST'])
     @login_required
     def sync_offline_scans():
         payload = request.get_json(silent=True)
