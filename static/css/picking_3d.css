@@ -1,0 +1,433 @@
+/* Picking 3D Rack & Order Modal Styles */
+
+.picking-modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    z-index: 10001;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.picking-modal-window {
+    background: #ffffff;
+    width: 100%;
+    max-width: 1240px;
+    border-radius: 18px;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 94vh;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.picking-header {
+    background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 50%, #0284c7 100%);
+    color: #ffffff;
+    padding: 16px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.picking-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.picking-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #7dd3fc;
+}
+
+.picking-header-title {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.picking-header-ref {
+    font-size: 15px;
+    font-weight: 600;
+    color: #7dd3fc;
+}
+
+.picking-header-subtitle {
+    margin: 3px 0 0 0;
+    font-size: 12px;
+    color: #bae6fd;
+}
+
+.picking-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.picking-btn-action {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #e0f2fe;
+    cursor: pointer;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.picking-btn-action:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+}
+
+.picking-btn-cancel {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fee2e2;
+}
+
+.picking-btn-cancel:hover {
+    background: rgba(239, 68, 68, 0.35);
+}
+
+.picking-btn-close {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #cbd5e1;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+}
+
+.picking-btn-close:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.picking-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    background: #f8fafc;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Two-column layout for 3D Rack and Picking list */
+.picking-split-container {
+    display: grid;
+    grid-template-columns: 460px 1fr;
+    gap: 16px;
+    align-items: stretch;
+}
+
+@media (max-width: 1024px) {
+    .picking-split-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 3D Rack Stage Card */
+.picking-3d-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    position: relative;
+    min-height: 380px;
+}
+
+.picking-3d-header {
+    background: rgba(15, 23, 42, 0.95);
+    border-bottom: 1px solid #334155;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #f8fafc;
+    z-index: 5;
+}
+
+.picking-target-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rack-prominent-badge {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rack-prominent-badge.highlight-active {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+}
+
+.rack-slot-coords {
+    background: #1e293b;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+}
+
+.rack-slot-coords span {
+    color: #38bdf8;
+}
+
+.picking-3d-tools {
+    display: flex;
+    gap: 6px;
+}
+
+.picking-3d-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.picking-3d-btn:hover {
+    background: #334155;
+    color: #ffffff;
+}
+
+.picking-3d-canvas-wrap {
+    width: 100%;
+    height: 330px;
+    min-height: 330px;
+    position: relative;
+    background: radial-gradient(circle at center, #1e293b 0%, #090d16 100%);
+    overflow: hidden;
+}
+
+.picking-3d-canvas-wrap canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.picking-3d-overlay-banner {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #ffffff;
+    font-size: 12px;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+    z-index: 4;
+}
+
+/* Scanner & Progress right panel */
+.picking-action-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.picking-scan-box {
+    background: #ffffff;
+    border: 1.5px solid #0284c7;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.08);
+}
+
+.picking-scan-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.picking-input-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+.picking-input-wrapper input {
+    width: 100%;
+    padding: 12px 14px 12px 42px;
+    border: 2px solid #0284c7;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    background: #ffffff;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.picking-input-wrapper input:focus {
+    border-color: #0369a1;
+    box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.18);
+}
+
+.picking-input-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #0284c7;
+    font-size: 20px;
+    pointer-events: none;
+}
+
+.picking-btn-confirm {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 3px 10px rgba(3, 105, 161, 0.25);
+    white-space: nowrap;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.picking-btn-confirm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(3, 105, 161, 0.35);
+}
+
+/* Table styling */
+.picking-table-card {
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.picking-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.picking-table th {
+    background: #f1f5f9;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 700;
+    color: #334155;
+    border-bottom: 1.5px solid #e2e8f0;
+}
+
+.picking-table th.center { text-align: center; }
+.picking-table th.right { text-align: right; }
+
+.picking-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+.picking-row-active {
+    outline: 2px solid #0284c7;
+    background-color: #f0f9ff !important;
+}
+
+.picking-table-row {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.picking-table-row:hover {
+    background-color: #f8fafc;
+}
+
+/* Prominent Rack Indicator in Table */
+.loc-rack-tag {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.loc-rack-num {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-weight: 800;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #bae6fd;
+    display: inline-block;
+    width: fit-content;
+}
+
+.loc-slot-detail {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+}
