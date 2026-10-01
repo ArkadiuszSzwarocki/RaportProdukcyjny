@@ -1,5 +1,7 @@
 """Browser-facing response security headers and frontend response hardening."""
 
+from flask import request
+
 SOCKET_IO_CDN_TAG = '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>'
 SOCKET_IO_SRI_TAG = (
     '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js" '
@@ -15,6 +17,11 @@ def _rewrite_frontend_security(response):
     The legacy UI still contains a few ``window.eval(...)`` calls in very large
     files. Rewriting them at the response boundary avoids native eval without a
     risky whole-file rewrite. The explicit helper is installed before legacy JS.
+
+    The legacy generic offline mutation queue also used persistent localStorage.
+    Its exact storage calls are rewritten to the in-memory security store exposed
+    by ``dynamic_eval_guard.js`` so queued writes cannot survive a user/session
+    change in the browser.
 
     Socket.IO is currently loaded from a versioned CDN URL. Attach an SRI hash
     so a modified CDN response is rejected by the browser.
@@ -37,6 +44,15 @@ def _rewrite_frontend_security(response):
         'window.eval(',
         'window.executeTrustedFragmentScript(',
     )
+    if mimetype in {'application/javascript', 'text/javascript'}:
+        rewritten = rewritten.replace(
+            'localStorage.getItem(this.queueKey)',
+            'window.__ephemeralMutationStorage.getItem(this.queueKey)',
+        )
+        rewritten = rewritten.replace(
+            'localStorage.setItem(this.queueKey, JSON.stringify(queue))',
+            'window.__ephemeralMutationStorage.setItem(this.queueKey, JSON.stringify(queue))',
+        )
     if mimetype == 'text/html':
         rewritten = rewritten.replace(SOCKET_IO_CDN_TAG, SOCKET_IO_SRI_TAG)
 
@@ -46,7 +62,7 @@ def _rewrite_frontend_security(response):
 
 
 def register_browser_security_headers(app) -> None:
-    """Add low-risk security controls without breaking the legacy inline-script UI."""
+    """Add browser controls and forbid client/proxy caching of dynamic responses."""
 
     @app.after_request
     def _browser_security_headers(response):
@@ -63,6 +79,16 @@ def register_browser_security_headers(app) -> None:
             'Content-Security-Policy',
             "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
         )
+
+        # Dynamic/authenticated responses must never be retained by a browser,
+        # service worker or shared proxy. Static assets keep their normal cache
+        # policy and are the only resources the service worker may persist.
+        path = str(getattr(request, 'path', '') or '')
+        if not path.startswith('/static/') and path not in {'/sw.js', '/favicon.ico'}:
+            response.headers['Cache-Control'] = 'no-store, private, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+
         if app.config.get('SESSION_COOKIE_SECURE'):
             response.headers.setdefault(
                 'Strict-Transport-Security',
