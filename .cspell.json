@@ -1,7 +1,7 @@
 {
   "version": "0.2",
   "language": "en,pl",
-  "import": ["@cspell/dict-pl/cspell-ext.json"],
+  "import": ["@cspell/dict-pl_pl/cspell-ext.json"],
   "words": [
     "Admina",
     "Adres",
