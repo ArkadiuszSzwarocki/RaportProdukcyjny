@@ -5,7 +5,7 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
 WORKDIR /app
-RUN groupadd -r -g 1000 appgroup || true && useradd -m -u 1000 -g 1000 appuser
+RUN groupadd --gid 1000 appgroup && useradd --uid 1000 --gid appgroup --create-home appuser
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-mysql-client \
