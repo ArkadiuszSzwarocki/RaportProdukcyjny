@@ -52,7 +52,7 @@ class AcceptanceService:
                 # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
                 is_valid, error_msg = validate_warehouse_location(lokalizacja, allow_empty=False)
                 if not is_valid:
-                    return False, error_msg, None
+                    return False, error_msg
 
                 # Sprawdzenie ze słownikiem dozwolonych lokalizacji
                 try:

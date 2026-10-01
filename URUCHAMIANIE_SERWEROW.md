@@ -1,143 +1,82 @@
-# Uruchamianie Aplikacji - Instrukcja
+# Uruchamianie aplikacji i mostka druku
 
-## 🚀 Dwa Serwery
+Aplikacja może korzystać z dwóch procesów:
 
-Aplikacja RaportProdukcyjny wymaga uruchomienia **dwóch oddzielnych serwerów**:
+1. głównej aplikacji Flask/Gunicorn;
+2. lokalnego mostka druku `printer_server/server.py`.
 
-### 1️⃣ Serwer Główny (app.py)
-**Port:** 8082  
-**Funkcja:** Główna aplikacja webowa (Flask)  
-**Uruchomienie:**
-- **Ręcznie:** `python app.py`
-- **Skrót:** Dwuklik na `Start Serwer RaportProdukcyjny.lnk` na Pulpicie
+## Aplikacja WWW
 
-### 2️⃣ Printer Server (printer_server/server.py)
-**Port:** 3001  
-**Funkcja:** Most do drukarek (ZPL + PDF)  
-**Uruchomienie:**
-- **Ręcznie:** `python printer_server/server.py`
-- **Skrót:** Dwuklik na `Printer Server.lnk` na Pulpicie
+Development:
 
----
-
-## 📋 Co obsługuje Printer Server?
-
-Printer Server to **jeden serwer** obsługujący dwa typy drukowania:
-
-### Drukowanie ZPL (Zebra)
-- Endpoint: `/drukuj-zpl`
-- Drukarki: Zebra (etykiety magazynowe)
-- Format: Surowy kod ZPL przez TCP (port 9100)
-
-### Drukowanie PDF (Biuro)
-- Endpoint: `/drukuj-pdf`
-- Drukarki: Brother, HP (raporty biurowe)
-- Format: PDF renderowany przez Windows API
-
----
-
-## 🔧 Konfiguracja
-
-### Wymagane Biblioteki
 ```bash
-pip install -r printer_server/requirements.txt
-pip install pywin32 PyMuPDF Pillow
+python app.py
 ```
 
-### Konfiguracja Drukarek Biurowych
-1. Otwórz panel admin w aplikacji głównej
-2. Menu → **Zarządzanie Drukarkami Biurowymi**
-3. Wybierz drukarkę z systemu Windows:
-   - **BIURO Handel** - 192.168.1.239
-   - **Brother MFC-L2710DW LABORATORIUM** - 192.168.1.238
+Produkcja:
 
-### Konfiguracja Drukarek ZPL (Zebra)
-- Zdefiniowane w `printer_server/server.py`
-- Domyślna mapa IP:
-  ```python
-  PRINTER_IP_MAP = {
-      'Biuro': '192.168.1.236',
-      'Magazyn': '192.168.1.237',
-      'Handel': '192.168.1.240',
-      'OSIP': '192.168.1.160',
-  }
-  ```
-
----
-
-## ✅ Weryfikacja
-
-### Sprawdź czy Printer Server działa:
 ```bash
-curl http://localhost:3001/status
+gunicorn -c gunicorn.conf.py wsgi:app
 ```
 
-Odpowiedź:
-```json
-{
-  "success": true,
-  "message": "Serwer druku (Python) działa poprawnie."
-}
+Konfiguracja pochodzi z `.env` / sekretów środowiska. Nie wpisuj adresów infrastruktury ani haseł bezpośrednio do kodu.
+
+## Mostek druku
+
+Mostek domyślnie działa tylko na loopback:
+
+```dotenv
+PRINTER_BRIDGE_HOST=127.0.0.1
+PRINTER_BRIDGE_PORT=3001
+PRINTER_BRIDGE_TOKEN=<dlugi-losowy-token>
+PRINTER_IP_MAP_JSON={"Warehouse":"10.0.0.10"}
 ```
 
-### Sprawdź dostępne drukarki:
+Uruchomienie:
+
 ```bash
-curl http://localhost:3001/printers
+python printer_server/server.py
 ```
 
----
+Jeśli mostek ma nasłuchiwać poza localhost, `PRINTER_BRIDGE_TOKEN` jest obowiązkowy. Dostępne drukarki muszą być podane w `PRINTER_IP_MAP_JSON`; żądanie HTTP nie może wybrać dowolnego hosta lub portu.
 
-## 🐛 Rozwiązywanie Problemów
+## TLS
 
-### Printer Server nie startuje
-**Problem:** `ModuleNotFoundError: No module named 'win32print'`  
-**Rozwiązanie:**
+Najprostszy i zalecany wariant to TLS zakończony na reverse proxy / Ingressie. Jeżeli sam mostek druku ma używać HTTPS, podaj prawdziwy certyfikat i klucz:
+
+```dotenv
+PRINTER_BRIDGE_TLS_CERT=/secure/path/bridge-cert.pem
+PRINTER_BRIDGE_TLS_KEY=/secure/path/bridge-key.pem
+```
+
+Klient aplikacji domyślnie weryfikuje certyfikat. Dla prywatnego CA użyj:
+
+```dotenv
+PRINTER_BRIDGE_CA_BUNDLE=/secure/path/company-ca.pem
+```
+
+## Procesy tła
+
+W produkcji web workers powinny mieć:
+
+```dotenv
+ENABLE_BACKGROUND_DAEMONS=false
+```
+
+Daemony uruchamiaj w dokładnie jednym dedykowanym procesie:
+
 ```bash
-pip install pywin32 PyMuPDF Pillow
+ENABLE_BACKGROUND_DAEMONS=true SKIP_DB_SETUP=true python scripts/run_daemons.py
 ```
 
-### Port 3001 zajęty
-**Problem:** `OSError: [WinError 10048] Address already in use`  
-**Rozwiązanie:** Zamknij inne instancje Printer Server lub zmień port w kodzie
+Manifesty Kubernetes robią to automatycznie przez osobny Deployment `app-daemons`.
 
-### Drukarka nie drukuje
-**Problem:** Wydruki nie docierają do drukarki  
-**Rozwiązanie:**
-1. Sprawdź nazwę drukarki w panelu admin
-2. Porównaj z nazwą w Windows (PowerShell: `Get-Printer`)
-3. Zaktualizuj nazwę w bazie jeśli się różni
+## Diagnostyka
 
----
+Status mostka:
 
-## 📝 Pliki Startowe
+```text
+GET /status
+```
 
-### Utworzone Pliki
-- `Start_Serwer.bat` - uruchamia główną aplikację
-- `Start_PrinterServer.bat` - uruchamia Printer Server
-- `create_shortcut.ps1` - tworzy skrót dla głównej aplikacji
-- `create_printer_server_shortcut.bat` - tworzy skrót dla Printer Server
-
-### Skróty na Pulpicie
-Po uruchomieniu skryptów tworzących, na Pulpicie pojawią się:
-- `Start Serwer RaportProdukcyjny.lnk` ⚙️
-- `Printer Server.lnk` 🖨️
-
----
-
-## 🚦 Kolejność Uruchamiania
-
-**Zalecana kolejność:**
-1. **Najpierw:** Printer Server (port 3001)
-2. **Potem:** Serwer Główny (port 8082)
-
-Aplikacja główna będzie próbowała łączyć się z Printer Server przy automatycznym drukowaniu raportów.
-
----
-
-## 📊 Status Serwerów
-
-Gdy oba serwery działają:
-- Aplikacja główna: http://localhost:8082
-- Printer Server: http://localhost:3001
-- Status Printer Server: http://localhost:3001/status
-- Lista drukarek: http://localhost:3001/printers
+Pozostałe endpointy mostka wymagają autoryzacji. Do diagnostyki używaj adresów i nazw drukarek skonfigurowanych lokalnie w środowisku docelowym, nie wartości wpisanych do repozytorium.

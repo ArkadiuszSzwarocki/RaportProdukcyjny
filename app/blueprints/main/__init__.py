@@ -253,11 +253,9 @@ def index():
             return render_template('dashboard_global.html', **context)
         return render_template('dashboard.html', **context)
 
-    except Exception as e:
-        import traceback
-        error_msg = f"Error loading dashboard: {str(e)}\n{traceback.format_exc()}"
-        app.logger.error(error_msg)
-        return f"<pre>{error_msg}</pre>", 500
+    except Exception:
+        app.logger.exception('Error loading dashboard')
+        raise
 
 @main_bp.route('/machine-telemetry')
 @login_required

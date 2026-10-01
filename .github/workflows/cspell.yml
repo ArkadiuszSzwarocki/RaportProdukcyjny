@@ -6,19 +6,23 @@ on:
   push:
     branches:
       - main
+permissions:
+  contents: read
 jobs:
   spellcheck:
     name: Spellcheck (cSpell)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "18"
-      - name: Install cspell
-        run: |
-          npm install -g cspell
+          node-version: "22.18.0"
+      - name: Install pinned cspell and Polish dictionary
+        run: npm install --no-save cspell@10.3.5 @cspell/dict-pl_pl@3.0.6 @cspell/dict-uk-ua@4.0.6 fake-indexeddb@6.2.4
       - name: Run cspell
-        run: |
-          cspell --config .cspell.json "**/*" || true
+        run: node scripts/check_spelling.mjs
+      - name: Test spelling gate
+        run: node --test tests/javascript/cspell_baseline.test.mjs
+      - name: Test offline queues
+        run: node --test tests/javascript/offline_runtime.test.mjs

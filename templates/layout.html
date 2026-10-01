@@ -25,6 +25,15 @@
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
     <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
     <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
+    <!-- Offline writes are persisted in IndexedDB under the authenticated user id. -->
+    <script>
+        window.__RP_OFFLINE_USER_ID = {% if session.get('zalogowany') and session.get('user_id') %}{{ session.get('user_id')|tojson }}{% else %}null{% endif %};
+    </script>
+    <script src="{{ url_for('static', filename='js/offline_store.js') }}?v={{ static_version }}"></script>
+    <!-- Disable native eval before the legacy fragment runtime is loaded. -->
+    <script src="{{ url_for('static', filename='js/dynamic_eval_guard.js') }}?v={{ static_version }}"></script>
+    <!-- Raw ZPL must never be posted by browser code directly to a printer bridge. -->
+    <script src="{{ url_for('static', filename='js/print_bridge_browser_guard.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='js/common/print-toast.js') }}?v={{ static_version }}"></script>
     {% block extra_css %}{% endblock %}
 </head>

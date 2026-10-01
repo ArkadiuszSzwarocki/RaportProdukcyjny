@@ -141,91 +141,60 @@ class BucketMaluchService:
             conn.close()
 
     @classmethod
-    def get_all_station_materials(cls, linia: str = 'PSD') -> Dict[str, str]:
-        """Resolves material names currently in KO stations KO01-KO40."""
-        conn = get_db_connection()
-        materials: Dict[str, str] = {}
-        try:
-            cur = conn.cursor(dictionary=True)
-            # 1. From active tank configuration (konfiguracja_zbiornikow)
-            try:
-                cur.execute("""
-                    SELECT kod_zbiornika, nazwa_surowca 
-                    FROM konfiguracja_zbiornikow 
-                    WHERE kod_zbiornika LIKE 'KO%' AND is_active = 1 AND nazwa_surowca IS NOT NULL AND TRIM(nazwa_surowca) != ''
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['kod_zbiornika'])
-                    if k and r['nazwa_surowca']:
-                        materials[k] = r['nazwa_surowca'].strip()
-            except Exception:
-                pass
-
-            # 2. Check active stock in magazyn_surowce for current line
-            try:
-                table_sur = get_table_name('magazyn_surowce', linia)
-                cur.execute(f"""
-                    SELECT lokalizacja, nazwa 
-                    FROM {table_sur} 
-                    WHERE lokalizacja LIKE 'KO%' AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) AND nazwa IS NOT NULL AND TRIM(nazwa) != ''
-                    ORDER BY updated_at DESC, id DESC
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['lokalizacja'])
-                    if k and (k not in materials or not materials[k]):
-                        materials[k] = r['nazwa'].strip()
-            except Exception:
-                pass
-
-            # 3. Check movements in magazyn_agro_ruch and magazyn_ruch
-            for table_name in ['magazyn_agro_ruch', 'magazyn_ruch']:
-                try:
-                    cur.execute(f"""
-                        SELECT zbiornik, surowiec_nazwa 
-                        FROM {table_name} 
-                        WHERE zbiornik LIKE 'KO%' AND surowiec_nazwa IS NOT NULL AND TRIM(surowiec_nazwa) != ''
-                        ORDER BY id DESC
-                    """)
-                    for r in cur.fetchall():
-                        k = cls.normalize_station_code(r['zbiornik'])
-                        if k and (k not in materials or not materials[k]):
-                            materials[k] = r['surowiec_nazwa'].strip()
-                except Exception:
-                    pass
-
-            # 4. Check wiaderka_maluchy_pozycje history
-            try:
-                cur.execute("""
-                    SELECT stacja_kod, surowiec_nazwa 
-                    FROM wiaderka_maluchy_pozycje 
-                    WHERE stacja_kod LIKE 'KO%' AND surowiec_nazwa IS NOT NULL AND surowiec_nazwa NOT LIKE 'Surowiec ze stacji%' AND TRIM(surowiec_nazwa) != ''
-                    ORDER BY id DESC
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['stacja_kod'])
-                    if k and (k not in materials or not materials[k]):
-                        materials[k] = r['surowiec_nazwa'].strip()
-            except Exception:
-                pass
-
-            return materials
-        except Exception:
-            return materials
-        finally:
-            conn.close()
-
-    @classmethod
     def get_station_material(cls, stacja_kod: str, linia: str = 'PSD') -> str:
         """Finds current raw material assigned to the given station (KO01-KO40)."""
         norm_station = cls.normalize_station_code(stacja_kod)
         if not norm_station:
             return ""
 
-        all_materials = cls.get_all_station_materials(linia)
-        if norm_station in all_materials and all_materials[norm_station]:
-            return all_materials[norm_station]
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            # 1. Check magazyn_surowce
+            table_sur = get_table_name('magazyn_surowce', linia)
+            cur.execute(
+                f"SELECT nazwa FROM {table_sur} WHERE (lokalizacja = %s OR lokalizacja = %s) AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) ORDER BY updated_at DESC, id DESC LIMIT 1",
+                (norm_station, norm_station.lower())
+            )
+            row = cur.fetchone()
+            if row and row.get('nazwa'):
+                return str(row['nazwa']).strip()
 
-        return f"Surowiec ze stacji {norm_station}"
+            # 2. Check alternative line
+            alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
+            alt_table = get_table_name('magazyn_surowce', alt_linia)
+            cur.execute(
+                f"SELECT nazwa FROM {alt_table} WHERE (lokalizacja = %s OR lokalizacja = %s) AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) ORDER BY updated_at DESC, id DESC LIMIT 1",
+                (norm_station, norm_station.lower())
+            )
+            row = cur.fetchone()
+            if row and row.get('nazwa'):
+                return str(row['nazwa']).strip()
+
+            # 3. Check magazyn_ruch / magazyn_agro_ruch
+            table_ruch = get_table_name('magazyn_ruch', linia)
+            cur.execute(
+                f"SELECT surowiec_nazwa FROM {table_ruch} WHERE (zbiornik = %s OR lokalizacja = %s) AND surowiec_nazwa IS NOT NULL AND surowiec_nazwa != '' ORDER BY id DESC LIMIT 1",
+                (norm_station, norm_station)
+            )
+            row_ruch = cur.fetchone()
+            if row_ruch and row_ruch.get('surowiec_nazwa'):
+                return str(row_ruch['surowiec_nazwa']).strip()
+
+            # 4. Check wiaderka_maluchy_pozycje history
+            cur.execute(
+                "SELECT surowiec_nazwa FROM wiaderka_maluchy_pozycje WHERE stacja_kod = %s AND surowiec_nazwa NOT LIKE 'Surowiec ze stacji%%' ORDER BY id DESC LIMIT 1",
+                (norm_station,)
+            )
+            row_hist = cur.fetchone()
+            if row_hist and row_hist.get('surowiec_nazwa'):
+                return str(row_hist['surowiec_nazwa']).strip()
+
+            return f"Surowiec ze stacji {norm_station}"
+        except Exception:
+            return f"Surowiec ze stacji {norm_station}"
+        finally:
+            conn.close()
 
     @classmethod
     def add_item_to_bucket(

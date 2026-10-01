@@ -1,63 +1,52 @@
+"""Environment-backed application configuration."""
+
 import os
+
 from dotenv import load_dotenv
 
-# Wczytaj zmienne z pliku .env, ale nie nadpisuj wartości już ustawionych
-# w środowisku (np. w CI).
+
+# Never override values injected by CI, containers or a secret manager.
 load_dotenv(override=False)
 
-# Klucz do sesji (wymagany ze zmiennych środowiskowych)
 SECRET_KEY = os.getenv('SECRET_KEY')
-
-# Główny adres bazowy aplikacji dla linków w powiadomieniach e-mail
-APP_BASE_URL = os.getenv('APP_BASE_URL', 'https://raportprodukcji.mycloudnas.com').rstrip('/')
-
-# Zewnętrzny serwer logów (Watchdog Error Tracker) - None wyłącza wysyłanie logów
+APP_BASE_URL = os.getenv('APP_BASE_URL', 'http://localhost:8082').rstrip('/')
 WATCHDOG_URL = os.getenv('WATCHDOG_URL') or None
 
-# Dane do bazy - teraz pobierane bezpiecznie z .env
+# Database transport is independent from web-server TLS.  MySQL TLS is enabled
+# by default; set DB_SSL_DISABLED=true only for a deliberately isolated local
+# development environment that cannot provide TLS.
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
-    'port': int(os.getenv('DB_PORT', 3307)),
+    'port': int(os.getenv('DB_PORT', 3306)),
     'database': os.getenv('DB_NAME', 'biblioteka'),
     'user': os.getenv('DB_USER', 'biblioteka'),
-    'password': os.getenv('DB_PASSWORD', ''),  # Puste domyślnie, wymusza pobranie z .env
-    'charset': 'utf8mb4',
+    'password': os.getenv('DB_PASSWORD', ''),
+    'charset': os.getenv('DB_CHARSET', 'utf8mb4'),
     'connection_timeout': int(os.getenv('DB_CONNECTION_TIMEOUT', 20)),
-    'ssl_disabled': os.getenv('USE_SSL', 'false').lower() != 'true',
-    'autocommit': False
+    'ssl_disabled': os.getenv('DB_SSL_DISABLED', 'false').strip().lower() in ('1', 'true', 'yes'),
+    'autocommit': False,
 }
 
-# Konfiguracja odbiorców raportów email
-# Listę możesz przesłonić zmienną środowiskową EMAIL_RECIPIENTS (oddzieleni przecinkami)
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'lider@example.com,szef@example.com,biuro@example.com').split(',')
-EMAIL_RECIPIENTS = [email.strip() for email in EMAIL_RECIPIENTS if email.strip()]  # Czyść i filtruj
+EMAIL_RECIPIENTS = os.getenv(
+    'EMAIL_RECIPIENTS',
+    'lider@example.com,szef@example.com,biuro@example.com',
+).split(',')
+EMAIL_RECIPIENTS = [email.strip() for email in EMAIL_RECIPIENTS if email.strip()]
 
-# ================= FLASK-MAIL CONFIGURATION =================
-# Konfiguracja wysyłania maili z serwera (ze załącznikami raportów)
 MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
 MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
 MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True') == 'True'
 MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'False') == 'True'
-MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')  # Np. noreply@firma.pl
-MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')  # App password
-MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'Raport Produkcyjny <noreply@firma.pl>')
+MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
+MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
+MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'Raport Produkcyjny <noreply@example.com>')
 
-# ================ FOLDER CONFIGURATION =================
-# Folder raportów
-if not os.path.exists('raporty'):
-    os.makedirs('raporty')
+os.makedirs('raporty', exist_ok=True)
 
-# Session timeout (minutes) - use env var to override. Default: 40 minutes
 SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 720))
-
-# Bufor - zakres dat (ile dni wstecz i do przodu uwzględniać przy odświeżaniu bufora)
-# Domyślnie: 1 dzień wstecz i 1 dzień do przodu (stałe, można nadpisać w .env)
 BUFOR_LOOKBACK_DAYS = int(os.getenv('BUFOR_LOOKBACK_DAYS', 1))
 BUFOR_LOOKAHEAD_DAYS = int(os.getenv('BUFOR_LOOKAHEAD_DAYS', 1))
 
-# ================ WEB PUSH (VAPID) CONFIGURATION =================
-# Generuj klucze raz: scratch/gen_vapid.py
-# Klucze przechowywane w .env jako VAPID_PRIVATE_KEY i VAPID_PUBLIC_KEY
 VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '')
 VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '')
-VAPID_CLAIMS_EMAIL = os.getenv('VAPID_CLAIMS_EMAIL', 'admin@agronetzwerk.pl')
+VAPID_CLAIMS_EMAIL = os.getenv('VAPID_CLAIMS_EMAIL', 'admin@example.com')

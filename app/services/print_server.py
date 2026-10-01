@@ -1,755 +1,527 @@
-"""
-PrintServer — serwer drukowania etykiet ZPL na drukarce Zebra.
+"""Application-side client and queue service for the authenticated print bridge."""
 
-Tryby pracy:
-  A) bezpośredni TCP (Zebra osiągalna przez sieć — ZPL przez socket na port 9100)
-  B) Windows Spooler (drukarka zainstalowana jako drukarka Windows — win32print)
-
-Konfiguracja (w .env lub app config):
-  PRINTER_MODE = tcp | windows
-  PRINTER_IP   = 192.168.1.100          (dla trybu tcp)
-  PRINTER_PORT = 9100
-  PRINTER_NAME = ZebraLP2824            (dla trybu windows)
-"""
-
-import requests
-import urllib3
+import json
 import os
 import socket
 import subprocess
 import sys
 import time
-from urllib.parse import urlparse
 from datetime import datetime
+from urllib.parse import urlparse
 
-# Wyłączenie ostrzeżeń o certyfikatach self-signed (most działa na https adhoc)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import requests
 
 
 def _read_float_env(name: str, default_value: float, minimum: float | None = None) -> float:
-    raw_value = os.getenv(name)
-    if raw_value is None:
+    try:
+        value = float(os.getenv(name, default_value))
+    except (TypeError, ValueError):
         value = float(default_value)
-    else:
-        try:
-            value = float(raw_value)
-        except (TypeError, ValueError):
-            value = float(default_value)
     if minimum is not None:
         value = max(float(minimum), value)
     return value
 
 
 def _read_int_env(name: str, default_value: int, minimum: int | None = None, maximum: int | None = None) -> int:
-    raw_value = os.getenv(name)
-    if raw_value is None:
+    try:
+        value = int(os.getenv(name, default_value))
+    except (TypeError, ValueError):
         value = int(default_value)
-    else:
-        try:
-            value = int(raw_value)
-        except (TypeError, ValueError):
-            value = int(default_value)
     if minimum is not None:
         value = max(int(minimum), value)
     if maximum is not None:
         value = min(int(maximum), value)
     return value
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _zpl_text(value, limit=120):
+    return str(value or '').replace('^', '').replace('~', '')[:limit]
+
+
 class PrintServer:
+    """Queue labels and communicate only through the authenticated print bridge."""
+
     def __init__(self):
-        # Mostek (bridge) działa zazwyczaj na tej samej maszynie co serwer WWW
-        self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001')
+        self.bridge_url = self._normalize_bridge_base(
+            os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001')
+        )
+        self.bridge_token = str(os.getenv('PRINTER_BRIDGE_TOKEN') or '').strip()
         self.bridge_connect_timeout = _read_float_env('PRINTER_BRIDGE_CONNECT_TIMEOUT', 2.0, minimum=0.2)
-        configured_bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 12.0, minimum=1.0)
-
-        # Mostek może wykonywać kilka prób TCP do drukarki; timeout klienta musi być >=
-        # maksymalnemu oknu obsługi pojedynczego żądania /drukuj-zpl.
-        tcp_timeout = _read_float_env('PRINTER_TCP_TIMEOUT', 5.0, minimum=0.5)
-        tcp_retries = _read_int_env('PRINTER_TCP_RETRIES', 3, minimum=1, maximum=8)
-        tcp_retry_delay = _read_float_env('PRINTER_TCP_RETRY_DELAY', 0.6, minimum=0.0)
-        estimated_bridge_print_window = (tcp_timeout * tcp_retries) + (tcp_retry_delay * max(0, tcp_retries - 1)) + 3.0
-
-        self.bridge_read_timeout = max(configured_bridge_read_timeout, estimated_bridge_print_window)
-        self.bridge_autostart = str(os.getenv('PRINTER_BRIDGE_AUTOSTART', 'true')).strip().lower() in ('1', 'true', 'yes')
+        self.bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 20.0, minimum=1.0)
         self.bridge_start_timeout = _read_float_env('PRINTER_BRIDGE_START_TIMEOUT', 6.0, minimum=1.0)
-        self.printer_ip = os.getenv('PRINTER_IP', '192.168.1.237')
-        self.printer_name = "Magazyn"
+        self.bridge_autostart = _env_bool('PRINTER_BRIDGE_AUTOSTART', True)
+        self.printer_ip = str(os.getenv('PRINTER_IP') or '').strip()
+        self.printer_name = str(os.getenv('PRINTER_NAME') or 'Magazyn').strip()
+        self.last_job_id = None
 
-    def _normalize_bridge_base(self, raw_base: str | None = None) -> str:
-        base_value = str(raw_base or self.bridge_url or '').strip().rstrip('/')
-        if not base_value:
-            base_value = 'http://127.0.0.1:3001'
+        ca_bundle = str(os.getenv('PRINTER_BRIDGE_CA_BUNDLE') or '').strip()
+        self.bridge_tls_verify = ca_bundle if ca_bundle else True
 
-        lowered = base_value.lower()
+    @staticmethod
+    def _normalize_bridge_base(raw_base: str | None = None) -> str:
+        value = str(raw_base or 'http://127.0.0.1:3001').strip().rstrip('/')
+        lowered = value.lower()
         if lowered.endswith('/drukuj-zpl'):
-            base_value = base_value[:-11]
+            value = value[:-11]
         elif lowered.endswith('/status'):
-            base_value = base_value[:-7]
+            value = value[:-7]
+        if '://' not in value:
+            value = f'http://{value}'
+        parsed = urlparse(value)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            raise ValueError('Nieprawidłowy PRINTER_BRIDGE_URL')
+        return value.rstrip('/')
 
-        if '://' not in base_value:
-            base_value = f'http://{base_value}'
-
-        return base_value.rstrip('/')
-
-    def _bridge_base_candidates(self) -> list[str]:
-        primary = self._normalize_bridge_base(self.bridge_url)
-        candidates: list[str] = []
-
-        def _append(candidate: str | None):
-            value = str(candidate or '').strip().rstrip('/')
-            if not value:
-                return
-            if value.lower() in {item.lower() for item in candidates}:
-                return
-            candidates.append(value)
-
-        _append(primary)
-
-        parsed = urlparse(primary)
-        scheme = (parsed.scheme or '').lower()
-        if scheme in ('http', 'https'):
-            alt_scheme = 'http' if scheme == 'https' else 'https'
-            alt_base = f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}".rstrip('/')
-            _append(alt_base)
-
-        for local_cand in ('http://127.0.0.1:3001', 'http://localhost:3001'):
-            _append(local_cand)
-
-        return candidates
+    def _bridge_headers(self) -> dict:
+        if not self.bridge_token:
+            return {}
+        return {'Authorization': f'Bearer {self.bridge_token}'}
 
     def _request_bridge(self, method: str, path: str, **kwargs):
+        """Call the single configured bridge endpoint with TLS verification enabled."""
         normalized_path = '/' + str(path or '').lstrip('/')
-        last_error = None
+        url = f'{self.bridge_url}{normalized_path}'
+        headers = dict(kwargs.pop('headers', {}) or {})
+        headers.update(self._bridge_headers())
 
-        for attempt in range(2):
-            for bridge_base in self._bridge_base_candidates():
-                url = f"{bridge_base}{normalized_path}"
-                try:
-                    response = requests.request(method=method, url=url, verify=False, **kwargs)
-                    self.bridge_url = bridge_base
-                    return response, bridge_base
-                except requests.RequestException as request_error:
-                    last_error = request_error
-                    continue
-
-            # Jeśli za pierwszym razem nie udało się połączyć, a mamy włączony autostart na maszynie lokalnej, uruchom mostek
-            if attempt == 0 and self.bridge_autostart and self._is_local_bridge_target():
-                try:
-                    self._ensure_bridge_running()
-                except Exception:
-                    pass
-
-        if last_error:
-            raise last_error
-        raise requests.RequestException('Brak dostępnego endpointu mostka druku.')
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                verify=self.bridge_tls_verify,
+                **kwargs,
+            )
+            return response, self.bridge_url
+        except requests.RequestException as first_error:
+            if self.bridge_autostart and self._is_local_bridge_target():
+                started, _ = self._ensure_bridge_running()
+                if started:
+                    response = requests.request(
+                        method=method,
+                        url=url,
+                        headers=headers,
+                        verify=self.bridge_tls_verify,
+                        **kwargs,
+                    )
+                    return response, self.bridge_url
+            raise first_error
 
     def test_connection(self) -> tuple[bool, str]:
-        """Sprawdza połączenie z mostkiem druku."""
         try:
-            # Sprawdzamy czy sam mostek żyje
-            resp, bridge_base = self._request_bridge('GET', '/status', timeout=2)
-            if resp.status_code == 200:
-                return True, f"Mostek druku aktywny ({bridge_base})"
-            return False, f"Mostek zwrócił status {resp.status_code}"
-        except Exception as e:
-            return False, f"Błąd połączenia z mostkiem: {str(e)}"
+            response, bridge_base = self._request_bridge('GET', '/status', timeout=2)
+            if response.status_code == 200:
+                return True, f'Mostek druku aktywny ({bridge_base})'
+            return False, f'Mostek zwrócił status {response.status_code}'
+        except Exception as exc:
+            return False, f'Błąd połączenia z mostkiem: {exc}'
 
     def list_network_printers(self) -> list[dict]:
-        """Pobiera listę drukarek widocznych dla mostka druku (sieć LAN)."""
         try:
-            resp, _ = self._request_bridge(
+            response, _ = self._request_bridge(
                 'GET',
                 '/printers',
                 timeout=(self.bridge_connect_timeout, min(self.bridge_read_timeout, 8)),
             )
-            if resp.status_code != 200:
+            if response.status_code != 200:
                 return []
-
-            body = resp.json() if resp.content else {}
-            raw_items = body.get('printers') if isinstance(body, dict) else []
-            if not isinstance(raw_items, list):
+            body = response.json() if response.content else {}
+            items = body.get('printers') if isinstance(body, dict) else []
+            if not isinstance(items, list):
                 return []
-
-            printers = []
-            for item in raw_items:
+            result = []
+            for item in items:
                 if not isinstance(item, dict):
                     continue
-                ip = str(item.get('ip') or '').strip()
-                if not ip:
-                    continue
-                printers.append(
-                    {
-                        'name': str(item.get('name') or item.get('nazwa') or f'Drukarka {ip}').strip(),
-                        'ip': ip,
-                        'lokalizacja': str(item.get('lokalizacja') or 'Sieć').strip(),
-                    }
-                )
-            return printers
+                target = str(item.get('ip') or '').strip()
+                name = str(item.get('name') or item.get('nazwa') or '').strip()
+                if target and name:
+                    result.append({
+                        'name': name,
+                        'ip': target,
+                        'lokalizacja': str(item.get('lokalizacja') or 'Skonfigurowana'),
+                    })
+            return result
         except Exception:
             return []
 
     def _is_local_bridge_target(self) -> bool:
-        parsed = urlparse(self.bridge_url)
-        host = (parsed.hostname or '').strip().lower()
+        host = (urlparse(self.bridge_url).hostname or '').lower()
         return host in ('127.0.0.1', 'localhost', '::1')
 
     def _bridge_host_port(self) -> tuple[str, int]:
         parsed = urlparse(self.bridge_url)
         host = parsed.hostname or '127.0.0.1'
-        if parsed.port:
-            return host, int(parsed.port)
-        return host, (443 if (parsed.scheme or '').lower() == 'https' else 80)
+        port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+        return host, int(port)
 
-    def _is_port_open(self, host: str, port: int, timeout: float = 0.35) -> bool:
+    @staticmethod
+    def _is_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
         except OSError:
             return False
 
-    def _bridge_script_path(self) -> str:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        return os.path.join(project_root, 'printer_server', 'server.py')
+    @staticmethod
+    def _bridge_script_path() -> str:
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        return os.path.join(root, 'printer_server', 'server.py')
 
-    def _bridge_start_log_path(self) -> str:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        return os.path.join(project_root, 'logs', 'printer_server_start.log')
+    @staticmethod
+    def _bridge_start_log_path() -> str:
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        return os.path.join(root, 'logs', 'printer_server_start.log')
 
-    def _bridge_subprocess_env(self) -> dict:
+    @staticmethod
+    def _bridge_subprocess_env() -> dict:
         env = os.environ.copy()
         env.pop('WERKZEUG_SERVER_FD', None)
         env.pop('WERKZEUG_RUN_MAIN', None)
         return env
 
-    def _tail_text_file(self, path: str, max_lines: int = 8) -> str:
-        try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as handle:
-                lines = handle.readlines()
-            return ''.join(lines[-max_lines:]).strip()
-        except Exception:
-            return ''
-
     def _is_bridge_running(self) -> bool:
         try:
-            resp, _ = self._request_bridge(
-                'GET',
-                '/status',
+            response = requests.get(
+                f'{self.bridge_url}/status',
                 timeout=(min(self.bridge_connect_timeout, 1.0), min(self.bridge_read_timeout, 2.0)),
+                verify=self.bridge_tls_verify,
             )
-            return resp.status_code == 200
-        except Exception:
+            return response.status_code == 200
+        except requests.RequestException:
             return False
 
     def _ensure_bridge_running(self) -> tuple[bool, str]:
+        """Autostart is limited to a local bridge process."""
         if not self._is_local_bridge_target():
-            return False, 'Autostart mostka pominięty: PRINTER_BRIDGE_URL nie wskazuje localhost.'
-
+            return False, 'Autostart mostka jest dozwolony tylko dla localhost.'
         if self._is_bridge_running():
             return True, 'Mostek druku już działa.'
+        if not self.bridge_autostart:
+            return False, 'Autostart mostka jest wyłączony.'
 
         host, port = self._bridge_host_port()
         if self._is_port_open(host, port):
-            return (
-                False,
-                f'Port {port} odpowiada, ale endpoint /status nie działa. Możliwy konflikt usługi.',
-            )
+            return False, f'Port {port} jest zajęty przez inną usługę.'
+        path = self._bridge_script_path()
+        if not os.path.isfile(path):
+            return False, f'Nie znaleziono serwera druku: {path}'
 
-        server_path = self._bridge_script_path()
-        if not os.path.exists(server_path):
-            return False, f'Nie znaleziono pliku serwera druku: {server_path}'
-
+        log_path = self._bridge_start_log_path()
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         try:
-            creation_flags = 0
-            show_console = str(os.getenv('PRINTER_SERVER_SHOW_CONSOLE', 'false')).strip().lower() in ('1', 'true', 'yes')
-            if os.name == 'nt' and show_console:
-                creation_flags = 0x00000010
-
-            log_path = self._bridge_start_log_path()
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
-            with open(log_path, 'a', encoding='utf-8', errors='replace') as startup_log:
-                startup_log.write(
-                    f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] AUTOSTART request pid={os.getpid()} exe={sys.executable}\n"
-                )
-                startup_log.flush()
-
+            creation_flags = 0x00000010 if (os.name == 'nt' and _env_bool('PRINTER_SERVER_SHOW_CONSOLE')) else 0
+            with open(log_path, 'a', encoding='utf-8', errors='replace') as log_handle:
                 process = subprocess.Popen(
-                    [sys.executable, server_path],
-                    cwd=os.path.dirname(server_path),
+                    [sys.executable, path],
+                    cwd=os.path.dirname(path),
                     creationflags=creation_flags,
                     start_new_session=True,
                     env=self._bridge_subprocess_env(),
-                    stdout=startup_log,
+                    stdout=log_handle,
                     stderr=subprocess.STDOUT,
                 )
-
-            deadline = time.time() + max(self.bridge_start_timeout, 1.0)
+            deadline = time.time() + self.bridge_start_timeout
             while time.time() < deadline:
                 if self._is_bridge_running():
-                    return True, 'Mostek druku uruchomiony automatycznie.'
+                    return True, 'Mostek druku uruchomiony.'
+                if process.poll() is not None:
+                    return False, f'Mostek zakończył pracę z kodem {process.returncode}.'
+                time.sleep(0.3)
+            return False, 'Mostek druku nie odpowiedział w wymaganym czasie.'
+        except Exception as exc:
+            return False, f'Błąd autostartu mostka: {exc}'
 
-                exit_code = process.poll()
-                if exit_code is not None:
-                    startup_tail = self._tail_text_file(log_path, max_lines=10)
-                    if startup_tail:
-                        startup_tail = startup_tail.replace('\r', ' ').replace('\n', ' | ')
-                        return (
-                            False,
-                            f'Mostek druku nie uruchomił się (kod procesu: {exit_code}). Log: {startup_tail}',
-                        )
-                    return (
-                        False,
-                        f'Mostek druku nie uruchomił się (kod procesu: {exit_code}). Sprawdź log: {log_path}',
-                    )
+    @staticmethod
+    def _format_qty_display(value) -> str:
+        if value is None:
+            return '0'
+        try:
+            number = float(value)
+            return f'{number:g}'
+        except (TypeError, ValueError):
+            return _zpl_text(value, 30)
 
-                time.sleep(0.35)
+    @staticmethod
+    def _valid_tank_code(raw_value) -> str:
+        """Return a sanitized production tank code or an empty string."""
+        candidate = _zpl_text(raw_value, 20).strip().upper()
+        if not candidate:
+            return ''
+        try:
+            from app.utils.location_validator import is_production_tank_code
+            return candidate if is_production_tank_code(candidate) else ''
+        except Exception:
+            return ''
 
-            if self._is_port_open(host, port):
-                return (
-                    False,
-                    f'Port {port} odpowiada, ale endpoint /status (HTTPS) nie jest dostępny. Możliwy konflikt usługi.',
-                )
-
-            return (
-                False,
-                f'Mostek druku nie odpowiedział na porcie {port} po próbie autostartu. Sprawdź log: {log_path}',
+    @staticmethod
+    def _persist_generated_pallet_id(payload: dict, pallet_id: str, is_packaging: bool) -> None:
+        """Persist a generated SSCC when the label represents an existing DB record."""
+        record_id = payload.get('id')
+        if not record_id or not str(record_id).isdigit():
+            return
+        try:
+            from app.db import get_db_connection, get_table_name
+            table_name = get_table_name(
+                'magazyn_opakowania' if is_packaging else 'magazyn_surowce',
+                payload.get('linia') or 'AGRO',
             )
-        except Exception as error:
-            return False, f'Błąd autostartu mostka druku: {error}'
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f'UPDATE {table_name} SET nr_palety = %s WHERE id = %s',
+                    (pallet_id, int(record_id)),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception:
+            # Label generation must not become unavailable only because the
+            # optional persistence refresh failed. The caller still receives
+            # and prints the newly generated standard SSCC.
+            return
+
+    def build_pallet_label_zpl(self, label_data: dict, copies: int = 1) -> str:
+        """Build a stable pallet/raw-material label without executable ZPL input."""
+        from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
+        from app.utils.pallet_label import is_packaging_item
+
+        payload = label_data if isinstance(label_data, dict) else {}
+        pallet_id = str(payload.get('nr_palety') or payload.get('nrPalety') or '').strip()
+        name = str(payload.get('nazwa') or 'Brak nazwy').strip()
+        unit = payload.get('jednostka') or payload.get('unit') or payload.get('jm') or 'kg'
+        line = str(payload.get('linia') or 'AGRO').strip()
+        is_packaging = is_packaging_item(name, unit=unit, typ=payload.get('typ'), pallet_nr=pallet_id)
+        if not pallet_id or not is_valid_pallet_id(pallet_id):
+            pallet_id = generate_pallet_id(
+                line or 'AGRO',
+                type='opakowanie' if is_packaging else (payload.get('typ') or 'surowiec'),
+                record_id=payload.get('id'),
+            )
+            # Keep the caller and any later DB/print operations on the same SSCC.
+            payload['nr_palety'] = pallet_id
+            payload['nrPalety'] = pallet_id
+            payload['sscc'] = pallet_id
+            self._persist_generated_pallet_id(payload, pallet_id, is_packaging)
+
+        tank_code = '' if is_packaging else self._valid_tank_code(
+            payload.get('zbiornik') or payload.get('stacja')
+        )
+        title = 'OPAKOWANIE' if is_packaging else (
+            f'SUROWIEC -> {tank_code}' if tank_code else 'SUROWIEC'
+        )
+        unit = 'szt.' if is_packaging else 'kg'
+        quantity = self._format_qty_display(payload.get('ilosc'))
+        batch = _zpl_text(payload.get('partia') or payload.get('nr_partii') or '---', 60)
+        production = _zpl_text(
+            payload.get('data') or payload.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d'), 30
+        )
+        expiry = _zpl_text(payload.get('termin') or payload.get('data_przydatnosci') or '---', 30)
+        safe_name = _zpl_text(name, 80)
+        safe_id = _zpl_text(pallet_id, 64)
+        copies = max(1, min(100, int(copies or 1)))
+
+        qr_payload = {
+            'typ': title,
+            'sscc': safe_id,
+            'partia': batch,
+            'prod': safe_name,
+            'ilosc': quantity,
+            'jm': unit,
+        }
+        if tank_code:
+            qr_payload['zbiornik'] = tank_code
+        qr_data = json.dumps(qr_payload, ensure_ascii=False).replace('^', '').replace('~', '')
+
+        return f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FD{title}^FS
+^FO40,150^A0N,65,65^FB720,3,0,C^FD{safe_name}^FS
+^FO250,320^BQN,2,12^FDQA,{safe_id}^FS
+^FO40,650^A0N,55,55^FB720,1,0,C^FD{safe_id}^FS
+^FO40,750^A0N,45,45^FDPARTIA: {batch}^FS
+^FO40,825^A0N,45,45^FDPRODUKCJA: {production}^FS
+^FO40,900^A0N,45,45^FDTERMIN: {expiry}^FS
+^FO40,1070^A0N,60,60^FDILOSC:^FS
+^FO40,1140^A0N,85,85^FD{quantity} {unit}^FS
+^FO583,975^BQN,2,3^FDQA,{qr_data}^FS
+^PQ{copies}
+^XZ"""
+
+    def build_finished_product_label_zpl(self, label_data: dict, copies: int = 1) -> str:
+        payload = dict(label_data or {})
+        pallet_id = _zpl_text(payload.get('nrPalety') or payload.get('nr_palety') or '---', 64)
+        name = _zpl_text(payload.get('nazwa') or 'Brak nazwy', 80)
+        production = _zpl_text(
+            payload.get('data') or payload.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d'), 30
+        )
+        expiry = _zpl_text(payload.get('data_przydatnosci') or payload.get('termin_przydatnosci') or payload.get('termin'), 30)
+        batch = _zpl_text(payload.get('nr_partii') or payload.get('partia') or f"ZLE-{payload.get('plan_id', '')}", 60)
+        line = _zpl_text(payload.get('linia') or '', 20)
+        quantity = self._format_qty_display(payload.get('ilosc'))
+        copies = max(1, min(100, int(copies or 1)))
+        title = f'WYROB GOTOWY - {line}' if line else 'WYROB GOTOWY'
+        qr_data = json.dumps({
+            'typ': title,
+            'sscc': pallet_id,
+            'prod': name,
+            'partia': batch,
+            'ilosc': quantity,
+            'jm': 'kg',
+        }, ensure_ascii=False).replace('^', '').replace('~', '')
+        expiry_line = f'^FO40,950^A0N,45,45^FDPRZYDATNOSC: {expiry}^FS' if expiry else ''
+        return f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FD{title}^FS
+^FO40,150^A0N,65,65^FB720,3,0,C^FD{name}^FS
+^FO250,320^BQN,2,12^FDQA,{pallet_id}^FS
+^FO40,650^A0N,55,55^FB720,1,0,C^FD{pallet_id}^FS
+^FO40,825^A0N,45,45^FDPRODUKCJA: {production}^FS
+^FO40,890^A0N,45,45^FDNR PARTII: {batch}^FS
+{expiry_line}
+^FO40,1070^A0N,60,60^FDWAGA NETTO:^FS
+^FO40,1140^A0N,85,85^FD{quantity} kg^FS
+^FO583,975^BQN,2,3^FDQA,{qr_data}^FS
+^PQ{copies}
+^XZ"""
+
+    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
+        return self.queue_print_job(
+            self.build_pallet_label_zpl(label_data, copies=copies),
+            override_ip,
+            override_name,
+        )
+
+    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
+        return self.queue_print_job(
+            self.build_finished_product_label_zpl(label_data, copies=copies),
+            override_ip,
+            override_name,
+        )
+
+    def queue_print_job(self, zpl_content: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+        """Persist a print job; target authorization is enforced again by the bridge."""
+        try:
+            from app.db import get_db_connection
+            from app.repositories.settings_repository import SettingsRepository
+
+            target_ip = str(override_ip or '').strip()
+            target_name = str(override_name or '').strip()
+            if not target_ip and not target_name:
+                try:
+                    default_printer = SettingsRepository.get_default_printer_for_line('AGRO')
+                except Exception:
+                    default_printer = None
+                if default_printer:
+                    target_ip = str(default_printer.get('ip') or '').strip()
+                    target_name = str(default_printer.get('nazwa') or '').strip()
+            target_ip = target_ip or self.printer_ip
+            target_name = target_name or self.printer_name
+            if not target_ip and not target_name:
+                return False, 'Brak skonfigurowanej drukarki.'
+
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status) "
+                    "VALUES (%s, %s, %s, 'PENDING')",
+                    (target_ip, target_name, zpl_content),
+                )
+                self.last_job_id = cursor.lastrowid
+                conn.commit()
+                return True, 'Dodano do kolejki druku'
+            finally:
+                conn.close()
+        except Exception as exc:
+            self.last_job_id = None
+            return False, f'Błąd kolejkowania wydruku: {exc}'
+
+    def print_zpl_label(self, zpl_string: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+        return self.queue_print_job(zpl_string, override_ip, override_name)
+
+    @staticmethod
+    def build_login_qr_label_zpl(qr_data: str, login_display: str = '') -> str:
+        safe_data = _zpl_text(qr_data, 500)
+        safe_login = _zpl_text(login_display, 50)
+        label = '^XA\n^CI28\n^PW240\n^LL180\n'
+        label += f'^FO20,10^BQN,2,4^FDQA,{safe_data}^FS\n'
+        if safe_login:
+            label += f'^FO10,145^A0N,22,22^FB220,1,0,C^FD{safe_login}^FS\n'
+        label += '^XZ'
+        return label
+
+    def print_location_label(self, label_data: dict) -> tuple[bool, str]:
+        location = _zpl_text((label_data or {}).get('lokalizacja') or 'BRAK', 60)
+        zpl = (
+            '^XA^CI28^PW812^LL1214^FO20,20^GB772,1174,4^FS'
+            f'^FO60,100^A0N,100,100^FDREGAL: {location}^FS'
+            f'^FO60,250^BQN,2,10^FDMA,{location}^FS^XZ'
+        )
+        return self.queue_print_job(zpl, self.printer_ip, self.printer_name)
+
+    def send_direct_tcp(self, zpl: str, ip: str, port: int = 9100, timeout: float = 3.0) -> tuple[bool, str]:
+        """Legacy compatibility: direct TCP is disabled unless explicitly constrained."""
+        if not _env_bool('PRINTER_ALLOW_DIRECT_TCP_FALLBACK', False):
+            return False, 'Bezpośredni TCP jest wyłączony; użyj uwierzytelnionego mostka.'
+        configured_ip = str(self.printer_ip or '').strip()
+        if not configured_ip or str(ip or '').strip() != configured_ip:
+            return False, 'Cel TCP nie odpowiada skonfigurowanej drukarce.'
+        configured_port = _read_int_env('PRINTER_PORT', 9100, minimum=1, maximum=65535)
+        if int(port) != configured_port:
+            return False, 'Port TCP nie odpowiada konfiguracji drukarki.'
+        try:
+            payload = zpl if zpl.endswith('\n') else zpl + '\r\n'
+            with socket.create_connection((configured_ip, configured_port), timeout=timeout) as sock:
+                sock.sendall(payload.encode('utf-8'))
+            return True, f'Wydrukowano przez skonfigurowany TCP ({configured_ip}:{configured_port})'
+        except Exception as exc:
+            return False, f'Błąd TCP: {exc}'
 
     def _send_to_bridge_once(self, payload: dict, target_hint: str) -> tuple[bool, str, bool]:
         try:
-            resp, bridge_base = self._request_bridge(
+            response, bridge_base = self._request_bridge(
                 'POST',
                 '/drukuj-zpl',
                 json=payload,
                 timeout=(self.bridge_connect_timeout, self.bridge_read_timeout),
             )
             try:
-                body = resp.json()
+                body = response.json()
             except ValueError:
                 body = {}
-
-            if resp.status_code == 200 and body.get('success'):
+            if response.status_code == 200 and body.get('success'):
                 return True, 'Wysłano do drukarki przez mostek', False
-
-            bridge_msg = body.get('message') or f'Błąd mostka (HTTP {resp.status_code})'
-            return False, f"{bridge_msg} ({target_hint}, bridge={bridge_base})", False
-        except requests.RequestException as e:
-            return False, f"Błąd komunikacji z mostkiem: {str(e)} ({target_hint})", True
-        except Exception as e:
-            return False, f"Błąd komunikacji z mostkiem: {str(e)} ({target_hint})", False
-
-    @staticmethod
-    def _format_qty_display(value) -> str:
-        if value is not None:
-            return str(value).replace('.0', '')
-        return '0'
-
-    def build_pallet_label_zpl(self, label_data: dict, copies: int = 1) -> str:
-        """Buduje ZPL dla etykiety surowca/opakowania."""
-        from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
-        from app.utils.pallet_label import is_packaging_item
-
-        nr_palety = str(label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
-        product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
-        jednostka = label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm') or 'kg'
-        linia = str(label_data.get('linia') or 'AGRO').strip()
-
-        is_pkg = is_packaging_item(
-            product_name,
-            unit=jednostka,
-            typ=label_data.get('typ'),
-            pallet_nr=nr_palety
-        )
-
-        if not nr_palety or not is_valid_pallet_id(nr_palety):
-            target_type = 'opakowanie' if is_pkg else (label_data.get('typ') or 'surowiec')
-            nr_palety = generate_pallet_id(linia or 'AGRO', type=target_type, record_id=label_data.get('id'))
-            label_data['nr_palety'] = nr_palety
-            label_data['sscc'] = nr_palety
-            rec_id = label_data.get('id')
-            if rec_id and (isinstance(rec_id, int) or str(rec_id).isdigit()):
-                try:
-                    from app.db import get_db_connection, get_table_name
-                    c_up = get_db_connection()
-                    try:
-                        cur_up = c_up.cursor()
-                        tbl = get_table_name('magazyn_opakowania' if is_pkg else 'magazyn_surowce', linia)
-                        cur_up.execute(f"UPDATE {tbl} SET nr_palety = %s WHERE id = %s", (nr_palety, int(rec_id)))
-                        c_up.commit()
-                    finally:
-                        c_up.close()
-                except Exception:
-                    pass
-
-        nr_partii = str(label_data.get('partia') or label_data.get('nr_partii') or '---').strip()
-        data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()
-        data_przydatnosci = str(label_data.get('termin') or label_data.get('data_przydatnosci') or '---').strip()
-        qty_display = self._format_qty_display(label_data.get('ilosc'))
-        zbiornik = str(label_data.get('zbiornik') or label_data.get('stacja') or '').strip().upper()
-        if not zbiornik and label_data.get('lokalizacja'):
-            from app.utils.location_validator import is_production_tank_code
-            loc_val = str(label_data.get('lokalizacja')).strip().upper()
-            if is_production_tank_code(loc_val):
-                zbiornik = loc_val
-
-        # FETCH SYMBOL AND TYPE FROM slownik_surowcow
-        symbol = ''
-        jednostka = label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm') or 'kg'
-        db_typ = ''
-        try:
-            from app.db import get_db_connection
-            conn = get_db_connection()
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT symbol, typ FROM slownik_surowcow WHERE nazwa = %s", (product_name,))
-            row = cur.fetchone()
-            if row:
-                if row.get('symbol'):
-                    symbol = str(row['symbol']).strip()
-                if row.get('typ'):
-                    db_typ = str(row['typ']).strip()
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
-
-        from app.utils.pallet_label import is_packaging_item
-        is_pkg = is_packaging_item(
-            product_name,
-            unit=jednostka,
-            typ=label_data.get('typ') or db_typ,
-            pallet_nr=nr_palety
-        )
-        if is_pkg:
-            jednostka = 'szt.'
-
-        display_name = f"{symbol} - {product_name}" if symbol else product_name
-        
-        if is_pkg:
-            header_text = f"OPAKOWANIE"
-        elif zbiornik:
-            header_text = f"SUROWIEC -> {zbiornik}"
-        else:
-            header_text = f"SUROWIEC"
-
-        if jednostka == 'kg':
-            waga_line = f"^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} kg^FS"
-        else:
-            waga_line = f"^FO40,1000^A0N,70,70^FDILOSC:^FS\n^FO40,1100^A0N,100,100^FD{qty_display} {jednostka}^FS"
-
-        import json
-        qr_details = {
-            "typ": header_text,
-            "sscc": nr_palety,
-            "dostawa": label_data.get('dostawa') or f"PZ #{label_data.get('dostawa_id', '---')}",
-            "dostawca": label_data.get('dostawca') or '---',
-            "partia": nr_partii,
-            "data_dostawy": label_data.get('data_dostawy') or data_produkcji,
-            "prod": display_name,
-            "ilosc": qty_display,
-            "jm": jednostka
-        }
-        if zbiornik:
-            qr_details["zbiornik"] = zbiornik
-        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
-
-        return f"""^XA
-^CI28
-^PW812^LL1214
-^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FD{header_text}^FS
-^FO40,150^A0N,65,65^FB720,3,0,C^FD{display_name}^FS
-^FO250,320^BQN,2,14^FDQA,{nr_palety}^FS
-^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
-^FO40,750^A0N,50,50^FDPARTIA: {nr_partii}^FS
-^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
-^FO40,950^A0N,50,50^FDTERMIN: {data_przydatnosci}^FS
-{waga_line}
-^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
-^PQ{copies}
-^XZ"""
-
-    def build_finished_product_label_zpl(self, label_data: dict, copies: int = 1) -> str:
-        """Buduje ZPL dla etykiety wyrobu gotowego."""
-        nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
-        product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip()
-        data_produkcji = str(label_data.get('data') or label_data.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d')).strip()
-        data_przydatnosci = str(label_data.get('data_przydatnosci') or label_data.get('termin_przydatnosci') or label_data.get('termin') or '').strip()
-        qty_display = self._format_qty_display(label_data.get('ilosc'))
-        nr_palety_lp = label_data.get('nr_palety_lp') or ''
-        linia = str(label_data.get('linia') or '').strip()
-        nr_plomby = str(label_data.get('nr_plomby') or '').strip()
-        nr_partii = str(label_data.get('nr_partii') or label_data.get('partia') or f"ZLE-{label_data.get('plan_id', '')}").strip()
-
-        if not data_przydatnosci:
-            try:
-                dt_p = datetime.strptime(data_produkcji[:10], '%Y-%m-%d')
-                data_przydatnosci = (dt_p.replace(year=dt_p.year + 1) if dt_p.month != 2 or dt_p.day != 29 else dt_p.replace(year=dt_p.year + 1, day=28)).strftime('%Y-%m-%d')
-            except Exception:
-                pass
-
-        partia_line = f"^FO40,890^A0N,45,45^FDNR PARTII: {nr_partii}^FS" if nr_partii and nr_partii != 'None' else ""
-        przydatnosc_line = f"^FO40,950^A0N,45,45^FDPRZYDATNOSC: {data_przydatnosci}^FS" if data_przydatnosci else ""
-        plomba_line = f"^FO40,1010^A0N,40,40^FDNR PLOMBY: {nr_plomby}^FS" if nr_plomby else ""
-        
-        from app.utils.pallet_label import is_packaging_item
-        is_pkg = is_packaging_item(
-            product_name,
-            unit=label_data.get('jednostka') or label_data.get('unit') or label_data.get('jm'),
-            typ=label_data.get('typ'),
-            pallet_nr=nr_palety
-        )
-
-        is_surowiec = label_data.get('is_surowiec') or (product_name.lower() in ('czyszczenie', 'maka mix do lnu', 'mąka mix do lnu')) or ('czyszczenie' in product_name.lower()) or ('maka mix do lnu' in product_name.lower()) or ('mąka mix do lnu' in product_name.lower())
-        if 'czyszczenie' in product_name.lower():
-            product_name = "Mąka mix do Lnu"
-
-        if is_pkg:
-            header_text = f"OPAKOWANIE"
-            qty_unit = "szt."
-            qty_header = "ILOSC:"
-        elif is_surowiec:
-            header_text = f"SUROWIEC"
-            qty_unit = "kg"
-            qty_header = "WAGA NETTO:"
-        else:
-            header_text = f"WYROB GOTOWY - {linia}" if linia else "WYROB GOTOWY"
-            qty_unit = "kg"
-            qty_header = "WAGA NETTO:"
-
-        data_wytworzenia = str(label_data.get('data_wytworzenia') or f"{data_produkcji} 00:00:00")
-        data_przyjecia = str(label_data.get('data_przyjecia') or label_data.get('data_potwierdzenia') or data_wytworzenia)
-        plan_id_val = label_data.get('plan_id')
-
-        import json
-        if is_surowiec or is_pkg:
-            qr_details = {
-                "typ": header_text,
-                "sscc": nr_palety,
-                "dostawa": label_data.get('dostawa') or f"PZ #{label_data.get('dostawa_id', '---')}",
-                "dostawca": label_data.get('dostawca') or '---',
-                "partia": nr_partii,
-                "data_dostawy": label_data.get('data_dostawy') or data_produkcji,
-                "prod": product_name,
-                "ilosc": qty_display,
-                "jm": qty_unit
-            }
-        else:
-            qr_details = {
-                "typ": header_text,
-                "sscc": nr_palety,
-                "zlecenie": str(plan_id_val or '---'),
-                "lp": str(nr_palety_lp or '---'),
-                "prod": product_name,
-                "wytworzono": data_wytworzenia,
-                "przyjeto_magazyn": data_przyjecia,
-                "partia": nr_partii,
-                "ilosc": qty_display,
-                "jm": qty_unit
-            }
-        qr_details_safe = json.dumps(qr_details, ensure_ascii=False).replace('^', '').replace('~', '')
-
-        return f"""^XA
-^CI28
-^PW812^LL1214
-^FO20,20^GB772,1174,4^FS
-^FO40,60^A0N,50,50^FD{header_text}^FS
-^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
-^FO250,320^BQN,2,12^FDQA,{nr_palety}^FS
-^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
-^FO40,750^A0N,45,45^FDNR PALETY: {nr_palety_lp}^FS
-^FO40,825^A0N,45,45^FDPRODUKCJA: {data_produkcji}^FS
-{partia_line}
-{przydatnosc_line}
-{plomba_line}
-^FO40,1070^A0N,60,60^FD{qty_header}^FS
-^FO40,1140^A0N,85,85^FD{qty_display} {qty_unit}^FS
-^FO583,975^BQN,2,3^FDQA,{qr_details_safe}^FS
-^PQ{copies}
-^XZ"""
-
-    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
-        """Wysyła dane palety do kolejki z wygenerowanym kodem ZPL 4x6."""
-        zpl_string = self.build_pallet_label_zpl(label_data, copies=copies)
-        return self.queue_print_job(zpl_string, override_ip, override_name)
-
-    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None, copies: int = 1) -> tuple[bool, str]:
-        """Wysyła dane palety wyrobu gotowego do kolejki z wygenerowanym kodem ZPL 4x6."""
-        zpl_string = self.build_finished_product_label_zpl(label_data, copies=copies)
-        return self.queue_print_job(zpl_string, override_ip, override_name)
-
-    def queue_print_job(self, zpl_content: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
-        """Dodaje etykietę do asynchronicznej kolejki wydruków w bazie danych."""
-        try:
-            from app.db import get_db_connection
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor()
-                target_ip = override_ip
-                target_name = override_name
-                if not target_ip:
-                    try:
-                        from app.repositories.settings_repository import SettingsRepository
-                        p_row = SettingsRepository.get_default_printer_for_line('AGRO')
-                        if p_row:
-                            target_ip = p_row.get('ip')
-                            target_name = p_row.get('nazwa')
-                    except Exception:
-                        pass
-                target_ip = target_ip or self.printer_ip
-                target_name = target_name or self.printer_name
-                
-                cursor.execute("""
-                    INSERT INTO print_jobs (printer_ip, printer_name, zpl_content, status)
-                    VALUES (%s, %s, %s, 'PENDING')
-                """, (target_ip, target_name, zpl_content))
-                job_id = cursor.lastrowid
-                conn.commit()
-                self.last_job_id = job_id
-                return True, "Dodano do kolejki druku"
-            finally:
-                conn.close()
-        except Exception as e:
-            import traceback
-            error_msg = f"Błąd kolejkowania wydruku: {e}\n{traceback.format_exc()}"
-            print(error_msg)
-            self.last_job_id = None
-            return False, f"Błąd bazy danych: {e}"
-
-    def print_zpl_label(self, zpl_string: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
-        """
-        Zamiast wysyłać od razu do drukarki i blokować wątek, zakolejkuj wydruk.
-        Wątek w tle (Spooler) wyśle go do mostka/drukarki.
-        """
-        return self.queue_print_job(zpl_string, override_ip, override_name)
-
-    def build_login_qr_label_zpl(self, qr_data: str, login_display: str = '') -> str:
-        """Buduje ZPL dla małej etykiety QR z loginem i hasłem (1.5cm x 1.5cm).
-        
-        Args:
-            qr_data: Dane do zakodowania w QR (np. "LOGIN:xxx:yyy" lub JSON)
-            login_display: Opcjonalny tekst do wyświetlenia (np. login użytkownika)
-        
-        Returns:
-            String ZPL gotowy do wysłania na drukarkę Zebra
-        """
-        # Sanitize ZPL (usuń znaki specjalne które mogą zepsuć ZPL)
-        safe_qr_data = str(qr_data or '').replace('^', '').replace('~', '')
-        
-        # Etykieta 1.5cm x 1.5cm (120x120 punktów przy 203 DPI)
-        zpl = "^XA\n"
-        zpl += "^CI28\n"  # Kodowanie UTF-8
-        zpl += "^PW120\n"  # Szerokość 1.5cm (120 dots @ 203 DPI)
-        zpl += "^LL120\n"  # Wysokość 1.5cm (120 dots @ 203 DPI)
-        
-        # QR kod (1.5cm x 1.5cm, współczynnik powiększenia 3)
-        zpl += f"^FO10,10^BQN,2,3^FDQA,{safe_qr_data}^FS\n"
-        
-        zpl += "^XZ"
-        return zpl
-
-    def print_location_label(self, label_data: dict) -> tuple[bool, str]:
-        """Dla lokalizacji możemy wysłać surowy ZPL (mostek to wspiera)."""
-        # Tu możemy zostawić stary ZPL lub przygotować dedykowany dla regałów
-        zpl = f"^XA^CI28^PW812^LL1214^FO20,20^GB772,1174,4^FS"
-        zpl += f"^FO60,100^A0N,100,100^FDREGAŁ: {label_data.get('lokalizacja')}^FS"
-        zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{label_data.get('lokalizacja')}^FS"
-        zpl += "^XZ"
-        
-        return self.queue_print_job(zpl, self.printer_ip, self.printer_name)
-
-    def send_direct_tcp(self, zpl: str, ip: str, port: int = 9100, timeout: float = 3.0) -> tuple[bool, str]:
-        """Bezpośrednia wysyłka surowego ZPL przez TCP socket na port drukarki (np. 9100)."""
-        if not ip or str(ip).strip().upper() == 'USB' or str(ip).strip().lower().startswith('usb'):
-            return False, "Brak adresu IP (drukarka USB / Spooler)"
-        
-        target_ip = str(ip).strip()
-        target_port = port
-        if ':' in target_ip:
-            parts = target_ip.split(':', 1)
-            target_ip = parts[0].strip()
-            try:
-                target_port = int(parts[1].strip())
-            except Exception:
-                target_port = port
-
-        try:
-            data = zpl if zpl.endswith('\n') else (zpl + '\r\n')
-            with socket.create_connection((target_ip, target_port), timeout=timeout) as sock:
-                sock.sendall(data.encode('utf-8'))
-                time.sleep(0.1)
-                try:
-                    sock.shutdown(socket.SHUT_RDWR)
-                except Exception:
-                    pass
-            return True, f"Wydrukowano bezpośrednio przez TCP ({target_ip}:{target_port})"
-        except Exception as tcp_err:
-            return False, f"Błąd bezpośredniego połączenia TCP ({target_ip}:{target_port}): {tcp_err}"
+            message = body.get('message') or f'Błąd mostka (HTTP {response.status_code})'
+            return False, f'{message} ({target_hint}, bridge={bridge_base})', False
+        except requests.RequestException as exc:
+            return False, f'Błąd komunikacji z mostkiem: {exc} ({target_hint})', True
+        except Exception as exc:
+            return False, f'Błąd komunikacji z mostkiem: {exc} ({target_hint})', False
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
+        """Send only through the authenticated bridge; no arbitrary network fallback."""
         target_name = payload.get('drukarka') or self.printer_name
         target_ip = payload.get('ip') or self.printer_ip
-        zpl_data = payload.get('dane') or payload.get('zpl') or ''
-        target_hint = f"drukarka={target_name}, ip={target_ip}"
-        
-        ok, message, bridge_unreachable = self._send_to_bridge_once(payload, target_hint)
-        if ok:
-            return True, message
+        target_hint = f'drukarka={target_name}, ip={target_ip}'
+        ok, message, _ = self._send_to_bridge_once(payload, target_hint)
+        return ok, message
 
-        # FALLBACK 1: Jeśli mostek nie odpowiada lub zwrócił błąd, a mamy adres IP drukarki sieciowej
-        if target_ip and str(target_ip).strip().upper() != 'USB' and not str(target_ip).strip().lower().startswith('usb') and zpl_data:
-            direct_ok, direct_msg = self.send_direct_tcp(zpl_data, str(target_ip).strip())
-            if direct_ok:
-                return True, f"{direct_msg} [fallback z mostka]"
 
-        # FALLBACK 2: Sprawdź czy drukarka o danej nazwie ma w bazie inny (zaktualizowany) IP
-        if zpl_data and target_name:
-            try:
-                from app.db import get_db_connection
-                conn_fb = get_db_connection()
-                try:
-                    cur_fb = conn_fb.cursor(dictionary=True)
-                    cur_fb.execute("SELECT ip FROM drukarki WHERE (nazwa = %s OR LOWER(nazwa) LIKE LOWER(%s)) AND aktywna = 1 LIMIT 1", (target_name, f"%{target_name}%"))
-                    row_fb = cur_fb.fetchone()
-                    if row_fb and row_fb.get('ip') and str(row_fb.get('ip')).strip() != str(target_ip or '').strip():
-                        alt_ip = str(row_fb.get('ip')).strip()
-                        if alt_ip and alt_ip.upper() != 'USB':
-                            direct_ok, direct_msg = self.send_direct_tcp(zpl_data, alt_ip)
-                            if direct_ok:
-                                return True, f"{direct_msg} [fallback z bazy: {alt_ip}]"
-                finally:
-                    conn_fb.close()
-            except Exception:
-                pass
-
-        # Jeśli drukarka to USB / Windows Spooler, próba win32print na maszynach Windows
-        if os.name == 'nt' and (str(target_ip).strip().upper() == 'USB' or (target_name and 'usb' in str(target_name).lower())):
-            try:
-                import win32print  # pylint: disable=import-error
-                win_target = target_name if (target_name and target_name.upper() != 'USB') else win32print.GetDefaultPrinter()
-                hprinter = win32print.OpenPrinter(win_target)
-                try:
-                    doc_info = ("Etykieta ZPL", None, "RAW")
-                    win32print.StartDocPrinter(hprinter, 1, doc_info)
-                    win32print.StartPagePrinter(hprinter)
-                    data_win = zpl_data if zpl_data.endswith('\n') else (zpl_data + '\r\n')
-                    win32print.WritePrinter(hprinter, data_win.encode('utf-8'))
-                    win32print.EndPagePrinter(hprinter)
-                    win32print.EndDocPrinter(hprinter)
-                    return True, f"Wysłano przez Windows Spooler do {win_target}"
-                finally:
-                    win32print.ClosePrinter(hprinter)
-            except Exception as win_err:
-                pass
-
-        if bridge_unreachable:
-            return False, f"{message} | Mostek nie odpowiada, bezpośredni fallback TCP nie powiódł się."
-
-        return False, message
-
-# Singleton
 _printer = None
+
 
 def get_printer() -> PrintServer:
     global _printer

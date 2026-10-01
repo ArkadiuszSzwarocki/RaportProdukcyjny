@@ -11,8 +11,9 @@ from email.utils import formataddr
 from email import encoders
 from typing import List, Optional, Tuple, Dict, Any
 
+from app.core.network_security import smtp_target_allowed
 from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
-from app.models.user_email_settings_model import UserEmailSettingsModel
+
 
 class EmailService:
     """Usługa wysyłania wiadomości e-mail oraz testowania połączenia SMTP w oparciu o konta użytkowników."""
@@ -40,6 +41,10 @@ class EmailService:
             if not smtp_server or not smtp_username or not smtp_password:
                 return False, "❌ Podaj serwer SMTP, login oraz hasło konta."
 
+            allowed, reason = smtp_target_allowed(smtp_server, smtp_port, smtp_security)
+            if not allowed:
+                return False, f"❌ {reason}"
+
             if smtp_security == 'SSL' or smtp_port == 465:
                 server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12)
             else:
@@ -55,9 +60,15 @@ class EmailService:
         except smtplib.SMTPAuthenticationError:
             return False, "❌ Błąd autoryzacji SMTP: Nieprawidłowy login lub hasło skrzynki e-mail."
         except smtplib.SMTPConnectError:
-            return False, f"❌ Błąd połączenia: Nie można połączyć się z serwerem {smtp_server}:{smtp_port}."
-        except Exception as e:
-            return False, f"❌ Błąd połączenia z serwerem SMTP: {str(e)}"
+            return False, "❌ Nie można połączyć się ze skonfigurowanym serwerem SMTP."
+        except Exception:
+            return False, "❌ Nie udało się bezpiecznie przetestować połączenia SMTP."
+        finally:
+            if server is not None:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
 
     def test_smtp_connection(
         self,
@@ -87,20 +98,24 @@ class EmailService:
                     'password': user_config.smtp_password,
                     'sender_name': user_config.sender_name or user_config.smtp_username,
                     'is_custom': True,
-                    'configured': True
+                    'configured': bool(user_config.smtp_server and user_config.smtp_username and user_config.smtp_password)
                 }
 
-        # Pobierz Główne Konto Systemowe / Firmowe (zarządzane z bazy)
         sys_config = self.settings_repo.get_system_config()
+        configured = bool(
+            sys_config.smtp_server
+            and sys_config.smtp_username
+            and sys_config.smtp_password
+        )
         return {
             'server': sys_config.smtp_server,
             'port': sys_config.smtp_port,
             'security': sys_config.smtp_security,
             'username': sys_config.smtp_username,
             'password': sys_config.smtp_password,
-            'sender_name': sys_config.sender_name or 'Raport Produkcyjny AGRO',
+            'sender_name': sys_config.sender_name or 'Raport Produkcyjny',
             'is_custom': False,
-            'configured': True
+            'configured': configured
         }
 
     def send_report_email(
@@ -116,12 +131,19 @@ class EmailService:
             return False, "Brak podanych adresów e-mail odbiorców."
 
         config = self.get_smtp_config_for_user(user_id)
-        if not config or not config.get('username') or not config.get('password'):
-            return False, "❌ Brak skonfigurowanego konta e-mail użytkownika. Skonfiguruj własną skrzynkę SMTP w panelu Ustawienia E-mail."
+        if not config or not config.get('configured'):
+            return False, "❌ Brak skonfigurowanego konta e-mail użytkownika. Skonfiguruj skrzynkę SMTP w panelu Ustawienia E-mail."
+
+        allowed, reason = smtp_target_allowed(
+            config.get('server'),
+            config.get('port'),
+            config.get('security'),
+        )
+        if not allowed:
+            return False, f"❌ Wysyłka zablokowana przez politykę bezpieczeństwa SMTP: {reason}"
 
         server = None
         try:
-            # Tworzenie wiadomości MIME
             msg = MIMEMultipart()
             if config.get('sender_name'):
                 msg['From'] = formataddr((str(Header(config['sender_name'], 'utf-8')), config['username']))
@@ -129,23 +151,19 @@ class EmailService:
                 msg['From'] = config['username']
             msg['To'] = ", ".join(to_emails)
             msg['Subject'] = Header(subject, 'utf-8')
-
-            # Dodanie treści HTML
             msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
-            # Dodanie załączników
             if attachments:
                 for file_path in attachments:
                     if os.path.exists(file_path):
                         filename = os.path.basename(file_path)
-                        with open(file_path, 'rb') as f:
+                        with open(file_path, 'rb') as file_handle:
                             part = MIMEBase('application', 'octet-stream')
-                            part.set_payload(f.read())
+                            part.set_payload(file_handle.read())
                         encoders.encode_base64(part)
                         part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
                         msg.attach(part)
 
-            # Nawiązanie połączenia SMTP
             if config['security'] == 'SSL' or config['port'] == 465:
                 server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=15)
             else:
@@ -158,6 +176,7 @@ class EmailService:
             server.login(config['username'], config['password'])
             server.sendmail(config['username'], to_emails, msg.as_string())
             server.quit()
+            server = None
 
             sender_info = f"konto własne ({config.get('username')})" if config.get('is_custom') else f"konto systemowe ({config.get('username')})"
             msg_res = f"✅ E-mail wysłany pomyślnie do {len(to_emails)} odbiorcy/odbiorców ({sender_info})."
@@ -180,8 +199,7 @@ class EmailService:
                 pass
 
             return True, msg_res
-        except Exception as e:
-            err_msg = f"❌ Błąd wysyłania e-maila: {str(e)}"
+        except Exception:
             try:
                 from app.services.email_log_service import EmailLogService
                 source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
@@ -193,10 +211,16 @@ class EmailService:
                     source=source_label,
                     linia=linia_val,
                     success=False,
-                    error_message=str(e),
+                    error_message='SMTP transport failure',
                     attachments=attachments
                 )
             except Exception:
                 pass
 
-            return False, err_msg
+            return False, "❌ Nie udało się wysłać wiadomości przez skonfigurowany serwer SMTP."
+        finally:
+            if server is not None:
+                try:
+                    server.quit()
+                except Exception:
+                    pass

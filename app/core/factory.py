@@ -2,13 +2,26 @@
 
 import os
 from datetime import timedelta
+
 from flask import Flask
-from werkzeug.middleware.proxy_fix import ProxyFix
+
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
+from app.core.admin_security_hardening import register_admin_security_hardening
+from app.core.audit_phase3_hardening import register_audit_phase3_hardening
+from app.core.browser_security import register_browser_security_headers
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
+from app.core.download_security import register_download_security_hardening
 from app.core.error_handlers import setup_logging, register_error_handlers
+from app.core.file_security import register_file_security_hardening
+from app.core.legacy_print_hardening import register_legacy_print_hardening
+from app.core.runtime_security_hardening import register_runtime_security_hardening
+from app.core.security_hardening import (
+    apply_proxy_policy,
+    register_legacy_secret_rejection,
+    register_role_integrity_check,
+)
 from app.blueprints.admin import admin_bp
 from app.blueprints.api import api_bp
 from app.blueprints.planista import planista_bp
@@ -41,119 +54,96 @@ from app.blueprints.inwentaryzacja_produkcji import inwentaryzacja_produkcji_bp
 from app.blueprints.osip import osip_bp
 from app.blueprints.maluchy import maluchy_bp
 from app import db
-
 from app.core.middleware import register_middleware
 
 
-def create_app(config_secret_key=None, init_db=True):
-    """Create and configure Flask application.
-    
-    Args:
-        config_secret_key: Override SECRET_KEY from config (useful for testing)
-        init_db: Whether to initialize the database (skip during pytest)
-    
-    Returns:
-        Configured Flask application instance
-    """
-    # Create Flask app with explicit template folder path (absolute path from project root)
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    template_folder = os.path.join(project_root, 'templates')
-    static_folder = os.path.join(project_root, 'static')
-    app = Flask(__name__, root_path=project_root, template_folder=template_folder, static_folder=static_folder)
-    
-    # Log template folder path for diagnostics (skip verbose per-file listing)
-    app.logger.debug('Flask template_folder=%s', template_folder)
-    
-    # Restore missing config files from fallback if host volume mount is empty
-    cfg_dir = os.path.join(project_root, 'config')
-    cfg_fallback = os.path.join(project_root, 'config_fallback')
-    if os.path.isdir(cfg_fallback):
-        os.makedirs(cfg_dir, exist_ok=True)
-        for fname in os.listdir(cfg_fallback):
-            dst = os.path.join(cfg_dir, fname)
-            src = os.path.join(cfg_fallback, fname)
-            if (not os.path.exists(dst) or os.path.getsize(dst) == 0) and os.path.isfile(src):
-                try:
-                    import shutil
-                    shutil.copy2(src, dst)
-                    app.logger.info("Restored missing config file from fallback: %s", fname)
-                except Exception as ex:
-                    app.logger.warning("Could not restore config file %s: %s", fname, ex)
-    
-    # Configure with secret key – always load from environment first so
-    # container restarts (Watchtower) do not invalidate existing session cookies.
-    _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
-    _is_prod = str(os.environ.get('FLASK_ENV', '')).lower() == 'production' or str(os.environ.get('ENV', '')).lower() == 'production'
-    _insecure_keys = (
-        'tajnyKluczAgronetzwerk', 'dev-secret-key', 'test-secret',
-        'change-me-in-production', 'your-secret-key-here-min-32-chars',
-        'CHANGE_THIS_TO_RANDOM_SECRET_KEY_MIN_32_CHARACTERS'
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return bool(default)
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _is_production():
+    return (
+        str(os.environ.get('FLASK_ENV', '')).strip().lower() == 'production'
+        or str(os.environ.get('ENV', '')).strip().lower() == 'production'
     )
 
-    if _is_prod:
-        if not _secret_key or _secret_key in _insecure_keys or len(_secret_key) < 32:
-            import logging
-            logging.getLogger('app.security').critical(
-                "CRITICAL SECURITY ERROR: Invalid or missing SECRET_KEY in production! "
-                "Application startup aborted. Please set a unique, random SECRET_KEY (min 32 chars) in .env."
-            )
+
+def _debug_routes_enabled():
+    if _is_production():
+        return False
+    return _env_bool('ENABLE_DEBUG_ROUTES', False) or _env_bool('FLASK_DEBUG', False)
+
+
+def _restore_fallback_config(app, project_root):
+    cfg_dir = os.path.join(project_root, 'config')
+    cfg_fallback = os.path.join(project_root, 'config_fallback')
+    if not os.path.isdir(cfg_fallback):
+        return
+    os.makedirs(cfg_dir, exist_ok=True)
+    for fname in os.listdir(cfg_fallback):
+        dst = os.path.join(cfg_dir, fname)
+        src = os.path.join(cfg_fallback, fname)
+        if (not os.path.exists(dst) or os.path.getsize(dst) == 0) and os.path.isfile(src):
+            try:
+                import shutil
+                shutil.copy2(src, dst)
+                app.logger.info('Restored missing config file from fallback: %s', fname)
+            except Exception as exc:
+                app.logger.warning('Could not restore config file %s: %s', fname, exc)
+
+
+def _configure_secret_key(app, config_secret_key=None):
+    secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
+    insecure_keys = {
+        'tajnyKluczAgronetzwerk',
+        'dev-secret-key',
+        'test-secret',
+        'change-me-in-production',
+        'your-secret-key-here-min-32-chars',
+        'CHANGE_THIS_TO_RANDOM_SECRET_KEY_MIN_32_CHARACTERS',
+    }
+
+    if _is_production():
+        if not secret_key or secret_key in insecure_keys or len(secret_key) < 32:
             raise RuntimeError(
-                "CRITICAL SECURITY ERROR: Production requires a secure SECRET_KEY (min 32 characters). "
-                "Startup aborted."
+                'CRITICAL SECURITY ERROR: Production requires a unique SECRET_KEY '
+                'with at least 32 characters.'
             )
-        # Credentials stored in the database must never be encrypted with a
-        # hard-coded fallback or the Flask session secret.
         from app.core.crypto_utils import _get_fernet_instance
         _get_fernet_instance()
-    else:
-        if not _secret_key or _secret_key in _insecure_keys:
-            import secrets
-            import logging
-            _secret_key = secrets.token_hex(32)
-            logging.getLogger('app.security').warning(
-                "SECURITY WARNING: Running without configured SECRET_KEY in development! "
-                "Generated temporary random secret key for this session."
-            )
+    elif not secret_key or secret_key in insecure_keys:
+        import secrets
+        secret_key = secrets.token_hex(32)
+        app.logger.warning(
+            'SECURITY WARNING: generated a temporary SECRET_KEY for this development process.'
+        )
 
-    app.secret_key = _secret_key
+    app.secret_key = secret_key
 
-    # Configure session to ensure cookies are properly set
+
+def _configure_sessions(app):
     cookie_secure_raw = os.environ.get('SESSION_COOKIE_SECURE')
     if cookie_secure_raw is not None:
-        app.config['SESSION_COOKIE_SECURE'] = str(cookie_secure_raw).strip().lower() in ('true', '1', 'yes')
+        app.config['SESSION_COOKIE_SECURE'] = _env_bool('SESSION_COOKIE_SECURE')
     else:
-        # Default to False unless SSL is enabled or explicitly requested.
-        # Intranet / LAN environments run on plain HTTP (e.g. 192.168.x.x);
-        # setting Secure=True over plain HTTP causes modern browsers to drop session cookies,
-        # logging users out immediately upon redirect.
-        use_ssl = str(os.environ.get('USE_SSL', 'false')).strip().lower() in ('true', '1', 'yes')
-        app.config['SESSION_COOKIE_SECURE'] = use_ssl
-    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
+        app.config['SESSION_COOKIE_SECURE'] = _env_bool('USE_SSL', False)
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-    app.config['SESSION_PERMANENT'] = True  # Make sessions survive app restarts
-    # Limit max payload upload size to 16MB to prevent DoS attacks
-    app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
+    app.config['SESSION_PERMANENT'] = True
+    app.config['MAX_CONTENT_LENGTH'] = int(
+        os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
+    )
+    from app.config import SESSION_TIMEOUT_MINUTES
+    app.config['SESSION_TIMEOUT_MINUTES'] = int(
+        os.environ.get('SESSION_TIMEOUT_MINUTES', SESSION_TIMEOUT_MINUTES)
+    )
 
-    # Load session timeout from env/config so middleware can read it from app.config
-    from app.config import SESSION_TIMEOUT_MINUTES as _timeout_min
-    app.config['SESSION_TIMEOUT_MINUTES'] = int(os.environ.get('SESSION_TIMEOUT_MINUTES', _timeout_min))
-    
-    # Set up logging and error handlers BEFORE any routes or blueprints
-    setup_logging(app)
-    register_error_handlers(app)
-    
-    # Add Jinja2 extensions
-    app.jinja_env.add_extension('jinja2.ext.do')
-    
-    # Disable Jinja2 caching in development to pick up template changes immediately
-    app.jinja_env.cache = None
-    app.config['TEMPLATES_AUTO_RELOAD'] = True
-    
-    # Register middleware (request/response processing)
-    register_middleware(app)
-    
-    # Register blueprints
+
+def _register_blueprints(app):
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(quality_bp)
@@ -187,87 +177,114 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(maluchy_bp, url_prefix='/maluchy')
 
 
-    # Register debug routes if in debug mode
-    register_debug_routes(app)
-    
-    # Register Jinja2 filters
+def _is_werkzeug_reloader_parent():
+    if 'PYTEST_CURRENT_TEST' in os.environ:
+        return False
+    import sys
+    main_script = sys.argv[0] if sys.argv and sys.argv[0] else ''
+    reloader_enabled = (
+        _env_bool('FLASK_USE_RELOADER') or _env_bool('RELOADER_ENABLED')
+    )
+    debug_mode = (
+        _env_bool('FLASK_DEBUG')
+        or _env_bool('DEBUG')
+        or str(os.environ.get('FLASK_ENV', '')).lower() == 'development'
+    )
+    return bool(
+        debug_mode
+        and (reloader_enabled or main_script.endswith('app.py') or 'app.py' in main_script)
+        and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
+    )
+
+
+def _maybe_start_background_daemons(app, is_reloader_parent):
+    if 'PYTEST_CURRENT_TEST' in os.environ:
+        app.logger.debug('Skipping background daemons under pytest')
+        return
+
+    default_enabled = not _is_production()
+    enabled = _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)
+    if not enabled:
+        app.logger.info('Background daemons disabled for this process')
+        return
+    if is_reloader_parent:
+        app.logger.debug('Skipping background daemons in Werkzeug reloader parent')
+        return
+    start_daemon_threads(app, cleanup_enabled=True)
+
+
+def create_app(config_secret_key=None, init_db=True):
+    """Create and securely configure the Flask application."""
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    app = Flask(
+        __name__,
+        root_path=project_root,
+        template_folder=os.path.join(project_root, 'templates'),
+        static_folder=os.path.join(project_root, 'static'),
+    )
+
+    _restore_fallback_config(app, project_root)
+    _configure_secret_key(app, config_secret_key)
+    _configure_sessions(app)
+
+    setup_logging(app)
+    register_error_handlers(app)
+    app.jinja_env.add_extension('jinja2.ext.do')
+    app.jinja_env.cache = None
+    app.config['TEMPLATES_AUTO_RELOAD'] = not _is_production()
+
+    register_legacy_secret_rejection(app)
+    register_middleware(app)
+    register_role_integrity_check(app)
+    _register_blueprints(app)
+    register_legacy_print_hardening(app)
+    register_runtime_security_hardening(app)
+    register_audit_phase3_hardening(app)
+    register_admin_security_hardening(app)
+    register_file_security_hardening(app)
+    register_download_security_hardening(app)
+    register_browser_security_headers(app)
+
+    if _debug_routes_enabled():
+        register_debug_routes(app)
+
     app.jinja_env.filters['format_czasu'] = format_godziny
-    
-    # Register context processors (inject helpers into templates)
     register_contexts(app)
-    
-    # Start background daemon threads (skip when running under pytest to avoid
-    # background DB connections during test collection)
-    is_reloader_parent = False
-    if 'PYTEST_CURRENT_TEST' not in os.environ:
-        # Detect if we are in the parent process of Flask's Werkzeug reloader (app.py debug run)
-        # to avoid starting background threads twice (once in parent, once in child worker).
-        import sys
-        main_script = sys.argv[0] if (sys.argv and sys.argv[0]) else ''
-        
-        # Check if reloader is enabled via environment variable
-        reloader_enabled = os.environ.get('FLASK_USE_RELOADER') == 'true' or os.environ.get('RELOADER_ENABLED') == 'true'
-        
-        flask_env = str(os.environ.get('FLASK_ENV', '')).lower()
-        debug_mode = (
-            os.environ.get('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes') or
-            os.environ.get('DEBUG', 'false').lower() == 'true' or
-            flask_env == 'development'
-        )
-        is_reloader_parent = (
-            debug_mode
-            and (reloader_enabled or main_script.endswith('app.py') or 'app.py' in main_script)
-            and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
-        )
-        
-        if is_reloader_parent:
-            app.logger.debug('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERKZEUG_RUN_MAIN=%s)', os.environ.get('WERKZEUG_RUN_MAIN'))
-        else:
-            app.logger.debug('Starting start_daemon_threads() in Flask process (WERKZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERKZEUG_RUN_MAIN'), reloader_enabled)
-            start_daemon_threads(app, cleanup_enabled=True)
-    else:
-        app.logger.debug('Skipping start_daemon_threads() under pytest')
-    
-    # Initialize database (skip during pytest, reloader parent, or when SKIP_DB_SETUP is enabled)
-    skip_db_setup = os.environ.get('SKIP_DB_SETUP', 'false').lower() in ('true', '1') or is_reloader_parent
+
+    is_reloader_parent = _is_werkzeug_reloader_parent()
+    _maybe_start_background_daemons(app, is_reloader_parent)
+
+    skip_db_setup = _env_bool('SKIP_DB_SETUP', False) or is_reloader_parent
     if init_db and not skip_db_setup:
         try:
             if 'PYTEST_CURRENT_TEST' not in os.environ:
                 db.setup_database()
             else:
                 app.logger.debug('Skipping setup_database() under pytest')
-        except Exception as e:
-            app.logger.exception('setup_database() failed or skipped: %s', e)
-    elif skip_db_setup:
-        app.logger.debug('Skipping setup_database() (SKIP_DB_SETUP=%s, is_reloader_parent=%s)', os.environ.get('SKIP_DB_SETUP'), is_reloader_parent)
-    
-    # Poinstruowanie aplikacji, aby czytała oryginalne nagłówki przekazane przez Nginxa:
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+        except Exception as exc:
+            app.logger.exception('setup_database() failed or skipped: %s', exc)
 
-    # Register admin CLI commands
+    apply_proxy_policy(app)
+
     try:
         from app.cli import register_cli_commands
         register_cli_commands(app)
-    except Exception as e:
-        app.logger.warning('Failed to register CLI commands: %s', e)
+    except Exception as exc:
+        app.logger.warning('Failed to register CLI commands: %s', exc)
 
     return app
 
 
 def register_debug_routes(app):
-    """Register temporary debug routes (only enabled when app.debug is True)."""
-    # Intentionally register for local debugging regardless of app.debug so
-    # devs can inspect routing while app.run may toggle debug later.
-
+    """Register local-only diagnostics when explicitly enabled."""
     @app.route('/__debug/url_map')
     def debug_url_map():
-        rules = []
-        for r in app.url_map.iter_rules():
-            rules.append({'rule': str(r.rule), 'endpoint': r.endpoint, 'methods': sorted(list(r.methods))})
+        rules = [
+            {
+                'rule': str(rule.rule),
+                'endpoint': rule.endpoint,
+                'methods': sorted(list(rule.methods)),
+            }
+            for rule in app.url_map.iter_rules()
+        ]
         return {'rules': rules}
-
-
-
-    # Temporary debug endpoints can be registered below when running locally.
-
-

@@ -211,9 +211,9 @@
                         </p>
                     </div>
                     <p style="font-weight: bold; font-size: 1.15em; margin: 15px 0 10px 0; color: #2c3e50;">Wpisz wagę palety po opróżnieniu (kg):</p>
-                    <div style="display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 15px; flex-wrap: wrap;">
-                        <input type="number" id="oproznianie-waga-input" style="padding: 10px 14px; font-size: 1.3em; width: 140px; border: 2px solid #3498db; border-radius: 6px; text-align: center; font-weight: bold; box-sizing: border-box;" placeholder="np. 350" autofocus>
-                        <button id="oproznianie-zapisz-btn" style="padding: 10px 24px; font-size: 1.1em; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; white-space: nowrap; box-sizing: border-box;">Zapisz paletę</button>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <input type="number" id="oproznianie-waga-input" style="padding: 10px; font-size: 1.3em; width: 140px; border: 2px solid #3498db; border-radius: 6px; text-align: center; font-weight: bold;" placeholder="np. 350" autofocus>
+                        <button id="oproznianie-zapisz-btn" style="padding: 10px 24px; font-size: 1.1em; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s;">Zapisz paletę</button>
                     </div>
                     <button id="oproznianie-anuluj-btn" style="margin-top: 18px; background: none; border: none; color: #7f8c8d; cursor: pointer; text-decoration: underline; font-size: 0.9em;">Zamknij (nie dodawaj palety)</button>
                 </div>
@@ -278,20 +278,10 @@
                     fetch(actionUrl, {
                         method: 'POST',
                         body: formData,
-                        credentials: 'same-origin',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                        credentials: 'same-origin'
                     })
                     .then(response => {
                         if (response.ok) {
-                            // Close modal and reset state immediately
-                            modal.style.display = 'none';
-                            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerText = 'Zapisz paletę'; }
-                            if (cancelBtn) cancelBtn.disabled = false;
-                            const inp = document.getElementById('oproznianie-waga-input');
-                            if (inp) inp.value = '';
-
                             alert(`Paleta o wadze ${waga} kg została pomyślnie dodana z opróżnienia.`);
                             if (typeof window.performPartialReload === 'function') {
                                 window.performPartialReload({ force: true, preserveScroll: true, source: 'oproznianie-paleta' });
@@ -314,6 +304,7 @@
                         if (cancelBtn) cancelBtn.disabled = false;
                     });
                     
+                    // Don't close modal yet, wait for reload or error
                     return;
                 } else {
                     alert(`Opróżniono: ${waga} kg. Nie znaleziono aktywnego zlecenia na stronie. Utwórz paletę ręcznie.`);
@@ -332,16 +323,6 @@
             `;
         }
         
-        const saveBtn = document.getElementById('oproznianie-zapisz-btn');
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerText = 'Zapisz paletę';
-        }
-        const cancelBtn = document.getElementById('oproznianie-anuluj-btn');
-        if (cancelBtn) {
-            cancelBtn.disabled = false;
-        }
-
         const inp = document.getElementById('oproznianie-waga-input');
         if (inp) {
             inp.value = '';

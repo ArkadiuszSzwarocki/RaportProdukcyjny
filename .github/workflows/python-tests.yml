@@ -2,16 +2,19 @@ name: Python tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        # Use quoted strings to avoid YAML numeric parsing issues
         python-version: ['3.10', '3.11', '3.12']
 
     services:
@@ -31,21 +34,28 @@ jobs:
           - 3306:3306
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; else pip install pytest pytest-mock; fi
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest -q
+        shell: bash
+        run: |
+          if [ "${{ matrix.python-version }}" = "3.11" ]; then
+            pytest -q --cov=app --cov-report=xml
+          else
+            pytest -q
+          fi
         env:
           DB_HOST: localhost
           DB_PORT: 3306
@@ -54,7 +64,16 @@ jobs:
           DB_NAME: test_db
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
+          ENCRYPTION_KEY: T0Y3M09VNkY2bmt3YXpBS2dCSjVaQlE5cWpsd1JGcVZrbmZ0SEZXVT0=
           PRINTER_SERVER_START_PIN: '0606'
-          # MySQL 8 uses caching_sha2_password; the CI container exposes TLS.
-          # Do not attempt this authentication over an unencrypted connection.
-          USE_SSL: 'true'
+          USE_SSL: 'false'
+          PRINTER_BRIDGE_AUTOSTART: 'false'
+          ENABLE_BACKGROUND_DAEMONS: 'false'
+          SKIP_DB_SETUP: 'true'
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

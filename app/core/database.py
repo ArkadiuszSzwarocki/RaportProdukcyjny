@@ -18,9 +18,18 @@ is_local = os.getenv('LOCAL_ENV', 'false').lower() == 'true' or os.getenv('IS_LO
 _is_ci_env = str(os.getenv('CI', '')).lower() == 'true' or str(os.getenv('GITHUB_ACTIONS', '')).lower() == 'true'
 _is_test_env = str(os.getenv('FLASK_ENV', '')).lower() == 'testing' or 'PYTEST_CURRENT_TEST' in os.environ
 
+
+def _env_bool(name, default=False):
+    raw = os.getenv(name)
+    if raw is None:
+        return bool(default)
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def get_runtime_switchable_databases():
     """Return list of database names allowed for runtime switching."""
     return list(_RUNTIME_SWITCHABLE_DATABASES)
+
 
 def _persist_database_name(name):
     try:
@@ -28,6 +37,7 @@ def _persist_database_name(name):
             f.write(name)
     except Exception:
         pass
+
 
 def _load_persisted_database_name():
     if os.path.exists(_DB_PERSISTENCE_FILE):
@@ -40,10 +50,12 @@ def _load_persisted_database_name():
             pass
     return None
 
+
 def get_active_database_name():
     """Return currently active database name from runtime config."""
     with _DB_CONFIG_LOCK:
         return str(DB_CONFIG.get('database') or '')
+
 
 def set_active_database_name(database_name, verify_connection=True):
     """Switch active database used by get_db_connection.
@@ -68,24 +80,26 @@ def set_active_database_name(database_name, verify_connection=True):
 
     with _DB_CONFIG_LOCK:
         DB_CONFIG['database'] = target_name
-    
+
     global _DB_POOL
     with _DB_POOL_LOCK:
         _DB_POOL = None
-    
+
     _persist_database_name(target_name)
-    
-    # Automatically initialize / migrate tables in the newly active database!
+
+    # Automatically initialize / migrate tables in the newly active database.
     try:
         from app.core.database_setup import setup_database
         setup_database()
     except Exception as e:
         print(f"[WARN] Failed to setup database {target_name} on switch: {e}")
-        
+
     return target_name
+
 
 _DB_POOL = None
 _DB_POOL_LOCK = threading.Lock()
+
 
 def _get_or_create_pool():
     """Lazily initialize or return MySQL connection pool matching current DB_CONFIG."""
@@ -115,8 +129,15 @@ def _get_or_create_pool():
                 _DB_POOL = None
         return _DB_POOL
 
+
 def get_db_connection(retries=2):
-    """Get database connection from connection pool with direct connect fallback."""
+    """Return a DB connection without silently changing the configured host.
+
+    In production, a failure of the configured database must remain a failure;
+    transparently trying localhost can connect the request to a completely
+    different database.  Localhost fallback is available only in local/test
+    environments or after an explicit ``DB_ALLOW_LOCALHOST_FALLBACK=true``.
+    """
     try:
         pool = _get_or_create_pool()
         if pool:
@@ -128,8 +149,15 @@ def get_db_connection(retries=2):
     with _DB_CONFIG_LOCK:
         base_config = dict(DB_CONFIG)
 
-    primary_host = base_config.get('host', '127.0.0.1')
+    primary_host = str(base_config.get('host') or '127.0.0.1').strip()
     candidate_hosts = [primary_host]
+    allow_local_fallback = (
+        is_local
+        or _is_test_env
+        or _env_bool('DB_ALLOW_LOCALHOST_FALLBACK', False)
+    )
+    if allow_local_fallback and primary_host not in ('127.0.0.1', 'localhost'):
+        candidate_hosts.extend(['127.0.0.1', 'localhost'])
 
     num_retries = max(1, int(retries or 1))
     for host in candidate_hosts:
@@ -138,21 +166,22 @@ def get_db_connection(retries=2):
         for attempt in range(num_retries):
             try:
                 return mysql.connector.connect(**conn_config, buffered=True)
-            except mysql.connector.Error as e:
-                last_error = e
-                if attempt < retries - 1:
+            except mysql.connector.Error as exc:
+                last_error = exc
+                if attempt < num_retries - 1:
                     time.sleep(0.2)
-                continue
-    if last_error:
+
+    if last_error is not None:
         raise last_error
-    raise RuntimeError("Failed to establish database connection")
+    raise RuntimeError('Nie udało się uzyskać połączenia z bazą danych.')
+
 
 def get_table_name(base_table, linia='PSD'):
-    """Return table name based on production line (PSD or AGRO)."""
+    """Return a validated table name based on production line."""
     return resolve_table_name(base_table, linia)
+
 
 _persisted_db = _load_persisted_database_name()
 if _persisted_db:
     with _DB_CONFIG_LOCK:
         DB_CONFIG['database'] = _persisted_db
-
