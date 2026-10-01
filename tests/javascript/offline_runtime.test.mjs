@@ -126,6 +126,32 @@ test('expired session and owner mismatch keep durable scans and stop replay', as
     }
 });
 
+test('a long offline queue drains in bounded batches after the network returns', async () => {
+    const context = page(17);
+    let persisted = Array.from({ length: 601 }, (_, id) => ({ client_uuid: `saved-${id}`, scanned_code: 'code' }));
+    context.RPOfflineStore = {
+        ownerUserId: '17',
+        async getQueue() { return persisted; },
+        async setQueue(_key, queue) { persisted = plain(queue); },
+    };
+    vm.runInContext(scannerCode, context);
+    const scanner = context.offlineScanBuffer;
+    await scanner.ready;
+    const sizes = [];
+    context.fetch = async (_url, options) => {
+        const payload = JSON.parse(options.body);
+        sizes.push(payload.events.length);
+        return { ok: true, json: async () => ({ success: true, data: { items: payload.events.map((item) => ({
+            client_uuid: item.client_uuid, status: 'SUCCESS',
+        })) } }) };
+    };
+    context.navigator.onLine = true;
+    await scanner.sync();
+    await tick();
+    assert.deepEqual(sizes, [500, 101]);
+    assert.deepEqual(persisted, []);
+});
+
 test('service worker serves only the active owner and rejects stale tab takeover', async () => {
     const partitions = new Map();
     const listeners = new Map();

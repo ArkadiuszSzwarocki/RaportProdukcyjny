@@ -103,9 +103,10 @@
             }
 
             this.isSyncing = true;
+            let resumeRemaining = false;
             const payload = {
                 owner_user_id: global.RPOfflineStore && global.RPOfflineStore.ownerUserId,
-                events: cloneQueue(this.queue)
+                events: cloneQueue(this.queue.slice(0, 500))
             };
 
             try {
@@ -131,6 +132,7 @@
                             .map((item) => item.client_uuid));
                         this.queue = this.queue.filter((item) => !acknowledged.has(item.client_uuid));
                         await this.persistQueue();
+                        resumeRemaining = acknowledged.size > 0 && this.queue.length > 0;
                     }
                 } else if (response.status === 401 || response.status === 403) {
                     // Keep the queue under its original owner. Do not replay it
@@ -144,6 +146,7 @@
             } finally {
                 this.isSyncing = false;
                 this.updateUIBadge();
+                if (resumeRemaining) void this.sync();
             }
         }
 
