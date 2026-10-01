@@ -19,8 +19,10 @@ jobs:
         with:
           node-version: "22.18.0"
       - name: Install pinned cspell and Polish dictionary
-        run: npm install --no-save cspell@10.3.5 @cspell/dict-pl_pl@3.0.6 @cspell/dict-uk-ua@4.0.6
+        run: npm install --no-save cspell@10.3.5 @cspell/dict-pl_pl@3.0.6 @cspell/dict-uk-ua@4.0.6 fake-indexeddb@6.2.4
       - name: Run cspell
         run: node scripts/check_spelling.mjs
       - name: Test spelling gate
         run: node --test tests/javascript/cspell_baseline.test.mjs
+      - name: Test offline queues
+        run: node --test tests/javascript/offline_runtime.test.mjs

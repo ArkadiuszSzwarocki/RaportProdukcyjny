@@ -109,7 +109,7 @@ def test_legacy_generic_queue_is_redirected_to_indexeddb_compatibility_store():
     assert 'window.__offlineMutationStorage.getItem(this.queueKey)' in js
     assert 'window.__offlineMutationStorage.setItem(this.queueKey, JSON.stringify(queue))' in js
     assert 'window.RPOfflineStore.whenReady' in js
-    assert 'window.OfflineQueue.processQueue()' in js
+    assert 'window.OfflineQueue.sync()' in js
 
     store = Path('static/js/offline_store.js').read_text(encoding='utf-8')
     assert "const DB_NAME = 'raportprodukcyjny_offline_v2';" in store

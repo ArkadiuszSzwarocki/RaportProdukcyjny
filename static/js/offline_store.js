@@ -257,6 +257,13 @@
         });
     }
 
+    function withOwner(options) {
+        const headers = new Headers(options && options.headers || {});
+        headers.set('X-RP-Offline-Owner', ownerUserId);
+        headers.set('X-Requested-With', 'XMLHttpRequest');
+        return { ...options, headers, credentials: 'same-origin', redirect: 'error' };
+    }
+
     const api = Object.freeze({
         dbName: DB_NAME,
         ownerUserId,
@@ -265,6 +272,7 @@
         getQueue,
         setQueue,
         clearQueue,
+        withOwner,
         whenReady
     });
 

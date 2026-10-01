@@ -51,24 +51,22 @@
         }
 
         async restoreQueue() {
-            const pendingCreatedBeforeRestore = cloneQueue(this.queue);
             if (!global.RPOfflineStore || !global.RPOfflineStore.ownerUserId) {
-                this.queue = pendingCreatedBeforeRestore;
                 return;
             }
 
             try {
                 const storedQueue = await global.RPOfflineStore.getQueue(QUEUE_KEY);
-                this.queue = mergeQueues(storedQueue, pendingCreatedBeforeRestore);
+                this.queue = mergeQueues(storedQueue, this.queue);
                 await global.RPOfflineStore.setQueue(QUEUE_KEY, this.queue);
                 console.log(`[OfflineBuffer] Restored ${this.queue.length} scan(s) for current user.`);
             } catch (error) {
                 console.warn('[OfflineBuffer] Failed to restore IndexedDB queue.', error);
-                this.queue = pendingCreatedBeforeRestore;
             }
         }
 
         async persistQueue() {
+            await this.ready;
             if (!global.RPOfflineStore || !global.RPOfflineStore.ownerUserId) {
                 this.updateUIBadge();
                 return;
@@ -105,7 +103,10 @@
             }
 
             this.isSyncing = true;
-            const payload = { events: cloneQueue(this.queue) };
+            const payload = {
+                owner_user_id: global.RPOfflineStore && global.RPOfflineStore.ownerUserId,
+                events: cloneQueue(this.queue)
+            };
 
             try {
                 const response = await fetch('/api/scanner/sync-batch', {
@@ -113,6 +114,7 @@
                     credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-RP-Offline-Owner': String(payload.owner_user_id || ''),
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: JSON.stringify(payload)
@@ -122,7 +124,12 @@
                     const result = await response.json();
                     if (result.success) {
                         console.log('[OfflineBuffer] Synced successfully:', result.data);
-                        this.queue = [];
+                        const sentIds = new Set(payload.events.map((item) => item.client_uuid));
+                        const acknowledged = new Set((result.data && result.data.items || [])
+                            .filter((item) => sentIds.has(item.client_uuid) &&
+                                ['SUCCESS', 'DUPLICATE_SKIPPED'].includes(item.status))
+                            .map((item) => item.client_uuid));
+                        this.queue = this.queue.filter((item) => !acknowledged.has(item.client_uuid));
                         await this.persistQueue();
                     }
                 } else if (response.status === 401 || response.status === 403) {

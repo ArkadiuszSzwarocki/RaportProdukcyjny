@@ -17,8 +17,8 @@ if (window.RPOfflineStore) {
             if (window.OfflineQueue && typeof window.OfflineQueue.updateIndicator === 'function') {
                 window.OfflineQueue.updateIndicator();
             }
-            if (navigator.onLine && window.OfflineQueue && typeof window.OfflineQueue.processQueue === 'function') {
-                window.OfflineQueue.processQueue();
+            if (navigator.onLine && window.OfflineQueue && typeof window.OfflineQueue.sync === 'function') {
+                window.OfflineQueue.sync();
             }
         } catch (e) {
             console.warn('[OfflineQueue] Failed to resume persisted queue.', e);
@@ -65,6 +65,10 @@ def _rewrite_frontend_security(response):
             'window.__offlineMutationStorage.setItem(this.queueKey, JSON.stringify(queue))',
         )
         rewritten = rewritten.replace(_LEGACY_QUEUE_INIT, _SCOPED_QUEUE_INIT)
+        rewritten = rewritten.replace(
+            'fetch(item.url, item.options)',
+            'fetch(item.url, window.RPOfflineStore.withOwner(item.options))',
+        )
 
     if mimetype == 'text/html':
         rewritten = rewritten.replace(SOCKET_IO_CDN_TAG, SOCKET_IO_SRI_TAG)
@@ -85,6 +89,18 @@ def _offline_user_header_value() -> str:
 
 def register_browser_security_headers(app) -> None:
     """Add browser controls and partition offline data by authenticated user."""
+
+    @app.before_request
+    def _offline_mutation_owner():
+        owner = request.headers.get('X-RP-Offline-Owner')
+        if owner is None or request.method in {'GET', 'HEAD', 'OPTIONS'}:
+            return None
+        from flask import jsonify
+
+        active_owner = _offline_user_header_value()
+        if active_owner == 'anonymous' or str(owner).strip() != active_owner:
+            return jsonify({'success': False, 'error': 'offline_owner_mismatch'}), 403
+        return None
 
     @app.after_request
     def _browser_security_headers(response):
