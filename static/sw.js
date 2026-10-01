@@ -165,7 +165,25 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.type !== 'RP_SET_OFFLINE_USER') return;
-    event.waitUntil(setActiveUser(data.userId));
+    event.waitUntil((async () => {
+        const requestedUser = normalizeUserId(data.userId);
+        if (!requestedUser) {
+            await setActiveUser(null);
+            return;
+        }
+        if (requestedUser === await getActiveUser()) return;
+        // A stale tab must not switch the browser back to another user's pages.
+        // Only the current server session can establish a different owner.
+        try {
+            const response = await fetch(new URL('/', self.location.origin).toString(), {
+                method: 'HEAD', credentials: 'same-origin', cache: 'no-store'
+            });
+            const serverOwner = normalizeUserId(response.headers.get('X-RP-Offline-User'));
+            if (response.ok && serverOwner === requestedUser) await setActiveUser(serverOwner);
+        } catch (error) {
+            // Offline messages can retain the existing owner, never replace it.
+        }
+    })());
 });
 
 self.addEventListener('fetch', (event) => {

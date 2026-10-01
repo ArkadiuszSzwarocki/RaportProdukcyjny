@@ -6,6 +6,7 @@ import { IDBFactory } from 'fake-indexeddb';
 
 const storeCode = readFileSync(new URL('../../static/js/offline_store.js', import.meta.url), 'utf8');
 const scannerCode = readFileSync(new URL('../../static/js/offline_scan_buffer.js', import.meta.url), 'utf8');
+const workerCode = readFileSync(new URL('../../static/sw.js', import.meta.url), 'utf8');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -123,4 +124,47 @@ test('expired session and owner mismatch keep durable scans and stop replay', as
         assert.equal(scanner.authBlocked, true);
         assert.equal((await context.RPOfflineStore.getQueue('rp_offline_scan_buffer')).length, 1);
     }
+});
+
+test('service worker serves only the active owner and rejects stale tab takeover', async () => {
+    const partitions = new Map();
+    const listeners = new Map();
+    const key = (request) => typeof request === 'string' ? request : request.url;
+    const context = vm.createContext({
+        URL, Request, Response, console: { log() {}, warn() {} },
+        self: { location: { origin: 'https://app.example' },
+            addEventListener(type, callback) { listeners.set(type, callback); } },
+        caches: { async open(name) {
+            if (!partitions.has(name)) partitions.set(name, new Map());
+            const cache = partitions.get(name);
+            return {
+                async match(request) { return cache.get(key(request))?.clone(); },
+                async put(request, response) { cache.set(key(request), response.clone()); },
+                async delete(request) { return cache.delete(key(request)); },
+            };
+        } },
+    });
+    vm.runInContext(workerCode, context);
+    const request = new Request('https://app.example/screen');
+    context.fetch = async () => new Response('user A screen', { headers: {
+        'Content-Type': 'text/html', 'X-RP-Offline-User': '17',
+    } });
+    await context.navigationResponse(request);
+    context.fetch = async () => new Response('user B screen', { headers: {
+        'Content-Type': 'text/html', 'X-RP-Offline-User': '29',
+    } });
+    await context.navigationResponse(request);
+    let work;
+    listeners.get('message')({ data: { type: 'RP_SET_OFFLINE_USER', userId: '17' },
+        waitUntil(promise) { work = promise; } });
+    await work;
+    assert.equal(await context.getActiveUser(), '29');
+    context.fetch = async () => { throw new Error('offline'); };
+    assert.equal(await (await context.navigationResponse(request)).text(), 'user B screen');
+    listeners.get('message')({ data: { type: 'RP_SET_OFFLINE_USER', userId: '17' },
+        waitUntil(promise) { work = promise; } });
+    await work;
+    assert.equal(await context.getActiveUser(), '29');
+    await context.setActiveUser(null);
+    assert.equal((await context.navigationResponse(request)).status, 0);
 });
