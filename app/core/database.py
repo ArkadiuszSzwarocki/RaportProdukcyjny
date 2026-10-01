@@ -118,7 +118,7 @@ def _get_or_create_pool():
                 from mysql.connector import pooling
                 pool = pooling.MySQLConnectionPool(
                     pool_name="app_db_pool",
-                    pool_size=10,
+                    pool_size=32,
                     pool_reset_session=True,
                     **pool_config
                 )
@@ -169,7 +169,7 @@ def get_db_connection(retries=2):
             except mysql.connector.Error as exc:
                 last_error = exc
                 if attempt < num_retries - 1:
-                    time.sleep(0.5)
+                    time.sleep(0.2)
 
     if last_error is not None:
         raise last_error

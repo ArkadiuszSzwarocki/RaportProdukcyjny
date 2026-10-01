@@ -454,21 +454,11 @@ class PickingService:
             return False, f"Brak oczekujących pozycji do anulowania w {order_ref}."
         return True, f"Anulowano {cancelled} pozycji w dyspozycji {order_ref}."
 
-    def delete_picking_order(self, order_ref, user_role):
+    def delete_picking_order(self, order_ref, user_role=None):
         """Trwale usuwa dyspozycję kompletacji."""
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
-
-        role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
-        is_admin = role_norm in ['masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd']
-        has_completed = any(item.get('status') == 'SKOMPLETOWANA' for item in items)
-
-        if has_completed and not is_admin:
-            return False, (
-                "Brak uprawnień. W dyspozycji rozpoczęto już realizację palet — "
-                "usuwanie dostępne tylko dla administratora."
-            )
 
         deleted_rows = self._picking_repo.delete_order(order_ref)
         if deleted_rows == 0:
@@ -479,6 +469,10 @@ class PickingService:
     def get_active_orders(self, operator_login=None):
         """Returns list of active picking orders."""
         return self._picking_repo.get_active_orders(operator_login)
+
+    def get_all_orders(self, limit=50):
+        """Returns list of all picking orders for history view."""
+        return self._picking_repo.get_all_orders(limit)
 
     def _execute_pick_confirmation(self, item, magazynier_login):
         """Confirm a pick only if the pallet is still in the expected source location."""

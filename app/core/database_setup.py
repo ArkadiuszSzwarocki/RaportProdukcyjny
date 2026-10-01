@@ -1882,7 +1882,8 @@ def _seed_produkty(cursor):
             "SELECT id FROM produkty_receptury WHERE nazwa_produktu=%s",
             (nazwa,)
         )
-        if not cursor.fetchone():
+        existing = cursor.fetchall()
+        if not existing:
             cursor.execute(
                 "INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji) VALUES (%s, %s, %s)",
                 (nazwa, nr_receptury, typ)
@@ -1908,7 +1909,8 @@ def _seed_etykiety(cursor):
     ]
     for label in default_labels:
         cursor.execute("SELECT id FROM slownik_etykiety_agro WHERE nazwa=%s", (label,))
-        if not cursor.fetchone():
+        existing = cursor.fetchall()
+        if not existing:
             cursor.execute("INSERT INTO slownik_etykiety_agro (nazwa) VALUES (%s)", (label,))
     
     print("[OK] Etykiety AGRO zainicjalizowane w bazie danych")
@@ -1965,7 +1967,7 @@ def setup_database():
 
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         
         # 1. Create all base tables
         _create_tables(cursor)

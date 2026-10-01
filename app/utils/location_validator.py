@@ -7,42 +7,85 @@ jako lokalizacji w magazynie surowców, opakowań i wyrobów gotowych.
 import re
 
 # Wzorce kodów zbiorników produkcyjnych (NIE mogą być lokalizacjami magazynowymi!)
-PRODUCTION_TANK_PATTERNS = [
-    r'^BB(0[1-6]|1[1-9]|2[0-2])$',      # BB01-BB06, BB11-BB22 (BB07-BB10, BB23-BB24 usunięte)
-    r'^MZ(0[7-9]|10|23|24)$',          # MZ07-MZ10, MZ23-MZ24 (MZ01-MZ06, MZ11-MZ22 usunięte)
-    r'^KO\d{2}$',                      # KO01, KO02, ..., KO40
-    r'^CZ\d{2}$',                      # CZ01, CZ02, ... (Czyszczenie)
-    r'^WZ\d{2}$',                      # WZ04 (new production tank)
-    r'^PSD\d*$',                       # PSD, PSD01, PSD02
-    r'^MIX\d*$',                       # MIX, MIX01
-]
+# Canonical sets of production stations
+VALID_BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
+VALID_MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
+VALID_KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
+VALID_CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 100)]
+VALID_WZ_TANK_CODES = ["WZ04"]
+VALID_PRODUCTION_TANK_CODES = set(VALID_BB_TANK_CODES + VALID_MZ_TANK_CODES + VALID_KO_TANK_CODES + VALID_CZ_TANK_CODES + VALID_WZ_TANK_CODES)
 
 DELETED_STATION_CODES = {
     'BB07', 'BB08', 'BB09', 'BB10', 'BB23', 'BB24',
+    'BB7', 'BB8', 'BB9', 'BB10', 'BB23', 'BB24',
     'MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06',
+    'MZ1', 'MZ2', 'MZ3', 'MZ4', 'MZ5', 'MZ6',
     'MZ11', 'MZ12', 'MZ13', 'MZ14', 'MZ15', 'MZ16', 'MZ17', 'MZ18', 'MZ19', 'MZ20', 'MZ21', 'MZ22',
     'MZ05-01', 'MZ06-01'
 }
+
+# Wzorce kodów zbiorników produkcyjnych (NIE mogą być lokalizacjami magazynowymi!)
+PRODUCTION_TANK_PATTERNS = [
+    r'^BB\d+$',
+    r'^MZ\d+$',
+    r'^KO\d+$',
+    r'^CZ\d+$',
+    r'^WZ\d+$',
+    r'^PSD\d*$',
+    r'^MIX\d*$',
+]
+
+
+def normalize_production_tank_code(location_code):
+    """Normalize station/tank code to standard 2-digit format (e.g. BB2 -> BB02, MZ7 -> MZ07, KO1 -> KO01)."""
+    if not location_code:
+        return ""
+    val = str(location_code).strip().upper()
+    val = re.sub(r'[\s\-_]+', '', val)
+    m = re.match(r'^([A-Z]+)(\d+)$', val)
+    if m:
+        prefix, num = m.group(1), int(m.group(2))
+        if prefix in ('BB', 'MZ', 'KO', 'CZ', 'WZ'):
+            return f"{prefix}{num:02d}"
+    return val
+
 
 def is_deleted_station_code(location_code):
     """Sprawdza czy kod to usunięta ze stanowisk stacja BB lub MZ."""
     if not location_code:
         return False
-    normalized = str(location_code).strip().upper()
-    return normalized in DELETED_STATION_CODES
+    normalized = normalize_production_tank_code(location_code)
+    raw_norm = str(location_code).strip().upper()
+    return normalized in DELETED_STATION_CODES or raw_norm in DELETED_STATION_CODES
+
+
+def is_valid_production_tank_code(location_code):
+    """Sprawdza czy kod to poprawna, istniejąca stacja produkcyjna."""
+    if not location_code:
+        return False
+    norm = normalize_production_tank_code(location_code)
+    return norm in VALID_PRODUCTION_TANK_CODES
+
+
+def validate_production_tank(location_code):
+    """Validate production tank code, returning (is_valid, normalized_code, error_message)."""
+    if not location_code or not str(location_code).strip():
+        return False, "", "⚠️ Brak kodu stacji/zbiornika!"
+    
+    norm = normalize_production_tank_code(location_code)
+    if is_deleted_station_code(location_code) or is_deleted_station_code(norm):
+        return False, norm, f"❌ Stacja/zbiornik {norm} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40."
+    
+    if norm not in VALID_PRODUCTION_TANK_CODES:
+        return False, norm, f"❌ Stacja/zbiornik '{norm}' nie istnieje! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, CZ01-CZ99, WZ04."
+    
+    return True, norm, None
+
 
 def is_production_tank_code(location_code):
     """
     Sprawdza czy podany kod to kod zbiornika produkcyjnego.
-    Lokalizacje buforowe i magazynowe (BF_MS01, BF_MP01, BFOS itp.) ZAWSZE zwracają False,
-    ponieważ są lokalizacjami magazynowymi, a NIE produkcyjnymi.
-    
-    Args:
-        location_code: Kod lokalizacji do sprawdzenia
-        
-    Returns:
-        True jeśli to kod zbiornika produkcyjnego (BB*, MZ*, KO*, CZ*, WZ*)
-        False w przeciwnym wypadku (w tym dla BF_MS01, BF_MP01 itp.)
+    Lokalizacje buforowe i magazynowe (BF_MS01, BF_MP01, BFOS itp.) ZAWSZE zwracają False.
     """
     if not location_code:
         return False
@@ -56,8 +99,12 @@ def is_production_tank_code(location_code):
     if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS01', 'MP01', 'MDM01', 'MOP01', 'MDO01', 'MGW01', 'MGW02', 'RAMPA', 'R0', 'LP01', 'LP')):
         return False
         
+    norm_tank = normalize_production_tank_code(normalized)
+    if norm_tank in VALID_PRODUCTION_TANK_CODES or norm_tank in DELETED_STATION_CODES:
+        return True
+
     for pattern in PRODUCTION_TANK_PATTERNS:
-        if re.match(pattern, normalized):
+        if re.match(pattern, normalized) or re.match(pattern, norm_tank):
             return True
     return False
 
@@ -82,7 +129,7 @@ def is_warehouse_location(location_code):
     if not normalized:
         return False
     clean_norm = normalized.replace('_', '').replace('-', '').replace(' ', '')
-    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'KO', 'R0', 'LP')):
+    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'R0', 'LP')):
         return True
     return not is_production_tank_code(normalized)
 
@@ -97,19 +144,6 @@ def validate_warehouse_location(location_code, allow_empty=True):
         
     Returns:
         Tuple (is_valid: bool, error_message: str)
-        
-    Examples:
-        >>> validate_warehouse_location("R021002")
-        (True, None)
-        
-        >>> validate_warehouse_location("BB15")
-        (False, "BB15 to kod zbiornika produkcyjnego. Użyj kodów regałów (np. R021002)")
-        
-        >>> validate_warehouse_location(None, allow_empty=True)
-        (True, None)
-        
-        >>> validate_warehouse_location(None, allow_empty=False)
-        (False, "Lokalizacja jest wymagana")
     """
     if not location_code or str(location_code).strip() == '':
         if allow_empty:
@@ -120,19 +154,21 @@ def validate_warehouse_location(location_code, allow_empty=True):
     normalized = str(location_code).strip().upper()
     clean_norm = normalized.replace('_', '').replace('-', '').replace(' ', '')
     
-    # Wyjątek: Magazyny, bufory (BFMS01, BFMP01, BFOS, BF_*), KO oraz stacje maszyn (LP01, MASZYNA) są dozwolonymi lokalizacjami magazynowymi
-    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'KO', 'R0', 'LP')) or clean_norm == 'MASZYNA':
+    # Wyjątek: Magazyny, bufory (BFMS01, BFMP01, BFOS, BF_*), stacje maszyn (LP01, MASZYNA) są dozwolonymi lokalizacjami magazynowymi
+    if clean_norm.startswith(('BFMS', 'BFMP', 'BFOS', 'BF', 'MS', 'MP', 'MOP', 'MDM', 'MGW', 'MDO', 'MD', 'PSD', 'RAMPA', 'MIX', 'OSIP', 'R0', 'LP')) or clean_norm == 'MASZYNA':
         return True, None
 
-    if is_deleted_station_code(normalized):
+    norm_tank = normalize_production_tank_code(normalized)
+
+    if is_deleted_station_code(normalized) or is_deleted_station_code(norm_tank):
         return False, (
             f"Lokalizacja {normalized} to wycofana/usunięta stacja produkcyjna. "
             "Użyj kodów regałów magazynowych (np. R021002, R030601)"
         )
 
-    if is_production_tank_code(normalized):
+    if is_production_tank_code(normalized) or is_production_tank_code(norm_tank):
         return False, (
-            f"{normalized} to kod zbiornika produkcyjnego (BB/MZ są tylko do przypisywania surowców w produkcji). "
+            f"{normalized} to kod stacji/zbiornika produkcyjnego. "
             "Użyj kodów regałów magazynowych (np. R021002, R030601)"
         )
     

@@ -254,7 +254,7 @@ class ScannerLookupService:
                     
                     it_nr_raw = str(it.get('nr_palety') or it.get('sourcePalletNo') or '').strip()
                     it_nr = (ScannerCodeNormalizer.normalize_scanned_code(it_nr_raw) or it_nr_raw).upper()
-                    it_id = str(it.get('sourcePalletId') or it.get('id') or '')
+                    it_id = str(it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id') or '')
                     
                     if (it_nr and it_nr == code_clean_upper) or (it_id and it_id == code_clean):
                         created_str = d['created_at'].strftime('%Y-%m-%d %H:%M') if hasattr(d.get('created_at'), 'strftime') else str(d.get('created_at') or '')

@@ -153,6 +153,13 @@ def api_orders_picking_active():
     return jsonify({'success': True, 'data': orders, 'orders': orders})
 
 
+@warehouse_v2_bp.route('/api/orders/picking/all', methods=['GET'])
+def api_orders_picking_all():
+    limit = request.args.get('limit', 50, type=int)
+    orders = _picking_service.get_all_orders(limit=limit)
+    return jsonify({'success': True, 'data': orders, 'orders': orders})
+
+
 @warehouse_v2_bp.route('/api/orders/picking/<order_ref>', methods=['GET'])
 def api_orders_picking_details(order_ref):
     details = _picking_service.get_picking_order_details(order_ref)
@@ -190,8 +197,15 @@ def api_orders_picking_confirm(order_ref):
 
 
 @warehouse_v2_bp.route('/api/orders/picking/<order_ref>/cancel', methods=['POST'])
-def api_orders_picking_cancel(order_ref):
-    success, message = _picking_service.cancel_picking_order(order_ref)
+@warehouse_v2_bp.route('/api/orders/picking/cancel', methods=['POST'])
+def api_orders_picking_cancel(order_ref=None):
+    if not order_ref:
+        data = request.get_json(silent=True) or {}
+        order_ref = data.get('order_ref') or request.args.get('order_ref')
+    if not order_ref:
+        return jsonify({'success': False, 'message': 'Brak wymaganego parametru order_ref.'}), 400
+
+    success, message = _picking_service.cancel_picking_order(str(order_ref).strip())
     return jsonify({'success': success, 'message': message}), 200 if success else 400
 
 

@@ -227,10 +227,10 @@ class DeliveryQueries:
                 for it in items:
                     if not isinstance(it, dict):
                         continue
-                    if it.get('accepted') or it.get('rejected'):
+                    if it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at'):
                         continue
                     it_nr = str(it.get('nr_palety') or it.get('sourcePalletNo') or '').strip().upper()
-                    it_ids = [str(val).strip() for val in [it.get('sourcePalletId'), it.get('id'), it.get('surowiec_id'), it.get('pallet_id')] if val is not None and str(val).strip()]
+                    it_ids = [str(val).strip() for val in [it.get('sourcePalletId'), it.get('surowiec_id'), it.get('pallet_id')] if val is not None and str(val).strip()]
                     if (norm_nr and it_nr and norm_nr == it_nr) or (norm_id and norm_id in it_ids):
                         ref = r.get('order_ref') or f"RUCH-{r['id'][:8]}"
                         return True, ref
