@@ -1,16 +1,27 @@
 /**
  * Offline Scan Buffer & Idempotent Sync Manager
- * Buffers barcode/SSCC scans locally during Wi-Fi signal loss and automatically syncs when online.
+ * Buffers barcode/SSCC scans only in memory for the lifetime of the current page.
+ *
+ * Security: mutation payloads must never survive logout/login on a shared
+ * workstation, therefore this queue intentionally does not use localStorage or
+ * sessionStorage. Legacy persisted queue data is removed on startup.
  */
 
 (function (global) {
     'use strict';
 
-    const STORAGE_KEY = 'rp_offline_scan_buffer';
+    const LEGACY_STORAGE_KEY = 'rp_offline_scan_buffer';
+
+    try {
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch (e) {
+        // Storage can be unavailable; the in-memory queue still works.
+    }
 
     class OfflineScanBuffer {
         constructor() {
-            this.queue = this.loadQueue();
+            this.queue = [];
             this.isSyncing = false;
             this.initNetworkListeners();
         }
@@ -19,23 +30,10 @@
             return 'scan-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         }
 
-        loadQueue() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                return raw ? JSON.parse(raw) : [];
-            } catch (e) {
-                console.warn('[OfflineBuffer] Failed to load queue from storage', e);
-                return [];
-            }
-        }
-
         saveQueue() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue));
-                this.updateUIBadge();
-            } catch (e) {
-                console.warn('[OfflineBuffer] Failed to persist queue', e);
-            }
+            // Deliberately memory-only. Persisting write operations across a
+            // session boundary could replay user A's action as user B.
+            this.updateUIBadge();
         }
 
         enqueueScan(code, action = 'LOOKUP') {
@@ -47,7 +45,7 @@
             };
             this.queue.push(eventItem);
             this.saveQueue();
-            console.log('[OfflineBuffer] Enqueued scan:', eventItem);
+            console.log('[OfflineBuffer] Enqueued scan for current page:', eventItem.client_uuid);
 
             if (navigator.onLine) {
                 this.sync();
@@ -66,6 +64,7 @@
             try {
                 const response = await fetch('/api/scanner/sync-batch', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
@@ -80,9 +79,14 @@
                         this.queue = [];
                         this.saveQueue();
                     }
+                } else if (response.status === 401 || response.status === 403) {
+                    // Never retain a mutation when the authenticated context is
+                    // gone or no longer authorized.
+                    this.queue = [];
+                    this.saveQueue();
                 }
             } catch (err) {
-                console.warn('[OfflineBuffer] Sync failed, will retry when online:', err);
+                console.warn('[OfflineBuffer] Sync failed, keeping queue only for this page:', err);
             } finally {
                 this.isSyncing = false;
             }
@@ -90,13 +94,17 @@
 
         initNetworkListeners() {
             window.addEventListener('online', () => {
-                console.log('[OfflineBuffer] Network restored. Syncing...');
+                console.log('[OfflineBuffer] Network restored. Syncing current-page queue...');
                 this.sync();
             });
 
             window.addEventListener('offline', () => {
-                console.warn('[OfflineBuffer] Network lost. Operating in offline buffer mode.');
+                console.warn('[OfflineBuffer] Network lost. Buffer remains in memory only.');
                 this.updateUIBadge();
+            });
+
+            window.addEventListener('pagehide', () => {
+                this.queue = [];
             });
         }
 
@@ -114,7 +122,7 @@
                 badge.style.display = 'inline-flex';
                 badge.style.background = !navigator.onLine ? '#ef4444' : '#f59e0b';
                 badge.innerHTML = !navigator.onLine
-                    ? `📡 OFFLINE (${count} w buforze)`
+                    ? `📡 OFFLINE (${count} w buforze tej strony)`
                     : `⏳ Synchronizacja (${count} skanów)`;
             } else {
                 badge.style.display = 'none';
