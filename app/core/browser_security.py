@@ -1,6 +1,6 @@
 """Browser-facing response security headers and frontend response hardening."""
 
-from flask import request
+from flask import request, session
 
 SOCKET_IO_CDN_TAG = '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>'
 SOCKET_IO_SRI_TAG = (
@@ -9,22 +9,33 @@ SOCKET_IO_SRI_TAG = (
     'crossorigin="anonymous"></script>'
 )
 _TEXT_MIMETYPES = {'text/html', 'application/javascript', 'text/javascript'}
+_LEGACY_QUEUE_INIT = 'window.OfflineQueue = new OfflineQueueManager();'
+_SCOPED_QUEUE_INIT = _LEGACY_QUEUE_INIT + """
+if (window.RPOfflineStore) {
+    window.RPOfflineStore.whenReady(function () {
+        try {
+            if (window.OfflineQueue && typeof window.OfflineQueue.updateIndicator === 'function') {
+                window.OfflineQueue.updateIndicator();
+            }
+            if (navigator.onLine && window.OfflineQueue && typeof window.OfflineQueue.processQueue === 'function') {
+                window.OfflineQueue.processQueue();
+            }
+        } catch (e) {
+            console.warn('[OfflineQueue] Failed to resume persisted queue.', e);
+        }
+    });
+}
+"""
 
 
 def _rewrite_frontend_security(response):
-    """Apply narrow, deterministic compatibility rewrites to browser code.
+    """Apply narrow compatibility rewrites to legacy browser code.
 
-    The legacy UI still contains a few ``window.eval(...)`` calls in very large
-    files. Rewriting them at the response boundary avoids native eval without a
-    risky whole-file rewrite. The explicit helper is installed before legacy JS.
-
-    The legacy generic offline mutation queue also used persistent localStorage.
-    Its exact storage calls are rewritten to the in-memory security store exposed
-    by ``dynamic_eval_guard.js`` so queued writes cannot survive a user/session
-    change in the browser.
-
-    Socket.IO is currently loaded from a versioned CDN URL. Attach an SRI hash
-    so a modified CDN response is rejected by the browser.
+    Native ``window.eval`` is replaced by the explicit fragment executor. The
+    old generic mutation queue still contains synchronous localStorage calls;
+    those exact calls are redirected to the user-scoped IndexedDB compatibility
+    store exposed by ``offline_store.js``. This preserves the old queue API
+    without allowing one user's writes to replay under another user's session.
     """
     if getattr(response, 'direct_passthrough', False):
         return response
@@ -47,12 +58,14 @@ def _rewrite_frontend_security(response):
     if mimetype in {'application/javascript', 'text/javascript'}:
         rewritten = rewritten.replace(
             'localStorage.getItem(this.queueKey)',
-            'window.__ephemeralMutationStorage.getItem(this.queueKey)',
+            'window.__offlineMutationStorage.getItem(this.queueKey)',
         )
         rewritten = rewritten.replace(
             'localStorage.setItem(this.queueKey, JSON.stringify(queue))',
-            'window.__ephemeralMutationStorage.setItem(this.queueKey, JSON.stringify(queue))',
+            'window.__offlineMutationStorage.setItem(this.queueKey, JSON.stringify(queue))',
         )
+        rewritten = rewritten.replace(_LEGACY_QUEUE_INIT, _SCOPED_QUEUE_INIT)
+
     if mimetype == 'text/html':
         rewritten = rewritten.replace(SOCKET_IO_CDN_TAG, SOCKET_IO_SRI_TAG)
 
@@ -61,8 +74,17 @@ def _rewrite_frontend_security(response):
     return response
 
 
+def _offline_user_header_value() -> str:
+    """Return a non-secret cache partition id for the current authenticated user."""
+    if not bool(session.get('zalogowany')):
+        return 'anonymous'
+    user_id = session.get('user_id')
+    candidate = str(user_id or '').strip()
+    return candidate if candidate.isdigit() else 'anonymous'
+
+
 def register_browser_security_headers(app) -> None:
-    """Add browser controls and forbid client/proxy caching of dynamic responses."""
+    """Add browser controls and partition offline data by authenticated user."""
 
     @app.after_request
     def _browser_security_headers(response):
@@ -80,14 +102,24 @@ def register_browser_security_headers(app) -> None:
             "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
         )
 
-        # Dynamic/authenticated responses must never be retained by a browser,
-        # service worker or shared proxy. Static assets keep their normal cache
-        # policy and are the only resources the service worker may persist.
         path = str(getattr(request, 'path', '') or '')
-        if not path.startswith('/static/') and path not in {'/sw.js', '/favicon.ico'}:
+        is_dynamic = not path.startswith('/static/') and path not in {'/sw.js', '/favicon.ico'}
+        if is_dynamic:
+            # Browsers and shared proxies must not use their ordinary HTTP cache
+            # for authenticated pages. The service worker may keep an explicit
+            # per-user copy for offline operation, selected by this header.
             response.headers['Cache-Control'] = 'no-store, private, max-age=0'
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
+            response.headers['X-RP-Offline-User'] = _offline_user_header_value()
+
+            vary_values = {
+                item.strip()
+                for item in str(response.headers.get('Vary') or '').split(',')
+                if item.strip()
+            }
+            vary_values.add('Cookie')
+            response.headers['Vary'] = ', '.join(sorted(vary_values))
 
         if app.config.get('SESSION_COOKIE_SECURE'):
             response.headers.setdefault(
