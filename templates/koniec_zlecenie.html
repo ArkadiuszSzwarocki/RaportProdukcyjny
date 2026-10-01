@@ -94,6 +94,15 @@
         <input type="hidden" name="linia" value="{{ request.args.get('linia', 'PSD') }}">
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
 
+        {% if sekcja == 'Zasyp' and request.args.get('linia', 'PSD')|upper == 'AGRO' %}
+        <div class="koniec-zlecenie-warning-box" style="background:#fff1f2; border-left-color:#e11d48; border-color:#fecdd3;">
+            <label class="koniec-zlecenie-warning-label" style="color:#be123c;">🗑️ Odrzuty na przesiewaczu (kg) — wymagane</label>
+            <input type="number" name="odrzuty_przesiewacz" min="0" step="0.1" required value=""
+                   class="input-sm koniec-zlecenie-warning-input" placeholder="Wpisz 0, jeśli brak odrzutów">
+            <small class="koniec-zlecenie-warning-text">Zlecenie nie zostanie zamknięte bez wpisania wartości.</small>
+        </div>
+        {% endif %}
+
         {% if sekcja == 'Zasyp' %}
             {% if unused_buckets is defined and unused_buckets|length > 0 %}
             <div class="koniec-bucket-warning">

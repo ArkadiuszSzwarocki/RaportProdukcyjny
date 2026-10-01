@@ -22,7 +22,7 @@
             {% if p[7] and p[7]|int > 0 %}
             <div style="white-space: nowrap; font-size: 0.9em;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
             {% endif %}
-            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' %}
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' and false %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
                 <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty:</strong>
                 <input type="number" 

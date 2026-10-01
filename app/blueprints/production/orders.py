@@ -405,6 +405,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             final_tonaz = request.form.get('final_tonaz')
             wyjasnienie = request.form.get('wyjasnienie')
             uszkodzone_worki = request.form.get('uszkodzone_worki')
+            odrzuty_przesiewacz = request.form.get('odrzuty_przesiewacz')
             sekcja = request.form.get('sekcja')
             linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
             table_plan = get_table_name('plan_produkcji', linia)
@@ -412,6 +413,24 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             cursor.execute(f"SELECT produkt, data_planu FROM {table_plan} WHERE id=%s", (id,))
             plan_meta = cursor.fetchone() or (None, None)
             produkt, data_planu = plan_meta[0], plan_meta[1]
+
+            if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
+                if odrzuty_przesiewacz is None or str(odrzuty_przesiewacz).strip() == '':
+                    msg = 'Podaj odrzuty na przesiewaczu przed zamknięciem zlecenia.'
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify(success=False, message=msg), 400
+                    flash(msg, 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
+                try:
+                    odrzuty_przesiewacz = float(str(odrzuty_przesiewacz).replace(',', '.'))
+                    if odrzuty_przesiewacz < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    msg = 'Odrzuty muszą być liczbą większą lub równą 0.'
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify(success=False, message=msg), 400
+                    flash(msg, 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
 
             rzeczywista_waga = 0
             if final_tonaz:
@@ -428,6 +447,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if wyjasnienie:
                 sql += ', wyjasnienie_rozbieznosci=%s'
                 params.append(wyjasnienie)
+            if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
+                sql += ', odrzuty_przesiewacz=%s'
+                params.append(odrzuty_przesiewacz)
             if uszkodzone_worki and sekcja in ('Workowanie', 'Czyszczenie'):
                 try:
                     uszkodzone_count = int(uszkodzone_worki)
