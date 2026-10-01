@@ -436,7 +436,7 @@ def register_main_reporting_routes(main_bp):
             'lider_prowadzacy_id': None
         }
 
-        lider_name, _ = _get_leader_name(session_data, form_data)
+        lider_name, _ = _get_leader_name(session_data, form_data, linia=linia, date_str=date_str)
 
         return render_template(
             'raport_podglad_pdf_page.html',
@@ -450,11 +450,22 @@ def register_main_reporting_routes(main_bp):
     def raport_podglad_pdf_stream():
         """Strumieniuje wygenerowany plik PDF do osadzonej ramki w przeglądarce."""
         from datetime import date
-        from flask import send_file
-        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files
+        from flask import send_file, Response
+        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files, RAPORTY_DIR
 
         linia = (request.args.get('linia') or 'AGRO').strip().upper()
         date_str = request.args.get('data') or str(date.today())
+        force_regen = request.args.get('force') == '1'
+
+        # Fast-path: serve existing report PDF immediately if present and not force-regenerated
+        expected_pdf = RAPORTY_DIR / f"Raport_{linia}_{date_str}.pdf"
+        if not force_regen and expected_pdf.exists() and expected_pdf.stat().st_size > 1000:
+            return send_file(
+                expected_pdf,
+                mimetype='application/pdf',
+                as_attachment=False,
+                download_name=f"Raport_{linia}_{date_str}.pdf"
+            )
 
         session_data = {
             'pracownik_id': session.get('pracownik_id'),
@@ -466,20 +477,33 @@ def register_main_reporting_routes(main_bp):
             'lider_prowadzacy_id': None
         }
 
-        uwagi = _load_shift_notes(date_str, linia=linia)
-        lider_name, uwagi_extra = _get_leader_name(session_data, form_data)
-        
-        _, _, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
+        try:
+            uwagi = _load_shift_notes(date_str, linia=linia)
+            lider_name, uwagi_extra = _get_leader_name(session_data, form_data, linia=linia, date_str=date_str)
+            
+            _, _, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
 
-        if pdf_path and os.path.exists(pdf_path):
-            return send_file(
-                pdf_path,
-                mimetype='application/pdf',
-                as_attachment=False,
-                download_name=f"Raport_{linia}_{date_str}.pdf"
-            )
-        
-        return "Błąd: Nie znaleziono pliku PDF.", 404
+            if pdf_path and os.path.exists(pdf_path):
+                return send_file(
+                    pdf_path,
+                    mimetype='application/pdf',
+                    as_attachment=False,
+                    download_name=f"Raport_{linia}_{date_str}.pdf"
+                )
+        except Exception as e:
+            logger.error(f"[RAPORT_STREAM] Failed to generate/stream PDF for {linia} {date_str}: {e}", exc_info=True)
+
+        return Response(
+            f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:40px 20px;text-align:center;background:#0f172a;color:#f8fafc;'>"
+            f"<div style='max-width:480px;margin:40px auto;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px 24px;box-shadow:0 10px 30px rgba(0,0,0,0.4);'>"
+            f"<div style='font-size:42px;margin-bottom:12px;'>⚠️</div>"
+            f"<h3 style='margin:0 0 8px 0;font-size:18px;'>Generowanie raportu dobowego</h3>"
+            f"<p style='color:#94a3b8;font-size:14px;margin:0 0 20px 0;'>Raport dla linii <strong>{linia}</strong> ({date_str}) jest przetwarzany lub nie zawiera jeszcze wpisów.</p>"
+            f"<a href='?linia={linia}&data={date_str}&force=1' style='display:inline-block;padding:10px 24px;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;text-decoration:none;'>Ponów próbę generowania</a>"
+            f"</div></body></html>",
+            status=200,
+            mimetype='text/html'
+        )
 
     @main_bp.route('/raport/pobierz_pdf')
     @login_required
@@ -487,10 +511,19 @@ def register_main_reporting_routes(main_bp):
         """Pobiera plik raportu PDF na dysk użytkownika."""
         from datetime import date
         from flask import send_file
-        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files
+        from app.services.shift_close_service import _load_shift_notes, _get_leader_name, _generate_report_files, RAPORTY_DIR
 
         linia = (request.args.get('linia') or 'AGRO').strip().upper()
         date_str = request.args.get('data') or str(date.today())
+
+        expected_pdf = RAPORTY_DIR / f"Raport_{linia}_{date_str}.pdf"
+        if expected_pdf.exists() and expected_pdf.stat().st_size > 1000:
+            return send_file(
+                expected_pdf,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f"Raport_{linia}_{date_str}.pdf"
+            )
 
         session_data = {
             'pracownik_id': session.get('pracownik_id'),
@@ -503,7 +536,7 @@ def register_main_reporting_routes(main_bp):
         }
 
         uwagi = _load_shift_notes(date_str, linia=linia)
-        lider_name, uwagi_extra = _get_leader_name(session_data, form_data)
+        lider_name, uwagi_extra = _get_leader_name(session_data, form_data, linia=linia, date_str=date_str)
         
         _, _, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
 

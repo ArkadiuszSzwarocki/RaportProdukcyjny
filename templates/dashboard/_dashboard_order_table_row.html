@@ -43,6 +43,13 @@
             {% set req_etykieta = p[21] if p|length > 21 else '' %}
             <div><strong style="color:#64748b;">F:</strong> {{ req_folia or '-' }}</div>
             <div><strong style="color:#64748b;">E:</strong> {{ req_etykieta or '-' }}</div>
+        {% elif sekcja == 'Zasyp' %}
+            {% set plan_nr_rec = p[30] if p|length > 30 else '' %}
+            {% if plan_nr_rec %}
+            <div><strong style="color:#0284c7;">Receptura:</strong> <span style="font-weight: 700; color: #0369a1;">#{{ plan_nr_rec }}</span></div>
+            {% else %}
+            <div><strong style="color:#64748b;">Receptura:</strong> <span style="color:#94a3b8;">-</span></div>
+            {% endif %}
         {% endif %}
         {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
         {% if checklist_ok %}

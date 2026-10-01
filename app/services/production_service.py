@@ -54,6 +54,24 @@ class ProductionService:
 
         # Transfer map logic
         przeniesione_map = ProductionService._get_transfer_map(plan_dnia, linia, cursor)
+
+        # Fallback recipe lookup from produkty table if missing in plan
+        product_names_needing_recipe = {p[1] for p in plan_dnia if (len(p) <= 17 or not p[17]) and len(p) > 1 and p[1]}
+        recipe_lookup = {}
+        if product_names_needing_recipe:
+            try:
+                placeholders = ', '.join(['%s'] * len(product_names_needing_recipe))
+                cursor.execute(
+                    f"SELECT nazwa_produktu, nr_receptury FROM produkty WHERE nazwa_produktu IN ({placeholders}) AND nr_receptury IS NOT NULL AND nr_receptury != ''",
+                    tuple(product_names_needing_recipe)
+                )
+                for row in cursor.fetchall():
+                    if isinstance(row, dict):
+                        recipe_lookup[row.get('nazwa_produktu')] = row.get('nr_receptury')
+                    elif isinstance(row, (list, tuple)) and len(row) >= 2:
+                        recipe_lookup[row[0]] = row[1]
+            except Exception as e:
+                _logger.warning(f"Error looking up product recipes: {e}")
         
         zasyp_id_original_map = {}
         for p in plan_dnia:
@@ -63,7 +81,7 @@ class ProductionService:
             # Extract extra columns properly based on SQL select list
             odrzuty = p[15] if len(p) > 15 else 0
             rodzaj_palety = p[16] if len(p) > 16 else 'krajowa'
-            nr_receptury_val = p[17] if len(p) > 17 else ''
+            nr_receptury_val = p[17] if len(p) > 17 and p[17] else recipe_lookup.get(p[1], '')
             opak_nazwa = p[18] if len(p) > 18 else None
             etyk_nazwa = p[19] if len(p) > 19 else None
             

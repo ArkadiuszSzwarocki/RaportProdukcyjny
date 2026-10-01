@@ -84,21 +84,33 @@ class PdfReportGenerator:
         PdfStaffSections.render_absences_and_kpi(pdf, nieobecni_rows, hr_rows)
         PdfStaffSections.render_overtime(pdf, nadgodziny_rows)
 
+        actual_pdf_name = nazwa_pdf
         try:
             if os.path.exists(sciezka):
                 try:
                     os.remove(sciezka)
                 except Exception:
+                    # Target is locked (e.g. open in iframe/browser on Windows)
                     sciezka = sciezka.replace('.pdf', '_new.pdf')
+                    actual_pdf_name = nazwa_pdf.replace('.pdf', '_new.pdf')
         except Exception:
             pass
 
         try:
             pdf.output(sciezka)
             print(f"[RAPORTY] PDF saved to: {sciezka}")
-            return nazwa_pdf
+            return actual_pdf_name
         except Exception as e:
             print(f"[RAPORTY] ERROR saving PDF to {sciezka}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+            try:
+                # Secondary fallback with unique PID to guarantee successful write even if _new is locked
+                fallback_name = f"Raport{linia_prefix}_{dzisiaj}_{os.getpid()}.pdf"
+                fallback_path = os.path.join(RAPORTY_PATH, fallback_name)
+                pdf.output(fallback_path)
+                print(f"[RAPORTY] PDF fallback saved to: {fallback_path}")
+                return fallback_name
+            except Exception as e2:
+                print(f"[RAPORTY] Fatal PDF write failure: {e2}")
+                import traceback
+                traceback.print_exc()
+                return None

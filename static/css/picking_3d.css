@@ -117,6 +117,16 @@
     background: rgba(239, 68, 68, 0.35);
 }
 
+.picking-btn-complete {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #d1fae5;
+}
+
+.picking-btn-complete:hover {
+    background: rgba(16, 185, 129, 0.45);
+}
+
 .picking-btn-close {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);

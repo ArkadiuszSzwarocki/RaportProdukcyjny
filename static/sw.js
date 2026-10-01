@@ -4,7 +4,7 @@
  * Provides robust offline navigation, static asset caching, and offline fallback.
  */
 
-const CACHE_NAME = 'rp-pwa-v2';
+const CACHE_NAME = 'rp-pwa-v7';
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',
@@ -49,15 +49,28 @@ self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
 
+    // Bypass cross-origin requests so SW never breaks CDN or external resources
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+
     // Skip non-GET requests and API data writes (they are handled by offline_scan_buffer.js)
     if (request.method !== 'GET') {
         return;
     }
 
-    // Skip API routes from caching to avoid stale responses, except when network fails
-    const isApiRequest = url.pathname.startsWith('/api/');
+    // Skip API routes from caching to avoid stale responses
+    const isApiRequest = url.pathname.startsWith('/api/') || url.pathname.startsWith('/warehouse-v2/api/');
 
     if (isApiRequest) {
+        return;
+    }
+
+    // Skip PDF streaming, file downloads, and dynamic report exports
+    if (url.pathname.includes('/raport/podglad_pdf') ||
+        url.pathname.includes('/raport/pobierz_pdf') ||
+        url.pathname.includes('/stream') ||
+        url.pathname.endsWith('.pdf')) {
         return;
     }
 

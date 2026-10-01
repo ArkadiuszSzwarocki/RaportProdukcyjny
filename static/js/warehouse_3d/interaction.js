@@ -102,7 +102,13 @@ function onDocumentPointerDown(event) {
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
+        if (hit.userData && hit.userData.isRackHeader && hit.userData.rackId) {
+            selectRackQuick(hit.userData.rackId);
+            return;
+        }
+
         const slot = hit.userData.slot;
+        if (!slot) return;
         const rack = hit.userData.rack;
         const slotGroup = hit.userData.parentGroup;
 
@@ -444,17 +450,38 @@ function openInspectDrawer(slot, rack) {
                 expPill = `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 10px; padding: 2px 6px; border-radius: 6px;">✅ Ważna (${p.days_to_exp} dni)</span>`;
             }
 
+            let pickingTargetBanner = '';
+            if (p.is_picking_target) {
+                pickingTargetBanner = `
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.15)); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 12px; font-weight: 900; color: #fef08a; display: flex; align-items: center; gap: 4px;">
+                                <span class="material-icons" style="font-size: 16px; color: #f59e0b;">bolt</span>
+                                POZYCJA DO WYDANIA (FIFO #${p.fifo_rank || 1})
+                            </span>
+                            <span style="font-size: 11px; font-weight: 700; color: #38bdf8;">${p.picking_status || 'OCZEKUJE'}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #cbd5e1;">Zlecenie: <strong style="color: #ffffff;">${p.order_ref || ''}</strong></div>
+                        <button type="button" onclick="if (typeof PickingViewModule !== 'undefined') PickingViewModule.openPickingModal('${p.order_ref || ''}')" style="margin-top: 8px; width: 100%; background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: none; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35);">
+                            <span class="material-icons" style="font-size: 16px;">qr_code_scanner</span>
+                            Otwórz Skaner / Wydaj Paletę
+                        </button>
+                    </div>
+                `;
+            }
+
             const safePalletJson = JSON.stringify(p).replace(/"/g, '&quot;');
 
             html += `
                 <div class="wh3d-pallet-card ${isBlocked ? 'blocked' : ''}" style="margin-top: 12px; border-left: 3px solid ${itemAccent};">
+                    ${pickingTargetBanner}
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <div>
                             ${pallets.length > 1 ? `<span style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-right: 4px;">#${idx + 1}</span>` : ''}
                             <strong style="color: ${itemAccent}; font-size: 14px; font-family: monospace;">${pNum}</strong>
                         </div>
                         <span class="status-pill ${isBlocked ? 'praca' : 'ready'}" style="font-size: 10px; padding: 2px 8px;">
-                            ${isBlocked ? '⛔ KWARANTANNA' : 'DOSTĘPNA'}
+                            ${isBlocked ? '⛔ KWARANTANNA' : (p.is_picking_target ? 'DO WYDANIA' : 'DOSTĘPNA')}
                         </span>
                     </div>
 

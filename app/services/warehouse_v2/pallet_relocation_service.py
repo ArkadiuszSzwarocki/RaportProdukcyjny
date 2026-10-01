@@ -6,7 +6,8 @@ from app.utils.location_validator import (
     validate_warehouse_location,
     is_production_tank_code,
     check_rack_location_availability,
-    validate_centrala_osip_move
+    validate_centrala_osip_move,
+    validate_inter_warehouse_move
 )
 from app.utils.pallet_id import generate_pallet_id
 from app.services.warehouse_history.movement_recorder import MovementRecorder
@@ -177,6 +178,15 @@ class PalletRelocationService:
                 return False, f"BŁĄD: Paleta {nr_palety or pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!", None
 
             if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
+                is_inter_valid, inter_err_msg = validate_inter_warehouse_move(
+                    source_location=old_loc,
+                    target_location=new_location,
+                    pallet_id=pallet_id,
+                    nr_palety=nr_palety
+                )
+                if not is_inter_valid:
+                    return False, inter_err_msg, None
+
                 is_trf_valid, trf_err_msg = validate_centrala_osip_move(
                     source_location=old_loc,
                     target_location=new_location,
@@ -343,6 +353,18 @@ class PalletRelocationService:
                     OsipTransferService.auto_receive_pallet_by_code(str(new_pallet_id), new_location, worker_login)
             except Exception as osip_e:
                 print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
+
+            # Auto-complete in pending picking orders (Kompletacja) when moved to MP01 or production tank
+            if new_location == 'MP01' or is_production_tank_code(new_location):
+                try:
+                    from app.repositories.picking_repository import PickingRepository
+                    PickingRepository.auto_complete_pallet_if_pending(
+                        pallet_id=real_pallet_id,
+                        nr_palety=target_pallet_sscc or nr_palety,
+                        user_login=worker_login
+                    )
+                except Exception as pick_e:
+                    print("Błąd podczas automatycznego oznaczania kompletacji:", pick_e)
             
             split_info = {
                 'is_split': bool(is_split),

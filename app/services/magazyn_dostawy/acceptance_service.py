@@ -88,6 +88,16 @@ class AcceptanceService:
                 if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None
 
+                from app.utils.location_validator import validate_reception_warehouse_destination
+                is_dest_valid, dest_err_msg = validate_reception_warehouse_destination(
+                    source_location=source_spot,
+                    planned_destination=dostawa.get('lokalizacja_do') or '',
+                    putaway_location=lokalizacja,
+                    is_external=is_external
+                )
+                if not is_dest_valid:
+                    return False, dest_err_msg, None
+
                 table_sur = get_table_name('magazyn_surowce', linia)
                 table_opk = get_table_name('magazyn_opakowania', linia)
                 table_got = get_table_name('magazyn_palety', linia)

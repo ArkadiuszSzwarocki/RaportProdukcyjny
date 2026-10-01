@@ -162,6 +162,17 @@ class ScannerMovementService:
 
             conn.commit()
 
+            # Auto-complete in pending picking orders (Kompletacja) when dispatched to production
+            try:
+                from app.repositories.picking_repository import PickingRepository
+                PickingRepository.auto_complete_pallet_if_pending(
+                    pallet_id=surowiec_id,
+                    nr_palety=pallet_sscc,
+                    user_login=worker_login
+                )
+            except Exception:
+                pass
+
             extra_data = {
                 'is_partial': is_partial,
                 'stan_po': stan_po,
@@ -235,6 +246,25 @@ class ScannerMovementService:
             if stara_lokalizacja == nowa_lokalizacja:
                 return False, f"Paleta jest już na lokalizacji {nowa_lokalizacja}"
 
+            from app.utils.location_validator import validate_inter_warehouse_move, validate_centrala_osip_move
+            is_inter_valid, inter_err_msg = validate_inter_warehouse_move(
+                source_location=stara_lokalizacja,
+                target_location=nowa_lokalizacja,
+                pallet_id=surowiec_id,
+                nr_palety=nr_p
+            )
+            if not is_inter_valid:
+                return False, inter_err_msg
+
+            is_trf_valid, trf_err_msg = validate_centrala_osip_move(
+                source_location=stara_lokalizacja,
+                target_location=nowa_lokalizacja,
+                pallet_id=surowiec_id,
+                nr_palety=nr_p
+            )
+            if not is_trf_valid:
+                return False, trf_err_msg
+
             is_loc_available, error_msg = check_rack_location_availability(
                 nowa_lokalizacja,
                 current_nr_palety=pallet.get('nr_palety'),
@@ -287,9 +317,18 @@ class ScannerMovementService:
                 
                 from app.services.osip_transfer_service import OsipTransferService
                 OsipTransferService.auto_receive_pallet_by_code(pallet.get('nr_palety') or str(surowiec_id), nowa_lokalizacja, worker_login)
+
+                from app.utils.location_validator import is_production_tank_code
+                if nowa_lokalizacja == 'MP01' or is_production_tank_code(nowa_lokalizacja):
+                    from app.repositories.picking_repository import PickingRepository
+                    PickingRepository.auto_complete_pallet_if_pending(
+                        pallet_id=surowiec_id,
+                        nr_palety=pallet.get('nr_palety'),
+                        user_login=worker_login
+                    )
             except Exception as ex:
                 import logging
-                logging.error(f"Błąd powiadamiania dostaw/transferów o przeniesieniu: {ex}")
+                logging.error(f"Błąd powiadamiania dostaw/transferów/kompletacji o przeniesieniu: {ex}")
 
             if is_in_transfer_acceptance:
                 return True, f"✅ Przyjęto w zleceniu {trf_order_ref} na regał: {nowa_lokalizacja}"

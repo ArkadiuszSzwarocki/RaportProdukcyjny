@@ -209,6 +209,25 @@ def api_orders_picking_cancel(order_ref=None):
     return jsonify({'success': success, 'message': message}), 200 if success else 400
 
 
+@warehouse_v2_bp.route('/api/orders/picking/<order_ref>/complete', methods=['POST'])
+@warehouse_v2_bp.route('/api/orders/picking/complete', methods=['POST'])
+def api_orders_picking_complete(order_ref=None):
+    data = request.get_json(silent=True) or {}
+    if not order_ref:
+        order_ref = data.get('order_ref') or request.args.get('order_ref')
+    if not order_ref:
+        return jsonify({'success': False, 'message': 'Brak wymaganego parametru order_ref.'}), 400
+
+    mode = str(data.get('mode') or 'all_completed').strip().lower()
+    magazynier_login = session.get('login', 'nieznany')
+    success, message = _picking_service.complete_picking_order(
+        str(order_ref).strip(),
+        mode=mode,
+        operator_login=magazynier_login
+    )
+    return jsonify({'success': success, 'message': message}), 200 if success else 400
+
+
 @warehouse_v2_bp.route('/api/orders/picking/<order_ref>/delete', methods=['POST', 'DELETE'])
 @warehouse_v2_bp.route('/api/orders/picking/delete', methods=['POST', 'DELETE'])
 def api_orders_picking_delete(order_ref=None):

@@ -408,3 +408,157 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
         "jest zablokowane! Przenoszenie między Centralą a OSIP jest możliwe wyłącznie poprzez Zlecenie Transferu OSIP."
     )
 
+
+def is_mp01_warehouse_location(location_code: str) -> bool:
+    """
+    Sprawdza czy lokalizacja należy do Magazynu MP01:
+    - MP01, BF_MP01, BFMP01
+    - Wszystkie regały wysokiego składowania i półkowe: R01..R99 (np. R010101, R020302 itp.)
+    """
+    if not location_code:
+        return False
+    loc = str(location_code).strip().upper()
+    loc_clean = loc.replace(' ', '').replace('-', '').replace('_', '')
+    if loc_clean in ('MP01', 'BFMP01'):
+        return True
+    if loc.startswith(('MP01', 'BF_MP01', 'BFMP01')):
+        return True
+    if re.match(r'^R\d{2}', loc) or is_rack_location(loc):
+        return True
+    return False
+
+
+def is_ms01_warehouse_location(location_code: str) -> bool:
+    """
+    Sprawdza czy lokalizacja należy do Magazynu MS01:
+    - MS01, BF_MS01, BFMS01
+    - PSD, PSD01
+    """
+    if not location_code:
+        return False
+    loc = str(location_code).strip().upper()
+    loc_clean = loc.replace(' ', '').replace('-', '').replace('_', '')
+    if loc_clean in ('MS01', 'BFMS01', 'PSD', 'PSD01'):
+        return True
+    if loc in ('MS01', 'BF_MS01', 'BFMS01', 'PSD', 'PSD01'):
+        return True
+    if loc.startswith(('BF_MS01', 'BFMS01', 'MS01')):
+        return True
+    return False
+
+
+def get_warehouse_zone(location_code: str) -> str:
+    """Zwraca strefę magazynu: 'MP01', 'MS01', 'OSIP', 'SPECIAL' lub 'OTHER'."""
+    if not location_code:
+        return 'OTHER'
+    loc = str(location_code).strip().upper()
+    if loc in ('EXPEDITION', 'ARCHIWUM', 'W_TRANZYCIE_OSIP', 'OCZEKUJĄCE', 'OCZEKUJACE', 'OCZEKUJE', 'RAMPA', 'DOSTAWA'):
+        return 'SPECIAL'
+    if is_osip_location(loc):
+        return 'OSIP'
+    if is_mp01_warehouse_location(loc):
+        return 'MP01'
+    if is_ms01_warehouse_location(loc):
+        return 'MS01'
+    return 'OTHER'
+
+
+def validate_inter_warehouse_move(source_location: str, target_location: str, pallet_id=None, nr_palety=None) -> tuple[bool, str | None]:
+    """
+    Weryfikuje regułę rozdziału magazynów:
+    1. Magazyn MP01 (MP01, BF_MP01 oraz regały i lokalizacje R01..R99) to JEDEN magazyn.
+    2. Magazyn MS01 (MS01, bufor BF_MS01, PSD, PSD01) to DRUGI magazyn.
+    3. Przesunięcia między Magazynem MS01 a Magazynem MP01 mogą odbywać się
+       TYLKO I WYŁĄCZNIE poprzez formalne przesunięcia magazynowe (magazyn_dostawy).
+    Bezpośrednie przenoszenie palet bez aktywnego zlecenia przesunięcia jest blokowane.
+    """
+    if not source_location or not target_location:
+        return True, None
+
+    src_zone = get_warehouse_zone(source_location)
+    tgt_zone = get_warehouse_zone(target_location)
+
+    # Ruch wewnątrz tego samego magazynu jest dozwolony (np. MP01 -> R010101, lub MS01 -> BF_MS01)
+    if src_zone == tgt_zone:
+        return True, None
+
+    # Statusy specjalne / tranzytowe
+    if src_zone == 'SPECIAL' or tgt_zone == 'SPECIAL':
+        return True, None
+
+    # Granica Centrala <-> OSIP
+    if src_zone == 'OSIP' or tgt_zone == 'OSIP':
+        return validate_centrala_osip_move(source_location, target_location, pallet_id=pallet_id, nr_palety=nr_palety)
+
+    # Granica MS01 <-> MP01 (MS01, BF_MS01, PSD, PSD01 <-> MP01, BF_MP01, regały R01..R99)
+    if (src_zone == 'MS01' and tgt_zone == 'MP01') or (src_zone == 'MP01' and tgt_zone == 'MS01'):
+        from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+        in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)
+        if in_transfer:
+            return True, None
+
+        if src_zone == 'MS01' and tgt_zone == 'MP01':
+            dir_str = f"z Magazynu MS01 ({source_location}) do Magazynu MP01 / regałów ({target_location})"
+        else:
+            dir_str = f"z Magazynu MP01 / regałów ({source_location}) do Magazynu MS01 ({target_location})"
+
+        return False, (
+            f"BŁĄD: Bezpośrednie przesunięcie palety {dir_str} jest zablokowane! "
+            f"Magazyn MP01 (wraz z regałami) oraz Magazyn MS01 (MS01, bufor BF_MS01, PSD, PSD01) "
+            f"to odrębne magazyny. Przesunięcie między nimi wymaga utworzenia i zrealizowania "
+            f"systemowego Przesunięcia Magazynowego."
+        )
+
+    return True, None
+
+
+def validate_reception_warehouse_destination(source_location: str, planned_destination: str, putaway_location: str, is_external: bool = False) -> tuple[bool, str | None]:
+    """
+    Waliduje odstawienie palety podczas przyjęcia/realizacji zlecenia (przyjęcie surowców / dostawy / transferu).
+    Gwarantuje, że paleta pochodząca z Magazynu MS01 lub zadeklarowana do Magazynu MS01
+    nie zostanie odstawiona do Magazynu MP01 (na regały R...) poza zatwierdzonym przesunięciem magazynowym.
+    """
+    if not putaway_location:
+        return True, None
+
+    put_zone = get_warehouse_zone(putaway_location)
+    src_zone = get_warehouse_zone(source_location)
+    plan_zone = get_warehouse_zone(planned_destination)
+
+    # 1. Towar z Magazynu MS01 trafiający do Magazynu MP01 (na regały)
+    if src_zone == 'MS01' and put_zone == 'MP01':
+        # Dozwolone wyłącznie gdy samo zlecenie przesunięcia zostało wystawione z celem w Magazynie MP01
+        if plan_zone != 'MP01':
+            return False, (
+                f"BŁĄD: Paleta pochodzi z Magazynu MS01 ({source_location}), a to zlecenie "
+                f"nie jest przesunięciem do Magazynu MP01 (cel w zleceniu: {planned_destination or 'MS01'}). "
+                f"Odstawienie do Magazynu MP01 / na regały ({putaway_location}) jest zablokowane! "
+                f"Wymagane jest formalne zlecenie przesunięcia magazynowego do Magazynu MP01."
+            )
+
+    # 2. Towar z Magazynu MP01 trafiający do Magazynu MS01
+    if src_zone == 'MP01' and put_zone == 'MS01':
+        if plan_zone != 'MS01':
+            return False, (
+                f"BŁĄD: Paleta pochodzi z Magazynu MP01 ({source_location}), a to zlecenie "
+                f"nie jest przesunięciem do Magazynu MS01 (cel w zleceniu: {planned_destination or 'MP01'}). "
+                f"Odstawienie do Magazynu MS01 ({putaway_location}) jest zablokowane!"
+            )
+
+    # 3. Dostawa zewnętrzna zadeklarowana do Magazynu MS01 nie może być bezpośrednio odłożona na MP01 / regały
+    if is_external and plan_zone == 'MS01' and put_zone == 'MP01':
+        return False, (
+            f"BŁĄD: Dostawa została zadeklarowana do Magazynu MS01 ({planned_destination}). "
+            f"Bezpośrednie przyjęcie na regały / do Magazynu MP01 ({putaway_location}) jest zablokowane! "
+            f"Przyjmij towar do Magazynu MS01, a następnie wykonaj formalne przesunięcie magazynowe do MP01."
+        )
+
+    # 4. Dostawa zewnętrzna zadeklarowana do Magazynu MP01 nie może być odłożona na MS01
+    if is_external and plan_zone == 'MP01' and put_zone == 'MS01':
+        return False, (
+            f"BŁĄD: Dostawa została zadeklarowana do Magazynu MP01 ({planned_destination}). "
+            f"Bezpośrednie przyjęcie do Magazynu MS01 ({putaway_location}) jest zablokowane!"
+        )
+
+    return True, None
+

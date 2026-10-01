@@ -17,6 +17,7 @@
                     Plan: <strong>{{ p[2] }} kg</strong>
                     {% if p[7] and p[7]|int > 0 %}<br>Wykonanie: <strong class="text-success">{{ p[7]|int }}
                         kg</strong>{% endif %}
+                    {% if p|length > 30 and p[30] %}<br>Nr receptury: <strong style="color: #0284c7;">#{{ p[30] }}</strong>{% endif %}
                     <br><span class="status-badge">🕒 Start: {{ p[4] }}</span>
                 </div>
             </div>
@@ -99,6 +100,7 @@
 
                         <div class="card-body">
                             <div class="card-row"><strong>Plan:</strong> {{ p[2] }} kg</div>
+                            {% if p|length > 30 and p[30] %}<div class="card-row"><strong>Nr receptury:</strong> <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">#{{ p[30] }}</span></div>{% endif %}
                             {% if p[3] == 'zakonczone' %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span
                                     class="text-success">{{ p[7] }} kg</span></div>{% endif %}
                             <div class="card-row"><strong>Czas:</strong> {{ p[6] }} min</div>

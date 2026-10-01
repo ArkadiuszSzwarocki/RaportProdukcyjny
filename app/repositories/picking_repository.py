@@ -233,6 +233,65 @@ class PickingRepository:
             conn.close()
 
     @staticmethod
+    def mark_all_pending_as_completed(order_ref, operator_login='SYSTEM'):
+        """Force-completes all pending items in order (treated as 100% picked)."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            now = datetime.now()
+            # 1. Update real pending pallets to SKOMPLETOWANA
+            cursor.execute(
+                """
+                UPDATE magazyn_kompletacja
+                SET status = 'SKOMPLETOWANA',
+                    magazynier_login = COALESCE(%s, magazynier_login, 'SYSTEM'),
+                    completed_at = %s
+                WHERE order_ref = %s AND status = 'OCZEKUJE'
+                """,
+                (operator_login, now, order_ref)
+            )
+            completed_count = cursor.rowcount
+            # 2. Cancel/delete shortage placeholders if any
+            cursor.execute(
+                """
+                DELETE FROM magazyn_kompletacja
+                WHERE order_ref = %s AND paleta_id = 0 AND status = 'POMINIETA'
+                """,
+                (order_ref,)
+            )
+            conn.commit()
+            return completed_count
+        finally:
+            conn.close()
+
+    @staticmethod
+    def finish_and_release_unpicked(order_ref, operator_login='SYSTEM', reason='Zakończono przedwcześnie — zwolniono paletę'):
+        """Completes picking order, releasing all unpicked/pending pallets as ANULOWANA."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            now = datetime.now()
+            cursor.execute(
+                """
+                UPDATE magazyn_kompletacja
+                SET status = 'ANULOWANA',
+                    powod_blokady = %s,
+                    magazynier_login = COALESCE(%s, magazynier_login, 'SYSTEM'),
+                    completed_at = %s
+                WHERE order_ref = %s
+                  AND (
+                      status = 'OCZEKUJE'
+                      OR (status = 'POMINIETA' AND paleta_id = 0)
+                  )
+                """,
+                (reason, operator_login, now, order_ref)
+            )
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    @staticmethod
     def delete_order(order_ref):
         """Permanently delete all rows of a picking order."""
         conn = get_db_connection()
@@ -264,6 +323,85 @@ class PickingRepository:
                 (order_ref, sscc_code)
             )
             return cursor.fetchone()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def find_pending_item_by_surowiec(order_ref, surowiec_nazwa):
+        """Find first pending picking item by material name within a specific order."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT * FROM magazyn_kompletacja
+                WHERE order_ref = %s
+                  AND UPPER(TRIM(surowiec_nazwa)) = UPPER(TRIM(%s))
+                  AND status = 'OCZEKUJE'
+                ORDER BY fifo_rank ASC, id ASC
+                LIMIT 1
+                """,
+                (order_ref, surowiec_nazwa)
+            )
+            return cursor.fetchone()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def swap_pending_item_pallet(item_id, new_pallet_id, new_nr_palety, new_source_loc, new_nr_partii=''):
+        """Swaps the allocated pallet on a pending picking item."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE magazyn_kompletacja
+                SET paleta_id = %s,
+                    nr_palety = %s,
+                    lokalizacja_zrodlowa = %s,
+                    nr_partii = %s
+                WHERE id = %s AND status = 'OCZEKUJE'
+                """,
+                (new_pallet_id, new_nr_palety, new_source_loc, new_nr_partii, item_id)
+            )
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    @staticmethod
+    def auto_complete_pallet_if_pending(pallet_id=None, nr_palety=None, user_login='SYSTEM'):
+        """If a pallet belongs to an active picking order and was relocated to MP01 or production, mark it completed."""
+        if not pallet_id and not nr_palety:
+            return 0
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            clauses = []
+            params = []
+            if pallet_id:
+                clauses.append("paleta_id = %s")
+                params.append(pallet_id)
+            if nr_palety and str(nr_palety).strip():
+                clauses.append("TRIM(nr_palety) = TRIM(%s)")
+                params.append(str(nr_palety).strip())
+            
+            if not clauses:
+                return 0
+
+            sql = f"""
+                UPDATE magazyn_kompletacja
+                SET status = 'SKOMPLETOWANA',
+                    magazynier_login = COALESCE(%s, magazynier_login, 'SYSTEM'),
+                    completed_at = %s
+                WHERE ({' OR '.join(clauses)})
+                  AND status = 'OCZEKUJE'
+            """
+            cursor.execute(sql, (user_login, datetime.now(), *params))
+            conn.commit()
+            return cursor.rowcount
+        except Exception:
+            return 0
         finally:
             conn.close()
 

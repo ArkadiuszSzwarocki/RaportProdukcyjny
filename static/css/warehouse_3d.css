@@ -247,6 +247,12 @@
     display: block;
 }
 
+#wh3dCanvasStage canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
 /* FLOATING CAMERA TOOLS */
 .wh3d-cam-tools {
     position: absolute;

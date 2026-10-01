@@ -174,6 +174,23 @@
                 <span id="wh3dDragHUDText">Przeciągasz paletę... Upuść na wolne gniazdo regałowe.</span>
             </div>
 
+            <!-- EMPTY / COMPLETED ORDER OVERLAY -->
+            <div id="wh3dEmptyOrderOverlay" style="display: none; position: absolute; inset: 0; background: rgba(11, 17, 32, 0.88); backdrop-filter: blur(10px); z-index: 25; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(16, 185, 129, 0.18); border: 2px solid #10b981; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <span class="material-icons" style="font-size: 36px; color: #10b981;">task_alt</span>
+                </div>
+                <h3 id="wh3dEmptyOrderTitle" style="font-size: 20px; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">Brak palet do pobrania ze zlecenia</h3>
+                <p id="wh3dEmptyOrderMsg" style="font-size: 14px; color: #94a3b8; max-width: 520px; margin: 0 0 20px 0; line-height: 1.5;">To zlecenie zostało zrealizowane (wszystkie pozycje skompletowane) lub nie zawiera oczekujących palet na regałach.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                    <button type="button" class="wh3d-btn" onclick="selectRackQuick('ALL', '')" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                        <span class="material-icons" style="font-size: 18px;">view_in_ar</span> Pokaż Cały Magazyn (Wszystkie Regały)
+                    </button>
+                    <button type="button" class="wh3d-btn" onclick="switchPickingViewMode('list')" style="background: #1e293b; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); padding: 10px 18px; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                        <span class="material-icons" style="font-size: 18px;">view_list</span> Powrót do Listy Zleceń
+                    </button>
+                </div>
+            </div>
+
             <!-- LOADING MASK -->
             <div class="wh3d-loading-mask" id="wh3dLoadingMask" style="display: none;">
                 <div class="wh3d-spinner"></div>

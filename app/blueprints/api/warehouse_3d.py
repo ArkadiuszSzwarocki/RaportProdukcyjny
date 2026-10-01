@@ -13,8 +13,9 @@ def register_api_warehouse_3d_routes(bp: Blueprint):
         """Returns the full 3D layout, rack configurations, slots, and stored pallets."""
         linia = str(request.args.get('linia', 'ALL') or 'ALL').upper()
         rack_id = request.args.get('rack_id')
+        order_ref = request.args.get('order_ref')
         try:
-            data = Warehouse3dService.get_warehouse_3d_state(linia=linia, rack_filter=rack_id)
+            data = Warehouse3dService.get_warehouse_3d_state(linia=linia, rack_filter=rack_id, order_ref=order_ref)
             return jsonify(data)
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

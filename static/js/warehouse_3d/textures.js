@@ -7,8 +7,8 @@ const bigBagTextureCache = new Map();
 const beamLabelTextureCache = new Map();
 const palletBadgeTextureCache = new Map();
 
-function getPalletStatusBadgeTexture(isFifo, fifoRank, isExpired, isExpiringSoon, daysToExp) {
-    const key = `${isFifo ? 1 : 0}_${fifoRank || 0}_${isExpired ? 1 : 0}_${isExpiringSoon ? 1 : 0}_${daysToExp !== null && daysToExp !== undefined ? daysToExp : 'none'}`;
+function getPalletStatusBadgeTexture(isFifo, fifoRank, isExpired, isExpiringSoon, daysToExp, isPickingTarget = false, orderRef = '') {
+    const key = `${isFifo ? 1 : 0}_${fifoRank || 0}_${isExpired ? 1 : 0}_${isExpiringSoon ? 1 : 0}_${daysToExp !== null && daysToExp !== undefined ? daysToExp : 'none'}_${isPickingTarget ? 1 : 0}_${orderRef || ''}`;
     if (palletBadgeTextureCache.has(key)) {
         return palletBadgeTextureCache.get(key);
     }
@@ -23,7 +23,21 @@ function getPalletStatusBadgeTexture(isFifo, fifoRank, isExpired, isExpiringSoon
     let titleText = '⚡ FIFO #1';
     let subText = 'Wydaj w 1. kolejności';
 
-    if (isExpired) {
+    if (isPickingTarget) {
+        bgGrad = ctx.createLinearGradient(0, 0, 300, 90);
+        if (fifoRank === 1) {
+            bgGrad.addColorStop(0, '#b45309');
+            bgGrad.addColorStop(1, '#f59e0b');
+            borderColor = '#fef08a';
+            titleText = '⚡ DO POBRANIA #1 (FIFO)';
+        } else {
+            bgGrad.addColorStop(0, '#0369a1');
+            bgGrad.addColorStop(1, '#0284c7');
+            borderColor = '#38bdf8';
+            titleText = `📦 DO POBRANIA #${fifoRank || '-'}`;
+        }
+        subText = orderRef ? `Zlecenie: ${orderRef.slice(-9)}` : 'Zlecenie kompletacji';
+    } else if (isExpired) {
         bgGrad = ctx.createLinearGradient(0, 0, 300, 90);
         bgGrad.addColorStop(0, '#7f1d1d');
         bgGrad.addColorStop(1, '#ef4444');
@@ -587,5 +601,106 @@ function getShelfMultiItemBadgeTexture(count) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     shelfMultiBadgeTextureCache.set(key, texture);
+    return texture;
+}
+
+const rackHeaderTextureCache = new Map();
+
+function getLargeRackHeaderTexture(rackId, occupiedCount, totalSlots = 0, isPickingMode = false) {
+    const key = `${rackId}_${occupiedCount}_${totalSlots}_${isPickingMode ? 1 : 0}`;
+    if (rackHeaderTextureCache.has(key)) {
+        return rackHeaderTextureCache.get(key);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d');
+
+    // 1. High contrast dark glassmorphic card
+    const bgGrad = ctx.createLinearGradient(0, 0, 640, 200);
+    if (occupiedCount > 0) {
+        bgGrad.addColorStop(0, '#0f172a');
+        bgGrad.addColorStop(1, '#1e293b');
+    } else {
+        bgGrad.addColorStop(0, '#1e293b');
+        bgGrad.addColorStop(1, '#334155');
+    }
+    ctx.fillStyle = bgGrad;
+
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(10, 10, 620, 180, 28);
+    } else {
+        ctx.rect(10, 10, 620, 180);
+    }
+    ctx.fill();
+
+    // 2. High-visibility glowing border
+    ctx.strokeStyle = occupiedCount > 0 ? (isPickingMode ? '#f59e0b' : '#38bdf8') : '#64748b';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+
+    // 3. Top accent indicator bar
+    const topAccent = ctx.createLinearGradient(20, 14, 620, 14);
+    if (isPickingMode && occupiedCount > 0) {
+        topAccent.addColorStop(0, '#f59e0b');
+        topAccent.addColorStop(0.5, '#fbbf24');
+        topAccent.addColorStop(1, '#ef4444');
+    } else {
+        topAccent.addColorStop(0, '#38bdf8');
+        topAccent.addColorStop(0.5, '#818cf8');
+        topAccent.addColorStop(1, '#10b981');
+    }
+    ctx.fillStyle = topAccent;
+    ctx.fillRect(40, 16, 560, 8);
+
+    // 4. Large Bold Rack Identifier (e.g. "REGAŁ R02")
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 86px "Outfit", "Inter", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 12;
+    ctx.fillText(`REGAŁ ${rackId}`, 320, 84);
+    ctx.shadowBlur = 0;
+
+    // 5. Bottom Status Capsule Pill
+    let badgeText = '';
+    let badgeBg = '#0284c7';
+    let badgeTextColor = '#ffffff';
+
+    if (isPickingMode) {
+        if (occupiedCount > 0) {
+            badgeBg = '#d97706';
+            badgeTextColor = '#fef08a';
+            badgeText = `🎯 ${occupiedCount} DO POBRANIA (FIFO)`;
+        } else {
+            badgeBg = '#475569';
+            badgeTextColor = '#cbd5e1';
+            badgeText = 'BRAK POZYCJI ZE ZLECENIA';
+        }
+    } else {
+        badgeBg = occupiedCount > 0 ? '#0284c7' : '#475569';
+        badgeTextColor = '#ffffff';
+        badgeText = `📦 ${occupiedCount} ${totalSlots > 0 ? '/ ' + totalSlots : ''} ZAJĘTYCH PALET`;
+    }
+
+    ctx.fillStyle = badgeBg;
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(110, 138, 420, 42, 14);
+    } else {
+        ctx.rect(110, 138, 420, 42);
+    }
+    ctx.fill();
+
+    ctx.fillStyle = badgeTextColor;
+    ctx.font = '900 24px "Outfit", "Inter", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, 320, 159);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    rackHeaderTextureCache.set(key, texture);
     return texture;
 }

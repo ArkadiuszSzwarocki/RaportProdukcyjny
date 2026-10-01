@@ -123,11 +123,15 @@ class Warehouse3dService:
         return [dict(rc) for rc in cls.RACK_CONFIGS]
 
     @classmethod
-    def get_warehouse_3d_state(cls, linia: str = 'ALL', rack_filter: Optional[str] = None) -> Dict[str, Any]:
+    def get_warehouse_3d_state(cls, linia: str = 'ALL', rack_filter: Optional[str] = None, order_ref: Optional[str] = None) -> Dict[str, Any]:
         """
         Builds full 3D warehouse state with all racks, slots, occupancy, and 3D pallet payloads matching DB stock.
+        If order_ref is provided, ONLY slots and locations from that picking order are indicated/populated.
         """
-        raw_items = Warehouse3dRepository.fetch_all_active_stock(linia)
+        if order_ref:
+            raw_items = Warehouse3dRepository.fetch_picking_order_stock(order_ref)
+        else:
+            raw_items = Warehouse3dRepository.fetch_all_active_stock(linia)
         
         # Group items by normalized location code
         items_by_loc: Dict[str, List[Dict[str, Any]]] = {}
@@ -263,6 +267,13 @@ class Warehouse3dService:
                             'exp_status_color': exp_info['status_color'],
                             '_sort_date': cls._extract_sort_timestamp(item.get('data_produkcji'), item.get('created_at')),
                         }
+                        if order_ref:
+                            p_dto['is_picking_target'] = True
+                            p_dto['fifo_rank'] = item.get('fifo_rank')
+                            p_dto['is_first_fifo'] = (item.get('fifo_rank') == 1)
+                            p_dto['order_ref'] = item.get('order_ref')
+                            p_dto['picking_status'] = item.get('picking_status')
+
                         pallets_list.append(p_dto)
                         all_built_pallets.append(p_dto)
 
@@ -320,15 +331,24 @@ class Warehouse3dService:
                 'slots': list(slots_map.values()),
             })
 
-        # Calculate FIFO priority ranks grouped per product
-        cls._assign_fifo_ranks(all_built_pallets)
-        total_fifo_count = sum(1 for p in all_built_pallets if p.get('is_first_fifo'))
+        # When an order_ref is provided (picking order stage), ONLY return racks that have items from this order!
+        # Empty racks (0 items from the order) disappear completely.
+        if order_ref:
+            racks_output = [r for r in racks_output if r['occupied_slots'] > 0]
+            total_slots_count = sum(r['total_slots'] for r in racks_output)
+            total_occupied_count = sum(r['occupied_slots'] for r in racks_output)
+            total_blocked_count = sum(r['blocked_slots'] for r in racks_output)
+            total_fifo_count = sum(1 for p in all_built_pallets if p.get('is_first_fifo'))
+        else:
+            cls._assign_fifo_ranks(all_built_pallets)
+            total_fifo_count = sum(1 for p in all_built_pallets if p.get('is_first_fifo'))
 
         global_occ = round((total_occupied_count / total_slots_count) * 100, 1) if total_slots_count > 0 else 0.0
 
         return {
             'success': True,
             'linia': linia,
+            'order_ref': order_ref,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'summary': {
                 'total_racks_count': len(racks_output),

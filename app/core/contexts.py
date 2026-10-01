@@ -66,6 +66,8 @@ def _compute_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_3d_rack_view.js'),
+            os.path.join(current_app.root_path, 'static', 'css', 'picking_3d.css'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
         ]
         mtimes = []

@@ -25,9 +25,17 @@ class WarehousePageController:
 
     @staticmethod
     def render_orders():
-        """Warehouse raw material orders list view."""
+        """Warehouse raw material orders list view with 3D digital twin support."""
         linia = request.args.get('linia', 'PSD').upper()
-        return render_template('warehouse_v2/zamowienia.html', linia=linia)
+        active_rack = request.args.get('rack_id', 'R01')
+        from app.services.warehouse_3d_service import Warehouse3dService
+        racks_config = Warehouse3dService.get_rack_configurations()
+        return render_template(
+            'warehouse_v2/zamowienia.html',
+            linia=linia,
+            active_rack=active_rack,
+            racks_config=racks_config,
+        )
 
     @staticmethod
     def render_new_order():

@@ -328,13 +328,46 @@ class PickingService:
         }
 
     def sync_pending_pallets(self, order_ref):
-        """Automatycznie sprawdza czy pojawiły się nowe palety z PZ / MM dla brakujących pozycji."""
+        """Automatycznie sprawdza czy pojawiły się nowe palety z PZ / MM dla brakujących pozycji
+        oraz czy oczekujące palety nie zostały już fizycznie ściągnięte na MP01 lub wydane na produkcję."""
         if not order_ref:
             return
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return
 
+        from app.utils.location_validator import is_production_tank_code
+
+        # 1. Automatyczne potwierdzanie palet, które już fizycznie trafiły na MP01 lub produkcję
+        pending_items = [
+            item for item in items
+            if item.get('status') == 'OCZEKUJE' and item.get('paleta_id') and int(item.get('paleta_id')) > 0
+        ]
+        if pending_items:
+            conn_sync = get_db_connection()
+            try:
+                cur_sync = conn_sync.cursor(dictionary=True)
+                for p_item in pending_items:
+                    p_id = p_item['paleta_id']
+                    cur_sync.execute(
+                        "SELECT id, lokalizacja, stan_magazynowy FROM magazyn_surowce WHERE id = %s",
+                        (p_id,)
+                    )
+                    s_row = cur_sync.fetchone()
+                    if s_row:
+                        curr_loc = str(s_row.get('lokalizacja') or '').strip().upper()
+                        curr_qty = float(s_row.get('stan_magazynowy') or 0)
+                        if curr_loc == 'MP01' or is_production_tank_code(curr_loc) or curr_qty == 0:
+                            self._picking_repo.mark_item_completed(
+                                p_item['id'],
+                                p_item.get('operator_login') or 'SYSTEM (SYNC)'
+                            )
+            except Exception:
+                pass
+            finally:
+                conn_sync.close()
+
+        # 2. Uzupełnianie braków z nowo dostępnych partii
         placeholders = [
             item for item in items
             if item.get('paleta_id') == 0 and item.get('status') == 'POMINIETA'
@@ -413,11 +446,44 @@ class PickingService:
         if not sscc_clean:
             return False, "Pusty kod SSCC.", {}
 
+        # 1. Dokładne dopasowanie po numerze palety w tej dyspozycji
         item = self._picking_repo.find_item_by_sscc(order_ref, sscc_clean)
+        
+        # 2. Inteligentne dopasowanie alternatywnej palety tego samego surowca
+        if not item:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute(
+                    "SELECT id, nazwa, nr_palety, lokalizacja, nr_partii, stan_magazynowy, is_blocked "
+                    "FROM magazyn_surowce WHERE nr_palety = %s AND stan_magazynowy > 0",
+                    (sscc_clean,)
+                )
+                scanned_pallet = cursor.fetchone()
+                if scanned_pallet and not scanned_pallet.get('is_blocked'):
+                    s_name = scanned_pallet.get('nazwa')
+                    pending_matching_item = self._picking_repo.find_pending_item_by_surowiec(order_ref, s_name)
+                    if pending_matching_item:
+                        self._picking_repo.swap_pending_item_pallet(
+                            item_id=pending_matching_item['id'],
+                            new_pallet_id=scanned_pallet['id'],
+                            new_nr_palety=scanned_pallet['nr_palety'],
+                            new_source_loc=scanned_pallet.get('lokalizacja') or '',
+                            new_nr_partii=scanned_pallet.get('nr_partii') or ''
+                        )
+                        item = dict(pending_matching_item)
+                        item['paleta_id'] = scanned_pallet['id']
+                        item['nr_palety'] = scanned_pallet['nr_palety']
+                        item['lokalizacja_zrodlowa'] = scanned_pallet.get('lokalizacja') or ''
+            except Exception:
+                pass
+            finally:
+                conn.close()
+
         if not item:
             return False, (
                 f"Paleta SSCC '{sscc_clean}' nie została znaleziona w dyspozycji "
-                f"{order_ref} lub jest już skompletowana."
+                f"{order_ref} ani nie pasuje do żadnego oczekującego surowca."
             ), {}
 
         return self._execute_pick_confirmation(item, magazynier_login)
@@ -454,6 +520,34 @@ class PickingService:
             return False, f"Brak oczekujących pozycji do anulowania w {order_ref}."
         return True, f"Anulowano {cancelled} pozycji w dyspozycji {order_ref}."
 
+    def complete_picking_order(self, order_ref, mode='all_completed', operator_login='SYSTEM'):
+        """Completes a picking order even if partially picked, releasing unpicked pallets.
+
+        Modes:
+        - 'all_completed': Marks all pending items as SKOMPLETOWANA (treated as 100% picked).
+        - 'release_unpicked': Marks unpicked items as ANULOWANA (releases pallets back to warehouse).
+        """
+        items = self._picking_repo.get_by_order_ref(order_ref)
+        if not items:
+            return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."
+
+        # First sync pallets that physically reached MP01 or production
+        self.sync_pending_pallets(order_ref)
+
+        if mode == 'release_unpicked':
+            released_count = self._picking_repo.finish_and_release_unpicked(
+                order_ref=order_ref,
+                operator_login=operator_login,
+                reason='Zwolniono przy wcześniejszym zakończeniu kompletacji'
+            )
+            return True, f"Dyspozycja {order_ref} została zakończona. Zwolniono {released_count} niepobranych pozycji."
+        else:
+            completed_count = self._picking_repo.mark_all_pending_as_completed(
+                order_ref=order_ref,
+                operator_login=operator_login
+            )
+            return True, f"Dyspozycja {order_ref} została w całości oznaczona jako skompletowana ({completed_count} pozycji potwierdzono)."
+
     def delete_picking_order(self, order_ref, user_role=None):
         """Trwale usuwa dyspozycję kompletacji."""
         items = self._picking_repo.get_by_order_ref(order_ref)
@@ -468,6 +562,11 @@ class PickingService:
 
     def get_active_orders(self, operator_login=None):
         """Returns list of active picking orders."""
+        orders = self._picking_repo.get_active_orders(operator_login)
+        for ord_info in orders:
+            ref = ord_info.get('order_ref')
+            if ref:
+                self.sync_pending_pallets(ref)
         return self._picking_repo.get_active_orders(operator_login)
 
     def get_all_orders(self, limit=50):
@@ -507,11 +606,31 @@ class PickingService:
 
     def _move_pallet_to_mp01(self, paleta_id, source_location, magazynier_login):
         """Move a pallet only when its current DB state still matches the picking row."""
-        if not paleta_id or not source_location:
+        if not paleta_id:
             return False
 
         conn = get_db_connection()
         try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT id, nr_palety, lokalizacja, stan_magazynowy, is_blocked FROM magazyn_surowce WHERE id = %s",
+                (paleta_id,)
+            )
+            pallet = cursor.fetchone()
+            if not pallet:
+                return False
+
+            curr_loc = str(pallet.get('lokalizacja') or '').strip().upper()
+            curr_qty = float(pallet.get('stan_magazynowy') or 0)
+            is_blocked = bool(pallet.get('is_blocked'))
+
+            if is_blocked:
+                return False
+
+            from app.utils.location_validator import is_production_tank_code
+            if curr_loc == 'MP01' or is_production_tank_code(curr_loc) or curr_qty == 0:
+                return True
+
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -520,37 +639,31 @@ class PickingService:
                 WHERE id = %s
                   AND stan_magazynowy > 0
                   AND COALESCE(is_blocked, 0) = 0
-                  AND UPPER(TRIM(COALESCE(lokalizacja, ''))) = UPPER(TRIM(%s))
                 """,
-                (paleta_id, source_location)
+                (paleta_id,)
             )
-            moved_rows = cursor.rowcount
-            if moved_rows != 1:
+            if cursor.rowcount < 1:
                 conn.rollback()
                 return False
 
+            conn.commit()
+
             try:
-                cursor.execute(
-                    """
-                    INSERT INTO magazyn_ruch
-                        (paleta_id, typ, lokalizacja_z, lokalizacja_do,
-                         operator_login, komentarz, created_at)
-                    VALUES (%s, 'KOMPLETACJA', %s, 'MP01', %s, %s, %s)
-                    """,
-                    (
-                        paleta_id,
-                        source_location,
-                        magazynier_login,
-                        'Kompletacja FIFO → MP01',
-                        datetime.now(),
-                    )
+                from app.services.warehouse_history.movement_recorder import MovementRecorder
+                MovementRecorder.record_movement(
+                    paleta_id=paleta_id,
+                    linia='PSD',
+                    typ_palety='surowiec',
+                    akcja='KOMPLETACJA',
+                    lokalizacja_zrodlowa=curr_loc,
+                    lokalizacja_docelowa='MP01',
+                    komentarz='Kompletacja FIFO → MP01',
+                    user_login=magazynier_login,
+                    nr_palety=pallet.get('nr_palety')
                 )
             except Exception:
-                # Log ruchu jest pomocniczy; właściwy ruch palety nie powinien być
-                # cofany tylko dlatego, że starszy schemat nie ma wymaganych kolumn.
                 pass
 
-            conn.commit()
             return True
         except Exception:
             conn.rollback()

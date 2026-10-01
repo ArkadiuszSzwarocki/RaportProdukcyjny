@@ -10,6 +10,7 @@
      data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
      data-sekcja="{{ sekcja }}"
      data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
+     data-nr-receptury="{{ (p[30] if p|length > 30 and p[30] else '')|e }}"
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
     <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -189,6 +190,16 @@
                     {{ rodzaj_palety|upper }}
                 </span>
             </div>
+            {% elif sekcja == 'Zasyp' %}
+            {% set plan_nr_rec = p[30] if p|length > 30 else '' %}
+            {% if plan_nr_rec %}
+            <div class="card-row" style="display: flex; align-items: center;">
+                <strong>Nr receptury:</strong> 
+                <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; padding:2px 8px; border-radius:6px; font-size:0.85em; margin-left:6px; display:inline-flex; align-items:center; gap:4px;">
+                    📋 #{{ plan_nr_rec }}
+                </span>
+            </div>
+            {% endif %}
             {% endif %}
         </div>
     </div>
