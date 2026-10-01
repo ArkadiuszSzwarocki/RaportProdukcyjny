@@ -28,7 +28,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         finally:
             conn.close()
 
-    @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
+    @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'], strict_slashes=False)
     @login_required
     def start_zlecenie(id):
         """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toku')
@@ -372,7 +372,37 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
         return redirect(bezpieczny_powrot())
 
-    @production_bp.route('/zawies_zlecenie/<int:id>', methods=['POST'])
+    @production_bp.route('/status_zlecenia', methods=['POST'], strict_slashes=False)
+    @login_required
+    def status_zlecenia():
+        """Uniwersalna zmiana statusu zlecenia (fallback formularzy z dashboardu)."""
+        plan_id = request.form.get('plan_id')
+        status = request.form.get('status')
+        linia = request.form.get('linia') or request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+
+        if not plan_id:
+            flash('Brak identyfikatora zlecenia', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        try:
+            plan_id_int = int(plan_id)
+        except (ValueError, TypeError):
+            flash('Nieprawidłowy identyfikator zlecenia', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        if status == 'w toku':
+            return start_zlecenie(plan_id_int)
+        elif status == 'zakonczone':
+            return koniec_zlecenie(plan_id_int)
+        elif status in ('zawieszone', 'wstrzymane'):
+            return zawies_zlecenie(plan_id_int)
+        else:
+            from app.services.planning.status import PlanningStatusService
+            success, message = PlanningStatusService.change_status(plan_id_int, status, linia=linia)
+            flash(message, 'success' if success else 'warning')
+            return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/zawies_zlecenie/<int:id>', methods=['POST'], strict_slashes=False)
     @login_required
     def zawies_zlecenie(id):
         """Pauzuj/Zawieś zlecenie (dla AGRO)"""
@@ -395,7 +425,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         return redirect(bezpieczny_powrot())
 
 
-    @production_bp.route('/koniec_zlecenie/<int:id>', methods=['POST'])
+    @production_bp.route('/koniec_zlecenie/<int:id>', methods=['POST'], strict_slashes=False)
     @login_required
     def koniec_zlecenie(id):
         """Zakończ wykonywanie zlecenia"""

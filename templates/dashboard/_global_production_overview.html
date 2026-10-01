@@ -114,22 +114,28 @@
                 </td>
                 <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
                   <div style="display: inline-flex; gap: 6px; justify-content: flex-end;">
-                    <form method="POST" action="/status_zlecenia" style="display: inline;">
-                      <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                    {% if 'w toku' in st %}
+                    <form method="POST" action="{{ url_for('production.koniec_zlecenie', id=p[0]) }}" style="display: inline;" data-confirm="Czy na pewno chcesz zakończyć zlecenie {{ p[1] }}?">
                       <input type="hidden" name="linia" value="{{ h.linia }}">
                       <input type="hidden" name="sekcja" value="Zasyp">
-                      {% if 'w toku' in st %}
-                        <button type="submit" name="status" value="zakonczone"
-                                style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer;">
-                          Zakończ
-                        </button>
-                      {% elif 'zaplanowane' in st or 'zawieszone' in st %}
-                        <button type="submit" name="status" value="w toku"
-                                style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 6px; border: none; background: #16a34a; color: #ffffff; cursor: pointer;">
-                          Start
-                        </button>
-                      {% endif %}
+                      <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                      <button type="submit"
+                              style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer;">
+                        Zakończ
+                      </button>
                     </form>
+                    {% elif 'zaplanowane' in st or 'zawieszone' in st %}
+                    <form method="POST" action="{{ url_for('production.start_zlecenie', id=p[0]) }}" style="display: inline;"
+                          onsubmit="return confirmStartOrder(this, {{ p[1]|tojson|forceescape }}, '{{ p[0] }}')">
+                      <input type="hidden" name="linia" value="{{ h.linia }}">
+                      <input type="hidden" name="sekcja" value="Zasyp">
+                      <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                      <button type="submit"
+                              style="padding: 4px 10px; font-size: 0.75rem; font-weight: 800; border-radius: 6px; border: none; background: #16a34a; color: #ffffff; cursor: pointer;">
+                        Start
+                      </button>
+                    </form>
+                    {% endif %}
                   </div>
                 </td>
               </tr>

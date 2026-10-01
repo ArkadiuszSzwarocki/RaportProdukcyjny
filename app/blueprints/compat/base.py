@@ -100,6 +100,13 @@ def alias_przesun_zlecenie_ajax() -> Union[Response, str]:
     return _call_view('planning.przesun_zlecenie_ajax')
 
 
+@compat_bp.route('/status_zlecenia', methods=['POST'], strict_slashes=False)
+@login_required
+def alias_status_zlecenia() -> Union[Response, str]:
+    """Legacy route - forwards to production.status_zlecenia"""
+    return _call_view('production.status_zlecenia')
+
+
 # --- Favicon and well-known routes ---
 
 @compat_bp.route('/favicon.ico')
