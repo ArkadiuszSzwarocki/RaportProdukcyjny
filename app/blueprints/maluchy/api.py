@@ -42,6 +42,14 @@ def api_get_station_material():
     return jsonify({'success': True, 'stacja': stacja_kod, 'surowiec': material})
 
 
+@maluchy_bp.route('/api/stations-materials', methods=['GET'])
+@login_required
+def api_get_all_stations_materials():
+    linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+    materials = BucketMaluchService.get_all_station_materials(linia)
+    return jsonify({'success': True, 'materials': materials})
+
+
 @maluchy_bp.route('/api/item/add', methods=['POST'])
 @login_required
 def api_add_item():

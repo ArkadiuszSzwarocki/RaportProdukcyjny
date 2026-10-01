@@ -30,8 +30,15 @@ def index():
         )
         active_plans = cur.fetchall()
 
-        # Available KO stations KO01 - KO40
-        ko_stations = [f"KO{i:02d}" for i in range(1, 41)]
+        # Available KO stations KO01 - KO40 with assigned raw materials
+        materials_map = BucketMaluchService.get_all_station_materials(linia)
+        ko_stations = [
+            {
+                'kod': f"KO{i:02d}",
+                'surowiec': materials_map.get(f"KO{i:02d}", "")
+            }
+            for i in range(1, 41)
+        ]
 
         # Fetch active buckets for current line
         cur.execute(

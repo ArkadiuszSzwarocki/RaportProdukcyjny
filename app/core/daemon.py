@@ -147,6 +147,32 @@ def _acquire_named_lock(lock_name, timeout_seconds=0):
         scoped_lock = f"{lock_name}_{active_db}"
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # If legacy lock_name is held by a rogue connection (e.g. from host Technik), kill it so leader can take both locks
+        try:
+            cursor.execute("SELECT IS_USED_LOCK(%s)", (str(lock_name),))
+            holder = cursor.fetchone()
+            if holder and holder[0]:
+                holder_id = int(holder[0])
+                cursor.execute("SELECT HOST FROM information_schema.processlist WHERE ID = %s", (holder_id,))
+                h_row = cursor.fetchone()
+                if h_row and ('217.75.52.231' in str(h_row[0]) or 'technik' in str(h_row[0]).lower()):
+                    cursor.execute(f"KILL {holder_id}")
+                    try:
+                        cursor.fetchall()
+                    except Exception:
+                        pass
+                    _safe_log_warning("Killed rogue Technik connection %s holding lock %s", holder_id, lock_name)
+        except Exception:
+            pass
+
+        # Try to acquire legacy lock_name (used by older legacy instances like Technik) to prevent them from becoming rogue leaders
+        try:
+            cursor.execute("SELECT GET_LOCK(%s, %s)", (str(lock_name), int(timeout_seconds)))
+            cursor.fetchone()
+        except Exception:
+            pass
+
         cursor.execute("SELECT GET_LOCK(%s, %s)", (str(scoped_lock), int(timeout_seconds)))
         row = cursor.fetchone()
         acquired = bool(row and int(row[0]) == 1)
@@ -527,8 +553,29 @@ def _print_spooler_loop(interval_seconds: int = 5):
         printer = PrintServer()
 
         _safe_log_info(f'Started Print Spooler daemon thread, interval {interval_seconds}s')
+        last_bridge_check_ts = 0.0
+        bridge_available = False
+
         while True:
             try:
+                # Sprawdź dostępność mostka druku przed próbą pobierania zadań
+                # Zapobiega to przejmowaniu zadań przez instancje (np. kontenery chmurowe/QNAP) bez lokalnego mostka
+                now_ts = time.time()
+                if now_ts - last_bridge_check_ts > 30.0:
+                    last_bridge_check_ts = now_ts
+                    was_available = bridge_available
+                    bridge_available, bridge_msg = printer.test_connection()
+                    if not bridge_available and was_available:
+                        _safe_log_warning(
+                            "Print Spooler na %s przechodzi w stan czuwania: mostek druku niedostępny (%s). "
+                            "Zadania będą przetwarzane przez maszyny z aktywnym mostkiem.",
+                            _INSTANCE_ID, bridge_msg
+                        )
+
+                if not bridge_available:
+                    time.sleep(interval_seconds * 2)
+                    continue
+
                 conn = get_db_connection()
                 try:
                     cursor = conn.cursor(dictionary=True)
@@ -586,14 +633,32 @@ def _print_spooler_loop(interval_seconds: int = 5):
                                 log_note = f"Czujniki ~HS OK | Licznik drukarki: {curr_cnt} ➔ {new_cnt}"
                                 cursor.execute("UPDATE print_jobs SET status='DONE', error_message=%s, updated_at=NOW() WHERE id=%s", (log_note, job_id))
                             else:
-                                cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
-                                               (msg, retry + 1, job_id))
+                                is_bridge_comm_error = (
+                                    "brak komunikacji z mostkiem" in str(msg).lower()
+                                    or "connection refused" in str(msg).lower()
+                                    or "brak dostępnego endpointu mostka" in str(msg).lower()
+                                )
+                                if is_bridge_comm_error:
+                                    # Nie uśmiercamy zadania wydruku z powodu niedostępności mostka na tej stacji - cofamy do PENDING
+                                    cursor.execute("UPDATE print_jobs SET status='PENDING', error_message=%s, updated_at=NOW() WHERE id=%s", (msg, job_id))
+                                    bridge_available = False
+                                    last_bridge_check_ts = time.time()
+                                else:
+                                    cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
+                                                   (msg, retry + 1, job_id))
                             conn.commit()
                         except Exception as e:
                             import traceback
                             err = f"{e}\n{traceback.format_exc()}"
-                            cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
-                                           (err, retry + 1, job_id))
+                            is_conn_err = "connection refused" in str(err).lower() or "max retries exceeded" in str(err).lower()
+                            if is_conn_err:
+                                cursor.execute("UPDATE print_jobs SET status='PENDING', error_message=%s, updated_at=NOW() WHERE id=%s", 
+                                               (err[:255], job_id))
+                                bridge_available = False
+                                last_bridge_check_ts = time.time()
+                            else:
+                                cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
+                                               (err, retry + 1, job_id))
                             conn.commit()
                 finally:
                     conn.close()
@@ -641,6 +706,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
         app: Flask application instance
         cleanup_enabled: Whether to start cleanup thread (default: False)
     """
+    if 'technik' in (_INSTANCE_HOSTNAME or '').lower():
+        _safe_log_warning("Daemon background threads completely disabled on host %s (Technik blocked)", _INSTANCE_HOSTNAME)
+        return
+
     global palety_logger
     
     # Configure palety logger
@@ -917,6 +986,37 @@ def start_daemon_threads(app, cleanup_enabled=False):
                             )
 
                         last_reg_pal = plan_counters[last_reg_pal_key]
+
+                        # Auto-resync: jeśli paletyzator wykonał fizyczny zjazd z windy (palletizer_cnt > last_reg_pal),
+                        # ale licznik ukończonych palet nie wyprzedza bazy (np. przez ręcznie dodaną paletę lub rozjazd offsetu),
+                        # automatycznie resynchronizujemy start_pallet_cnt, aby automat nie zablokował się na stałe.
+                        if (
+                            palletizer_cnt > 0 
+                            and palletizer_cnt > last_reg_pal 
+                            and completed_pallets <= db_pallets_count
+                            and not is_in_emptying_mode
+                        ):
+                            new_start_cnt = palletizer_cnt - db_pallets_count - 1
+                            if new_start_cnt >= 0:
+                                try:
+                                    from app.core.database import get_db_connection
+                                    conn_sync = get_db_connection()
+                                    cur_sync = conn_sync.cursor()
+                                    cur_sync.execute(
+                                        "UPDATE plan_produkcji_agro SET start_pallet_counter = %s WHERE id = %s",
+                                        (new_start_cnt, plan_id)
+                                    )
+                                    conn_sync.commit()
+                                    conn_sync.close()
+                                    start_pallet_cnt = new_start_cnt
+                                    active_plan['start_pallet_counter'] = new_start_cnt
+                                    completed_pallets = db_pallets_count + 1
+                                    _safe_log_info(
+                                        "Auto-resync start_pallet_counter do %s dla planu ID=%s (palletizer=%s, db_pallets=%s)",
+                                        new_start_cnt, plan_id, palletizer_cnt, db_pallets_count
+                                    )
+                                except Exception as sync_err:
+                                    _safe_log_warning("Błąd auto-resync start_pallet_counter: %s", sync_err)
 
                         if (
                             palletizer_cnt > 0 

@@ -244,6 +244,70 @@
         });
     });
 
+    // ── DYNAMIC RESOLUTION OF STATION MATERIALS (KO01–KO40) ──
+    async function loadStationMaterials() {
+        const buttons = document.querySelectorAll('.m-st-btn');
+        if (!buttons.length) return;
+
+        // 1. Try batch endpoint first
+        try {
+            const resBatch = await fetch(`/maluchy/api/stations-materials?linia=${encodeURIComponent(linia)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (resBatch.ok) {
+                const bData = await resBatch.json();
+                if (bData && bData.success && bData.materials) {
+                    buttons.forEach(btn => {
+                        const stacja = btn.getAttribute('data-stacja');
+                        const mat = bData.materials[stacja];
+                        const span = btn.querySelector('.m-st-material');
+                        if (span) {
+                            if (mat && !mat.toLowerCase().startsWith('surowiec ze stacji')) {
+                                span.textContent = mat;
+                                span.classList.remove('m-st-empty');
+                                btn.title = `${stacja}: ${mat}`;
+                            } else {
+                                span.textContent = '—';
+                                span.classList.add('m-st-empty');
+                                btn.title = stacja;
+                            }
+                        }
+                    });
+                    return;
+                }
+            }
+        } catch (e) {
+            // fallback to single station fetch below
+        }
+
+        // 2. Fallback: fetch materials in parallel via /api/station-material
+        Array.from(buttons).forEach(async (btn) => {
+            const stacja = btn.getAttribute('data-stacja');
+            if (!stacja) return;
+            try {
+                const res = await fetch(`/maluchy/api/station-material?stacja=${encodeURIComponent(stacja)}&linia=${encodeURIComponent(linia)}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.surowiec) {
+                        const mat = data.surowiec.trim();
+                        const span = btn.querySelector('.m-st-material');
+                        if (span && mat && !mat.toLowerCase().startsWith('surowiec ze stacji')) {
+                            span.textContent = mat;
+                            span.classList.remove('m-st-empty');
+                            btn.title = `${stacja}: ${mat}`;
+                        }
+                    }
+                }
+            } catch (err) {
+                // ignore network err
+            }
+        });
+    }
+
+    loadStationMaterials();
+
     // ── 4. COMPLETE BUCKET ──
     btnCompleteBucket.addEventListener('click', async function () {
         if (!currentBucket || !currentBucket.id) return;
@@ -339,6 +403,7 @@
         cardBucketDetails.style.display = 'block';
         activeBucketDisplay.textContent = bucket.kod_wiadra;
         detailsBucketCode.textContent = bucket.kod_wiadra;
+        loadStationMaterials();
 
         const recipeNameEl = document.getElementById('detailsRecipeName');
         const planBadgeEl = document.getElementById('detailsPlanBadge');

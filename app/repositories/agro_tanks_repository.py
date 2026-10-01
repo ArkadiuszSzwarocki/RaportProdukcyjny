@@ -767,6 +767,20 @@ class AgroTanksRepository:
                 if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                     return False
 
+                # Blokada procesów z maszyny Technik
+                if source_instance and ('technik' in str(source_instance).lower() or '217.75.52.231' in str(source_instance)):
+                    logger.warning("[BLOKADA TECHNIK] Odrzucono próbę automatycznej rejestracji palety przez instancję Technik: %s", source_instance)
+                    return False
+
+                try:
+                    cursor.execute("SELECT USER()")
+                    _curr_user_row = cursor.fetchone()
+                    if _curr_user_row and ('technik' in str(_curr_user_row[0]).lower() or '217.75.52.231' in str(_curr_user_row[0])):
+                        logger.warning("[BLOKADA TECHNIK] Odrzucono próbę rejestracji palety z adresu Technik: %s", _curr_user_row[0])
+                        return False
+                except Exception:
+                    pass
+
                 # Blokada auto-rejestracji palety podczas lub po opróżnianiu paletyzatora
                 try:
                     import time as _py_time

@@ -677,9 +677,10 @@
                 newMain.querySelectorAll('script:not([src])').forEach(s => {
                     try {
                         if (s.textContent) {
-                            const scriptCode = s.textContent;
-                            // Execute in global scope
-                            window.eval(scriptCode);
+                            const sc = document.createElement('script');
+                            sc.textContent = s.textContent;
+                            document.body.appendChild(sc);
+                            sc.remove();
                         }
                     } catch (e) { console.warn('exec partial script failed', e); }
                 });
@@ -1847,8 +1848,11 @@
                         try {
                             if (s.src) {
                                 const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
-                            } else {
-                                window.eval(s.textContent);
+                            } else if (s.textContent) {
+                                const sc = document.createElement('script');
+                                sc.textContent = s.textContent;
+                                document.body.appendChild(sc);
+                                sc.remove();
                             }
                         } catch (e) {
                             console.warn('exec quick-popup script failed', e);
@@ -1958,8 +1962,11 @@
             try {
                 if (s.src) {
                     const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
-                } else {
-                    window.eval(s.textContent);
+                } else if (s.textContent) {
+                    const sc = document.createElement('script');
+                    sc.textContent = s.textContent;
+                    document.body.appendChild(sc);
+                    sc.remove();
                 }
             } catch (e) {
                 console.warn('exec quick-popup script failed', e);
