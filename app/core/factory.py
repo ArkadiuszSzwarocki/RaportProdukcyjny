@@ -8,6 +8,7 @@ from flask import Flask
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
 from app.core.admin_security_hardening import register_admin_security_hardening
+from app.core.audit_phase3_hardening import register_audit_phase3_hardening
 from app.core.browser_security import register_browser_security_headers
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
@@ -238,6 +239,7 @@ def create_app(config_secret_key=None, init_db=True):
     _register_blueprints(app)
     register_legacy_print_hardening(app)
     register_runtime_security_hardening(app)
+    register_audit_phase3_hardening(app)
     register_admin_security_hardening(app)
     register_file_security_hardening(app)
     register_download_security_hardening(app)
