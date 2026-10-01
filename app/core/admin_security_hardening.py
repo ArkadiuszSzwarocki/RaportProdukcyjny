@@ -10,6 +10,7 @@ from functools import wraps
 from flask import current_app, jsonify, redirect, render_template, request, session
 
 from app.core.network_security import smtp_target_allowed as _smtp_target_allowed
+from app.core.runtime_security_hardening import smtp_scope_denied
 
 
 _ALLOWED_PERMISSION_FIELDS = {'access', 'readonly'}
@@ -148,6 +149,9 @@ def _smtp_target_guard(original_view):
     @wraps(original_view)
     def guarded(*args, **kwargs):
         payload = _request_payload()
+        denied = smtp_scope_denied(payload)
+        if denied is not None:
+            return denied
         allowed, message = _smtp_target_allowed(
             payload.get('smtp_server'),
             payload.get('smtp_port'),

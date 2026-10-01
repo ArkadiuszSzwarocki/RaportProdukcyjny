@@ -129,31 +129,40 @@ def _masked_password(value) -> bool:
     )
 
 
+def smtp_scope_denied(payload):
+    """Authorize SMTP scope before DNS, network checks or stored-secret lookups."""
+    if not bool(session.get('zalogowany')):
+        return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+    target_raw = payload.get('target_user_id')
+    try:
+        target_id = int(target_raw) if target_raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Nieprawidłowy użytkownik.'}), 400
+    if not _is_admin_session():
+        try:
+            session_user_id = int(session.get('user_id') or 0)
+        except (TypeError, ValueError):
+            session_user_id = 0
+        if not session_user_id:
+            return jsonify({'success': False, 'message': 'Brak aktywnego konta użytkownika.'}), 403
+        if _payload_bool(payload.get('is_system')):
+            return jsonify({'success': False, 'message': 'Tylko administrator może zmieniać konto systemowe.'}), 403
+        if target_id is not None and session_user_id != target_id:
+            return jsonify({'success': False, 'message': 'Nie możesz zmieniać konfiguracji innego użytkownika.'}), 403
+    return None
+
+
 def _smtp_scope_guard(original_view):
     """Prevent ordinary users from modifying/testing another user's SMTP secret."""
     @wraps(original_view)
     def guarded(*args, **kwargs):
-        if not bool(session.get('zalogowany')):
-            return jsonify({'success': False, 'error': 'unauthenticated'}), 401
-
         payload = _request_payload()
-        is_admin = _is_admin_session()
+        denied = smtp_scope_denied(payload)
+        if denied is not None:
+            return denied
         session_user_id = session.get('user_id')
         target_raw = payload.get('target_user_id')
-        target_id = None
-        if target_raw not in (None, ''):
-            try:
-                target_id = int(target_raw)
-            except (TypeError, ValueError):
-                return jsonify({'success': False, 'message': 'Nieprawidłowy użytkownik.'}), 400
-
-        if not is_admin:
-            if not session_user_id:
-                return jsonify({'success': False, 'message': 'Brak aktywnego konta użytkownika.'}), 403
-            if _payload_bool(payload.get('is_system')):
-                return jsonify({'success': False, 'message': 'Tylko administrator może zmieniać konto systemowe.'}), 403
-            if target_id is not None and int(session_user_id) != target_id:
-                return jsonify({'success': False, 'message': 'Nie możesz zmieniać konfiguracji innego użytkownika.'}), 403
+        target_id = int(target_raw) if target_raw not in (None, '') else None
 
         # A stored password may only be reused against the exact saved host and
         # username. Otherwise an attacker could redirect reusable credentials to

@@ -1,8 +1,12 @@
 {
   "version": "0.2",
-  "language": "en,pl",
-  "import": ["@cspell/dict-pl_pl/cspell-ext.json"],
+  "language": "en,pl,uk",
+  "import": ["@cspell/dict-pl_pl/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
   "words": [
+    "appgroup",
+    "masteradmin",
+    "seccomp",
+    "zrodlowa",
     "Admina",
     "Adres",
     "adresem",
@@ -367,6 +371,8 @@
     "środowisku"
   ],
   "ignorePaths": [
+    ".cspell-baseline.json",
+    "static/vendor/**",
     ".git/**",
     "node_modules/**",
     "__pycache__/**",

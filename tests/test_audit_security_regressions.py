@@ -214,15 +214,21 @@ def test_authenticated_cross_origin_mutation_is_rejected(app, monkeypatch):
 
 
 def test_legacy_admin_raw_socket_printer_test_is_replaced(app):
+    from inspect import unwrap
     from app.core.legacy_print_hardening import secure_admin_zpl_test
 
-    assert app.view_functions['admin.admin_zpl_test'] is secure_admin_zpl_test
+    view = app.view_functions['admin.admin_zpl_test']
+    assert unwrap(view) is secure_admin_zpl_test
+    assert getattr(view, '_audit_zpl_masteradmin_required', False)
 
 
 def test_legacy_admin_bridge_status_uses_secure_client(app):
+    from inspect import unwrap
     from app.core.legacy_print_hardening import secure_admin_printer_server_status
 
-    assert app.view_functions['admin.admin_printer_server_status'] is secure_admin_printer_server_status
+    view = app.view_functions['admin.admin_printer_server_status']
+    assert unwrap(view) is secure_admin_printer_server_status
+    assert getattr(view, '_audit_printer_status_permission', False)
 
 
 def test_legacy_printer_settings_socket_probe_is_replaced(app):

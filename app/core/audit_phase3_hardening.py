@@ -8,6 +8,7 @@ from functools import wraps
 from flask import current_app, jsonify, request, session
 
 from app.decorators import dynamic_role_required, login_required, masteradmin_required
+from app.core.runtime_security_hardening import smtp_scope_denied
 
 
 def _normalized_role() -> str:
@@ -145,6 +146,9 @@ def _smtp_test_network_guard(original_view):
     @wraps(original_view)
     def guarded(*args, **kwargs):
         payload = _request_payload()
+        denied = smtp_scope_denied(payload)
+        if denied is not None:
+            return denied
         safe, message = _smtp_target_is_safe(
             payload.get('smtp_server'),
             payload.get('smtp_port', 587),

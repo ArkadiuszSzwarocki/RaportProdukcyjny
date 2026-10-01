@@ -86,10 +86,18 @@ class TestStandardSSCCGeneration(unittest.TestCase):
                 'data_przydatnosci': datetime(2028, 2, 10),
             },
             # 2. SELECT stan_magazynowy po UPDATE
-            {'stan_magazynowy': 850.0}
+            {'stan_magazynowy': 850.0},
+            # No previous history event for this operation.
+            None,
         ]
 
         with patch('app.services.scanner_service.get_db_connection', return_value=mock_conn), \
+             patch('app.utils.surowiec_validator._load_dictionary_names', return_value=({'lactose'}, {'lactose'})), \
+             patch('app.services.warehouse_history.movement_recorder.HistoryIndexer.get_table_columns', return_value={
+                 'paleta_id', 'nr_palety', 'linia', 'typ_palety', 'akcja', 'operation_id',
+                 'lokalizacja_zrodlowa', 'lokalizacja_docelowa', 'quantity_before', 'quantity_after',
+                 'komentarz', 'user_login', 'data_ruchu',
+             }), \
              patch('app.services.tank_validation_service.TankValidationService.validate_tank_material', return_value=(True, '')):
 
             ok, msg, extra = ScannerService.dispatch_to_production(
@@ -100,9 +108,13 @@ class TestStandardSSCCGeneration(unittest.TestCase):
                 zbiornik='MZ10'
             )
 
-        self.assertTrue(ok)
+        self.assertTrue(ok, msg)
         self.assertEqual(extra['nr_palety'], 'SUR000001783944785565')
         self.assertNotEqual(extra['nr_palety'], 'SUR-1123')
+        history_insert = next(call for call in mock_cur.execute.call_args_list if 'INSERT INTO palety_historia' in call.args[0])
+        self.assertIn('SUR000001783944785565', history_insert.args[1])
+        mock_conn.commit.assert_called_once()
+        mock_conn.rollback.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,9 +43,13 @@ def test_all_external_github_actions_are_pinned_to_full_commit_sha():
 
 def test_spellcheck_is_pinned_and_failure_gating():
     workflow = _text('.github/workflows/cspell.yml')
-    assert 'npm install -g cspell@10.3.5' in workflow
-    assert 'cspell --config .cspell.json "**/*"' in workflow
-    assert 'cspell --config .cspell.json "**/*" || true' not in workflow
+    assert 'npm install --no-save cspell@10.3.5 @cspell/dict-pl_pl@3.0.6' in workflow
+    assert 'node-version: "22.18.0"' in workflow
+    assert '@cspell/dict-uk-ua@4.0.6' in workflow
+    assert 'node scripts/check_spelling.mjs' in workflow
+    assert 'node --test tests/javascript/cspell_baseline.test.mjs' in workflow
+    assert '|| true' not in workflow
+    assert 'continue-on-error' not in workflow
 
 
 def test_production_k8s_config_does_not_commit_secret_values():
@@ -65,7 +70,13 @@ def test_k8s_web_service_is_internal_and_sa_cannot_read_secrets():
     assert 'automountServiceAccountToken: false' in manifest
     assert 'key: PRINTER_BRIDGE_TOKEN' in manifest
     assert 'name: ENABLE_BACKGROUND_DAEMONS\n          value: "false"' in manifest
-    assert 'name: app-daemons' in manifest
+    deployment = next(doc for doc in yaml.safe_load_all(manifest) if doc['kind'] == 'Deployment')
+    containers = deployment['spec']['template']['spec']['containers']
+    web = next(container for container in containers if container['name'] == 'app')
+    daemons = next(container for container in containers if container['name'] == 'daemons')
+    assert daemons['command'] == ['python', 'scripts/run_daemons.py']
+    assert daemons['image'] == web['image']
+    assert daemons['volumeMounts'] == web['volumeMounts']
     assert 'name: ENABLE_BACKGROUND_DAEMONS\n          value: "true"' in manifest
 
 

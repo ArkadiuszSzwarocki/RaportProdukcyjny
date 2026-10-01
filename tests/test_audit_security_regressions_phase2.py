@@ -1,6 +1,8 @@
 """Second-pass audit regression tests for findings 39-44."""
 
 from pathlib import Path
+import yaml
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,13 +30,22 @@ def test_k8s_rwo_storage_does_not_ship_with_multi_replica_hpa():
 def test_k8s_and_image_use_consistent_non_root_identity_and_seccomp():
     manifest = _text('k8s/02-app.yaml')
     dockerfile = _text('Dockerfile')
-    assert manifest.count('runAsUser: 1000') == 2
-    assert manifest.count('runAsGroup: 1000') == 2
-    assert manifest.count('type: RuntimeDefault') == 2
-    assert manifest.count('allowPrivilegeEscalation: false') == 2
-    assert manifest.count('drop: ["ALL"]') == 2
-    assert 'groupadd -r -g 1000 appgroup' in dockerfile
-    assert 'useradd -m -u 1000 -g 1000 appuser' in dockerfile
+    deployment = next(doc for doc in yaml.safe_load_all(manifest) if doc['kind'] == 'Deployment')
+    pod = deployment['spec']['template']['spec']
+    assert pod['securityContext']['runAsNonRoot'] is True
+    assert pod['securityContext']['runAsUser'] == 1000
+    assert pod['securityContext']['runAsGroup'] == 1000
+    assert pod['securityContext']['seccompProfile']['type'] == 'RuntimeDefault'
+    assert {container['name'] for container in pod['containers']} == {'app', 'daemons'}
+    for container in pod['containers']:
+        security = {**pod['securityContext'], **container.get('securityContext', {})}
+        assert security['runAsUser'] == 1000
+        assert security['runAsGroup'] == 1000
+        assert security['seccompProfile']['type'] == 'RuntimeDefault'
+        assert security['allowPrivilegeEscalation'] is False
+        assert security['capabilities']['drop'] == ['ALL']
+    assert 'groupadd --gid 1000 appgroup' in dockerfile
+    assert 'useradd --uid 1000 --gid appgroup --create-home appuser' in dockerfile
     assert 'USER appuser' in dockerfile
 
 
@@ -83,6 +94,35 @@ def test_non_admin_cannot_test_another_users_saved_smtp_secret(app):
         response, status = view()
 
     assert status == 403
+    assert response.get_json()['success'] is False
+
+
+@pytest.mark.parametrize('endpoint,path,payload,logged_in,expected', [
+    ('admin.api_email_config_save', '/api/email/config', {'is_system': True}, True, 403),
+    ('admin.api_email_test', '/api/email/test', {'target_user_id': 999}, True, 403),
+    ('admin.api_email_test', '/api/email/test', {}, False, 401),
+])
+def test_smtp_denial_precedes_network_and_saved_secret_lookups(
+    app, monkeypatch, endpoint, path, payload, logged_in, expected,
+):
+    from flask import session
+
+    def forbidden_lookup(*_args, **_kwargs):
+        pytest.fail('Unauthorized SMTP request performed a network or secret lookup')
+
+    monkeypatch.setattr('app.core.admin_security_hardening._smtp_target_allowed', forbidden_lookup)
+    monkeypatch.setattr('app.core.audit_phase3_hardening._smtp_target_is_safe', forbidden_lookup)
+    monkeypatch.setattr(
+        'app.repositories.user_email_settings_repository.UserEmailSettingsRepository.get_by_user_id',
+        forbidden_lookup,
+    )
+    with app.test_request_context(path, method='POST', json={
+        'smtp_server': 'mail.example.com', 'smtp_port': 587, 'smtp_security': 'TLS',
+        'smtp_password': '********', **payload,
+    }):
+        session.update(zalogowany=logged_in, user_id=12, login='ordinary-user', rola='pracownik')
+        response, status = app.view_functions[endpoint]()
+    assert status == expected
     assert response.get_json()['success'] is False
 
 
