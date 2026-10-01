@@ -1,17 +1,40 @@
 /**
  * PWA & Service Worker Initializer
- * Registers root service worker and displays offline banner when connectivity drops.
+ * Registers the root service worker, publishes the current user scope and
+ * displays an offline banner when connectivity drops.
  */
 
 (function () {
     'use strict';
 
-    // Store last visited page for offline resume
+    function currentOfflineUserId() {
+        const raw = window.__RP_OFFLINE_USER_ID;
+        const candidate = String(raw == null ? '' : raw).trim();
+        return /^\d+$/.test(candidate) ? candidate : null;
+    }
+
+    // Store last visited page for offline resume. Keep the legacy key for the
+    // static fallback UI and a user-scoped copy for future migrations.
     try {
         if (!window.location.pathname.includes('offline_fallback')) {
-            localStorage.setItem('rp_last_visited_page', window.location.pathname + window.location.search);
+            const lastPage = window.location.pathname + window.location.search;
+            localStorage.setItem('rp_last_visited_page', lastPage);
+            const userId = currentOfflineUserId();
+            if (userId) {
+                localStorage.setItem(`rp_last_visited_page:${userId}`, lastPage);
+                localStorage.setItem('rp_offline_active_user', userId);
+            }
         }
     } catch(e) {}
+
+    function publishOfflineUser(registration) {
+        const payload = {
+            type: 'RP_SET_OFFLINE_USER',
+            userId: currentOfflineUserId()
+        };
+        const worker = registration && (registration.active || registration.waiting || registration.installing);
+        if (worker) worker.postMessage(payload);
+    }
 
     // 1. Register Service Worker
     if ('serviceWorker' in navigator) {
@@ -19,6 +42,11 @@
             navigator.serviceWorker.register('/sw.js', { scope: '/' })
                 .then((registration) => {
                     console.log('[PWA] Service Worker registered with scope:', registration.scope);
+                    publishOfflineUser(registration);
+                    return navigator.serviceWorker.ready;
+                })
+                .then((registration) => {
+                    publishOfflineUser(registration);
                 })
                 .catch((error) => {
                     console.warn('[PWA] Service Worker registration failed:', error);
@@ -44,7 +72,6 @@
         if (!navigator.onLine) {
             banner.style.display = 'block';
         } else {
-            // Check if server is actually responding via heartbeat
             fetch('/api/health', { method: 'GET', cache: 'no-store' })
                 .then((res) => {
                     if (res.ok) {
