@@ -12,8 +12,8 @@ metadata:
   name: app
   namespace: raportprodukcyjny
 spec:
-  # The shared logs/reports PVCs are ReadWriteOnce. Keep a single web replica
-  # unless the deployment overlay replaces them with ReadWriteMany/object storage.
+  # The logs/reports PVCs are ReadWriteOnce. Web and background daemons therefore
+  # run in the same Pod and share the same volume attachment on one node.
   replicas: 1
   strategy:
     type: Recreate
@@ -115,43 +115,8 @@ spec:
           mountPath: /app/logs
         - name: raporty
           mountPath: /app/raporty
-      volumes:
-      - name: logs
-        persistentVolumeClaim:
-          claimName: app-logs-pvc
-      - name: raporty
-        persistentVolumeClaim:
-          claimName: app-raporty-pvc
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: app-daemons
-  namespace: raportprodukcyjny
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: raportprodukcyjny-daemons
-  template:
-    metadata:
-      labels:
-        app: raportprodukcyjny-daemons
-    spec:
-      serviceAccountName: app-sa
-      automountServiceAccountToken: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
       - name: daemons
+        # Sidecar uses exactly the same immutable image as the web container.
         image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-REPLACE_WITH_TESTED_COMMIT
         imagePullPolicy: IfNotPresent
         command: ["python", "scripts/run_daemons.py"]
