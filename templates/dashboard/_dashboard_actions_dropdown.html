@@ -50,15 +50,18 @@
 
         {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
         <div style="margin: 0; padding: 0;">
-            <a href="{{ request.path }}?sekcja={{ sekcja|urlencode }}&linia={{ linia|urlencode }}&data={{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}"
-               style="display:block;width:100%;text-align:left;text-decoration:none;border-radius:10px;font-size:.9rem;padding:10px 14px;color:#334155;font-weight:700;box-sizing:border-box;"
-               onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">📅 Widok dla dnia</a>
+            {% with current_date=(dzisiaj.strftime('%Y-%m-%d') if dzisiaj else ''), mode='url', param_name='data', custom_title=_('widok_dla') %}
+                {% include 'components/_date_picker.html' %}
+            {% endwith %}
+            <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
         </div>
         <div style="margin: 0; padding: 0;">
             <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
                style="display:block;width:100%;text-align:left;text-decoration:none;border-radius:10px;font-size:.9rem;padding:10px 14px;color:#334155;font-weight:700;box-sizing:border-box;"
                onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">⏱ Rejestr Przestojów</a>
         </div>
+        {% for action_plan in plan|default([]) if action_plan[3] == 'w toku' %}
+        {% set fb_kstats = kgph_stats_mapa.get(action_plan[0]) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
         {% if fb_kstats %}
         <div style="padding:8px 14px 6px;color:#475569;font-size:.82rem;line-height:1.45;">
             <strong>Wydajność</strong><br>
@@ -66,6 +69,7 @@
             Produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
         </div>
         {% endif %}
+        {% endfor %}
         <!-- Surowce w produkcji -->
         <div style="margin: 0; padding: 0;">
             <button type="button" 

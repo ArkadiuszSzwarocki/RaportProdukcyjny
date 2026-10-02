@@ -423,7 +423,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
                 try:
                     odrzuty_przesiewacz = float(str(odrzuty_przesiewacz).replace(',', '.'))
-                    if odrzuty_przesiewacz < 0:
+                    if not (0 <= odrzuty_przesiewacz < float('inf')):
                         raise ValueError
                 except (TypeError, ValueError):
                     msg = 'Odrzuty muszą być liczbą większą lub równą 0.'
