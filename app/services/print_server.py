@@ -54,7 +54,7 @@ class PrintServer:
         )
         self.bridge_token = str(os.getenv('PRINTER_BRIDGE_TOKEN') or '').strip()
         self.bridge_connect_timeout = _read_float_env('PRINTER_BRIDGE_CONNECT_TIMEOUT', 2.0, minimum=0.2)
-        self.bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 20.0, minimum=1.0)
+        self.bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 35.0, minimum=1.0)
         self.bridge_start_timeout = _read_float_env('PRINTER_BRIDGE_START_TIMEOUT', 6.0, minimum=1.0)
         self.bridge_autostart = _env_bool('PRINTER_BRIDGE_AUTOSTART', True)
         self.printer_ip = str(os.getenv('PRINTER_IP') or '').strip()
@@ -504,6 +504,8 @@ class PrintServer:
             except ValueError:
                 body = {}
             if response.status_code == 200 and body.get('success'):
+                if body.get('confirmation') == 'label_counter' and isinstance(body.get('copies'), int):
+                    return True, f"POTWIERDZONO_LICZNIKIEM: zakończono partię {body['copies']} etykiet", False
                 return True, 'Wysłano do drukarki przez mostek', False
             message = body.get('message') or f'Błąd mostka (HTTP {response.status_code})'
             if body.get('outcome_unknown'):

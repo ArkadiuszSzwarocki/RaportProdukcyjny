@@ -559,6 +559,8 @@ def _print_spooler_loop(interval_seconds: int = 5):
                                         pass
 
                                 log_note = f"Mostek przyjął wysyłkę | Licznik zleceń: {curr_cnt} ➔ {new_cnt}"
+                                if str(msg).startswith('POTWIERDZONO_LICZNIKIEM:'):
+                                    log_note = msg
                                 cursor.execute("UPDATE print_jobs SET status='DONE', error_message=%s, updated_at=NOW() WHERE id=%s", (log_note, job_id))
                             else:
                                 if 'WYNIK_NIEPEWNY:' in str(msg):

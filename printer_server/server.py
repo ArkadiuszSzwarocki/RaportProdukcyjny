@@ -15,6 +15,11 @@ from functools import wraps
 from flask import Flask, jsonify, request
 
 try:
+    from printer_server.zebra_status import read_host_status, status_error, batch_idle, read_label_counter, expected_copies, wait_for_batch
+except ModuleNotFoundError:
+    from zebra_status import read_host_status, status_error, batch_idle, read_label_counter, expected_copies, wait_for_batch
+
+try:
     from flask_cors import CORS
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     CORS = None
@@ -229,28 +234,11 @@ def wyslij_do_drukarki_win32(zpl, printer_name=None):
 
 
 def sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5):
-    """Ask a Zebra printer for basic physical state using ``~HS``."""
     try:
-        tcp_socket.settimeout(timeout)
-        tcp_socket.sendall(b'~HS\r\n')
-        time.sleep(0.15)
-        raw = tcp_socket.recv(1024).decode('utf-8', errors='ignore').strip()
-        clean = raw.replace('\x02', '').replace('\x03', '')
-        lines = [line.strip() for line in clean.replace('\r\n', '\n').split('\n') if line.strip()]
-        if lines:
-            parts = lines[0].split(',')
-            if len(parts) >= 8:
-                if parts[1].strip() == '1':
-                    return False, 'Brak papieru / etykiet.'
-                if parts[2].strip() == '1':
-                    return False, 'Drukarka jest wstrzymana.'
-                if parts[6].strip() == '1':
-                    return False, 'Głowica / klapa jest otwarta.'
-                if parts[7].strip() == '1':
-                    return False, 'Brak taśmy barwiącej.'
-        return True, 'OK'
-    except Exception:
-        return True, 'Brak zwrotnego statusu ~HS'
+        error = status_error(read_host_status(tcp_socket, timeout))
+        return (False, error) if error else (True, 'Status Zebra odczytany')
+    except Exception as exc:
+        return False, f'Brak wiarygodnego statusu Zebra: {exc}'
 
 
 _printer_lock = threading.Lock()
@@ -286,8 +274,20 @@ def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_del
                 send_started = False
                 try:
                     with socket.create_connection((ip_str, int(target_port)), timeout=tcp_timeout) as sock:
+                        verified_targets = {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160').split(',') if value.strip()}
+                        verify_count = ip_str in verified_targets
+                        if verify_count:
+                            status = read_host_status(sock)
+                            error = status_error(status)
+                            if error or not batch_idle(status):
+                                raise ValueError(error or 'Drukarka ma niezakończoną partię etykiet')
+                            baseline = read_label_counter(sock)
+                            copies = expected_copies(payload)
                         send_started = True
                         sock.sendall(payload.encode('utf-8'))
+                        if verify_count:
+                            wait_for_batch(sock, baseline, copies)
+                            return True
                         ok, message = sprawdz_stan_fizyczny_zebra(sock, timeout=1.5)
                         if not ok:
                             raise RuntimeError(message)
@@ -296,6 +296,8 @@ def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_del
                 except Exception as exc:
                     if send_started:
                         raise PrintOutcomeUnknown(f'Wynik wydruku niepewny: {exc}; sprawdź drukarkę przed ponowieniem') from exc
+                    if isinstance(exc, ValueError):
+                        raise
                     last_error = str(exc)
                     if attempt < attempts and pause_s:
                         time.sleep(pause_s)
@@ -437,7 +439,8 @@ def drukuj_zpl():
         if len(zpl.encode('utf-8')) > MAX_ZPL_BYTES:
             return jsonify({'success': False, 'message': 'ZPL jest zbyt duży.'}), 413
         wyslij_do_drukarki(zpl, target_ip, printer_name=printer_name)
-        return jsonify({'success': True})
+        verified = target_ip in {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160').split(',')}
+        return jsonify({'success': True, 'confirmation': 'label_counter' if verified else 'sent', 'copies': expected_copies(zpl) if verified else None})
     except PrintOutcomeUnknown as exc:
         return jsonify({'success': False, 'outcome_unknown': True, 'message': str(exc)}), 409
     except ValueError as exc:
