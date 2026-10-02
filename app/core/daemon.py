@@ -492,14 +492,29 @@ def _print_spooler_loop(interval_seconds: int = 5):
                 conn = get_db_connection()
                 try:
                     cursor = conn.cursor(dictionary=True)
+                    cursor.execute("""
+                        UPDATE print_jobs SET status='ERROR', retry_count=3,
+                            error_message='WYNIK_NIEPEWNY: przerwana obsługa wydruku; sprawdź drukarkę przed ponowieniem',
+                            updated_at=NOW()
+                        WHERE status='PRINTING' AND updated_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                    """)
+                    conn.commit()
 
-                    # Szukamy zadań PENDING lub ERROR z liczbą prób < 3 z ostatnich 48h
+                    cursor.execute("""
+                        UPDATE print_jobs SET status='ERROR', retry_count=3,
+                            error_message='WYNIK_NIEPEWNY: stare zlecenie oczekujące; sprawdź drukarkę przed ponowieniem',
+                            updated_at=NOW()
+                        WHERE status='PENDING' AND updated_at < DATE_SUB(NOW(), INTERVAL 48 HOUR)
+                    """)
+                    conn.commit()
+
+                    # A manual retry updates updated_at, including for older jobs.
                     # Priorytet dla najświeższych zadań PENDING, aby użytkownik natychmiast otrzymał wydruk
                     cursor.execute("""
                         SELECT id, printer_ip, printer_name, zpl_content, retry_count
                         FROM print_jobs 
                         WHERE (status = 'PENDING' OR (status = 'ERROR' AND retry_count < 3))
-                          AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+                          AND updated_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
                         ORDER BY (status = 'PENDING') DESC, id DESC
                         LIMIT 5
                     """)
@@ -600,7 +615,8 @@ def _cleanup_old_print_jobs(max_age_days: int = 14, interval_seconds: int = 8640
                     cursor.execute("""
                         DELETE FROM print_jobs 
                         WHERE (status = 'DONE' AND updated_at < NOW() - INTERVAL %s DAY)
-                           OR (status IN ('ERROR', 'CANCELLED') AND updated_at < NOW() - INTERVAL 7 DAY)
+                           OR (status IN ('ERROR', 'CANCELLED') AND updated_at < NOW() - INTERVAL 7 DAY
+                               AND COALESCE(error_message, '') NOT LIKE 'WYNIK_NIEPEWNY:%')
                     """, (max_age_days,))
                     deleted_count = cursor.rowcount
                     conn.commit()
@@ -739,6 +755,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
             leader_lock_name = 'agro_pallet_daemon_leader_v2'
             leader_lock_conn = None
             next_lock_retry_at = 0.0
+            next_label_recovery_at = 0.0
             
             while True:
                 daemon_status = 'running'
@@ -794,6 +811,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         continue
 
                 try:
+                    if time.time() >= next_label_recovery_at:
+                        from app.services.auto_label_service import AutoLabelService
+                        AutoLabelService.recover_pending(linia='AGRO')
+                        next_label_recovery_at = time.time() + 15.0
                     active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO')
                     if active_plan:
                         plan_id = active_plan['id']

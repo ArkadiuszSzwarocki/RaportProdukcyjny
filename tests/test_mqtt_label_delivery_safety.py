@@ -79,6 +79,16 @@ def test_two_labels_still_requested():
     assert '^PQ2' in PrintServer().build_finished_product_label_zpl({'nr_palety': 'AUDIT'}, copies=2)
 
 
+def test_windows_spool_failure_after_write_is_uncertain():
+    import sys
+    windows_printer = MagicMock()
+    windows_printer.WritePrinter.side_effect = OSError('spool response lost')
+    with patch.dict(sys.modules, {'win32print': windows_printer}):
+        with pytest.raises(server.PrintOutcomeUnknown):
+            server.wyslij_do_drukarki_win32('^XA^PQ2^XZ', 'Audit')
+    assert windows_printer.WritePrinter.call_count == 1
+
+
 def test_spooler_holds_uncertain_job_for_review():
     from app.core import daemon
 
@@ -100,7 +110,7 @@ def test_spooler_holds_uncertain_job_for_review():
          patch.object(daemon.time, 'sleep', side_effect=StopLoop):
         with pytest.raises(StopLoop):
             daemon._print_spooler_loop()
-    held = [call for call in cursor.execute.call_args_list if "retry_count=3" in str(call.args[0])]
+    held = [call for call in cursor.execute.call_args_list if "retry_count=3" in str(call.args[0]) and len(call.args) == 2]
     assert len(held) == 1
     assert held[0].args[1] == ('WYNIK_NIEPEWNY: response lost', 123)
     assert printer._send_to_bridge.call_count == 1

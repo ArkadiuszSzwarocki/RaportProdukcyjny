@@ -610,7 +610,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                     SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) AS done,
                     COUNT(*) AS total_48h
                 FROM print_jobs
-                WHERE created_at >= NOW() - INTERVAL 2 DAY
+                WHERE (updated_at >= NOW() - INTERVAL 2 DAY OR status IN ('ERROR', 'PRINTING', 'PENDING'))
             """)
             st_row = cursor.fetchone()
             if st_row:
@@ -622,7 +622,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             cursor.execute("""
                 SELECT id, printer_name, printer_ip, status, retry_count, error_message, created_at, updated_at 
                 FROM print_jobs 
-                WHERE created_at >= NOW() - INTERVAL 2 DAY 
+                WHERE (updated_at >= NOW() - INTERVAL 2 DAY OR status IN ('ERROR', 'PRINTING', 'PENDING'))
                 ORDER BY id DESC 
                 LIMIT 200
             """)
@@ -650,7 +650,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                     SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) AS done,
                     COUNT(*) AS total_48h
                 FROM print_jobs
-                WHERE created_at >= NOW() - INTERVAL 2 DAY
+                WHERE (updated_at >= NOW() - INTERVAL 2 DAY OR status IN ('ERROR', 'PRINTING', 'PENDING'))
             """)
             st_row = cursor.fetchone()
             if st_row:
@@ -662,7 +662,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             cursor.execute("""
                 SELECT id, printer_name, printer_ip, status, retry_count, error_message, created_at, updated_at 
                 FROM print_jobs 
-                WHERE created_at >= NOW() - INTERVAL 2 DAY 
+                WHERE (updated_at >= NOW() - INTERVAL 2 DAY OR status IN ('ERROR', 'PRINTING', 'PENDING'))
                 ORDER BY id DESC 
                 LIMIT 300
             """)
@@ -684,6 +684,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                 UPDATE print_jobs 
                 SET status = 'PENDING', retry_count = 0, error_message = NULL, updated_at = NOW() 
                 WHERE status = 'ERROR'
+                  AND COALESCE(error_message, '') NOT LIKE 'WYNIK_NIEPEWNY:%'
             """)
             count = cursor.rowcount
             conn.commit()
@@ -701,10 +702,21 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
+            cursor.execute("SELECT status, error_message FROM print_jobs WHERE id=%s FOR UPDATE", (job_id,))
+            job = cursor.fetchone()
+            if not job:
+                return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia.'}), 404
+            if job[0] != 'ERROR':
+                return jsonify({'success': False, 'message': 'Można ponowić tylko zatrzymane zlecenie z błędem.'}), 409
+            payload = request.get_json(silent=True)
+            confirmed = isinstance(payload, dict) and payload.get('confirm_uncertain') is True
+            if str(job[1] or '').startswith('WYNIK_NIEPEWNY:') and not confirmed:
+                return jsonify({'success': False, 'requires_confirmation': True,
+                                'message': 'Wydruk mógł już dotrzeć do drukarki. Sprawdź etykiety przed ponowieniem.'}), 409
             cursor.execute("""
                 UPDATE print_jobs 
                 SET status = 'PENDING', retry_count = 0, error_message = NULL, updated_at = NOW() 
-                WHERE id = %s
+                WHERE id = %s AND status = 'ERROR'
             """, (job_id,))
             conn.commit()
             return jsonify({'success': True, 'message': f'Zlecenie druku #{job_id} zostało ponownie zakolejkowane.'})

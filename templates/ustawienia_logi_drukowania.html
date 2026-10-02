@@ -225,7 +225,7 @@
         <div>
             <div class="logi-eyebrow">Diagnostyka Systemu</div>
             <h2 class="logi-title">Dziennik & Logi Drukarek (48h)</h2>
-            <p class="logi-description">Pełna historia prób drukowania z ostatnich 48 godzin. Monitoruj status połączenia TCP, odczyty czujników fizycznych Zebra (~HS) oraz przyczyny nieudanych wydruków.</p>
+            <p class="logi-description">Ostatnie zlecenia i nierozwiązane błędy druku. Wysłanie zlecenia nie potwierdza fizycznego wyjścia etykiety. Wynik niepewny wymaga sprawdzenia drukarki przed ponowieniem.</p>
         </div>
         <div class="logi-hero-actions">
             <a href="/admin/ustawienia/drukarki" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; background: #2f7dd1; color: white;">
@@ -243,11 +243,11 @@
         <div class="stats-group">
             <div class="stat-item">
                 <span class="material-icons" style="color: #64748b;">history</span>
-                <span>Wszystkie zlecenia 48h: <strong style="color: #0f172a;">{{ jobs_stats.total_48h }}</strong></span>
+                <span>Pokazane zlecenia: <strong style="color: #0f172a;">{{ jobs_stats.total_48h }}</strong></span>
             </div>
             <div class="stat-item">
                 <span class="material-icons" style="color: #10b981;">check_circle</span>
-                <span>Wydrukowano (OK): <strong style="color: #047857;">{{ jobs_stats.done }}</strong></span>
+                <span>Wysłano: <strong style="color: #047857;">{{ jobs_stats.done }}</strong></span>
             </div>
             <div class="stat-item">
                 <span class="material-icons" style="color: #ef4444;">error</span>
@@ -319,7 +319,7 @@
                                     {% if job.error_message and ('Czujniki' in job.error_message or 'Licznik' in job.error_message) and 'Błąd' not in job.error_message %}
                                         {{ job.error_message }}
                                     {% else %}
-                                        Czujniki ~HS OK - Fizyczny wydruk zakończony
+                                        Zlecenie wysłane — sprawdź etykiety na drukarce
                                     {% endif %}
                                 </div>
                             {% else %}
@@ -370,13 +370,18 @@ function retryAllFailedJobs() {
     .catch(err => alert('Błąd połączenia: ' + err));
 }
 
-function retrySingleJob(jobId) {
+function retrySingleJob(jobId, confirmUncertain = false) {
     fetch('/admin/api/print-jobs/retry/' + jobId, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({confirm_uncertain: confirmUncertain})
     })
     .then(r => r.json())
     .then(res => {
+        if (res.requires_confirmation) {
+            if (confirm(res.message + '\nCzy po sprawdzeniu drukarki chcesz wysłać etykiety ponownie?')) retrySingleJob(jobId, true);
+            return;
+        }
         if (res.success) {
             alert(res.message);
             window.location.reload();

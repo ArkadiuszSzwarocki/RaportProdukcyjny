@@ -871,13 +871,13 @@ class AgroTanksRepository:
                     if not nr_palety or (is_czyszczenie and (nr_palety == nr_palety_czyszczenie or not nr_palety.startswith('SUR'))):
                         nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
-                        f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s WHERE id = %s",
+                        f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, auto_label_state = 'pending' WHERE id = %s",
                         (waga_input, now_ts, user_login, nr_palety, paleta_id),
                     )
                 else:
                     nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
-                        f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
+                        f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, auto_label_state) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, 'pending')",
                         (plan_id, waga_input, now_ts, user_login, nr_palety),
                     )
                     paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
@@ -961,48 +961,11 @@ class AgroTanksRepository:
 
                 if paleta_id:
                     try:
-                        from app.utils.pallet_label import prepare_pallet_label_data
-                        from app.services.print_server import get_printer
-
-                        label_data = prepare_pallet_label_data(cursor, paleta_id, linia, source_table='workowanie')
-                        if not label_data:
-                            logger.warning(
-                                'System auto-print skipped: missing label data for paleta_id=%s (plan_id=%s, source=%s)',
-                                paleta_id,
-                                plan_id,
-                                source_instance,
-                            )
-                        else:
-                            from app.repositories.settings_repository import SettingsRepository
-                            printer = get_printer()
-                            printer_row = SettingsRepository.get_default_printer_for_line(linia)
-                            override_name = printer_row.get('nazwa') if printer_row else None
-                            override_ip = printer_row.get('ip') if printer_row else None
-
-                            ok, print_msg = printer.print_finished_product_label(
-                                label_data,
-                                override_ip=override_ip,
-                                override_name=override_name,
-                                copies=2
-                            )
-                            logging.info(
-                                'System auto-print for paleta=%s (plan_id=%s, source=%s): success=%s, printer=%s, ip=%s, msg=%s',
-                                nr_palety,
-                                plan_id,
-                                source_instance,
-                                ok,
-                                override_name or printer.printer_name,
-                                override_ip or printer.printer_ip,
-                                print_msg,
-                            )
-                    except Exception as print_err:
-                        logging.error(
-                            'System auto-print failed for paleta=%s (plan_id=%s, source=%s): %s',
-                            nr_palety,
-                            plan_id,
-                            source_instance,
-                            print_err,
-                        )
+                        from app.services.auto_label_service import AutoLabelService
+                        AutoLabelService.queue_for_pallet(conn, cursor, paleta_id, linia)
+                    except Exception:
+                        conn.rollback()
+                        logger.exception('Auto-label remains pending for pallet %s, plan %s', paleta_id, plan_id)
                 try:
                     from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
                     PakowaczkaSignalTrapService.log_signal(
@@ -1027,6 +990,7 @@ class AgroTanksRepository:
             finally:
                 try:
                     cursor.execute("SELECT RELEASE_LOCK('agro_pallet_register')")
+                    cursor.fetchone()
                 except Exception:
                     pass
                 conn.close()

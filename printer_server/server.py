@@ -205,6 +205,7 @@ def _candidate_ports():
 
 def wyslij_do_drukarki_win32(zpl, printer_name=None):
     """Send raw ZPL through a locally installed Windows printer."""
+    send_started = False
     try:
         import win32print
         target_name = printer_name or win32print.GetDefaultPrinter()
@@ -213,6 +214,7 @@ def wyslij_do_drukarki_win32(zpl, printer_name=None):
             job_id = win32print.StartDocPrinter(hprinter, 1, ('Etykieta ZPL', None, 'RAW'))
             win32print.StartPagePrinter(hprinter)
             payload = zpl if zpl.endswith('\n') else zpl + '\r\n'
+            send_started = True
             win32print.WritePrinter(hprinter, payload.encode('utf-8'))
             win32print.EndPagePrinter(hprinter)
             win32print.EndDocPrinter(hprinter)
@@ -221,6 +223,8 @@ def wyslij_do_drukarki_win32(zpl, printer_name=None):
         finally:
             win32print.ClosePrinter(hprinter)
     except Exception as exc:
+        if send_started:
+            raise PrintOutcomeUnknown(f'Wynik wydruku Windows niepewny: {exc}') from exc
         raise RuntimeError(f'Błąd bufora Windows: {exc}') from exc
 
 
