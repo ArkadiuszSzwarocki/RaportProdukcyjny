@@ -153,7 +153,7 @@ function showPallet(p) {
   if (dataWazEl) dataWazEl.textContent = p.data_przydatnosci || '—';
 
   const locUpper = (p.lokalizacja || '').toUpperCase();
-  const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('CZ') || locUpper.startsWith('KO') || locUpper.startsWith('PSD') || locUpper.startsWith('MIX')) && !locUpper.startsWith('BF_') && !locUpper.startsWith('BF');
+  const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('KO') || (/^K\d+/i.test(locUpper)) || locUpper.startsWith('PSD') || locUpper.startsWith('MIX')) && !locUpper.startsWith('BF_') && !locUpper.startsWith('BF');
   
   const returnBtn = document.getElementById('scannerReturnBtnContainer');
   if (returnBtn) {

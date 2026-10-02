@@ -92,7 +92,7 @@ function isPalletCode(code) {
   if (/^\d{10,24}$/.test(s)) return true;
   if (/^PAL-?\d+/i.test(s) || /^SUR-?\d+/i.test(s) || /^OPA-?\d+/i.test(s) || /^DOD-?\d+/i.test(s)) return true;
   
-  const isLocation = /^(R0[1-7]\d{4}|BB\d{2}|MZ\d{2}|WZ\d{2}|CZ\d{2}|KO\d{2}|OS\d{2}|MS\d{2}|MP\d{2}|MD\d{2}|MOP\d{2}|MDM\d{2}|PSD\d{0,2}|AGR\d{0,2}|RAMPA|MIX\d{0,2}|BF_|LP\d{0,2}|MASZYNA)/i.test(s);
+  const isLocation = /^(R0[1-7]\d{4}|BB\d{2}|MZ\d{2}|WZ\d{2}|K\d{2,3}|KO\d{2}|OS\d{2}|MS\d{2}|MP\d{2}|MD\d{2}|MOP\d{2}|MDM\d{2}|PSD\d{0,2}|AGR\d{0,2}|RAMPA|MIX\d{0,2}|BF_|LP\d{0,2}|MASZYNA)/i.test(s);
   if (isLocation) return false;
   if (/^0[1-7]\d{4}$/.test(s)) return false;
 

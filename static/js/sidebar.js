@@ -355,9 +355,28 @@
         updateSidebarDraftBadges();
     };
 
+    window.clearAllTransferDrafts = function() {
+        try {
+            const keysToRemove = [];
+            for (let i = 0; i < window.localStorage.length; i++) {
+                const k = window.localStorage.key(i);
+                if (k && k.startsWith('magazyn_dostawy_draft_')) {
+                    keysToRemove.push(k);
+                }
+            }
+            keysToRemove.forEach(k => window.localStorage.removeItem(k));
+            updateSidebarDraftBadges();
+            window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { hasDraft: false } }));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
     function updateSidebarDraftBadges() {
         const draftsByHall = {};
         try {
+            const staleKeysToRemove = [];
             for (let i = 0; i < window.localStorage.length; i++) {
                 const k = window.localStorage.key(i);
                 if (k && k.startsWith('magazyn_dostawy_draft_')) {
@@ -365,15 +384,34 @@
                     const draftHall = match ? match[1].toUpperCase() : 'ALL';
                     const raw = window.localStorage.getItem(k);
                     if (raw) {
-                        const draft = JSON.parse(raw);
-                        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
-                            const validItems = draft.items.filter(it => Boolean(it && (it.nr_palety || it.sourcePalletNo || it.productName || parseFloat(it.quantity) > 0)));
-                            if (validItems.length > 0) {
-                                draftsByHall[draftHall] = (draftsByHall[draftHall] || 0) + validItems.length;
+                        try {
+                            const draft = JSON.parse(raw);
+                            // Usuń automatycznie szkice starsze niż 48h
+                            if (draft && draft.saved_at) {
+                                const ageHours = (Date.now() - new Date(draft.saved_at).getTime()) / (1000 * 60 * 60);
+                                if (ageHours > 48) {
+                                    staleKeysToRemove.push(k);
+                                    continue;
+                                }
                             }
+                            if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+                                const validItems = draft.items.filter(it => Boolean(it && (it.nr_palety || it.sourcePalletNo || it.productName || parseFloat(it.quantity) > 0)));
+                                if (validItems.length > 0) {
+                                    draftsByHall[draftHall] = (draftsByHall[draftHall] || 0) + validItems.length;
+                                } else {
+                                    staleKeysToRemove.push(k);
+                                }
+                            } else {
+                                staleKeysToRemove.push(k);
+                            }
+                        } catch (errParse) {
+                            staleKeysToRemove.push(k);
                         }
                     }
                 }
+            }
+            if (staleKeysToRemove.length > 0) {
+                staleKeysToRemove.forEach(k => window.localStorage.removeItem(k));
             }
         } catch (e) {
             // silent
@@ -399,7 +437,7 @@
             if (countForBadge > 0) {
                 badge.style.display = 'inline-flex';
                 badge.textContent = `SZKIC (${countForBadge})`;
-                badge.title = `W formularzu przesunięcia (${badgeHall}) są robocze palety: ${countForBadge} szt.`;
+                badge.title = `W pamięci przeglądarki są robocze palety: ${countForBadge} szt. Kliknij, aby przejść do listy i kontynuować lub odrzucić.`;
             } else {
                 badge.style.display = 'none';
             }

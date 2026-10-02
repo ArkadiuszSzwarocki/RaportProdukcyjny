@@ -616,13 +616,13 @@
     {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v=20260918_02"></script>
-<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v=20261002_01"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20261002_01"></script>
 {% endblock %}
 

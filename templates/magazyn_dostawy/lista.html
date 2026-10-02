@@ -692,6 +692,9 @@
             <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-transfer-warning" style="display: none;">
                 <span class="material-icons" style="font-size:18px;">history</span> <span id="continue_transfer_label">Kontynuuj wpis</span>
             </a>
+            <button id="discard_transfer_draft_btn" type="button" class="btn-transfer-secondary" style="display: none; color: #dc2626 !important; border-color: #fecaca; background: #fef2f2;" onclick="discardPendingTransferDraft()" title="Usuń ten porzucony szkic z pamięci przeglądarki">
+                <span class="material-icons" style="font-size:18px; color: #dc2626;">delete_outline</span> Odrzuć szkic
+            </button>
             <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia) }}" class="btn-transfer-primary">
                 <span class="material-icons" style="font-size:18px;">add</span> Nowe Przesunięcie
             </a>
@@ -935,14 +938,39 @@ async function cancelTransferOrder(dostawaId, orderRef) {
 }
 
 function hasPendingTransferDraft() {
-    const draftKey = "magazyn_dostawy_draft_{{ linia }}_new";
     try {
-        const raw = window.localStorage.getItem(draftKey);
-        if (!raw) return null;
-        const draft = JSON.parse(raw);
-        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
-            const hasData = draft.items.some(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0)));
-            return hasData ? draft : null;
+        const currentHall = "{{ linia }}".toUpperCase();
+        const primaryKey = `magazyn_dostawy_draft_${currentHall}_new`;
+        
+        // 1. Sprawdź dedykowany klucz dla wybranej hali
+        const rawPrimary = window.localStorage.getItem(primaryKey);
+        if (rawPrimary) {
+            try {
+                const draft = JSON.parse(rawPrimary);
+                if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+                    const validCount = draft.items.filter(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0))).length;
+                    if (validCount > 0) return { draft, key: primaryKey, count: validCount };
+                }
+            } catch (e) {}
+        }
+
+        // 2. Sprawdź dowolny inny zapisany szkic w localStorage
+        for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && k.startsWith('magazyn_dostawy_draft_')) {
+                try {
+                    const raw = window.localStorage.getItem(k);
+                    if (raw) {
+                        const d = JSON.parse(raw);
+                        if (d && Array.isArray(d.items) && d.items.length > 0) {
+                            const validCount = d.items.filter(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0))).length;
+                            if (validCount > 0) {
+                                return { draft: d, key: k, count: validCount };
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
         }
         return null;
     } catch (error) {
@@ -951,17 +979,55 @@ function hasPendingTransferDraft() {
 }
 
 // Auto-check pending draft
-(function initDraftButton() {
-    const pendingDraft = hasPendingTransferDraft();
+function refreshDraftButtons() {
+    const draftInfo = hasPendingTransferDraft();
     const continueBtn = document.getElementById('continue_transfer_btn');
     const continueLabel = document.getElementById('continue_transfer_label');
-    if (continueBtn && pendingDraft) {
-        continueBtn.style.display = 'inline-flex';
-        const validCount = (pendingDraft.items || []).filter(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0))).length;
-        if (continueLabel && validCount > 0) {
-            continueLabel.textContent = `Kontynuuj szkic (${validCount} pal.)`;
+    const discardBtn = document.getElementById('discard_transfer_draft_btn');
+
+    if (draftInfo && draftInfo.count > 0) {
+        if (continueBtn) {
+            continueBtn.style.display = 'inline-flex';
+            if (continueLabel) continueLabel.textContent = `Kontynuuj szkic (${draftInfo.count} pal.)`;
         }
+        if (discardBtn) {
+            discardBtn.style.display = 'inline-flex';
+        }
+    } else {
+        if (continueBtn) continueBtn.style.display = 'none';
+        if (discardBtn) discardBtn.style.display = 'none';
     }
+}
+
+function discardPendingTransferDraft() {
+    if (!confirm('Czy na pewno chcesz usunąć ten porzucony szkic z pamięci przeglądarki?')) {
+        return;
+    }
+    try {
+        const keysToRemove = [];
+        for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && k.startsWith('magazyn_dostawy_draft_')) {
+                keysToRemove.push(k);
+            }
+        }
+        keysToRemove.forEach(k => window.localStorage.removeItem(k));
+
+        refreshDraftButtons();
+        window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { hasDraft: false } }));
+        if (typeof window.updateSidebarDraftBadges === 'function') {
+            window.updateSidebarDraftBadges();
+        }
+        safeToast('Szkic przesunięcia został pomyślnie usunięty.', 'info');
+    } catch (err) {
+        console.error('Błąd usuwania szkicu:', err);
+    }
+}
+
+(function initDraftButton() {
+    refreshDraftButtons();
+    window.addEventListener('storage', refreshDraftButtons);
+    window.addEventListener('draftStateChanged', refreshDraftButtons);
 })();
 
 // Row click listener

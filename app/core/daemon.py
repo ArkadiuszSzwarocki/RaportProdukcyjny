@@ -148,21 +148,22 @@ def _acquire_named_lock(lock_name, timeout_seconds=0):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # If legacy lock_name is held by a rogue connection (e.g. from host Technik), kill it so leader can take both locks
+        # If lock is held by a rogue connection (e.g. from host Technik or QNAP container 172.29.), kill it so primary leader can take both locks
         try:
-            cursor.execute("SELECT IS_USED_LOCK(%s)", (str(lock_name),))
-            holder = cursor.fetchone()
-            if holder and holder[0]:
-                holder_id = int(holder[0])
-                cursor.execute("SELECT HOST FROM information_schema.processlist WHERE ID = %s", (holder_id,))
-                h_row = cursor.fetchone()
-                if h_row and ('217.75.52.231' in str(h_row[0]) or 'technik' in str(h_row[0]).lower()):
-                    cursor.execute(f"KILL {holder_id}")
-                    try:
-                        cursor.fetchall()
-                    except Exception:
-                        pass
-                    _safe_log_warning("Killed rogue Technik connection %s holding lock %s", holder_id, lock_name)
+            for lk in (lock_name, scoped_lock):
+                cursor.execute("SELECT IS_USED_LOCK(%s)", (str(lk),))
+                holder = cursor.fetchone()
+                if holder and holder[0]:
+                    holder_id = int(holder[0])
+                    cursor.execute("SELECT HOST FROM information_schema.processlist WHERE ID = %s", (holder_id,))
+                    h_row = cursor.fetchone()
+                    if h_row and ('217.75.52.231' in str(h_row[0]) or 'technik' in str(h_row[0]).lower() or '172.29.' in str(h_row[0])):
+                        cursor.execute(f"KILL {holder_id}")
+                        try:
+                            cursor.fetchall()
+                        except Exception:
+                            pass
+                        _safe_log_warning("Killed rogue connection %s (%s) holding lock %s", holder_id, h_row[0], lk)
         except Exception:
             pass
 
@@ -958,7 +959,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
                             cur_cnt = conn_cnt.cursor()
                             cur_cnt.execute(
                                 "SELECT COUNT(*), "
-                                "SUM(CASE WHEN (waga < 1000 OR (dodal_login IS NOT NULL AND dodal_login != 'System')) THEN 1 ELSE 0 END) "
+                                "SUM(CASE WHEN (waga < 1000) THEN 1 ELSE 0 END) "
                                 "FROM palety_agro WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')",
                                 (plan_id,)
                             )

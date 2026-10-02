@@ -55,14 +55,14 @@ class ProductionService:
         # Transfer map logic
         przeniesione_map = ProductionService._get_transfer_map(plan_dnia, linia, cursor)
 
-        # Fallback recipe lookup from produkty table if missing in plan
+        # Fallback recipe lookup from produkty_receptury table if missing in plan
         product_names_needing_recipe = {p[1] for p in plan_dnia if (len(p) <= 17 or not p[17]) and len(p) > 1 and p[1]}
         recipe_lookup = {}
         if product_names_needing_recipe:
             try:
                 placeholders = ', '.join(['%s'] * len(product_names_needing_recipe))
                 cursor.execute(
-                    f"SELECT nazwa_produktu, nr_receptury FROM produkty WHERE nazwa_produktu IN ({placeholders}) AND nr_receptury IS NOT NULL AND nr_receptury != ''",
+                    f"SELECT nazwa_produktu, nr_receptury FROM produkty_receptury WHERE nazwa_produktu IN ({placeholders}) AND nr_receptury IS NOT NULL AND nr_receptury != ''",
                     tuple(product_names_needing_recipe)
                 )
                 for row in cursor.fetchall():

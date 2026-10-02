@@ -842,10 +842,6 @@ def _create_tables(cursor):
             'MP01', 'MS01', 'BF_MS01', 'BF_MP01', 
             'MGW01', 'MGW02', 'MOP01', 'MDO01'
         ]
-        # Dodajemy K001 do K050
-        for i in range(1, 51):
-            default_locs.append(f"K{i:03d}")
-            
         for loc in default_locs:
             cursor.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa) VALUES (%s)", (loc,))
     else:

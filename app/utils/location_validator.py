@@ -11,9 +11,9 @@ import re
 VALID_BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
 VALID_MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
 VALID_KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
-VALID_CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 100)]
+VALID_K_TANK_CODES = [f"K{i:03d}" for i in range(1, 51)]
 VALID_WZ_TANK_CODES = ["WZ04"]
-VALID_PRODUCTION_TANK_CODES = set(VALID_BB_TANK_CODES + VALID_MZ_TANK_CODES + VALID_KO_TANK_CODES + VALID_CZ_TANK_CODES + VALID_WZ_TANK_CODES)
+VALID_PRODUCTION_TANK_CODES = set(VALID_BB_TANK_CODES + VALID_MZ_TANK_CODES + VALID_KO_TANK_CODES + VALID_K_TANK_CODES + VALID_WZ_TANK_CODES)
 
 DELETED_STATION_CODES = {
     'BB07', 'BB08', 'BB09', 'BB10', 'BB23', 'BB24',
@@ -29,7 +29,7 @@ PRODUCTION_TANK_PATTERNS = [
     r'^BB\d+$',
     r'^MZ\d+$',
     r'^KO\d+$',
-    r'^CZ\d+$',
+    r'^K\d+$',
     r'^WZ\d+$',
     r'^PSD\d*$',
     r'^MIX\d*$',
@@ -37,7 +37,7 @@ PRODUCTION_TANK_PATTERNS = [
 
 
 def normalize_production_tank_code(location_code):
-    """Normalize station/tank code to standard 2-digit format (e.g. BB2 -> BB02, MZ7 -> MZ07, KO1 -> KO01)."""
+    """Normalize station/tank code to standard format (e.g. BB2 -> BB02, MZ7 -> MZ07, KO1 -> KO01, K1 -> K001)."""
     if not location_code:
         return ""
     val = str(location_code).strip().upper()
@@ -45,8 +45,10 @@ def normalize_production_tank_code(location_code):
     m = re.match(r'^([A-Z]+)(\d+)$', val)
     if m:
         prefix, num = m.group(1), int(m.group(2))
-        if prefix in ('BB', 'MZ', 'KO', 'CZ', 'WZ'):
+        if prefix in ('BB', 'MZ', 'KO', 'WZ'):
             return f"{prefix}{num:02d}"
+        if prefix == 'K':
+            return f"K{num:03d}"
     return val
 
 
@@ -74,10 +76,10 @@ def validate_production_tank(location_code):
     
     norm = normalize_production_tank_code(location_code)
     if is_deleted_station_code(location_code) or is_deleted_station_code(norm):
-        return False, norm, f"❌ Stacja/zbiornik {norm} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40."
+        return False, norm, f"❌ Stacja/zbiornik {norm} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, K001-K050."
     
     if norm not in VALID_PRODUCTION_TANK_CODES:
-        return False, norm, f"❌ Stacja/zbiornik '{norm}' nie istnieje! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, CZ01-CZ99, WZ04."
+        return False, norm, f"❌ Stacja/zbiornik '{norm}' nie istnieje! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, K001-K050, WZ04."
     
     return True, norm, None
 

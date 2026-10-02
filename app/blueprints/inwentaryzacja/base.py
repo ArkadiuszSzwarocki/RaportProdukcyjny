@@ -78,6 +78,12 @@ def verify_location():
             elif dozw_lok.startswith('R') and len(dozw_lok) == 3 and lokalizacja.startswith(dozw_lok):
                 is_dict_valid = True
                 break
+            elif dozw_lok == 'OS' and (lokalizacja.startswith('OS') or lokalizacja.startswith('OSIP')):
+                is_dict_valid = True
+                break
+            elif dozw_lok == 'LP01' and lokalizacja in ('LP01', 'MASZYNA'):
+                is_dict_valid = True
+                break
                 
         if not is_dict_valid:
             return jsonify({"success": False, "message": f"Nieznana lokalizacja: {lokalizacja} (brak w słowniku)."})
@@ -92,6 +98,12 @@ def verify_location():
                 if lokalizacja == target:
                     is_session_valid = True
                 elif target.startswith('R') and len(target) == 3 and lokalizacja.startswith(target):
+                    is_session_valid = True
+                elif target in ('OS', 'OSIP') and (lokalizacja.startswith('OS') or lokalizacja.startswith('OSIP')):
+                    is_session_valid = True
+                elif target in ('LP01', 'MASZYNA') and lokalizacja in ('LP01', 'MASZYNA'):
+                    is_session_valid = True
+                elif target == 'MP01' and lokalizacja in ('MP01', 'MPO1'):
                     is_session_valid = True
                     
                 if not is_session_valid:
@@ -327,6 +339,15 @@ def search_pallets():
                 cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE UPPER(nr_palety) LIKE %s OR UPPER(produkt) LIKE %s OR UPPER(nr_partii) LIKE %s LIMIT 20", (like_q, like_q, like_q))
                 pallets.extend(cursor.fetchall())
                 
+        # Deduplicate pallets by SSCC if present, otherwise by (typ_palety, id)
+        unique_p = {}
+        for p in pallets:
+            clean_sscc = str(p.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+            k = f"SSCC:{clean_sscc}" if clean_sscc else f"ID:{p.get('typ_palety')}_{p.get('id')}"
+            if k not in unique_p:
+                unique_p[k] = p
+        pallets = list(unique_p.values())
+
         # Format dates and limit to 30 overall
         for p in pallets[:30]:
             if p.get('data_produkcji') and hasattr(p['data_produkcji'], 'strftime'):

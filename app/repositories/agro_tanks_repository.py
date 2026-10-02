@@ -12,11 +12,15 @@ BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23
 
 MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
 KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
-CZ_TANK_CODES = [f"CZ{i:02d}" for i in range(1, 99)]
-PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + CZ_TANK_CODES + ["WZ04"]
+K_TANK_CODES = [f"K{i:03d}" for i in range(1, 51)]
+PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + K_TANK_CODES + ["WZ04"]
+
+from app.utils.location_validator import normalize_production_tank_code
 
 def _normalize_tank_code(value):
-    normalized = str(value or '').strip().upper()
+    if not value:
+        return None
+    normalized = normalize_production_tank_code(value)
     return normalized or None
 
 def _classify_tank_zone(tank_code):
@@ -29,6 +33,8 @@ def _classify_tank_zone(tank_code):
         return 'MZ'
     if normalized.startswith('KO'):
         return 'KO'
+    if normalized.startswith('K'):
+        return 'K'
     return 'INNE'
 
 def _is_additive_material(material_name, material_location=None):
@@ -96,7 +102,7 @@ class AgroTanksRepository:
                 'BB': list(BB_TANK_CODES),
                 'MZ': list(MZ_TANK_CODES),
                 'KO': list(KO_TANK_CODES),
-                'CZ': list(CZ_TANK_CODES),
+                'K': list(K_TANK_CODES),
                 'ALL': list(PRODUCTION_TANK_CODES),
             }
 
@@ -466,7 +472,7 @@ class AgroTanksRepository:
 
             for row in rows:
                 tank_code = _normalize_tank_code(row.get('zbiornik'))
-                if not tank_code:
+                if not tank_code or tank_code not in PRODUCTION_TANK_CODES:
                     continue
                 if tank_code in by_tank:
                     continue
@@ -507,7 +513,7 @@ class AgroTanksRepository:
             def _tank_sort_key(item):
                 tank = item.get('zbiornik') or ''
                 zone = _classify_tank_zone(tank)
-                zone_rank = {'BB': 0, 'MZ': 1, 'KO': 2, 'INNE': 3, 'BRAK': 4}.get(zone, 9)
+                zone_rank = {'BB': 0, 'MZ': 1, 'KO': 2, 'K': 3, 'INNE': 4, 'BRAK': 5}.get(zone, 9)
                 return (zone_rank, tank)
 
             return sorted(by_tank.values(), key=_tank_sort_key)
@@ -767,16 +773,16 @@ class AgroTanksRepository:
                 if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                     return False
 
-                # Blokada procesów z maszyny Technik
-                if source_instance and ('technik' in str(source_instance).lower() or '217.75.52.231' in str(source_instance)):
-                    logger.warning("[BLOKADA TECHNIK] Odrzucono próbę automatycznej rejestracji palety przez instancję Technik: %s", source_instance)
+                # Blokada procesów z maszyny Technik oraz kontenera QNAP
+                if source_instance and ('technik' in str(source_instance).lower() or '217.75.52.231' in str(source_instance) or '172.29.' in str(source_instance) or '5ea69e' in str(source_instance)):
+                    logger.warning("[BLOKADA REMOTE] Odrzucono próbę automatycznej rejestracji palety przez instancję zdalną: %s", source_instance)
                     return False
 
                 try:
                     cursor.execute("SELECT USER()")
                     _curr_user_row = cursor.fetchone()
-                    if _curr_user_row and ('technik' in str(_curr_user_row[0]).lower() or '217.75.52.231' in str(_curr_user_row[0])):
-                        logger.warning("[BLOKADA TECHNIK] Odrzucono próbę rejestracji palety z adresu Technik: %s", _curr_user_row[0])
+                    if _curr_user_row and ('technik' in str(_curr_user_row[0]).lower() or '217.75.52.231' in str(_curr_user_row[0]) or '172.29.' in str(_curr_user_row[0])):
+                        logger.warning("[BLOKADA REMOTE] Odrzucono próbę rejestracji palety z adresu zdalnego: %s", _curr_user_row[0])
                         return False
                 except Exception:
                     pass
@@ -791,7 +797,7 @@ class AgroTanksRepository:
 
                     # Sprawdź czy w bazie nie ma już palety z opróżniania dla tego planu
                     cursor.execute(
-                        f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND (waga < 1000 OR (dodal_login IS NOT NULL AND dodal_login != 'System')) AND (status IS NULL OR status != 'rezerwacja')",
+                        f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND (waga < 1000) AND (status IS NULL OR status != 'rezerwacja')",
                         (plan_id,)
                     )
                     empty_row = cursor.fetchone()

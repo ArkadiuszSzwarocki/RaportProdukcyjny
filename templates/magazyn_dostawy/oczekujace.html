@@ -710,6 +710,9 @@
             <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-waiting-warning" style="display: none;">
                 <span class="material-icons" style="font-size: 18px;">history</span> <span id="continue_transfer_label">Kontynuuj wpis</span>
             </a>
+            <button id="discard_transfer_draft_btn" type="button" class="btn-waiting-secondary" style="display: none; color: #dc2626 !important; border-color: #fecaca; background: #fef2f2;" onclick="discardPendingTransferDraftOczekujace()" title="Usuń porzucony szkic z pamięci przeglądarki">
+                <span class="material-icons" style="font-size: 18px; color: #dc2626;">delete_outline</span> Odrzuć szkic
+            </button>
             <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia) }}" class="btn-waiting-secondary">
                 <span class="material-icons" style="font-size: 18px; color: #475569;">swap_horiz</span> Nowe wydanie
             </a>
