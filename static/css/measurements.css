@@ -1,0 +1,21 @@
+.measurement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    padding: 12px;
+}
+.measurement-device {
+    border: 1px solid #dce4ec;
+    border-radius: 8px;
+    padding: 12px;
+    background: #f8fafc;
+    min-width: 0;
+}
+.measurement-reading-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.measurement-device details { margin-top: 10px; }
+.measurement-device summary { cursor: pointer; font-size: 12px; }
+.measurement-device .text-warning { color: #995b00 !important; }

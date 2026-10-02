@@ -1,0 +1,6 @@
+{% if agro_measurements %}
+<section class="section-box measurement-grid" id="agroMeasurements"
+         data-url="{{ url_for('main.agro_measurements', data=dzisiaj) }}" aria-label="Pomiary hali AGRO" aria-live="polite">
+    {% with measurements_list = agro_measurements %}{% include 'dashboard/_agro_measurement_values.html' %}{% endwith %}
+</section>
+{% endif %}

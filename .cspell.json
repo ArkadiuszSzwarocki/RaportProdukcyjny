@@ -3,6 +3,8 @@
   "language": "en,pl,uk",
   "import": ["@cspell/dict-pl_pl/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
   "words": [
+    "ipomiar",
+    "tzdata",
     "baga",
     "zglos",
     "kgph",

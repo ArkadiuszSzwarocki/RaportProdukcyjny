@@ -2,12 +2,14 @@
 {% import "_macros.html" as macros %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/measurements.css') }}?v={{ static_version }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v={{ static_version }}&v2=2">
 {% endblock %}
 
 {% block content %}
 {% include 'dashboard/_dashboard_banners.html' %}
 {% include 'includes/dashboard_top.html' %}
+{% include 'dashboard/_agro_measurements.html' %}
 
 {% if fefo_pallets %}
 <div class="fefo-alert" style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
@@ -73,6 +75,7 @@
 
     <!-- Core Dashboard Logic Scripts -->
     <script src="{{ url_for('static', filename='js/dashboard/scheduler.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/measurements.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard/toasts.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
     <script src="{{ url_for('static', filename='js/dashboard/config.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
     <script src="{{ url_for('static', filename='js/dashboard/card-actions.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>

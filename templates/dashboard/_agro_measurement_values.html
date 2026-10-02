@@ -1,0 +1,24 @@
+{% for measurements in measurements_list %}
+<article class="measurement-device">
+<div class="measurement-reading-row">
+    <strong>{{ measurements.name }} · pomiary</strong>
+    {% if measurements.latest %}
+    <span>Temperatura: <strong>{{ '%.1f'|format(measurements.latest.temperature) if measurements.latest.temperature is not none else '—' }} °C</strong></span>
+    <span>Wilgotność: <strong>{{ '%.1f'|format(measurements.latest.humidity) if measurements.latest.humidity is not none else '—' }} %</strong></span>
+    <small>Pomiar: {{ measurements.latest.time }} · iPomiar</small>
+    {% if measurements.stale %}<span class="text-warning">{{ measurements.message }}</span>{% endif %}
+    {% else %}<span class="text-muted">{{ measurements.message }}</span>{% endif %}
+</div>
+{% if measurements.latest %}
+<details class="mt-2">
+    <summary>Podsumowanie pomiarów z {{ measurements.day }}</summary>
+    <div class="small mt-2">Zakres odczytów: {{ measurements.first }} – {{ measurements.last }}. Średnia dotyczy dostępnych odczytów.</div>
+    {% for key, label, unit in [('temperature', 'Temperatura', '°C'), ('humidity', 'Wilgotność', '%')] %}
+    {% set values = measurements.summary[key] %}
+    {% if values %}<div class="small">{{ label }}: min. {{ '%.1f'|format(values.min) }} {{ unit }}, maks. {{ '%.1f'|format(values.max) }} {{ unit }}, średnia {{ '%.1f'|format(values.mean) }} {{ unit }} · {{ values.count }} odczytów</div>{% endif %}
+    {% endfor %}
+    {% if measurements.gaps %}<div class="text-warning small">Przerwy między odczytami dłuższe niż 15 minut: {{ measurements.gaps }}</div>{% endif %}
+</details>
+{% endif %}
+</article>
+{% endfor %}

@@ -22,7 +22,7 @@ class PdfReportGenerator:
     def generuj_pdf(
         dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
-        bufor_rows=None, nadgodziny_rows=None, palety_rows=None
+        bufor_rows=None, nadgodziny_rows=None, palety_rows=None, measurements=None
     ) -> str | None:
         linia_prefix = f"_{linia}" if linia else ""
         nazwa_pdf = f"Raport{linia_prefix}_{dzisiaj}.pdf"
@@ -77,6 +77,9 @@ class PdfReportGenerator:
         PdfProductionSections.render_production(pdf, products, prod_map, dzisiaj, awarie_rows)
         PdfProductionSections.render_pallets(pdf, palety_rows)
         PdfProductionSections.render_downtime(pdf, awarie_rows)
+        if str(linia).upper() == 'AGRO':
+            from scripts.reports.measurement_sections import render_pdf
+            render_pdf(pdf, measurements)
 
         # Staff, HR, Absences, Overtime
         PdfStaffSections.render_obsada(pdf, obsada_rows, linia)

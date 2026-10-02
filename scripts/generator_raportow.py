@@ -360,10 +360,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     df_nadgodziny = clean_dataframe_strings(df_nadgodziny)
 
     # 1. Excel
+    from app.services.ipomiar_service import read_all
+    measurements = read_all(data_raportu) if str(linia).upper() == 'AGRO' else []
     xls_path = os.path.join(folder, f"Raport_{linia}_{data_raportu}.xlsx")
     logger.info(f"[GENERATOR] Creating Excel file: {xls_path}")
     print(f"[GENERATOR] Creating Excel: {os.path.abspath(xls_path)}")
     with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
+        if measurements:
+            from scripts.reports.measurement_sections import write_excel
+            write_excel(writer, measurements)
         df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
         df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
         df_hr.to_excel(writer, sheet_name='HR - Obecnosc', index=False)
@@ -462,7 +467,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                                folder, linia,
                                obsada_rows=obsada_rows, nieobecni_rows=nieobecni_rows,
                                bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows,
-                               palety_rows=palety_rows)
+                               palety_rows=palety_rows, measurements=measurements)
         
         print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
         sys.stdout.flush()
