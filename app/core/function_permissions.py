@@ -1,6 +1,49 @@
 """Additional, configurable endpoint restrictions shared by UI and server."""
 from flask import current_app, request, session, jsonify, render_template
 
+# Deliberate operator actions only. Polling, lookups and automatic acknowledgements
+# must never become configurable function restrictions.
+OPERATOR_ACTIONS = {
+    'production.start_zlecenie': 'Rozpoczęcie zlecenia',
+    'production.koniec_zlecenie': 'Zakończenie zlecenia',
+    'production.zawies_zlecenie': 'Wstrzymanie zlecenia',
+    'production.zapisz_wyjasnienie': 'Zapis wyjaśnienia',
+    'production.dodaj_dosypke': 'Dodanie dosypki',
+    'production.potwierdz_dosypke': 'Potwierdzenie dosypki',
+    'production.anuluj_dosypke': 'Anulowanie dosypki',
+    'production.agro_folio_add_roll': 'Podpięcie rolki folii',
+    'production.agro_folio_close_roll': 'Rozliczenie rolki folii',
+    'production.agro_folio_undo_close_roll': 'Cofnięcie rozliczenia folii',
+    'production.agro_folio_edit_active_roll': 'Edycja rolki folii',
+    'production.agro_mix_rozliczenie_add': 'Rozliczenie mieszanki',
+    'production.agro_workowanie_rozliczenie_add': 'Rozliczenie workowania',
+    'production.agro_mix_consume': 'Zużycie mieszanki',
+    'production.api_workowanie_bigbag_add': 'Dodanie big baga do workowania',
+    'production.api_workowanie_bigbag_remove': 'Usunięcie big baga z workowania',
+    'production.api_zwolnij_mieszalnik': 'Zwolnienie mieszalnika',
+    'production.zglos_przestoj_page': 'Zgłoszenie przestoju',
+    'production.edytuj_przestoj_page': 'Edycja przestoju',
+    'production.usun_przestoj': 'Usunięcie przestoju',
+    'warehouse_v2.move_pallet': 'Przesunięcie palety',
+    'warehouse_v2.archive_pallet': 'Archiwizacja palety',
+    'warehouse_v2.dispatch_pallet': 'Wydanie palety',
+    'warehouse_v2.rename_pallet': 'Zmiana nazwy palety',
+    'warehouse_v2.update_weight': 'Zmiana wagi palety',
+    'warehouse_v2.update_packaging': 'Zmiana opakowania palety',
+    'warehouse_v2.toggle_block': 'Blokowanie palety',
+    'warehouse_v2.pallet_return_to_raw': 'Zwrot palety do surowców',
+    'warehouse_v2.print_pallet_label': 'Drukowanie etykiety palety',
+    'warehouse_v2.delete_pallet': 'Usunięcie palety',
+    'warehouse_v2.restore_from_archive': 'Przywrócenie palety z archiwum',
+    'warehouse_v2.api_orders_create': 'Utworzenie zamówienia',
+    'warehouse_v2.api_orders_confirm': 'Potwierdzenie zamówienia',
+    'warehouse_v2.api_orders_delete': 'Usunięcie zamówienia',
+    'warehouse_v2.api_orders_start_picking': 'Rozpoczęcie kompletacji',
+    'warehouse_v2.api_orders_picking_confirm': 'Potwierdzenie kompletacji',
+    'warehouse_v2.api_orders_picking_cancel': 'Anulowanie kompletacji',
+    'warehouse_v2.api_orders_picking_delete': 'Usunięcie kompletacji',
+}
+
 
 def function_catalog():
     if 'function_permission_catalog' in current_app.extensions:
@@ -8,12 +51,10 @@ def function_catalog():
     result = {}
     for rule in current_app.url_map.iter_rules():
         endpoint = rule.endpoint
-        if '.' not in endpoint or endpoint.startswith(('static', 'auth.')):
+        if endpoint not in OPERATOR_ACTIONS:
             continue
-        if endpoint.startswith('admin.') or endpoint.startswith('debug'):
-            continue  # Administration retains its separate security boundary.
         key = 'function.' + endpoint
-        result[key] = {'label': endpoint.split('.', 1)[1].replace('_', ' '),
+        result[key] = {'label': OPERATOR_ACTIONS[endpoint],
                        'route': rule.rule,
                        'write': bool(set(rule.methods) & {'POST', 'PUT', 'PATCH', 'DELETE'})}
     return dict(sorted(result.items()))
@@ -51,6 +92,15 @@ def register_function_permissions(app):
         if not session.get('zalogowany') or session.get('rola') == 'masteradmin':
             return None
         key = 'function.' + str(request.endpoint or '')
+        if request.endpoint == 'main.index':
+            from app.core.contexts import inject_role_permissions
+            helpers = inject_role_permissions()
+            line = str(request.args.get('linia') or session.get('selected_hall_view') or 'PSD').lower()
+            section = str(request.args.get('sekcja') or 'Dashboard').lower()
+            if not helpers['role_has_access'](line + '.' + section):
+                return render_template('errors/403.html', page_url=request.path,
+                                       user_role=session.get('rola'), allowed_roles=[]), 403
+            return None
         if key not in function_catalog():
             return None
         if configured_function_permission() is False:
@@ -63,13 +113,3 @@ def register_function_permissions(app):
             page = line + '.' + section.lower()
             if not helpers['role_has_access'](page) or helpers['role_is_readonly'](page):
                 return jsonify(success=False, error='forbidden', message='Ta sekcja jest niedostępna lub tylko do odczytu.'), 403
-        # Enforce page access and read-only status on the shared production dashboard.
-        if request.endpoint == 'main.index':
-            from app.core.contexts import inject_role_permissions
-            helpers = inject_role_permissions()
-            line = str(request.args.get('linia') or session.get('selected_hall_view') or 'PSD').lower()
-            section = str(request.args.get('sekcja') or 'Dashboard').lower()
-            page = line + '.' + section
-            if not helpers['role_has_access'](page):
-                return render_template('errors/403.html', page_url=request.path,
-                                       user_role=session.get('rola'), allowed_roles=[]), 403

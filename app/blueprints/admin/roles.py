@@ -104,7 +104,8 @@ def register_admin_roles_routes(admin_bp):
         perms = _normalize_permissions_pages(perms)
         from app.core.function_permissions import function_catalog
         functions = function_catalog()
-        pages = list(dict.fromkeys(ROLES_PAGES + list(perms) + list(functions)))
+        pages = [key for key in dict.fromkeys(ROLES_PAGES + list(perms) + list(functions))
+                 if not key.startswith('function.') or key in functions]
         if perms == {}:
             try:
                 current_app.logger.error('Error loading role_permissions.json from %s', cfg_path)

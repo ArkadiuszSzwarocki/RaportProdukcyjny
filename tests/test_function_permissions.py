@@ -13,8 +13,9 @@ class FunctionPermissionsTests(unittest.TestCase):
     def setUp(self):
         self.app = Flask(__name__)
         self.app.secret_key = 'test-only'
-        self.app.add_url_rule('/action', endpoint='production.test_action', view_func=lambda: 'changed', methods=['POST'])
-        self.app.add_url_rule('/read', endpoint='production.test_read', view_func=lambda: 'read')
+        self.app.add_url_rule('/action', endpoint='production.start_zlecenie', view_func=lambda: 'changed', methods=['POST'])
+        self.app.add_url_rule('/read', endpoint='production.api_poll_zwolnienie', view_func=lambda: 'read')
+        self.app.add_url_rule('/ack', endpoint='production.api_ack_zwolnienie', view_func=lambda: 'ack', methods=['POST'])
         register_function_permissions(self.app)
         self.client = self.app.test_client()
         with self.client.session_transaction() as state:
@@ -87,22 +88,23 @@ class AdditionalFunctionPermissionsTests(FunctionPermissionsTests):
     def test_catalog_includes_read_and_write(self):
         with self.app.app_context():
             catalog = function_catalog()
-            self.assertTrue(catalog['function.production.test_action']['write'])
-            self.assertFalse(catalog['function.production.test_read']['write'])
+            self.assertTrue(catalog['function.production.start_zlecenie']['write'])
+            self.assertNotIn('function.production.api_poll_zwolnienie', catalog)
+            self.assertNotIn('function.production.api_ack_zwolnienie', catalog)
 
     def test_role_config_restricts_real_permission_evaluation(self):
-        config = {'function.production.test_action': {'pracownik': {'access': False, 'readonly': False}}}
+        config = {'function.production.start_zlecenie': {'pracownik': {'access': False, 'readonly': False}}}
         with patch('app.core.contexts._get_role_permissions', return_value=config):
             self.assertEqual(self.client.post('/action').status_code, 403)
 
     def test_user_override_wins_over_role_allow(self):
-        config = {'function.production.test_action': {'pracownik': {'access': True, 'readonly': False}}}
+        config = {'function.production.start_zlecenie': {'pracownik': {'access': True, 'readonly': False}}}
         deny = {'access': False, 'readonly': False}
         with self.client.session_transaction() as state:
             state['user_id'] = 17
         with patch('app.core.contexts._get_role_permissions', return_value=config), patch(
             'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_overrides',
-            return_value={'function.production.test_action': deny}), patch(
+            return_value={'function.production.start_zlecenie': deny}), patch(
             'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_override',
             return_value=deny):
             self.assertEqual(self.client.post('/action').status_code, 403)
@@ -114,3 +116,9 @@ class AdditionalFunctionPermissionsTests(FunctionPermissionsTests):
             'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_overrides',
             side_effect=RuntimeError('database unavailable')):
             self.assertEqual(self.client.post('/action').status_code, 403)
+
+    def test_bulk_function_deny_leaves_polling_and_acknowledgements_working(self):
+        with patch('app.core.function_permissions.configured_function_permission', return_value=False):
+            self.assertEqual(self.client.post('/action').status_code, 403)
+            self.assertEqual(self.client.get('/read').data, b'read')
+            self.assertEqual(self.client.post('/ack', data={'sekcja':'Zasyp'}).data, b'ack')

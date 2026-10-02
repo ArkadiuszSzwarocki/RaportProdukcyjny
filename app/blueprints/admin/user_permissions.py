@@ -56,7 +56,10 @@ def register_user_permissions_routes(admin_bp):
 
         # Get existing user overrides
         from app.core.function_permissions import function_catalog
-        for key in function_catalog():
+        functions = function_catalog()
+        role_perms = {key: value for key, value in role_perms.items()
+                      if not key.startswith('function.') or key in functions}
+        for key in functions:
             role_perms.setdefault(key, {user_role: {'access': True, 'readonly': False}})
         user_overrides = user_permission_override_repository.get_user_overrides(user_id)
 
