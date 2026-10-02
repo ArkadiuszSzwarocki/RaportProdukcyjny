@@ -209,27 +209,8 @@ def register_admin_roles_routes(admin_bp):
         except Exception:
             pass
 
-        try:
-            def _payload_has_access(payload):
-                if not isinstance(payload, dict):
-                    return False
-                for _page, roles in payload.items():
-                    if isinstance(roles, dict):
-                        for _role, perms in roles.items():
-                            if isinstance(perms, dict):
-                                try:
-                                    if bool(perms.get('access')):
-                                        return True
-                                except Exception:
-                                    continue
-                return False
-
-            if not _payload_has_access(data):
-                current_app.logger.warning('Rejected roles save: payload contains no access=true entries (user=%s)', session.get('login'))
-                return jsonify({'error': 'Payload contains no access=true entries; refusing to overwrite config.'}), 400
-        except Exception:
-            current_app.logger.exception('Error validating roles payload; rejecting save request')
-            return jsonify({'error': 'Validation error'}), 400
+        if not data:
+            return jsonify(error='Brak zmian do zapisania.'), 400
 
         cfg_dir = _project_config_path('config')
         os.makedirs(cfg_dir, exist_ok=True)

@@ -58,13 +58,13 @@ class RolesEditorTests(unittest.TestCase):
             config_path.write_text(json.dumps({'agro.zasyp': {
                 'pracownik': {'access': True, 'readonly': False},
                 'other': {'access': True, 'readonly': False}}}))
-            payload = {'agro.zasyp': {'pracownik': {'access': True, 'readonly': True}}}
+            payload = {'agro.zasyp': {'pracownik': {'access': False, 'readonly': False}}}
             with patch('app.blueprints.admin.roles._project_config_path', side_effect=lambda *parts: str(Path(folder).joinpath(*parts))), patch(
                 'app.core.function_permissions.function_catalog', return_value={}), patch('app.blueprints.admin.roles.audit_log'):
                 response = self.client.post('/admin/ustawienia/roles/save', json=payload)
                 self.assertEqual(response.status_code, 200)
             saved = json.loads(config_path.read_text())
-            self.assertTrue(saved['agro.zasyp']['pracownik']['readonly'])
+            self.assertFalse(saved['agro.zasyp']['pracownik']['access'])
             self.assertTrue(saved['agro.zasyp']['other']['access'])
 
 class AdditionalFunctionPermissionsTests(FunctionPermissionsTests):

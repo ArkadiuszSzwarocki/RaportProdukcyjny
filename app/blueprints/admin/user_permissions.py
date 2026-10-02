@@ -14,6 +14,19 @@ from app.core.audit import security_audit_log
 def register_user_permissions_routes(admin_bp):
     """Register user-specific permissions management routes."""
 
+    @admin_bp.route('/admin/api/permission-users', methods=['GET'])
+    @masteradmin_required
+    def permission_users():
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, login, rola FROM uzytkownicy ORDER BY login")
+            users = cursor.fetchall()
+            cursor.close()
+            return jsonify(success=True, users=users)
+        finally:
+            conn.close()
+
     @admin_bp.route('/admin/api/user/<int:user_id>/permissions', methods=['GET'])
     @masteradmin_required
     def get_user_permissions(user_id):
