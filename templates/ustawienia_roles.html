@@ -246,6 +246,8 @@
   </div>
 
   <div class="premium-card table-container">
+    <p>Strony: dostęp lub tylko odczyt. Funkcje: dodatkowe ograniczenia konkretnych czynności; nie zastępują zabezpieczeń administracyjnych. Indywidualne wyjątki ustawisz w Zespole przy użytkowniku.</p>
+    <label>Znajdź stronę lub funkcję: <input type="search" id="permissionSearch" placeholder="np. zasyp, paleta, usun" style="padding:8px;margin-bottom:12px;" oninput="document.querySelectorAll('#permBody tr').forEach(row => row.hidden = !row.textContent.toLowerCase().includes(this.value.toLowerCase()))"></label>
     <table class="modern-table">
       <thead>
         <tr>
@@ -256,7 +258,7 @@
       <tbody id="permBody">
         {% for p in pages %}
         <tr data-page="{{ p }}">
-          <td><strong>{{ p }}</strong></td>
+          <td><strong>{{ functions[p].label if p in functions else p }}</strong>{% if p in functions %}<br><small>{{ functions[p].route }}</small>{% endif %}</td>
           {% for r in roles %}
           <td>
             <div class="perm-cell-content">
@@ -354,13 +356,11 @@
 
       const _btnSavePerms = document.getElementById('btnSavePerms');
       if (_btnSavePerms) _btnSavePerms.addEventListener('click', async function () {
-        const pageOrder = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'zasyp', 'workowanie', 'magazyn', 'agro_magazyn', 'bufor', 'moje_godziny', 'awarie', 'wyniki', 'podsumowanie_zasypow', 'dosypki'];
         const payload = {};
 
         // Build payload in canonical page order
-        pageOrder.forEach(function (page) {
-          const tr = document.querySelector('#permBody tr[data-page="' + page + '"]');
-          if (!tr) return;
+        document.querySelectorAll('#permBody tr[data-page]').forEach(function (tr) {
+          const page = tr.getAttribute('data-page');
 
           const pageRoles = {};
 

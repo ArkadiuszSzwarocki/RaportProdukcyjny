@@ -222,8 +222,10 @@ def dynamic_role_required(page_name):
                 return _unauthenticated_response()
 
             from app.core.contexts import inject_role_permissions
-            role_checker = inject_role_permissions().get('role_has_access')
-            if role_checker and role_checker(page_name):
+            permission_helpers = inject_role_permissions()
+            role_checker = permission_helpers.get('role_has_access')
+            readonly = request.method not in ('GET', 'HEAD', 'OPTIONS') and permission_helpers['role_is_readonly'](page_name)
+            if role_checker and role_checker(page_name) and not readonly:
                 return f(*args, **kwargs)
 
             if _wants_json_response():

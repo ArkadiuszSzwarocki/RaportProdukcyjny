@@ -5,7 +5,7 @@ Allows administrators to override default role permissions for individual users.
 import os
 import json
 from flask import request, jsonify, session, current_app
-from app.decorators import dynamic_role_required
+from app.decorators import dynamic_role_required, masteradmin_required
 from app.core.database import get_db_connection
 from app.repositories.user_permission_override_repository import user_permission_override_repository
 from app.core.audit import security_audit_log
@@ -15,7 +15,7 @@ def register_user_permissions_routes(admin_bp):
     """Register user-specific permissions management routes."""
 
     @admin_bp.route('/admin/api/user/<int:user_id>/permissions', methods=['GET'])
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def get_user_permissions(user_id):
         """Get all modules, role defaults, and current overrides for a user."""
         conn = get_db_connection()
@@ -31,7 +31,7 @@ def register_user_permissions_routes(admin_bp):
         user_role = (user.get('rola') or 'pracownik').lower().strip()
 
         # Load all pages and role configurations from role_permissions.json
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        project_root = current_app.root_path
         cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
         role_perms = {}
         try:
@@ -42,6 +42,9 @@ def register_user_permissions_routes(admin_bp):
             current_app.logger.error("Failed to load role_permissions.json: %s", e)
 
         # Get existing user overrides
+        from app.core.function_permissions import function_catalog
+        for key in function_catalog():
+            role_perms.setdefault(key, {user_role: {'access': True, 'readonly': False}})
         user_overrides = user_permission_override_repository.get_user_overrides(user_id)
 
         modules = []
@@ -76,11 +79,20 @@ def register_user_permissions_routes(admin_bp):
         })
 
     @admin_bp.route('/admin/api/user/<int:user_id>/permissions', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def save_user_permissions(user_id):
         """Save permission overrides for a user."""
         data = request.get_json() or {}
         overrides = data.get('overrides', {})  # Dict[page_key, {'mode': 'inherit'|'allow'|'deny', 'readonly': bool}]
+        from app.blueprints.admin.roles import _load_role_permissions
+        from app.core.function_permissions import function_catalog
+        known = set(_load_role_permissions()[0]) | set(function_catalog())
+        if not isinstance(overrides, dict) or any(
+            key not in known or not isinstance(cfg, dict) or cfg.get('mode') not in {'inherit', 'allow', 'deny'}
+            or ('readonly' in cfg and type(cfg['readonly']) is not bool)
+            for key, cfg in overrides.items()
+        ):
+            return jsonify(success=False, message='Nieprawidłowe uprawnienia.'), 400
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -99,12 +111,16 @@ def register_user_permissions_routes(admin_bp):
             if cfg is None or cfg.get('mode') == 'inherit':
                 if user_permission_override_repository.delete_user_override(user_id, page_key):
                     deleted_count += 1
+                else:
+                    return jsonify(success=False, message='Nie udało się przywrócić domyślnych uprawnień.'), 500
             else:
                 mode = cfg.get('mode')
                 access = (mode == 'allow')
                 readonly = bool(cfg.get('readonly', False))
                 if user_permission_override_repository.set_user_override(user_id, page_key, access, readonly):
                     updated_count += 1
+                else:
+                    return jsonify(success=False, message='Nie udało się zapisać uprawnień.'), 500
 
         security_audit_log(
             'USER_PERMISSIONS_OVERRIDE_CHANGED',

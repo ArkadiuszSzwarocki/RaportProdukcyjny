@@ -10,7 +10,7 @@ class UserPermissionOverrideRepository:
     """Handles CRUD operations for per-user permission overrides."""
 
     @staticmethod
-    def get_user_overrides(user_id: int) -> Dict[str, Dict[str, bool]]:
+    def get_user_overrides(user_id: int, strict: bool = False) -> Dict[str, Dict[str, bool]]:
         """Fetch all permission overrides for a specific user.
         
         Returns:
@@ -46,6 +46,8 @@ class UserPermissionOverrideRepository:
                     conn.close()
                 except Exception:
                     pass
+            if strict:
+                raise
         return overrides
 
     @staticmethod

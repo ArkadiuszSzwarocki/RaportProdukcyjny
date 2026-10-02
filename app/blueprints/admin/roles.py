@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 
 from flask import current_app, jsonify, render_template, request, session
 
@@ -101,6 +102,9 @@ def register_admin_roles_routes(admin_bp):
 
         perms, cfg_path = _load_role_permissions()
         perms = _normalize_permissions_pages(perms)
+        from app.core.function_permissions import function_catalog
+        functions = function_catalog()
+        pages = list(dict.fromkeys(ROLES_PAGES + list(perms) + list(functions)))
         if perms == {}:
             try:
                 current_app.logger.error('Error loading role_permissions.json from %s', cfg_path)
@@ -108,7 +112,7 @@ def register_admin_roles_routes(admin_bp):
                 pass
 
         ordered_perms = {}
-        for page in ROLES_PAGES:
+        for page in pages:
             if page in perms:
                 ordered_perms[page] = perms[page]
             else:
@@ -119,11 +123,11 @@ def register_admin_roles_routes(admin_bp):
             if isinstance(page_values, dict):
                 json_role_keys.update(page_values.keys())
 
-        for page in ROLES_PAGES:
+        for page in pages:
             for role in roles:
                 role_name = role[0]
                 json_key = role_name if role_name in json_role_keys else ROLE_NAME_MAPPING.get(role_name, role_name)
-                source = ordered_perms[page].get(json_key, {'access': False, 'readonly': False})
+                source = ordered_perms[page].get(json_key, {'access': page in functions, 'readonly': False})
                 if role_name not in ordered_perms[page]:
                     ordered_perms[page][role_name] = {'access': bool(source.get('access')), 'readonly': bool(source.get('readonly'))}
 
@@ -135,7 +139,7 @@ def register_admin_roles_routes(admin_bp):
         except Exception:
             pass
 
-        return render_template('ustawienia_roles.html', pages=ROLES_PAGES, roles=roles, perms_json=ordered_perms)
+        return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=ordered_perms, functions=functions)
 
     @admin_bp.route('/admin/ustawienia/roles/users')
     @dynamic_role_required('ustawienia')
@@ -171,7 +175,7 @@ def register_admin_roles_routes(admin_bp):
         return render_template('roles_by_user.html', users=users, pages=ROLES_USERS_PAGES)
 
     @admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
-    @login_required
+    @masteradmin_required
     def admin_ustawienia_roles_save():
         session_rola = str(session.get('rola') or '').lower()
         session_login = session.get('login') or '?'
@@ -186,6 +190,16 @@ def register_admin_roles_routes(admin_bp):
             data = None
         if data is None:
             return ('Bad request', 400)
+        from app.core.function_permissions import function_catalog
+        existing, _ = _load_role_permissions()
+        known = set(ROLES_PAGES) | set(existing) | set(function_catalog())
+        if not isinstance(data, dict) or any(
+            page not in known or not isinstance(values, dict) or any(
+                not isinstance(value, dict) or type(value.get('access')) is not bool
+                or type(value.get('readonly')) is not bool for value in values.values()
+            ) for page, values in data.items()
+        ):
+            return jsonify(error='Nieprawidłowe dane uprawnień.'), 400
         try:
             cleaned_data = {}
             for page, roles in data.items():
@@ -231,7 +245,7 @@ def register_admin_roles_routes(admin_bp):
         merged_config = _normalize_permissions_pages(existing_config)
         for page, roles in data.items():
             if isinstance(roles, dict):
-                merged_config[page] = roles
+                merged_config[page] = {**merged_config.get(page, {}), **roles}
 
         merged_config = _normalize_permissions_pages(merged_config)
 
@@ -259,8 +273,18 @@ def register_admin_roles_routes(admin_bp):
                 except Exception:
                     current_app.logger.exception('Failed to create backup of role_permissions')
 
-            with open(cfg_path, 'w', encoding='utf-8') as file_handle:
-                json.dump(merged_config, file_handle, ensure_ascii=False, indent=2)
+            temporary_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=cfg_dir, delete=False) as file_handle:
+                    temporary_path = file_handle.name
+                    json.dump(merged_config, file_handle, ensure_ascii=False, indent=2)
+                    file_handle.flush()
+                    os.fsync(file_handle.fileno())
+                os.replace(temporary_path, cfg_path)
+                temporary_path = None
+            finally:
+                if temporary_path and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
 
             with open(cfg_path, 'r', encoding='utf-8') as file_handle:
                 verify_order = json.load(file_handle)

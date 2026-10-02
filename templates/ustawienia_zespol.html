@@ -1115,7 +1115,7 @@
 
                 let currentMode = 'inherit';
                 if (m.has_override) {
-                    currentMode = m.override_access ? 'allow' : 'deny';
+                    currentMode = m.override_access ? (m.override_readonly ? 'readonly' : 'allow') : 'deny';
                 }
 
                 tr.innerHTML = `
@@ -1127,6 +1127,7 @@
                         <select class="user-perm-select input-unified" data-page="${m.page_key}" style="padding: 4px 8px; font-size: 0.82rem; width: auto; display: inline-block;">
                             <option value="inherit" ${currentMode === 'inherit' ? 'selected' : ''}>Domyślne z roli</option>
                             <option value="allow" ${currentMode === 'allow' ? 'selected' : ''} style="color:#15803d; font-weight:bold;">🟢 Wymuś: Zezwól</option>
+                            <option value="readonly" ${currentMode === 'readonly' ? 'selected' : ''}>Tylko odczyt</option>
                             <option value="deny" ${currentMode === 'deny' ? 'selected' : ''} style="color:#b91c1c; font-weight:bold;">🔴 Wymuś: Zablokuj</option>
                         </select>
                     </td>
@@ -1151,7 +1152,7 @@
         selects.forEach(sel => {
             const page = sel.getAttribute('data-page');
             const mode = sel.value;
-            overrides[page] = { mode: mode, readonly: false };
+            overrides[page] = { mode: mode === 'readonly' ? 'allow' : mode, readonly: mode === 'readonly' };
         });
 
         fetch('/admin/api/user/' + userId + '/permissions', {

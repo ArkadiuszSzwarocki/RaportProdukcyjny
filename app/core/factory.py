@@ -244,6 +244,8 @@ def create_app(config_secret_key=None, init_db=True):
     register_file_security_hardening(app)
     register_download_security_hardening(app)
     register_browser_security_headers(app)
+    from app.core.function_permissions import register_function_permissions
+    register_function_permissions(app)
 
     if _debug_routes_enabled():
         register_debug_routes(app)

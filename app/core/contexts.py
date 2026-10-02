@@ -104,11 +104,12 @@ def _get_role_permissions(cfg_path):
 
         if os.path.exists(target_path):
             mtime = os.path.getmtime(target_path)
-            if _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
+            if _PERMS_CACHE.get('path') == target_path and _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
                 return _PERMS_CACHE['data']
             with open(target_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 _PERMS_CACHE['mtime'] = mtime
+                _PERMS_CACHE['path'] = target_path
                 _PERMS_CACHE['data'] = data
                 return data
     except Exception:
@@ -128,6 +129,11 @@ def inject_role_permissions():
     }
 
     def _resolve_page_key(page, perms):
+        if page in {'zasyp', 'workowanie', 'magazyn', 'bufor'}:
+            line = str(request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or session.get('grupa') or 'PSD').lower()
+            namespaced = f'{line}.{page}'
+            if namespaced in perms:
+                return namespaced
         if page in perms:
             return page
         legacy = page_aliases.get(page)
