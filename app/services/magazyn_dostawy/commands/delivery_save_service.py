@@ -66,6 +66,8 @@ class DeliverySaveService:
 
             valid_dict_map = {}
             dict_queries = [
+                (f"SELECT DISTINCT nazwa FROM {table_sur} WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
+                (f"SELECT DISTINCT nazwa FROM {table_opk} WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
                 (f"SELECT DISTINCT produkt as nazwa FROM {table_wg} WHERE produkt IS NOT NULL AND TRIM(produkt) != ''", ()),
                 ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),
                 ("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) != ''", ()),

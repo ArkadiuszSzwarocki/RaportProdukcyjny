@@ -302,6 +302,13 @@ async function executePallet3DMove(pallet, newLocation) {
     const linia = pallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
     const pCode = pallet.nr_palety || pallet.display_id || `#${palletId}`;
 
+    let targetLocation = newLocation;
+    if (targetLocation && (targetLocation.startsWith('MP01') || targetLocation.startsWith('MP-01'))) {
+        targetLocation = 'MP01';
+    } else if (targetLocation && (targetLocation.startsWith('BFMP01') || targetLocation.startsWith('BF_MP01') || targetLocation.startsWith('BF-MP01'))) {
+        targetLocation = 'BF_MP01';
+    }
+
     try {
         const res = await fetch('/warehouse-v2/api/pallet/move', {
             method: 'POST',
@@ -309,14 +316,14 @@ async function executePallet3DMove(pallet, newLocation) {
             body: JSON.stringify({
                 id: palletId,
                 type: palletType,
-                location: newLocation,
+                location: targetLocation,
                 linia: linia
             })
         });
 
         const data = await res.json();
         if (data && data.success) {
-            notifyUser(`✅ Paleta ${pCode} została pomyślnie przeniesiona na lokalizację: ${newLocation}`, 'success');
+            notifyUser(`✅ Paleta ${pCode} została pomyślnie przeniesiona na lokalizację: ${targetLocation}`, 'success');
             await loadWarehouseData(false, true);
         } else {
             notifyUser(`Błąd relokacji: ${data ? (data.error || 'Nie udało się przenieść palety') : 'Błąd serwera'}`, 'error');
@@ -357,10 +364,18 @@ function openInspectDrawer(slot, rack) {
     if (!drawer || !locBadge || !content) return;
 
     const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09' || slot.is_shelf);
+    const isFloorZone = Boolean(rack.is_floor_zone || rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'MP01' || rack.rack_id === 'BFMP01');
 
-    locBadge.innerHTML = isShelving 
-        ? `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">table_rows</span> PÓŁKA ${slot.location_code}</span>`
-        : slot.location_code;
+    if (isFloorZone) {
+        const isBuffer = (rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'BFMP01');
+        const icon = isBuffer ? 'published_with_changes' : 'factory';
+        const label = isBuffer ? 'BUFOR' : 'STREFA PRODUKCYJNA';
+        locBadge.innerHTML = `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">${icon}</span> ${label} • ${slot.location_code}</span>`;
+    } else if (isShelving) {
+        locBadge.innerHTML = `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">table_rows</span> PÓŁKA ${slot.location_code}</span>`;
+    } else {
+        locBadge.innerHTML = slot.location_code;
+    }
 
     const pallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
 
@@ -377,6 +392,12 @@ function openInspectDrawer(slot, rack) {
                 REGAŁ PÓŁKOWY (1 POZYCJA ASORTYMENTOWA)
             </div>`;
         }
+    } else if (isFloorZone) {
+        const isBuffer = (rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'BFMP01');
+        shelfBadgeHtml = `<div style="margin: 8px 0; padding: 6px 10px; background: ${isBuffer ? 'rgba(245, 158, 11, 0.15)' : 'rgba(14, 116, 144, 0.25)'}; border: 1px solid ${isBuffer ? '#f59e0b' : '#38bdf8'}; border-radius: 8px; font-size: 11px; font-weight: 800; color: ${isBuffer ? '#fbbf24' : '#38bdf8'}; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 16px;">${isBuffer ? 'published_with_changes' : 'factory'}</span>
+            ${isBuffer ? 'POLE BUFORA PRODUKCJI (BFMP01)' : 'POLE POSADZKOWE PRODUKCJI (MP01)'}
+        </div>`;
     }
 
     let qrDrawerCardHtml = '';
@@ -404,15 +425,15 @@ function openInspectDrawer(slot, rack) {
     let html = `
         ${qrDrawerCardHtml}
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Regał / Sektor:</span>
+            <span class="wh3d-row-lbl">${isFloorZone ? 'Strefa / Sektor:' : 'Regał / Sektor:'}</span>
             <span class="wh3d-row-val">${rack.name}</span>
         </div>
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Kolumna / Poziom:</span>
-            <span class="wh3d-row-val">K${slot.column_index} • P${slot.level_index}</span>
+            <span class="wh3d-row-lbl">${isFloorZone ? 'Pole / Rząd:' : 'Kolumna / Poziom:'}</span>
+            <span class="wh3d-row-val">${isFloorZone ? `Pole ${slot.column_index || slot.column} • Rząd ${slot.level_index || slot.level}` : `K${slot.column_index} • P${slot.level_index}`}</span>
         </div>
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Status ${isShelving ? 'Półki' : 'Slotu'}:</span>
+            <span class="wh3d-row-lbl">Status ${isFloorZone ? 'Pola' : (isShelving ? 'Półki' : 'Slotu')}:</span>
             <span class="wh3d-row-val" style="color: ${slot.is_occupied ? '#10b981' : '#94a3b8'}">
                 ${slot.is_occupied ? (isShelving ? `● ZAJĘTA (${pallets.length} poz.)` : '● ZAJĘTY') : '○ WOLNY'}
             </span>

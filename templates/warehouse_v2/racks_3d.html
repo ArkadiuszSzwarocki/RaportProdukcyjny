@@ -22,7 +22,7 @@
             </div>
             <div class="wh3d-title-text">
                 <h2>CYFROWY BLIŹNIAK 3D • REGAŁY MAGAZYNOWE</h2>
-                <p>Wizualizacja slotów wysokiego składowania • Big Bagi • Worki 25kg • Kwarantanna</p>
+                <p>Wizualizacja slotów wysokiego składowania • Strefa MP01 i Bufor BFMP01 • Big Bagi • Worki 25kg • Kwarantanna</p>
             </div>
         </div>
 
@@ -31,10 +31,14 @@
             <select id="selectRackFilter" class="wh3d-select" onchange="onRackFilterChanged(this.value)">
                 {% for rc in racks_config %}
                 <option value="{{ rc.rack_id }}" {% if active_rack == rc.rack_id %}selected{% endif %}>
-                    📦 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
+                    {% if rc.rack_type == 'FLOOR_ZONE' %}🏭 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
+                    {% elif rc.rack_type == 'BUFFER_ZONE' %}🔄 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
+                    {% elif rc.rack_type == 'SHELVING' %}📋 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
+                    {% else %}📦 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
+                    {% endif %}
                 </option>
                 {% endfor %}
-                <option value="ALL" {% if active_rack == 'ALL' %}selected{% endif %}>🏢 Cała Hala (Wszystkie Regały)</option>
+                <option value="ALL" {% if active_rack == 'ALL' %}selected{% endif %}>🏢 Cała Hala (Wszystkie Regały i Strefy)</option>
             </select>
 
             <!-- LINE FILTER -->
@@ -82,14 +86,21 @@
     <!-- QUICK JUMP RACK TABS -->
     <div class="wh3d-rack-chips">
         <span style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-right: 4px;">Regały:</span>
-        {% for rc in racks_config %}
-        <button type="button" class="wh3d-chip {% if active_rack == rc.rack_id %}active{% endif %}" onclick="selectRackQuick('{{ rc.rack_id }}')">
+        {% for rc in racks_config if rc.rack_type not in ['FLOOR_ZONE', 'BUFFER_ZONE'] %}
+        <button type="button" class="wh3d-chip {% if active_rack == rc.rack_id %}active{% endif %}" data-rack-id="{{ rc.rack_id }}" onclick="selectRackQuick('{{ rc.rack_id }}')">
             {{ rc.rack_id }}
         </button>
         {% endfor %}
-        <button type="button" class="wh3d-chip {% if active_rack == 'ALL' %}active{% endif %}" onclick="selectRackQuick('ALL')">
-            CAŁA HALA
+        <button type="button" class="wh3d-chip {% if active_rack == 'ALL' %}active{% endif %}" data-rack-id="ALL" onclick="selectRackQuick('ALL')">
+            🏢 CAŁA HALA
         </button>
+
+        <span style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin: 0 4px 0 10px;">Strefy Posadzkowe:</span>
+        {% for rc in racks_config if rc.rack_type in ['FLOOR_ZONE', 'BUFFER_ZONE'] %}
+        <button type="button" class="wh3d-chip zone-chip {% if active_rack == rc.rack_id %}active{% endif %}" data-rack-id="{{ rc.rack_id }}" onclick="selectRackQuick('{{ rc.rack_id }}')">
+            {% if rc.rack_type == 'FLOOR_ZONE' %}🏭 {{ rc.rack_id }} (PROD){% else %}🔄 {{ rc.rack_id }} (BUFOR){% endif %}
+        </button>
+        {% endfor %}
     </div>
 
     <!-- KPI STATS STRIP -->
@@ -151,6 +162,7 @@
             <div class="wh3d-leg-item"><div class="wh3d-leg-dot" style="background: #ef4444;"></div> ⛔ Kwarantanna / Przeterminowane</div>
             <div class="wh3d-leg-item"><div class="wh3d-leg-dot" style="background: #f8fafc; border: 1px solid #94a3b8;"></div> Worki 25kg</div>
             <div class="wh3d-leg-item"><div class="wh3d-leg-dot" style="background: #0284c7;"></div> Big Bag 1000kg</div>
+            <div class="wh3d-leg-item"><div class="wh3d-leg-dot" style="background: #38bdf8; border: 1px dashed #facc15;"></div> 🏭 Strefa Posadzkowa MP01 / Bufor</div>
             <div class="wh3d-leg-item"><div class="wh3d-leg-dot" style="background: #475569;"></div> ⚪ Puste Gniazdo</div>
         </div>
 

@@ -71,7 +71,7 @@ class ScannerLocationQueryService:
                     ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'Surowiec', 'SUR', True, True, True),
                     ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'Opakowanie', 'OPK', False, False, True),
                     ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'Dodatek', 'DOD', False, False, True),
-                    ('magazyn_palety', 'waga_netto', 'COALESCE(produkt, nazwa)', 'Wyrób Gotowy', 'PAL', False, False, True),
+                    ('magazyn_palety', 'waga_netto', 'produkt', 'Wyrób Gotowy', 'PAL', False, False, True),
                 ]
                 for base_table, qty_col, name_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources_shelf:
                     table_name = get_table_name(base_table, linia)

@@ -115,6 +115,30 @@ class Warehouse3dService:
             "position_x": 4.0,
             "position_z": 7.0,
         },
+        {
+            "rack_id": "MP01",
+            "name": "Magazyn Produkcyjny MP01 (Strefa Posadzkowa)",
+            "rack_type": "FLOOR_ZONE",
+            "columns": 10,
+            "levels": 8,
+            "depth_m": 1.45,
+            "bay_width_m": 1.45,
+            "level_height_m": 1.60,
+            "position_x": -4.0,
+            "position_z": 13.0,
+        },
+        {
+            "rack_id": "BFMP01",
+            "name": "Bufor Produkcyjny MP01 (BF_MP01)",
+            "rack_type": "BUFFER_ZONE",
+            "columns": 6,
+            "levels": 5,
+            "depth_m": 1.45,
+            "bay_width_m": 1.45,
+            "level_height_m": 1.60,
+            "position_x": -18.0,
+            "position_z": 13.0,
+        },
     ]
 
     @classmethod
@@ -192,23 +216,45 @@ class Warehouse3dService:
             # Support R1 -> R01 matching
             if re.match(r'^R\d$', norm_rf):
                 norm_rf = f"R0{norm_rf[1]}"
+            elif norm_rf in ('BF_MP01', 'BF-MP01', 'BF_MP', 'BFMP'):
+                norm_rf = 'BFMP01'
+            elif norm_rf in ('MP01', 'MPO1', 'MP-01', 'MP_01', 'MP1'):
+                norm_rf = 'MP01'
             target_configs = [rc for rc in active_configs if rc['rack_id'].upper() == norm_rf]
 
         all_built_pallets: List[Dict[str, Any]] = []
 
         for rc in target_configs:
             rack_id = rc['rack_id']
+            is_floor_zone = (rc.get('rack_type') in ('FLOOR_ZONE', 'BUFFER_ZONE') or rack_id in ('MP01', 'BFMP01'))
+
+            # Gather any items directly mapped to the zone identifier (e.g. location='MP01')
+            zone_unassigned_items: List[Dict[str, Any]] = []
+            if is_floor_zone:
+                zone_unassigned_items = list(items_by_loc.get(rack_id, []))
+                if rack_id == 'BFMP01':
+                    zone_unassigned_items.extend(items_by_loc.get('BF_MP01', []))
+
             # Dynamic expansion if database items exceed base template columns or levels
             cols = max(rc['columns'], rack_max_cols.get(rack_id, 0))
             levels = max(rc['levels'], rack_max_lvls.get(rack_id, 0))
+            if is_floor_zone and zone_unassigned_items:
+                total_needed = len(zone_unassigned_items)
+                while cols * levels < total_needed:
+                    levels += 1
+
             slots_map: Dict[str, Dict[str, Any]] = {}
             rack_occupied = 0
             rack_blocked = 0
+            unassigned_idx = 0
 
             for col in range(1, cols + 1):
                 for lvl in range(1, levels + 1):
                     loc_code = f"{rack_id}{col:02d}{lvl:02d}"
-                    matching_items = items_by_loc.get(loc_code, [])
+                    matching_items = list(items_by_loc.get(loc_code, []))
+                    if not matching_items and is_floor_zone and unassigned_idx < len(zone_unassigned_items):
+                        matching_items = [zone_unassigned_items[unassigned_idx]]
+                        unassigned_idx += 1
 
                     pallets_list: List[Dict[str, Any]] = []
                     slot_is_blocked = False
@@ -286,9 +332,11 @@ class Warehouse3dService:
                         total_blocked_count += 1
 
                     is_shelf_rack = (rc.get('rack_type') == 'SHELVING' or rack_id == 'R09')
+                    display_code = f"{rack_id}-{col:02d}.{lvl:02d}" if is_floor_zone else loc_code
 
                     slots_map[loc_code] = {
                         'location_code': loc_code,
+                        'display_code': display_code,
                         'rack_id': rack_id,
                         'column': col,
                         'column_index': col,
@@ -297,6 +345,8 @@ class Warehouse3dService:
                         'is_occupied': is_occupied,
                         'is_blocked': slot_is_blocked,
                         'is_shelf': is_shelf_rack,
+                        'is_floor_slot': is_floor_zone,
+                        'zone_type': rc.get('rack_type', 'HIGH_BAY'),
                         'items_count': len(pallets_list),
                         'payload_type': primary_payload_type,
                         'primary_payload_type': primary_payload_type,
@@ -315,6 +365,7 @@ class Warehouse3dService:
                 'name': rc['name'],
                 'rack_type': rc['rack_type'],
                 'is_shelving': is_shelving,
+                'is_floor_zone': is_floor_zone,
                 'columns': cols,
                 'levels': levels,
                 'columns_count': cols,
@@ -368,14 +419,28 @@ class Warehouse3dService:
 
     @staticmethod
     def _normalize_location_key(raw_loc: Optional[str]) -> str:
-        """Normalizes location strings to standard RXXYYZZ format."""
+        """Normalizes location strings to standard RXXYYZZ or MP01 / BFMP01 format."""
         if not raw_loc:
             return ''
         s = str(raw_loc).strip().upper()
         # Handle common typos (e.g. RO1 -> R01, RO01 -> R01)
         if s.startswith('RO'):
             s = 'R0' + s[2:]
-        
+
+        # Direct warehouse zone identifiers
+        if s in ('MP01', 'MPO1', 'MP1', 'MP-01', 'MP_01', 'MAGAZYN PRODUKCYJNY'):
+            return 'MP01'
+        if s in ('BFMP01', 'BF_MP01', 'BF-MP01', 'BFMP1', 'BF_MP1', 'BFMPO1', 'BF_MPO1', 'BUFOR MP01'):
+            return 'BFMP01'
+
+        # Match specific MP01 / BFMP01 subslots: MP01-01-01, MP01_01_01, BFMP01-01-01, etc.
+        m_mp = re.match(r'^MP\s*0?1[\s\-_/.]0?(\d{1,2})[\s\-_/.]0?(\d{1,2})$', s)
+        if m_mp:
+            return f"MP01{int(m_mp.group(1)):02d}{int(m_mp.group(2)):02d}"
+        m_bf = re.match(r'^BF\s*[_]?MP\s*0?1[\s\-_/.]0?(\d{1,2})[\s\-_/.]0?(\d{1,2})$', s)
+        if m_bf:
+            return f"BFMP01{int(m_bf.group(1)):02d}{int(m_bf.group(2)):02d}"
+
         # Match with separators: R01-02-03, R1-2-3, R01/02/03, R01_02_03, R01.02.03, R01 02 03
         m_sep = re.match(r'^R\s*0?(\d{1,2})[\s\-_/.]0?(\d{1,2})[\s\-_/.]0?(\d{1,2})$', s)
         if m_sep:
@@ -383,6 +448,11 @@ class Warehouse3dService:
 
         # Match compact standard 6-7 char code: R010203, R011002
         cleaned = re.sub(r'[^A-Z0-9]', '', s)
+        if cleaned in ('MP01', 'MPO1'):
+            return 'MP01'
+        if cleaned in ('BFMP01', 'BFMP1', 'BFMPO1'):
+            return 'BFMP01'
+
         m_comp = re.match(r'^R(\d{2})(\d{2})(\d{2})$', cleaned)
         if m_comp:
             return f"R{int(m_comp.group(1)):02d}{int(m_comp.group(2)):02d}{int(m_comp.group(3)):02d}"

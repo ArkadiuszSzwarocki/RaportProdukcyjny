@@ -654,14 +654,27 @@ function getLargeRackHeaderTexture(rackId, occupiedCount, totalSlots = 0, isPick
     ctx.fillStyle = topAccent;
     ctx.fillRect(40, 16, 560, 8);
 
-    // 4. Large Bold Rack Identifier (e.g. "REGAŁ R02")
+    // 4. Large Bold Rack Identifier (e.g. "REGAŁ R02" or "STREFA MP01")
+    let title = `REGAŁ ${rackId}`;
+    let fontSize = 86;
+    if (rackId === 'MP01') {
+        title = 'STREFA MP01 (PRODUKCJA)';
+        fontSize = 50;
+    } else if (rackId === 'BFMP01' || rackId === 'BF_MP01') {
+        title = 'BUFOR MP01 (BFMP01)';
+        fontSize = 52;
+    } else if (rackId.startsWith('BF')) {
+        title = `BUFOR ${rackId}`;
+        fontSize = 68;
+    }
+
     ctx.fillStyle = '#ffffff';
-    ctx.font = '900 86px "Outfit", "Inter", sans-serif';
+    ctx.font = `900 ${fontSize}px "Outfit", "Inter", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,0.95)';
     ctx.shadowBlur = 12;
-    ctx.fillText(`REGAŁ ${rackId}`, 320, 84);
+    ctx.fillText(title, 320, 84);
     ctx.shadowBlur = 0;
 
     // 5. Bottom Status Capsule Pill
@@ -702,5 +715,118 @@ function getLargeRackHeaderTexture(rackId, occupiedCount, totalSlots = 0, isPick
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     rackHeaderTextureCache.set(key, texture);
+    return texture;
+}
+
+const floorBayTextureCache = new Map();
+
+function getFloorBayTexture(displayCode, isOccupied = false, isBlocked = false) {
+    const key = `${displayCode}_${isOccupied ? 1 : 0}_${isBlocked ? 1 : 0}`;
+    if (floorBayTextureCache.has(key)) {
+        return floorBayTextureCache.get(key);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    ctx.fillStyle = isOccupied ? 'rgba(30, 41, 59, 0.55)' : 'rgba(15, 23, 42, 0.35)';
+    ctx.fillRect(8, 8, 496, 496);
+
+    const lineColor = isBlocked ? '#ef4444' : (isOccupied ? '#f59e0b' : '#38bdf8');
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 14;
+
+    const arm = 90;
+    // Top-left
+    ctx.beginPath();
+    ctx.moveTo(14, 14 + arm);
+    ctx.lineTo(14, 14);
+    ctx.lineTo(14 + arm, 14);
+    ctx.stroke();
+
+    // Top-right
+    ctx.beginPath();
+    ctx.moveTo(498 - arm, 14);
+    ctx.lineTo(498, 14);
+    ctx.lineTo(498, 14 + arm);
+    ctx.stroke();
+
+    // Bottom-right
+    ctx.beginPath();
+    ctx.moveTo(498, 498 - arm);
+    ctx.lineTo(498, 498);
+    ctx.lineTo(498 - arm, 498);
+    ctx.stroke();
+
+    // Bottom-left
+    ctx.beginPath();
+    ctx.moveTo(14 + arm, 498);
+    ctx.lineTo(14, 498);
+    ctx.lineTo(14, 498 - arm);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.setLineDash([16, 14]);
+    ctx.strokeStyle = isBlocked ? 'rgba(239, 68, 68, 0.4)' : (isOccupied ? 'rgba(245, 158, 11, 0.35)' : 'rgba(56, 189, 248, 0.35)');
+    ctx.lineWidth = 4;
+    ctx.strokeRect(30, 30, 452, 452);
+    ctx.restore();
+
+    ctx.fillStyle = isBlocked ? '#991b1b' : (isOccupied ? '#0369a1' : '#1e293b');
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(106, 434, 300, 64, 12);
+    } else {
+        ctx.rect(106, 434, 300, 64);
+    }
+    ctx.fill();
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 32px "Outfit", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(displayCode || 'MP01', 256, 466);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    floorBayTextureCache.set(key, texture);
+    return texture;
+}
+
+let hazardTextureCache = null;
+function getHazardBorderTexture() {
+    if (hazardTextureCache) return hazardTextureCache;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(0, 0, 256, 32);
+
+    ctx.fillStyle = '#0f172a';
+    for (let x = -32; x < 288; x += 32) {
+        ctx.beginPath();
+        ctx.moveTo(x, 32);
+        ctx.lineTo(x + 20, 32);
+        ctx.lineTo(x + 36, 0);
+        ctx.lineTo(x + 16, 0);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(10, 1);
+    hazardTextureCache = texture;
     return texture;
 }

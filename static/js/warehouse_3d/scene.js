@@ -202,8 +202,8 @@ async function loadWarehouseData(showMask = false, preserveCamera = false, overr
             // Dynamic visibility of rack chips: only show tabs for racks that have items from the order!
             const activeRackIds = new Set(data.racks.map(r => r.rack_id));
             document.querySelectorAll('.wh3d-rack-chips .wh3d-chip').forEach(chip => {
-                const rId = chip.innerText.trim();
-                if (rId.startsWith('R')) {
+                const rId = chip.getAttribute('data-rack-id') || chip.innerText.trim();
+                if (rId.startsWith('R') || rId === 'MP01' || rId === 'BFMP01') {
                     chip.style.display = activeRackIds.has(rId) ? 'inline-flex' : 'none';
                 } else {
                     chip.style.display = 'inline-flex';
@@ -303,7 +303,8 @@ function selectRackQuick(rackId, overrideOrderRef = null) {
     
     const chips = document.querySelectorAll('.wh3d-chip');
     chips.forEach(c => {
-        if (c.innerText.trim() === rackId || (rackId === 'ALL' && c.innerText.includes('HALA'))) {
+        const cRackId = c.getAttribute('data-rack-id') || c.innerText.trim();
+        if (cRackId === rackId || (rackId === 'ALL' && (cRackId === 'ALL' || c.innerText.includes('HALA')))) {
             c.classList.add('active');
         }
     });
@@ -355,6 +356,9 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             if (focusedRackId !== 'ALL' && rack.rack_id === focusedRackId && !isOrderFilterActive) {
                 return true; // user explicitly clicked a single rack tab in general inventory mode
             }
+            if (rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.is_floor_zone) {
+                return true; // Always display permanent floor zones in warehouse overview
+            }
             const occ = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
                 ? rack.occupied_slots
                 : (rack.slots ? rack.slots.filter(s => s.is_occupied || (s.pallets && s.pallets.length > 0)).length : 0);
@@ -391,9 +395,14 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
         const bayW = rack.bay_width_m;
         const lvlH = rack.level_height_m;
         const depth = rack.depth_m;
+        const isFloorZone = Boolean(rack.is_floor_zone || rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'MP01' || rack.rack_id === 'BFMP01');
 
         if (rack.rack_id === focusedRackId) {
-            focusCenter.set(rx + (cols * bayW) / 2, (lvls * lvlH) / 2, rz);
+            if (isFloorZone) {
+                focusCenter.set(rx + (cols * bayW) / 2, 1.2, rz + (lvls * depth) / 2);
+            } else {
+                focusCenter.set(rx + (cols * bayW) / 2, (lvls * lvlH) / 2, rz);
+            }
             foundFocus = true;
         }
 
@@ -401,7 +410,7 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
         rackGroup.position.set(rx, 0, rz);
 
         // ----------------------------------------------------
-        // Prominent 3D Large Overhead Rack Sign (Smart billboard)
+        // Prominent 3D Large Overhead Rack / Zone Sign (Smart billboard)
         // ----------------------------------------------------
         const rackOccCount = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
             ? rack.occupied_slots
@@ -417,20 +426,35 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             
             const signGroup = new THREE.Group();
             const signCenterX = (cols * bayW) / 2;
-            const signTopY = lvls * lvlH + 1.25;
-            signGroup.position.set(signCenterX, signTopY, 0);
+            const signTopY = isFloorZone ? 4.2 : (lvls * lvlH + 1.25);
+            const signCenterZ = isFloorZone ? -0.4 : 0;
+            signGroup.position.set(signCenterX, signTopY, signCenterZ);
 
-            // Two support uprights down to top beam
-            const poleGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.2, 8);
-            const poleMat = sharedMats.steel || new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.2 });
-            
-            const poleLeft = new THREE.Mesh(poleGeo, poleMat);
-            poleLeft.position.set(-1.4, -0.6, 0);
-            signGroup.add(poleLeft);
+            if (isFloorZone) {
+                // Tall entrance portal support pillars down to floor
+                const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 4.2, 12);
+                const poleMat = sharedMats.shelfSteel || sharedMats.steel;
+                
+                const poleLeft = new THREE.Mesh(poleGeo, poleMat);
+                poleLeft.position.set(-2.2, -2.1, 0);
+                signGroup.add(poleLeft);
 
-            const poleRight = new THREE.Mesh(poleGeo, poleMat);
-            poleRight.position.set(1.4, -0.6, 0);
-            signGroup.add(poleRight);
+                const poleRight = new THREE.Mesh(poleGeo, poleMat);
+                poleRight.position.set(2.2, -2.1, 0);
+                signGroup.add(poleRight);
+            } else {
+                // Two support uprights down to top beam
+                const poleGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.2, 8);
+                const poleMat = sharedMats.steel || new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.2 });
+                
+                const poleLeft = new THREE.Mesh(poleGeo, poleMat);
+                poleLeft.position.set(-1.4, -0.6, 0);
+                signGroup.add(poleLeft);
+
+                const poleRight = new THREE.Mesh(poleGeo, poleMat);
+                poleRight.position.set(1.4, -0.6, 0);
+                signGroup.add(poleRight);
+            }
 
             // High-visibility Sprite billboard that always faces camera
             const signSpriteMat = new THREE.SpriteMaterial({ 
@@ -456,7 +480,65 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
 
         const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09');
 
-        if (isShelving) {
+        if (isFloorZone) {
+            // Strefa Składowania Posadzkowego / Bufor Produkcji (MP01 / BFMP01)
+            const zoneW = cols * bayW;
+            const zoneD = lvls * depth;
+
+            // 1. Concrete floor foundation pad
+            const padGeo = new THREE.BoxGeometry(zoneW + 0.2, 0.018, zoneD + 0.2);
+            const padMat = sharedMats.concretePad || new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.1 });
+            const padMesh = new THREE.Mesh(padGeo, padMat);
+            padMesh.position.set(zoneW / 2, 0.009, zoneD / 2);
+            padMesh.receiveShadow = true;
+            rackGroup.add(padMesh);
+
+            // 2. Yellow/Black Hazard Border Stripes along perimeter
+            if (typeof getHazardBorderTexture === 'function') {
+                const hazardTex = getHazardBorderTexture();
+                const stripeMat = new THREE.MeshBasicMaterial({ map: hazardTex, transparent: false });
+                const borderH = 0.14;
+
+                // Front border (Z = 0)
+                const frontStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneW, borderH), stripeMat);
+                frontStripe.rotation.x = -Math.PI / 2;
+                frontStripe.position.set(zoneW / 2, 0.019, 0.07);
+                rackGroup.add(frontStripe);
+
+                // Back border (Z = zoneD)
+                const backStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneW, borderH), stripeMat);
+                backStripe.rotation.x = -Math.PI / 2;
+                backStripe.position.set(zoneW / 2, 0.019, zoneD - 0.07);
+                rackGroup.add(backStripe);
+
+                // Left border (X = 0)
+                const leftStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneD, borderH), stripeMat);
+                leftStripe.rotation.x = -Math.PI / 2;
+                leftStripe.rotation.z = Math.PI / 2;
+                leftStripe.position.set(0.07, 0.019, zoneD / 2);
+                rackGroup.add(leftStripe);
+
+                // Right border (X = zoneW)
+                const rightStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneD, borderH), stripeMat);
+                rightStripe.rotation.x = -Math.PI / 2;
+                rightStripe.rotation.z = Math.PI / 2;
+                rightStripe.position.set(zoneW - 0.07, 0.019, zoneD / 2);
+                rackGroup.add(rightStripe);
+            }
+
+            // 3. 4 Corner Safety Bollards
+            if (typeof createSafetyBollard === 'function') {
+                const bollardFL = createSafetyBollard();
+                bollardFL.position.set(0.05, 0, 0.05);
+                const bollardFR = createSafetyBollard();
+                bollardFR.position.set(zoneW - 0.05, 0, 0.05);
+                const bollardBL = createSafetyBollard();
+                bollardBL.position.set(0.05, 0, zoneD - 0.05);
+                const bollardBR = createSafetyBollard();
+                bollardBR.position.set(zoneW - 0.05, 0, zoneD - 0.05);
+                rackGroup.add(bollardFL, bollardFR, bollardBL, bollardBR);
+            }
+        } else if (isShelving) {
             // Shelving rack structure (Regał Półkowy - smukłe profile, lite półki na każdym poziomie)
             const shelfPostGeo = new THREE.BoxGeometry(0.045, lvls * lvlH + 0.05, 0.045);
             const shelfPostMat = sharedMats.shelfSteel || sharedMats.steel;
@@ -592,9 +674,9 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             const col = slot.column_index || slot.column;
             const lvl = slot.level_index || slot.level;
             const slotX = (col - 0.5) * bayW;
-            // Levels count from floor up: Level 1 on floor (0m), Level 2 on beam 1 (lvlH), Level 3 on beam 2 (2*lvlH), etc.
-            const slotY = (lvl - 1) * lvlH;
-            const slotZ = 0;
+            // Floor zones sit on the ground (slotY = 0.01) with rows spaced along depth (slotZ)
+            const slotY = isFloorZone ? 0.01 : ((lvl - 1) * lvlH);
+            const slotZ = isFloorZone ? ((lvl - 0.5) * depth) : 0;
 
             const slotPallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
 
@@ -650,7 +732,22 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
 
             const slotGroup = new THREE.Group();
             slotGroup.position.set(slotX, slotY, slotZ);
-            slotGroup.userData = { slot: slot, rack: rack, isShelving: isShelving };
+            slotGroup.userData = { slot: slot, rack: rack, isShelving: isShelving, isFloorZone: isFloorZone };
+
+            // Floor Bay Markings / Boundary Decal for floor storage zones
+            if (isFloorZone && typeof getFloorBayTexture === 'function') {
+                const bayTex = getFloorBayTexture(
+                    slot.location_code || `${rack.rack_id}-${String(col).padStart(2, '0')}.${String(lvl).padStart(2, '0')}`,
+                    slot.is_occupied,
+                    slot.is_blocked
+                );
+                const bayGeo = new THREE.PlaneGeometry(bayW * 0.94, depth * 0.94);
+                const bayMat = new THREE.MeshBasicMaterial({ map: bayTex, transparent: true, depthWrite: false });
+                const bayMesh = new THREE.Mesh(bayGeo, bayMat);
+                bayMesh.rotation.x = -Math.PI / 2;
+                bayMesh.position.set(0, 0.012, 0);
+                slotGroup.add(bayMesh);
+            }
 
             if (slot.is_occupied) {
                 if (isShelving) {
@@ -778,17 +875,18 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     const emptyShelfMesh = new THREE.Mesh(new THREE.BoxGeometry(bayW * 0.88, 0.005, depth * 0.85), sharedMats.emptySlot);
                     emptyShelfMesh.position.set(0, 0.015, 0);
                     slotGroup.add(emptyShelfMesh);
-                } else {
+                } else if (!isFloorZone) {
                     const emptyMesh = new THREE.Mesh(sharedGeos.palletBase, sharedMats.emptySlot);
                     emptyMesh.position.set(0, 0.07, 0);
                     slotGroup.add(emptyMesh);
                 }
             }
 
-            const hitGeo = new THREE.BoxGeometry(bayW * 0.92, lvlH * 0.90, depth * 0.95);
+            const hitH = isFloorZone ? 1.6 : (lvlH * 0.90);
+            const hitGeo = new THREE.BoxGeometry(bayW * 0.92, hitH, depth * 0.95);
             const hitMat = new THREE.MeshBasicMaterial({ visible: false });
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-            hitMesh.position.set(0, (lvlH * 0.90) / 2, 0);
+            hitMesh.position.set(0, hitH / 2, 0);
             hitMesh.userData = { slot: slot, rack: rack, parentGroup: slotGroup };
             slotGroup.add(hitMesh);
 
@@ -826,11 +924,13 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                 const rx = r.position_x;
                 const rz = r.position_z;
                 const rw = r.columns * r.bay_width_m;
-                const rh = r.levels * r.level_height_m;
+                const isFloor = Boolean(r.is_floor_zone || r.rack_type === 'FLOOR_ZONE' || r.rack_type === 'BUFFER_ZONE' || r.rack_id === 'MP01' || r.rack_id === 'BFMP01');
+                const rh = isFloor ? 2.5 : (r.levels * r.level_height_m);
+                const rDepthSpan = isFloor ? (r.levels * r.depth_m) : (r.depth_m * 2);
                 minX = Math.min(minX, rx);
                 maxX = Math.max(maxX, rx + rw);
-                minZ = Math.min(minZ, rz - r.depth_m * 2);
-                maxZ = Math.max(maxZ, rz + r.depth_m * 2);
+                minZ = Math.min(minZ, rz - 1.5);
+                maxZ = Math.max(maxZ, rz + rDepthSpan + 1.5);
                 maxTopY = Math.max(maxTopY, rh);
             });
 
@@ -849,7 +949,14 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             }
         } else if (foundFocus) {
             controls.target.copy(focusCenter);
-            camera.position.set(focusCenter.x, focusCenter.y + 6, focusCenter.z + 12);
+            const targetRack = racksToRender.find(r => r.rack_id === focusedRackId);
+            const isFloor = targetRack && Boolean(targetRack.is_floor_zone || targetRack.rack_type === 'FLOOR_ZONE' || targetRack.rack_type === 'BUFFER_ZONE' || targetRack.rack_id === 'MP01' || targetRack.rack_id === 'BFMP01');
+            if (isFloor && targetRack) {
+                const span = Math.max(targetRack.columns * targetRack.bay_width_m, targetRack.levels * targetRack.depth_m);
+                camera.position.set(focusCenter.x - span * 0.35, span * 0.95 + 4, focusCenter.z + span * 0.85 + 4);
+            } else {
+                camera.position.set(focusCenter.x, focusCenter.y + 6, focusCenter.z + 12);
+            }
         }
         controls.update();
     }

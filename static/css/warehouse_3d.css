@@ -190,6 +190,25 @@
     box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
 }
 
+.wh3d-chip.zone-chip {
+    background: rgba(14, 116, 144, 0.22);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+.wh3d-chip.zone-chip:hover {
+    background: rgba(14, 116, 144, 0.45);
+    border-color: #38bdf8;
+    color: #ffffff;
+}
+
+.wh3d-chip.zone-chip.active {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    border-color: #38bdf8;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
 /* STATS KPI STRIP */
 .wh3d-stats-strip {
     display: grid;

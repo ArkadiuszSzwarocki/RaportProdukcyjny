@@ -46,7 +46,7 @@ class InternalTransferProcessor:
 
             cursor.execute(
                 f"SELECT id, nr_palety, waga_netto AS stan_magazynowy, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
-                f"COALESCE(produkt, nazwa) AS nazwa FROM {table_got} "
+                f"produkt AS nazwa FROM {table_got} "
                 f"WHERE UPPER(COALESCE(nr_palety, '')) = %s AND waga_netto > 0 LIMIT 1",
                 (clean_nr,)
             )
