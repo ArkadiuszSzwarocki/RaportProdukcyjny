@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import threading
 import time
@@ -143,11 +144,9 @@ def on_message(client, userdata, msg):
 
     try:
         parsed_payload = json.loads(payload_text)
-    except Exception as e:
-        import traceback
-        with open("C:/Users/Admin/Documents/GitHub/RaportProdukcyjny/json_error.log", "w") as f:
-            f.write(f"Error: {e}\nTraceback: {traceback.format_exc()}\nString: {repr(payload_text)}")
-        parsed_payload = {"_raw": payload_text}
+    except (ValueError, TypeError):
+        logging.getLogger(__name__).warning('Rejected invalid MQTT JSON on topic %s', topic)
+        return
 
     if isinstance(parsed_payload, dict):
         payload_data = parsed_payload.get("d", parsed_payload)

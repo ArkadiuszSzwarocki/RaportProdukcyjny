@@ -252,6 +252,10 @@ def sprawdz_stan_fizyczny_zebra(tcp_socket, timeout=1.5):
 _printer_lock = threading.Lock()
 
 
+class PrintOutcomeUnknown(RuntimeError):
+    """The send began; resending could produce duplicate labels."""
+
+
 def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_delay=None, printer_name=None):
     """Send ZPL to an already validated target using configured ports only."""
     with _printer_lock:
@@ -275,8 +279,10 @@ def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_del
             if not 1 <= int(target_port) <= 65535:
                 continue
             for attempt in range(1, attempts + 1):
+                send_started = False
                 try:
                     with socket.create_connection((ip_str, int(target_port)), timeout=tcp_timeout) as sock:
+                        send_started = True
                         sock.sendall(payload.encode('utf-8'))
                         ok, message = sprawdz_stan_fizyczny_zebra(sock, timeout=1.5)
                         if not ok:
@@ -284,6 +290,8 @@ def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_del
                     logger.info('Print accepted by configured target %s:%s', ip_str, target_port)
                     return True
                 except Exception as exc:
+                    if send_started:
+                        raise PrintOutcomeUnknown(f'Wynik wydruku niepewny: {exc}; sprawdź drukarkę przed ponowieniem') from exc
                     last_error = str(exc)
                     if attempt < attempts and pause_s:
                         time.sleep(pause_s)
@@ -426,6 +434,8 @@ def drukuj_zpl():
             return jsonify({'success': False, 'message': 'ZPL jest zbyt duży.'}), 413
         wyslij_do_drukarki(zpl, target_ip, printer_name=printer_name)
         return jsonify({'success': True})
+    except PrintOutcomeUnknown as exc:
+        return jsonify({'success': False, 'outcome_unknown': True, 'message': str(exc)}), 409
     except ValueError as exc:
         return jsonify({'success': False, 'message': str(exc)}), 400
     except Exception as exc:

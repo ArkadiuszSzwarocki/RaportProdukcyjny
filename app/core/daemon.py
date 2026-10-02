@@ -73,11 +73,6 @@ def get_instance_identity():
     }
 
 
-def _is_rising_edge(previous_state, current_state):
-    """True only on False -> True transitions."""
-    return (not bool(previous_state)) and bool(current_state)
-
-
 def _ensure_instance_heartbeat_table(cursor):
     cursor.execute(
         """
@@ -207,88 +202,6 @@ def _release_named_lock(conn, lock_name):
             conn.close()
         except Exception:
             pass
-
-
-def _select_preferred_printer(cursor, linia='AGRO'):
-    """Pobiera preferowaną aktywną drukarkę z bazy danych dla danej linii."""
-    try:
-        from app.repositories.settings_repository import SettingsRepository
-        return SettingsRepository.get_default_printer_for_line(linia)
-    except Exception:
-        cursor.execute(
-            """
-            SELECT id, nazwa, ip, lokalizacja
-            FROM drukarki
-            WHERE aktywna = 1
-            ORDER BY id ASC
-            LIMIT 1
-            """
-        )
-        return cursor.fetchone()
-
-
-def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AGRO'):
-    """On wrap rising edge print exactly one label for the newest pallet of active plan."""
-    # Automated printing after wrapper is disabled upon user request
-    return False, 'Automatyczny wydruk po owijarce został wyłączony', None
-
-    from app.db import get_db_connection, get_table_name
-    from app.services.print_server import get_printer
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        table_plan = get_table_name('plan_produkcji', linia)
-        table_pal = get_table_name('palety_workowanie', linia)
-
-        cursor.execute(
-            f"""
-            SELECT pw.id, pw.nr_palety, pw.waga, pw.data_dodania, p.produkt
-            FROM {table_pal} pw
-            JOIN {table_plan} p ON p.id = pw.plan_id
-            WHERE pw.plan_id = %s
-            ORDER BY pw.id DESC
-            LIMIT 1
-            """,
-            (plan_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return False, 'Brak palety do wydruku po sygnale owijarki', None
-
-        pallet_id = int(row['id'])
-        if last_printed_pallet_ids.get(plan_id) == pallet_id:
-            return False, 'Duplikat sygnału owijarki - paleta już wydrukowana', pallet_id
-
-        printer_row = _select_preferred_printer(cursor)
-        printer = get_printer()
-
-        from app.utils.pallet_label import prepare_pallet_label_data
-        label_data = prepare_pallet_label_data(cursor, pallet_id, linia, source_table='workowanie')
-        if not label_data:
-            return False, 'Nie udało się przygotować danych etykiety', pallet_id
-
-        label_data['uwagi'] = f"wrap_edge instance={_INSTANCE_ID}"
-
-        override_ip = printer_row.get('ip') if printer_row else None
-        override_name = printer_row.get('nazwa') if printer_row else None
-        ok, msg = printer.print_finished_product_label(
-            label_data,
-            override_ip=override_ip,
-            override_name=override_name,
-        )
-        if ok:
-            last_printed_pallet_ids[plan_id] = pallet_id
-        return ok, msg, pallet_id
-    except Exception as print_err:
-        return False, f'Błąd triggera owijarki: {print_err}', None
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
 
 
 def _safe_log_info(msg, *args, **kwargs):
@@ -630,9 +543,16 @@ def _print_spooler_loop(interval_seconds: int = 5):
                                     except Exception:
                                         pass
 
-                                log_note = f"Czujniki ~HS OK | Licznik drukarki: {curr_cnt} ➔ {new_cnt}"
+                                log_note = f"Mostek przyjął wysyłkę | Licznik zleceń: {curr_cnt} ➔ {new_cnt}"
                                 cursor.execute("UPDATE print_jobs SET status='DONE', error_message=%s, updated_at=NOW() WHERE id=%s", (log_note, job_id))
                             else:
+                                if 'WYNIK_NIEPEWNY:' in str(msg):
+                                    cursor.execute(
+                                        "UPDATE print_jobs SET status='ERROR', retry_count=3, error_message=%s, updated_at=NOW() WHERE id=%s",
+                                        (msg, job_id),
+                                    )
+                                    conn.commit()
+                                    continue
                                 is_bridge_comm_error = (
                                     "brak komunikacji z mostkiem" in str(msg).lower()
                                     or "connection refused" in str(msg).lower()
@@ -650,15 +570,12 @@ def _print_spooler_loop(interval_seconds: int = 5):
                         except Exception as e:
                             import traceback
                             err = f"{e}\n{traceback.format_exc()}"
-                            is_conn_err = "connection refused" in str(err).lower() or "max retries exceeded" in str(err).lower()
-                            if is_conn_err:
-                                cursor.execute("UPDATE print_jobs SET status='PENDING', error_message=%s, updated_at=NOW() WHERE id=%s", 
-                                               (err[:255], job_id))
-                                bridge_available = False
-                                last_bridge_check_ts = time.time()
-                            else:
-                                cursor.execute("UPDATE print_jobs SET status='ERROR', error_message=%s, retry_count=%s, updated_at=NOW() WHERE id=%s", 
-                                               (err, retry + 1, job_id))
+                            # Once a job is claimed, an unexpected failure may follow a successful send.
+                            # Hold it for operator review rather than automatically creating duplicates.
+                            cursor.execute(
+                                "UPDATE print_jobs SET status='ERROR', retry_count=3, error_message=%s, updated_at=NOW() WHERE id=%s",
+                                (f'WYNIK_NIEPEWNY: {err}', job_id),
+                            )
                             conn.commit()
                 finally:
                     conn.close()
@@ -818,10 +735,6 @@ def start_daemon_threads(app, cleanup_enabled=False):
             
             # Map plan_id -> last_seen_counter
             plan_counters = {}
-            # Map plan_id -> previous wrapped bit value
-            plan_wrap_states = {}
-            # Map plan_id -> last pallet id printed by wrap rising edge
-            last_printed_wrap_pallet_ids = {}
             next_heartbeat_at = 0.0
             leader_lock_name = 'agro_pallet_daemon_leader_v2'
             leader_lock_conn = None
@@ -892,7 +805,6 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         palletizer_cnt = data.get('pallet_counter', 0)
                         bpm = data.get('bpm', 0.0)
                         mach_status = data.get('status')
-                        current_wrapped = bool(data.get('is_wrapped'))
                         
                         # Określenie liczby worków na 1 pełną paletę (1000 kg)
                         typ_prod = str(active_plan.get('typ_produkcji') or '').lower()
@@ -1060,7 +972,6 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                         _INSTANCE_ID,
                                     )
                                 else:
-                                    plan_counters[last_reg_pal_key] = palletizer_cnt
                                     _safe_log_warning(
                                         'Rejestracja palety na podstawie paletyzatora wstrzymana przez cooldown/pułapkę (instance=%s)',
                                         _INSTANCE_ID,
@@ -1091,45 +1002,9 @@ def start_daemon_threads(app, cleanup_enabled=False):
 
                         plan_counters[plan_id] = pakowaczka_counter
                         plan_counters[f"{plan_id}_pal"] = palletizer_cnt
-                        # Initialize wrapped baseline for new plans, then only print on False->True transitions.
-                        if plan_id not in plan_wrap_states:
-                            plan_wrap_states[plan_id] = current_wrapped
-                            _safe_log_info(
-                                'Tracking owijarka bit for plan ID=%s. Initial wrapped=%s (instance=%s)',
-                                plan_id,
-                                current_wrapped,
-                                _INSTANCE_ID,
-                            )
-                        else:
-                            prev_wrapped = plan_wrap_states.get(plan_id)
-                            if _is_rising_edge(prev_wrapped, current_wrapped):
-                                ok_print, wrap_msg, printed_pallet_id = _print_wrapped_pallet_label_once(
-                                    plan_id,
-                                    last_printed_wrap_pallet_ids,
-                                    linia='AGRO',
-                                )
-                                if ok_print:
-                                    _safe_log_info(
-                                        'Wrap rising edge detected for plan ID=%s -> printed one label for pallet ID=%s (instance=%s).',
-                                        plan_id,
-                                        printed_pallet_id,
-                                        _INSTANCE_ID,
-                                    )
-                                else:
-                                    _safe_log_info(
-                                        'Wrap rising edge detected for plan ID=%s but label print skipped: %s (instance=%s).',
-                                        plan_id,
-                                        wrap_msg,
-                                        _INSTANCE_ID,
-                                    )
-                                heartbeat_note = f'{heartbeat_note};wrap_edge=1;print_ok={int(ok_print)};pallet_id={printed_pallet_id}'
-                            plan_wrap_states[plan_id] = current_wrapped
-                        
                     else:
                         # No active plan, clear counters map to release memory and allow reset
                         plan_counters.clear()
-                        plan_wrap_states.clear()
-                        last_printed_wrap_pallet_ids.clear()
                         heartbeat_note = 'idle:no_active_plan'
                 except Exception:
                     _safe_log_exception('Error in AGRO pallet auto-register loop')

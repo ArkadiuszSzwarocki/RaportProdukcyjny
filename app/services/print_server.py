@@ -101,7 +101,8 @@ class PrintServer:
             )
             return response, self.bridge_url
         except requests.RequestException as first_error:
-            if self.bridge_autostart and self._is_local_bridge_target():
+            # A lost POST response does not prove that the printer rejected it.
+            if method.upper() in ('GET', 'HEAD') and self.bridge_autostart and self._is_local_bridge_target():
                 started, _ = self._ensure_bridge_running()
                 if started:
                     response = requests.request(
@@ -505,11 +506,15 @@ class PrintServer:
             if response.status_code == 200 and body.get('success'):
                 return True, 'Wysłano do drukarki przez mostek', False
             message = body.get('message') or f'Błąd mostka (HTTP {response.status_code})'
+            if body.get('outcome_unknown'):
+                message = f'WYNIK_NIEPEWNY: {message}'
             return False, f'{message} ({target_hint}, bridge={bridge_base})', False
         except requests.RequestException as exc:
-            return False, f'Błąd komunikacji z mostkiem: {exc} ({target_hint})', True
+            if isinstance(exc, requests.ConnectTimeout):
+                return False, f'Błąd połączenia z mostkiem: {exc} ({target_hint})', True
+            return False, f'WYNIK_NIEPEWNY: Błąd komunikacji z mostkiem: {exc} ({target_hint})', True
         except Exception as exc:
-            return False, f'Błąd komunikacji z mostkiem: {exc} ({target_hint})', False
+            return False, f'WYNIK_NIEPEWNY: Błąd komunikacji z mostkiem: {exc} ({target_hint})', False
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         """Send only through the authenticated bridge; no arbitrary network fallback."""
