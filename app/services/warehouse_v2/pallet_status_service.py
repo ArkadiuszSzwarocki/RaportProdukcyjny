@@ -1,4 +1,5 @@
 from app.db import get_db_connection, get_table_name
+from flask import g, has_request_context
 
 class PalletStatusService:
     @staticmethod
@@ -21,6 +22,11 @@ class PalletStatusService:
                 tables_to_check = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro']
 
             found_row = None
+            verified = getattr(g, 'warehouse_resource', None) if has_request_context() else None
+            if verified:
+                tables_to_check = [verified['table']]
+                pallet_id = verified['id']
+                target_sscc = verified['nr_palety']
             for tbl in tables_to_check:
                 try:
                     cursor.execute(
@@ -34,7 +40,7 @@ class PalletStatusService:
                 except Exception:
                     pass
 
-            if not found_row:
+            if not found_row and not verified:
                 all_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
                 for tbl in all_tables:
                     try:
@@ -59,16 +65,15 @@ class PalletStatusService:
             synced_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
             for tbl in synced_tables:
                 try:
-                    if nr_p and nr_p != str(pallet_id):
+                    if found_row.get('nr_palety'):
                         cursor.execute(
-                            f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s OR id = %s",
-                            (new_status, nr_p, pallet_id if str(pallet_id).isdigit() else -1)
+                            f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s",
+                            (new_status, nr_p)
                         )
                     else:
-                        cursor.execute(
-                            f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s OR nr_palety = %s",
-                            (new_status, pallet_id if str(pallet_id).isdigit() else -1, str(pallet_id))
-                        )
+                        if tbl in tables_to_check:
+                            cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s",
+                                           (new_status, found_row['id']))
                 except Exception:
                     pass
 

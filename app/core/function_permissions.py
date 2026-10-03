@@ -98,6 +98,10 @@ def register_function_permissions(app):
         production_denial = enforce_production_write()
         if production_denial is not None:
             return production_denial
+        from app.core.warehouse_permissions import enforce_warehouse_write
+        warehouse_denial = enforce_warehouse_write()
+        if warehouse_denial is not None:
+            return warehouse_denial
         if session.get('rola') == 'masteradmin':
             return None
         if request.endpoint == 'main.index':

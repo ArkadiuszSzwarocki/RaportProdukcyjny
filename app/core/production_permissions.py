@@ -1,3 +1,4 @@
+# cspell:words bigbagi
 """Resolve production write permissions from server-owned resources."""
 from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
@@ -65,6 +66,9 @@ def enforce_production_write():
         'api_workowanie_bigbag_add', 'api_workowanie_bigbag_remove', 'agro_mix_consume'}
     if action not in resource_actions and action not in FIXED_SECTIONS:
         return None
+    if request.is_json and action not in {'api_workowanie_bigbag_add', 'api_workowanie_bigbag_remove'}:
+        # These handlers consume forms, not JSON. Never authorize a different parser.
+        return _deny('Ta operacja wymaga danych formularza.', 415)
     data = request.get_json(silent=True) if request.is_json else {}
     data = data if isinstance(data, dict) else {}
     submitted_lines = {str(value).strip().upper() for value in (

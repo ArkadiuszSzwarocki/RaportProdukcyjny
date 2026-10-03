@@ -122,6 +122,8 @@ def inject_role_permissions():
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
     page_aliases = {
+        # Existing shared warehouse grants remain valid until OSIP is configured explicitly.
+        'osip.magazyn': 'psd.magazyn',
         'podsumowanie_zasypow': 'podsumowanie_szarz',
         'errors': 'ustawienia.errors',
         'logs': 'ustawienia.logs',

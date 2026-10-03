@@ -19,6 +19,7 @@ ROLES_PAGES = [
     'psd.workowanie',
     'psd.bufor',
     'psd.magazyn',
+    'osip.magazyn',
     'agro.zasyp',
     'agro.workowanie',
     'agro.bufor',
@@ -44,7 +45,7 @@ ROLES_PAGE_ALIASES = {
     'magazyn': 'psd.magazyn',
 }
 
-ROLES_USERS_PAGES = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'psd.zasyp', 'psd.workowanie', 'agro.zasyp', 'agro.workowanie', 'psd.magazyn', 'agro.magazyn', 'psd.bufor', 'agro.bufor', 'moje_godziny', 'awarie', 'wyniki']
+ROLES_USERS_PAGES = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'psd.zasyp', 'psd.workowanie', 'agro.zasyp', 'agro.workowanie', 'psd.magazyn', 'osip.magazyn', 'agro.magazyn', 'psd.bufor', 'agro.bufor', 'moje_godziny', 'awarie', 'wyniki']
 
 ROLE_NAME_MAPPING = {
     'laborant': 'laborant',

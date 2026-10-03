@@ -111,7 +111,7 @@ def test_stage_rejects_workowanie_plan(permission_app):
 def test_fixed_function_checks_actual_page_with_json(permission_app):
     client, action, _, helpers = permission_app
     helpers['role_has_access'] = lambda key: key == 'agro.zasyp'
-    assert client.post('/folio', json={'linia': 'AGRO', 'sekcja': 'Zasyp'}).status_code == 403
+    assert client.post('/folio', json={'linia': 'AGRO', 'sekcja': 'Zasyp'}).status_code == 415
     action.assert_not_called()
 
 
