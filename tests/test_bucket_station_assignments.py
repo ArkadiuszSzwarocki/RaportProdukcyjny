@@ -1,3 +1,4 @@
+# cspell:words nawazanie nawazania
 """Only assigned materials may become bucket ingredients or touch buttons."""
 from unittest.mock import MagicMock, patch
 import pytest

@@ -1,5 +1,7 @@
+# cspell:words naważanie
 """Coordinator for resolving scanned codes and ranking match results."""
 from __future__ import annotations
+import re
 
 from app.services.scanner.scanner_code_normalizer import ScannerCodeNormalizer
 from app.services.scanner.scanner_lookup_service import ScannerLookupService
@@ -24,7 +26,16 @@ class ScannerResolutionService:
                 alt_linia = 'AGRO' if str(linia).upper() == 'PSD' else 'PSD'
                 bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, alt_linia)
             if not bucket and not exact_label:
-                bucket = BucketMaluchRepository.find_latest_by_code(norm_bucket)
+                return {
+                    'id': None, 'nazwa': f'Wiadro {norm_bucket} — wolne',
+                    'typ': 'Wiaderko', 'inventory_type': 'Wiaderko', 'is_bucket': True,
+                    'is_free': True, 'is_used_up': False, 'can_dispatch': False,
+                    'kod_wiadra': norm_bucket, 'status': 'wolne',
+                    'status_pl': 'Wolne — można rozpocząć nowe naważanie',
+                    'stan_magazynowy': 0.0, 'pozycje': [], 'plan_id': None,
+                    'nr_palety': str(location_code).strip().upper(), 'bucket_label': None,
+                    'linia': str(linia).upper(),
+                }
 
             if bucket:
                 consumed = bucket.get('status') == 'wrzucone_do_mieszalnika'
@@ -72,7 +83,8 @@ class ScannerResolutionService:
 
     @staticmethod
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
-        if str(location_code or '').strip().upper().startswith('MAL'):
+        scan = str(location_code or '').strip().upper()
+        if scan.startswith('MAL') or re.fullmatch(r'(?:WIADRO|W|V)[-_\s]*\d{1,2}', scan):
             return ScannerResolutionService._check_bucket(location_code, linia)
         normalized_scan_code = ScannerCodeNormalizer.normalize_scanned_code(location_code) or str(location_code or '').strip()
         results = []

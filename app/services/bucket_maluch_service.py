@@ -1,3 +1,4 @@
+# cspell:words naważanie nawazania
 import random
 import re
 from datetime import datetime, timedelta
@@ -44,7 +45,7 @@ class BucketMaluchService:
             return ""
 
         # Match "04", "4", "W04", "WIADRO_04", "WIADRO 04"
-        match = re.search(r'(?:WIADRO|W)?[-_\s]*(\d+)', clean)
+        match = re.fullmatch(r'(?:WIADRO|W|V)?[-_\s]*(\d{1,2})', clean)
         if match:
             num = int(match.group(1))
             if 1 <= num <= 99:
@@ -86,6 +87,13 @@ class BucketMaluchService:
         operator_login: Optional[str] = None
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Starts a new bucket or re-opens an existing active bucket for a plan."""
+        filling = None
+        if str(kod_wiadra or '').strip().upper().startswith('MAL'):
+            filling = BucketMaluchRepository.find_by_sscc(str(kod_wiadra).strip().upper())
+            if not filling or filling.get('status') not in {'w_trakcie_nawazania', 'skompletowane'}:
+                return False, 'Ta etykieta nie wskazuje aktywnego napełnienia. Zeskanuj kod wolnego wiadra, aby rozpocząć naważanie.', None
+            if str(filling.get('plan_id')) != str(plan_id) or str(filling.get('linia') or '').upper() != str(linia).upper():
+                return False, 'Ta etykieta jest przypisana do innego zlecenia lub hali.', None
         norm_code = cls.normalize_bucket_code(kod_wiadra)
         if not norm_code:
             return False, "Nieprawidłowy kod wiadra (np. W04, Wiadro 04)", None
@@ -117,6 +125,8 @@ class BucketMaluchService:
 
             # Check if bucket is already currently active (not yet dumped to mixer)
             existing = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia)
+            if filling and (not existing or existing.get('id') != filling.get('id')):
+                return False, 'To napełnienie nie jest już aktywne. Zeskanuj kod wiadra, aby rozpocząć nowe naważanie.', None
             if existing:
                 if existing['plan_id'] != plan_id:
                     return False, f"Wiadro {norm_code} jest już przypisane do innego aktywnego zlecenia #{existing['plan_id']}", None

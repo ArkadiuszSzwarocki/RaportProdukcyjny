@@ -32,6 +32,40 @@ def test_unknown_label_does_not_resolve_fresh_bucket():
         by_code.assert_not_called()
 
 
+@pytest.mark.parametrize('code', ['V1', 'V01', 'W01', 'WIADRO_01'])
+def test_physical_bucket_without_active_filling_is_free_not_last_consumed(code):
+    with patch('app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_active_or_completed_by_code', return_value=None), patch(
+            'app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_latest_by_code', return_value=bucket()) as history:
+        result = ScannerResolutionService.lookup_by_location(code, 'AGRO')
+    assert result['is_free'] is True
+    assert result['status'] == 'wolne'
+    assert result['is_used_up'] is False
+    assert result['pozycje'] == []
+    assert result['plan_id'] is None
+    assert result['can_dispatch'] is False
+    history.assert_not_called()
+
+
+def test_physical_bucket_resolves_current_ready_filling():
+    with patch('app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_active_or_completed_by_code', return_value=bucket('skompletowane')):
+        result = ScannerResolutionService.lookup_by_location('V4', 'AGRO')
+    assert result['status'] == 'skompletowane'
+    assert result['bucket_label'] == 'MAL04OLD'
+    assert result['can_dispatch'] is True
+
+
+def test_old_filling_label_cannot_open_new_weighing():
+    with patch('app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_by_sscc', return_value=bucket()), patch(
+            'app.services.bucket_maluch_service.get_db_connection') as connection:
+        assert BucketMaluchService.start_bucket('MAL04OLD', 123, 'AGRO')[0] is False
+    connection.assert_not_called()
+
+
+@pytest.mark.parametrize('code', ['KO01', 'PAL1', 'V100', 'unknown1'])
+def test_other_scans_are_not_physical_bucket_codes(code):
+    assert BucketMaluchService.normalize_bucket_code(code) == ''
+
+
 def test_consumed_label_cannot_dump_new_filling():
     with patch('app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_by_sscc', return_value=bucket()), patch(
             'app.repositories.bucket_maluch_repository.BucketMaluchRepository.find_active_or_completed_by_code', return_value=bucket('skompletowane')) as by_code, patch(
