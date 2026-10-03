@@ -155,7 +155,7 @@ class UserEmailSettingsRepository:
         finally:
             conn.close()
 
-    def get_all_recipients(self, only_active: bool = False) -> list:
+    def get_all_recipients(self, only_active: bool = False, strict: bool = False) -> list:
         """Pobiera listę odbiorców ze słownika slownik_odbiorcy_email."""
         conn = get_db_connection()
         try:
@@ -164,6 +164,8 @@ class UserEmailSettingsRepository:
             cursor.execute(f"SELECT * FROM slownik_odbiorcy_email {where_sql} ORDER BY grupa, nazwa")
             return cursor.fetchall() or []
         except Exception:
+            if strict:
+                raise
             return []
         finally:
             conn.close()

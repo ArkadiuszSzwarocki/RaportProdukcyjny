@@ -3,8 +3,9 @@
 import os
 from functools import wraps
 from pathlib import Path
+from datetime import date
 
-from flask import current_app, flash, jsonify, redirect, request, url_for
+from flask import current_app, flash, jsonify, redirect, request, session, url_for
 
 
 QUALITY_ALLOWED_EXTENSIONS = {
@@ -159,7 +160,18 @@ def _report_attachment_guard(original_view):
     @wraps(original_view)
     def guarded(*args, **kwargs):
         submitted = request.form.getlist('attachments')
-        invalid = [value for value in submitted if not report_attachment_path_allowed(value)]
+        line = str(request.form.get('linia') or request.args.get('linia') or
+                   session.get('selected_hall_view') or 'PSD').strip().upper()
+        day = request.form.get('date_str') or str(date.today())
+        try:
+            valid_day = date.fromisoformat(day).isoformat() == day
+        except (ValueError, TypeError):
+            valid_day = False
+        if line not in {'PSD', 'AGRO', 'OSIP'} or not valid_day:
+            return jsonify(success=False, message='Nieprawidłowa hala lub data raportu.'), 400
+        expected_names = {f'Raport_{line}_{day}.pdf', f'Raport_{line}_{day}.xlsx'}
+        invalid = [value for value in submitted if not report_attachment_path_allowed(value)
+                   or Path(str(value)).name not in expected_names]
         if invalid:
             current_app.logger.warning(
                 'Rejected untrusted report attachment path from user=%s count=%d',

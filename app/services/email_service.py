@@ -3,6 +3,7 @@ Serwis do weryfikacji połączenia z serwerem SMTP oraz do wysyłania wiadomośc
 """
 import os
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -46,12 +47,12 @@ class EmailService:
                 return False, f"❌ {reason}"
 
             if smtp_security == 'SSL' or smtp_port == 465:
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12)
+                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12, context=ssl.create_default_context())
             else:
                 server = smtplib.SMTP(smtp_server, smtp_port, timeout=12)
                 server.ehlo()
                 if smtp_security == 'TLS' or smtp_port == 587:
-                    server.starttls()
+                    server.starttls(context=ssl.create_default_context())
                     server.ehlo()
 
             server.login(smtp_username, smtp_password)
@@ -155,7 +156,7 @@ class EmailService:
 
             if attachments:
                 for file_path in attachments:
-                    if os.path.exists(file_path):
+                    if os.path.isfile(file_path):
                         filename = os.path.basename(file_path)
                         with open(file_path, 'rb') as file_handle:
                             part = MIMEBase('application', 'octet-stream')
@@ -163,20 +164,23 @@ class EmailService:
                         encoders.encode_base64(part)
                         part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
                         msg.attach(part)
+                    else:
+                        return False, "Brak wybranego załącznika raportu. Wygeneruj raport ponownie."
 
             if config['security'] == 'SSL' or config['port'] == 465:
-                server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=15)
+                server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=15, context=ssl.create_default_context())
             else:
                 server = smtplib.SMTP(config['server'], config['port'], timeout=15)
                 server.ehlo()
                 if config['security'] == 'TLS' or config['port'] == 587:
-                    server.starttls()
+                    server.starttls(context=ssl.create_default_context())
                     server.ehlo()
 
             server.login(config['username'], config['password'])
-            server.sendmail(config['username'], to_emails, msg.as_string())
-            server.quit()
-            server = None
+            refused = server.sendmail(config['username'], to_emails, msg.as_string())
+            if refused:
+                raise smtplib.SMTPRecipientsRefused(refused)
+            # QUIT failure after SMTP acceptance must not trigger a duplicate resend.
 
             sender_info = f"konto własne ({config.get('username')})" if config.get('is_custom') else f"konto systemowe ({config.get('username')})"
             msg_res = f"✅ E-mail wysłany pomyślnie do {len(to_emails)} odbiorcy/odbiorców ({sender_info})."
@@ -199,7 +203,7 @@ class EmailService:
                 pass
 
             return True, msg_res
-        except Exception:
+        except Exception as exc:
             try:
                 from app.services.email_log_service import EmailLogService
                 source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
@@ -217,6 +221,8 @@ class EmailService:
             except Exception:
                 pass
 
+            if isinstance(exc, smtplib.SMTPRecipientsRefused):
+                return False, "Serwer odrzucił co najmniej jednego odbiorcę. Część odbiorców mogła otrzymać raport; sprawdź adresy przed ponowieniem wysyłki."
             return False, "❌ Nie udało się wysłać wiadomości przez skonfigurowany serwer SMTP."
         finally:
             if server is not None:

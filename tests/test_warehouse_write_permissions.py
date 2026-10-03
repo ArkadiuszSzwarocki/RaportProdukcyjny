@@ -41,6 +41,31 @@ def test_readonly_page_blocks_json_write(warehouse_context):
     move.assert_not_called()
 
 
+def test_order_creation_denied_without_section(warehouse_context):
+    client, _, helpers, _ = warehouse_context
+    helpers['role_has_access'] = lambda key: False
+    with patch('app.blueprints.warehouse_v2.api_orders._order_service.create_order') as create:
+        assert client.post('/warehouse-v2/api/orders/create', json={'items': []}).status_code == 403
+        create.assert_not_called()
+
+
+def test_readonly_orders_can_be_viewed_but_not_created(warehouse_context):
+    client, _, helpers, _ = warehouse_context
+    helpers['role_is_readonly'] = lambda key: True
+    with patch('app.blueprints.warehouse_v2.api_orders._order_service.get_all_orders', return_value=[]), patch(
+            'app.blueprints.warehouse_v2.api_orders._order_service.create_order') as create:
+        assert client.get('/warehouse-v2/api/orders').status_code == 200
+        assert client.post('/warehouse-v2/api/orders/create', json={'items': []}).status_code == 403
+        create.assert_not_called()
+
+
+def test_allowed_order_creation_remains_available(warehouse_context):
+    client, _, _, _ = warehouse_context
+    with patch('app.blueprints.warehouse_v2.api_orders._order_service.create_order', return_value=(True, 'OK', 123)) as create:
+        assert client.post('/warehouse-v2/api/orders/create', json={'items': [{'surowiec_nazwa': 'TEST', 'ilosc_kg': 10}]}).status_code == 201
+        create.assert_called_once()
+
+
 def test_foreign_hall_blocks_even_when_page_is_granted(warehouse_context):
     client, _, helpers, move = warehouse_context
     helpers['role_has_access'] = lambda key: True

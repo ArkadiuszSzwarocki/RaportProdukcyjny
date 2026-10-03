@@ -207,7 +207,10 @@ def register_main_reporting_routes(main_bp):
 
         # Załączniki zaznaczone przez użytkownika
         selected_attachments = request.form.getlist('attachments')
-        valid_attachments = [p for p in selected_attachments if os.path.exists(p)]
+        if any(not os.path.isfile(p) for p in selected_attachments):
+            flash("Brak wybranego załącznika. Wygeneruj raport ponownie.", "danger")
+            return redirect(url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=date_str))
+        valid_attachments = selected_attachments
         att_filenames = [os.path.basename(p) for p in valid_attachments]
 
         # Pobierz aktualne dane produkcji (zasyp i workowanie) - wyłącznie realne wykonanie
@@ -298,12 +301,14 @@ def register_main_reporting_routes(main_bp):
         if close_shift_flag:
             try:
                 from app.services.shift_close_service import _suspend_previous_day_plans
-                _suspend_previous_day_plans(date_str, linia=linia)
+                _suspend_previous_day_plans(date_str, linia=linia, strict=True)
                 audit_log('Zakończono zmianę i wysłano raport', f'Linia={linia}, Data={date_str}, Odbiorcy={", ".join(to_emails)}')
             except Exception as e:
                 current_app.logger.error("Błąd zamykania planów: %s", e)
+                flash("Raport wysłano, ale nie udało się zamknąć zmiany. Sprawdź stan zleceń; nie wysyłaj raportu ponownie.", "warning")
+                return redirect(url_for('main.index', linia=linia))
 
-        flash(f"✅ Raport został pomyślnie wysłany na podane adresy e-mail ({len(to_emails)} odbiorców)! Zmiana została pomyślnie zapisana.", "success")
+        flash(f"Raport wysłano do {len(to_emails)} odbiorców." + (" Wstrzymano aktywne zlecenia z poprzedniego dnia." if close_shift_flag else ""), "success")
         return redirect(url_for('main.index', linia=linia))
 
     @main_bp.route('/api/zglos_blad_systemu', methods=['POST'])

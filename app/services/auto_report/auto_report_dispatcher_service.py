@@ -70,7 +70,7 @@ class AutoReportDispatcherService:
                 AutoReportHistoryService.mark_report_failed(linia, date_str, '15:00', msg)
             return False, msg
 
-        if not force and not AutoReportHistoryService.claim_report_execution(linia, date_str, '15:00'):
+        if not AutoReportHistoryService.claim_report_execution(linia, date_str, '15:00'):
             msg = f"Raport o 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
             logger.info("[AUTO_REPORT_DISPATCHER] %s", msg)
             return True, msg
@@ -83,6 +83,9 @@ class AutoReportDispatcherService:
             uwagi = _load_shift_notes(date_str, linia=linia)
             lider_name = "System Auto-Raport (I Zmiana)"
             xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi, lider_name, linia=linia)
+
+            if not pdf_path or not xls_path or not all(os.path.isfile(p) for p in (pdf_path, xls_path)):
+                raise ValueError('Nie wygenerowano kompletu załączników PDF i Excel. Raport nie został wysłany.')
 
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
@@ -171,6 +174,9 @@ class AutoReportDispatcherService:
                 lider_name=lider_name,
                 linia=linia
             )
+
+            if not pdf_path or not xls_path or not all(os.path.isfile(p) for p in (pdf_path, xls_path)):
+                raise ValueError('Nie wygenerowano kompletu załączników PDF i Excel. Raport nie został wysłany.')
 
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]

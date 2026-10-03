@@ -366,8 +366,10 @@ def _build_zip(xls_path, txt_path, pdf_path, date_str: str, linia: str = 'PSD'):
     return buf, zip_filename
 
 
-def _suspend_previous_day_plans(date_str: str, linia: str = 'PSD'):
-    """Zawieś plany z poprzedniego dnia (best-effort, nie rzuca wyjątku)."""
+def _suspend_previous_day_plans(date_str: str, linia: str = 'PSD', strict: bool = False):
+    """Suspend previous-day plans; strict callers must observe database failure."""
+    conn = None
+    cursor = None
     try:
         prev_day = (datetime.strptime(date_str, '%Y-%m-%d').date() - timedelta(days=1)).strftime('%Y-%m-%d')
         table_plan = get_table_name('plan_produkcji', linia)
@@ -380,8 +382,15 @@ def _suspend_previous_day_plans(date_str: str, linia: str = 'PSD'):
         )
         count = cursor.rowcount
         conn.commit()
-        cursor.close()
-        conn.close()
         logger.info("[SHIFT_CLOSE] Zawieszono %d planow dla %s", count, prev_day)
+        return count
     except Exception as exc:
         logger.warning("[SHIFT_CLOSE] Nie mozna zawiesc planow poprzedniego dnia: %s", exc)
+        if strict:
+            raise
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None:
+            conn.close()

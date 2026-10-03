@@ -1,6 +1,6 @@
 # cspell:words sscc
 """Authorize warehouse pallet mutations independently of optional UI fields."""
-from flask import current_app, g, jsonify, request
+from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
 from app.core.production_permissions import _page_allowed
 
@@ -10,6 +10,14 @@ def _deny(message='Brak uprawnień do operacji magazynowej.', status=403):
 
 
 def enforce_warehouse_write():
+    if str(request.endpoint or '').startswith('warehouse_v2.api_orders'):
+        # Match the orders handlers' hall resolver, independently of optional UI fields.
+        line = str(request.args.get('linia') or session.get('grupa') or 'AGRO').upper()
+        line = line if line in {'PSD', 'AGRO'} else 'AGRO'
+        write = request.method not in {'GET', 'HEAD', 'OPTIONS'}
+        if not _page_allowed(line, 'magazyn', write=write):
+            return _deny()
+        return None
     if request.method in {'GET', 'HEAD', 'OPTIONS'}:
         return None
     endpoint = str(request.endpoint or '')

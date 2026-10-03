@@ -26,7 +26,7 @@ def _deny(message='Brak uprawnień do tej sekcji.', status=403):
     return jsonify(success=False, error='forbidden', message=message), status
 
 
-def _page_allowed(line, section):
+def _page_allowed(line, section, write=True):
     from app.core.contexts import inject_role_permissions
     role = str(session.get('rola') or '').strip().lower()
     if role == 'masteradmin':
@@ -47,8 +47,8 @@ def _page_allowed(line, section):
             current_app.logger.exception('Cannot verify individual production page permissions')
             return False
         if page in overrides:
-            return overrides[page]['access'] and not overrides[page]['readonly']
-    return helpers['role_has_access'](page) and not helpers['role_is_readonly'](page)
+            return overrides[page]['access'] and not (write and overrides[page]['readonly'])
+    return helpers['role_has_access'](page) and not (write and helpers['role_is_readonly'](page))
 
 
 def enforce_production_write():

@@ -1,6 +1,6 @@
 """Quality control routes (jakosc, DUR/awarie)."""
 
-from flask import Blueprint, render_template, request, redirect, flash, url_for, session, send_file, current_app, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, url_for, session, send_file, send_from_directory, current_app, jsonify, abort
 from datetime import date, datetime, timedelta
 import os
 from werkzeug.utils import secure_filename
@@ -365,11 +365,10 @@ def jakosc_podsumowanie_zasypow_fragment():
 @dynamic_role_required('jakosc')
 def jakosc_download(plan_id, filename):
     """Download quality document."""
-    docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
-    file_path = os.path.join(docs_dir, filename)
-    if not os.path.exists(file_path):
-        return ("Plik nie znaleziony", 404)
-    return send_file(file_path, as_attachment=True)
+    docs_dir = os.path.join(current_app.root_path, 'raporty', 'jakosc_docs', str(plan_id))
+    if '\\' in filename or ':' in filename or filename.startswith('/'):
+        abort(404)
+    return send_from_directory(docs_dir, filename, as_attachment=True)
 
 
 @quality_bp.route('/dur/awarie')
