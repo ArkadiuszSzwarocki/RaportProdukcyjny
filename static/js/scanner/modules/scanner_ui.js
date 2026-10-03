@@ -47,6 +47,11 @@ function hideStation() {
 }
 
 function showPallet(p) {
+  if (p.is_bucket && (p.is_used_up || p.status === 'wrzucone_do_mieszalnika')) {
+    hidePallet();
+    showToast(`Wiadro ${p.kod_wiadra || ''} zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.`, 'warning');
+    return;
+  }
   if (p.is_unconfirmed_wg) {
     openWgAcceptModal(p);
     return;
@@ -102,7 +107,7 @@ function showPallet(p) {
       typePill.style.background = '#dc2626';
       typePill.style.color = '#fff';
     } else if (isUsedUp) {
-      typePill.textContent = 'Zużyta / Rozchodowana';
+      typePill.textContent = p.is_bucket ? 'WIADRO JUŻ ZUŻYTE' : 'Zużyta / Rozchodowana';
       typePill.className = 'pill';
       typePill.style.background = '#ef4444';
       typePill.style.color = '#fff';
@@ -162,7 +167,7 @@ function showPallet(p) {
 
   const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
   if (restoreBtn) {
-    const canRestore = Boolean((typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
+    const canRestore = Boolean(!p.is_bucket && (typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
     restoreBtn.style.display = canRestore ? 'block' : 'none';
   }
 
@@ -218,12 +223,12 @@ function showPallet(p) {
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#dc2626';
     } else if (isUsedUp) {
-      if (mainTitle) mainTitle.textContent = 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
+      if (mainTitle) mainTitle.textContent = p.is_bucket ? 'Wiadro już zużyte — zeskanuj kolejne' : 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
       if (titleIcon) {
         titleIcon.textContent = 'block';
         titleIcon.style.color = '#ef4444';
       }
-      scanInput.placeholder = 'Paleta zużyta (0 kg) — zeskanuj inny kod...';
+      scanInput.placeholder = p.is_bucket ? 'Zeskanuj etykietę kolejnego napełnienia...' : 'Paleta zużyta (0 kg) — zeskanuj inny kod...';
       scanInput.style.borderColor = '#ef4444';
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#ef4444';

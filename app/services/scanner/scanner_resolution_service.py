@@ -17,14 +17,17 @@ class ScannerResolutionService:
             norm_bucket = BucketMaluchService.normalize_bucket_code(location_code)
             if not norm_bucket:
                 return None
-            bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, linia)
-            if not bucket:
+            exact_label = str(location_code or '').strip().upper().startswith('MAL')
+            bucket = (BucketMaluchRepository.find_by_sscc(str(location_code).strip().upper())
+                      if exact_label else BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, linia))
+            if not bucket and not exact_label:
                 alt_linia = 'AGRO' if str(linia).upper() == 'PSD' else 'PSD'
                 bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, alt_linia)
-            if not bucket:
+            if not bucket and not exact_label:
                 bucket = BucketMaluchRepository.find_latest_by_code(norm_bucket)
 
             if bucket:
+                consumed = bucket.get('status') == 'wrzucone_do_mieszalnika'
                 pozycje = bucket.get('pozycje') or []
                 pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Brak pozycji"
                 status_pl = {
@@ -45,10 +48,13 @@ class ScannerResolutionService:
                     'typ': 'Wiaderko',
                     'inventory_type': 'Wiaderko',
                     'is_bucket': True,
+                    'bucket_label': bucket.get('nr_sscc'),
+                    'is_used_up': consumed,
+                    'can_dispatch': not consumed,
                     'kod_wiadra': norm_bucket,
                     'status': bucket.get('status'),
                     'status_pl': status_pl,
-                    'stan_magazynowy': float(len(pozycje)),
+                    'stan_magazynowy': 0.0 if consumed else float(len(pozycje)),
                     'jednostka': 'skł.',
                     'lokalizacja': 'Naważanie Maluchów' if bucket.get('status') != 'wrzucone_do_mieszalnika' else (bucket.get('mieszalnik_kod') or 'MI01'),
                     'nr_palety': sscc,
@@ -66,6 +72,8 @@ class ScannerResolutionService:
 
     @staticmethod
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
+        if str(location_code or '').strip().upper().startswith('MAL'):
+            return ScannerResolutionService._check_bucket(location_code, linia)
         normalized_scan_code = ScannerCodeNormalizer.normalize_scanned_code(location_code) or str(location_code or '').strip()
         results = []
         res_list = ScannerLocationQueryService.lookup_by_location_internal(location_code, linia)

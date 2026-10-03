@@ -322,7 +322,15 @@ class BucketMaluchService:
         if not norm_mixer:
             return False, f"Nieprawidłowy kod '{mieszalnik_kod}'! Wiadra można wrzucić wyłącznie do mieszalnika MI01.", None
 
-        bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia)
+        exact_label = str(kod_wiadra or '').strip().upper().startswith('MAL')
+        bucket = (BucketMaluchRepository.find_by_sscc(str(kod_wiadra).strip().upper())
+                  if exact_label else BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia))
+        if exact_label and not bucket:
+            return False, 'Nie znaleziono tego napełnienia wiadra. Zeskanuj aktualną etykietę.', None
+        if exact_label and bucket.get('status') == 'wrzucone_do_mieszalnika':
+            return False, 'To napełnienie wiadra zostało już zużyte. Zeskanuj aktualną etykietę.', None
+        if exact_label:
+            linia = bucket.get('linia') or linia
         if not bucket:
             alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
             bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, alt_linia)
@@ -417,7 +425,8 @@ class BucketMaluchService:
                 return False, f"Do tego zasypu (szarża {nr_sz_str}) zostało już wrzucone wiadro {existing_dumped['kod_wiadra']}{czas_str}! Do jednego zasypu można wrzucić tylko jedno wiadro.", None
 
             # Mark bucket dumped to mixer
-            BucketMaluchRepository.dump_bucket_to_mixer(bucket['id'], szarza_id, operator_login, norm_mixer)
+            if not BucketMaluchRepository.dump_bucket_to_mixer(bucket['id'], szarza_id, operator_login, norm_mixer):
+                return False, 'Nie zapisano zużycia wiadra. Sprawdź jego aktualny status i zeskanuj ponownie.', None
 
             updated = BucketMaluchRepository.find_by_id(bucket['id'])
             nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"

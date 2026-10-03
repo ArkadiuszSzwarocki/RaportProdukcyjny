@@ -217,7 +217,9 @@ async function doMoveFromMainInput(loc) {
 
   if (currentPallet && !currentPallet.is_transfer && (currentPallet.is_used_up || parseFloat(currentPallet.stan_magazynowy || 0) <= 0)) {
     setProcessingState(false);
-    showToast('❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść.', 'danger');
+    showToast(currentPallet.is_bucket
+      ? 'To wiadro zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.'
+      : '❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść.', 'danger');
     if (scanInput) {
       scanInput.value = '';
       scanInput.focus();
@@ -244,7 +246,7 @@ async function doMoveFromMainInput(loc) {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
         body: JSON.stringify({
-          kod_wiadra: currentPallet.kod_wiadra,
+          kod_wiadra: currentPallet.bucket_label || currentPallet.kod_wiadra,
           plan_id: currentPallet.plan_id,
           mieszalnik_kod: 'MI01',
           linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO')
