@@ -208,7 +208,7 @@ class OsipTransferRepository:
                 SELECT t.id 
                 FROM osip_transfers t
                 JOIN osip_transfer_items i ON t.id = i.transfer_id
-                WHERE i.pallet_id = %s AND t.status IN ('PLANNED', 'IN_TRANSIT')
+                WHERE i.pallet_id = %s AND t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
                 LIMIT 1
             """, (pallet_id,))
             result = cursor.fetchone()

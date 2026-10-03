@@ -332,6 +332,9 @@ class PalletSplitService:
                        (current.get('nr_palety'),))
         if cursor.fetchone():
             raise ValueError('Paleta posiada aktywną blokadę LAB')
+        from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+        if PalletLockManager.has_protected_block(cursor, current.get('nr_palety')):
+            raise ValueError('Paleta jest zarezerwowana w otwartym dokumencie lub zablokowana ręcznie')
         column = 'stan_magazynowy' if source in INVENTORY_SOURCES else ('waga_netto' if source == 'magazyn' else 'waga')
         quantity = float(current.get(column) or 0)
         if not math.isfinite(quantity) or quantity <= 0:
@@ -397,10 +400,11 @@ class PalletSplitService:
             SELECT linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa,
                    komentarz, user_login, data_ruchu
             FROM palety_historia
-            WHERE (paleta_id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s))
+            WHERE nr_palety = %s OR (paleta_id = %s AND (nr_palety IS NULL OR nr_palety = '')
+                                    AND linia = %s AND typ_palety = %s)
             ORDER BY data_ruchu ASC, id ASC
             """,
-            (mother_id, mother_sscc),
+            (mother_sscc, mother_id, linia, typ_palety),
         )
         history_rows = cursor.fetchall() or []
         for h in history_rows:

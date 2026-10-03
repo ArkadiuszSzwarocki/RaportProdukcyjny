@@ -149,6 +149,12 @@ async function doMoveFromMainInput(loc) {
     && currentPallet.transfer.is_magazyn_dostawy
   );
 
+  if (currentPallet && currentPallet.receiving_required) {
+    setProcessingState(false);
+    showToast(currentPallet.status_info || 'Najpierw kliknij Odbierz / Przyjmij na stronie transferów.', 'warning');
+    return;
+  }
+
   if (isDeliveryTransfer) {
     const dostawaId = currentPallet.dostawa_id || (currentPallet.transfer && currentPallet.transfer.id);
     const itemId = currentPallet.item_id || (currentPallet.transfer && currentPallet.transfer.item_details && currentPallet.transfer.item_details.id) || currentPallet.id;
@@ -477,7 +483,10 @@ async function lookupPallet(code) {
         showToast(`✅ Znaleziono stację: ${d.pallet.station_code}`, 'success');
       } else {
         showPallet(d.pallet);
-        if (!(d.pallet.is_bucket && (d.pallet.is_free || d.pallet.is_used_up || d.pallet.status === 'wrzucone_do_mieszalnika'))) {
+        if (d.pallet.receiving_required) {
+          showToast(d.pallet.status_info, 'warn');
+        }
+        if (!d.pallet.receiving_required && !(d.pallet.is_bucket && (d.pallet.is_free || d.pallet.is_used_up || d.pallet.status === 'wrzucone_do_mieszalnika'))) {
           showToast('✅ Znaleziono: ' + (d.pallet.nazwa || d.pallet.nr_palety || code), 'success');
         }
       }

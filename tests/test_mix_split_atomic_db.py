@@ -9,6 +9,7 @@ import pytest
 from app.db import get_db_connection
 from app.services.magazyn_dostawy.pallet_split_service import PalletSplitService
 from app.services.magazyn_dostawy.pallet_mix_service import PalletMixService
+from app.services.osip_transfer_service import OsipTransferService
 
 pytestmark = pytest.mark.require_db
 
@@ -91,3 +92,63 @@ def test_lab_hold_blocks_stock_mutation(mother_stock,operation):
     cursor.execute('SELECT SUM(stan_magazynowy),COUNT(*) FROM magazyn_surowce WHERE nazwa=%s',(token,))
     assert cursor.fetchone() == (100,1)
     conn.close()
+
+
+@pytest.mark.parametrize('operation', ['split', 'mix'])
+def test_planned_transfer_reserves_stock_without_boolean_block(mother_stock, operation):
+    token, pallet_id = mother_stock
+    service = OsipTransferService()
+    transfer = service.create_transfer_order('MS01', 'OSIP', [dict(
+        pallet_id=pallet_id, nr_palety=token, product_name=token, requested_qty=100, item_type='raw')], 'pytest')
+    try:
+        with pytest.raises(ValueError, match='zarezerwowana'):
+            if operation == 'split':
+                PalletSplitService.split_pallet(mother_sscc=token, weight_to_take=20)
+            else:
+                PalletMixService.mix_pallets([dict(nr_palety=token, weight_to_take=20)], token)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT SUM(stan_magazynowy),COUNT(*) FROM magazyn_surowce WHERE nazwa=%s', (token,))
+        assert cursor.fetchone() == (100, 1)
+        conn.close()
+    finally:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM osip_transfers WHERE id=%s', (transfer.id,))
+        conn.commit()
+        conn.close()
+
+
+def test_mix_history_records_physical_codes(mother_stock):
+    token, pallet_id = mother_stock
+    result = PalletMixService.mix_pallets([dict(nr_palety=token, weight_to_take=20)], token)
+    assert result[0]
+    mixed_code = result[2]['mix_pallet']['nr_palety']
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT nr_palety FROM palety_historia WHERE akcja='MIX_UTWORZENIE' AND paleta_id=%s ORDER BY id DESC LIMIT 1", (result[2]['mix_pallet']['id'],))
+    assert cursor.fetchone()[0] == mixed_code
+    cursor.execute("SELECT nr_palety FROM palety_historia WHERE akcja='MIX_ODJECIE' AND paleta_id=%s ORDER BY id DESC LIMIT 1", (pallet_id,))
+    assert cursor.fetchone()[0] == token
+    conn.close()
+
+
+def test_history_inheritance_excludes_other_pallet_with_same_record_id(mother_stock):
+    token, pallet_id = mother_stock
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    child = 'TEST-HISTORY-' + uuid.uuid4().hex
+    try:
+        for code, hall, kind, comment in (
+                (token, 'AGRO', 'surowiec', 'Own event'),
+                ('FOREIGN-' + token, 'AGRO', 'surowiec', 'Foreign event'),
+                (None, 'PSD', 'opakowanie', 'Foreign legacy event'),
+                (None, 'AGRO', 'surowiec', 'Own legacy event')):
+            cursor.execute('INSERT INTO palety_historia (paleta_id,nr_palety,linia,typ_palety,akcja,komentarz) VALUES (%s,%s,%s,%s,\'PRZYJECIE\',%s)',
+                           (pallet_id, code, hall, kind, comment))
+        PalletSplitService._copy_mother_history(cursor, pallet_id, token, pallet_id + 1000000, child, 'AGRO', 'surowiec')
+        cursor.execute('SELECT komentarz FROM palety_historia WHERE nr_palety=%s', (child,))
+        assert {row['komentarz'] for row in cursor.fetchall()} == {'Own event', 'Own legacy event'}
+    finally:
+        conn.rollback()
+        conn.close()

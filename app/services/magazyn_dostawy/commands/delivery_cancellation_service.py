@@ -30,6 +30,13 @@ class DeliveryCancellationService:
                 )
                 if not row:
                     raise ValueError(f"Nie znaleziono aktywnej palety {pallet_no}")
+                if norm_loc(row.get('lokalizacja')) == curr_loc:
+                    from app.utils.location_validator import check_rack_location_availability
+                    available, error = check_rack_location_availability(
+                        orig_loc, current_nr_palety=row['nr_palety'],
+                        product_name=row.get('nazwa') or row.get('produkt'), cursor=cursor)
+                    if not available:
+                        raise ValueError(error)
                 qty_column = 'waga_netto' if pallet_type == 'wyrob_gotowy' else 'stan_magazynowy'
                 cursor.execute(
                     f"UPDATE {table} SET lokalizacja = %s WHERE id = %s AND nr_palety = %s "

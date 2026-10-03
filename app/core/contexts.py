@@ -52,24 +52,27 @@ def _normalize_role_name(raw_role):
 def _compute_static_version():
     try:
         candidates = [
-            os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'sidebar.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'inline-styles.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'dashboard.css'),
-            os.path.join(current_app.root_path, 'static', 'scripts.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'scanner', 'modules', 'scanner_ui.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'scanner', 'modules', 'scanner_flow.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'agro_warehouse.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_templates.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'modals.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'orders.js'),
+            os.path.join(current_app.static_folder, 'css', 'pallet-workflow.css'),
+            os.path.join(current_app.static_folder, 'css', 'cleaning-notifications.css'),
+            os.path.join(current_app.static_folder, 'js', 'osip', 'osip_transfers.js'),
+            os.path.join(current_app.static_folder, 'css', 'style.css'),
+            os.path.join(current_app.static_folder, 'css', 'sidebar.css'),
+            os.path.join(current_app.static_folder, 'css', 'inline-styles.css'),
+            os.path.join(current_app.static_folder, 'css', 'dashboard.css'),
+            os.path.join(current_app.static_folder, 'scripts.js'),
+            os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_ui.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_flow.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2.js'),
+            os.path.join(current_app.static_folder, 'js', 'agro_warehouse.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'rendering_templates.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'modals.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'sorting.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'rendering_logic.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'zasyp_calculator.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_view.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'operations_history.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'orders.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -417,9 +420,7 @@ def inject_globals():
     except Exception:
         app_version = 'N/A'
 
-    # Increase this number to force browser to reload static files (css/js)
-    static_version = 61
-    return dict(static_version=static_version, app_version=app_version, db_name=active_db)
+    return dict(app_version=app_version, db_name=active_db)
 
 
 def inject_app_into_templates():
@@ -698,7 +699,7 @@ def _fetch_osip_transfers_count():
                 SELECT t.id, t.destination_warehouse,
                        (SELECT COUNT(*) FROM osip_transfer_items ti WHERE ti.transfer_id = t.id AND ti.status != 'RECEIVED') as unreceived_count
                 FROM osip_transfers t
-                WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
+                WHERE t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
             """)
             rows = cursor.fetchall()
             transfers_count = len(rows)

@@ -1,0 +1,13 @@
+{% if sekcja in ['Zasyp','Workowanie','Dashboard'] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cleaning-notifications.css') }}?v={{ static_version }}">
+<details id="cleaningNotifications" class="cleaning-notifications">
+    <summary aria-label="Powiadomienia o czyszczeniu" title="Czyszczenie magnesów i separatorów">
+        <span class="material-icons">notifications</span><span id="cleaningNotificationCount">0</span>
+    </summary>
+    <div class="cleaning-notifications-panel">
+        <strong>Czyszczenie — zadania do potwierdzenia</strong>
+        <div id="magnet-cleaning-alert-container"></div>
+        <div id="separator-cleaning-alert-container"></div>
+    </div>
+</details>
+{% endif %}

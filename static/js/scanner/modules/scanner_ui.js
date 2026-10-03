@@ -179,7 +179,7 @@ function showPallet(p) {
 
   const splitBtn = document.getElementById('scannerSplitBtnContainer');
   if (splitBtn) {
-    const canSplit = !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
+    const canSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
     splitBtn.style.display = canSplit ? 'block' : 'none';
   }
 
@@ -208,6 +208,13 @@ function showPallet(p) {
       scanInput.style.borderColor = '#16a34a';
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#16a34a';
+    } else if (p.receiving_required) {
+      if (mainTitle) mainTitle.textContent = 'Najpierw kliknij Odbierz / Przyjmij na stronie transferów';
+      if (titleIcon) { titleIcon.textContent = 'warning'; titleIcon.style.color = '#d97706'; }
+      scanInput.placeholder = 'Po rozpoczęciu odbioru zeskanuj paletę ponownie...';
+      scanInput.style.borderColor = '#d97706';
+      scanInput.style.borderWidth = '2px';
+      if (iconEl) iconEl.style.color = '#d97706';
     } else if (isTransferOrder) {
       if (mainTitle) mainTitle.textContent = 'Zeskanuj regał docelowy (przyjęcie w locie)';
       if (titleIcon) {

@@ -1,5 +1,7 @@
+# cspell:words putaway
 from app.db import get_db_connection, get_table_name
 import json
+import math
 from datetime import datetime
 import uuid
 import re
@@ -23,7 +25,7 @@ class AcceptanceResult(tuple):
 class AcceptanceService:
 
     @staticmethod
-    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
+    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False):
             def _clean_date(d_str):
                 if not d_str: return None
                 s = str(d_str).strip()
@@ -44,6 +46,11 @@ class AcceptanceService:
                 cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
                 dostawa = cursor.fetchone()
                 if not dostawa: return False, "Nie znaleziono przesunięcia", None
+                actual_status = str(dostawa.get('status') or '').upper()
+                if expected_status and actual_status != expected_status:
+                    return False, 'Status dostawy zmienił się. Odśwież odbiór.', None
+                if actual_status in ('SZKIC','AWIZOWANE','W_STREFIE_PRZYJEC'):
+                    return False, 'Najpierw zakończ przygotowanie dostawy i rozpocznij rozlokowanie.', None
                 if str(dostawa.get('status') or '').upper() in ('CANCELLED', 'COMPLETED'):
                     return False, "Nie można przyjmować pozycji zamkniętego przesunięcia", None
 
@@ -78,6 +85,13 @@ class AcceptanceService:
                 if not target: return False, "Nie znaleziono pozycji", None
                 if target.get('accepted'): return False, "Pozycja już przyjęta", None
                 if target.get('rejected'): return False, "Pozycja została odrzucona", None
+                if actual_status == 'PUTAWAY_IN_PROGRESS' and strict_putaway:
+                    suggested = target.get('putaway_suggested_location')
+                    from app.services.magazyn_dostawy.commands.putaway_suggestion_service import PutawaySuggestionService
+                    valid, error = PutawaySuggestionService.validate_putaway_location(lokalizacja, suggested, strict_mode=True)
+                    if not valid:
+                        return False, error, None
+
 
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
                 if not source_spot:
@@ -182,7 +196,7 @@ class AcceptanceService:
                         is_avail, err_msg = check_rack_location_availability(
                             lokalizacja,
                             current_nr_palety=nr_palety,
-                            product_name=product_name
+                            product_name=product_name, cursor=cursor
                         )
                         if not is_avail:
                             return False, err_msg, None
@@ -201,6 +215,8 @@ class AcceptanceService:
 
                 raw_qty = target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
                 qty = float(raw_qty) if raw_qty else 0.0
+                if not math.isfinite(qty) or (is_external and qty <= 0):
+                    return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
 
                 if is_opk_pkg:
                     cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
@@ -297,6 +313,11 @@ class AcceptanceService:
                      (table_got if p_type == 'wyrob_gotowy' else table_sur))
                 )
                 target['sourcePalletId'] = pallet_id
+                if actual_status == 'PUTAWAY_IN_PROGRESS':
+                    target['putaway_confirmed_location'] = lokalizacja
+                    target['putaway_confirmed_by'] = login
+                    target['putaway_confirmed_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    target['pallet_status'] = 'STORED'
                 target['accepted'] = True
                 target['accepted_by'] = login
                 target['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -315,20 +336,23 @@ class AcceptanceService:
                 is_partial = target.get('is_partial', False)
                 is_return = target.get('is_return', False)
                 if not is_external and source_spot and not is_partial and not is_return:
-                    # ONLY zero the source pallet if it is a DIFFERENT record from the newly created destination pallet
+                    source_table = source_table_hint or (table_opk if is_opk_pkg else
+                        (table_got if p_type == 'wyrob_gotowy' else
+                         ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)))
+                    source_quantity = 'waga_netto' if source_table in allowed_got else 'stan_magazynowy'
+                    # Numeric ids belong to one physical table, never to every stock table.
                     if source_pallet_id and str(source_pallet_id) != str(pallet_id):
-                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        if p_type == 'wyrob_gotowy':
-                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE id = %s", (source_pallet_id,))
+                        cursor.execute(f"UPDATE {source_table} SET {source_quantity}=0 WHERE id=%s AND lokalizacja=%s",
+                                       (source_pallet_id, source_spot))
                     elif not source_pallet_id and source_spot != lokalizacja:
-                        # Fallback for old manual transfers without sourcePalletId
-                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        if p_type == 'wyrob_gotowy':
-                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (source_spot, product_name))
+                        source_name = 'produkt' if source_table in allowed_got else 'nazwa'
+                        cursor.execute(f"SELECT id FROM {source_table} WHERE lokalizacja=%s AND {source_name}=%s AND {source_quantity}>0 FOR UPDATE",
+                                       (source_spot, product_name))
+                        sources = cursor.fetchall()
+                        if len(sources) > 1:
+                            raise ValueError('Wiele palet w lokalizacji źródłowej. Wskaż dokładny kod palety.')
+                        if sources:
+                            cursor.execute(f"UPDATE {source_table} SET {source_quantity}=0 WHERE id=%s", (sources[0]['id'],))
                 
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
@@ -348,7 +372,7 @@ class AcceptanceService:
                     raise RuntimeError("Nie udało się zapisać historii przyjęcia palety")
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
-                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
+                new_status = 'COMPLETED' if all_processed else ('PUTAWAY_IN_PROGRESS' if actual_status == 'PUTAWAY_IN_PROGRESS' else 'OCZEKUJE')
 
                 cursor.execute(
                     """

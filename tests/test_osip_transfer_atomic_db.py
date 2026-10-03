@@ -56,6 +56,7 @@ def test_dispatch_and_receive_commit_all_three_states(transfer_stock):
     stock, status, item = snapshot(transfer.id, code)
     assert stock == ('W_TRANZYCIE_OSIP', 100)
     assert (status, item[0], float(item[1])) == ('IN_TRANSIT','LOADED',100)
+    service.begin_receiving(transfer.id, 'pytest')
     result = service.receive_single_item(transfer.id, code, 'OSIP', 'pytest')
     assert result['completed']
     stock, status, item = snapshot(transfer.id, code)
@@ -68,6 +69,8 @@ def test_header_failure_rolls_back_stock_and_item(transfer_stock, monkeypatch, p
     service, transfer, code = transfer_stock
     if phase != 'dispatch':
         service.dispatch_transfer(transfer.id, [], 'pytest')
+    if phase == 'receive':
+        service.begin_receiving(transfer.id, 'pytest')
     before = snapshot(transfer.id, code)
     def fail(*args, **kwargs):
         raise RuntimeError('Injected header failure')
@@ -94,6 +97,7 @@ def test_partial_weight_does_not_move_entire_pallet(transfer_stock):
 def test_two_receipts_produce_one_state_transition(transfer_stock):
     service, transfer, code = transfer_stock
     service.dispatch_transfer(transfer.id, [], 'pytest')
+    service.begin_receiving(transfer.id, 'pytest')
     def receive(_):
         try:
             return OsipTransferService().receive_single_item(transfer.id,code,'OSIP','pytest')['success']
@@ -107,6 +111,7 @@ def test_two_receipts_produce_one_state_transition(transfer_stock):
 def test_auto_receipt_uses_callers_transaction(transfer_stock):
     service, transfer, code = transfer_stock
     service.dispatch_transfer(transfer.id, [], 'pytest')
+    service.begin_receiving(transfer.id, 'pytest')
     before = snapshot(transfer.id, code)
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -120,6 +125,7 @@ def test_auto_receipt_uses_callers_transaction(transfer_stock):
 def test_receipt_rejects_location_in_wrong_warehouse(transfer_stock):
     service, transfer, code = transfer_stock
     service.dispatch_transfer(transfer.id, [], 'pytest')
+    service.begin_receiving(transfer.id, 'pytest')
     before = snapshot(transfer.id, code)
     with pytest.raises(ValueError,match='docelowego'):
         service.receive_single_item(transfer.id,code,'MS01','pytest')
@@ -157,3 +163,32 @@ def test_create_item_failure_does_not_leave_empty_header(transfer_stock, monkeyp
     cursor.execute('SELECT COUNT(*) FROM osip_transfers')
     assert cursor.fetchone()[0] == before
     conn.close()
+
+
+def test_receipt_requires_explicit_start(transfer_stock):
+    service, transfer, code = transfer_stock
+    service.dispatch_transfer(transfer.id, [], 'pytest')
+    before = snapshot(transfer.id,code)
+    with pytest.raises(ValueError,match='Odbierz'):
+        service.receive_single_item(transfer.id,code,'OSIP','pytest')
+    assert snapshot(transfer.id,code) == before
+    assert service.begin_receiving(transfer.id,'pytest').status == 'RECEIVING'
+
+
+def test_main_scanner_guard_requires_start_and_correct_destination(transfer_stock):
+    service, transfer, code = transfer_stock
+    service.dispatch_transfer(transfer.id, [], 'pytest')
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        with pytest.raises(ValueError,match='Odbierz'):
+            service.require_receiving(cursor,code,'OSIP')
+        conn.rollback()
+        service.begin_receiving(transfer.id,'pytest')
+        with pytest.raises(ValueError,match='docelowego'):
+            service.require_receiving(cursor,code,'MS01')
+        conn.rollback()
+        assert service.require_receiving(cursor,code,'OSIP')
+    finally:
+        conn.rollback()
+        conn.close()

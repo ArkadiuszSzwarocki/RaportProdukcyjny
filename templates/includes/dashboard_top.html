@@ -82,6 +82,7 @@
         </div>
 
         <div class="d-flex align-center gap-12 header-stats">
+            {% include 'dashboard/_cleaning_notifications.html' %}
             {% if sekcja == 'Magazyn' %}
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>

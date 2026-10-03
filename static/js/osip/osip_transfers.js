@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prodDate = p.data_produkcji || p.data_przydatnosci || '';
                     qty = parseFloat(p.stan_magazynowy || p.ilosc_kg || p.amount || p.waga_netto || p.ilosc || p.weight || 1000);
                     palletId = p.id || p.pallet_id || null;
-                    if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT')) {
+                    if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT' || p.transfer.status === 'RECEIVING')) {
                         alert(`Paleta ${code} bierze już udział w aktywnym zleceniu transferu ${p.transfer.transfer_code}!`);
                         _isProcessingScan = false;
                         return;
@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let planned = 0, transit = 0, completed = 0, cancelled = 0;
         transfers.forEach(t => {
             if (t.status === 'PLANNED') planned++;
-            else if (t.status === 'IN_TRANSIT') transit++;
+            else if ((t.status === 'IN_TRANSIT' || t.status === 'RECEIVING')) transit++;
             else if (t.status === 'COMPLETED') completed++;
             else if (t.status === 'CANCELLED') cancelled++;
         });
@@ -464,6 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusBadge = '';
             if (t.status === 'PLANNED') {
                 statusBadge = '<span class="status-pill" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;"><i class="fas fa-clock mr-1"></i> Zaplanowano</span>';
+            } else if (t.status === 'RECEIVING') {
+                statusBadge = '<span class="status-pill">W odbiorze</span>';
             } else if (t.status === 'IN_TRANSIT') {
                 statusBadge = '<span class="status-pill" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;"><i class="fas fa-truck-loading mr-1"></i> W Tranzycie</span>';
             } else if (t.status === 'COMPLETED') {
@@ -518,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                     <button class="btn btn-sm btn-outline-danger font-weight-bold action-cancel-btn" data-id="${t.id}">Anuluj</button>
                 `;
-            } else if (t.status === 'IN_TRANSIT') {
+            } else if ((t.status === 'IN_TRANSIT' || t.status === 'RECEIVING')) {
                 actionsHtml = `
                     <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
                         <i class="fas fa-eye mr-1"></i> Podgląd
@@ -643,6 +645,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const startResponse = await fetch(`/osip/api/transfers/${transfer.id}/begin_receive`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }
+        });
+        const startResult = await startResponse.json();
+        if (!startResponse.ok || !startResult.success) {
+            alert(startResult.message || 'Nie można rozpocząć odbioru.');
+            return;
+        }
+        transfer.status = startResult.status;
         currentReceivingTransfer = transfer;
         scannedItemsState = {};
         (transfer.items || []).forEach(it => {
@@ -1045,7 +1056,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/osip/api/transfers');
             const json = await res.json();
             if (!json.success) return;
-            const inTransit = (json.transfers || []).filter(t => t.status === 'IN_TRANSIT');
+            const inTransit = (json.transfers || []).filter(t => (t.status === 'IN_TRANSIT' || t.status === 'RECEIVING'));
             const banner = document.getElementById('transfers-inbound-banner');
             const bannerText = document.getElementById('transfers-inbound-text');
             if (!banner) return;
@@ -1099,6 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let statusBadge = '';
         if (transfer.status === 'PLANNED') statusBadge = '<span class="badge badge-warning px-3 py-1 font-weight-bold"><i class="fas fa-clock mr-1"></i> Zaplanowano</span>';
+        else if (transfer.status === 'RECEIVING') statusBadge = '<span class="badge badge-warning">W odbiorze</span>';
         else if (transfer.status === 'IN_TRANSIT') statusBadge = '<span class="badge badge-primary px-3 py-1 font-weight-bold"><i class="fas fa-truck-loading mr-1"></i> W Tranzycie</span>';
         else if (transfer.status === 'COMPLETED') statusBadge = '<span class="badge badge-success px-3 py-1 font-weight-bold"><i class="fas fa-check-circle mr-1"></i> Zakończono</span>';
         else if (transfer.status === 'CANCELLED') statusBadge = '<span class="badge badge-danger px-3 py-1 font-weight-bold"><i class="fas fa-times-circle mr-1"></i> Anulowano</span>';

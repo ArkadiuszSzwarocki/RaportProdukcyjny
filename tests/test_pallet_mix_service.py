@@ -1,3 +1,4 @@
+# cspell:words autouse
 """Testy dla PalletMixService - wklejanie, miksowanie surowców i wyrobów gotowych."""
 
 from datetime import datetime
@@ -6,6 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.magazyn_dostawy.pallet_mix_service import PalletMixService, generate_mix_pallet_id
+
+
+@pytest.fixture(autouse=True)
+def isolate_reservation_lookup():
+    # Reservation behavior is verified against real MySQL in the atomic tests.
+    with patch('app.services.magazyn_dostawy.commands.pallet_lock_manager.PalletLockManager.has_protected_block', return_value=False):
+        yield
 
 
 class TestGenerateMixPalletId:

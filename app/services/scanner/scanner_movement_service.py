@@ -1,4 +1,5 @@
 from datetime import datetime
+import math
 from app.db import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
 
 
@@ -40,7 +41,7 @@ class ScannerMovementService:
         pallet_type: str = 'Surowiec',
     ) -> tuple[bool, str, dict | None]:
         """Pobiera `ilosc` kg z palety na stację produkcyjną / do zbiornika."""
-        if ilosc <= 0:
+        if not math.isfinite(ilosc) or ilosc <= 0:
             return False, "Ilość musi być > 0", None
 
         if pallet_type == 'Opakowanie':
@@ -55,7 +56,7 @@ class ScannerMovementService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE id = %s FOR UPDATE",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
@@ -63,7 +64,7 @@ class ScannerMovementService:
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 alt_table = get_table_name('magazyn_opakowania', alt_linia) if pallet_type == 'Opakowanie' else get_table_name('magazyn_surowce', alt_linia)
                 cur.execute(
-                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {alt_table} WHERE id = %s",
+                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {alt_table} WHERE id = %s FOR UPDATE",
                     (surowiec_id,)
                 )
                 alt_pallet = cur.fetchone()
@@ -75,6 +76,12 @@ class ScannerMovementService:
 
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje", None
+
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cur, pallet.get('nr_palety')):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.', None
+            if 'TRANZYCIE' in str(pallet.get('lokalizacja') or '').upper():
+                return False, 'Paleta jest w tranzycie. Najpierw odbierz transfer i odstaw ją na magazyn.', None
 
             if pallet_type == 'Surowiec':
                 from app.utils.surowiec_validator import is_valid_surowiec
@@ -223,6 +230,8 @@ class ScannerMovementService:
                 return False, f"BŁĄD: Surowiec '{pallet.get('nazwa')}' nie istnieje w słowniku surowców. Przesunięcie zablokowane."
 
             nr_p = pallet.get('nr_palety')
+            from app.services.osip_transfer_service import OsipTransferService
+            OsipTransferService.require_receiving(cur, nr_p, nowa_lokalizacja)
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
             in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=surowiec_id, nr_palety=nr_p)
             is_in_transfer_acceptance = bool(in_trf)
@@ -242,7 +251,7 @@ class ScannerMovementService:
             is_loc_available, error_msg = check_rack_location_availability(
                 nowa_lokalizacja,
                 current_nr_palety=pallet.get('nr_palety'),
-                product_name=pallet.get('nazwa')
+                product_name=pallet.get('nazwa'), cursor=cur
             )
             if not is_loc_available:
                 return False, error_msg

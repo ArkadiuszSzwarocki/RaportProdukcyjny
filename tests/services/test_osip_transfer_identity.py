@@ -13,7 +13,7 @@ from app.services import osip_transfer_service as module
 def test_fragment_or_empty_code_cannot_receive_pallet(monkeypatch, code):
     repo = MagicMock()
     repo.get_transfer_by_id.return_value = OsipTransferModel(
-        id=1, status='IN_TRANSIT', items=[OsipTransferItemModel(id=2, nr_palety='SSCC123456789')])
+        id=1, status='RECEIVING', items=[OsipTransferItemModel(id=2, nr_palety='SSCC123456789')])
     connect = MagicMock()
     monkeypatch.setattr(module, 'get_db_connection', connect)
     with pytest.raises(ValueError):

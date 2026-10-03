@@ -1,3 +1,4 @@
+# cspell:words putaway
 """Runtime replacements for legacy print paths that cannot be safely removed at once.
 
 The project still contains large legacy blueprints and services. This module
@@ -252,6 +253,8 @@ def secure_accept_item(
     data_przydatnosci=None,
     printer_ip=None,
     printer_name=None,
+    expected_status=None,
+    strict_putaway=False,
 ):
     """Run legacy acceptance without its insecure HTTP thread, then queue safely."""
     if _ORIGINAL_ACCEPT_ITEM is None:
@@ -267,6 +270,8 @@ def secure_accept_item(
         data_przydatnosci,
         None,
         None,
+        expected_status=expected_status,
+        strict_putaway=strict_putaway,
     )
     try:
         success = bool(result and result[0])

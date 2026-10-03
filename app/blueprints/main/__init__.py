@@ -34,7 +34,7 @@ def agro_measurements():
     helpers = inject_role_permissions()
     group = str(session.get('grupa') or '').upper()
     role = str(session.get('rola') or '').lower()
-    if not helpers['role_has_access']('agro.zasyp'):
+    if not (helpers['role_has_access']('agro.zasyp') or helpers['role_has_access']('agro.dashboard')):
         return jsonify(error='Brak dostępu'), 403
     if group not in {'AGRO', 'ALL', 'ADMIN', 'ZARZAD', 'MASTERADMIN'} and role not in {
         'admin', 'masteradmin', 'zarzad', 'laborant', 'planista'
@@ -185,7 +185,7 @@ def index():
         # Build final context
         from app.services.ipomiar_service import read_dashboard
         context = {
-            'agro_measurements': read_dashboard(dzisiaj) if aktywna_linia == 'AGRO' and aktywna_sekcja.lower() == 'zasyp' else [],
+            'agro_measurements': read_dashboard(dzisiaj) if aktywna_linia == 'AGRO' and aktywna_sekcja.lower() in ('zasyp', 'dashboard') else [],
             'halls_data': halls_data,
             'halls_to_fetch': halls_to_fetch,
             'sekcja': aktywna_sekcja,

@@ -91,7 +91,8 @@ class TestStandardSSCCGeneration(unittest.TestCase):
             None,
         ]
 
-        with patch('app.services.scanner_service.get_db_connection', return_value=mock_conn), \
+        with patch('app.services.magazyn_dostawy.commands.pallet_lock_manager.PalletLockManager.has_quality_or_manual_block', return_value=False), \
+             patch('app.services.scanner_service.get_db_connection', return_value=mock_conn), \
              patch('app.utils.surowiec_validator._load_dictionary_names', return_value=({'lactose'}, {'lactose'})), \
              patch('app.services.warehouse_history.movement_recorder.HistoryIndexer.get_table_columns', return_value={
                  'paleta_id', 'nr_palety', 'linia', 'typ_palety', 'akcja', 'operation_id',

@@ -142,7 +142,7 @@ class PalletMixService:
             komentarz_mix = f"Utworzono MIX z: " + ", ".join([f"{c['weight_to_take']}kg z {c['mother_sscc']}" for c in validated_components])
             PalletSplitService._log_historia(
                 cursor, new_mix_id, linia, 'surowiec', 'MIX_UTWORZENIE',
-                user_login, komentarz_mix, child_lokalizacja, child_lokalizacja
+                user_login, komentarz_mix, child_lokalizacja, child_lokalizacja, nr_palety=new_sscc
             )
             PalletSplitService._log_magazyn_ruch(
                 cursor, linia, new_mix_id, 'MIX_IN', total_weight, total_weight,
@@ -182,7 +182,7 @@ class PalletMixService:
                 
                 PalletSplitService._log_historia(
                     cursor, mother_id, linia_zrodlowa, typ_palety, 'MIX_ODJECIE',
-                    user_login, mother_comment, mother_lokalizacja, mother_lokalizacja
+                    user_login, mother_comment, mother_lokalizacja, mother_lokalizacja, nr_palety=mother_sscc
                 )
                 PalletSplitService._log_magazyn_ruch(
                     cursor, linia_zrodlowa, mother_id, 'MIX_OUT', -weight_to_take, new_weight,

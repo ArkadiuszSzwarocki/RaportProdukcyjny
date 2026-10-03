@@ -410,6 +410,7 @@
                 <button type="button" class="btn btn-outline-secondary active filter-status-btn" data-status="ALL">Wszystkie</button>
                 <button type="button" class="btn btn-outline-warning filter-status-btn" data-status="PLANNED">Zaplanowane</button>
                 <button type="button" class="btn btn-outline-primary filter-status-btn" data-status="IN_TRANSIT">W Tranzycie</button>
+                <button type="button" class="btn btn-outline-primary filter-status-btn" data-status="RECEIVING">W odbiorze</button>
                 <button type="button" class="btn btn-outline-success filter-status-btn" data-status="COMPLETED">Zakończone</button>
             </div>
         </div>
@@ -576,5 +577,5 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/osip/osip_transfers.js') }}?v=1.3.0"></script>
+<script src="{{ url_for('static', filename='js/osip/osip_transfers.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -90,6 +90,12 @@ class PlanningStatusService:
             produkt = res[1] if len(res) > 1 else None
             
             # Set all other plans in this section to zaplanowane (pause them)
+            from app.services.planning.start_guard import guard_section_start
+            blocked = guard_section_start(cursor, table_plan, plan_id, sekcja)
+            if blocked:
+                conn.rollback()
+                conn.close()
+                return False, blocked
             if str(linia).upper() == 'AGRO':
                 cursor.execute(
                     f"UPDATE {table_plan} SET status='zawieszone', "

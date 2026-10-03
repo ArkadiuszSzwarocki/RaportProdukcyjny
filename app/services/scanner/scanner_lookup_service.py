@@ -190,7 +190,7 @@ class ScannerLookupService:
             cursor.execute("""
                 SELECT t.id, t.transfer_code, t.source_warehouse, t.destination_warehouse, t.status, t.created_by, t.created_at
                 FROM osip_transfers t
-                WHERE t.transfer_code = %s AND t.status IN ('PLANNED', 'IN_TRANSIT')
+                WHERE t.transfer_code = %s AND t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
             """, (code_clean,))
             transfer = cursor.fetchone()
 
@@ -199,7 +199,7 @@ class ScannerLookupService:
                     SELECT t.id, t.transfer_code, t.source_warehouse, t.destination_warehouse, t.status, t.created_by, t.created_at
                     FROM osip_transfer_items ti
                     JOIN osip_transfers t ON ti.transfer_id = t.id
-                    WHERE (ti.nr_palety = %s OR (ti.pallet_id = %s AND %s != '0')) AND t.status IN ('PLANNED', 'IN_TRANSIT')
+                    WHERE (ti.nr_palety = %s OR (ti.pallet_id = %s AND %s != '0')) AND ti.status!='RECEIVED' AND t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
                     LIMIT 1
                 """, (code_clean, code_clean if code_clean.isdigit() else 0, code_clean if code_clean.isdigit() else '0'))
                 transfer = cursor.fetchone()

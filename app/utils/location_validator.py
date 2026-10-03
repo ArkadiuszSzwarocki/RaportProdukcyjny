@@ -237,7 +237,7 @@ def is_rack_level_1(location_code):
         return m.group(3) == '01'
     return False
 
-def check_rack_location_availability(location_code, current_nr_palety=None, product_name=None):
+def check_rack_location_availability(location_code, current_nr_palety=None, product_name=None, cursor=None):
     """
     Sprawdza czy miejsce paletowe na regale jest wolne (nie zajęte przez inną paletę).
     Zwraca (is_valid, error_msg).
@@ -252,9 +252,14 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
         return True, None
         
     from app.core.database import get_db_connection
-    conn = get_db_connection()
+    conn = None if cursor is not None else get_db_connection()
     try:
-        cur = conn.cursor(dictionary=True)
+        cur = cursor if cursor is not None else conn.cursor(dictionary=True)
+        # Serialize checks and writes through the shared location dictionary.
+        # The caller holds these row locks until its pallet transaction commits.
+        if cursor is not None:
+            cur.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje ORDER BY nazwa FOR UPDATE")
+            cur.fetchall()
 
         # Jeśli nie podano nazwy produktu, ale podano nr_palety, sprawdź czy to surowiec Hydro
         if not product_name and current_nr_palety:
@@ -265,8 +270,9 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
                     if r_p and r_p.get('nazwa'):
                         product_name = r_p['nazwa']
                         break
-            except Exception:
-                pass
+            except Exception as error:
+                if getattr(error, 'errno', None) != 1146:
+                    raise
 
         is_lvl1 = is_rack_level_1(normalized)
         is_target_hydro = str(product_name or '').strip().lower() == 'hydro'
@@ -289,13 +295,16 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
                 if current_nr_palety:
                     query += " AND (nr_palety IS NULL OR nr_palety != %s)"
                     params.append(str(current_nr_palety).strip())
+                if cursor is not None:
+                    query += ' FOR UPDATE'
                     
                 cur.execute(query, tuple(params))
                 rows = cur.fetchall()
                 if rows:
                     existing_pallets.extend(rows)
-            except Exception:
-                pass
+            except Exception as error:
+                if getattr(error, 'errno', None) != 1146:
+                    raise
 
         if not existing_pallets:
             return True, None
@@ -332,7 +341,8 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
     except Exception as e:
         return False, f"Błąd podczas sprawdzania dostępności lokalizacji: {e}"
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def is_osip_location(location_code):
@@ -389,7 +399,7 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
             SELECT t.id, t.transfer_code, t.status, ti.status as item_status
             FROM osip_transfers t
             JOIN osip_transfer_items ti ON t.id = ti.transfer_id
-            WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
+            WHERE t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
               AND ti.status != 'RECEIVED'
               AND (ti.pallet_id = %s OR (ti.nr_palety IS NOT NULL AND ti.nr_palety != '' AND UPPER(ti.nr_palety) = UPPER(%s)))
             LIMIT 1

@@ -13,7 +13,7 @@ class OsipTransferModel:
     transfer_code: str = ""
     source_warehouse: str = "MS01"
     destination_warehouse: str = "OSIP"
-    status: str = "PLANNED"  # PLANNED, IN_TRANSIT, COMPLETED, CANCELLED
+    status: str = "PLANNED"  # PLANNED, IN_TRANSIT, RECEIVING, COMPLETED, CANCELLED
     created_by: str = ""
     dispatched_by: Optional[str] = None
     completed_by: Optional[str] = None

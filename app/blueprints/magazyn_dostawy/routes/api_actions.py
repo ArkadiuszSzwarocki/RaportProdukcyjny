@@ -17,6 +17,62 @@ import json
 from datetime import datetime
 from ..base import magazyn_dostawy_bp
 
+@magazyn_dostawy_bp.route('/api/draft/check', methods=['POST'])
+def api_draft_check():
+    """Validate sidebar drafts without changing stock or browser data."""
+    from app.core.production_permissions import _page_allowed
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify(success=False), 400
+    drafts = payload.get('drafts', [])
+    if not isinstance(drafts, list) or len(drafts) > 100:
+        return jsonify(success=False), 400
+    counts = {}
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        for draft in drafts:
+            if not isinstance(draft, dict):
+                continue
+            hall = str(draft.get('hall') or '').upper()
+            halls = ('PSD', 'AGRO') if hall == 'ALL' else (hall,)
+            if hall not in ('PSD', 'AGRO', 'OSIP', 'ALL') or not all(
+                    _page_allowed(h, 'magazyn', write=False) for h in halls):
+                continue
+            items = draft.get('items')
+            if not isinstance(items, list) or len(items) > 500:
+                continue
+            document_id = str(draft.get('document_id') or 'new')
+            if document_id != 'new':
+                cursor.execute('SELECT status,linia,items FROM magazyn_dostawy WHERE id=%s', (document_id,))
+                document = cursor.fetchone()
+                if not document or str(document['status']).upper() not in ('SZKIC', 'OCZEKUJE') or str(document['linia']).upper() != hall:
+                    continue
+                processed = {str(item.get('id')) for item in json.loads(document['items'] or '[]')
+                             if item.get('accepted') or item.get('rejected')}
+            else:
+                processed = set()
+            count = 0
+            for item in items:
+                if not isinstance(item, dict) or item.get('accepted') or item.get('rejected') or str(item.get('id')) in processed:
+                    continue
+                code = str(item.get('sourcePalletNo') or item.get('nr_palety') or '').strip()
+                if not code:
+                    continue
+                for table, quantity in (('magazyn_surowce', 'stan_magazynowy'),
+                                        ('magazyn_opakowania', 'stan_magazynowy'),
+                                        ('magazyn_dodatki', 'stan_magazynowy'),
+                                        ('magazyn_palety', 'waga_netto'), ('magazyn_palety_agro', 'waga_netto')):
+                    cursor.execute(f'SELECT lokalizacja FROM {table} WHERE nr_palety=%s AND {quantity}>0 LIMIT 1', (code,))
+                    stock = cursor.fetchone()
+                    if stock and 'TRANZYCIE' not in str(stock['lokalizacja']).upper():
+                        count += 1
+                        break
+            counts[hall] = counts.get(hall, 0) + count
+        return jsonify(success=True, counts=counts)
+    finally:
+        conn.close()
+
 @magazyn_dostawy_bp.route('/api/zapisz', methods=['POST'])
 def zapisz_dostawe():
     success, result = DeliveryCommandService.save_dostawa(request.json, session.get('login', 'system'))
@@ -321,6 +377,7 @@ def api_workflow_awizuj(dostawa_id):
         conn.commit()
         return jsonify({"success": True, "message": "Dostawa awizowana."})
     except Exception as e:
+        conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
@@ -341,7 +398,7 @@ def api_workflow_etykiety(dostawa_id):
     conn = get_db_connection()
     try:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+        cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
         dostawa = cursor.fetchone()
         if not dostawa:
             return jsonify({"success": False, "error": "Nie znaleziono dostawy."}), 404
@@ -438,6 +495,7 @@ def api_workflow_etykiety(dostawa_id):
             "items": items
         })
     except Exception as e:
+        conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
@@ -456,7 +514,7 @@ def api_workflow_putaway(dostawa_id):
     conn = get_db_connection()
     try:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+        cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
         dostawa = cursor.fetchone()
         if not dostawa:
             return jsonify({"success": False, "error": "Nie znaleziono dostawy."}), 404
@@ -498,6 +556,7 @@ def api_workflow_putaway(dostawa_id):
             "items": items
         })
     except Exception as e:
+        conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
@@ -589,68 +648,12 @@ def api_workflow_confirm_putaway(dostawa_id):
         data_produkcji=data.get('data_produkcji'),
         data_przydatnosci=data.get('data_przydatnosci'),
         printer_ip=printer_ip,
-        printer_name=printer_name
+        printer_name=printer_name,
+        expected_status='PUTAWAY_IN_PROGRESS', strict_putaway=strict_mode
     )
 
     if not success:
         return jsonify({"success": False, "error": error}), 400
-
-    # Update item-level putaway fields
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT items, status, linia, strefa_przyjec FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
-        row = cursor.fetchone()
-        if row:
-            items = json.loads(row['items'] or '[]')
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            for it in items:
-                if str(it.get('id')) == str(item_id):
-                    it['putaway_confirmed_location'] = scanned_location
-                    it['putaway_confirmed_by'] = login
-                    it['putaway_confirmed_at'] = now_str
-                    it['pallet_status'] = PalletItemStatus.STORED
-
-                    suggested = it.get('putaway_suggested_location')
-                    if suggested:
-                        loc_valid, loc_warn = PutawaySuggestionService.validate_putaway_location(
-                            scanned_location, suggested, strict_mode=strict_mode
-                        )
-                        if loc_warn:
-                            it['putaway_location_warning'] = loc_warn
-
-                    # Log putaway confirmation
-                    nr_p = it.get('nr_palety')
-                    if nr_p:
-                        linia = row.get('linia') or 'PSD'
-                        cursor.execute(
-                            "INSERT INTO palety_historia (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PUTAWAY_POTWIERDZENIE', %s, %s, %s, %s)",
-                            (nr_p, linia, 'surowiec', 'OCZEKUJĄCE', scanned_location, f"Przesunięcie z bufora OCZEKUJĄCE na {scanned_location}", login)
-                        )
-                    break
-
-            # Check if all items are confirmed → close delivery
-            all_done = all(
-                it.get('putaway_confirmed_at') or it.get('accepted') or it.get('rejected')
-                for it in items
-            )
-            new_status = DeliveryStatus.COMPLETED if all_done else DeliveryStatus.PUTAWAY_IN_PROGRESS
-
-            cursor.execute("""
-                UPDATE magazyn_dostawy SET items = %s, status = %s WHERE id = %s
-            """, (json.dumps(items), new_status, dostawa_id))
-            conn.commit()
-    except Exception as exc:
-        # Do not report a successful putaway when the item state/history could
-        # not be persisted. The physical acceptance is already committed by
-        # AcceptanceService, so surface the inconsistency for retry/recovery.
-        current_app.logger.exception("Putaway metadata update failed for %s/%s", dostawa_id, item_id)
-        return jsonify({
-            "success": False,
-            "error": f"Paleta została przyjęta fizycznie, ale nie zapisano potwierdzenia putaway: {exc}"
-        }), 500
-    finally:
-        conn.close()
 
     return jsonify({
         "success": True,

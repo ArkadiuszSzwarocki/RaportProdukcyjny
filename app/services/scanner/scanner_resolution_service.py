@@ -157,11 +157,15 @@ class ScannerResolutionService:
                 final_res['transfer'] = transfer_info
                 final_res['can_dispatch'] = False
                 final_res['status_pl'] = 'Oczekuje na przyjęcie'
+                if not transfer_info.get('is_magazyn_dostawy'):
+                    final_res['receiving_required'] = transfer_info.get('status') != 'RECEIVING'
+                    final_res['status_info'] = ('Najpierw kliknij Odbierz / Przyjmij na stronie transferów.'
+                                              if final_res['receiving_required'] else 'Odbiór rozpoczęty — zeskanuj regał docelowy.')
                 db_loc = str(final_res.get('lokalizacja') or '').strip()
                 if db_loc == 'W_TRANZYCIE_OSIP':
                     code_tr = transfer_info.get('transfer_code', '')
                     final_res['lokalizacja'] = f"W TRANZYCIE ({code_tr})"
-                    final_res['status_pl'] = 'W tranzycie'
+                    final_res['status_pl'] = 'W odbiorze' if transfer_info.get('status') == 'RECEIVING' else 'W tranzycie'
                 elif transfer_info.get('is_magazyn_dostawy'):
                     src = transfer_info.get('source_warehouse', '')
                     dst = transfer_info.get('destination_warehouse', '')
@@ -222,6 +226,7 @@ class ScannerResolutionService:
                 "item_id": it.get('id'),
                 "dostawa_id": transfer_info.get('id'),
                 "is_transfer": True,
+                "receiving_required": not transfer_info.get('is_magazyn_dostawy') and transfer_info.get('status') != 'RECEIVING',
                 "transfer": transfer_info,
                 "nazwa": p_name,
                 "stan_magazynowy": qty,
@@ -239,7 +244,9 @@ class ScannerResolutionService:
                 "is_used_up": False,
                 "can_dispatch": False,
                 "status_pl": "Oczekuje na przyjęcie",
-                "status_info": f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}" if transfer_info.get('is_magazyn_dostawy') else f"Transfer {transfer_info.get('transfer_code')}: {src} ➔ {dst}"
+                "status_info": f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}" if transfer_info.get('is_magazyn_dostawy') else
+                    ('Odbiór rozpoczęty — zeskanuj regał docelowy.' if transfer_info.get('status') == 'RECEIVING' else
+                     'Najpierw kliknij Odbierz / Przyjmij na stronie transferów.')
             }
 
         bucket_res = ScannerResolutionService._check_bucket(location_code, linia)

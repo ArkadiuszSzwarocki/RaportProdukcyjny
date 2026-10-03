@@ -53,12 +53,17 @@ class DeliverySaveService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT status, items, lokalizacja_z FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
+            cursor.execute("SELECT status, items, lokalizacja_z, supplier, linia FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
             old_data = cursor.fetchone()
             old_status = old_data['status'] if old_data else None
             if old_status in ('COMPLETED', 'CANCELLED'):
                 return False, "Nie można edytować zamkniętego przesunięcia"
             old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
+            if old_data and (bool(old_data.get('supplier')) != is_external or str(old_data.get('linia') or linia).upper() != linia):
+                return False, 'Nie można zmienić rodzaju dostawy ani magazynu przez edycję dokumentu.'
+            if is_external and old_data and old_status not in ('SZKIC','OCZEKUJE'):
+                return False, 'Dostawa jest już w odbiorze; edytuj ją przed awizacją.'
+
 
             # Step 1.5: Walidacja produktów z listy słownikowej
             from app.db import get_table_name
@@ -94,7 +99,7 @@ class DeliverySaveService:
                     it['productName'] = canonical
 
             # Step 2: Restore removed items if editing a pending order
-            if old_status == 'OCZEKUJE' and items is not None:
+            if not is_external and old_status == 'OCZEKUJE' and items is not None:
                 new_ids = {str(it.get('id')) for it in items}
                 removed_items = [
                     old_it for old_it in old_items
@@ -152,8 +157,8 @@ class DeliverySaveService:
             if has_pending:
                 # New external deliveries use WMS 4-step workflow (SZKIC).
                 # Internal transfers and updates to existing orders keep OCZEKUJE.
-                if is_external and not old_data:
-                    final_status = 'SZKIC'
+                if is_external:
+                    final_status = old_status or 'SZKIC'
                 else:
                     final_status = 'OCZEKUJE'
             else:

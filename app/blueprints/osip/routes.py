@@ -11,6 +11,34 @@ warehouse_service = OsipWarehouseService()
 transfer_service = OsipTransferService()
 
 
+@osip_bp.before_request
+def protect_osip_operations():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    if not session.get('login'):
+        return jsonify(success=False, message='Zaloguj się.'), 401
+    from app.core.production_permissions import _page_allowed
+    if request.endpoint in ('osip.api_save_email_settings', 'osip.api_test_email_settings'):
+        from app.decorators import masteradmin_required
+        return masteradmin_required(lambda: None)()
+    if request.view_args and request.view_args.get('transfer_id'):
+        transfer = transfer_service.repository.get_transfer_by_id(request.view_args['transfer_id'])
+        if not transfer:
+            return jsonify(success=False, message='Nie znaleziono transferu.'), 404
+        receiving = request.endpoint in ('osip.begin_receive_api','osip.scan_receive_api','osip.receive_transfer_api')
+        warehouse = transfer.destination_warehouse if receiving else transfer.source_warehouse
+        hall = 'OSIP' if str(warehouse).upper() == 'OSIP' else 'AGRO'
+    elif request.endpoint == 'osip.create_transfer_api':
+        payload = request.get_json(silent=True) or {}
+        source = str(payload.get('source_warehouse') or 'MS01').upper()
+        hall = 'OSIP' if source == 'OSIP' else 'AGRO'
+    else:
+        hall = 'OSIP'
+    if not _page_allowed(hall, 'magazyn', write=True):
+        return jsonify(success=False, message='Brak uprawnień do operacji w tym magazynie.'), 403
+    return None
+
+
 @osip_bp.route('/warehouse', methods=['GET'])
 @login_required
 def warehouse_view():
@@ -193,6 +221,16 @@ def receive_transfer_api(transfer_id):
         return jsonify({"success": True, "message": f"Przyjęto transfer {transfer.transfer_code}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 400
+
+
+@osip_bp.route('/api/transfers/<transfer_id>/begin_receive', methods=['POST'])
+@login_required
+def begin_receive_api(transfer_id):
+    try:
+        transfer = transfer_service.begin_receiving(transfer_id, session.get('login'))
+        return jsonify(success=True, status=transfer.status)
+    except Exception as error:
+        return jsonify(success=False, message=str(error)), 400
 
 
 @osip_bp.route('/api/transfers/<transfer_id>/scan_receive', methods=['POST'])

@@ -199,6 +199,8 @@ class WarehouseV2Service:
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
+            from app.services.osip_transfer_service import OsipTransferService
+            receiving_transfer = OsipTransferService.require_receiving(cursor, nr_palety, new_location)
             actual_pallet_id = int(row['id'])
             mother_sscc = nr_palety
             
@@ -233,7 +235,7 @@ class WarehouseV2Service:
                 is_loc_available, loc_error_msg = check_rack_location_availability(
                     new_location,
                     current_nr_palety=nr_palety,
-                    product_name=p_name_reloc
+                    product_name=p_name_reloc, cursor=cursor
                 )
                 if not is_loc_available:
                     return False, loc_error_msg
@@ -244,6 +246,8 @@ class WarehouseV2Service:
                 return False, "Ilość do przeniesienia musi być większa od zera."
                 
             from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+            if receiving_transfer and abs(amount_to_move - qty) > 0.001:
+                return False, 'Transfer trzeba przyjąć jako pełną paletę.', None
             is_split = amount_to_move < qty
             if not is_split:
                 # Cała paleta przenoszona
@@ -451,11 +455,21 @@ class WarehouseV2Service:
                 col_qty = 'waga_netto'
 
             # 1. Pobierz dane
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (pallet_id,))
             p = cursor.fetchone()
             if not p:
                 return False, "Paleta nie znaleziona."
             
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            from app.utils.location_validator import is_osip_location
+            if str(linia).upper() == 'OSIP' and not is_osip_location(p.get('lokalizacja')):
+                return False, 'Paleta nie znajduje się w magazynie OSIP.'
+            if str(linia).upper() != 'OSIP' and is_osip_location(p.get('lokalizacja')):
+                return False, 'Wydaj paletę z panelu magazynu OSIP.'
+            if not math.isfinite(float(p.get(col_qty) or 0)) or float(p.get(col_qty) or 0) <= 0 or 'OCZEK' in str(p.get('lokalizacja') or '').upper() or 'TRANZYCIE' in str(p.get('lokalizacja') or '').upper():
+                return False, 'Paleta jest zużyta albo oczekuje na odbiór.'
+            if PalletLockManager.has_protected_block(cursor, p.get('nr_palety')):
+                return False, 'Paleta jest zablokowana albo zarezerwowana w otwartym dokumencie.'
             if p.get('is_blocked'):
                 return False, "NIE MOŻNA WYDAĆ ZABLOKOWANEJ PALETY!"
             
@@ -474,11 +488,14 @@ class WarehouseV2Service:
                     "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'WYDANIE', %s, 'EXPEDITION', %s, %s)",
                     (pallet_id, p.get('nr_palety'), linia, pallet_type.lower(), p.get('lokalizacja'), f"Wydanie palety z {p.get('lokalizacja')}", worker_login)
                 )
-            except Exception as e:
-                print("Błąd zapisu historii:", e)
+            except Exception:
+                raise
 
             conn.commit()
             return True, "Paleta została wydana i zarchiwizowana."
+        except Exception as error:
+            conn.rollback()
+            return False, f'Nie udało się wydać palety: {error}'
         finally:
             conn.close()
 

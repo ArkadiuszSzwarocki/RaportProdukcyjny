@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 from app.repositories.osip_transfer_repository import OsipTransferRepository
 from app.models.osip_transfer_model import OsipTransferModel
 from app.core.database import get_db_connection
+from app.utils.location_validator import is_osip_location
 from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 
@@ -94,13 +95,18 @@ class OsipTransferService:
             from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
             if PalletLockManager.has_quality_or_manual_block(cursor, row['nr_palety']):
                 raise ValueError('Paleta posiada blokadę LAB lub ręczną')
+        if action in ('PRZYJECIE', 'TRANSFER_CANCEL'):
+            from app.utils.location_validator import check_rack_location_availability
+            available, error = check_rack_location_availability(new_location, row['nr_palety'], cursor=cursor)
+            if not available:
+                raise ValueError(error)
         if action == 'PRZYJECIE':
             destination_osip = str(transfer.destination_warehouse or '').upper().startswith('OS')
-            if destination_osip != str(new_location).upper().startswith('OS'):
+            if destination_osip != is_osip_location(new_location):
                 raise ValueError('Lokalizacja nie należy do magazynu docelowego transferu')
         if action == 'TRANSFER':
             source_osip = str(transfer.source_warehouse or '').upper().startswith('OS')
-            if source_osip != str(row.get('lokalizacja') or '').upper().startswith('OS'):
+            if source_osip != is_osip_location(row.get('lokalizacja')):
                 raise ValueError('Paleta nie znajduje się w magazynie źródłowym transferu')
             if row.get('is_blocked'):
                 raise ValueError("Paleta jest zablokowana; nie można jej załadować")
@@ -204,11 +210,45 @@ class OsipTransferService:
         cursor.execute("UPDATE osip_transfer_items SET status='RECEIVED' WHERE id=%s AND transfer_id=%s",
                        (self._value(item, 'id'), transfer.id))
 
+    def begin_receiving(self, transfer_id, user_login):
+        """Record the receiver's explicit start before any pallet can be accepted."""
+        conn = get_db_connection()
+        try:
+            transfer = self._locked_transfer(conn, transfer_id, ('IN_TRANSIT', 'RECEIVING'))
+            if transfer.status == 'IN_TRANSIT':
+                self.repository.update_transfer_status(transfer.id, 'RECEIVING', user_login, external_conn=conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return self.repository.get_transfer_by_id(transfer.id)
+
+    @staticmethod
+    def require_receiving(cursor, pallet_code, target_location=None):
+        """Protect generic moves as well as the dedicated receiving API."""
+        cursor.execute("SELECT t.id,t.transfer_code,t.status,t.destination_warehouse FROM osip_transfers t "
+                       "JOIN osip_transfer_items ti ON ti.transfer_id=t.id "
+                       "WHERE UPPER(TRIM(ti.nr_palety))=%s AND ti.status!='RECEIVED' "
+                       "AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') FOR UPDATE",
+                       (str(pallet_code or '').strip().upper(),))
+        transfers = cursor.fetchall()
+        if len(transfers) > 1:
+            raise ValueError('Paleta należy do kilku aktywnych transferów; wyjaśnij dokumenty przed odbiorem.')
+        if transfers and transfers[0]['status'] != 'RECEIVING':
+            raise ValueError(f"Transfer {transfers[0]['transfer_code']}: najpierw kliknij Odbierz / Przyjmij na stronie transferów.")
+        if transfers and target_location:
+            from app.utils.location_validator import is_osip_location
+            if (str(transfers[0]['destination_warehouse']).upper() == 'OSIP') != is_osip_location(target_location):
+                raise ValueError('Odstaw paletę do magazynu docelowego tego transferu.')
+        return bool(transfers)
+
     def receive_transfer(self, transfer_id: Any, target_locations: Dict[Any, str], user_login: str) -> OsipTransferModel:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            transfer = self._locked_transfer(conn, transfer_id, ('PLANNED', 'IN_TRANSIT'))
+            transfer = self._locked_transfer(conn, transfer_id, ('RECEIVING',))
             for item in self._extract_items(transfer):
                 location = None
                 for key in ('id', 'pallet_id', 'nr_palety'):
@@ -231,13 +271,13 @@ class OsipTransferService:
     def receive_single_item(self, transfer_id: Any, pallet_code: str, target_location: str, user_login: str) -> Dict[str, Any]:
         # Early validation gives a clear response without opening a write transaction.
         transfer = self.repository.get_transfer_by_id(transfer_id)
-        if not transfer or transfer.status not in ('PLANNED', 'IN_TRANSIT'):
-            raise ValueError("Nie można przyjąć zamkniętego transferu")
+        if not transfer or transfer.status != 'RECEIVING':
+            raise ValueError("Najpierw kliknij Odbierz / Przyjmij na stronie transferów.")
         self._match_item(transfer, pallet_code)
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            transfer = self._locked_transfer(conn, transfer_id, ('PLANNED', 'IN_TRANSIT'))
+            transfer = self._locked_transfer(conn, transfer_id, ('RECEIVING',))
             item = self._match_item(transfer, pallet_code)
             location = str(target_location or transfer.destination_warehouse).strip().upper()
             self._receive_item(cursor, conn, transfer, item, location, user_login)
@@ -263,13 +303,13 @@ class OsipTransferService:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            transfer = self._locked_transfer(conn, transfer_id, ('PLANNED', 'IN_TRANSIT', 'CANCELLED'))
+            transfer = self._locked_transfer(conn, transfer_id, ('PLANNED', 'IN_TRANSIT', 'RECEIVING', 'CANCELLED'))
             if transfer.status == 'CANCELLED':
                 return transfer
             for item in self._extract_items(transfer):
                 if self._value(item, 'status') == 'RECEIVED':
                     continue
-                if transfer.status == 'IN_TRANSIT' and self._value(item, 'status') == 'LOADED':
+                if transfer.status in ('IN_TRANSIT', 'RECEIVING') and self._value(item, 'status') == 'LOADED':
                     self._move_stock(cursor, conn, transfer, item, transfer.source_warehouse, user_login, 'TRANSFER_CANCEL')
                 cursor.execute("UPDATE osip_transfer_items SET status='CANCELLED' WHERE id=%s AND transfer_id=%s",
                                (self._value(item, 'id'), transfer.id))
@@ -303,13 +343,13 @@ class OsipTransferService:
                 SELECT ti.id, ti.transfer_id FROM osip_transfer_items ti
                 JOIN osip_transfers t ON t.id=ti.transfer_id
                 WHERE (UPPER(TRIM(ti.nr_palety))=%s OR (ti.pallet_id=%s AND %s!=0))
-                AND t.status IN ('PLANNED','IN_TRANSIT') AND ti.status!='RECEIVED'
+                AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') AND ti.status!='RECEIVED'
             """, (code, numeric_id, numeric_id))
             candidates = cursor.fetchall()
             if len(candidates) != 1:
                 return False, 'Brak jednoznacznej pozycji transferu'
             service = OsipTransferService()
-            transfer = service._locked_transfer(conn, candidates[0]['transfer_id'], ('PLANNED','IN_TRANSIT'))
+            transfer = service._locked_transfer(conn, candidates[0]['transfer_id'], ('RECEIVING',))
             item = service._match_item(transfer, code)
             table, qty_column, _ = service._stock_spec(item)
             cursor.execute(f"SELECT id,lokalizacja,{qty_column} AS quantity FROM {table} "
@@ -318,7 +358,7 @@ class OsipTransferService:
             row = cursor.fetchone()
             if not row or str(row.get('lokalizacja') or '').upper() != location or float(row.get('quantity') or 0) <= 0:
                 return False, 'Paleta nie została odstawiona na wskazaną lokalizację'
-            if str(transfer.destination_warehouse or '').upper().startswith('OS') != location.startswith('OS'):
+            if str(transfer.destination_warehouse or '').upper().startswith('OS') != is_osip_location(location):
                 return False, 'Paleta nie trafiła do magazynu docelowego transferu'
             cursor.execute("UPDATE osip_transfer_items SET status='RECEIVED' WHERE id=%s AND transfer_id=%s",
                            (service._value(item,'id'), transfer.id))
@@ -371,7 +411,7 @@ class OsipTransferService:
 
             if t.status == "PLANNED" and user_branch == source_branch:
                 filtered.append(t)
-            elif t.status == "IN_TRANSIT" and user_branch == dest_branch:
+            elif t.status in ("IN_TRANSIT", "RECEIVING") and user_branch == dest_branch:
                 filtered.append(t)
             elif t.status in ("COMPLETED", "CANCELLED") and (user_branch in (source_branch, dest_branch)):
                 filtered.append(t)

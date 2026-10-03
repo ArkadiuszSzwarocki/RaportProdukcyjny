@@ -89,7 +89,7 @@ class PalletLockManager:
             return True
         number = str(number or '').strip().upper()
         cursor.execute("SELECT items FROM magazyn_dostawy WHERE status IN "
-                       "('OCZEKUJE','IN_PROGRESS','OPEN','W_STREFIE_PRZYJEC','PUTAWAY_IN_PROGRESS') "
+                       "('SZKIC','AWIZOWANE','OCZEKUJE','IN_PROGRESS','OPEN','W_STREFIE_PRZYJEC','PUTAWAY_IN_PROGRESS') "
                        "AND (%s IS NULL OR id<>%s)", (exclude_delivery_id, exclude_delivery_id))
         for delivery in cursor.fetchall():
             raw = delivery.get('items') or []
@@ -103,7 +103,7 @@ class PalletLockManager:
                 if nr == number and not (item.get('accepted') or item.get('rejected') or item.get('putaway_confirmed_at')):
                     return True
         cursor.execute("SELECT ti.id FROM osip_transfer_items ti JOIN osip_transfers t ON ti.transfer_id=t.id "
-                       "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT') "
+                       "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') "
                        "AND ti.status NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (number,))
         return bool(cursor.fetchone())
 
@@ -160,7 +160,7 @@ class PalletLockManager:
         """
         Reconciles orphaned pallet locks:
         Pallets marked as is_blocked = 1 that are NOT part of any active in-flight transfer
-        (status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS'))
+        (status IN ('SZKIC', 'AWIZOWANE', 'OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS'))
         and were NOT manually blocked by quality/user are unblocked (is_blocked = 0).
         """
         import json
@@ -177,7 +177,7 @@ class PalletLockManager:
             # 1. Collect all active in-flight pallet IDs and numbers from active orders
             cursor.execute("""
                 SELECT items FROM magazyn_dostawy 
-                WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
+                WHERE status IN ('SZKIC', 'AWIZOWANE', 'OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
             """)
             active_orders = cursor.fetchall()
             active_pids = set()

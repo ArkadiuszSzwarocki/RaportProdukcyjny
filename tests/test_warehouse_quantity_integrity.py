@@ -35,6 +35,7 @@ def test_same_physical_pallet_cannot_create_double_weight_mix(monkeypatch):
            'waga': 500, 'stan_magazynowy': 500, 'lokalizacja': 'MS01'}
     monkeypatch.setattr('app.services.magazyn_dostawy.pallet_mix_service.get_db_connection', lambda: conn)
     monkeypatch.setattr(PalletSplitService, 'find_by_sscc', lambda code: pal)
+    monkeypatch.setattr('app.services.magazyn_dostawy.commands.pallet_lock_manager.PalletLockManager.has_protected_block', lambda *args, **kwargs: False)
     conn.cursor.return_value.fetchone.side_effect = [pal, None, pal, None]
     ok, message, _ = PalletMixService.mix_pallets([
         {'nr_palety': 'P1', 'weight_to_take': 100},

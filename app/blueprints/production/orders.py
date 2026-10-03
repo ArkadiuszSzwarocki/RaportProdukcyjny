@@ -83,6 +83,11 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     typ_opakowania = ''
 
                 is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+                from app.services.planning.start_guard import guard_section_start
+                blocked = guard_section_start(cursor, table_plan, id, sekcja)
+                if blocked:
+                    flash(blocked, 'error')
+                    return redirect(bezpieczny_powrot())
                 is_big_bag = (
                     str(typ_opakowania or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or
                     str(typ or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or

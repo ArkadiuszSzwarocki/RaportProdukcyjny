@@ -355,29 +355,42 @@
         updateSidebarDraftBadges();
     };
 
-    function updateSidebarDraftBadges() {
-        const draftsByHall = {};
+    let draftCheckBusy = false;
+    let lastDraftFingerprint = '';
+    let lastDraftCheck = 0;
+    async function updateSidebarDraftBadges() {
+        if (draftCheckBusy) return;
+        const drafts = [];
         try {
             for (let i = 0; i < window.localStorage.length; i++) {
-                const k = window.localStorage.key(i);
-                if (k && k.startsWith('magazyn_dostawy_draft_')) {
-                    const match = k.match(/^magazyn_dostawy_draft_([^_]+)_/);
-                    const draftHall = match ? match[1].toUpperCase() : 'ALL';
-                    const raw = window.localStorage.getItem(k);
-                    if (raw) {
-                        const draft = JSON.parse(raw);
-                        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
-                            const validItems = draft.items.filter(it => Boolean(it && (it.nr_palety || it.sourcePalletNo || it.productName || parseFloat(it.quantity) > 0)));
-                            if (validItems.length > 0) {
-                                draftsByHall[draftHall] = (draftsByHall[draftHall] || 0) + validItems.length;
-                            }
-                        }
-                    }
+                const key = window.localStorage.key(i);
+                const match = key && key.match(/^magazyn_dostawy_draft_([^_]+)_(.+)$/);
+                if (!match) continue;
+                const draft = JSON.parse(window.localStorage.getItem(key));
+                if (draft && Array.isArray(draft.items) && draft.items.length) {
+                    drafts.push({hall: match[1].toUpperCase(), document_id: match[2], items: draft.items});
                 }
             }
-        } catch (e) {
-            // silent
-        }
+        } catch (_) { return; }
+        const fingerprint = JSON.stringify(drafts);
+        if (fingerprint === lastDraftFingerprint && Date.now() - lastDraftCheck < 30000) return;
+        draftCheckBusy = true;
+        let draftsByHall = {};
+        try {
+            if (drafts.length) {
+                const response = await fetch('/magazyn-dostawy/api/draft/check', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({drafts})
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (!data.success) return;
+                draftsByHall = data.counts || {};
+            }
+            lastDraftFingerprint = fingerprint;
+            lastDraftCheck = Date.now();
+        } catch (_) { return; }
+        finally { draftCheckBusy = false; }
 
         const draftBadges = document.querySelectorAll('.nav-draft-badge');
         draftBadges.forEach(badge => {

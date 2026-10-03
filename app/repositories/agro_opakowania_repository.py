@@ -4,6 +4,7 @@ import datetime
 import os
 import re
 
+logger = logging.getLogger(__name__)
 _DODATEK_NAME_REGEX = re.compile(r'DODATEK')
 
 def _normalize_tank_code(value):

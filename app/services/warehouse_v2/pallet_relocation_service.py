@@ -177,6 +177,10 @@ class PalletRelocationService:
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
+            from app.services.osip_transfer_service import OsipTransferService
+            osip_receiving = OsipTransferService.require_receiving(cursor, nr_palety, new_location)
+            if osip_receiving and amount_to_move is not None and abs(amount_to_move - qty) > 0.001:
+                return False, 'Odbiór transferu obejmuje pełny stan palety.', None
 
             if pallet_type == 'Surowiec':
                 from app.utils.surowiec_validator import is_valid_surowiec
@@ -209,7 +213,7 @@ class PalletRelocationService:
                 is_loc_available, loc_error_msg = check_rack_location_availability(
                     new_location,
                     current_nr_palety=nr_palety,
-                    product_name=p_name_reloc
+                    product_name=p_name_reloc, cursor=cursor
                 )
                 if not is_loc_available:
                     return False, loc_error_msg, None
