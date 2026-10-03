@@ -141,60 +141,42 @@ class BucketMaluchService:
             conn.close()
 
     @classmethod
-    def get_station_material(cls, stacja_kod: str, linia: str = 'PSD') -> str:
-        """Finds current raw material assigned to the given station (KO01-KO40)."""
-        norm_station = cls.normalize_station_code(stacja_kod)
-        if not norm_station:
-            return ""
-
+    def get_assigned_station_materials(cls, linia: str = 'PSD') -> Dict[str, str]:
+        """Resolve configured assignments and current stock, never historical names."""
+        line = str(linia or '').strip().upper()
+        if line not in {'PSD', 'AGRO'}:
+            return {}
+        materials = {}
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
-            # 1. Check magazyn_surowce
-            table_sur = get_table_name('magazyn_surowce', linia)
-            cur.execute(
-                f"SELECT nazwa FROM {table_sur} WHERE (lokalizacja = %s OR lokalizacja = %s) AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) ORDER BY updated_at DESC, id DESC LIMIT 1",
-                (norm_station, norm_station.lower())
-            )
-            row = cur.fetchone()
-            if row and row.get('nazwa'):
-                return str(row['nazwa']).strip()
-
-            # 2. Check alternative line
-            alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
-            alt_table = get_table_name('magazyn_surowce', alt_linia)
-            cur.execute(
-                f"SELECT nazwa FROM {alt_table} WHERE (lokalizacja = %s OR lokalizacja = %s) AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) ORDER BY updated_at DESC, id DESC LIMIT 1",
-                (norm_station, norm_station.lower())
-            )
-            row = cur.fetchone()
-            if row and row.get('nazwa'):
-                return str(row['nazwa']).strip()
-
-            # 3. Check magazyn_ruch / magazyn_agro_ruch
-            table_ruch = get_table_name('magazyn_ruch', linia)
-            cur.execute(
-                f"SELECT surowiec_nazwa FROM {table_ruch} WHERE (zbiornik = %s OR lokalizacja = %s) AND surowiec_nazwa IS NOT NULL AND surowiec_nazwa != '' ORDER BY id DESC LIMIT 1",
-                (norm_station, norm_station)
-            )
-            row_ruch = cur.fetchone()
-            if row_ruch and row_ruch.get('surowiec_nazwa'):
-                return str(row_ruch['surowiec_nazwa']).strip()
-
-            # 4. Check wiaderka_maluchy_pozycje history
-            cur.execute(
-                "SELECT surowiec_nazwa FROM wiaderka_maluchy_pozycje WHERE stacja_kod = %s AND surowiec_nazwa NOT LIKE 'Surowiec ze stacji%%' ORDER BY id DESC LIMIT 1",
-                (norm_station,)
-            )
-            row_hist = cur.fetchone()
-            if row_hist and row_hist.get('surowiec_nazwa'):
-                return str(row_hist['surowiec_nazwa']).strip()
-
-            return f"Surowiec ze stacji {norm_station}"
+            cur.execute("SELECT kod_zbiornika, nazwa_surowca FROM konfiguracja_zbiornikow WHERE is_active=1")
+            assignments = [(row.get('kod_zbiornika'), row.get('nazwa_surowca')) for row in cur.fetchall()]
+            table = get_table_name('magazyn_surowce', line)
+            cur.execute(f"SELECT lokalizacja, nazwa FROM {table} WHERE stan_magazynowy>0 AND UPPER(linia)=%s ORDER BY id DESC", (line,))
+            assignments.extend((row.get('lokalizacja'), row.get('nazwa')) for row in cur.fetchall())
+            from app.services.agro.agro_tanks_service import AgroTanksService
+            snapshot = AgroTanksService.get_production_inventory_snapshot(linia=line, show_empty=False)
+            assignments.extend((row.get('zbiornik'), row.get('surowiec_nazwa') or row.get('nazwa'))
+                               for row in snapshot if float(row.get('stan_systemowy') or 0) > 0)
+            for code, name in assignments:
+                station = cls.normalize_station_code(code)
+                material = str(name or '').strip()
+                if station and cls.VALID_STATION_REGEX.fullmatch(station) and material and material != '-' and not material.lower().startswith('surowiec ze stacji'):
+                    materials.setdefault(station, material)
+            return materials
         except Exception:
-            return f"Surowiec ze stacji {norm_station}"
+            # No verified assignment means no ingredient can be added.
+            return {}
         finally:
             conn.close()
+
+    @classmethod
+    def get_station_material(cls, stacja_kod: str, linia: str = 'PSD') -> str:
+        station = cls.normalize_station_code(stacja_kod)
+        if not station:
+            return ''
+        return cls.get_assigned_station_materials(linia).get(station, '')
 
     @classmethod
     def add_item_to_bucket(
@@ -217,10 +199,14 @@ class BucketMaluchService:
         if not norm_station or not cls.VALID_STATION_REGEX.match(norm_station):
             return False, f"Nieprawidłowy kod stacji/zbiornika: {stacja_kod}. Dozwolone: KO01-KO40, BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24", None
 
-        # Automatically resolve raw material name from station if not provided or placeholder
-        if not surowiec_nazwa or not surowiec_nazwa.strip():
-            bucket_linia = bucket.get('linia') or linia
-            surowiec_nazwa = cls.get_station_material(norm_station, bucket_linia)
+        # The browser cannot supply an assignment or override the stored material.
+        bucket_linia = bucket.get('linia') or linia
+        assigned_material = cls.get_station_material(norm_station, bucket_linia)
+        if not assigned_material:
+            return False, f"Stacja {norm_station} nie ma przypisanego surowca. Nie dodano jej do wiadra.", None
+        if surowiec_nazwa and str(surowiec_nazwa).strip() != assigned_material:
+            return False, f"Surowiec nie odpowiada przypisaniu stacji {norm_station}. Zeskanuj stację ponownie.", None
+        surowiec_nazwa = assigned_material
 
         try:
             waga_float = float(str(waga).replace(',', '.')) if waga else 0.0

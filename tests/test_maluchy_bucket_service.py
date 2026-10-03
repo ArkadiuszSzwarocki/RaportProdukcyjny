@@ -17,7 +17,11 @@ def app():
 
 
 @pytest.fixture
-def test_plan_with_szarza():
+def test_plan_with_szarza(monkeypatch):
+    # Lifecycle checks use explicitly assigned stations; assignment rejection
+    # is covered separately in test_bucket_station_assignments.py.
+    materials = {'KO01': 'Premiks Witaminowy A', 'KO40': 'Premiks Mineralny B', 'KO35': 'Sól mikro'}
+    monkeypatch.setattr(BucketMaluchService, 'get_station_material', lambda code, line: materials.get(code, ''))
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     
@@ -229,7 +233,7 @@ def test_maluchy_api(app, test_plan_with_szarza):
     # Test rejecting 2nd bucket into same szarza
     resp_start2 = client.post('/maluchy/api/start', json={'kod_wiadra': '09', 'plan_id': plan_id, 'linia': 'PSD'})
     b2_id = resp_start2.get_json()['bucket']['id']
-    client.post('/maluchy/api/item/add', json={'bucket_id': b2_id, 'stacja_kod': 'KO01', 'surowiec_nazwa': 'Sól'})
+    client.post('/maluchy/api/item/add', json={'bucket_id': b2_id, 'stacja_kod': 'KO01', 'surowiec_nazwa': 'Premiks Witaminowy A'})
     client.post('/maluchy/api/complete', json={'bucket_id': b2_id})
     resp_dump2 = client.post('/maluchy/api/dump-to-mixer', json={
         'kod_wiadra': '09',

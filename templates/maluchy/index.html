@@ -493,7 +493,9 @@
                 <label class="m-label" style="font-size: 11px; color: #64748b;">Lub wybierz dotykowo zbiornik z listy:</label>
                 <div class="m-stations-grid">
                     {% for st in ko_stations %}
-                    <button type="button" class="m-st-btn" data-stacja="{{ st }}">{{ st }}</button>
+                    <button type="button" class="m-st-btn" data-stacja="{{ st }}" title="{{ station_materials[st] }}">{{ st }}</button>
+                    {% else %}
+                    <p class="text-muted">Brak stacji KO z przypisanym surowcem. Uzupełnij przypisania zbiorników.</p>
                     {% endfor %}
                 </div>
             </div>

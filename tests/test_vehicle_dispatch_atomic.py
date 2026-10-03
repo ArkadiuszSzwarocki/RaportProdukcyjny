@@ -1,3 +1,4 @@
+# cspell:words lastrowid
 """Real database rollback and canonical pallet validation for external dispatches."""
 import uuid
 from unittest.mock import MagicMock, patch
