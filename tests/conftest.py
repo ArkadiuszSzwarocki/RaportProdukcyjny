@@ -178,6 +178,18 @@ def runner(app):
 
 
 @pytest.fixture
+def authorized_workowanie_plan():
+    """An existing AGRO order and a page grant for production workflow tests."""
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.return_value = ('Workowanie',)
+    with patch('app.core.production_permissions.get_db_connection', return_value=connection), patch(
+            'app.core.contexts.inject_role_permissions', return_value={
+                'role_has_access': lambda page: page == 'agro.workowanie',
+                'role_is_readonly': lambda page: False}):
+        yield
+
+
+@pytest.fixture
 def mock_db_connection():
     """Create a mock database connection."""
     mock_conn = MagicMock()

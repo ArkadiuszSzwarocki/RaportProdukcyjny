@@ -89,9 +89,17 @@ def register_function_permissions(app):
         app.extensions['function_permission_catalog'] = function_catalog()
     @app.before_request
     def enforce_function_permissions():
-        if not session.get('zalogowany') or session.get('rola') == 'masteradmin':
+        if not session.get('zalogowany'):
             return None
         key = 'function.' + str(request.endpoint or '')
+        if session.get('rola') != 'masteradmin' and key in function_catalog() and configured_function_permission() is False:
+            return jsonify(success=False, error='forbidden', message='Brak uprawnień do tej funkcji.'), 403
+        from app.core.production_permissions import enforce_production_write
+        production_denial = enforce_production_write()
+        if production_denial is not None:
+            return production_denial
+        if session.get('rola') == 'masteradmin':
+            return None
         if request.endpoint == 'main.index':
             from app.core.contexts import inject_role_permissions
             helpers = inject_role_permissions()
@@ -103,8 +111,9 @@ def register_function_permissions(app):
             return None
         if key not in function_catalog():
             return None
-        if configured_function_permission() is False:
-            return jsonify(success=False, error='forbidden', message='Brak uprawnień do tej funkcji.'), 403
+        if str(request.endpoint or '').startswith('production.'):
+            # Production guards already resolved the actual resource/default destination.
+            return None
         section = request.args.get('sekcja') or request.form.get('sekcja')
         if request.method not in {'GET', 'HEAD', 'OPTIONS'} and section in {'Zasyp', 'Workowanie', 'Bufor', 'Magazyn'}:
             from app.core.contexts import inject_role_permissions

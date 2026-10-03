@@ -1,4 +1,5 @@
 """Tests for authentication and authorization."""
+# cspell:words autouse delenv
 
 import pytest
 from unittest.mock import patch
@@ -15,11 +16,11 @@ class TestAuthentication:
         assert response.status_code in [302, 401]
     
     def test_authenticated_access_allowed(self, authenticated_client):
-        """Test that authenticated users can access protected routes."""
-        response = authenticated_client.get('/')
-        
-        # Should either render or fail gracefully, not redirect to login
-        assert response.status_code in [200, 302, 500]
+        """Authentication alone does not grant access to a denied dashboard."""
+        with patch('app.core.contexts.inject_role_permissions', return_value={
+                'role_has_access': lambda key: False, 'role_is_readonly': lambda key: False}):
+            response = authenticated_client.get('/')
+        assert response.status_code == 403
     
     def test_session_persistent(self, authenticated_client):
         """Test that session persists across requests."""
@@ -52,17 +53,12 @@ class TestRoleBasedAccess:
     
     def test_shift_closing_requires_lider(self, authenticated_client, lider_client, admin_client):
         """Test that shift closing requires lider or admin role."""
-        # Regular worker should be forbidden or redirected
-        response = authenticated_client.post('/zamknij_zmiane')
-        assert response.status_code in [200, 302, 401, 403, 404, 500]
-        
-        # Lider should be able to attempt
-        response = lider_client.post('/zamknij_zmiane')
-        assert response.status_code in [200, 302, 401, 403, 404, 500]
-        
-        # Admin should be able to attempt
-        response = admin_client.post('/zamknij_zmiane')
-        assert response.status_code in [200, 302, 401, 403, 404, 500]
+        with authenticated_client.session_transaction() as state:
+            state['rola'] = 'pracownik'
+        with patch('app.blueprints.main.reporting.get_db_connection') as connection:
+            response = authenticated_client.post('/zamknij_zmiane')
+        assert response.status_code == 403
+        connection.assert_not_called()
 
 
 class TestSessionData:
@@ -208,6 +204,17 @@ class TestAuthenticationFlow:
 
 class TestPublicPrinterServerStart:
     """Tests for starting printer server from login screen."""
+
+    @pytest.fixture(autouse=True)
+    def configured_control_pin(self, monkeypatch):
+        monkeypatch.setenv('PRINTER_SERVER_START_PIN', '0606')
+
+    def test_missing_control_pin_denies_start(self, client, monkeypatch):
+        monkeypatch.delenv('PRINTER_SERVER_START_PIN', raising=False)
+        with patch('app.blueprints.routes_auth._start_printer_server') as start:
+            response = client.post('/api/printer-server/start', json={'pin': '0606'})
+        assert response.status_code == 503
+        start.assert_not_called()
 
     def test_login_page_contains_printer_server_button(self, client):
         response = client.get('/login')

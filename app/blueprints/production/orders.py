@@ -1,7 +1,7 @@
 import glob
 import logging
 import os
-from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import current_app, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
@@ -406,7 +406,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             wyjasnienie = request.form.get('wyjasnienie')
             uszkodzone_worki = request.form.get('uszkodzone_worki')
             odrzuty_przesiewacz = request.form.get('odrzuty_przesiewacz')
-            sekcja = request.form.get('sekcja')
+            sekcja = getattr(g, 'production_section', None) or request.form.get('sekcja')
             linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
             table_plan = get_table_name('plan_produkcji', linia)
 
@@ -658,7 +658,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         """Zapisz wyjaśnienie rozbieżności"""
         conn = get_db_connection()
         try:
-            linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+            linia = getattr(g, 'production_line', None) or request.args.get('linia') or request.form.get('linia', 'PSD')
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
             cursor.execute(f"UPDATE {table_plan} SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))

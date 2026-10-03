@@ -1,6 +1,19 @@
 import pytest
+# cspell:words autouse
 from datetime import date
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def authorized_zasyp_resource():
+    """Service-flow tests start with an existing plan and an explicit page grant."""
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.return_value = ('Zasyp',)
+    with patch('app.core.production_permissions.get_db_connection', return_value=connection), patch(
+            'app.core.contexts.inject_role_permissions', return_value={
+                'role_has_access': lambda page: page in {'agro.zasyp', 'psd.zasyp'},
+                'role_is_readonly': lambda page: False}):
+        yield
 
 
 @pytest.mark.usefixtures("app")

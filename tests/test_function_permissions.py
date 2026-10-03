@@ -16,6 +16,10 @@ class FunctionPermissionsTests(unittest.TestCase):
         self.app.add_url_rule('/action', endpoint='production.start_zlecenie', view_func=lambda: 'changed', methods=['POST'])
         self.app.add_url_rule('/read', endpoint='production.api_poll_zwolnienie', view_func=lambda: 'read')
         self.app.add_url_rule('/ack', endpoint='production.api_ack_zwolnienie', view_func=lambda: 'ack', methods=['POST'])
+        # These tests isolate configurable function ACLs; resource guards have their own tests.
+        self.resource_patch = patch('app.core.production_permissions.enforce_production_write', return_value=None)
+        self.resource_patch.start()
+        self.addCleanup(self.resource_patch.stop)
         register_function_permissions(self.app)
         self.client = self.app.test_client()
         with self.client.session_transaction() as state:
@@ -74,9 +78,9 @@ class AdditionalFunctionPermissionsTests(FunctionPermissionsTests):
             self.assertEqual(self.client.post('/action').data, b'changed')
 
     def test_readonly_page_blocks_write(self):
+        # Resource/page denial is authoritative even when the function itself is granted.
         with patch('app.core.function_permissions.configured_function_permission', return_value=True), patch(
-            'app.core.contexts.inject_role_permissions', return_value={
-                'role_has_access': lambda key: True, 'role_is_readonly': lambda key: True}):
+            'app.core.production_permissions.enforce_production_write', return_value=('denied', 403)):
             self.assertEqual(self.client.post('/action', data={'sekcja':'Zasyp','linia':'AGRO'}).status_code, 403)
 
     def test_masteradmin_cannot_be_locked_out(self):

@@ -40,7 +40,8 @@ def test_missing_status_does_not_report_ok():
     sock.recv.return_value = b''
     assert server.sprawdz_stan_fizyczny_zebra(sock)[0] is False
 
-def test_target_refuses_to_send_when_counter_is_unsupported():
+def test_target_refuses_to_send_when_counter_is_unsupported(monkeypatch):
+    monkeypatch.setenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160')
     sock = MagicMock()
     sock.__enter__.return_value = sock
     with patch.object(server.socket, 'create_connection', return_value=sock), \
@@ -50,7 +51,8 @@ def test_target_refuses_to_send_when_counter_is_unsupported():
             server.wyslij_do_drukarki('^XA^PQ2^XZ', '192.168.1.160')
     sock.sendall.assert_not_called()
 
-def test_target_sends_once_and_waits_for_two_labels():
+def test_target_sends_once_and_waits_for_two_labels(monkeypatch):
+    monkeypatch.setenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160')
     sock = MagicMock()
     sock.__enter__.return_value = sock
     with patch.object(server.socket, 'create_connection', return_value=sock), \
@@ -60,6 +62,17 @@ def test_target_sends_once_and_waits_for_two_labels():
         assert server.wyslij_do_drukarki('^XA^PQ2^XZ', '192.168.1.160')
     wait.assert_called_once_with(sock, 100, 2)
     sock.sendall.assert_called_once()
+
+
+def test_unconfigured_counter_target_does_not_claim_physical_confirmation(monkeypatch):
+    monkeypatch.setenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '')
+    with patch.dict(server.app.config, {'TESTING': True}), patch.object(
+            server, '_resolve_zpl_target', return_value=('192.168.1.160', None)), patch.object(
+            server, 'wyslij_do_drukarki', return_value=True):
+        result = server.app.test_client().post('/drukuj-zpl', json={'dane': '^XA^FDtest^FS^XZ'})
+    assert result.status_code == 200
+    assert result.get_json()['confirmation'] == 'sent'
+    assert result.get_json()['copies'] is None
 
 def test_bridge_confirmation_reaches_job_message():
     from app.services.print_server import PrintServer

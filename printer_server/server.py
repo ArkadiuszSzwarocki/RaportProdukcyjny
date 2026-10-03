@@ -274,7 +274,7 @@ def wyslij_do_drukarki(zpl, ip, port=None, timeout=None, retries=None, retry_del
                 send_started = False
                 try:
                     with socket.create_connection((ip_str, int(target_port)), timeout=tcp_timeout) as sock:
-                        verified_targets = {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160').split(',') if value.strip()}
+                        verified_targets = {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '').split(',') if value.strip()}
                         verify_count = ip_str in verified_targets
                         if verify_count:
                             status = read_host_status(sock)
@@ -439,7 +439,7 @@ def drukuj_zpl():
         if len(zpl.encode('utf-8')) > MAX_ZPL_BYTES:
             return jsonify({'success': False, 'message': 'ZPL jest zbyt duży.'}), 413
         wyslij_do_drukarki(zpl, target_ip, printer_name=printer_name)
-        verified = target_ip in {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '192.168.1.160').split(',')}
+        verified = target_ip in {value.strip() for value in os.getenv('PRINTER_VERIFY_LABEL_COUNT_IPS', '').split(',') if value.strip()}
         return jsonify({'success': True, 'confirmation': 'label_counter' if verified else 'sent', 'copies': expected_copies(zpl) if verified else None})
     except PrintOutcomeUnknown as exc:
         return jsonify({'success': False, 'outcome_unknown': True, 'message': str(exc)}), 409

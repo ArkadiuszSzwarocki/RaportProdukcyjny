@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-@pytest.mark.usefixtures("app")
+@pytest.mark.usefixtures("app", "authorized_workowanie_plan")
 class TestSuspendOrderFlow:
     @patch("app.services.planning.status.get_table_name", return_value="plan_produkcji_agro")
     @patch("app.services.planning.status.get_db_connection")
