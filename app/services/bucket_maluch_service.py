@@ -289,15 +289,16 @@ class BucketMaluchService:
 
     @classmethod
     def delete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
-        """Deletes a bucket in progress or completed before dumping, or force deletes if requested."""
+        """Delete unused fillings only; consumed fillings are production history."""
         bucket = BucketMaluchRepository.find_by_id(bucket_id)
         if not bucket:
             return False, "Wiadro nie istnieje"
-        if bucket['status'] == 'wrzucone_do_mieszalnika' and not force:
+        if bucket['status'] == 'wrzucone_do_mieszalnika':
             return False, "Nie można usunąć wiadra, które zostało już wsypane do mieszalnika!"
 
         kod = bucket.get('kod_wiadra', '')
-        BucketMaluchRepository.delete_bucket(bucket_id)
+        if not BucketMaluchRepository.delete_bucket(bucket_id):
+            return False, 'Nie usunięto wiadra. Sprawdź jego aktualny status.'
         return True, f"Usunięto wiadro {kod}"
 
     @classmethod

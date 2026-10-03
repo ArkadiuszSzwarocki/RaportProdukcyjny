@@ -53,15 +53,19 @@ def test_dispatch_pallet_to_vehicle_missing_data():
     assert success is False
     assert "Wymagany jest numer palety" in msg
 
+    repo = MagicMock()
+    repo.find_pallet_by_code.return_value = None
+    service = WarehouseDispatchService(repository=repo)
     success, msg = service.dispatch_pallet_to_vehicle({'nr_palety': 'PAL-101'}, 'magazynier1')
     assert success is False
-    assert "Wymagana jest nazwa produktu" in msg
+    assert 'Nie znaleziono' in msg
 
 
-def test_dispatch_pallet_to_vehicle_success_with_stock_deduct():
+@patch('app.services.lab_quality_service.LabQualityService.check_pallet_lab_status', return_value={'is_blocked': False})
+def test_dispatch_pallet_to_vehicle_success_with_stock_deduct(mock_quality):
     repo = MagicMock()
-    repo.create_dispatch.return_value = 42
-    repo.deduct_pallet_stock.return_value = True
+    repo.dispatch_batch.return_value = [42]
+    repo.find_pallet_by_code.return_value = {'id': 15, 'nr_palety': 'PAL-101', 'nazwa': 'Kwas Cytrynowy', 'stan_magazynowy': 500, 'typ': 'Surowiec', 'linia': 'AGRO', 'src_table': 'magazyn_agro_surowce'}
     service = WarehouseDispatchService(repository=repo)
 
     payload = {
@@ -81,14 +85,9 @@ def test_dispatch_pallet_to_vehicle_success_with_stock_deduct():
     success, msg = service.dispatch_pallet_to_vehicle(payload, 'magazynier1')
     assert success is True
     assert "ID #42" in msg
-    repo.create_dispatch.assert_called_once()
-    repo.deduct_pallet_stock.assert_called_once_with(
-        pallet_id=15,
-        typ_palety='Surowiec',
-        linia='AGRO',
-        ilosc_kg=500.0,
-        src_table=None
-    )
+    repo.dispatch_batch.assert_called_once()
+    assert repo.dispatch_batch.call_args.args[0][0]['src_table'] == 'magazyn_agro_surowce'
+
 
 
 def test_get_dispatches_history_with_tuples():
@@ -122,8 +121,10 @@ def test_get_dispatches_history_with_dicts():
 @patch('app.services.lab_quality_service.LabQualityService.check_pallet_lab_status', return_value={'is_blocked': False})
 def test_dispatch_pallets_batch_to_vehicle(mock_quality):
     repo = MagicMock()
-    repo.create_dispatch.side_effect = [101, 102]
-    repo.deduct_pallet_stock.return_value = True
+    repo.dispatch_batch.return_value = [101, 102]
+    repo.find_pallet_by_code.side_effect = [
+        {'id': 1, 'nr_palety': 'PAL-01', 'nazwa': 'P1', 'stan_magazynowy': 1000, 'typ': 'Wyrób Gotowy', 'linia': 'PSD', 'src_table': 'magazyn_palety'},
+        {'id': 2, 'nr_palety': 'PAL-02', 'nazwa': 'P2', 'stan_magazynowy': 500, 'typ': 'Surowiec', 'linia': 'AGRO', 'src_table': 'magazyn_agro_surowce'}]
     service = WarehouseDispatchService(repository=repo)
 
     payload = {
@@ -138,8 +139,8 @@ def test_dispatch_pallets_batch_to_vehicle(mock_quality):
     success, msg = service.dispatch_pallet_to_vehicle(payload, 'magazynier1')
     assert success is True
     assert "Zarejestrowano załadunek 2 palet" in msg
-    assert repo.create_dispatch.call_count == 2
-    assert repo.deduct_pallet_stock.call_count == 2
+    repo.dispatch_batch.assert_called_once()
+    assert len(repo.dispatch_batch.call_args.args[0]) == 2
 
 
 def test_group_dispatches_by_wz():

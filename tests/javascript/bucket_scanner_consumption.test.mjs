@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-test('rescanning a consumed filling clears the scanner card and reports consumption', () => {
+test('scanning a consumed filling again clears the scanner card and reports consumption', () => {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, { style: {}, classList: { remove() {} }, focus() {}, dispatchEvent() {} });

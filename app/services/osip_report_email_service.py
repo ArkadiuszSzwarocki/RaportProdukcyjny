@@ -180,7 +180,9 @@ class OsipReportEmailService:
             try:
                 pdf_path = WarehousePdfReportBuilder.generate_transfer_pdf(transfer)
                 pdf_filename = f"Raport_Transferu_{code}.pdf"
-                attachments = [(pdf_path, pdf_filename)] if pdf_path else []
+                if not pdf_path or not os.path.isfile(pdf_path):
+                    return False, "Nie wygenerowano załącznika PDF. Raport nie został wysłany."
+                attachments = [(pdf_path, pdf_filename)]
                 ok, msg = WarehouseReportMailer.send_raw_email(config, recipients, subject, body_html, attachments=attachments)
                 if ok:
                     conn = get_db_connection()
@@ -270,7 +272,9 @@ class OsipReportEmailService:
             try:
                 pdf_path = WarehousePdfReportBuilder.generate_delivery_pdf(dostawa, items)
                 pdf_filename = f"{'Dostawa_WZ' if is_external else 'Przesuniecie_MM'}_{ref}.pdf"
-                attachments = [(pdf_path, pdf_filename)] if pdf_path else []
+                if not pdf_path or not os.path.isfile(pdf_path):
+                    return False, "Nie wygenerowano załącznika PDF. Raport nie został wysłany."
+                attachments = [(pdf_path, pdf_filename)]
 
                 ok, msg = WarehouseReportMailer.send_raw_email(config, recipients, subject, body_html, attachments=attachments)
                 if ok:
@@ -342,7 +346,9 @@ class OsipReportEmailService:
                         tr_dict['items'] = doc.get('raw_items', [])
                         doc_pdf = WarehousePdfReportBuilder.generate_transfer_pdf(tr_dict)
 
-                    if doc_pdf and os.path.exists(doc_pdf):
+                    if not doc_pdf or not os.path.isfile(doc_pdf):
+                        return False, "Nie wygenerowano kompletu załączników PDF. Raport nie został wysłany."
+                    if doc_pdf and os.path.isfile(doc_pdf):
                         temp_files_to_cleanup.append(doc_pdf)
                         display_name = doc.get('pdf_filename') or os.path.basename(doc_pdf)
                         attachments.append((doc_pdf, display_name))

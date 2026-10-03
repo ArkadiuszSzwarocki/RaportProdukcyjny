@@ -239,10 +239,18 @@ class BucketMaluchRepository:
         conn = get_db_connection()
         try:
             cur = conn.cursor()
+            cur.execute("SELECT status FROM wiaderka_maluchy WHERE id = %s FOR UPDATE", (bucket_id,))
+            row = cur.fetchone()
+            if not row or row[0] not in ('w_trakcie_nawazania', 'skompletowane'):
+                conn.rollback()
+                return False
             cur.execute("DELETE FROM wiaderka_maluchy_pozycje WHERE wiaderko_id = %s", (bucket_id,))
             cur.execute("DELETE FROM wiaderka_maluchy WHERE id = %s", (bucket_id,))
             conn.commit()
             return cur.rowcount > 0
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 

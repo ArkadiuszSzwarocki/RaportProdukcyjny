@@ -1,4 +1,4 @@
-# cspell:words sscc
+# cspell:words sscc zaladunki
 """Denied warehouse mutations must not reach a state-changing service."""
 from unittest.mock import MagicMock, patch
 import pytest
@@ -39,6 +39,30 @@ def test_readonly_page_blocks_json_write(warehouse_context):
     helpers['role_is_readonly'] = lambda key: True
     assert post_move(client).status_code == 403
     move.assert_not_called()
+
+
+def test_truck_dispatch_cannot_bypass_hall_permission(warehouse_context):
+    client, _, _, _ = warehouse_context
+    with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle') as dispatch:
+        assert client.post('/warehouse-v2/api/zaladunki/dispatch', json={'linia': 'AGRO'}).status_code == 403
+    dispatch.assert_not_called()
+
+
+def test_readonly_truck_history_is_filtered_and_dispatch_denied(warehouse_context):
+    client, _, helpers, _ = warehouse_context
+    helpers['role_is_readonly'] = lambda key: True
+    with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.get_dispatches_history', return_value=[]) as history, patch(
+            'app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle') as dispatch:
+        assert client.get('/warehouse-v2/api/zaladunki/history?linia=PSD').status_code == 200
+        history.assert_called_once_with(limit=200, linia='PSD')
+        assert client.post('/warehouse-v2/api/zaladunki/dispatch', json={'linia': 'PSD'}).status_code == 403
+    dispatch.assert_not_called()
+
+
+def test_truck_lookup_checks_actual_pallet_hall(warehouse_context):
+    client, _, _, _ = warehouse_context
+    with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.lookup_pallet_for_dispatch', return_value={'linia': 'AGRO'}):
+        assert client.get('/warehouse-v2/api/zaladunki/lookup-pallet?linia=PSD&code=TEST').status_code == 403
 
 
 def test_order_creation_denied_without_section(warehouse_context):

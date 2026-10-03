@@ -1,4 +1,4 @@
-# cspell:words sscc
+# cspell:words sscc zaladunki
 """Authorize warehouse pallet mutations independently of optional UI fields."""
 from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
@@ -10,6 +10,19 @@ def _deny(message='Brak uprawnień do operacji magazynowej.', status=403):
 
 
 def enforce_warehouse_write():
+    if request.endpoint in {'warehouse_v2.zaladunki_view', 'warehouse_v2.api_lookup_pallet',
+                            'warehouse_v2.api_dispatch_vehicle', 'warehouse_v2.api_dispatch_history'}:
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return _deny('Nieprawidłowe dane załadunku.', 400)
+        line = str(data.get('linia') or request.args.get('linia') or 'AGRO').strip().upper()
+        if line not in {'PSD', 'AGRO', 'OSIP'}:
+            return _deny()
+        if data.get('linia') and request.args.get('linia') and str(request.args['linia']).upper() != line:
+            return _deny('Sprzeczne wskazanie hali.')
+        if not _page_allowed(line, 'magazyn', write=request.endpoint == 'warehouse_v2.api_dispatch_vehicle'):
+            return _deny()
+        return None
     if str(request.endpoint or '').startswith('warehouse_v2.api_orders'):
         # Match the orders handlers' hall resolver, independently of optional UI fields.
         line = str(request.args.get('linia') or session.get('grupa') or 'AGRO').upper()

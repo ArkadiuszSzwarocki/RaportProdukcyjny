@@ -4,6 +4,8 @@ from flask import current_app, request, session, jsonify, render_template
 # Deliberate operator actions only. Polling, lookups and automatic acknowledgements
 # must never become configurable function restrictions.
 OPERATOR_ACTIONS = {
+    'warehouse_v2.api_dispatch_vehicle': 'Wydanie palet na samochód',
+    'maluchy.api_delete_bucket': 'Usunięcie niezużytego wiadra',
     'production.start_zlecenie': 'Rozpoczęcie zlecenia',
     'production.koniec_zlecenie': 'Zakończenie zlecenia',
     'production.zawies_zlecenie': 'Wstrzymanie zlecenia',

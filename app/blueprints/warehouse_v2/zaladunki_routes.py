@@ -8,6 +8,7 @@ from flask import render_template, request, jsonify, session
 from app.blueprints.warehouse_v2.blueprint import warehouse_v2_bp
 from app.services.warehouse_dispatch_service import WarehouseDispatchService
 from app.decorators import login_required
+from app.core.production_permissions import _page_allowed
 
 dispatch_service = WarehouseDispatchService()
 
@@ -53,8 +54,10 @@ def api_lookup_pallet():
             'success': False,
             'duplicate_sscc': True,
             'message': f'BŁĄD integralności danych: SSCC "{code}" występuje w więcej niż jednym magazynie. Wydanie zablokowane.',
-            'matches': pallet.get('matches', []),
         }), 409
+
+    if not _page_allowed(str(pallet.get('linia') or '').upper(), 'magazyn', write=False):
+        return jsonify({'success': False, 'message': 'Brak uprawnień do magazynu tej palety.'}), 403
 
     return jsonify({
         'success': True,
@@ -77,6 +80,7 @@ def api_dispatch_vehicle():
 @login_required
 def api_dispatch_history():
     """API do pobierania aktualnej historii wydań zewnętrznych."""
-    raw_history = dispatch_service.get_dispatches_history(limit=200)
+    linia = str(request.args.get('linia') or 'AGRO').upper()
+    raw_history = dispatch_service.get_dispatches_history(limit=200, linia=linia)
     history_grouped = dispatch_service.group_dispatches_by_wz(raw_history)
     return jsonify({'success': True, 'history': raw_history, 'grouped': history_grouped})

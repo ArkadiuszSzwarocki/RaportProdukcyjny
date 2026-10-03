@@ -11,7 +11,7 @@ from app.db_tables import resolve_table_name as get_table_name
 class WarehouseDispatchRepository:
     """Repozytorium do obsługi wyjazdów i wydań na samochód."""
 
-    def create_dispatch(self, data):
+    def create_dispatch(self, data, external_conn=None):
         """Rejestruje nowe wydanie zewnętrzne na samochód.
 
         Args:
@@ -21,7 +21,7 @@ class WarehouseDispatchRepository:
         Returns:
             int: ID utworzonego rekordu wydania.
         """
-        conn = get_db_connection()
+        conn = external_conn or get_db_connection()
         try:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -42,14 +42,104 @@ class WarehouseDispatchRepository:
                     data.get('magazynier'),
                     data.get('linia', 'AGRO')
                 ))
-                conn.commit()
+                if external_conn is None:
+                    conn.commit()
                 return cursor.lastrowid
         finally:
-            if conn:
+            if conn and external_conn is None:
                 try:
                     conn.close()
                 except Exception:
                     pass
+
+    def dispatch_batch(self, entries):
+        """Lock stock and atomically record all WZ documents and ledger movements."""
+        import math
+        from flask import has_request_context
+        from app.core.production_permissions import _page_allowed
+        from app.repositories.warehouse_movement_ledger_repository import WarehouseMovementLedgerRepository
+        stock_columns = {
+            'magazyn_palety': 'waga_netto', 'magazyn_palety_agro': 'waga_netto',
+            'palety_workowanie': 'COALESCE(waga_potwierdzona, waga, 0)',
+            'palety_agro': 'COALESCE(waga_potwierdzona, waga, 0)',
+            'magazyn_surowce': 'stan_magazynowy', 'magazyn_agro_surowce': 'stan_magazynowy',
+            'magazyn_opakowania': 'stan_magazynowy', 'magazyn_agro_opakowania': 'stan_magazynowy',
+            'magazyn_dodatki': 'stan_magazynowy', 'magazyn_osip_items': 'COALESCE(waga, ilosc, 0)',
+        }
+        if not entries or any(entry.get('src_table') not in stock_columns for entry in entries):
+            raise ValueError('Unsupported stock source')
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            seen = set()
+            for entry in sorted(entries, key=lambda item: (item['src_table'], int(item['pallet_id']))):
+                table, pallet_id = entry['src_table'], int(entry['pallet_id'])
+                if (table, pallet_id) in seen:
+                    raise ValueError('Duplicate pallet')
+                seen.add((table, pallet_id))
+                stock = stock_columns[table]
+                cursor.execute(f'SELECT *, {stock} AS available_stock FROM {table} WHERE id=%s FOR UPDATE', (pallet_id,))
+                row = cursor.fetchone()
+                if not row:
+                    raise ValueError('Missing pallet')
+                if row.get('is_blocked') or row.get('is_loaded') or str(row.get('status') or '').lower() in {'wydana', 'zablokowana'}:
+                    raise ValueError('Unavailable pallet')
+                fixed_line = ('OSIP' if table == 'magazyn_osip_items' else 'AGRO' if table in
+                              {'magazyn_palety_agro', 'palety_agro', 'magazyn_agro_surowce', 'magazyn_agro_opakowania'} else
+                              'PSD' if table == 'palety_workowanie' else None)
+                line = str(fixed_line or row.get('linia') or ('PSD' if table == 'magazyn_palety' else 'AGRO')).upper()
+                if line not in {'PSD', 'AGRO', 'OSIP'} or line != str(entry['linia']).upper() or (has_request_context() and not _page_allowed(line, 'magazyn', write=True)):
+                    raise ValueError('Wrong warehouse')
+                if row.get('nr_palety') and str(row['nr_palety']).upper() != str(entry['nr_palety']).upper():
+                    raise ValueError('Changed pallet label')
+                quantity, available = float(entry['ilosc_kg']), float(row.get('available_stock') or 0)
+                if not math.isfinite(quantity) or not math.isfinite(available) or quantity <= 0 or quantity > available:
+                    raise ValueError('Insufficient stock')
+                batch = str(row.get('nr_partii') or entry.get('batch') or '').strip().upper()
+                if entry.get('required_batch') and batch != entry['required_batch']:
+                    raise ValueError('Changed batch')
+                cursor.execute("SELECT id FROM lab_blokady WHERE pallet_code=%s AND status='BLOKADA_LAB' FOR UPDATE",
+                               (str(entry['nr_palety']).upper(),))
+                if cursor.fetchall():
+                    raise ValueError('LAB hold')
+                remaining = available - quantity
+                if table in {'palety_workowanie', 'palety_agro'}:
+                    cursor.execute(f"UPDATE {table} SET waga=%s, waga_potwierdzona=IF(waga_potwierdzona IS NULL,NULL,%s), status=IF(%s=0,'wydana',status) WHERE id=%s",
+                                   (remaining, remaining, remaining, pallet_id))
+                elif table in {'magazyn_palety', 'magazyn_palety_agro'}:
+                    cursor.execute(f'UPDATE {table} SET waga_netto=%s, is_loaded=IF(%s=0,1,is_loaded) WHERE id=%s',
+                                   (remaining, remaining, pallet_id))
+                elif table == 'magazyn_osip_items':
+                    cursor.execute('UPDATE magazyn_osip_items SET waga=IF(waga IS NULL,NULL,%s), ilosc=GREATEST(0,COALESCE(ilosc,0)-%s) WHERE id=%s',
+                                   (remaining, quantity, pallet_id))
+                else:
+                    cursor.execute(f'UPDATE {table} SET stan_magazynowy=%s WHERE id=%s', (remaining, pallet_id))
+                if cursor.rowcount != 1:
+                    raise ValueError('Stock update failed')
+            ids = []
+            for entry in entries:
+                dispatch_id = self.create_dispatch(entry, external_conn=conn)
+                if not dispatch_id:
+                    raise ValueError('WZ insert failed')
+                movement_id = WarehouseMovementLedgerRepository.record_movement(
+                    movement_type='WZ', pallet_id=entry['pallet_id'], pallet_code=entry['nr_palety'],
+                    product_name=entry['nazwa_produktu'], batch_number=entry.get('batch') or '',
+                    source_location=f"MAGAZYN_{entry['linia']}",
+                    target_location=f"SAMOCHOD_{entry.get('nr_rejestracyjny') or 'WZ'}",
+                    quantity=entry['ilosc_kg'], unit='szt' if entry['typ_palety'] == 'Opakowanie' else 'kg',
+                    user_login=entry['magazynier'], reference_id=entry.get('nr_dokumentu_wz') or str(dispatch_id),
+                    external_conn=conn)
+                if not movement_id:
+                    raise ValueError('Ledger insert failed')
+                ids.append(dispatch_id)
+            cursor.close()
+            conn.commit()
+            return ids
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def get_recent_dispatches(self, limit=50, linia=None):
         """Pobiera listę ostatnich wydań zewnętrznych na samochód filtrowaną wg linii.
@@ -330,58 +420,6 @@ class WarehouseDispatchRepository:
                     int(row.get('id') or 0),
                 ), reverse=True)
                 return candidates[0]
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-
-    def deduct_pallet_stock(self, pallet_id, typ_palety, linia, ilosc_kg, src_table=None):
-        """Zmniejsza stan magazynowy palety lub zeruje go po wydaniu na samochód.
-
-        Args:
-            pallet_id (int): ID palety.
-            typ_palety (str): Typ palety ('Surowiec', 'Opakowanie', 'Wyrób Gotowy', itp.).
-            linia (str): Linia magazynowa ('AGRO', 'PSD').
-            ilosc_kg (float): Wydana ilość w kg.
-            src_table (str, optional): Nazwa tabeli źródłowej jeśli znana.
-
-        Returns:
-            bool: True jeśli stan został zaktualizowany.
-        """
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cursor:
-                if src_table in ('magazyn_palety', 'magazyn_palety_agro'):
-                    cursor.execute(f"""
-                        UPDATE {src_table}
-                        SET waga_netto = GREATEST(0, waga_netto - %s), is_loaded = 1
-                        WHERE id = %s
-                    """, (float(ilosc_kg), pallet_id))
-                elif src_table in ('palety_workowanie', 'palety_agro'):
-                    cursor.execute(f"""
-                        UPDATE {src_table}
-                        SET waga = GREATEST(0, waga - %s), status = 'wydana'
-                        WHERE id = %s
-                    """, (float(ilosc_kg), pallet_id))
-                elif src_table == 'magazyn_osip_items':
-                    cursor.execute("""
-                        UPDATE magazyn_osip_items
-                        SET ilosc = GREATEST(0, ilosc - %s), waga = GREATEST(0, waga - %s)
-                        WHERE id = %s
-                    """, (float(ilosc_kg), float(ilosc_kg), pallet_id))
-                else:
-                    tbl_name = src_table or ('magazyn_opakowania' if typ_palety == 'Opakowanie' else ('magazyn_dodatki' if typ_palety == 'Dodatek' else 'magazyn_surowce'))
-                    cursor.execute(f"""
-                        UPDATE {tbl_name}
-                        SET stan_magazynowy = GREATEST(0, stan_magazynowy - %s)
-                        WHERE id = %s
-                    """, (float(ilosc_kg), pallet_id))
-                conn.commit()
-                return cursor.rowcount > 0
-        except Exception:
-            return False
         finally:
             if conn:
                 try:
