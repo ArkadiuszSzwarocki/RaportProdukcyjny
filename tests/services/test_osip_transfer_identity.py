@@ -40,6 +40,7 @@ def test_partial_cancel_does_not_pull_received_pallet_back(monkeypatch):
             OsipTransferItemModel(id=2, pallet_id=11, status='RECEIVED'),
             OsipTransferItemModel(id=3, pallet_id=12, status='LOADED')])
     conn = MagicMock()
+    conn.cursor.return_value.fetchall.return_value = []
     monkeypatch.setattr(module, 'get_db_connection', lambda: conn)
     move = MagicMock()
     monkeypatch.setattr(module.OsipTransferService, '_move_stock', move)
@@ -47,7 +48,8 @@ def test_partial_cancel_does_not_pull_received_pallet_back(monkeypatch):
     move.assert_called_once()
     assert move.call_args.args[3].pallet_id == 12
     assert move.call_args.args[4] == 'MS01'
-    assert [call.args[1] for call in conn.cursor.return_value.execute.call_args_list] == [(3, 1)]
+    assert [call.args[1] for call in conn.cursor.return_value.execute.call_args_list
+            if call.args[0].startswith('UPDATE osip_transfer_items')] == [(3, 1)]
     repo.update_transfer_status.assert_called_once_with(1, 'CANCELLED', 'user', external_conn=conn)
 
 

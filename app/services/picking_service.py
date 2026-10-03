@@ -144,6 +144,7 @@ class PickingService:
                     is_mp01 = source_location == 'MP01'
                     row = {
                         'order_ref': order_ref,
+                        'linia': linia,
                         'surowiec_nazwa': nazwa,
                         'paleta_id': pallet.get('id', 0),
                         'nr_palety': pallet.get('nr_palety', ''),

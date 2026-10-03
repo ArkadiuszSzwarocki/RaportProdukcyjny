@@ -69,6 +69,7 @@ def _compute_static_version():
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'orders.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -694,7 +695,7 @@ def _fetch_osip_transfers_count():
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute("""
-                SELECT t.id, 
+                SELECT t.id, t.destination_warehouse,
                        (SELECT COUNT(*) FROM osip_transfer_items ti WHERE ti.transfer_id = t.id AND ti.status != 'RECEIVED') as unreceived_count
                 FROM osip_transfers t
                 WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
@@ -702,9 +703,13 @@ def _fetch_osip_transfers_count():
             rows = cursor.fetchall()
             transfers_count = len(rows)
             unreceived_pallets_count = sum(int(r['unreceived_count'] or 0) for r in rows)
+            incoming = {'centrala': [r for r in rows if str(r.get('destination_warehouse') or '').upper() != 'OSIP'],
+                        'osip': [r for r in rows if str(r.get('destination_warehouse') or '').upper() == 'OSIP']}
             return dict(
                 osip_transfers_count=transfers_count,
-                osip_unreceived_pallets_count=unreceived_pallets_count
+                osip_unreceived_pallets_count=unreceived_pallets_count,
+                incoming_transfer_counts={key: dict(documents=len(group), pallets=sum(
+                    int(r['unreceived_count'] or 0) for r in group)) for key, group in incoming.items()}
             )
         finally:
             cursor.close()

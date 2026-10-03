@@ -58,6 +58,7 @@ def api_orders_create():
         items=data.get('items', []),
         operator_login=session.get('login', 'nieznany'),
         komentarz=data.get('komentarz', ''),
+        linia=_resolve_line(),
     )
 
     response = {'success': success, 'message': message}

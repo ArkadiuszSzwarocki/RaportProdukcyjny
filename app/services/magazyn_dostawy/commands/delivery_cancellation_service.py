@@ -74,6 +74,8 @@ class DeliveryCancellationService:
 
             # Mark as CANCELLED
             cursor.execute("UPDATE magazyn_dostawy SET status = 'CANCELLED' WHERE id = %s", (dostawa_id,))
+            from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+            WarehouseOrderFulfillment.sync_transfer(cursor,dostawa_id,[item for item in items if item.get('accepted')],linia,login)
             conn.commit()
             return True, "Przesunięcie zostało anulowane (status: ANULOWANE)"
         except Exception as e:

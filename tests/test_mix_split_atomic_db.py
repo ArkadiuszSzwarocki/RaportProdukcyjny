@@ -1,3 +1,4 @@
+# cspell:words lastrowid sscc
 # cspell:words pytestmark
 """Two writers cannot create more stock than the locked mother contains."""
 import uuid

@@ -13,6 +13,7 @@ from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
 def transfer_db(monkeypatch):
     conn = MagicMock()
     cursor = conn.cursor.return_value
+    cursor.fetchall.return_value = []
     cursor.fetchone.return_value = {'id': 'doc', 'status': 'OCZEKUJE', 'items': '[]'}
     monkeypatch.setattr(module, 'get_db_connection', lambda: conn)
     locks = MagicMock()

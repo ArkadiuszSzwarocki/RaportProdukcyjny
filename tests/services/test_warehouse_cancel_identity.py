@@ -47,6 +47,7 @@ def test_repeated_cancel_does_not_unblock_new_reservation(monkeypatch):
 
 def test_cancel_releases_only_pending_items(monkeypatch):
     conn = MagicMock()
+    conn.cursor.return_value.fetchall.return_value = []
     pending = {'id': 'b', 'nr_palety': 'P2'}
     conn.cursor.return_value.fetchone.return_value = {
         'status': 'OCZEKUJE', 'linia': 'AGRO', 'order_ref': 'ref',

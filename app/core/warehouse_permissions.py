@@ -16,11 +16,13 @@ def enforce_warehouse_write():
         if not isinstance(data, dict):
             return _deny('Nieprawidłowe dane załadunku.', 400)
         line = str(data.get('linia') or request.args.get('linia') or 'AGRO').strip().upper()
-        if line not in {'PSD', 'AGRO', 'OSIP'}:
+        if line not in {'PSD', 'AGRO', 'OSIP', 'ALL'}:
             return _deny()
         if data.get('linia') and request.args.get('linia') and str(request.args['linia']).upper() != line:
             return _deny('Sprzeczne wskazanie hali.')
-        if not _page_allowed(line, 'magazyn', write=request.endpoint == 'warehouse_v2.api_dispatch_vehicle'):
+        write = request.endpoint == 'warehouse_v2.api_dispatch_vehicle'
+        halls = ('PSD', 'AGRO', 'OSIP') if line == 'ALL' else (line,)
+        if not all(_page_allowed(hall, 'magazyn', write=write) for hall in halls):
             return _deny()
         return None
     if str(request.endpoint or '').startswith('warehouse_v2.api_orders'):

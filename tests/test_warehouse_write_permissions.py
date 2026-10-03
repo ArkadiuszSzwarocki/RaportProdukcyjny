@@ -48,6 +48,18 @@ def test_truck_dispatch_cannot_bypass_hall_permission(warehouse_context):
     dispatch.assert_not_called()
 
 
+@pytest.mark.parametrize('all_halls', [False,True])
+def test_all_warehouse_dispatch_view_checks_every_hall(warehouse_context,all_halls):
+    client,_,helpers,_ = warehouse_context
+    with client.session_transaction() as session_state:
+        session_state['grupa'] = 'ALL'
+    helpers['role_has_access'] = lambda key: all_halls or key == 'psd.magazyn'
+    with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.get_dispatches_history',return_value=[]) as history:
+        result = client.get('/warehouse-v2/zaladunki?linia=ALL')
+        assert result.status_code == (200 if all_halls else 403)
+        assert history.called is all_halls
+
+
 def test_readonly_truck_history_is_filtered_and_dispatch_denied(warehouse_context):
     client, _, helpers, _ = warehouse_context
     helpers['role_is_readonly'] = lambda key: True

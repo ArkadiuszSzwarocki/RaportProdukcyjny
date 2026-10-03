@@ -1,3 +1,4 @@
+# cspell:words lastrowid
 # cspell:words pytestmark
 """Real-MySQL failure injection for stock, item and document transactions."""
 import uuid

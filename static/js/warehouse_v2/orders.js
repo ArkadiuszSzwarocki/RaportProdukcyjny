@@ -1,3 +1,4 @@
+// cspell:words pozostale
 /**
  * Moduł listy zamówień z magazynu.
  */
@@ -33,6 +34,12 @@ const OrdersModule = (function () {
     }
 
     function _renderOrders(orders) {
+        orders = orders.flatMap(function (order) {
+            return (order.items || []).map(function (item, index) {
+                return Object.assign({}, order, {items: [item], position: index + 1,
+                    status: item.realizacja_status || order.status});
+            });
+        });
         var tbody = document.getElementById('ordersTbody');
         var table = document.getElementById('ordersTable');
         var empty = document.getElementById('ordersEmpty');
@@ -63,7 +70,7 @@ const OrdersModule = (function () {
         empty.style.display = 'none';
 
         tbody.innerHTML = orders.map(function (o) {
-            var isNowe = o.status === 'NOWE';
+            var isNowe = o.status !== 'ZAMKNIETE';
             var komentarz = o.komentarz ? '<div style="margin-top:8px; font-size:12px; color:#64748b;"><strong>Komentarz:</strong> ' + _escapeHtml(o.komentarz) + '</div>' : '';
 
             var itemsHtml = '';
@@ -80,6 +87,10 @@ const OrdersModule = (function () {
                 displayedItems.forEach(function(it) {
                     var displayQty = (it.brakujace_kg !== undefined && it.brakujace_kg !== null) ? it.brakujace_kg : it.ilosc_kg;
                     itemsHtml += '<li><strong>' + _escapeHtml(it.surowiec_nazwa) + '</strong> — ' + _formatKg(displayQty) + ' kg</li>';
+                    if (o.status !== 'ZAMKNIETE') {
+                        itemsHtml += '<li>W transferze: ' + _formatKg(it.przypisane_kg || 0) +
+                            ' kg · Pozostało: ' + _formatKg(it.pozostale_kg == null ? displayQty : it.pozostale_kg) + ' kg</li>';
+                    }
                 });
                 itemsHtml += '</ul>';
             } else {
@@ -87,14 +98,12 @@ const OrdersModule = (function () {
             }
 
             var statusHtml = isNowe
-                ? '<span class="order-status-badge nowe">NOWE</span>'
+                ? '<span class="order-status-badge nowe">' + (o.status === 'CZESCIOWE' ? 'CZĘŚCIOWO' : 'NOWE') + '</span>'
                 : '<span class="order-status-badge zamkniete">ZAMKNIĘTE</span>';
 
             var actionHtml = '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">';
             if (isNowe) {
-                actionHtml += '<button class="order-confirm-btn" onclick="OrdersModule.confirmOrder(' + o.id + ', this)">' +
-                    '<span class="material-icons" style="font-size:16px;">check</span> Potwierdź' +
-                '</button>';
+                actionHtml += '<span style="font-size:12px">Rozliczenie po skanie do transferu</span>';
             } else {
                 actionHtml += '<span style="color:#94a3b8; font-size:12px;">' +
                     _escapeHtml(o.magazynier_login || '') +
@@ -103,14 +112,14 @@ const OrdersModule = (function () {
             }
 
             if (window.CAN_DELETE_ORDERS) {
-                actionHtml += '<button class="order-delete-btn" onclick="OrdersModule.deleteOrder(' + o.id + ', this)" title="Trwale usuń zamówienie">' +
+                actionHtml += '<button class="order-delete-btn" onclick="OrdersModule.deleteOrder(' + o.id + ', this)" title="Trwale usuń całe zamówienie (wszystkie pozycje)">' +
                     '<span class="material-icons" style="font-size:15px;">delete</span>' +
                 '</button>';
             }
             actionHtml += '</div>';
 
             return '<tr>' +
-                '<td data-label="ID"><strong>#' + o.id + '</strong></td>' +
+                '<td data-label="ID"><strong>#' + o.id + ' / ' + o.position + '</strong></td>' +
                 '<td data-label="Zamówione surowce">' + itemsHtml + komentarz + '</td>' +
                 '<td data-label="Operator">' + _escapeHtml(o.operator_login) + '</td>' +
                 '<td data-label="Data">' + _formatDate(o.created_at) + '</td>' +

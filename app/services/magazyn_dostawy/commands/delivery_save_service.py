@@ -178,9 +178,13 @@ class DeliverySaveService:
                       json.dumps(items), login, datetime.now(), 0, linia,
                       lokalizacja_z, lokalizacja_do))
 
+            if not is_external:
+                from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+                WarehouseOrderFulfillment.sync_transfer(cursor,dostawa_id,items,linia,login)
             conn.commit()
             return True, dostawa_id
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()

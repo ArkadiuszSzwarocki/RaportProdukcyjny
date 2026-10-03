@@ -94,6 +94,8 @@ class LiveTransferService:
 
             # Block pallet in database
             PalletLockManager.set_pallets_blocked(cursor, [item_to_add], 1)
+            from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+            WarehouseOrderFulfillment.sync_transfer(cursor,dostawa_id,items,linia,login)
 
             cursor.execute(
                 "UPDATE magazyn_dostawy SET items = %s WHERE id = %s",
@@ -154,6 +156,8 @@ class LiveTransferService:
                     "UPDATE magazyn_dostawy SET items = %s WHERE id = %s",
                     (json.dumps(remaining_items), dostawa_id)
                 )
+                from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+                WarehouseOrderFulfillment.sync_transfer(cursor,dostawa_id,remaining_items,linia,login)
                 conn.commit()
 
             accepted_count = sum(1 for i in remaining_items if i.get('accepted'))

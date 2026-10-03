@@ -111,7 +111,13 @@
             <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
         </a>
         <a href="{{ url_for('warehouse_v2.transfers_osip_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.transfers_osip_view' %}active{% endif %}">
-            <span class="nav-sub-text">Transfery na OSIP</span>
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">Transfery na OSIP</span>
+                {% set incoming_central = (incoming_transfer_counts|default({})).get('centrala', {}) %}
+                {% if incoming_central.get('documents', 0) %}
+                <span class="nav-pending-badge" title="Jedzie z OSIP do Centrali">{{ incoming_central.documents }}/{{ incoming_central.pallets }}</span>
+                {% endif %}
+            </span>
         </a>
     </div>
 </div>
@@ -125,7 +131,8 @@
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
             MAGAZYN OSIP
-            {% if (osip_transfers_count and osip_transfers_count > 0) or pending_osip > 0 %}
+            {% set incoming_osip = (incoming_transfer_counts|default({})).get('osip', {}) %}
+            {% if incoming_osip.get('documents', 0) or pending_osip > 0 %}
             <span class="nav-main-dot" aria-hidden="true"></span>
             {% endif %}
         </span>
@@ -136,8 +143,8 @@
         <a href="{{ url_for('osip.transfers_view') }}" class="nav-sub-item {% if request.endpoint in ['osip.transfers_view', 'osip.transfer_details_view'] %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Transfery do Centrali (MS01)</span>
-                {% if osip_transfers_count and osip_transfers_count > 0 %}
-                <span class="nav-pending-badge" aria-label="Są aktywne transfery OSIP">{{ osip_transfers_count }}/{{ osip_unreceived_pallets_count }}</span>
+                {% if incoming_osip.get('documents', 0) %}
+                <span class="nav-pending-badge" title="Jedzie z Centrali do OSIP">{{ incoming_osip.documents }}/{{ incoming_osip.pallets }}</span>
                 {% endif %}
             </span>
         </a>

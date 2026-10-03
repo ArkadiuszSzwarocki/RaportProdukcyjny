@@ -1,3 +1,4 @@
+# cspell:words lastrowid sscc
 """Releasing one reason must preserve other physical pallet holds."""
 # cspell:words pytestmark
 import json

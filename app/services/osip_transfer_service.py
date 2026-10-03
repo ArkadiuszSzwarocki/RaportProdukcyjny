@@ -185,6 +185,9 @@ class OsipTransferService:
                 resolved.append(dict(data, pallet_id=row['id'], nr_palety=row['nr_palety']))
             self.repository.update_items_loaded(transfer.id, resolved, external_conn=conn)
             self.repository.update_transfer_status(transfer.id, 'IN_TRANSIT', user_login, external_conn=conn)
+            from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+            target_line = 'OSIP' if str(transfer.destination_warehouse).upper() == 'OSIP' else 'AGRO'
+            WarehouseOrderFulfillment.sync_transfer(cursor,'OSIP:'+str(transfer.id),resolved,target_line,user_login)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -271,6 +274,11 @@ class OsipTransferService:
                 cursor.execute("UPDATE osip_transfer_items SET status='CANCELLED' WHERE id=%s AND transfer_id=%s",
                                (self._value(item, 'id'), transfer.id))
             self.repository.update_transfer_status(transfer.id, 'CANCELLED', user_login, external_conn=conn)
+            from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+            received = [dict(id=self._value(item,'id'),nr_palety=self._value(item,'nr_palety')) for item in
+                        self._extract_items(transfer) if self._value(item,'status') == 'RECEIVED']
+            target_line = 'OSIP' if str(transfer.destination_warehouse).upper() == 'OSIP' else 'AGRO'
+            WarehouseOrderFulfillment.sync_transfer(cursor,'OSIP:'+str(transfer.id),received,target_line,user_login)
             conn.commit()
         except Exception:
             conn.rollback()
