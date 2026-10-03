@@ -4,11 +4,12 @@ from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLock
 from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
 
 
-def test_reconcile_orphan_transfer_locks_commits_with_cursor():
-    """Verify that when cursor is passed, conn is extracted and conn.commit() is invoked."""
+def test_reconcile_orphan_transfer_locks_leaves_commit_to_caller():
+    """A caller-owned transaction must never be committed by reconciliation."""
     mock_cursor = MagicMock()
     mock_conn = MagicMock()
     mock_cursor._connection = mock_conn
+    mock_cursor.fetchone.return_value = None
 
     # 1. No active orders with in-flight items
     # 2. No manually blocked history items
@@ -17,6 +18,7 @@ def test_reconcile_orphan_transfer_locks_commits_with_cursor():
         [],  # active orders
         [],  # manual blocked history
         [{'id': 999, 'nr_palety': 'PSD000001790079009978'}],  # magazyn_surowce
+        [],  # other active reservations
         [],  # magazyn_opakowania
         [],  # magazyn_palety
         [],  # magazyn_palety_agro
@@ -29,7 +31,7 @@ def test_reconcile_orphan_transfer_locks_commits_with_cursor():
 
     assert unblocked == 1
     mock_cursor.execute.assert_any_call("UPDATE magazyn_surowce SET is_blocked = 0 WHERE id = %s", (999,))
-    assert mock_conn.commit.called
+    mock_conn.commit.assert_not_called()
 
 
 def test_agro_workowanie_bigbag_auto_reconcile_orphan_lock():

@@ -214,7 +214,7 @@ class AcceptanceService:
                             UPDATE {table_opk}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
                                 data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s,
-                                typ_opakowania = %s, is_blocked = 0, updated_at = NOW()
+                                typ_opakowania = %s, updated_at = NOW()
                             WHERE id = %s
                         """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
                     else:
@@ -244,7 +244,7 @@ class AcceptanceService:
                         pallet_id = exist_got['id']
                         cursor.execute(f"""
                             UPDATE {table_got}
-                            SET lokalizacja = %s, waga_netto = %s, is_blocked = 0, is_loaded = 0
+                            SET lokalizacja = %s, waga_netto = %s
                             WHERE id = %s
                         """, (lokalizacja, qty, pallet_id))
                     else:
@@ -273,7 +273,7 @@ class AcceptanceService:
                             UPDATE {table_sur}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
                                 data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s, typ_opakowania = %s,
-                                is_blocked = 0, updated_at = NOW()
+                                updated_at = NOW()
                             WHERE id = %s
                         """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
                     else:
@@ -308,7 +308,7 @@ class AcceptanceService:
 
                 # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety (dla obu linii PSD i AGRO)
                 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
-                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 # 3. Empty the source spot ONLY for internal transfers where source pallet is a SEPARATE row
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
@@ -416,6 +416,44 @@ class AcceptanceService:
                 return False, str(e), None
             finally:
                 conn.close()
+
+    @staticmethod
+    def confirm_moved_pallet(cursor, connection, number, location, login):
+        """Confirm a full physical move in the same transaction as its stock."""
+        from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+        number = str(number or '').strip().upper()
+        if not number:
+            return
+        cursor.execute("SELECT id,items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE','IN_PROGRESS') FOR UPDATE")
+        matched = []
+        for delivery in cursor.fetchall():
+            items = json.loads(delivery.get('items') or '[]')
+            pending = [item for item in items if
+                       str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper() == number
+                       and not (item.get('accepted') or item.get('rejected'))]
+            if pending:
+                matched.append((delivery, items, pending))
+        if sum(len(pending) for _, _, pending in matched) > 1:
+            raise ValueError('Paleta pasuje do wielu pozycji przyjęcia; wybierz konkretny dokument')
+        for delivery, items, _ in matched:
+            changed, received = False, []
+            for item in items:
+                nr = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
+                if nr == number and not (item.get('accepted') or item.get('rejected')):
+                    item.update(accepted=True,accepted_by=login,
+                                accepted_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                lokalizacja_przyjecia=location)
+                    received.append(item)
+                    changed = True
+            if not changed:
+                continue
+            complete = bool(items) and all(item.get('accepted') or item.get('rejected') for item in items)
+            cursor.execute("UPDATE magazyn_dostawy SET items=%s,status=%s, "
+                           "potwierdzone_przez=IF(%s,%s,potwierdzone_przez), "
+                           "potwierdzone_at=IF(%s,NOW(),potwierdzone_at) WHERE id=%s",
+                           (json.dumps(items),'COMPLETED' if complete else 'OCZEKUJE',
+                            complete,login,complete,delivery['id']))
+            PalletLockManager.set_pallets_blocked(cursor,received,0,exclude_delivery_id=delivery['id'])
 
     @staticmethod
     def auto_accept_by_pallet_no(nr_palety, nowa_lokalizacja, login):
@@ -531,7 +569,7 @@ class AcceptanceService:
                 target['rejected_reason'] = normalized_reason
                 # Zwalniamy blokadę dla odrzuconej palety
                 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
-                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 if restored:
                     cursor.execute(

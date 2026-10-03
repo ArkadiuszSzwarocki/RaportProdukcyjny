@@ -133,7 +133,7 @@ class DeliverySaveService:
             # Step 5: Toggle locks for internal transfers
             if not is_external:
                 if old_items:
-                    PalletLockManager.set_pallets_blocked(cursor, old_items, 0)
+                    PalletLockManager.set_pallets_blocked(cursor, old_items, 0, exclude_delivery_id=dostawa_id)
                 if status not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE']:
                     PalletLockManager.set_pallets_blocked(cursor, items, 1)
 

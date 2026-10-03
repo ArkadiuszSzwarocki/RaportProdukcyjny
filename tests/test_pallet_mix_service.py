@@ -50,6 +50,7 @@ class TestPalletMixValidation:
             }
         ]
 
+        mock_cursor.fetchone.side_effect = [mother_sur, None]
         with patch('app.services.magazyn_dostawy.pallet_split_service.PalletSplitService.find_by_sscc', return_value=mother_sur), \
              patch('app.services.magazyn_dostawy.pallet_mix_service.get_db_connection', return_value=mock_conn):
             
@@ -87,6 +88,7 @@ class TestPalletMixValidation:
             }
         ]
 
+        mock_cursor.fetchone.side_effect = [mother_sur, None]
         with patch('app.services.magazyn_dostawy.pallet_split_service.PalletSplitService.find_by_sscc', return_value=mother_sur), \
              patch('app.services.magazyn_dostawy.pallet_mix_service.get_db_connection', return_value=mock_conn):
             

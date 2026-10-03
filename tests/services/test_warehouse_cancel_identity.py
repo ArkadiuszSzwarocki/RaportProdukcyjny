@@ -1,3 +1,4 @@
+# cspell:words neighbours sscc
 """Cancellation and reservation must identify a physical pallet exactly."""
 import json
 from unittest.mock import MagicMock

@@ -90,6 +90,7 @@ class TestSplitInventory:
 
         mock_cursor.execute.side_effect = capture_execute
 
+        mock_cursor.fetchone.side_effect = [mother, None]
         with patch.object(PalletSplitService, 'find_by_id', return_value=(mother, 'AGRO')), \
              patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection', return_value=mock_conn), \
              patch('app.services.magazyn_dostawy.pallet_split_service.generate_pallet_id', return_value='SUR000000000000000001'):
@@ -139,6 +140,7 @@ class TestSplitFinished:
 
         mock_cursor.execute.side_effect = capture_execute
 
+        mock_cursor.fetchone.side_effect = [mother, None]
         with patch.object(PalletSplitService, 'find_by_id', return_value=(mother, 'AGRO')), \
              patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection', return_value=mock_conn), \
              patch('app.services.magazyn_dostawy.pallet_split_service.generate_pallet_id', return_value='AGR000000000000000099'):

@@ -11,9 +11,9 @@ from app.models.osip_transfer_item_model import OsipTransferItemModel
 
 
 class OsipTransferRepository:
-    def create_transfer(self, source_warehouse: str, destination_warehouse: str, created_by: str, notes: Optional[str] = None) -> OsipTransferModel:
+    def create_transfer(self, source_warehouse: str, destination_warehouse: str, created_by: str, notes: Optional[str] = None, external_conn=None) -> OsipTransferModel:
         transfer_code = f"TR-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
-        conn = get_db_connection()
+        conn = external_conn or get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             query = """
@@ -22,17 +22,19 @@ class OsipTransferRepository:
             """
             cursor.execute(query, (transfer_code, source_warehouse, destination_warehouse, created_by, notes))
             transfer_id = cursor.lastrowid
-            conn.commit()
-            return self.get_transfer_by_id(transfer_id)
+            if external_conn is None:
+                conn.commit()
+            return self.get_transfer_by_id(transfer_id, external_conn=external_conn)
         finally:
             cursor.close()
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
-    def add_transfer_items(self, transfer_id: int, items: List[Dict[str, Any]]) -> None:
+    def add_transfer_items(self, transfer_id: int, items: List[Dict[str, Any]], external_conn=None) -> None:
         if not items:
             return
 
-        conn = get_db_connection()
+        conn = external_conn or get_db_connection()
         cursor = conn.cursor()
         try:
             # Deduplicate items by nr_palety in case of race conditions
@@ -64,25 +66,28 @@ class OsipTransferRepository:
                 for item in unique_items
             ]
             cursor.executemany(query, params)
-            conn.commit()
+            if external_conn is None:
+                conn.commit()
         finally:
             cursor.close()
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
-    def get_transfer_by_id(self, transfer_id: Any) -> Optional[OsipTransferModel]:
-        conn = get_db_connection()
+    def get_transfer_by_id(self, transfer_id: Any, external_conn=None, for_update=False) -> Optional[OsipTransferModel]:
+        conn = external_conn or get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
+            suffix = " FOR UPDATE" if for_update else ""
             val_str = str(transfer_id).strip()
             if val_str.isdigit():
-                cursor.execute("SELECT * FROM osip_transfers WHERE id = %s OR transfer_code = %s", (int(val_str), val_str))
+                cursor.execute("SELECT * FROM osip_transfers WHERE id = %s OR transfer_code = %s" + suffix, (int(val_str), val_str))
             else:
-                cursor.execute("SELECT * FROM osip_transfers WHERE transfer_code = %s", (val_str,))
+                cursor.execute("SELECT * FROM osip_transfers WHERE transfer_code = %s" + suffix, (val_str,))
             t_row = cursor.fetchone()
             if not t_row:
                 return None
 
-            cursor.execute("SELECT * FROM osip_transfer_items WHERE transfer_id = %s", (t_row['id'],))
+            cursor.execute("SELECT * FROM osip_transfer_items WHERE transfer_id = %s ORDER BY id" + suffix, (t_row['id'],))
             i_rows = cursor.fetchall()
 
             items = [
@@ -121,7 +126,8 @@ class OsipTransferRepository:
             )
         finally:
             cursor.close()
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
     def get_all_transfers(self, warehouse_filter: Optional[str] = None) -> List[OsipTransferModel]:
         conn = get_db_connection()
@@ -149,8 +155,8 @@ class OsipTransferRepository:
             cursor.close()
             conn.close()
 
-    def update_transfer_status(self, transfer_id: int, status: str, user_login: str, timestamp_field: Optional[str] = None) -> None:
-        conn = get_db_connection()
+    def update_transfer_status(self, transfer_id: int, status: str, user_login: str, timestamp_field: Optional[str] = None, external_conn=None) -> None:
+        conn = external_conn or get_db_connection()
         cursor = conn.cursor()
         try:
             user_field = "dispatched_by" if status == "IN_TRANSIT" else ("completed_by" if status == "COMPLETED" else None)
@@ -169,13 +175,15 @@ class OsipTransferRepository:
             params.append(transfer_id)
             query = f"UPDATE osip_transfers SET {', '.join(updates)} WHERE id = %s"
             cursor.execute(query, params)
-            conn.commit()
+            if external_conn is None:
+                conn.commit()
         finally:
             cursor.close()
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
-    def update_items_loaded(self, transfer_id: int, loaded_items: List[Dict[str, Any]]) -> None:
-        conn = get_db_connection()
+    def update_items_loaded(self, transfer_id: int, loaded_items: List[Dict[str, Any]], external_conn=None) -> None:
+        conn = external_conn or get_db_connection()
         cursor = conn.cursor()
         try:
             for item in loaded_items:
@@ -184,10 +192,12 @@ class OsipTransferRepository:
                     SET pallet_id = %s, nr_palety = %s, loaded_qty = %s, status = 'LOADED'
                     WHERE id = %s AND transfer_id = %s
                 """, (item.get('pallet_id'), item.get('nr_palety'), float(item.get('loaded_qty', 0.0)), item['id'], transfer_id))
-            conn.commit()
+            if external_conn is None:
+                conn.commit()
         finally:
             cursor.close()
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
     def is_pallet_in_active_transfer(self, pallet_id: int) -> bool:
         """Sprawdza, czy paleta jest już w transferze, który nie jest zakończony ani anulowany."""

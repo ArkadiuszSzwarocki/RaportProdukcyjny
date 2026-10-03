@@ -1,3 +1,5 @@
+# cspell:words putaway
+import json
 from typing import Tuple, List, Dict, Any, Optional
 from app.db import get_db_connection, get_table_name
 
@@ -9,7 +11,7 @@ class PalletLockManager:
     """
 
     @classmethod
-    def set_pallets_blocked(cls, cursor, items: List[Dict[str, Any]], blocked_val: int = 1) -> None:
+    def set_pallets_blocked(cls, cursor, items: List[Dict[str, Any]], blocked_val: int = 1, exclude_delivery_id=None) -> None:
         """Sets is_blocked to blocked_val (1 or 0) for all pallets in items."""
         if not items:
             return
@@ -60,8 +62,50 @@ class PalletLockManager:
                     raise ValueError(f"Nie znaleziono palety {pnr or pid} do zablokowania")
                 continue
             table, row = matches[0]
+            if not blocked_val and cls.has_protected_block(cursor, row.get('nr_palety'), exclude_delivery_id):
+                continue
             cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s",
                            (blocked_val, row['id']))
+
+    @staticmethod
+    def has_quality_or_manual_block(cursor, number):
+        """Return whether a quality or explicit manual hold is active."""
+        number = str(number or '').strip().upper()
+        if not number:
+            return True
+        cursor.execute("SELECT id FROM lab_blokady WHERE UPPER(pallet_code)=%s AND status='BLOKADA_LAB' FOR UPDATE", (number,))
+        if cursor.fetchone():
+            return True
+        cursor.execute("SELECT akcja FROM palety_historia WHERE UPPER(nr_palety)=%s "
+                       "AND akcja IN ('BLOKADA','BLOKADA_MANUALNA','ODBLOKOWANIE') ORDER BY id DESC LIMIT 1", (number,))
+        manual = cursor.fetchone()
+        if manual and manual.get('akcja') in ('BLOKADA','BLOKADA_MANUALNA'):
+            return True
+        return False
+
+    @classmethod
+    def has_protected_block(cls, cursor, number, exclude_delivery_id=None):
+        if cls.has_quality_or_manual_block(cursor, number):
+            return True
+        number = str(number or '').strip().upper()
+        cursor.execute("SELECT items FROM magazyn_dostawy WHERE status IN "
+                       "('OCZEKUJE','IN_PROGRESS','OPEN','W_STREFIE_PRZYJEC','PUTAWAY_IN_PROGRESS') "
+                       "AND (%s IS NULL OR id<>%s)", (exclude_delivery_id, exclude_delivery_id))
+        for delivery in cursor.fetchall():
+            raw = delivery.get('items') or []
+            items = json.loads(raw) if isinstance(raw,str) else raw
+            if not isinstance(items,list):
+                raise ValueError('Nieprawidłowa lista rezerwacji')
+            for item in items:
+                if not isinstance(item,dict):
+                    raise ValueError('Nieprawidłowa pozycja rezerwacji')
+                nr = str(item.get('sourcePalletNo') or item.get('nr_palety') or '').strip().upper()
+                if nr == number and not (item.get('accepted') or item.get('rejected') or item.get('putaway_confirmed_at')):
+                    return True
+        cursor.execute("SELECT ti.id FROM osip_transfer_items ti JOIN osip_transfers t ON ti.transfer_id=t.id "
+                       "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT') "
+                       "AND ti.status NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (number,))
+        return bool(cursor.fetchone())
 
     @classmethod
     def lock_draft_pallets(cls, items: List[Dict[str, Any]], linia: str = 'AGRO', user_login: str = 'system') -> Tuple[bool, str]:
@@ -209,22 +253,24 @@ class PalletLockManager:
                         if (b_nr and b_nr in manual_blocked_nrs) or (b_id and b_id in manual_blocked_ids):
                             continue
 
-                        # Otherwise, it's an orphaned transfer lock -> unblock it!
+                        if cls.has_protected_block(cursor, b_nr):
+                            continue
+
+                        # Otherwise, it is an orphaned transfer lock.
                         cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (b_item['id'],))
                         unblocked_count += 1
                 except Exception as tbl_err:
-                    continue
+                    if getattr(tbl_err, 'errno', None) not in (1146,1054):
+                        raise
 
-            if conn:
-                try:
-                    conn.commit()
-                except Exception:
-                    pass
+            if should_close and conn:
+                conn.commit()
 
             return unblocked_count
         except Exception as err:
-            print(f"Error reconciling orphan transfer locks: {err}")
-            return 0
+            if should_close and conn:
+                conn.rollback()
+            raise
         finally:
             if should_close and conn:
                 try:

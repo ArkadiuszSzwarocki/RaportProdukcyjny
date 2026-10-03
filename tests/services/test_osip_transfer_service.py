@@ -21,21 +21,24 @@ def test_create_transfer_order_validation():
         )
 
 
-def test_create_transfer_order_success():
+def test_create_transfer_order_success(monkeypatch):
     mock_repo = MagicMock()
     created_model = OsipTransferModel(id=1, transfer_code="TR-123", source_warehouse="MS01", destination_warehouse="OSIP")
     mock_repo.create_transfer.return_value = created_model
     mock_repo.get_transfer_by_id.return_value = created_model
 
     service = OsipTransferService(repository=mock_repo)
+    connection = MagicMock()
+    monkeypatch.setattr('app.services.osip_transfer_service.get_db_connection', lambda: connection)
     items = [{"product_name": "Test Produkt", "requested_qty": 100.0, "unit": "kg"}]
     
     result = service.create_transfer_order("MS01", "OSIP", items, "test_user")
 
     assert result.id == 1
     assert result.transfer_code == "TR-123"
-    mock_repo.create_transfer.assert_called_once_with("MS01", "OSIP", "test_user", None)
-    mock_repo.add_transfer_items.assert_called_once_with(1, items)
+    mock_repo.create_transfer.assert_called_once_with("MS01", "OSIP", "test_user", None, external_conn=connection)
+    mock_repo.add_transfer_items.assert_called_once_with(1, items, external_conn=connection)
+    connection.commit.assert_called_once()
 
 
 def test_get_transfers_list_filtering():

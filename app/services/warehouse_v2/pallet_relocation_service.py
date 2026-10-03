@@ -188,6 +188,10 @@ class PalletRelocationService:
             in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)
             is_in_transfer_acceptance = bool(in_transfer)
 
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cursor, nr_palety):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.', None
+
             if row.get('is_blocked') and not is_in_transfer_acceptance:
                 return False, f"BŁĄD: Paleta {nr_palety or pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!", None
 
@@ -218,7 +222,7 @@ class PalletRelocationService:
             real_pallet_id = row.get('id')
             if amount_to_move >= qty:
                 cursor = conn.cursor()
-                cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s", (new_location, real_pallet_id))
+                cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, real_pallet_id))
                 moved_qty = qty
             
             is_split = amount_to_move < qty
@@ -314,50 +318,17 @@ class PalletRelocationService:
                 raise RuntimeError(f"Błąd zapisu ruchu: {e}") from e
 
             # Auto-accept in pending deliveries
-            if nr_palety:
-                try:
-                    cur_dict = conn.cursor(dictionary=True)
-                    cur_dict.execute("SELECT id, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
-                    pending_deliveries = cur_dict.fetchall()
-                    for d in pending_deliveries:
-                        if not d.get('items'): continue
-                        try:
-                            d_items = json.loads(d['items'])
-                            changed = False
-                            for item in d_items:
-                                if not item.get('accepted') and not item.get('rejected'):
-                                    if item.get('nr_palety') == nr_palety or item.get('sourcePalletNo') == nr_palety:
-                                        item['accepted'] = True
-                                        item['accepted_by'] = worker_login
-                                        item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                        item['lokalizacja_przyjecia'] = new_location
-                                        changed = True
-                            if changed:
-                                all_processed = all(i.get('accepted') or i.get('rejected') for i in d_items)
-                                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
-                                cur_dict.execute(
-                                    """
-                                    UPDATE magazyn_dostawy 
-                                    SET items = %s, status = %s, 
-                                        potwierdzone_przez = IF(%s, COALESCE(potwierdzone_przez, %s), potwierdzone_przez), 
-                                        potwierdzone_at = IF(%s, COALESCE(potwierdzone_at, NOW()), potwierdzone_at) 
-                                    WHERE id = %s
-                                    """,
-                                    (json.dumps(d_items), new_status, 1 if all_processed else 0, worker_login, 1 if all_processed else 0, d['id'])
-                                )
-                        except Exception as inner_e:
-                            print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)
-                except Exception as e:
-                    print("Błąd podczas automatycznego przyjmowania dostawy ze skanera:", e)
+            if nr_palety and not is_split:
+                from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+                AcceptanceService.confirm_moved_pallet(conn.cursor(dictionary=True), conn, nr_palety, new_location, worker_login)
 
             try:
                 from app.services.osip_transfer_service import OsipTransferService
                 code_to_check = nr_palety or str(new_pallet_id)
-                OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login)
-                if new_pallet_id and str(new_pallet_id) != str(code_to_check):
-                    OsipTransferService.auto_receive_pallet_by_code(str(new_pallet_id), new_location, worker_login)
+                if not is_split:
+                    OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login, external_conn=conn)
             except Exception as osip_e:
-                print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
+                raise RuntimeError("Błąd potwierdzenia transferu OSIP") from osip_e
             
             split_info = {
                 'is_split': bool(is_split),

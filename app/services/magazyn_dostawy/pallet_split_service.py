@@ -257,6 +257,11 @@ class PalletSplitService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            pal = PalletSplitService._lock_current_stock(cursor, pal, source, linia)
+            current_weight = PalletSplitService._get_weight(pal, source)
+            if weight_to_take >= current_weight:
+                return False, 'Stan palety zmienił się; brak ilości do podziału.', None
+            new_weight = round(current_weight - weight_to_take, 3)
             if source in INVENTORY_SOURCES:
                 result = PalletSplitService._split_inventory(
                     cursor, pal, source, linia, mother_id, new_sscc,
@@ -301,6 +306,40 @@ class PalletSplitService:
             f"/magazyn-dostawy/podglad-etykiety-system/{new_pallet['id']}"
             f"?linia={new_pallet.get('linia', 'AGRO')}"
         )
+
+    @staticmethod
+    def _lock_current_stock(cursor, pal, source, linia):
+        """Re-read and lock the physical stock in the writer's transaction."""
+        base = {'surowiec': 'magazyn_surowce', 'opakowanie': 'magazyn_opakowania',
+                'dodatek': 'magazyn_dodatki', 'magazyn': 'magazyn_palety',
+                'produkcja': 'palety_workowanie'}.get(source)
+        if base is None:
+            raise ValueError('Nieobsługiwany typ palety')
+        table = base if source == 'dodatek' else get_table_name(base, linia)
+        predicate, params = 'id=%s', [pal['id']]
+        if pal.get('nr_palety'):
+            predicate += ' AND nr_palety=%s'
+            params.append(pal['nr_palety'])
+        cursor.execute(f"SELECT * FROM {table} WHERE {predicate} FOR UPDATE", tuple(params))
+        current = cursor.fetchone()
+        if not current:
+            raise ValueError('Paleta zniknęła lub zmieniła numer przed operacją')
+        if current.get('is_blocked') or current.get('is_loaded'):
+            raise ValueError('Paleta jest zablokowana lub załadowana')
+        if str(current.get('lokalizacja') or '').upper() in ('W_TRANZYCIE', 'W_TRANZYCIE_OSIP'):
+            raise ValueError('Nie można dzielić ani mieszać palety w tranzycie')
+        cursor.execute("SELECT id FROM lab_blokady WHERE pallet_code=%s AND status='BLOKADA_LAB' FOR UPDATE",
+                       (current.get('nr_palety'),))
+        if cursor.fetchone():
+            raise ValueError('Paleta posiada aktywną blokadę LAB')
+        column = 'stan_magazynowy' if source in INVENTORY_SOURCES else ('waga_netto' if source == 'magazyn' else 'waga')
+        quantity = float(current.get(column) or 0)
+        if not math.isfinite(quantity) or quantity <= 0:
+            raise ValueError('Paleta jest zużyta lub ma nieprawidłowy stan')
+        merged = dict(pal)
+        merged.update(current)
+        merged['waga'] = quantity
+        return merged
 
     @staticmethod
     def _get_weight(pal: dict[str, Any], source: str) -> float:

@@ -59,7 +59,7 @@ class PalletMixService:
         try:
             cursor = conn.cursor(dictionary=True)
 
-            for comp in components:
+            for comp in sorted(components, key=lambda item: str(item.get('nr_palety') or '').upper()):
                 # Używamy nr_palety (sscc) zamiast mother_id do znalezienia palety
                 mother_sscc = str(comp.get('nr_palety', '')).strip()
                 weight_to_take = round(float(comp.get('weight_to_take', 0)), 3)
@@ -74,6 +74,7 @@ class PalletMixService:
                 mother_id = pal['id']
                 source = pal['source']
                 pal_linia = pal.get('linia', linia)
+                pal = PalletSplitService._lock_current_stock(cursor, pal, source, pal_linia)
                 source_key = (source, str(mother_id), str(pal_linia).upper())
                 if source_key in seen_sources:
                     return False, 'Nie można dodać tej samej palety dwa razy do jednego mixu.', None

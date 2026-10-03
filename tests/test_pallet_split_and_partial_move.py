@@ -62,6 +62,7 @@ class TestPalletSplitServiceHistoryInheritance(unittest.TestCase):
         mock_cursor.execute.side_effect = capture_execute
 
         new_generated_sscc = 'SUR_CHILD_2026_000202'
+        mock_cursor.fetchone.side_effect = [mother_pallet, None]
         with patch.object(PalletSplitService, 'find_by_id', return_value=(mother_pallet, 'AGRO')), \
              patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection', return_value=mock_conn), \
              patch('app.services.magazyn_dostawy.pallet_split_service.generate_pallet_id', return_value=new_generated_sscc):
@@ -148,7 +149,9 @@ class TestWarehouseV2PartialMove(unittest.TestCase):
         def cursor_factory(dictionary=False):
             if dictionary:
                 cur = MagicMock()
-                cur.fetchone.return_value = mother_row
+                cur.fetchone.side_effect = lambda: (
+                    mother_row if 'SELECT * FROM' in cur.execute.call_args.args[0] else None
+                )
                 cur.fetchall.return_value = list(mother_history_records)
                 return cur
             return mock_cursor

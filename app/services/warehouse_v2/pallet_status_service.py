@@ -30,36 +30,51 @@ class PalletStatusService:
             for tbl in tables_to_check:
                 try:
                     cursor.execute(
-                        f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s)",
-                        (pallet_id if str(pallet_id).isdigit() else -1, target_sscc or str(pallet_id))
+                        f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE " +
+                        ("nr_palety = %s" if target_sscc else "id = %s") + " FOR UPDATE",
+                        (target_sscc or (pallet_id if str(pallet_id).isdigit() else -1),)
                     )
                     row = cursor.fetchone()
                     if row:
                         found_row = row
                         break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    if getattr(exc, 'errno', None) not in (1146, 1054):
+                        raise
 
             if not found_row and not verified:
                 all_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
                 for tbl in all_tables:
                     try:
                         cursor.execute(
-                            f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE id = %s OR (nr_palety IS NOT NULL AND nr_palety = %s)",
-                            (pallet_id if str(pallet_id).isdigit() else -1, target_sscc or str(pallet_id))
+                            f"SELECT id, is_blocked, nr_palety FROM {tbl} WHERE " +
+                            ("nr_palety = %s" if target_sscc else "id = %s") + " FOR UPDATE",
+                            (target_sscc or (pallet_id if str(pallet_id).isdigit() else -1),)
                         )
                         row = cursor.fetchone()
                         if row:
                             found_row = row
                             break
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        if getattr(exc, 'errno', None) not in (1146, 1054):
+                            raise
 
             if not found_row:
                 return False, "Paleta nie znaleziona."
 
             new_status = 0 if found_row.get('is_blocked') else 1
             nr_p = found_row.get('nr_palety') or target_sscc or str(pallet_id)
+
+            action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
+            comment = f"{action}: {reason}" if reason and new_status else f"{action} palety przez użytkownika"
+            cursor.execute(
+                "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (found_row['id'], nr_p, linia, pallet_type.lower() if pallet_type else 'wyrob_gotowy', action, comment, worker_login)
+            )
+
+            if not new_status:
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                new_status = int(PalletLockManager.has_protected_block(cursor, nr_p))
 
             # Update ALL tables where this pallet (by nr_palety or id) exists to keep them in sync
             synced_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
@@ -74,21 +89,15 @@ class PalletStatusService:
                         if tbl in tables_to_check:
                             cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s",
                                            (new_status, found_row['id']))
-                except Exception:
-                    pass
-
-            action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
-            comment = f"{action}: {reason}" if reason and new_status else f"{action} palety przez użytkownika"
-            try:
-                cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    (pallet_id if str(pallet_id).isdigit() else found_row.get('id'), nr_p, linia, pallet_type.lower() if pallet_type else 'wyrob_gotowy', action, comment, worker_login)
-                )
-            except Exception:
-                pass
+                except Exception as exc:
+                    if getattr(exc, 'errno', None) not in (1146, 1054):
+                        raise
 
             conn.commit()
             return True, f"Paleta {'zablokowana' if new_status else 'odblokowana'}."
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 

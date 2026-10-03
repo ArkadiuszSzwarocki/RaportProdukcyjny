@@ -70,7 +70,7 @@ class DeliveryCancellationService:
             pending = [item for item in items if not (
                 item.get('accepted') or item.get('rejected') or item.get('putaway_confirmed_at')
             )]
-            PalletLockManager.set_pallets_blocked(cursor, pending, 0)
+            PalletLockManager.set_pallets_blocked(cursor, pending, 0, exclude_delivery_id=dostawa_id)
 
             # Mark as CANCELLED
             cursor.execute("UPDATE magazyn_dostawy SET status = 'CANCELLED' WHERE id = %s", (dostawa_id,))

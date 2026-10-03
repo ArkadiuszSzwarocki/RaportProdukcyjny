@@ -211,7 +211,7 @@ class ScannerMovementService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s FOR UPDATE",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
@@ -227,6 +227,10 @@ class ScannerMovementService:
             in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=surowiec_id, nr_palety=nr_p)
             is_in_transfer_acceptance = bool(in_trf)
             trf_order_ref = trf_ref or ''
+
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cur, nr_p):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.'
 
             if pallet.get('is_blocked') and not is_in_transfer_acceptance:
                 return False, f"BŁĄD: Paleta {nr_p or surowiec_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesunięta."
@@ -247,7 +251,7 @@ class ScannerMovementService:
             stan = float(pallet['stan_magazynowy'] or 0)
 
             cur.execute(
-                f"UPDATE {table_surowce} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s",
+                f"UPDATE {table_surowce} SET lokalizacja = %s WHERE id = %s",
                 (nowa_lokalizacja, surowiec_id)
             )
 
@@ -279,17 +283,12 @@ class ScannerMovementService:
             )
             if not history_saved:
                 raise RuntimeError("Nie udało się zapisać historii przesunięcia")
+            from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+            AcceptanceService.confirm_moved_pallet(cur, conn, pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
+            from app.services.osip_transfer_service import OsipTransferService
+            OsipTransferService.auto_receive_pallet_by_code(pallet.get('nr_palety') or str(surowiec_id),
+                                                          nowa_lokalizacja, worker_login, external_conn=conn)
             conn.commit()
-
-            try:
-                from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
-                AcceptanceService.auto_accept_by_pallet_no(pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
-                
-                from app.services.osip_transfer_service import OsipTransferService
-                OsipTransferService.auto_receive_pallet_by_code(pallet.get('nr_palety') or str(surowiec_id), nowa_lokalizacja, worker_login)
-            except Exception as ex:
-                import logging
-                logging.error(f"Błąd powiadamiania dostaw/transferów o przeniesieniu: {ex}")
 
             if is_in_transfer_acceptance:
                 return True, f"✅ Przyjęto w zleceniu {trf_order_ref} na regał: {nowa_lokalizacja}"

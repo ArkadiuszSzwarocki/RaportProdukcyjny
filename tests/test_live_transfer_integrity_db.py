@@ -1,3 +1,4 @@
+# cspell:words BFMS lastrowid neighbour pytestmark sscc
 """Exercise concurrent live transfer writes against real MySQL."""
 import json
 import uuid

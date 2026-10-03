@@ -1,3 +1,4 @@
+# cspell:words sscc
 """Reject invalid quantities and duplicate components before stock writes."""
 from unittest.mock import MagicMock
 
@@ -34,6 +35,7 @@ def test_same_physical_pallet_cannot_create_double_weight_mix(monkeypatch):
            'waga': 500, 'stan_magazynowy': 500, 'lokalizacja': 'MS01'}
     monkeypatch.setattr('app.services.magazyn_dostawy.pallet_mix_service.get_db_connection', lambda: conn)
     monkeypatch.setattr(PalletSplitService, 'find_by_sscc', lambda code: pal)
+    conn.cursor.return_value.fetchone.side_effect = [pal, None, pal, None]
     ok, message, _ = PalletMixService.mix_pallets([
         {'nr_palety': 'P1', 'weight_to_take': 100},
         {'nr_palety': 'p1', 'weight_to_take': 100},
@@ -41,4 +43,4 @@ def test_same_physical_pallet_cannot_create_double_weight_mix(monkeypatch):
     assert not ok
     assert 'dwa razy' in message
     conn.commit.assert_not_called()
-    conn.cursor.return_value.execute.assert_not_called()
+    assert all(call.args[0].startswith('SELECT') for call in conn.cursor.return_value.execute.call_args_list)

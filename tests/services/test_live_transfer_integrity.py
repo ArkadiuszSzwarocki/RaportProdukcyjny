@@ -1,3 +1,4 @@
+# cspell:words putaway
 """Regression scenarios for transfer document integrity."""
 import json
 from unittest.mock import MagicMock

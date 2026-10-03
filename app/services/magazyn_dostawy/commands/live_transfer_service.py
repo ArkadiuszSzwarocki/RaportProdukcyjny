@@ -149,7 +149,7 @@ class LiveTransferService:
                     remaining_items.append(it)
 
             if removed_item:
-                PalletLockManager.set_pallets_blocked(cursor, [removed_item], 0)
+                PalletLockManager.set_pallets_blocked(cursor, [removed_item], 0, exclude_delivery_id=dostawa_id)
                 cursor.execute(
                     "UPDATE magazyn_dostawy SET items = %s WHERE id = %s",
                     (json.dumps(remaining_items), dostawa_id)
