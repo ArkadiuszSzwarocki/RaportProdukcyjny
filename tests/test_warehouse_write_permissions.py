@@ -257,10 +257,12 @@ def test_removed_verified_pallet_cannot_fall_back_to_foreign_stock(app, module, 
     with app.test_request_context('/'), patch(module + '.get_db_connection', return_value=connection):
         g.warehouse_resource = {'table': 'magazyn_palety_agro', 'id': 123, 'nr_palety': 'TEST-123'}
         if operation == 'move_pallet':
-            result = service.move_pallet(123, 'Wyrób Gotowy', None, 'test', linia='AGRO')
+            result = service.move_pallet(123, 'Wyrób Gotowy', 'MGW02', 'test', linia='AGRO')
         else:
             result = service.update_weight(123, 'Wyrób Gotowy', 20, 'test', linia='AGRO')
     assert result[0] is False
     queries = [call.args[0] for call in cursor.execute.call_args_list]
-    assert queries and all(query.startswith('SELECT') and 'FROM magazyn_palety_agro ' in query for query in queries)
+    stock_queries = [query for query in queries if 'magazyn_dozwolone_lokalizacje' not in query]
+    assert all(query.startswith('SELECT') for query in queries)
+    assert stock_queries and all('FROM magazyn_palety_agro ' in query for query in stock_queries)
     connection.commit.assert_not_called()

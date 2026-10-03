@@ -46,7 +46,7 @@ class InternalTransferProcessor:
 
             cursor.execute(
                 f"SELECT id, nr_palety, waga_netto AS stan_magazynowy, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
-                f"COALESCE(produkt, nazwa) AS nazwa FROM {table_got} "
+                f"produkt AS nazwa FROM {table_got} "
                 f"WHERE UPPER(COALESCE(nr_palety, '')) = %s AND waga_netto > 0 LIMIT 1",
                 (clean_nr,)
             )
@@ -57,6 +57,16 @@ class InternalTransferProcessor:
         # One SSCC must identify one physical pallet.  Refuse ambiguous data
         # instead of silently selecting the first table returned by SQL.
         unique = {(str(row.get('id')), table): (row, typ, table) for row, typ, table in matches}
+        if len(unique) > 1:
+            cursor.execute(
+                "SELECT TABLE_NAME AS table_name FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'VIEW' "
+                "AND TABLE_NAME = 'magazyn_palety_agro'"
+            )
+            if any(row.get('table_name') == 'magazyn_palety_agro' for row in cursor.fetchall()):
+                unique = {key: value for key, value in unique.items() if not (
+                    key[1] == 'magazyn_palety_agro' and (key[0], 'magazyn_palety') in unique
+                )}
         if len(unique) == 1:
             return next(iter(unique.values()))
         if len(unique) > 1:

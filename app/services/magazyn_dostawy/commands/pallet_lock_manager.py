@@ -14,39 +14,54 @@ class PalletLockManager:
         if not items:
             return
 
+        allowed_tables = {
+            'magazyn_surowce', 'magazyn_opakowania', 'magazyn_agro_opakowania',
+            'magazyn_palety', 'magazyn_palety_agro', 'magazyn_dodatki',
+        }
         for it in items:
             pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
-            pnr = it.get('sourcePalletNo') or it.get('nr_palety')
-            if not pid and not pnr:
+            pnr = str(it.get('sourcePalletNo') or it.get('nr_palety') or '').strip().upper()
+            hint = str(it.get('sourceTable') or '').strip()
+            if hint and hint not in allowed_tables:
+                raise ValueError("Nieprawidłowa tabela palety")
+            if not pnr and not pid:
                 continue
-
-            for l_code in ['PSD', 'AGRO']:
-                for tbl in [
-                    get_table_name('magazyn_surowce', l_code),
-                    get_table_name('magazyn_opakowania', l_code),
-                    get_table_name('magazyn_palety', l_code)
-                ]:
-                    if pid:
-                        try:
-                            cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
-                        except Exception:
-                            pass
-                    if pnr:
-                        try:
-                            cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
-                        except Exception:
-                            pass
-
-                if pid:
-                    try:
-                        cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
-                    except Exception:
-                        pass
-                if pnr:
-                    try:
-                        cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
-                    except Exception:
-                        pass
+            if not pnr and not hint:
+                raise ValueError("Numer ID bez tabeli nie identyfikuje jednoznacznie palety")
+            tables = [hint] if hint else sorted(allowed_tables)
+            matches = []
+            for table in tables:
+                predicate = "UPPER(nr_palety) = %s" if pnr else "id = %s"
+                try:
+                    cursor.execute(f"SELECT id, nr_palety FROM {table} WHERE {predicate} FOR UPDATE",
+                                   (pnr if pnr else pid,))
+                    matches.extend((table, row) for row in cursor.fetchall())
+                except Exception as exc:
+                    # Optional legacy tables may be absent; connection and SQL
+                    # failures must abort the surrounding transaction.
+                    if getattr(exc, 'errno', None) != 1146 or hint:
+                        raise
+            if len(matches) > 1:
+                cursor.execute(
+                    "SELECT TABLE_NAME AS table_name FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'VIEW' "
+                    "AND TABLE_NAME = 'magazyn_palety_agro'"
+                )
+                agro_is_view = any(row.get('table_name') == 'magazyn_palety_agro' for row in cursor.fetchall())
+                base_ids = {str(row['id']) for table, row in matches if table == 'magazyn_palety'}
+                if agro_is_view:
+                    matches = [(table, row) for table, row in matches if not (
+                        table == 'magazyn_palety_agro' and str(row['id']) in base_ids
+                    )]
+            if len(matches) > 1:
+                raise ValueError(f"Niejednoznaczna paleta {pnr or pid}: wiele rekordów magazynowych")
+            if not matches:
+                if blocked_val:
+                    raise ValueError(f"Nie znaleziono palety {pnr or pid} do zablokowania")
+                continue
+            table, row = matches[0]
+            cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s",
+                           (blocked_val, row['id']))
 
     @classmethod
     def lock_draft_pallets(cls, items: List[Dict[str, Any]], linia: str = 'AGRO', user_login: str = 'system') -> Tuple[bool, str]:

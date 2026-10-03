@@ -41,9 +41,11 @@ class AcceptanceService:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
                 dostawa = cursor.fetchone()
                 if not dostawa: return False, "Nie znaleziono przesunięcia", None
+                if str(dostawa.get('status') or '').upper() in ('CANCELLED', 'COMPLETED'):
+                    return False, "Nie można przyjmować pozycji zamkniętego przesunięcia", None
 
                 lokalizacja = normalize_warehouse_location(lokalizacja) or str(lokalizacja or '').strip().upper()
                 if not lokalizacja:
@@ -449,12 +451,12 @@ class AcceptanceService:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
                 dostawa = cursor.fetchone()
                 if not dostawa:
                     return False, "Nie znaleziono przesunięcia", None
-                if str(dostawa.get('status') or '').upper() == 'CANCELLED':
-                    return False, "Przesunięcie jest już anulowane", None
+                if str(dostawa.get('status') or '').upper() in ('CANCELLED', 'COMPLETED'):
+                    return False, "Nie można odrzucać pozycji zamkniętego przesunięcia", None
 
                 items = json.loads(dostawa.get('items') or '[]')
                 target = next((i for i in items if str(i.get('id')) == str(item_id)), None)

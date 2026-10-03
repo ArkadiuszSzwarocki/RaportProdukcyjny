@@ -53,9 +53,11 @@ class DeliverySaveService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT status, items, lokalizacja_z FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            cursor.execute("SELECT status, items, lokalizacja_z FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
             old_data = cursor.fetchone()
             old_status = old_data['status'] if old_data else None
+            if old_status in ('COMPLETED', 'CANCELLED'):
+                return False, "Nie można edytować zamkniętego przesunięcia"
             old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
 
             # Step 1.5: Walidacja produktów z listy słownikowej

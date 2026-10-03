@@ -444,11 +444,8 @@ def raport_przesuniecia(dostawa_id):
                             still_pending = True
                 
                 is_external = bool(str(dostawa.get('supplier') or '').strip())
-                if is_external and dostawa.get('status') == 'OCZEKUJE' and not still_pending and (nr_palet_sur or nr_palet_opk or nr_palet_got):
-                    # Zmieniamy tymczasowo dla raportu (lub można zupdatować w DB)
-                    dostawa['status'] = 'COMPLETED'
-                    cursor.execute("UPDATE magazyn_dostawy SET status='COMPLETED' WHERE id=%s", (dostawa_id,))
-                    conn.commit()
+                # Reading a report must not complete a delivery. Only the
+                # reception workflow can resolve its pending items.
             except Exception as e:
                 import logging
                 logging.warning(f"Error checking physical pallet locations for delivery {dostawa_id}: {e}")

@@ -1,8 +1,10 @@
+# cspell:words putaway sscc
 import json
 from typing import Tuple, List, Dict, Any
-from app.db import get_db_connection, get_table_name
+from app.db import get_db_connection
 from app.services.magazyn_dostawy.commands.delivery_order_validator import norm_loc
 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+from app.services.magazyn_dostawy.commands.internal_transfer_processor import InternalTransferProcessor
 
 
 class DeliveryCancellationService:
@@ -14,37 +16,32 @@ class DeliveryCancellationService:
         if not items:
             return
 
-        table_sur = get_table_name('magazyn_surowce', linia)
-        table_opk = get_table_name('magazyn_opakowania', linia)
-
         for it in items:
             curr_loc = norm_loc(it.get('sourceSpot'))
             orig_loc = norm_loc(it.get('originalSpot'))
-            p_name = it.get('productName')
-
-            if curr_loc and orig_loc and curr_loc != orig_loc and not it.get('accepted'):
-                cursor.execute(
-                    f"UPDATE {table_sur} SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0",
-                    (orig_loc, curr_loc, p_name)
+            if curr_loc and orig_loc and curr_loc != orig_loc and not (
+                it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at')
+            ):
+                pallet_no = it.get('sourcePalletNo') or it.get('nr_palety')
+                if not pallet_no:
+                    raise ValueError("Brak numeru palety do bezpiecznego cofnięcia przesunięcia")
+                row, pallet_type, table = InternalTransferProcessor._find_active_pallet_by_sscc(
+                    cursor, pallet_no, linia
                 )
-                restored = cursor.rowcount > 0
-                if not restored:
-                    cursor.execute(
-                        f"UPDATE {table_opk} SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0",
-                        (orig_loc, curr_loc, p_name)
-                    )
-                    restored = cursor.rowcount > 0
-                if not restored:
-                    cursor.execute(
-                        "UPDATE magazyn_dodatki SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0",
-                        (orig_loc, curr_loc, p_name)
-                    )
-                    restored = cursor.rowcount > 0
+                if not row:
+                    raise ValueError(f"Nie znaleziono aktywnej palety {pallet_no}")
+                qty_column = 'waga_netto' if pallet_type == 'wyrob_gotowy' else 'stan_magazynowy'
+                cursor.execute(
+                    f"UPDATE {table} SET lokalizacja = %s WHERE id = %s AND nr_palety = %s "
+                    f"AND lokalizacja = %s AND {qty_column} > 0",
+                    (orig_loc, row['id'], row['nr_palety'], curr_loc)
+                )
+                restored = cursor.rowcount == 1
 
                 if restored:
                     cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_CANCEL', %s, %s, %s, %s)",
-                        (None, linia, 'mix', curr_loc, orig_loc, f"Przywrócenie (anulowanie przesunięcia {order_ref})", login)
+                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'TRANSFER_CANCEL', %s, %s, %s, %s)",
+                        (row['id'], row['nr_palety'], linia, pallet_type, curr_loc, orig_loc, f"Przywrócenie (anulowanie przesunięcia {order_ref})", login)
                     )
 
     @classmethod
@@ -53,12 +50,14 @@ class DeliveryCancellationService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT linia, status, items, order_ref FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            cursor.execute("SELECT linia, status, items, order_ref FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
             dostawa = cursor.fetchone()
             if not dostawa:
                 return False, "Nie znaleziono przesunięcia"
             if dostawa['status'] == 'COMPLETED':
                 return False, "Nie można anulować zakończonego przesunięcia"
+            if dostawa['status'] == 'CANCELLED':
+                return True, "Przesunięcie jest już anulowane"
 
             linia = dostawa['linia']
             order_ref = dostawa['order_ref']
@@ -68,13 +67,17 @@ class DeliveryCancellationService:
             cls.restore_buffered_items(cursor, items, linia, order_ref, login)
 
             # Unblock pallets across all lines and tables
-            PalletLockManager.set_pallets_blocked(cursor, items, 0)
+            pending = [item for item in items if not (
+                item.get('accepted') or item.get('rejected') or item.get('putaway_confirmed_at')
+            )]
+            PalletLockManager.set_pallets_blocked(cursor, pending, 0)
 
             # Mark as CANCELLED
             cursor.execute("UPDATE magazyn_dostawy SET status = 'CANCELLED' WHERE id = %s", (dostawa_id,))
             conn.commit()
             return True, "Przesunięcie zostało anulowane (status: ANULOWANE)"
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()

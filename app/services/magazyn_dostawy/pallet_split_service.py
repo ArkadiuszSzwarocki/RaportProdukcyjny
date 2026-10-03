@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import urllib.parse
 from datetime import datetime
 from typing import Any
@@ -195,7 +197,7 @@ class PalletSplitService:
         source: str = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         # Kompatybilność wsteczna z wywołaniami pozycyjnymi: split_pallet(mother_id, source, weight_to_take, user_login, linia)
-        if isinstance(mother_sscc, int) or (isinstance(weight_to_take, str) and not weight_to_take.replace('.', '', 1).replace('-', '', 1).isdigit()):
+        if isinstance(mother_sscc, int) or (isinstance(weight_to_take, str) and weight_to_take in PALLET_ID_TYPE):
             mother_id = int(mother_sscc) if (isinstance(mother_sscc, (int, float)) or (isinstance(mother_sscc, str) and mother_sscc.isdigit())) else mother_id
             source = str(weight_to_take or '')
             weight_to_take = float(user_login or 0)
@@ -203,9 +205,12 @@ class PalletSplitService:
             linia = None
             mother_sscc = None
 
-        weight_to_take = round(float(weight_to_take or 0), 3)
+        try:
+            weight_to_take = round(float(weight_to_take or 0), 3)
+        except (TypeError, ValueError):
+            return False, 'Podaj prawidłową wagę do podziału.', None
 
-        if weight_to_take <= 0 or (not mother_sscc and (not mother_id or mother_id <= 0)):
+        if not math.isfinite(weight_to_take) or weight_to_take <= 0 or (not mother_sscc and (not mother_id or mother_id <= 0)):
             return False, 'Błędne dane wejściowe (waga i ID palety muszą być prawidłowe).', None
 
         # Szukamy po SSCC jeśli podano (priorytet)

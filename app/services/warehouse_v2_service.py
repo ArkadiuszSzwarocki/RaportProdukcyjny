@@ -1,5 +1,6 @@
 from flask import g, has_request_context
 import re
+import math
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
 from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
@@ -27,6 +28,15 @@ class WarehouseV2Service:
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
         """Przenosi paletę na nową lokalizację. Jeśli amount_to_move < ilość systemowa, dzieli paletę."""
         
+        if not str(new_location or '').strip():
+            return False, "Podaj lokalizację docelową.", None
+        if amount_to_move is not None:
+            try:
+                amount_to_move = float(amount_to_move)
+            except (TypeError, ValueError):
+                return False, "Podaj prawidłową ilość do przesunięcia.", None
+            if not math.isfinite(amount_to_move) or amount_to_move <= 0:
+                return False, "Podaj dodatnią, skończoną ilość do przesunięcia.", None
         if new_location:
             new_location = new_location.strip().upper()
             
@@ -116,10 +126,10 @@ class WarehouseV2Service:
             col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
             row = None
             if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
-                cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (int(pallet_id),))
+                cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (int(pallet_id),))
                 row = cursor.fetchone()
             if not row:
-                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s", (str(pallet_id),))
+                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s FOR UPDATE", (str(pallet_id),))
                 row = cursor.fetchone()
             if not row and has_request_context() and getattr(g, 'warehouse_resource', None):
                 # A verified HTTP resource must never fall back to another warehouse.
@@ -134,12 +144,12 @@ class WarehouseV2Service:
                 else:
                     alt_table = get_table_name('magazyn_palety', alt_linia)
                 if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
-                    cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s", (int(pallet_id),))
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s FOR UPDATE", (int(pallet_id),))
                     alt_row = cursor.fetchone()
                 else:
                     alt_row = None
                 if not alt_row:
-                    cursor.execute(f"SELECT * FROM {alt_table} WHERE nr_palety = %s", (str(pallet_id),))
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE nr_palety = %s FOR UPDATE", (str(pallet_id),))
                     alt_row = cursor.fetchone()
                 if alt_row:
                     table = alt_table
@@ -226,7 +236,7 @@ class WarehouseV2Service:
             
             amount_to_move = float(amount_to_move) if amount_to_move is not None else qty
             
-            if amount_to_move <= 0:
+            if not math.isfinite(qty) or qty <= 0 or amount_to_move > qty or amount_to_move <= 0:
                 return False, "Ilość do przeniesienia musi być większa od zera."
                 
             from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id

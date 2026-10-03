@@ -173,27 +173,24 @@ class OsipTransferService:
         if not transfer:
             raise ValueError("Nie znaleziono zlecenia transferu.")
 
+        if transfer.status not in ("PLANNED", "IN_TRANSIT"):
+            raise ValueError(f"Nie można przyjąć zlecenia w statusie {transfer.status}.")
         code_upper = str(pallet_code or '').strip().upper()
-        code_digits = ''.join(c for c in code_upper if c.isdigit())
+        if not code_upper:
+            raise ValueError("Podaj pełny numer palety.")
         target_loc = str(target_location or transfer.destination_warehouse).strip().upper()
-
-        matched_item = None
+        matches = []
         for item in self._extract_items(transfer):
             item_code = str(getattr(item, 'nr_palety', None) or (item.get('nr_palety') if isinstance(item, dict) else '')).strip().upper()
-            item_digits = ''.join(c for c in item_code if c.isdigit())
             item_id_str = str(getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else ''))
-            if code_upper and (
-                code_upper == item_code or 
-                code_upper in item_code or 
-                item_code in code_upper or 
-                code_upper == item_id_str or 
-                (len(code_digits) >= 8 and len(item_digits) >= 8 and (code_digits in item_digits or item_digits in code_digits))
-            ):
-                matched_item = item
-                break
-
-        if not matched_item:
-            raise ValueError(f"Paleta '{pallet_code}' nie występuje w tym zleceniu transferu.")
+            if code_upper == item_code or (code_upper.isdigit() and code_upper == item_id_str):
+                matches.append(item)
+        if len(matches) != 1:
+            raise ValueError(f"Paleta '{pallet_code}' nie identyfikuje jednej pozycji w tym zleceniu transferu.")
+        matched_item = matches[0]
+        matched_status = getattr(matched_item, 'status', None) or (matched_item.get('status') if isinstance(matched_item, dict) else '')
+        if matched_status == 'RECEIVED':
+            raise ValueError("Paleta została już przyjęta; ponowny skan nie może zmienić jej lokalizacji.")
 
         matched_pallet_id = getattr(matched_item, 'pallet_id', None) or (matched_item.get('pallet_id') if isinstance(matched_item, dict) else None)
         matched_nr_palety = getattr(matched_item, 'nr_palety', '') or (matched_item.get('nr_palety') if isinstance(matched_item, dict) else '')
@@ -245,7 +242,7 @@ class OsipTransferService:
         # Check if all items in transfer are now received
         updated_transfer = self.repository.get_transfer_by_id(transfer.id)
         updated_items = self._extract_items(updated_transfer)
-        all_received = all(getattr(it, 'status', None) == 'RECEIVED' or (it.get('status') if isinstance(it, dict) else None) == 'RECEIVED' for it in updated_items)
+        all_received = bool(updated_items) and all(getattr(it, 'status', None) == 'RECEIVED' or (it.get('status') if isinstance(it, dict) else None) == 'RECEIVED' for it in updated_items)
         if all_received:
             self.repository.update_transfer_status(transfer.id, "COMPLETED", user_login)
             updated_transfer = self.repository.get_transfer_by_id(transfer.id)
@@ -281,6 +278,9 @@ class OsipTransferService:
             cursor = conn.cursor()
             try:
                 for item in self._extract_items(transfer):
+                    item_status = getattr(item, 'status', None) or (item.get('status') if isinstance(item, dict) else '')
+                    if item_status == 'RECEIVED':
+                        continue
                     pallet_id = getattr(item, 'pallet_id', None) or (item.get('pallet_id') if isinstance(item, dict) else None)
                     if pallet_id:
                         cursor.execute(
@@ -306,9 +306,8 @@ class OsipTransferService:
             return
 
         code_str = str(pallet_code).strip().upper()
-        code_digits = ''.join(c for c in code_str if c.isdigit())
-        is_digit = code_str.isdigit()
-
+        if not code_str:
+            return
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
@@ -317,31 +316,17 @@ class OsipTransferService:
                 FROM osip_transfer_items ti
                 JOIN osip_transfers t ON ti.transfer_id = t.id
                 WHERE (
-                    CONVERT(ti.nr_palety USING utf8mb4) = CONVERT(%s USING utf8mb4)
-                    OR (%s != '' AND CONVERT(ti.nr_palety USING utf8mb4) LIKE CONVERT(%s USING utf8mb4))
-                    OR (%s != '' AND %s LIKE CONVERT(CONCAT('%%', ti.nr_palety, '%%') USING utf8mb4))
+                    UPPER(TRIM(ti.nr_palety)) = %s
                     OR (ti.pallet_id = %s AND %s != 0)
-                ) 
-                AND t.status IN ('PLANNED', 'IN_TRANSIT') 
+                )
+                AND t.status IN ('PLANNED', 'IN_TRANSIT')
                 AND ti.status != 'RECEIVED'
             """
-            like_param = f"%{code_str}%" if code_str else ""
-            pallet_id_param = int(code_str) if is_digit else 0
-
-            cursor.execute(query, (code_str, like_param, like_param, code_str, code_str, pallet_id_param, pallet_id_param))
+            pallet_id_param = int(code_str) if code_str.isdigit() else 0
+            cursor.execute(query, (code_str, pallet_id_param, pallet_id_param))
             items = cursor.fetchall()
-            
-            if not items and len(code_digits) >= 8:
-                query_digits = """
-                    SELECT ti.id, ti.transfer_id, ti.pallet_id, ti.nr_palety, t.destination_warehouse, t.status as transfer_status
-                    FROM osip_transfer_items ti
-                    JOIN osip_transfers t ON ti.transfer_id = t.id
-                    WHERE CONVERT(ti.nr_palety USING utf8mb4) LIKE CONVERT(%s USING utf8mb4)
-                      AND t.status IN ('PLANNED', 'IN_TRANSIT') 
-                      AND ti.status != 'RECEIVED'
-                """
-                cursor.execute(query_digits, (f"%{code_digits}%",))
-                items = cursor.fetchall()
+            if len(items) > 1:
+                raise ValueError("Paleta występuje w wielu aktywnych transferach OSIP")
 
             if not items:
                 return

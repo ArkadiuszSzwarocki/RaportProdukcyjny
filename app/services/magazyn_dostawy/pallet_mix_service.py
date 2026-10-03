@@ -1,8 +1,10 @@
+# cspell:words mixu
 """Serwis mixowania palet - pozwala na tworzenie jednej palety MIX z wielu palet zrodlowych."""
 
 from __future__ import annotations
 
 import random
+import math
 import string
 import urllib.parse
 from datetime import datetime
@@ -44,6 +46,7 @@ class PalletMixService:
 
         total_weight = 0.0
         validated_components = []
+        seen_sources = set()
 
         now_dt = datetime.now()
         new_sscc = generate_mix_pallet_id()
@@ -61,7 +64,7 @@ class PalletMixService:
                 mother_sscc = str(comp.get('nr_palety', '')).strip()
                 weight_to_take = round(float(comp.get('weight_to_take', 0)), 3)
 
-                if not mother_sscc or weight_to_take <= 0:
+                if not mother_sscc or not math.isfinite(weight_to_take) or weight_to_take <= 0:
                     return False, f"Błędne dane komponentu (SSCC: {mother_sscc}, Waga: {weight_to_take}).", None
 
                 pal = PalletSplitService.find_by_sscc(mother_sscc)
@@ -71,12 +74,16 @@ class PalletMixService:
                 mother_id = pal['id']
                 source = pal['source']
                 pal_linia = pal.get('linia', linia)
+                source_key = (source, str(mother_id), str(pal_linia).upper())
+                if source_key in seen_sources:
+                    return False, 'Nie można dodać tej samej palety dwa razy do jednego mixu.', None
+                seen_sources.add(source_key)
 
                 if pal.get('is_blocked'):
                     return False, f"Paleta {pal.get('nr_palety')} jest zablokowana i nie może być użyta w mixie.", None
 
                 current_weight = PalletSplitService._get_weight(pal, source)
-                if weight_to_take > current_weight:
+                if not math.isfinite(current_weight) or current_weight <= 0 or weight_to_take > current_weight:
                     return (
                         False,
                         f"Brak wystarczającej wagi na palecie {pal.get('nr_palety')} (Żądano: {weight_to_take}, Stan: {current_weight}).",
