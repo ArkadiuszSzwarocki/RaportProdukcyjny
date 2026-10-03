@@ -192,3 +192,26 @@ def test_quality_lock_uses_verified_table_and_never_matches_unrelated_ids(app, e
     assert all('WHERE nr_palety = %s' in call.args[0] and call.args[1] == (1, 'TEST-123') for call in updates)
     if not exists:
         connection.commit.assert_not_called()
+
+
+@pytest.mark.parametrize('module, class_name, operation', [
+    ('app.services.warehouse_v2_service', 'WarehouseV2Service', 'move_pallet'),
+    ('app.services.warehouse_v2.pallet_relocation_service', 'PalletRelocationService', 'move_pallet'),
+    ('app.services.warehouse_v2.pallet_modification_service', 'PalletModificationService', 'update_weight')])
+def test_removed_verified_pallet_cannot_fall_back_to_foreign_stock(app, module, class_name, operation):
+    import importlib
+    from flask import g
+    service = getattr(importlib.import_module(module), class_name)
+    connection = MagicMock()
+    cursor = connection.cursor.return_value
+    cursor.fetchone.return_value = None
+    with app.test_request_context('/'), patch(module + '.get_db_connection', return_value=connection):
+        g.warehouse_resource = {'table': 'magazyn_palety_agro', 'id': 123, 'nr_palety': 'TEST-123'}
+        if operation == 'move_pallet':
+            result = service.move_pallet(123, 'Wyrób Gotowy', None, 'test', linia='AGRO')
+        else:
+            result = service.update_weight(123, 'Wyrób Gotowy', 20, 'test', linia='AGRO')
+    assert result[0] is False
+    queries = [call.args[0] for call in cursor.execute.call_args_list]
+    assert queries and all(query.startswith('SELECT') and 'FROM magazyn_palety_agro ' in query for query in queries)
+    connection.commit.assert_not_called()

@@ -1,3 +1,4 @@
+from flask import g, has_request_context
 import re
 import json
 from datetime import datetime
@@ -101,6 +102,10 @@ class PalletRelocationService:
             if not row:
                 cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s", (str(pallet_id),))
                 row = cursor.fetchone()
+            if not row and has_request_context() and getattr(g, 'warehouse_resource', None):
+                # A verified HTTP resource must never fall back to another warehouse.
+                return False, 'Paleta nie istnieje w zweryfikowanym magazynie.'
+
             if not row and pallet_type != 'Dodatek':
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 if pallet_type == 'Surowiec':
