@@ -138,7 +138,10 @@ class TestProductionPlans:
         with patch('app.services.production_service.QueryHelper') as mock_qh:
             mock_qh.get_plan_produkcji.return_value = []
             
-            result = DashboardService.get_production_plans(test_date, 'Zasyp')
+            cursor = MagicMock()
+            cursor.fetchall.return_value = []
+            cursor.fetchone.return_value = None
+            result = DashboardService.get_production_plans(test_date, 'Zasyp', cursor=cursor)
             
             assert len(result) == 4
             assert isinstance(result[0], list)  # plans
@@ -168,7 +171,10 @@ class TestProductionPlans:
             mock_qh.get_plan_produkcji.return_value = [plan_row]
             
             with patch.object(DashboardService, '_is_quality_order', return_value=False):
-                result = DashboardService.get_production_plans(test_date, 'Zasyp')
+                cursor = MagicMock()
+                cursor.fetchall.return_value = []
+                cursor.fetchone.return_value = None
+                result = DashboardService.get_production_plans(test_date, 'Zasyp', cursor=cursor)
                 
                 plans = result[0]
                 assert plans[0][4] == '09:15'  # Formatted time
@@ -233,7 +239,7 @@ class TestFullPlansForSections:
             mock_cursor.fetchall.return_value = []
             mock_conn.return_value.cursor.return_value = mock_cursor
             
-            result = DashboardService.get_full_plans_for_sections(test_date)
+            result = DashboardService.get_full_plans_for_sections(test_date, cursor=mock_cursor)
             
             assert len(result) == 2
             assert isinstance(result[0], list)  # plans_zasyp
