@@ -1,10 +1,14 @@
 import unittest
+from unittest.mock import MagicMock, patch
 from app.services.qr_generator_service import QrGeneratorService
 
 
 class TestQrGeneratorService(unittest.TestCase):
     def test_get_all_warehouse_locations(self):
-        result = QrGeneratorService.get_all_warehouse_locations()
+        connection = MagicMock()
+        connection.cursor.return_value.fetchall.return_value = []
+        with patch('app.services.qr_generator_service.get_db_connection', return_value=connection):
+            result = QrGeneratorService.get_all_warehouse_locations()
         self.assertIn('categories', result)
         self.assertIn('total_count', result)
         self.assertGreater(result['total_count'], 100)
