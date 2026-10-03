@@ -7,7 +7,7 @@ Testy integracyjne dla nowych modułów magazynu OSIP:
 - Miksowanie palet OSIP
 """
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture
@@ -78,7 +78,9 @@ def test_osip_mixowanie_view(osip_admin_client):
     assert res.status_code == 200
 
 
-def test_centrala_osip_direct_move_blocked():
+@patch('app.core.database.get_db_connection')
+def test_centrala_osip_direct_move_blocked(mock_connection):
+    mock_connection.return_value.cursor.return_value.fetchone.return_value = None
     """Bezpośrednie przenoszenie palet między Centralą a OSIP bez transferu jest blokowane."""
     from app.utils.location_validator import validate_centrala_osip_move
     ok, msg = validate_centrala_osip_move(

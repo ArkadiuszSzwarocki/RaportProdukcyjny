@@ -1,8 +1,12 @@
+# cspell:words pytestmark
+# These integration checks create and remove rows in a real test database.
 import pytest
 from app.core.factory import create_app
 from app.db import get_db_connection
 from app.services.bucket_maluch_service import BucketMaluchService
 from app.repositories.bucket_maluch_repository import BucketMaluchRepository
+
+pytestmark = pytest.mark.require_db
 
 
 @pytest.fixture

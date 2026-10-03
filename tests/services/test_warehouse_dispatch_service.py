@@ -119,7 +119,8 @@ def test_get_dispatches_history_with_dicts():
     assert history[0]['nr_palety'] == 'PAL-002'
 
 
-def test_dispatch_pallets_batch_to_vehicle():
+@patch('app.services.lab_quality_service.LabQualityService.check_pallet_lab_status', return_value={'is_blocked': False})
+def test_dispatch_pallets_batch_to_vehicle(mock_quality):
     repo = MagicMock()
     repo.create_dispatch.side_effect = [101, 102]
     repo.deduct_pallet_stock.return_value = True

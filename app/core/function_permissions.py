@@ -107,8 +107,15 @@ def register_function_permissions(app):
         if request.endpoint == 'main.index':
             from app.core.contexts import inject_role_permissions
             helpers = inject_role_permissions()
-            line = str(request.args.get('linia') or session.get('selected_hall_view') or 'PSD').lower()
+            line = str(request.args.get('linia') or session.get('selected_hall_view') or session.get('grupa') or 'PSD').lower()
+            if line not in {'psd', 'agro', 'osip'}:
+                line = 'psd'
             section = str(request.args.get('sekcja') or 'Dashboard').lower()
+            if section == 'dashboard' and not helpers['role_has_access'](line + '.' + section):
+                # Let index redirect to an explicitly allowed section; it does not render the dashboard.
+                if any(helpers['role_has_access'](line + '.' + candidate)
+                       for candidate in ('zasyp', 'workowanie', 'bufor', 'magazyn')):
+                    return None
             if not helpers['role_has_access'](line + '.' + section):
                 return render_template('errors/403.html', page_url=request.path,
                                        user_role=session.get('rola'), allowed_roles=[]), 403
