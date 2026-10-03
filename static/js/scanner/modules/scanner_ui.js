@@ -50,12 +50,12 @@ function hideStation() {
 function showPallet(p) {
   if (p.is_bucket && p.is_free) {
     hidePallet();
-    showToast(`Wiadro ${p.kod_wiadra || ''} jest wolne. Można rozpocząć nowe naważanie.`, 'info');
+    showToast(`Wiadro W${String(p.kod_wiadra || '').padStart(2, '0')} jest wolne. Można rozpocząć nowe naważanie.`, 'info');
     return;
   }
   if (p.is_bucket && (p.is_used_up || p.status === 'wrzucone_do_mieszalnika')) {
     hidePallet();
-    showToast(`Wiadro ${p.kod_wiadra || ''} zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.`, 'warning');
+    showToast(`Wiadro W${String(p.kod_wiadra || '').padStart(2, '0')} zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.`, 'warning');
     return;
   }
   if (p.is_unconfirmed_wg) {

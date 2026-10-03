@@ -39,6 +39,7 @@ def test_physical_bucket_without_active_filling_is_free_not_last_consumed(code):
         result = ScannerResolutionService.lookup_by_location(code, 'AGRO')
     assert result['is_free'] is True
     assert result['status'] == 'wolne'
+    assert result['nazwa'] == 'Wiadro W01 — wolne'
     assert result['is_used_up'] is False
     assert result['pozycje'] == []
     assert result['plan_id'] is None

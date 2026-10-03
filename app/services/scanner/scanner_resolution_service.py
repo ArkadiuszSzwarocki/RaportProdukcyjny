@@ -27,7 +27,7 @@ class ScannerResolutionService:
                 bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, alt_linia)
             if not bucket and not exact_label:
                 return {
-                    'id': None, 'nazwa': f'Wiadro {norm_bucket} — wolne',
+                    'id': None, 'nazwa': f'Wiadro W{norm_bucket} — wolne',
                     'typ': 'Wiaderko', 'inventory_type': 'Wiaderko', 'is_bucket': True,
                     'is_free': True, 'is_used_up': False, 'can_dispatch': False,
                     'kod_wiadra': norm_bucket, 'status': 'wolne',
@@ -55,7 +55,7 @@ class ScannerResolutionService:
 
                 return {
                     'id': bucket['id'],
-                    'nazwa': f"Wiadro {norm_bucket} ({pozycje_txt})",
+                    'nazwa': f"Wiadro W{norm_bucket} ({pozycje_txt})",
                     'typ': 'Wiaderko',
                     'inventory_type': 'Wiaderko',
                     'is_bucket': True,
