@@ -8,7 +8,10 @@ AGRO_TABLE_MAP = {
     'palety_workowanie': 'palety_agro',
     'magazyn_ruch': 'magazyn_agro_ruch',
     'bufor': 'bufor_agro',
-    'magazyn_palety': 'magazyn_palety_agro',
+    # Finished goods are physically consolidated in magazyn_palety.  The
+    # AGRO-named view remains for old read-only SQL, while all new writes go
+    # through the one canonical table and retain their ``linia`` value.
+    'magazyn_palety': 'magazyn_palety',
 }
 
 # Shared tables do not change their physical identifier with the production

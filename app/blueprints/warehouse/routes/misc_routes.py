@@ -127,8 +127,8 @@ def register_misc_routes(warehouse_bp, *, resolve_request_linia, resolve_payload
                 if not exists:
                     try:
                         cursor.execute(
-                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login'), nr_palety, nr_plomby),
+                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_palety, nr_plomby, linia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login'), nr_palety, nr_plomby, linia),
                         )
                     except mysql.connector.IntegrityError:
                         pass
