@@ -56,15 +56,6 @@
                     <td class="time-display warehouse-pending-created"><span class="warehouse-mobile-label">Dodano</span>{{ p[3] }}</td>
                     <td class="warehouse-pending-elapsed"><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
                     <td class="warehouse-pending-actions">
-                        <a
-                            href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=p[0], linia=linia) }}"
-                            onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety')"
-                            class="btn-icon"
-                            style="color:#0ea5e9; margin-right:8px;"
-                            title="Podgląd etykiety"
-                        >
-                            <span class="material-icons" style="font-size:18px;">local_offer</span>
-                        </a>
                         <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
                             class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
                     </td>

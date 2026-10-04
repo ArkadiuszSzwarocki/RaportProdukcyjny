@@ -75,16 +75,15 @@
         text-align: left !important;
     }
 
-    .warehouse-pending-code { grid-column: 1; grid-row: 1; font-size: .78rem !important; color: #475569 !important; }
-    .warehouse-pending-code .btn-icon { margin-left: 4px !important; vertical-align: middle; }
-    .warehouse-pending-product { grid-column: 1 / -1; grid-row: 2; line-height: 1.25; }
+    .warehouse-pending-product { grid-column: 1; grid-row: 1; line-height: 1.25; min-width: 0; }
     .warehouse-pending-product > strong { font-size: .98rem !important; }
     .warehouse-pending-product div { margin-top: 2px !important; font-size: .72rem !important; }
-    .warehouse-pending-created { grid-column: 1; grid-row: 3; color: #64748b !important; font-size: .75rem !important; }
-    .warehouse-pending-elapsed { grid-column: 2; grid-row: 3; align-self: center; }
-    .warehouse-pending-actions { grid-column: 1 / -1; grid-row: 4; margin-top: 2px; }
-    .warehouse-pending-actions .btn-action { display: flex !important; width: 100% !important; min-height: 38px !important; justify-content: center !important; align-items: center !important; }
-    .warehouse-pending-actions .btn-icon { float: right; margin: 8px 6px 0 0 !important; }
+    .warehouse-pending-code { grid-column: 2; grid-row: 1; align-self: start; font-size: .68rem !important; color: #475569 !important; white-space: nowrap; }
+    .warehouse-pending-code .btn-icon { margin-left: 3px !important; vertical-align: middle; }
+    .warehouse-pending-created { grid-column: 1; grid-row: 2; color: #64748b !important; font-size: .75rem !important; }
+    .warehouse-pending-elapsed { grid-column: 1; grid-row: 3; align-self: center; }
+    .warehouse-pending-actions { grid-column: 2; grid-row: 2 / span 2; align-self: stretch; display: flex !important; align-items: center; }
+    .warehouse-pending-actions .btn-action { display: flex !important; width: 104px !important; min-height: 58px !important; justify-content: center !important; align-items: center !important; }
     .warehouse-mobile-label { display: inline; margin-right: 4px; font-size: .68rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; }
 
     .warehouse-confirmed-section .p-15-bg { padding: 10px !important; }
