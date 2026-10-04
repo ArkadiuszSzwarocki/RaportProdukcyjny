@@ -155,6 +155,12 @@ class WarehouseRegistry:
 
     @classmethod
     def move(cls, connection, *, sscc, source, destination, operation_key, operator):
+        return cls.transition(connection, sscc=sscc, source=source, destination=destination,
+                              operation_key=operation_key, operator=operator, action='MOVE')
+
+    @classmethod
+    def transition(cls, connection, *, sscc, source, destination, operation_key, operator,
+                   action, quantity=None):
         """Candidate writer: caller supplies verified destination and existing authorization.
 
         Intentionally copy-only until reservations, rack rules and all adapters are migrated.
@@ -163,7 +169,14 @@ class WarehouseRegistry:
         cls.assert_copy(cursor)
         code = str(sscc).strip().upper()
         source, destination = str(source).strip().upper(), str(destination).strip().upper()
-        if not code or not operation_key or not destination or source == destination:
+        if action not in ('MOVE', 'RECEIVE', 'DISPATCH'):
+            raise ValueError('Nieznana operacja magazynowa.')
+        issued = Decimal(str(quantity)) if quantity is not None else None
+        if action == 'DISPATCH' and (issued is None or not issued.is_finite() or issued <= 0):
+            raise ValueError('Wydawana ilość musi być dodatnia.')
+        if action != 'DISPATCH' and issued is not None:
+            raise ValueError('Przesunięcie i odbiór nie zmieniają ilości palety.')
+        if not code or not operation_key or not destination or (source == destination and action != 'DISPATCH'):
             raise ValueError('Niepoprawne dane ruchu palety.')
         try:
             cursor.execute('SELECT * FROM warehouse_pallets WHERE sscc=%s FOR UPDATE', (code,))
@@ -173,17 +186,23 @@ class WarehouseRegistry:
             cursor.execute('SELECT * FROM warehouse_events WHERE operation_key=%s', (operation_key,))
             event = cursor.fetchone()
             if event:
-                if (event['pallet_id'], event['source_location'], event['target_location']) != (pallet['id'], source, destination):
+                same = (event['pallet_id'], event['action'], event['source_location'], event['target_location']) == (pallet['id'], action, source, destination)
+                if action == 'DISPATCH':
+                    same = same and event['quantity_before'] - event['quantity_after'] == issued
+                if not same:
                     raise ValueError('Klucz operacji dotyczy innego ruchu.')
                 connection.rollback()
                 return pallet['id']
             if pallet['blocked'] or pallet['quantity'] <= 0 or pallet['location'] != source:
                 raise ValueError('Stan palety zmienił się lub paleta jest zablokowana.')
-            cursor.execute('UPDATE warehouse_pallets SET location=%s,version=version+1 WHERE sscc=%s', (destination, code))
+            after = pallet['quantity'] - issued if action == 'DISPATCH' else pallet['quantity']
+            if after < 0:
+                raise ValueError('Brak wymaganej ilości palety do wydania.')
+            cursor.execute('UPDATE warehouse_pallets SET location=%s,quantity=%s,version=version+1 WHERE sscc=%s', (destination, after, code))
             cursor.execute('''INSERT INTO warehouse_events(pallet_id,operation_key,action,source_location,
                 target_location,quantity_before,quantity_after,operator,metadata)
-                VALUES(%s,%s,'MOVE',%s,%s,%s,%s,%s,'{}')''',
-                (pallet['id'], operation_key, source, destination, pallet['quantity'], pallet['quantity'], operator))
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,'{}')''',
+                (pallet['id'], operation_key, action, source, destination, pallet['quantity'], after, operator))
             connection.commit()
             return pallet['id']
         except Exception:
