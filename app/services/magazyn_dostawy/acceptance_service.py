@@ -99,8 +99,14 @@ class AcceptanceService:
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
                 supplier = str(dostawa.get('supplier') or '').strip()
-                is_external = bool(supplier) or source_spot in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE') or str(dostawa.get('lokalizacja_z') or '').strip().upper() in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE')
+                is_external = bool(supplier) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
+                if not is_external:
+                    destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
+                    if not destination:
+                        return False, 'Przesunięcie nie ma wskazanego celu. Najpierw ustaw magazyn docelowy w dokumencie.', None
+                    if destination != lokalizacja:
+                        return False, f'Paleta jest przeznaczona do {destination}. Nie można przyjąć jej na {lokalizacja}.', None
                 if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None
 
@@ -135,7 +141,7 @@ class AcceptanceService:
                 # Resolve legacy/inconsistent documents by the physical SSCC
                 # (or source id), not by the document line. This prevents an
                 # AGRO/ALL document from updating a PSD row with the same id.
-                source_identity = target.get('sourcePalletId') or target.get('sourcePalletNo') or target.get('nr_palety')
+                source_identity = target.get('sourcePalletNo') or target.get('nr_palety') or target.get('sourcePalletId')
                 if source_identity and not source_table_hint:
                     if p_type_scanned in ('wyrob_gotowy', 'wyrób gotowy', 'wyrob gotowy', 'magazyn', 'produkcja'):
                         table_candidates, qty_column = sorted(allowed_got), 'waga_netto'

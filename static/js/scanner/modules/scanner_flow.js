@@ -507,6 +507,10 @@ async function lookupPallet(code) {
 }
 
 if (scanInput) {
+  let previousInputTime = 0;
+  let previousInputLength = 0;
+  let fastInputIntervals = 0;
+  let manualInput = false;
   // Keydown listener: on Enter immediate trigger
   scanInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
@@ -517,7 +521,7 @@ if (scanInput) {
     }
   });
 
-  // Input listener: adaptive debounce ensures all hardware scanners and typing auto-trigger
+  // Only a fast reader burst may submit automatically. Typing waits for Enter/button.
   scanInput.addEventListener('input', function() {
     const raw = this.value;
     const cleaned = extractSSCCFromScan(raw);
@@ -527,38 +531,43 @@ if (scanInput) {
     clearTimeout(scanTimeout);
 
     const code = (this.value || '').trim();
-    if (!code) return;
+    if (!code) {
+      previousInputLength = 0;
+      fastInputIntervals = 0;
+      manualInput = false;
+      return;
+    }
 
-    // Determine debounce delay:
-    // If it's a long code (like SSCC or standard pallet ID >= 6 chars), auto-submit fast (120ms).
-    // If short (3-5 chars), give 300ms so user can finish typing or scanner burst finishes.
-    const delay = code.length >= 6 ? 120 : 300;
+    const now = performance.now();
+    if (!previousInputLength || code.length === 1) {
+      fastInputIntervals = 0;
+      manualInput = false;
+    } else if (code.length <= previousInputLength) {
+      fastInputIntervals = 0;
+      manualInput = true;
+    } else if (now - previousInputTime <= 45) {
+      fastInputIntervals += 1;
+    } else {
+      manualInput = true;
+    }
+    previousInputTime = now;
+    previousInputLength = code.length;
 
-    if (code.length >= 3) {
+    if (code.length >= 3 && fastInputIntervals >= 2 && !manualInput) {
       scanTimeout = setTimeout(() => {
         const currVal = (scanInput ? scanInput.value : '').trim();
         if (currVal.length >= 3 && !isProcessingScan) {
           triggerScan();
         }
-      }, delay);
+      }, 150);
     }
   });
 
-  // Paste listener: fast auto-submit on paste
+  // Pasting is a manual action and waits for explicit confirmation.
   scanInput.addEventListener('paste', function() {
     clearTimeout(scanTimeout);
-    setTimeout(() => {
-      if (scanInput) {
-        const cleaned = extractSSCCFromScan(scanInput.value);
-        if (cleaned !== scanInput.value) {
-          scanInput.value = cleaned;
-        }
-        const code = scanInput.value.trim();
-        if (code.length >= 3) {
-          triggerScan();
-        }
-      }
-    }, 20);
+    manualInput = true;
+    fastInputIntervals = 0;
   });
 }
 

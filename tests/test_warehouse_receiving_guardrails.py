@@ -17,6 +17,22 @@ from app.utils.location_validator import check_rack_location_availability
 pytestmark = pytest.mark.require_db
 
 
+@pytest.mark.parametrize('destination', ['', 'MS01'])
+def test_internal_receipt_rejects_missing_or_wrong_destination(app, pending_delivery, destination):
+    document_id, code, item = pending_delivery
+    item['sourceSpot'] = 'OCZEKUJĄCE'
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE magazyn_dostawy SET supplier=NULL,lokalizacja_z='WIELE',lokalizacja_do=%s,items=%s WHERE id=%s", (destination, json.dumps([item]), document_id))
+    conn.commit()
+    conn.close()
+    before = delivery_snapshot(document_id, code)
+    result = AcceptanceService.accept_item(document_id, 'one', 'MP01', 'pytest')
+    assert not result[0]
+    assert ('celu' in result[1]) if not destination else ('przeznaczona do MS01' in result[1])
+    assert delivery_snapshot(document_id, code) == before
+
+
 def test_cancellation_does_not_restore_into_occupied_rack(pending_delivery):
     from app.services.magazyn_dostawy.commands.delivery_cancellation_service import DeliveryCancellationService
     _, code, item = pending_delivery

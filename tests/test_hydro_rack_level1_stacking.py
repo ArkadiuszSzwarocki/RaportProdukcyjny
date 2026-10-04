@@ -164,7 +164,7 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
     }]
     mock_cursor.fetchone.side_effect = [
         # SELECT id, type, items, status, linia FROM magazyn_dostawy WHERE id = %s
-        {'id': 1, 'type': 'RAW_MATERIAL', 'status': 'OCZEKUJE', 'items': json.dumps(order_items), 'linia': 'PSD'},
+        {'id': 1, 'type': 'RAW_MATERIAL', 'status': 'OCZEKUJE', 'items': json.dumps(order_items), 'linia': 'PSD', 'supplier': 'Test', 'lokalizacja_z': 'DOSTAWA'},
         # exist check for nr_palety in magazyn_surowce
         None, None, None, None, None, None
     ]
