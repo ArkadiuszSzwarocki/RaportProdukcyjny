@@ -6,7 +6,6 @@
 <div id="dashboard-config" data-current-role="{{ session.get('rola') }}" data-linia="{{ linia or 'PSD' }}" data-sekcja="Dashboard"></div>
 
 {% include 'dashboard/_global_header_menu.html' %}
-{% include 'dashboard/_cleaning_notifications.html' %}
 {% include 'dashboard/_dashboard_magnet_cleanings.html' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/measurements.css') }}?v={{ static_version }}">
 {% include 'dashboard/_agro_measurements.html' %}
