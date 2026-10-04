@@ -129,6 +129,7 @@ async function handleGlobalLocationScanSubmit(rawLocationCode) {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     id: activeTransferItem.id,
+                    nr_palety: activeTransferItem.nr,
                     lokalizacja: lok,
                     linia: activeTransferItem.linia || (String(activeTransferItem.nr || '').startsWith('AGR') ? 'AGRO' : window.MAGAZYN_CONFIG.linia),
                     waga: Number.isFinite(parsedWaga) ? parsedWaga : null

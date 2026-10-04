@@ -108,6 +108,7 @@ function submitWgAccept() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       id: wgPalletObj.id,
+      nr_palety: wgPalletObj.nr_palety,
       lokalizacja: loc,
       linia: LINIA,
       waga: wVal

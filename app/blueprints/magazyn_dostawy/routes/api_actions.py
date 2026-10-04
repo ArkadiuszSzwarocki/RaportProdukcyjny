@@ -176,7 +176,7 @@ def odrzuc_pozycje(dostawa_id):
 @magazyn_dostawy_bp.route('/api/przyjmij-wg', methods=['POST'])
 def przyjmij_wg():
     data = request.json or {}
-    pallet_id = data.get('id')
+    pallet_id = data.get('nr_palety') or data.get('id')
     lokalizacja = str(data.get('lokalizacja', '')).strip().upper()
 
     if not pallet_id:

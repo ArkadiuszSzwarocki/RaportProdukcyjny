@@ -660,12 +660,12 @@ class AcceptanceService:
                         params.append(pallet_id_int)
 
                     query = f"""
-                        SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
+                        SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu, plan.nr_partii AS plan_batch, plan.data_produkcji AS plan_production_date, plan.termin_przydatnosci AS plan_expiry
                         FROM {t_prod} p
                         LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
                         WHERE ({' OR '.join(where_clauses)})
                           AND (p.status = 'do_przyjecia' OR p.status IS NULL OR p.status = '')
-                        ORDER BY p.id DESC LIMIT 1
+                        ORDER BY p.id DESC LIMIT 1 FOR UPDATE
                     """
                     cursor.execute(query, tuple(params))
                     p_row = cursor.fetchone()
@@ -690,11 +690,11 @@ class AcceptanceService:
                             params.append(pallet_id_int)
 
                         query = f"""
-                            SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
+                            SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu, plan.nr_partii AS plan_batch, plan.data_produkcji AS plan_production_date, plan.termin_przydatnosci AS plan_expiry
                             FROM {t_prod} p
                             LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
                             WHERE ({' OR '.join(where_clauses)})
-                            ORDER BY p.id DESC LIMIT 1
+                            ORDER BY p.id DESC LIMIT 1 FOR UPDATE
                         """
                         cursor.execute(query, tuple(params))
                         p_row = cursor.fetchone()
@@ -718,7 +718,7 @@ class AcceptanceService:
                 except (TypeError, ValueError):
                     confirmed_netto = float(pallet.get('waga') or 0)
 
-                if confirmed_netto <= 0:
+                if not math.isfinite(confirmed_netto) or confirmed_netto <= 0:
                     return False, "Brak poprawnej wagi netto palety do przyjęcia."
 
                 # 2. Update production table status
@@ -727,37 +727,18 @@ class AcceptanceService:
                     (datetime.now(), confirmed_netto, login, actual_pallet_id),
                 )
                 
-                # 3. Insert into unified warehouse table
-                fk_col = 'paleta_workowanie_id'
-                cursor.execute(f"SELECT id FROM magazyn_palety WHERE {fk_col} = %s AND linia = %s", (actual_pallet_id, linia))
-                existing = cursor.fetchone()
-                
-                if existing:
-                    cursor.execute(
-                        "UPDATE magazyn_palety SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s, waga_netto = %s, linia = %s WHERE id = %s",
-                        (lokalizacja, datetime.now(), login, confirmed_netto, linia, existing['id']),
-                    )
-                else:
-                    cursor.execute(f"""
-                        INSERT INTO magazyn_palety 
-                        ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety, linia)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (actual_pallet_id, 
-                          pallet.get('plan_id'), 
-                          pallet.get('data_planu'), 
-                          pallet.get('produkt_nazwa') or pallet.get('produkt') or '', 
-                          confirmed_netto, 
-                          float(pallet.get('waga_brutto') or 0), 
-                          float(pallet.get('tara') or 0), 
-                          lokalizacja, login, 
-                          pallet.get('nr_palety'),
-                          linia))
-
-                # 4. Log history
-                cursor.execute("""
-                    INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'OCZEKUJĄCE', %s, %s, %s)
-                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG z OCZEKUJĄCE: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
+                from app.services.pallets.finished_goods_receipt import FinishedGoodsReceipt
+                FinishedGoodsReceipt.write(
+                    conn,line=linia,production_id=actual_pallet_id,code=pallet.get('nr_palety'),
+                    product=pallet.get('produkt_nazwa') or pallet.get('produkt') or '',
+                    quantity=confirmed_netto,location=lokalizacja,login=login,
+                    plan_id=pallet.get('plan_id'),plan_date=pallet.get('data_planu'),
+                    gross=float(pallet.get('waga_brutto') or 0),tare=float(pallet.get('tara') or 0),
+                    seal=pallet.get('nr_plomby'),sequence=pallet.get('nr_palety_lp'),
+                    batch=pallet.get('nr_partii') or pallet.get('plan_batch'),
+                    production_date=pallet.get('data_produkcji') or pallet.get('plan_production_date'),
+                    expiry=pallet.get('data_przydatnosci') or pallet.get('plan_expiry'),
+                )
 
                 conn.commit()
                 
@@ -814,6 +795,7 @@ class AcceptanceService:
                 msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport z produkcji został otwarty do wydruku." if is_last_pallet else "Paleta została przyjęta do magazynu."
                 return AcceptanceResult(True, msg, open_report_url=open_report_url, plan_id=plan_id, is_last_pallet=is_last_pallet)
             except Exception as e:
+                conn.rollback()
                 return False, str(e)
             finally:
                 conn.close()

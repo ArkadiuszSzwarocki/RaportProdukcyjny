@@ -138,7 +138,7 @@ class WarehousePalletService:
                 if provided_brutto is not None:
                     cursor.execute(f"UPDATE {table_pal} SET waga_brutto=%s WHERE id=%s", (provided_brutto, paleta_id))
                 if provided_netto is not None or provided_brutto is not None:
-                    conn.commit()
+                    pass  # Commit with stock and history, never just the production status.
             except Exception as error:
                 current_app.logger.error('Failed to persist weights for paleta %s: %s', paleta_id, error, exc_info=True)
                 try:
@@ -153,7 +153,7 @@ class WarehousePalletService:
             nr_plomby = None
             try:
                 cursor.execute(
-                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s",
+                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s FOR UPDATE",
                     (paleta_id,),
                 )
                 prev_row = cursor.fetchone()
@@ -167,6 +167,9 @@ class WarehousePalletService:
                 current_app.logger.warning('Failed to fetch plan_id/status/weights for paleta %s: %s', paleta_id, error)
     
             user_login = user_login
+            if not plan_id:
+                raise ValueError('Nie znaleziono zlecenia produkcji palety.')
+
             try:
                 if linia == 'AGRO':
                     cursor.execute(
@@ -188,13 +191,13 @@ class WarehousePalletService:
                         f"WHERE id=%s",
                         (user_login, paleta_id),
                     )
-                conn.commit()
+                pass  # Commit with stock and history, never just the production status.
                 status_updated = True
             except Exception as error:
                 current_app.logger.warning('Complex update failed for paleta %s: %s, retrying simple update', paleta_id, error)
                 try:
                     cursor.execute(f"UPDATE {table_pal} SET status='przyjeta' WHERE id=%s", (paleta_id,))
-                    conn.commit()
+                    pass  # Commit with stock and history, never just the production status.
                     status_updated = True
                 except Exception as second_error:
                     current_app.logger.error('Simple status update also failed for paleta %s: %s', paleta_id, second_error, exc_info=True)
@@ -367,45 +370,15 @@ class WarehousePalletService:
                             except Exception as e:
                                 current_app.logger.error('Database error for Czyszczenie dostawa: %s', e)
                         else:
-                            try:
-                                pw_lp_val = None
-                                try:
-                                    cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
-                                    if cursor.fetchone():
-                                        cursor.execute(f"SELECT nr_palety_lp FROM {table_pal} WHERE id = %s", (paleta_id,))
-                                        pw_lp_row = cursor.fetchone()
-                                        pw_lp_val = pw_lp_row[0] if pw_lp_row else None
-                                except Exception:
-                                    pw_lp_val = None
+                            from app.services.pallets.finished_goods_receipt import FinishedGoodsReceipt
+                            FinishedGoodsReceipt.write(
+                                conn,line=linia,production_id=paleta_id,code=nr_palety,product=row[1],
+                                quantity=netto_val,location=lokalizacja,login=user_login,
+                                plan_id=mp_id,plan_date=row[0],gross=provided_brutto or 0,tare=tara,
+                                batch=nr_partii,production_date=data_produkcji,expiry=data_przydatnosci,
+                                seal=nr_plomby,
+                            )
 
-                                has_mag_lp = False
-                                try:
-                                    cursor.execute(f"SHOW COLUMNS FROM {table_mag} LIKE 'nr_palety_lp'")
-                                    has_mag_lp = bool(cursor.fetchone())
-                                except Exception:
-                                    has_mag_lp = False
-
-                                if has_mag_lp:
-                                    cursor.execute(
-                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, nr_palety_lp) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby, pw_lp_val),
-                                    )
-                                else:
-                                    cursor.execute(
-                                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                        (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
-                                    )
-                                mag_id = cursor.lastrowid
-                                
-                                # Log to palety_historia
-                                cursor.execute(
-                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s, %s)",
-                                    (paleta_id, linia, 'OCZEKUJĄCE', lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", user_login)
-                                )
-                            except mysql.connector.Error as e:
-                                current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
-
-    
                         if cursor.rowcount > 0:
                             current_app.logger.info(
                                 'Potwierdzono paletę ID=%s: waga_netto=%s kg, produkt=%s, użytkownik=%s, lokalizacja=%s',
@@ -461,10 +434,8 @@ class WarehousePalletService:
                         # ---------------------------------------------------------------------------------------------------------
                 except Exception as error:
                     current_app.logger.error('Failed to update Magazyn aggregates for paleta %s: %s', paleta_id, error, exc_info=True)
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        pass
+                    conn.rollback()
+                    return ({'success': False, 'message': str(error)}, 400, None)
                         
             try:
                 # _mark_dosypki_updated function removed - no longer needed
@@ -475,6 +446,8 @@ class WarehousePalletService:
     
         except Exception as error:
             current_app.logger.error('Failed to potwierdz palete %s: %s', paleta_id, error, exc_info=True)
+            conn.rollback()
+            return ({'success': False, 'message': str(error)}, 400, None)
         finally:
             try:
                 conn.close()
