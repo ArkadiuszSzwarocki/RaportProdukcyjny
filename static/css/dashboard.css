@@ -33,6 +33,113 @@
 }
 
 @media (max-width: 640px) {
+    #dashboard-config,
+    #dashboard-config .dashboard-top-row {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    #dashboard-config .dashboard-top-row {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+    }
+
+    #dashboard-config .header-title-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 6px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    #dashboard-config .header-title-row .header-title {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        min-width: 0 !important;
+        font-size: 1.08rem !important;
+        white-space: nowrap !important;
+    }
+
+    #dashboard-config .header-title-row > div:nth-child(2) {
+        grid-column: 1 / -1 !important;
+        grid-row: 2 !important;
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        gap: 5px !important;
+    }
+
+    #dashboard-config .header-title-row > div:nth-child(3) {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        justify-self: end !important;
+    }
+
+    #dashboard-config .unified-date-picker {
+        flex: 0 0 auto !important;
+        max-width: 166px !important;
+        min-width: 0 !important;
+    }
+
+    #dashboard-config .unified-date-prev,
+    #dashboard-config .unified-date-next {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+        font-size: .88rem !important;
+    }
+
+    #dashboard-config .unified-date-tile {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+    }
+
+    #dashboard-config .unified-date-tile > span,
+    #dashboard-config .unified-date-label {
+        font-size: .75rem !important;
+    }
+
+    #dashboard-config .topbar-printer-container {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        padding: 3px 5px !important;
+        margin-left: 0 !important;
+    }
+
+    #dashboard-config #topbarZplPrinterSelect {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        font-size: .75rem !important;
+    }
+
+    #dashboard-config .header-stats {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        gap: 5px !important;
+    }
+
+    #dashboard-config .stat-inline {
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        padding: 4px 7px !important;
+        font-size: .72rem !important;
+    }
+
+    #dashboard-config .stat-inline .label,
+    #dashboard-config .stat-inline .value {
+        white-space: nowrap !important;
+    }
+
     .warehouse-pending-section {
         padding: 10px !important;
         overflow: visible !important;
