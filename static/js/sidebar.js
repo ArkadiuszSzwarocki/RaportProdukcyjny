@@ -329,12 +329,53 @@
                 });
         });
     };
-    window.refreshSidebarBadges = function() {
+    function updateWarehouseBadges(data) {
+        document.querySelectorAll('.nav-sub-item[href]').forEach(link => {
+            const url = new URL(link.href, window.location.origin);
+            let groups = [];
+            if (url.pathname === '/magazyn-dostawy/oczekujace') {
+                const hall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                groups = [
+                    [data.pending_external_orders?.[hall], data.pending_external_pallets?.[hall], true],
+                    [data.pending_transfer_orders?.[hall], data.pending_transfer_pallets?.[hall], false]
+                ];
+            } else if (url.pathname === '/warehouse-v2/transfers' || url.pathname === '/osip/transfers') {
+                const key = url.pathname === '/warehouse-v2/transfers' ? 'centrala' : 'osip';
+                const incoming = data.incoming_transfer_counts?.[key] || {};
+                groups = [[incoming.documents, incoming.pallets, false]];
+            } else return;
+            link.querySelectorAll('.nav-pending-badge, .nav-pending-badges-stack').forEach(el => el.remove());
+            const label = link.querySelector('.nav-sub-label') || link;
+            groups.forEach(([documents, pallets, external]) => {
+                if (!(documents > 0 && pallets > 0)) return;
+                const badge = document.createElement('span');
+                badge.className = 'nav-pending-badge' + (external ? ' nav-pending-badge-delivery' : '');
+                badge.textContent = `${documents}/${pallets}`;
+                badge.title = `${documents} dokumentów / ${pallets} palet do przyjęcia`;
+                label.appendChild(badge);
+            });
+        });
+        ['mag-sub', 'osip-sub'].forEach(id => {
+            const sub = document.getElementById(id);
+            const label = sub?.parentElement.querySelector('.nav-main-label');
+            if (!label) return;
+            label.querySelectorAll('.nav-main-dot').forEach(dot => dot.remove());
+            if (sub.querySelector('.nav-pending-badge')) {
+                const dot = document.createElement('span');
+                dot.className = 'nav-main-dot';
+                dot.setAttribute('aria-hidden', 'true');
+                label.appendChild(dot);
+            }
+        });
+    }
+    window.refreshSidebarBadges = function(options = {}) {
         // 1. Szybkie ciche odświeżenie liczników zamówień i kompletacji przez dedykowany JSON endpoint
-        fetch('/warehouse-v2/api/sidebar-badges')
+        const fresh = options.fresh !== false;
+        fetch('/warehouse-v2/api/sidebar-badges' + (fresh ? '?fresh=1' : ''), {cache: 'no-store'})
             .then(res => res.json())
             .then(data => {
                 if (data && data.success) {
+                    updateWarehouseBadges(data);
                     const ordersBadge = document.getElementById('sidebarOrdersBadge');
                     if (ordersBadge) {
                         const count = data.orders_nowe || 0;
@@ -352,14 +393,15 @@
             })
             .catch(() => {});
 
-        updateSidebarDraftBadges();
+        updateSidebarDraftBadges(fresh);
     };
 
     let draftCheckBusy = false;
     let lastDraftFingerprint = '';
     let lastDraftCheck = 0;
-    async function updateSidebarDraftBadges() {
-        if (draftCheckBusy) return;
+    let draftCheckAgain = false;
+    async function updateSidebarDraftBadges(force = false) {
+        if (draftCheckBusy) { if (force) draftCheckAgain = true; return; }
         const drafts = [];
         try {
             for (let i = 0; i < window.localStorage.length; i++) {
@@ -373,9 +415,10 @@
             }
         } catch (_) { return; }
         const fingerprint = JSON.stringify(drafts);
-        if (fingerprint === lastDraftFingerprint && Date.now() - lastDraftCheck < 30000) return;
+        if (!force && fingerprint === lastDraftFingerprint && Date.now() - lastDraftCheck < 30000) return;
         draftCheckBusy = true;
         let draftsByHall = {};
+        let documentsByHall = {};
         try {
             if (drafts.length) {
                 const response = await fetch('/magazyn-dostawy/api/draft/check', {
@@ -386,33 +429,44 @@
                 const data = await response.json();
                 if (!data.success) return;
                 draftsByHall = data.counts || {};
+                documentsByHall = data.documents || {};
             }
             lastDraftFingerprint = fingerprint;
             lastDraftCheck = Date.now();
         } catch (_) { return; }
-        finally { draftCheckBusy = false; }
+        finally {
+            draftCheckBusy = false;
+            if (draftCheckAgain) {
+                draftCheckAgain = false;
+                setTimeout(() => updateSidebarDraftBadges(true), 0);
+            }
+        }
 
         const draftBadges = document.querySelectorAll('.nav-draft-badge');
         draftBadges.forEach(badge => {
             const badgeHall = (badge.getAttribute('data-draft-hall') || 'ALL').toUpperCase();
             let countForBadge = 0;
+            let documentsForBadge = 0;
 
             if (badgeHall === 'OSIP') {
                 countForBadge = draftsByHall['OSIP'] || 0;
+                documentsForBadge = documentsByHall['OSIP'] || 0;
             } else if (badgeHall === 'ALL') {
                 Object.keys(draftsByHall).forEach(h => {
                     if (h !== 'OSIP') {
                         countForBadge += draftsByHall[h];
+                        documentsForBadge += documentsByHall[h] || 0;
                     }
                 });
             } else {
                 countForBadge = (draftsByHall[badgeHall] || 0) + (draftsByHall['ALL'] || 0);
+                documentsForBadge = (documentsByHall[badgeHall] || 0) + (documentsByHall['ALL'] || 0);
             }
 
             if (countForBadge > 0) {
                 badge.style.display = 'inline-flex';
-                badge.textContent = `SZKIC (${countForBadge})`;
-                badge.title = `W formularzu przesunięcia (${badgeHall}) są robocze palety: ${countForBadge} szt.`;
+                badge.textContent = `SZKIC ${documentsForBadge}/${countForBadge}`;
+                badge.title = `${documentsForBadge} szkiców / ${countForBadge} roboczych palet (${badgeHall})`;
             } else {
                 badge.style.display = 'none';
             }
@@ -424,7 +478,7 @@
     // Automatyczne ciche odświeżanie badge w tle co 4 sekundy
     setInterval(function() {
         if (typeof window.refreshSidebarBadges === 'function') {
-            window.refreshSidebarBadges();
+            window.refreshSidebarBadges({fresh: false});
         }
     }, 4000);
 

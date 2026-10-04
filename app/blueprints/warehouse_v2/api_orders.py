@@ -25,6 +25,8 @@ def api_orders_list():
 
 @warehouse_v2_bp.route('/api/sidebar-badges', methods=['GET'])
 def api_sidebar_badges():
+    from app.core.contexts import (_fetch_delivery_counters, _fetch_osip_transfers_count,
+                                   inject_delivery_counters, inject_osip_transfers_count)
     orders_nowe = 0
     active_picking = 0
     try:
@@ -35,10 +37,15 @@ def api_sidebar_badges():
         active_picking = len(_picking_service.get_active_orders())
     except Exception:
         pass
+    fresh = request.args.get('fresh') == '1'
+    counters = (_fetch_delivery_counters() if fresh else inject_delivery_counters())
+    transfers = (_fetch_osip_transfers_count() if fresh else inject_osip_transfers_count())
     return jsonify({
         'success': True,
         'orders_nowe': orders_nowe,
         'active_picking': active_picking,
+        **counters,
+        **transfers,
     })
 
 

@@ -73,7 +73,7 @@ class LiveTransferService:
                 it_nr = it.get('nr_palety') or it.get('sourcePalletNo')
                 it_id = it.get('sourcePalletId') or it.get('id')
                 if (p_nr and it_nr and str(p_nr).strip().upper() == str(it_nr).strip().upper()) or \
-                   (p_id and it_id and str(p_id).strip() == str(it_id).strip()):
+                   (not p_nr and p_id and it_id and str(p_id).strip() == str(it_id).strip()):
                     accepted_count = sum(1 for i in items if i.get('accepted'))
                     return True, {"total_items": len(items), "accepted_count": accepted_count, "items": items, "item_id": it['id']}
 

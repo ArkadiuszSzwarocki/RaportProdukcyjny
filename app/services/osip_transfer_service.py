@@ -32,6 +32,36 @@ class OsipTransferService:
         """Pobiera zlecenie transferu po ID lub po kodzie (transfer_code)."""
         return self.repository.get_transfer_by_id(transfer_id)
 
+    @classmethod
+    def pallet_metadata(cls, transfers):
+        """Read pallet dates by physical code, never by a warehouse-local id."""
+        grouped = {}
+        for transfer in transfers:
+            for item in cls._extract_items(transfer):
+                code = cls._value(item, 'nr_palety')
+                if code:
+                    table = cls._stock_spec(item)[0]
+                    grouped.setdefault(table, set()).add(code)
+        metadata = {}
+        if not grouped:
+            return metadata
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            for table, codes in grouped.items():
+                marks = ','.join(['%s'] * len(codes))
+                cursor.execute(f'SELECT nr_palety,nr_partii,data_produkcji,data_przydatnosci '
+                               f'FROM {table} WHERE nr_palety IN ({marks})', tuple(codes))
+                rows = {}
+                for row in cursor.fetchall():
+                    rows.setdefault(row['nr_palety'], []).append(row)
+                for code, matches in rows.items():
+                    if len(matches) == 1:
+                        metadata[(table, code)] = matches[0]
+            return metadata
+        finally:
+            conn.close()
+
     @staticmethod
     def _value(item, key, default=None):
         return item.get(key, default) if isinstance(item, dict) else getattr(item, key, default)

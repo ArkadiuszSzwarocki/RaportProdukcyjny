@@ -17,8 +17,8 @@ from app.utils.location_validator import check_rack_location_availability
 pytestmark = pytest.mark.require_db
 
 
-@pytest.mark.parametrize('destination', ['', 'MS01'])
-def test_internal_receipt_rejects_missing_or_wrong_destination(app, pending_delivery, destination):
+def test_internal_receipt_rejects_wrong_explicit_destination(app, pending_delivery):
+    destination = 'MS01'
     document_id, code, item = pending_delivery
     item['sourceSpot'] = 'OCZEKUJĄCE'
     conn = get_db_connection()
@@ -29,7 +29,7 @@ def test_internal_receipt_rejects_missing_or_wrong_destination(app, pending_deli
     before = delivery_snapshot(document_id, code)
     result = AcceptanceService.accept_item(document_id, 'one', 'MP01', 'pytest')
     assert not result[0]
-    assert ('celu' in result[1]) if not destination else ('przeznaczona do MS01' in result[1])
+    assert 'przeznaczona do MS01' in result[1]
     assert delivery_snapshot(document_id, code) == before
 
 
@@ -49,6 +49,18 @@ def test_cancellation_does_not_restore_into_occupied_rack(pending_delivery):
     finally:
         conn.rollback()
         conn.close()
+
+
+def test_live_movement_assigns_destination_during_receipt(app, pending_delivery):
+    document_id, code, item = pending_delivery
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE magazyn_dostawy SET supplier=NULL,status='OCZEKUJE',lokalizacja_z='RAMPA',lokalizacja_do='',items=%s WHERE id=%s", (json.dumps([item]), document_id))
+    conn.commit()
+    conn.close()
+    result = AcceptanceService.accept_item(document_id, 'one', 'MS01', 'pytest')
+    assert result[0], result[1]
+    assert delivery_snapshot(document_id, code)[2] == ('MS01', 100)
 
 
 def test_history_quantity_uses_code_and_correct_warehouse(app):

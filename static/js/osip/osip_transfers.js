@@ -599,9 +599,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.querySelectorAll('.action-receive-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const id = btn.getAttribute('data-id');
-                openReceiveTransferModal(id);
+                btn.disabled = true;
+                try { await openReceiveTransferModal(id); }
+                catch (_) { alert('Nie udało się otworzyć odbioru. Sprawdź połączenie i spróbuj ponownie.'); }
+                finally { btn.disabled = false; }
             });
         });
 
@@ -646,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const startResponse = await fetch(`/osip/api/transfers/${transfer.id}/begin_receive`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
         });
         const startResult = await startResponse.json();
         if (!startResponse.ok || !startResult.success) {
@@ -655,6 +658,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         transfer.status = startResult.status;
         currentReceivingTransfer = transfer;
+        const scannerLink = document.getElementById('receive-main-scanner');
+        if (scannerLink) scannerLink.href = '/agro/scanner/ui?linia=' + (transfer.destination_warehouse === 'OSIP' ? 'OSIP' : 'AGRO');
+        if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
         scannedItemsState = {};
         (transfer.items || []).forEach(it => {
             if (it.status === 'RECEIVED') {
@@ -704,6 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.closeReceiveModal = function() {
+        currentReceivingTransfer = null;
         const receiveModalEl = document.getElementById('modal-receive-transfer');
         if (receiveModalEl) {
             try {
@@ -726,12 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const items = currentReceivingTransfer.items || [];
         if (items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted p-4">Brak pozycji w tym zleceniu transferu.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">Brak pozycji w tym zleceniu transferu.</td></tr>`;
             updateReceiveProgress();
             return;
         }
 
         tbody.innerHTML = items.map((it, idx) => {
+            const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
             const code = it.nr_palety || `PAL-${it.pallet_id || it.id}`;
             const isScanned = !!scannedItemsState[code] || it.status === 'RECEIVED';
             const statusBadge = isScanned 
@@ -744,9 +752,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr style="${rowStyle}" id="receive-row-${idx}">
                     <td class="text-center">${statusBadge}</td>
-                    <td><strong class="text-dark">${code}</strong></td>
-                    <td>${it.product_name}</td>
+                    <td><strong class="text-dark">${esc(code)}</strong></td>
+                    <td>${esc(it.product_name)}</td>
                     <td><span class="badge badge-secondary px-2 py-1 font-weight-bold">${it.requested_qty} ${it.unit || 'kg'}</span></td>
+                    <td>${esc(it.nr_partii)}</td>
+                    <td>${esc(it.data_produkcji)}</td>
+                    <td>${esc(it.data_przydatnosci)}</td>
                     <td><span class="badge badge-light border text-dark font-weight-bold px-2 py-1">${defaultLoc}</span></td>
                 </tr>
             `;
@@ -1048,6 +1059,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadTransfers();
+    setInterval(() => {
+        if (!document.hidden && !currentReceivingTransfer &&
+            !document.querySelector('#modal-new-transfer.show, #modal-view-transfer.show')) loadTransfers();
+    }, 10000);
     checkAndRestoreDraft();
 
     // ─── POWIADOMIENIA O TRANSFERACH IN_TRANSIT na stronie transferów ───

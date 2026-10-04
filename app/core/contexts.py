@@ -61,6 +61,8 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'css', 'dashboard.css'),
             os.path.join(current_app.static_folder, 'scripts.js'),
             os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
+            os.path.join(current_app.static_folder, 'js', 'pwa_init.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'api.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_ui.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_flow.js'),
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2.js'),
@@ -496,13 +498,6 @@ def _fetch_delivery_counters():
         )
         for row in cursor.fetchall():
             l = (row[0] or '').upper()
-            qty = 1
-            total_pending += qty
-            if l in counts:
-                counts[l] += qty
-            else:
-                counts[l] = qty
-                
             items_json = row[1]
             source_location = str(row[2] or '').strip()
             pallets_in_order = 0
@@ -511,11 +506,16 @@ def _fetch_delivery_counters():
                     items_arr = json.loads(items_json)
                     pallets_in_order = sum(
                         1 for item in items_arr
-                        if not item.get('rejected') and (not item.get('accepted') or not item.get('putaway_confirmed_at'))
+                        if not item.get('rejected') and (not item.get('accepted') or
+                            (not source_location and not item.get('putaway_confirmed_at')))
                     )
                 except Exception:
                     pass
             
+            if not pallets_in_order:
+                continue
+            total_pending += 1
+            counts[l] = counts.get(l, 0) + 1
             total_pallets += pallets_in_order
             if l in pallet_counts:
                 pallet_counts[l] += pallets_in_order

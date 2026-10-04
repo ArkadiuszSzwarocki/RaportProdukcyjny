@@ -140,6 +140,7 @@ def get_transfers_api():
     user_subrole = session.get('subrole', 'OSIP')
     scope = request.args.get('scope') or request.args.get('destination')
     transfers = transfer_service.get_transfers_list(user_role, user_subrole, scope=scope)
+    metadata = transfer_service.pallet_metadata(transfers)
     
     result = []
     for t in transfers:
@@ -161,7 +162,10 @@ def get_transfers_api():
                     "requested_qty": item.requested_qty,
                     "loaded_qty": item.loaded_qty,
                     "unit": item.unit,
-                    "status": item.status
+                    "status": item.status,
+                    **{key: str(value) if value is not None else None for key, value in
+                         metadata.get((transfer_service._stock_spec(item)[0], item.nr_palety), {}).items()
+                         if key != 'nr_palety'}
                 }
                 for item in t.items
             ]

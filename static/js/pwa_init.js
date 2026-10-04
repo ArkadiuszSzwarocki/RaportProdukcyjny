@@ -60,28 +60,38 @@
         if (!banner) {
             banner = document.createElement('div');
             banner.id = 'pwa-offline-top-banner';
-            banner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;background:#dc2626;color:#ffffff;text-align:center;padding:8px 16px;font-size:13px;font-weight:700;z-index:999999;box-shadow:0 2px 10px rgba(0,0,0,0.3);';
-            banner.innerHTML = '⚠️ Brak połączenia z serwerem. Aplikacja działa w trybie offline — operacje są bezpiecznie buforowane lokalnie.';
-            document.body.prepend(banner);
+            banner.style.cssText = 'display:none;min-width:0;flex:1;color:#ffffff;font-size:12px;font-weight:700;padding:0 8px;';
+            banner.setAttribute('role', 'status');
+            banner.textContent = '⚠️ Offline — brak połączenia z serwerem';
+            banner.title = 'Sprawdź połączenie. Operacja jest przyjęta dopiero po potwierdzeniu przez serwer.';
+            const bar = document.querySelector('.top-bar');
+            if (bar) {
+                bar.insertBefore(banner, bar.querySelector('.top-bar-right'));
+            } else document.body.prepend(banner);
         }
         return banner;
     }
 
     function updateConnectivityStatus() {
         const banner = createOfflineBanner();
+        const showOffline = offline => {
+            banner.style.display = offline ? 'block' : 'none';
+            const bar = document.querySelector('.top-bar');
+            if (bar) bar.classList.toggle('connection-offline', offline);
+        };
         if (!navigator.onLine) {
-            banner.style.display = 'block';
+            showOffline(true);
         } else {
-            fetch('/api/health', { method: 'GET', cache: 'no-store' })
+            fetch('/api/health', { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(5000) })
                 .then((res) => {
                     if (res.ok) {
-                        banner.style.display = 'none';
+                        showOffline(false);
                     } else {
-                        banner.style.display = 'block';
+                        showOffline(true);
                     }
                 })
                 .catch(() => {
-                    banner.style.display = 'block';
+                    showOffline(true);
                 });
         }
     }

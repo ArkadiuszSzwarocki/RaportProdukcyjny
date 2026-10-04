@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{# cspell:ignore autorefresh #}
 
 {% block extra_css %}
 <!-- Wspólne style CSS dla Skanerów -->
@@ -73,7 +74,7 @@ input.scanner-input:focus {
 {% endblock %}
 
 {% block content %}
-<div class="scanner-container">
+<div class="scanner-container" data-no-autorefresh="true">
     <!-- WSPÓLNY NAGŁÓWEK SKANERA -->
     <div class="scanner-unified-header">
         <div class="header-left">

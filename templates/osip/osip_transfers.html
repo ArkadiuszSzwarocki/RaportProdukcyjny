@@ -1,9 +1,29 @@
 {% extends "layout.html" %}
+{# cspell:ignore autorefresh #}
 
 {% block title %}Transfery Wewnętrzne OSIP{% endblock %}
 
 {% block content %}
 <style>
+    #modal-receive-transfer, #modal-view-transfer, #modal-new-transfer {
+        display: none; position: fixed; inset: 0; z-index: 10000;
+        overflow-y: auto; padding: 20px; background: rgba(15, 23, 42, .55);
+    }
+    #modal-receive-transfer .modal-dialog, #modal-view-transfer .modal-dialog,
+    #modal-new-transfer .modal-dialog { width: min(1200px, 100%); margin: 0 auto; }
+    #modal-receive-transfer .modal-content, #modal-view-transfer .modal-content,
+    #modal-new-transfer .modal-content { background: white; overflow: hidden; }
+    #modal-receive-transfer .modal-header, #modal-view-transfer .modal-header,
+    #modal-new-transfer .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; background: #1e293b; color: white; }
+    #modal-receive-transfer .modal-body, #modal-view-transfer .modal-body,
+    #modal-new-transfer .modal-body { padding: 16px; }
+    #modal-receive-transfer .modal-footer, #modal-view-transfer .modal-footer,
+    #modal-new-transfer .modal-footer { padding: 16px; }
+    #modal-receive-transfer .table-responsive { overflow-x: auto; }
+    #modal-receive-transfer table { min-width: 1050px; }
+    @media (max-width: 767px) {
+        #modal-receive-transfer, #modal-view-transfer, #modal-new-transfer { padding: 8px; }
+    }
     .osip-transfers-container {
         max-width: 1300px;
         margin: 0 auto;
@@ -294,7 +314,7 @@
     }
 </style>
 
-<div class="osip-transfers-container" id="transfers-container" data-scope="{{ scope or 'osip' }}">
+<div class="osip-transfers-container" id="transfers-container" data-no-autorefresh="true" data-scope="{{ scope or 'osip' }}">
 
     <!-- NAGŁÓWEK STRONY -->
     <div class="transfers-header-bar">
@@ -462,6 +482,9 @@
                 </button>
             </div>
             <div class="modal-body bg-light">
+                <p>Odbiór jest otwarty. W skanerze głównym zeskanuj paletę, a następnie jej faktyczny regał.
+                    Dla dostaw z OSIP lokalizacja MS01 jest sugestią — możesz przyjąć również na magazyn AGRO.</p>
+                <a id="receive-main-scanner" class="btn btn-primary" href="/agro/scanner/ui?linia=AGRO">Przejdź do skanera odbioru</a>
                 <div class="card shadow-sm mb-3" style="border-radius: 12px;">
                     <div class="card-body py-2 d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                         <div>
@@ -489,7 +512,10 @@
                                     <th>Kod / Nr Palety</th>
                                     <th>Nazwa Produktu</th>
                                     <th>Ilość / Waga</th>
-                                    <th>Lokalizacja Docelowa</th>
+                                    <th>Partia</th>
+                                    <th>Data produkcji</th>
+                                    <th>Data przydatności</th>
+                                    <th>Sugerowana lokalizacja</th>
                                 </tr>
                             </thead>
                             <tbody id="receive-modal-tbody">

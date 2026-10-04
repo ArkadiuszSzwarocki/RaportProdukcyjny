@@ -89,7 +89,7 @@ class InternalTransferProcessor:
                 dt_str = arch['data_archiwizacji'].strftime('%Y-%m-%d %H:%M') if arch.get('data_archiwizacji') else ''
                 return True, f"Paleta {clean_nr} została zarchiwizowana / zużyta do 0 kg ({dt_str}, lok: {arch.get('lokalizacja_ostatnia')})."
 
-        if p_id:
+        if p_id and not clean_nr:
             try:
                 cursor.execute(
                     "SELECT id, original_id, nr_palety, data_archiwizacji FROM magazyn_archiwum WHERE original_id = %s OR id = %s LIMIT 1",
@@ -138,8 +138,8 @@ class InternalTransferProcessor:
 
                 pit_id = pit.get('sourcePalletId')
                 pit_type = str(pit.get('scannedType') or pit.get('type') or '').strip().lower()
-                if pit_id not in (None, '') and pit_type:
-                    reserved_other_ids.add(f"{pit_type}:{pit_id}")
+                if not pit_nr and pit_id not in (None, '') and pit_type and pit.get('sourceTable'):
+                    reserved_other_ids.add(f"{pit.get('sourceTable')}:{pit_id}")
 
         updated_items: List[Dict[str, Any]] = []
         used_request_nrs: Set[str] = set()
@@ -149,7 +149,7 @@ class InternalTransferProcessor:
             if item.get('id') in (None, ''):
                 item['id'] = f"item_{idx}_{int(__import__('datetime').datetime.now().timestamp())}"
 
-            if item.get('accepted'):
+            if item.get('accepted') or item.get('rejected'):
                 updated_items.append(item)
                 continue
 
@@ -219,7 +219,7 @@ class InternalTransferProcessor:
             actual_nr = p_res.get('nr_palety') or p_nr
             actual_nr_norm = norm_loc(actual_nr)
 
-            resolved_id_key = f"{p_type}:{actual_id}"
+            resolved_id_key = f"{source_table}:{actual_id}"
             if resolved_id_key in used_request_ids:
                 return False, f"Paleta {actual_nr_norm or actual_id} została dodana wielokrotnie w tym samym zleceniu."
             if resolved_id_key in reserved_other_ids:
@@ -236,8 +236,8 @@ class InternalTransferProcessor:
             item['accepted'] = False
 
             cursor.execute(
-                "SELECT id FROM palety_historia WHERE (paleta_id = %s OR nr_palety = %s) AND komentarz LIKE %s LIMIT 1",
-                (actual_id, actual_nr or '-', f"%{order_ref}%")
+                "SELECT id FROM palety_historia WHERE nr_palety = %s AND komentarz LIKE %s LIMIT 1",
+                (actual_nr or '-', f"%{order_ref}%")
             )
             if not cursor.fetchone():
                 cursor.execute(

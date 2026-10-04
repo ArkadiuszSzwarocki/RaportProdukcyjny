@@ -30,6 +30,9 @@ class DraftPalletSyncService:
             changes = []
 
             for it in items:
+                if it.get('accepted') or it.get('rejected'):
+                    updated_items.append(dict(it))
+                    continue
                 item_copy = dict(it)
                 pnr = it.get('sourcePalletNo') or it.get('nr_palety')
                 clean_sscc = str(pnr or '').strip().upper()

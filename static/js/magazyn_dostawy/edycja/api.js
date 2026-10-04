@@ -53,7 +53,7 @@ async function fetchLocationSuggestions(prefix) {
 
         locationSuggestAbortController = new AbortController();
         const query = new URLSearchParams({
-            linia: '${window.EdycjaConfig.linia}',
+            linia: window.EdycjaConfig.linia,
             prefix: prefix,
             only_free_for_racks: '1',
             limit: '50',
@@ -191,6 +191,7 @@ async function savePrzesuniecie() {
             status: "OCZEKUJE"
         };
 
+        try {
         const res = await fetch("/magazyn-dostawy/api/zapisz", {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -208,7 +209,10 @@ async function savePrzesuniecie() {
                 window.location.href = targetUrl;
             }, 600);
         } else {
-            showToast('Błąd: ' + data.error, 'danger');
+            showToast('Błąd: ' + (data.message || data.error || `Nie udało się zapisać przesunięcia (${res.status}).`), 'danger');
+        }
+        } catch (_) {
+            showToast('Brak połączenia z serwerem. Formularz został zachowany; spróbuj ponownie po odzyskaniu połączenia.', 'danger');
         }
     }
 
@@ -268,6 +272,7 @@ async function unlockDraftPallets(pallets) {
 async function syncDraftPallets() {
     if (!items || items.length === 0) return;
     try {
+        if (window.EdycjaConfig?.dostawaId) await pollLiveTransferStatus();
         const res = await fetch('/magazyn-dostawy/api/draft/sync', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -278,7 +283,7 @@ async function syncDraftPallets() {
         });
         const data = await res.json();
         if (data.success && data.result) {
-            if (Array.isArray(data.result.items) && data.result.items.length > 0) {
+            if (Array.isArray(data.result.items)) {
                 items = data.result.items;
                 saveDraftState();
                 renderItems();
@@ -423,6 +428,7 @@ async function pollLiveTransferStatus() {
                 saveDraftState();
                 renderItems();
                 updateSaveButtonState();
+                if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
             }
         }
     } catch (e) {

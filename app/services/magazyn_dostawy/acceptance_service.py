@@ -103,9 +103,8 @@ class AcceptanceService:
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
                 if not is_external:
                     destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
-                    if not destination:
-                        return False, 'Przesunięcie nie ma wskazanego celu. Najpierw ustaw magazyn docelowy w dokumencie.', None
-                    if destination != lokalizacja:
+                    # An open live movement receives its actual rack at scan time.
+                    if destination and destination != lokalizacja:
                         return False, f'Paleta jest przeznaczona do {destination}. Nie można przyjąć jej na {lokalizacja}.', None
                 if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None

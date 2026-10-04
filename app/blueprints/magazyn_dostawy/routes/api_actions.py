@@ -28,6 +28,7 @@ def api_draft_check():
     if not isinstance(drafts, list) or len(drafts) > 100:
         return jsonify(success=False), 400
     counts = {}
+    documents = {}
     conn = get_db_connection()
     try:
         cursor = conn.cursor(dictionary=True)
@@ -69,7 +70,9 @@ def api_draft_check():
                         count += 1
                         break
             counts[hall] = counts.get(hall, 0) + count
-        return jsonify(success=True, counts=counts)
+            if count:
+                documents[hall] = documents.get(hall, 0) + 1
+        return jsonify(success=True, counts=counts, documents=documents)
     finally:
         conn.close()
 
@@ -85,7 +88,8 @@ def zapisz_dostawe():
         # Auto-print disabled - report available in delivery list for manual viewing
 
         return jsonify({"success": True, "id": result})
-    return jsonify({"success": False, "error": result}), 500
+    # Validation refusals are client errors, not server failures to be masked.
+    return jsonify({"success": False, "error": result, "message": result}), 400
 
 @magazyn_dostawy_bp.route('/api/przyjmij-pozycje/<dostawa_id>', methods=['POST'])
 def przyjmij_pozycje(dostawa_id):
