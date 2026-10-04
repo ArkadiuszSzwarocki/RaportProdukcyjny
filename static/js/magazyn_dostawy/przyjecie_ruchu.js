@@ -119,7 +119,7 @@ function handleLocationSuggestInput(inputElement) {
 function safeToast(msg, kind) {
     if (typeof showToast === 'function') {
         showToast(msg, kind || 'info');
-    } else if (window.AppDialog && typeof AppDialog.alert === 'function') {
+    } else if (typeof AppDialog !== 'undefined' && typeof AppDialog.alert === 'function') {
         AppDialog.alert(msg);
     } else {
         alert(msg);
@@ -171,7 +171,7 @@ function markRowAsProcessed(idx, mode, reason) {
 async function cancelTransferOrder(dostawaId, orderRef) {
     const label = orderRef || dostawaId;
     const config = getConfig();
-    const ok = await (window.AppDialog ? AppDialog.confirm(`Czy na pewno anulować całe zlecenie ${label}?`) : Promise.resolve(confirm(`Czy na pewno anulować całe zlecenie ${label}?`)));
+    const ok = await (typeof AppDialog !== 'undefined' ? AppDialog.confirm(`Czy na pewno anulować całe zlecenie ${label}?`) : Promise.resolve(confirm(`Czy na pewno anulować całe zlecenie ${label}?`)));
     if (!ok) return;
 
     try {
@@ -301,7 +301,7 @@ async function confirmAcceptWithPrinter() {
         }
 
         if (data.all_accepted) {
-            safeToast(`Wszystkie pozycje rozliczone. ${config.isExternalDelivery ? 'Dostawa zakończona.' : 'Ruch zakończony.'}`, 'success');
+            safeToast(`Wszystkie pozycje rozliczone. ${config.isExternalDelivery ? 'Dostawa zakończona.' : 'Pozycje rozliczone. Zlecenie pozostaje otwarte do ręcznego zamknięcia.'}`, 'success');
             setTimeout(() => {
                 window.location.href = config.postListUrl;
             }, 1200);
@@ -598,7 +598,7 @@ async function rejectItem(itemId, idx) {
     const config = getConfig();
     const btn = document.getElementById(`btn_${idx}`);
     const rejectBtn = document.getElementById(`reject_btn_${idx}`);
-    const reason = await (window.AppDialog && typeof AppDialog.prompt === 'function' 
+    const reason = await (typeof AppDialog !== 'undefined' && typeof AppDialog.prompt === 'function'
         ? AppDialog.prompt('Powód odrzucenia pozycji:', 'Brak palety do przyjęcia') 
         : Promise.resolve(prompt('Powód odrzucenia pozycji:', 'Brak palety do przyjęcia')));
 
@@ -621,7 +621,7 @@ async function rejectItem(itemId, idx) {
         });
         const data = await res.json();
         if (!data.success) {
-            safeToast('Błąd: ' + (data.error || 'Nie udało się odrzucić pozycji'), 'danger');
+            safeToast('Błąd: ' + (data.message || data.error || 'Nie udało się odrzucić pozycji'), 'danger');
             if (rejectBtn) {
                 rejectBtn.disabled = false;
                 rejectBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">block</span> Odrzuć pozycję';
@@ -634,7 +634,7 @@ async function rejectItem(itemId, idx) {
         updateProgressIndicators(data);
 
         if (data.all_accepted) {
-            safeToast(`Wszystkie pozycje rozliczone. ${config.isExternalDelivery ? 'Dostawa zakończona.' : 'Ruch zakończony.'}`, 'success');
+            safeToast(`Wszystkie pozycje rozliczone. ${config.isExternalDelivery ? 'Dostawa zakończona.' : 'Pozycje rozliczone. Zlecenie pozostaje otwarte do ręcznego zamknięcia.'}`, 'success');
             setTimeout(() => {
                 window.location.href = config.postListUrl;
             }, 800);

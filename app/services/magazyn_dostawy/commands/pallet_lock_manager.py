@@ -34,8 +34,9 @@ class PalletLockManager:
             matches = []
             for table in tables:
                 predicate = "UPPER(nr_palety) = %s" if pnr else "id = %s"
+                quantity_column = 'waga_netto' if table in ('magazyn_palety', 'magazyn_palety_agro') else 'stan_magazynowy'
                 try:
-                    cursor.execute(f"SELECT id, nr_palety FROM {table} WHERE {predicate} FOR UPDATE",
+                    cursor.execute(f"SELECT id, nr_palety FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
                                    (pnr if pnr else pid,))
                     matches.extend((table, row) for row in cursor.fetchall())
                 except Exception as exc:

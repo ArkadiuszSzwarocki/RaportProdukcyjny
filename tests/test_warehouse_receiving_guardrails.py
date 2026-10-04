@@ -316,3 +316,69 @@ def test_two_pallets_cannot_claim_one_rack_slot():
             cursor.execute('DELETE FROM magazyn_surowce WHERE nr_palety=%s', (code,))
         conn.commit()
         conn.close()
+
+
+def test_reservation_ignores_empty_history_copy(app, pending_delivery):
+    from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+    _, code, item = pending_delivery
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("INSERT INTO magazyn_opakowania(nr_palety,nazwa,stan_magazynowy,lokalizacja) VALUES(%s,'Old copy',0,'OCZEKUJĄCE')", (code,))
+        old_id = cursor.lastrowid
+        PalletLockManager.set_pallets_blocked(cursor, [item], 1)
+        cursor.execute('SELECT id,is_blocked FROM magazyn_opakowania WHERE nr_palety=%s', (code,))
+        rows = {row['id']: row['is_blocked'] for row in cursor.fetchall()}
+        assert rows[item['sourcePalletId']] == 1
+        assert not rows[old_id]
+        cursor.execute('UPDATE magazyn_opakowania SET stan_magazynowy=100 WHERE id=%s', (old_id,))
+        with pytest.raises(ValueError, match='Niejednoznaczna'):
+            PalletLockManager.set_pallets_blocked(cursor, [item], 1)
+    finally:
+        conn.rollback()
+        conn.close()
+
+
+def test_reject_item_uses_sscc_even_when_source_id_is_wrong(app, pending_delivery):
+    document_id, code, item = pending_delivery
+    item.update(sourceSpot='RAMPA', originalSpot='MS01', sourcePalletId=-1)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE magazyn_dostawy SET supplier=NULL,items=%s WHERE id=%s", (json.dumps([item]), document_id))
+    conn.commit()
+    conn.close()
+    result = AcceptanceService.reject_item(document_id, 'one', 'Return to sender', 'pytest')
+    assert result[0], result[1]
+    state, items, stock = delivery_snapshot(document_id, code)
+    assert state == 'OCZEKUJE'
+    assert items[0]['rejected']
+    assert stock == ('MS01', 100)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT nr_palety,lokalizacja_docelowa FROM palety_historia WHERE nr_palety=%s AND akcja='TRANSFER_REJECT_ITEM'", (code,))
+    assert cursor.fetchone() == (code, 'MS01')
+    conn.close()
+
+
+def test_reject_item_rolls_back_when_original_rack_is_occupied(app, pending_delivery):
+    document_id, code, item = pending_delivery
+    item.update(sourceSpot='RAMPA', originalSpot='R880102')
+    occupied = 'TEST-REJECT-' + uuid.uuid4().hex
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO magazyn_surowce(nr_palety,nazwa,stan_magazynowy,lokalizacja) VALUES(%s,'Occupied',100,'R880102')", (occupied,))
+    cursor.execute('UPDATE magazyn_dostawy SET items=%s WHERE id=%s', (json.dumps([item]), document_id))
+    conn.commit()
+    conn.close()
+    try:
+        before = delivery_snapshot(document_id, code)
+        result = AcceptanceService.reject_item(document_id, 'one', 'No pallet', 'pytest')
+        assert not result[0]
+        assert 'zajęta' in result[1]
+        assert delivery_snapshot(document_id, code) == before
+    finally:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM magazyn_surowce WHERE nr_palety=%s', (occupied,))
+        conn.commit()
+        conn.close()

@@ -1,4 +1,4 @@
-# cspell:words putaway
+# cspell:words putaway sscc
 from app.db import get_db_connection, get_table_name
 import json
 import math
@@ -535,61 +535,36 @@ class AcceptanceService:
                     return False, "Pozycja już odrzucona", None
 
                 linia = dostawa['linia']
-                table_sur = get_table_name('magazyn_surowce', linia)
-                table_opk = get_table_name('magazyn_opakowania', linia)
-
-                source_spot = str(target.get('sourceSpot') or '').strip().upper()
+                source_spot = normalize_warehouse_location(target.get('sourceSpot') or '')
                 if not source_spot:
-                    fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
-                    if fallback_source and fallback_source != 'WIELE':
+                    fallback_source = normalize_warehouse_location(dostawa.get('lokalizacja_z') or '')
+                    if fallback_source != 'WIELE':
                         source_spot = fallback_source
-                original_spot = str(target.get('originalSpot') or '').strip().upper()
-                product_name = target.get('productName') or ''
-                pallet_id = target.get('sourcePalletId')
+                original_spot = normalize_warehouse_location(target.get('originalSpot') or '')
                 pallet_no = str(target.get('sourcePalletNo') or target.get('nr_palety') or '').strip()
-                scanned_type = str(target.get('scannedType') or '').strip().lower()
-                package_form = str(target.get('packageForm') or '').strip().lower()
-                unit_type = str(target.get('unit') or '').strip().lower()
-
-                default_is_packaging = scanned_type == 'opakowanie' or package_form in ('packaging', 'tasma', 'taśma', 'karton') or unit_type == 'szt'
-                default_table = table_opk if default_is_packaging else table_sur
-                fallback_table = table_sur if default_is_packaging else table_opk
                 restored = False
-                restored_type = 'opakowanie' if default_is_packaging else 'surowiec'
-
-                def _try_restore_on_table(table_name):
-                    if pallet_id not in (None, ''):
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE id = %s AND lokalizacja = %s",
-                            (original_spot, pallet_id, source_spot)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    if pallet_no:
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE lokalizacja = %s AND nr_palety = %s AND stan_magazynowy > 0",
-                            (original_spot, source_spot, pallet_no)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    if product_name:
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0",
-                            (original_spot, source_spot, product_name)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    return False
-
+                restored_type = None
+                pallet_id = None
                 if source_spot and original_spot and source_spot != original_spot:
-                    restored = _try_restore_on_table(default_table)
-                    if not restored:
-                        restored = _try_restore_on_table(fallback_table)
-                        if restored:
-                            restored_type = 'surowiec' if default_is_packaging else 'opakowanie'
+                    from app.services.magazyn_dostawy.commands.internal_transfer_processor import InternalTransferProcessor
+                    from app.utils.location_validator import check_rack_location_availability
+                    if not pallet_no:
+                        raise ValueError('Brak SSCC do bezpiecznego cofnięcia odrzuconej palety')
+                    row, restored_type, table = InternalTransferProcessor._find_active_pallet_by_sscc(cursor, pallet_no, linia)
+                    if not row:
+                        raise ValueError(f'Nie znaleziono aktywnej palety {pallet_no}')
+                    pallet_id = row['id']
+                    if normalize_warehouse_location(row.get('lokalizacja') or '') == source_spot:
+                        available, error = check_rack_location_availability(
+                            original_spot, current_nr_palety=pallet_no,
+                            product_name=row.get('nazwa') or row.get('produkt'), cursor=cursor)
+                        if not available:
+                            raise ValueError(error)
+                        quantity_column = 'waga_netto' if restored_type == 'wyrob_gotowy' else 'stan_magazynowy'
+                        cursor.execute(f'UPDATE {table} SET lokalizacja=%s WHERE id=%s AND nr_palety=%s '
+                                       f'AND lokalizacja=%s AND {quantity_column}>0',
+                                       (original_spot, pallet_id, row['nr_palety'], source_spot))
+                        restored = cursor.rowcount == 1
 
                 normalized_reason = str(reason or '').strip() or 'Brak palety do przyjęcia'
                 target['rejected'] = True
@@ -602,8 +577,8 @@ class AcceptanceService:
 
                 if restored:
                     cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_REJECT_ITEM', %s, %s, %s, %s)",
-                        (pallet_id if pallet_id not in (None, '') else None, linia, restored_type, source_spot, original_spot, f"Odrzucenie pozycji: {normalized_reason}", login)
+                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'TRANSFER_REJECT_ITEM', %s, %s, %s, %s)",
+                        (pallet_id, pallet_no, linia, restored_type, source_spot, original_spot, f"Odrzucenie pozycji: {normalized_reason}", login)
                     )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
@@ -636,6 +611,7 @@ class AcceptanceService:
                     "restored": restored,
                 }
             except Exception as e:
+                conn.rollback()
                 return False, str(e), None
             finally:
                 conn.close()

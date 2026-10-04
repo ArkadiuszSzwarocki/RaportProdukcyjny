@@ -211,7 +211,7 @@
             <!-- Rejected state view -->
             <div style="padding: 15px; background: #fef2f2; color: #991b1b;">
                 <div style="font-weight: 800;">Pozycja została odrzucona</div>
-                <div style="font-size: 0.85rem; margin-top: 4px;">Powób: <strong>{{ item.rejected_reason or 'Brak podanego powodu' }}</strong></div>
+                <div style="font-size: 0.85rem; margin-top: 4px;">Powód: <strong>{{ item.rejected_reason or 'Brak podanego powodu' }}</strong></div>
                 {% if item.rejected_by %}<div style="font-size: 0.8rem; margin-top: 2px;">Odrzucił: <strong>{{ item.rejected_by }}</strong> o {{ item.rejected_at }}</div>{% endif %}
             </div>
 
@@ -356,5 +356,5 @@ window.PRZYJECIE_RUCHU_CONFIG = {
     pendingPrintItems: {{ pending_print_items|tojson }}
 };
 </script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/przyjecie_ruchu.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/przyjecie_ruchu.js', v=static_version) }}"></script>
 {% endblock %}
