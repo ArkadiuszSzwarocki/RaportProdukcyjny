@@ -27,6 +27,15 @@ class LiveTransferService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            if order_ref:
+                cursor.execute("SELECT id, order_ref FROM magazyn_dostawy WHERE order_ref=%s AND UPPER(linia)=%s "
+                               "AND created_by=%s AND COALESCE(supplier,'')='' AND status='OCZEKUJE' FOR UPDATE",
+                               (order_ref, linia.upper(), login))
+                existing = cursor.fetchall()
+                if len(existing) > 1:
+                    return False, 'Istnieje kilka otwartych przesunięć o tej referencji. Wybierz dokument z listy.'
+                if existing:
+                    return True, dict(dostawa_id=existing[0]['id'], order_ref=existing[0]['order_ref'])
             dostawa_id = str(uuid.uuid4())
             if not order_ref:
                 from datetime import datetime

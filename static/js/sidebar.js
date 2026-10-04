@@ -333,6 +333,19 @@
         document.querySelectorAll('.nav-sub-item[href]').forEach(link => {
             const url = new URL(link.href, window.location.origin);
             let groups = [];
+            if (url.pathname === '/magazyn-dostawy/') {
+                const hall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                link.querySelectorAll('.nav-open-transfer-badge').forEach(el => el.remove());
+                const count = data.open_transfer_orders?.[hall] || 0;
+                if (count > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'nav-open-transfer-badge nav-pending-badge';
+                    badge.textContent = `OTWARTE ${count}`;
+                    badge.title = 'Zlecenia pozostają otwarte do ręcznego zamknięcia; można dopisywać palety.';
+                    (link.querySelector('.nav-sub-label') || link).appendChild(badge);
+                }
+                return;
+            }
             if (url.pathname === '/magazyn-dostawy/oczekujace') {
                 const hall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
                 groups = [
@@ -409,7 +422,7 @@
                 const match = key && key.match(/^magazyn_dostawy_draft_([^_]+)_(.+)$/);
                 if (!match) continue;
                 const draft = JSON.parse(window.localStorage.getItem(key));
-                if (draft && Array.isArray(draft.items) && draft.items.length) {
+                if (draft && !draft.dostawa_id && Array.isArray(draft.items) && draft.items.length) {
                     drafts.push({hall: match[1].toUpperCase(), document_id: match[2], items: draft.items});
                 }
             }

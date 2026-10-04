@@ -479,6 +479,7 @@ def _fetch_delivery_counters():
         counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         transfer_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        open_transfer_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         transfer_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         external_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         external_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
@@ -500,6 +501,9 @@ def _fetch_delivery_counters():
             l = (row[0] or '').upper()
             items_json = row[1]
             source_location = str(row[2] or '').strip()
+            if source_location:
+                open_transfer_counts[l] = open_transfer_counts.get(l, 0) + 1
+                open_transfer_counts['ALL'] += 1 if l != 'ALL' else 0
             pallets_in_order = 0
             if items_json:
                 try:
@@ -553,6 +557,7 @@ def _fetch_delivery_counters():
             pending_deliveries=counts,
             pending_pallets=pallet_counts,
             pending_transfer_orders=transfer_counts,
+            open_transfer_orders=open_transfer_counts,
             pending_transfer_pallets=transfer_pallet_counts,
             pending_external_orders=external_counts,
             pending_external_pallets=external_pallet_counts

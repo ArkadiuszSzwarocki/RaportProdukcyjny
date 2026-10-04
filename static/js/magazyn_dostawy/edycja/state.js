@@ -57,6 +57,7 @@ function saveDraftState() {
             const bypassInput = document.getElementById('skip_warehouse_lookup');
 
             const draft = {
+                dostawa_id: window.EdycjaConfig.dostawaId || null,
                 lokalizacja_z: sourceInput ? sourceInput.value : '',
                 pallet_count: countInput ? countInput.value : '0',
                 order_ref: orderRefInput ? orderRefInput.value : '',
@@ -130,6 +131,16 @@ function restoreDraftState(draftOverride = null, options = {}) {
 
 function clearDraftState() {
         try {
+            const activeId = window.EdycjaConfig.dostawaId;
+            if (activeId) {
+                for (let index = window.localStorage.length - 1; index >= 0; index--) {
+                    const key = window.localStorage.key(index);
+                    if (!key || !key.startsWith('magazyn_dostawy_draft_')) continue;
+                    try {
+                        if (JSON.parse(window.localStorage.getItem(key)).dostawa_id === activeId) window.localStorage.removeItem(key);
+                    } catch (_) {}
+                }
+            }
             window.localStorage.removeItem(FORM_DRAFT_KEY);
             try {
                 window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { key: FORM_DRAFT_KEY, hasDraft: false } }));

@@ -849,6 +849,8 @@
                     <td class="text-right">
                         <div class="table-actions-flow">
                             {% if d.status == 'OCZEKUJE' %}
+                                <a class="btn-action-outline" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, id=d.id) }}" onclick="event.stopPropagation();">Kontynuuj przesunięcie</a>
+                                <button type="button" class="btn-action-outline" onclick="event.stopPropagation(); closeOpenTransfer('{{ d.id }}');">Zamknij zlecenie</button>
                                 <span class="issuance-hint-chip" title="Wydanie zostało zarejestrowane. Oczekuje na przyjęcie.">
                                     <span class="material-icons" style="font-size: 12px;">lock</span> Podgląd wydania
                                 </span>
@@ -897,6 +899,20 @@
 
 <script>
 let currentStatusFilter = 'ALL';
+async function closeOpenTransfer(id) {
+    if (!await AppDialog.confirm('Zamknąć zlecenie? Wszystkie palety muszą być przyjęte lub odrzucone.')) return;
+    try {
+        const response = await fetch('/magazyn-dostawy/api/live-transfer/close/' + encodeURIComponent(id), {method: 'POST'});
+        const result = await response.json();
+        if (!result.success) { safeToast(result.error || 'Nie udało się zamknąć zlecenia.', 'danger'); return; }
+        for (let index = localStorage.length - 1; index >= 0; index--) {
+            const key = localStorage.key(index);
+            if (!key.startsWith('magazyn_dostawy_draft_')) continue;
+            try { if (JSON.parse(localStorage.getItem(key)).dostawa_id === id) localStorage.removeItem(key); } catch (_) {}
+        }
+        location.reload();
+    } catch (_) { safeToast('Brak połączenia. Zlecenie pozostaje otwarte.', 'danger'); }
+}
 
 function safeToast(msg, kind) {
     if (typeof showToast === 'function') {
@@ -959,7 +975,12 @@ function hasPendingTransferDraft() {
         continueBtn.style.display = 'inline-flex';
         const validCount = (pendingDraft.items || []).filter(i => (i && (i.nr_palety || i.sourcePalletNo || i.productName || parseFloat(i.quantity) > 0))).length;
         if (continueLabel && validCount > 0) {
-            continueLabel.textContent = `Kontynuuj szkic (${validCount} pal.)`;
+            continueLabel.textContent = pendingDraft.dostawa_id ? `Kontynuuj otwarte przesunięcie (${validCount} pal.)` : `Kontynuuj szkic (${validCount} pal.)`;
+            if (pendingDraft.dostawa_id) {
+                const target = new URL(continueBtn.href);
+                target.searchParams.set('id', pendingDraft.dostawa_id);
+                continueBtn.href = target.href;
+            }
         }
     }
 })();

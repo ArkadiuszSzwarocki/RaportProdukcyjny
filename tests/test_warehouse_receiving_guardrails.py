@@ -61,6 +61,10 @@ def test_live_movement_assigns_destination_during_receipt(app, pending_delivery)
     result = AcceptanceService.accept_item(document_id, 'one', 'MS01', 'pytest')
     assert result[0], result[1]
     assert delivery_snapshot(document_id, code)[2] == ('MS01', 100)
+    assert delivery_snapshot(document_id, code)[0] == 'OCZEKUJE'
+    from app.services.magazyn_dostawy.commands.live_transfer_service import LiveTransferService
+    assert LiveTransferService.close_live_transfer(document_id, 'pytest')[0]
+    assert delivery_snapshot(document_id, code)[0] == 'COMPLETED'
 
 
 def test_history_quantity_uses_code_and_correct_warehouse(app):

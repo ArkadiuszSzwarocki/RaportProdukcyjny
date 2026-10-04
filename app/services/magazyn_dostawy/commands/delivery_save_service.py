@@ -1,3 +1,4 @@
+# cspell:words sscc
 import json
 import uuid
 from datetime import datetime
@@ -61,10 +62,13 @@ class DeliverySaveService:
             old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
             if not is_external:
                 old_by_id = {str(item.get('id')): item for item in old_items}
+                old_by_code = {str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper(): item
+                               for item in old_items if item.get('nr_palety') or item.get('sourcePalletNo')}
                 refreshed = []
                 included = set()
                 for item in items:
-                    old_item = old_by_id.get(str(item.get('id')))
+                    code = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
+                    old_item = old_by_code.get(code) if code else old_by_id.get(str(item.get('id')))
                     if old_item and (old_item.get('accepted') or old_item.get('rejected')):
                         old_code = old_item.get('sourcePalletNo') or old_item.get('nr_palety')
                         new_code = item.get('sourcePalletNo') or item.get('nr_palety')
@@ -141,7 +145,7 @@ class DeliverySaveService:
                     connection=conn, delivery_id=dostawa_id,
                 )
 
-            # Step 4: Deduplicate items by ID
+            # A row ID is local to a stock table; distinct SSCC must survive save.
             if items:
                 seen_ids = set()
                 deduped = []
@@ -151,6 +155,12 @@ class DeliverySaveService:
                         seen_ids.add(it_id)
                         deduped.append(it)
                     elif not it_id:
+                        deduped.append(it)
+                    elif (it.get('nr_palety') or it.get('sourcePalletNo')) not in {
+                        row.get('nr_palety') or row.get('sourcePalletNo') for row in deduped
+                    }:
+                        it['id'] = str(uuid.uuid4())
+                        seen_ids.add(it['id'])
                         deduped.append(it)
                 items = deduped
 
@@ -181,7 +191,7 @@ class DeliverySaveService:
                 else:
                     final_status = 'OCZEKUJE'
             else:
-                final_status = 'COMPLETED'
+                final_status = 'COMPLETED' if is_external else 'OCZEKUJE'
 
             if old_data:
                 cursor.execute("""

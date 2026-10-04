@@ -44,10 +44,45 @@ def test_stale_form_cannot_undo_a_receipt(monkeypatch):
         return True, items
     monkeypatch.setattr(module.InternalTransferProcessor, 'process_transfer', process)
     monkeypatch.setattr('app.services.warehouse_order_fulfillment.WarehouseOrderFulfillment.sync_transfer', lambda *a: None)
-    stale = dict(old, accepted=False, lokalizacja_przyjecia=None)
+    stale = dict(old, id=734, accepted=False, lokalizacja_przyjecia=None)
     assert module.DeliverySaveService.save_dostawa(dict(id='doc', linia='AGRO', items=[stale]))[0]
     assert seen[0]['accepted']
+    assert seen[0]['id'] == 'one'
     assert seen[0]['lokalizacja_przyjecia'] == 'MP01'
+    update = next(call for call in cursor.execute.call_args_list if 'SET order_ref=' in call.args[0])
+    assert update.args[1][3] == 'OCZEKUJE'
+
+
+def test_full_save_keeps_distinct_sscc_with_duplicate_row_ids(monkeypatch):
+    from app.services.magazyn_dostawy.commands import delivery_save_service as module
+    conn = MagicMock()
+    cursor = conn.cursor.return_value
+    cursor.fetchone.return_value = dict(status='OCZEKUJE', items='[]', supplier='', linia='AGRO')
+    cursor.fetchall.return_value = [dict(nazwa='Test')]
+    monkeypatch.setattr(module, 'get_db_connection', lambda: conn)
+    monkeypatch.setattr(module.DeliveryOrderValidator, 'validate', lambda *a: (True, ''))
+    monkeypatch.setattr(module.PalletLockManager, 'set_pallets_blocked', lambda *a, **k: None)
+    captured = []
+    def process(cursor, items, *args):
+        captured.extend(items)
+        return True, items
+    monkeypatch.setattr(module.InternalTransferProcessor, 'process_transfer', process)
+    monkeypatch.setattr('app.services.warehouse_order_fulfillment.WarehouseOrderFulfillment.sync_transfer', lambda *a: None)
+    rows = [dict(id=734, nr_palety=code, productName='Test', quantity=100, sourcePalletId=734) for code in ['FIRST', 'SECOND']]
+    assert module.DeliverySaveService.save_dostawa(dict(id='doc', linia='AGRO', items=rows))[0]
+    assert {row['nr_palety'] for row in captured} == {'FIRST', 'SECOND'}
+    assert len({str(row['id']) for row in captured}) == 2
+
+
+def test_progress_read_does_not_close_fully_received_order(monkeypatch):
+    from app.services.magazyn_dostawy import delivery_queries as module
+    conn = MagicMock()
+    conn.cursor.return_value.fetchone.return_value = dict(id='doc', status='OCZEKUJE', items=json.dumps([dict(accepted=True)]))
+    monkeypatch.setattr(module, 'get_db_connection', lambda: conn)
+    ok, result = module.DeliveryQueries.get_live_transfer_status('doc')
+    assert ok and result['all_accepted'] and result['status'] == 'OCZEKUJE'
+    assert conn.cursor.return_value.execute.call_count == 1
+    conn.commit.assert_not_called()
 
 
 def test_distinct_sscc_with_same_local_id_are_not_deduplicated(monkeypatch):

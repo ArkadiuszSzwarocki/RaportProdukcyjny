@@ -1,9 +1,21 @@
 // events.js
-function cancelTransferForm(event) {
+async function cancelTransferForm(event) {
     if (event && typeof event.preventDefault === 'function') {
         event.preventDefault();
     }
     const draft = getStoredDraftState();
+    const activeId = window.EdycjaConfig.dostawaId || (draft && draft.dostawa_id);
+    if (activeId && !window.EdycjaConfig.READ_ONLY_MODE) {
+        if (!confirm('Anulować otwarte przesunięcie? Nieprzyjęte palety zostaną zwolnione. Przyjęte palety pozostaną w magazynie.')) return;
+        try {
+            const response = await fetch('/magazyn-dostawy/api/anuluj/' + encodeURIComponent(activeId), {method: 'POST'});
+            const result = await response.json();
+            if (!result.success) { showToast(result.message || 'Nie udało się anulować przesunięcia.', 'danger'); return; }
+            clearDraftState();
+        } catch (_) { showToast('Brak połączenia. Przesunięcie nie zostało anulowane.', 'danger'); return; }
+        window.location.href = window.EdycjaConfig.urlListaDostaw;
+        return;
+    }
     if (hasDraftItems(draft)) {
         if (confirm('Czy na pewno chcesz porzucić wprowadzone palety i wyczyścić formularz? Wybierz OK, aby usunąć szkic, lub Anuluj, aby zachować wprowadzone palety.')) {
             if (!window.EdycjaConfig.READ_ONLY_MODE) {
@@ -18,6 +30,13 @@ function cancelTransferForm(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const linkedDraft = getStoredDraftState();
+    if (!window.EdycjaConfig.dostawaId && linkedDraft && linkedDraft.dostawa_id) {
+        const linkedUrl = new URL(window.location.href);
+        linkedUrl.searchParams.set('id', linkedDraft.dostawa_id);
+        window.location.replace(linkedUrl.href);
+        return;
+    }
     // Strip 'draft' query parameter from URL so Back button or refresh never re-executes mode
     try {
         if (window.history && window.history.replaceState) {

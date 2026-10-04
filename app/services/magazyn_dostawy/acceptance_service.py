@@ -377,7 +377,7 @@ class AcceptanceService:
                     raise RuntimeError("Nie udało się zapisać historii przyjęcia palety")
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
-                new_status = 'COMPLETED' if all_processed else ('PUTAWAY_IN_PROGRESS' if actual_status == 'PUTAWAY_IN_PROGRESS' else 'OCZEKUJE')
+                new_status = 'COMPLETED' if all_processed and dostawa.get('supplier') else ('PUTAWAY_IN_PROGRESS' if actual_status == 'PUTAWAY_IN_PROGRESS' else 'OCZEKUJE')
 
                 cursor.execute(
                     """
@@ -480,7 +480,7 @@ class AcceptanceService:
             cursor.execute("UPDATE magazyn_dostawy SET items=%s,status=%s, "
                            "potwierdzone_przez=IF(%s,%s,potwierdzone_przez), "
                            "potwierdzone_at=IF(%s,NOW(),potwierdzone_at) WHERE id=%s",
-                           (json.dumps(items),'COMPLETED' if complete else 'OCZEKUJE',
+                           (json.dumps(items),'OCZEKUJE',
                             complete,login,complete,delivery['id']))
             PalletLockManager.set_pallets_blocked(cursor,received,0,exclude_delivery_id=delivery['id'])
 
@@ -607,7 +607,7 @@ class AcceptanceService:
                     )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
-                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
+                new_status = 'COMPLETED' if all_processed and dostawa.get('supplier') else 'OCZEKUJE'
 
                 cursor.execute(
                     """

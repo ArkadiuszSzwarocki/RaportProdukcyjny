@@ -84,6 +84,10 @@ function continueDraftEntry() {
     }
 
 function startFreshEntry() {
+        if (window.EdycjaConfig.dostawaId) {
+            cancelTransferForm();
+            return;
+        }
         const hasActiveData = items && items.length > 0 && items.some(i => i.nr_palety || i.productName || parseFloat(i.quantity) > 0);
         if (hasActiveData) {
             if (!confirm('Czy na pewno chcesz wyczyścić formularz i usunąć wszystkie wprowadzone palety?')) {
@@ -503,7 +507,7 @@ function updateLiveTransferUI(statusInfo) {
             title.style.color = '#15803d';
         }
         if (subtitle) {
-            subtitle.textContent = `Zlecenie #${statusInfo.order_ref || statusInfo.dostawa_id} zostało automatycznie zakończone i rozliczone.`;
+            subtitle.textContent = `Zlecenie #${statusInfo.order_ref || statusInfo.dostawa_id} pozostaje otwarte. Możesz dołożyć palety lub zamknąć je na liście przesunięć.`;
             subtitle.style.color = '#166534';
         }
         if (wzBtn) {
@@ -511,11 +515,8 @@ function updateLiveTransferUI(statusInfo) {
             wzBtn.href = `/magazyn-dostawy/raport-przesuniecia/${statusInfo.dostawa_id}`;
         }
         if (saveBtn) {
-            saveBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">print</span> RAPORT PRZESUNIĘCIA (WZ)';
-            saveBtn.style.background = '#15803d';
-            saveBtn.onclick = function() {
-                window.open(`/magazyn-dostawy/raport-przesuniecia/${statusInfo.dostawa_id}`, '_blank');
-            };
+            saveBtn.textContent = 'ZAPISZ OTWARTE PRZESUNIĘCIE';
+            saveBtn.onclick = savePrzesuniecie;
         }
     } else {
         if (title) {

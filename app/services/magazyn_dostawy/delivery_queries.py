@@ -324,15 +324,7 @@ class DeliveryQueries:
             accepted_count = sum(1 for it in items if it.get('accepted'))
             all_accepted = total_items > 0 and (accepted_count == total_items)
             
-            # If all items are accepted and status is still OCZEKUJE, update it to COMPLETED
-            if all_accepted and dostawa.get('status') == 'OCZEKUJE':
-                cursor.execute("""
-                    UPDATE magazyn_dostawy
-                    SET status = 'COMPLETED', potwierdzone_at = NOW()
-                    WHERE id = %s
-                """, (dostawa_id,))
-                conn.commit()
-                dostawa['status'] = 'COMPLETED'
+            # Reading progress must not close an order that can receive more pallets.
 
             return True, {
                 "dostawa_id": dostawa['id'],

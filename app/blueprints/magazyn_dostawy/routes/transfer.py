@@ -157,6 +157,7 @@ def oczekujace():
 @magazyn_dostawy_bp.route('/nowa')
 @magazyn_dostawy_bp.route('/edycja/<dostawa_id>')
 def edycja_dostawy(dostawa_id=None):
+    dostawa_id = dostawa_id or request.args.get('id')
     linia = request.args.get('linia', 'PSD').upper()
     conn = get_db_connection()
     dostawa = None
