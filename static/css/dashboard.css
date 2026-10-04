@@ -8,6 +8,89 @@
     pointer-events: none;
 }
 
+.warehouse-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.warehouse-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.warehouse-mobile-label {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .warehouse-pending-section {
+        padding: 10px !important;
+        overflow: visible !important;
+    }
+
+    .warehouse-pending-section .mt-10 {
+        margin-top: 8px !important;
+    }
+
+    table.modern-table.warehouse-pending-table,
+    table.modern-table.warehouse-pending-table tbody {
+        display: block !important;
+        width: 100% !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    table.modern-table.warehouse-pending-table thead {
+        display: none !important;
+    }
+
+    table.modern-table.warehouse-pending-table tr {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 6px 10px !important;
+        margin: 0 0 8px !important;
+        padding: 10px !important;
+        border: 1px solid #dbe4f0 !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, .05) !important;
+    }
+
+    table.modern-table.warehouse-pending-table td {
+        display: block !important;
+        width: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        text-align: left !important;
+    }
+
+    .warehouse-pending-code { grid-column: 1; grid-row: 1; font-size: .78rem !important; color: #475569 !important; }
+    .warehouse-pending-code .btn-icon { margin-left: 4px !important; vertical-align: middle; }
+    .warehouse-pending-product { grid-column: 1 / -1; grid-row: 2; line-height: 1.25; }
+    .warehouse-pending-product > strong { font-size: .98rem !important; }
+    .warehouse-pending-product div { margin-top: 2px !important; font-size: .72rem !important; }
+    .warehouse-pending-created { grid-column: 1; grid-row: 3; color: #64748b !important; font-size: .75rem !important; }
+    .warehouse-pending-elapsed { grid-column: 2; grid-row: 3; align-self: center; }
+    .warehouse-pending-actions { grid-column: 1 / -1; grid-row: 4; margin-top: 2px; }
+    .warehouse-pending-actions .btn-action { display: flex !important; width: 100% !important; min-height: 38px !important; justify-content: center !important; align-items: center !important; }
+    .warehouse-pending-actions .btn-icon { float: right; margin: 8px 6px 0 0 !important; }
+    .warehouse-mobile-label { display: inline; margin-right: 4px; font-size: .68rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; }
+
+    .warehouse-confirmed-section .p-15-bg { padding: 10px !important; }
+    .warehouse-confirmed-section h4 { margin-bottom: 8px !important; }
+}
+
 .active-order-floating-bar {
     display: flex;
     align-items: center;
