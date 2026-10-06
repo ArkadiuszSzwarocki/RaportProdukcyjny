@@ -117,7 +117,7 @@ class PrintServer:
 
         return candidates
 
-    def _request_bridge(self, method: str, path: str, **kwargs):
+    def _request_bridge(self, method: str, path: str, autostart: bool = True, **kwargs):
         normalized_path = '/' + str(path or '').lstrip('/')
         last_error = None
 
@@ -133,7 +133,7 @@ class PrintServer:
                     continue
 
             # Jeśli za pierwszym razem nie udało się połączyć, a mamy włączony autostart na maszynie lokalnej, uruchom mostek
-            if attempt == 0 and self.bridge_autostart and self._is_local_bridge_target():
+            if autostart and attempt == 0 and self.bridge_autostart and self._is_local_bridge_target():
                 try:
                     self._ensure_bridge_running()
                 except Exception:
@@ -234,6 +234,7 @@ class PrintServer:
             resp, _ = self._request_bridge(
                 'GET',
                 '/status',
+                autostart=False,
                 timeout=(min(self.bridge_connect_timeout, 1.0), min(self.bridge_read_timeout, 2.0)),
             )
             return resp.status_code == 200

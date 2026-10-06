@@ -212,7 +212,7 @@ class DeliveryQueries:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, order_ref, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
+            cursor.execute("SELECT id, order_ref, items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS', 'IN_PROGRESS')")
             rows = cursor.fetchall()
             for r in rows:
                 raw_items = r.get('items')

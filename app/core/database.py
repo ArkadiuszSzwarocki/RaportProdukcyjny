@@ -2,6 +2,14 @@
 Moduł zarządzania połączeniem z bazą danych.
 """
 import mysql.connector
+# Force Pure Python driver mode to prevent native C-extension ACCESS_VIOLATION crashes on Windows / Python 3.13
+try:
+    if hasattr(mysql.connector, 'HAVE_CEXT'):
+        mysql.connector.HAVE_CEXT = False
+    if hasattr(mysql.connector, '_HAVE_CEXT'):
+        mysql.connector._HAVE_CEXT = False
+except Exception:
+    pass
 from app.config import DB_CONFIG, BUFOR_LOOKBACK_DAYS, BUFOR_LOOKAHEAD_DAYS
 import os
 from werkzeug.security import generate_password_hash
@@ -63,6 +71,7 @@ def set_active_database_name(database_name, verify_connection=True):
         with _DB_CONFIG_LOCK:
             test_config = dict(DB_CONFIG)
         test_config['database'] = target_name
+        test_config.setdefault('use_pure', True)
         probe = mysql.connector.connect(**test_config, buffered=True)
         probe.close()
 
@@ -102,12 +111,24 @@ def _get_or_create_pool():
         if _DB_POOL is None or current_pool_db != target_db or current_pool_host != target_host:
             try:
                 from mysql.connector import pooling
-                pool = pooling.MySQLConnectionPool(
-                    pool_name="app_db_pool",
-                    pool_size=32,
-                    pool_reset_session=True,
-                    **pool_config
-                )
+                from mysql.connector.connection import MySQLConnection
+                pool_config['use_pure'] = True
+                pool_config['buffered'] = True
+                try:
+                    pool = pooling.MySQLConnectionPool(
+                        pool_name="app_db_pool",
+                        pool_size=32,
+                        pool_reset_session=False,
+                        connection_class=MySQLConnection,
+                        **pool_config
+                    )
+                except (TypeError, Exception):
+                    pool = pooling.MySQLConnectionPool(
+                        pool_name="app_db_pool",
+                        pool_size=32,
+                        pool_reset_session=False,
+                        **pool_config
+                    )
                 pool._pool_database = target_db
                 pool._pool_host = target_host
                 _DB_POOL = pool
@@ -135,6 +156,7 @@ def get_db_connection(retries=2):
     for host in candidate_hosts:
         conn_config = dict(base_config)
         conn_config['host'] = host
+        conn_config.setdefault('use_pure', True)
         for attempt in range(num_retries):
             try:
                 return mysql.connector.connect(**conn_config, buffered=True)

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from datetime import datetime
@@ -10,6 +11,8 @@ from app import db
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
 from app.services.report_generation_service import ReportGenerationService
+
+logger = logging.getLogger(__name__)
 
 
 def register_main_reporting_routes(main_bp):
@@ -492,6 +495,9 @@ def register_main_reporting_routes(main_bp):
                 )
         except Exception as e:
             logger.error(f"[RAPORT_STREAM] Failed to generate/stream PDF for {linia} {date_str}: {e}", exc_info=True)
+            print(f"[RAPORT_STREAM] Failed to generate/stream PDF for {linia} {date_str}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
 
         return Response(
             f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:40px 20px;text-align:center;background:#0f172a;color:#f8fafc;'>"

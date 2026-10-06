@@ -99,6 +99,7 @@ def register_planista_bulk_routes(planista_bp):
                 conn=conn,
                 cursor=cursor,
                 created_by_user_id=session.get('user_id'),
+                linia=linia,
             )
             conn.commit()
             return redirect(url_for('planista.panel_planisty', data=data_planu))

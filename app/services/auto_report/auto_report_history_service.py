@@ -135,7 +135,7 @@ class AutoReportHistoryService:
                 if st == 'IN_PROGRESS' and age_min < 30:
                     cursor.close()
                     return False
-                if st == 'FAILED':
+                if st == 'FAILED' and age_min < 15:
                     cursor.close()
                     return False
 

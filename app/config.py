@@ -24,7 +24,8 @@ DB_CONFIG = {
     'charset': 'utf8mb4',
     'connection_timeout': int(os.getenv('DB_CONNECTION_TIMEOUT', 20)),
     'ssl_disabled': os.getenv('USE_SSL', 'false').lower() != 'true',
-    'autocommit': False
+    'autocommit': False,
+    'use_pure': True
 }
 
 # Konfiguracja odbiorców raportów email

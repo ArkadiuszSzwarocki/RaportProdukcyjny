@@ -2,10 +2,9 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
 <style>
-.flatpickr-date.form-control, .flatpickr-date {
+.flatpickr-date.form-control, .flatpickr-date,
+input.field-data_produkcji, input.field-data_przydatnosci {
     width: 100% !important;
     height: 36px !important;
     border: 1px solid #94a3b8 !important;
@@ -15,9 +14,12 @@
     background: #ffffff !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     margin: 0 !important;
+    cursor: pointer !important;
 }
+.field-data_przydatnosci.date-expired,
+.field-data_produkcji.date-expired,
 .flatpickr-date.date-expired,
-.flatpickr-date.date-expired + .form-control {
+.date-expired {
     border-color: #dc2626 !important;
     background: #fef2f2 !important;
     color: #991b1b !important;
@@ -35,6 +37,157 @@
     font-weight: 700;
     color: #dc2626;
     margin-top: 2px;
+    line-height: 1;
+}
+.date-expired-badge .material-icons {
+    font-size: 13px !important;
+    width: 13px !important;
+    height: 13px !important;
+    min-width: 13px !important;
+    line-height: 13px !important;
+}
+
+/* Custom Date Drilldown Popover (Strict 320px, Under Selector) */
+.date-drilldown-popover {
+    position: fixed !important;
+    width: 320px !important;
+    max-width: 320px !important;
+    min-width: 320px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    z-index: 9999999 !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+    font-family: inherit !important;
+}
+.drilldown-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 10px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    gap: 8px !important;
+}
+.drilldown-title {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    flex: 1 !important;
+}
+.drilldown-back-btn {
+    background: #eff6ff !important;
+    border: 1px solid #bfdbfe !important;
+    color: #1d4ed8 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+.drilldown-back-btn:hover {
+    background: #dbeafe !important;
+}
+.drilldown-close-btn {
+    background: none !important;
+    border: none !important;
+    color: #94a3b8 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    padding: 0 4px !important;
+    line-height: 1 !important;
+}
+.drilldown-close-btn:hover {
+    color: #ef4444 !important;
+}
+.drilldown-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+}
+.drilldown-grid-btn {
+    padding: 10px 6px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    text-align: center !important;
+    transition: all 0.15s ease !important;
+}
+.drilldown-grid-btn:hover:not(:disabled) {
+    background: #e0e7ff !important;
+    border-color: #93c5fd !important;
+    color: #1d4ed8 !important;
+}
+.drilldown-grid-btn.is-active {
+    background: #2563eb !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
+}
+.drilldown-grid-btn:disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+}
+.drilldown-weekdays {
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    gap: 2px !important;
+    text-align: center !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    margin-bottom: 6px !important;
+}
+.drilldown-days-grid {
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    gap: 3px !important;
+}
+.drilldown-day-btn {
+    width: 38px !important;
+    height: 34px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 6px !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #1e293b !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+.drilldown-day-btn:hover:not(:disabled) {
+    background: #e0e7ff !important;
+    color: #1d4ed8 !important;
+}
+.drilldown-day-btn.is-today {
+    border-color: #2563eb !important;
+    color: #2563eb !important;
+    font-weight: 700 !important;
+}
+.drilldown-day-btn.is-selected {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+.drilldown-day-btn:disabled {
+    opacity: 0.25 !important;
+    cursor: not-allowed !important;
+}
+.drilldown-day-btn.is-empty {
+    pointer-events: none !important;
 }
 .expired-list-item {
     display: flex;
@@ -186,16 +339,21 @@
     padding: 10px;
     background: #ffffff;
     box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+    cursor: pointer;
 }
 
-.delivery-date-card input {
-    border: none;
-    width: 100%;
-    font-weight: 800;
-    font-size: 15px;
-    color: #1e293b;
-    background: transparent;
-    outline: none;
+.delivery-date-card input,
+.delivery-date-card .flatpickr-input {
+    border: none !important;
+    width: 100% !important;
+    font-weight: 800 !important;
+    font-size: 15px !important;
+    color: #1e293b !important;
+    background: transparent !important;
+    outline: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    box-shadow: none !important;
 }
 
 .delivery-panel {
@@ -452,10 +610,10 @@
                 {% endif %}
             </div>
             
-            <div class="delivery-date-card">
-                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Data Przyjęcia</label>
+            <div class="delivery-date-card" onclick="openDeliveryDatePicker(event)">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; pointer-events: none;">Data Przyjęcia</label>
                 <input type="text" id="delivery_date" class="flatpickr-date"
-                       value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}" required>
+                       value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}" readonly required style="cursor: pointer;">
             </div>
         </div>
     </div>
@@ -530,8 +688,26 @@
                 class="btn-save-reception">
             <span class="material-icons" style="font-size: 18px;">save</span> ZAPISZ
         </button>
-    </div>
     </form>
+
+    <!-- Custom Date Drilldown Popover Modal -->
+    <div id="appDateDrilldownPicker" class="date-drilldown-popover" style="display: none;">
+        <div class="drilldown-header">
+            <span class="drilldown-title" id="drilldownTitle">Wybierz rok</span>
+            <button type="button" class="drilldown-back-btn" id="drilldownBackBtn" style="display: none;">← Wstecz</button>
+            <button type="button" class="drilldown-close-btn" onclick="closeDrilldownPicker()">✕</button>
+        </div>
+        <div class="drilldown-body">
+            <div id="drilldownYearGrid" class="drilldown-grid"></div>
+            <div id="drilldownMonthGrid" class="drilldown-grid" style="display: none;"></div>
+            <div id="drilldownDayGrid" style="display: none;">
+                <div class="drilldown-weekdays">
+                    <span>Pn</span><span>Wt</span><span>Śr</span><span>Cz</span><span>Pt</span><span>So</span><span>Nd</span>
+                </div>
+                <div id="drilldownDaysGrid" class="drilldown-days-grid"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Potwierdzenia -->
     <div id="printerModal" class="premium-modal" style="display: none;">
@@ -614,321 +790,334 @@
         </div>
     </div>
 </div>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://npmcdn.com/flatpickr/dist/l10n/pl.js"></script>
 <script>
     const todayStr = new Date().toISOString().slice(0, 10);
     const workflowCurrentStep = {{ (workflow_meta.step if workflow_meta else 0)|int }};
 
-    function parseDateParts(val) {
+    let activeDatePickerTarget = null;
+    let activeDatePickerOptions = null;
+    let currentSelectedYear = null;
+    let currentSelectedMonth = null;
+
+    const monthNames = [
+        'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+        'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+    ];
+    const monthShort = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+
+    function parseParts(val) {
         if (!val) return null;
-        let d = val;
-        if (typeof d === 'string') {
-            const parts = d.split(/[-.]/);
-            if (parts.length === 3) {
-                let y, m, day;
-                if (parts[0].length === 4) {
-                    y = parseInt(parts[0], 10);
-                    m = parseInt(parts[1], 10) - 1;
-                    day = parseInt(parts[2], 10);
-                } else {
-                    day = parseInt(parts[0], 10);
-                    m = parseInt(parts[1], 10) - 1;
-                    y = parseInt(parts[2], 10);
-                }
-                d = new Date(y, m, day);
-            } else {
-                d = new Date(val);
+        if (typeof val === 'string') {
+            const p = val.split(/[-.]/);
+            if (p.length === 3) {
+                if (p[0].length === 4) return { y: parseInt(p[0], 10), m: parseInt(p[1], 10) - 1, d: parseInt(p[2], 10) };
+                return { y: parseInt(p[2], 10), m: parseInt(p[1], 10) - 1, d: parseInt(p[0], 10) };
             }
-        }
-        if (d instanceof Date && !isNaN(d.getTime())) {
-            return {
-                year: d.getFullYear(),
-                month: d.getMonth(),
-                day: d.getDate()
-            };
         }
         return null;
     }
 
-    function buildDrilldownOverlay(instance, options) {
-        instance.drilldownOptions = options || {};
-        if (instance.altInput) {
-            instance.altInput.addEventListener('input', function(e) {
-                if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') return;
-                let v = this.value.replace(/[^\d]/g, '');
-                if (v.length > 8) v = v.substring(0, 8);
-                if (v.length >= 5) {
-                    this.value = v.substring(0, 2) + '.' + v.substring(2, 4) + '.' + v.substring(4);
-                } else if (v.length >= 3) {
-                    this.value = v.substring(0, 2) + '.' + v.substring(2);
-                }
-            });
-        }
-        const calendar = instance.calendarContainer;
-        if (!calendar) return;
-        calendar.style.minHeight = "280px";
-        const overlay = document.createElement("div");
-        overlay.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:#fff;z-index:50;display:flex;flex-direction:column;padding:15px;box-sizing:border-box;border-radius:5px;";
-        
-        const headerRow = document.createElement("div");
-        headerRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;";
-
-        const title = document.createElement("div");
-        title.innerText = "Wybierz rok";
-        title.style.cssText = "font-weight:700;color:#334155;font-size:14px;cursor:pointer;";
-        title.onclick = function() {
-            showDrilldownOnOpen(instance);
-        };
-
-        const backBtn = document.createElement("button");
-        backBtn.type = "button";
-        backBtn.innerText = "← Zmień rok";
-        backBtn.style.cssText = "display:none;background:none;border:none;color:#2563eb;cursor:pointer;font-size:12px;font-weight:700;";
-        backBtn.onclick = function(e) {
-            e.stopPropagation(); e.preventDefault();
-            showDrilldownOnOpen(instance);
-        };
-
-        headerRow.appendChild(title);
-        headerRow.appendChild(backBtn);
-
-        const yearView = document.createElement("div");
-        yearView.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;";
-        const monthView = document.createElement("div");
-        monthView.style.cssText = "display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;";
-
-        const skipBtn = document.createElement("button");
-        skipBtn.type = "button";
-        skipBtn.innerText = "Pokaż dni";
-        skipBtn.style.cssText = "margin-top:auto;padding:8px;border:none;background:transparent;color:#3b82f6;cursor:pointer;font-weight:600;text-decoration:underline;";
-        skipBtn.onclick = function(e) { e.stopPropagation(); e.preventDefault(); overlay.style.display = "none"; };
-
-        overlay.appendChild(headerRow);
-        overlay.appendChild(yearView);
-        overlay.appendChild(monthView);
-        overlay.appendChild(skipBtn);
-        overlay.style.display = "none";
-        calendar.appendChild(overlay);
-
-        instance.customOverlay = overlay;
-        instance.customYearView = yearView;
-        instance.customMonthView = monthView;
-        instance.customTitle = title;
-        instance.customBackBtn = backBtn;
+    function openDeliveryDatePicker(event) {
+        if (event) event.stopPropagation();
+        const el = document.getElementById('delivery_date');
+        openCustomDatePicker(el, {
+            onSelect: function(dateStr) {
+                saveDraftToStorage();
+            }
+        });
     }
 
-    function renderDrilldownYears(instance, minBound, maxBound) {
-        const yearView = instance.customYearView;
-        yearView.innerHTML = '';
-        const currYear = new Date().getFullYear();
-        const baseYears = [currYear - 2, currYear - 1, currYear, currYear + 1, currYear + 2, currYear + 3, currYear + 4];
+    function openProductionDatePicker(el, index) {
+        openCustomDatePicker(el, {
+            maxDate: todayStr,
+            onSelect: function(dateStr) {
+                updateItem(index, 'data_produkcji', dateStr);
+                applyExpiryDateConstraint(index, dateStr);
+                saveDraftToStorage();
+            }
+        });
+    }
 
-        let years = [...baseYears];
-        if (maxBound) {
-            years = years.filter(y => y <= maxBound.year);
+    function openExpiryDatePicker(el, index) {
+        const minD = items[index] ? items[index].data_produkcji : null;
+        openCustomDatePicker(el, {
+            minDate: minD,
+            onSelect: function(dateStr) {
+                updateItem(index, 'data_przydatnosci', dateStr);
+                applyExpiryHighlight(el, dateStr);
+                saveDraftToStorage();
+            }
+        });
+    }
+
+    function openCustomDatePicker(targetEl, options = {}) {
+        if (!targetEl) return;
+        activeDatePickerTarget = targetEl;
+        activeDatePickerOptions = options;
+
+        let popover = document.getElementById('appDateDrilldownPicker');
+        if (!popover) return;
+
+        if (popover.parentNode !== document.body) {
+            document.body.appendChild(popover);
         }
-        if (minBound && !years.includes(minBound.year)) {
-            years.push(minBound.year);
+
+        const rect = targetEl.getBoundingClientRect();
+        const popoverWidth = 320;
+        let left = rect.left;
+        if (left + popoverWidth > window.innerWidth - 10) {
+            left = window.innerWidth - popoverWidth - 10;
+        }
+        if (left < 10) left = 10;
+
+        let top = rect.bottom + 6;
+        const popoverHeight = 350;
+        if (top + popoverHeight > window.innerHeight && rect.top > popoverHeight + 10) {
+            top = rect.top - popoverHeight - 6;
+        }
+
+        popover.style.position = 'fixed';
+        popover.style.top = top + 'px';
+        popover.style.left = left + 'px';
+        popover.style.width = popoverWidth + 'px';
+        popover.style.maxWidth = popoverWidth + 'px';
+        popover.style.display = 'block';
+        popover.style.zIndex = '9999999';
+
+        const parsed = parseParts(targetEl.value);
+        if (parsed) {
+            currentSelectedYear = parsed.y;
+            currentSelectedMonth = parsed.m;
+        } else {
+            const now = new Date();
+            currentSelectedYear = now.getFullYear();
+            currentSelectedMonth = now.getMonth();
+        }
+
+        showDrilldownYearView();
+    }
+
+    function closeDrilldownPicker() {
+        const popover = document.getElementById('appDateDrilldownPicker');
+        if (popover) popover.style.display = 'none';
+        activeDatePickerTarget = null;
+        activeDatePickerOptions = null;
+    }
+
+    document.addEventListener('click', function(e) {
+        const popover = document.getElementById('appDateDrilldownPicker');
+        if (!popover || popover.style.display === 'none') return;
+        if (popover.contains(e.target)) return;
+        if (activeDatePickerTarget && (activeDatePickerTarget === e.target || activeDatePickerTarget.contains(e.target))) return;
+        if (e.target.closest('.delivery-date-card')) return;
+        if (e.target.classList.contains('field-data_produkcji') || e.target.classList.contains('field-data_przydatnosci')) return;
+        closeDrilldownPicker();
+    });
+
+    function showDrilldownYearView() {
+        const titleEl = document.getElementById('drilldownTitle');
+        const backBtn = document.getElementById('drilldownBackBtn');
+        const yearGrid = document.getElementById('drilldownYearGrid');
+        const monthGrid = document.getElementById('drilldownMonthGrid');
+        const dayGrid = document.getElementById('drilldownDayGrid');
+
+        titleEl.innerText = 'Wybierz rok';
+        backBtn.style.display = 'none';
+        yearGrid.style.display = 'grid';
+        monthGrid.style.display = 'none';
+        dayGrid.style.display = 'none';
+        yearGrid.innerHTML = '';
+
+        const minB = parseParts(activeDatePickerOptions?.minDate);
+        const maxB = parseParts(activeDatePickerOptions?.maxDate);
+
+        const currY = new Date().getFullYear();
+        let years = [currY - 2, currY - 1, currY, currY + 1, currY + 2, currY + 3, currY + 4];
+        if (maxB) years = years.filter(y => y <= maxB.y);
+        if (minB && !years.includes(minB.y)) {
+            years.push(minB.y);
             years.sort((a, b) => a - b);
         }
 
         years.forEach(y => {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.innerText = y;
-
-            const isBelowMin = minBound && y < minBound.year;
-            const isAboveMax = maxBound && y > maxBound.year;
-
-            if (isBelowMin || isAboveMax) {
-                btn.disabled = true;
-                btn.style.cssText = "padding:10px;border:1px solid #f1f5f9;border-radius:6px;background:#f8fafc;cursor:not-allowed;font-weight:600;color:#cbd5e1;opacity:0.4;";
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'drilldown-grid-btn';
+            b.innerText = y;
+            if ((minB && y < minB.y) || (maxB && y > maxB.y)) {
+                b.disabled = true;
             } else {
-                btn.disabled = false;
-                btn.style.cssText = "padding:10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;cursor:pointer;font-weight:600;color:#0f172a;";
-                btn.onmouseover = () => btn.style.background = "#e2e8f0";
-                btn.onmouseout = () => btn.style.background = "#f8fafc";
-                btn.onclick = function(e) {
-                    e.stopPropagation(); e.preventDefault();
-                    renderDrilldownMonths(instance, y, minBound, maxBound);
+                b.onclick = function(e) {
+                    e.stopPropagation();
+                    currentSelectedYear = y;
+                    showDrilldownMonthView();
                 };
             }
-            yearView.appendChild(btn);
+            yearGrid.appendChild(b);
         });
     }
 
-    function renderDrilldownMonths(instance, selectedYear, minBound, maxBound) {
-        const monthView = instance.customMonthView;
-        monthView.innerHTML = '';
-        const months = ['Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'];
+    function showDrilldownMonthView() {
+        const titleEl = document.getElementById('drilldownTitle');
+        const backBtn = document.getElementById('drilldownBackBtn');
+        const yearGrid = document.getElementById('drilldownYearGrid');
+        const monthGrid = document.getElementById('drilldownMonthGrid');
+        const dayGrid = document.getElementById('drilldownDayGrid');
 
-        instance.customTitle.innerText = "Wybierz miesiąc (" + selectedYear + ")";
-        if (instance.customBackBtn) instance.customBackBtn.style.display = "block";
-        instance.customYearView.style.display = "none";
-        monthView.style.display = "grid";
+        titleEl.innerText = 'Wybierz miesiąc (' + currentSelectedYear + ')';
+        backBtn.style.display = 'inline-block';
+        backBtn.innerText = '← Zmień rok';
+        backBtn.onclick = function(e) {
+            e.stopPropagation();
+            showDrilldownYearView();
+        };
 
-        months.forEach((m, idx) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.innerText = m;
+        yearGrid.style.display = 'none';
+        monthGrid.style.display = 'grid';
+        dayGrid.style.display = 'none';
+        monthGrid.innerHTML = '';
+
+        const minB = parseParts(activeDatePickerOptions?.minDate);
+        const maxB = parseParts(activeDatePickerOptions?.maxDate);
+
+        monthShort.forEach((m, idx) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'drilldown-grid-btn';
+            b.innerText = m;
 
             let isDisabled = false;
-            if (minBound) {
-                if (selectedYear < minBound.year) isDisabled = true;
-                else if (selectedYear === minBound.year && idx < minBound.month) isDisabled = true;
+            if (minB) {
+                if (currentSelectedYear < minB.y) isDisabled = true;
+                else if (currentSelectedYear === minB.y && idx < minB.m) isDisabled = true;
             }
-            if (maxBound) {
-                if (selectedYear > maxBound.year) isDisabled = true;
-                else if (selectedYear === maxBound.year && idx > maxBound.month) isDisabled = true;
+            if (maxB) {
+                if (currentSelectedYear > maxB.y) isDisabled = true;
+                else if (currentSelectedYear === maxB.y && idx > maxB.m) isDisabled = true;
             }
 
             if (isDisabled) {
-                btn.disabled = true;
-                btn.style.cssText = "padding:8px 5px;border:1px solid #f1f5f9;border-radius:6px;background:#f8fafc;cursor:not-allowed;font-weight:600;color:#cbd5e1;opacity:0.4;";
+                b.disabled = true;
             } else {
-                btn.disabled = false;
-                btn.style.cssText = "padding:8px 5px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;cursor:pointer;font-weight:600;color:#0f172a;";
-                btn.onmouseover = () => btn.style.background = "#e2e8f0";
-                btn.onmouseout = () => btn.style.background = "#f8fafc";
-                btn.onclick = function(e) {
-                    e.stopPropagation(); e.preventDefault();
-                    if (btn.disabled) return;
-                    instance.changeYear(selectedYear);
-                    instance.changeMonth(idx, false);
-                    if (minBound && selectedYear === minBound.year && idx === minBound.month) {
-                        instance.jumpToDate(new Date(selectedYear, idx, minBound.day));
-                    } else {
-                        instance.jumpToDate(new Date(selectedYear, idx, 1));
-                    }
-                    instance.customOverlay.style.display = "none";
+                b.onclick = function(e) {
+                    e.stopPropagation();
+                    currentSelectedMonth = idx;
+                    showDrilldownDayView();
                 };
             }
-            monthView.appendChild(btn);
+            monthGrid.appendChild(b);
         });
     }
 
-    function showDrilldownOnOpen(instance) {
-        if (!instance.customOverlay) return;
-        const minBound = parseDateParts(instance.config.minDate);
-        const maxBound = (instance.drilldownOptions && instance.drilldownOptions.restrictToToday) 
-            ? parseDateParts(todayStr) 
-            : parseDateParts(instance.config.maxDate);
+    function showDrilldownDayView() {
+        const titleEl = document.getElementById('drilldownTitle');
+        const backBtn = document.getElementById('drilldownBackBtn');
+        const yearGrid = document.getElementById('drilldownYearGrid');
+        const monthGrid = document.getElementById('drilldownMonthGrid');
+        const dayGrid = document.getElementById('drilldownDayGrid');
+        const daysGrid = document.getElementById('drilldownDaysGrid');
 
-        if (minBound) {
-            if (instance.currentYear < minBound.year || (instance.currentYear === minBound.year && instance.currentMonth < minBound.month)) {
-                instance.jumpToDate(new Date(minBound.year, minBound.month, minBound.day));
-            }
+        titleEl.innerText = monthNames[currentSelectedMonth] + ' ' + currentSelectedYear;
+        backBtn.style.display = 'inline-block';
+        backBtn.innerText = '← ' + monthShort[currentSelectedMonth];
+        backBtn.onclick = function(e) {
+            e.stopPropagation();
+            showDrilldownMonthView();
+        };
+
+        yearGrid.style.display = 'none';
+        monthGrid.style.display = 'none';
+        dayGrid.style.display = 'block';
+        daysGrid.innerHTML = '';
+
+        const minB = parseParts(activeDatePickerOptions?.minDate);
+        const maxB = parseParts(activeDatePickerOptions?.maxDate);
+
+        const totalDays = new Date(currentSelectedYear, currentSelectedMonth + 1, 0).getDate();
+        let firstDayIndex = new Date(currentSelectedYear, currentSelectedMonth, 1).getDay();
+        firstDayIndex = (firstDayIndex + 6) % 7;
+
+        for (let i = 0; i < firstDayIndex; i++) {
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'drilldown-day-btn is-empty';
+            daysGrid.appendChild(emptyEl);
         }
 
-        renderDrilldownYears(instance, minBound, maxBound);
-        instance.customOverlay.style.display = "flex";
-        instance.customYearView.style.display = "grid";
-        instance.customMonthView.style.display = "none";
-        instance.customTitle.innerText = "Wybierz rok";
-        if (instance.customBackBtn) instance.customBackBtn.style.display = "none";
-    }
+        const now = new Date();
+        const isCurrentMonthYear = now.getFullYear() === currentSelectedYear && now.getMonth() === currentSelectedMonth;
 
-    const flatpickrConfigDeliveryDate = {
-        dateFormat: "Y-m-d",
-        altInput: true,
-        altFormat: "d.m.Y",
-        allowInput: true,
-        locale: "pl",
-        onReady: function(s, d, instance) { buildDrilldownOverlay(instance); },
-        onOpen: function(s, d, instance) { showDrilldownOnOpen(instance); },
-        onChange: function(selectedDates, dateStr, instance) {
-            if (instance.element) {
-                instance.element.value = dateStr;
-                instance.element.dispatchEvent(new Event('change'));
+        for (let day = 1; day <= totalDays; day++) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'drilldown-day-btn';
+            b.innerText = day;
+
+            if (isCurrentMonthYear && now.getDate() === day) {
+                b.classList.add('is-today');
             }
-            saveDraftToStorage();
+
+            let isDisabled = false;
+            if (minB) {
+                if (currentSelectedYear < minB.y) isDisabled = true;
+                else if (currentSelectedYear === minB.y && currentSelectedMonth < minB.m) isDisabled = true;
+                else if (currentSelectedYear === minB.y && currentSelectedMonth === minB.m && day < minB.d) isDisabled = true;
+            }
+            if (maxB) {
+                if (currentSelectedYear > maxB.y) isDisabled = true;
+                else if (currentSelectedYear === maxB.y && currentSelectedMonth > maxB.m) isDisabled = true;
+                else if (currentSelectedYear === maxB.y && currentSelectedMonth === maxB.m && day > maxB.d) isDisabled = true;
+            }
+
+            if (isDisabled) {
+                b.disabled = true;
+            } else {
+                b.onclick = function(e) {
+                    e.stopPropagation();
+                    const mm = String(currentSelectedMonth + 1).padStart(2, '0');
+                    const dd = String(day).padStart(2, '0');
+                    const dateStr = `${currentSelectedYear}-${mm}-${dd}`;
+                    if (activeDatePickerTarget) {
+                        activeDatePickerTarget.value = dateStr;
+                        activeDatePickerTarget.dispatchEvent(new Event('input', { bubbles: true }));
+                        activeDatePickerTarget.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    if (activeDatePickerOptions?.onSelect) {
+                        activeDatePickerOptions.onSelect(dateStr);
+                    }
+                    closeDrilldownPicker();
+                };
+            }
+            daysGrid.appendChild(b);
         }
-    };
-
-    function createProductionDateConfig(rowIndex) {
-        return {
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "d.m.Y",
-            allowInput: true,
-            locale: "pl",
-            maxDate: todayStr,
-            onReady: function(s, d, instance) { buildDrilldownOverlay(instance, { restrictToToday: true }); },
-            onOpen: function(s, d, instance) { showDrilldownOnOpen(instance); },
-            onChange: function(selectedDates, dateStr, instance) {
-                if (instance.element) {
-                    instance.element.value = dateStr;
-                    instance.element.dispatchEvent(new Event('change'));
-                }
-                updateItem(rowIndex, 'data_produkcji', dateStr);
-                applyExpiryDateConstraint(rowIndex, dateStr);
-                saveDraftToStorage();
-            }
-        };
-    }
-
-    function createExpiryDateConfig(rowIndex, minDate) {
-        return {
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "d.m.Y",
-            allowInput: true,
-            locale: "pl",
-            minDate: minDate || undefined,
-            onReady: function(s, d, instance) { buildDrilldownOverlay(instance); },
-            onOpen: function(s, d, instance) { showDrilldownOnOpen(instance); },
-            onChange: function(selectedDates, dateStr, instance) {
-                if (instance.element) {
-                    instance.element.value = dateStr;
-                    instance.element.dispatchEvent(new Event('change'));
-                }
-                const currentProd = items[rowIndex] ? items[rowIndex].data_produkcji : '';
-                if (currentProd && dateStr && dateStr < currentProd) {
-                    showToast(`Data przydatności (${dateStr}) nie może być wcześniejsza niż data produkcji (${currentProd})!`, 'warning');
-                    instance.clear();
-                    dateStr = '';
-                }
-                updateItem(rowIndex, 'data_przydatnosci', dateStr);
-                applyExpiryHighlight(instance.element, dateStr);
-                saveDraftToStorage();
-            }
-        };
     }
 
     function applyExpiryDateConstraint(rowIndex, productionDateStr) {
         const row = document.querySelector(`tr.pallet-row[data-index="${rowIndex}"]`);
         if (!row) return;
         const expiryInput = row.querySelector('.field-data_przydatnosci');
-        if (!expiryInput || !expiryInput._flatpickr) return;
-        const fpExpiry = expiryInput._flatpickr;
+        if (!expiryInput) return;
         if (productionDateStr) {
-            fpExpiry.set('minDate', productionDateStr);
             const currentExpiry = expiryInput.value;
             if (currentExpiry && currentExpiry < productionDateStr) {
-                fpExpiry.clear();
+                expiryInput.value = '';
                 updateItem(rowIndex, 'data_przydatnosci', '');
                 applyExpiryHighlight(expiryInput, '');
                 saveDraftToStorage();
             }
-        } else {
-            fpExpiry.set('minDate', undefined);
         }
     }
 
     function applyExpiryHighlight(inputEl, dateStr) {
         if (!inputEl) return;
         const wrapper = inputEl.closest('td');
-        const altInput = inputEl._flatpickr ? inputEl._flatpickr.altInput : null;
         inputEl.classList.remove('date-expired');
-        if (altInput) altInput.classList.remove('date-expired');
         const badge = wrapper ? wrapper.querySelector('.date-expired-badge') : null;
         if (badge) badge.remove();
         if (!dateStr) return;
         if (dateStr < todayStr) {
             inputEl.classList.add('date-expired');
-            if (altInput) altInput.classList.add('date-expired');
             if (wrapper) {
                 const b = document.createElement('span');
                 b.className = 'date-expired-badge';
@@ -1009,11 +1198,7 @@
             }
             if (draft.delivery_date && document.getElementById('delivery_date')) {
                 const dateEl = document.getElementById('delivery_date');
-                if (dateEl._flatpickr) {
-                    dateEl._flatpickr.setDate(draft.delivery_date, true);
-                } else {
-                    dateEl.value = draft.delivery_date;
-                }
+                dateEl.value = draft.delivery_date;
                 hasRestoredData = true;
             }
             if (draft.pallets_count && document.getElementById('pallets_count')) {
@@ -1154,12 +1339,14 @@
                            placeholder="Nr partii" style="${inputStyle}">
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" class="flatpickr-date field-data_produkcji" value="${item.data_produkcji || ''}"
-                           style="${inputStyle}" placeholder="Produkcja">
+                    <input type="text" class="field-data_produkcji" value="${item.data_produkcji || ''}"
+                           onclick="openProductionDatePicker(this, ${index})" readonly placeholder="Produkcja"
+                           style="${inputStyle} cursor: pointer; background: #ffffff;">
                 </td>
                 <td style="padding: 10px 10px; border: none; vertical-align: middle;">
-                    <input type="text" class="flatpickr-date field-data_przydatnosci" value="${item.data_przydatnosci || ''}"
-                           style="${inputStyle}" placeholder="Przydatność">
+                    <input type="text" class="field-data_przydatnosci ${item.data_przydatnosci && item.data_przydatnosci < todayStr ? 'date-expired' : ''}" value="${item.data_przydatnosci || ''}"
+                           onclick="openExpiryDatePicker(this, ${index})" readonly placeholder="Przydatność"
+                           style="${inputStyle} cursor: pointer; background: #ffffff;">
                 </td>
                 <td style="padding: 10px 10px; text-align: center; vertical-align: middle;">
                     <div style="display: flex; gap: 10px; justify-content: center;">
@@ -1170,10 +1357,7 @@
             `;
             tbody.appendChild(row1);
 
-            const prodInput = row1.querySelector('.field-data_produkcji');
             const expiryInput = row1.querySelector('.field-data_przydatnosci');
-            flatpickr(prodInput, createProductionDateConfig(index));
-            flatpickr(expiryInput, createExpiryDateConfig(index, item.data_produkcji || null));
             if (item.data_przydatnosci) {
                 applyExpiryHighlight(expiryInput, item.data_przydatnosci);
             }
@@ -1509,16 +1693,21 @@
         }
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
-        flatpickr("#delivery_date", flatpickrConfigDeliveryDate);
+    function initReceptionApp() {
+        const popover = document.getElementById('appDateDrilldownPicker');
+        if (popover && popover.parentNode !== document.body) {
+            document.body.appendChild(popover);
+        }
 
         const datalist = document.createElement('datalist');
         datalist.id = 'productsList';
-        wszystkieProdukty.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p;
-            datalist.appendChild(opt);
-        });
+        if (typeof wszystkieProdukty !== 'undefined' && Array.isArray(wszystkieProdukty)) {
+            wszystkieProdukty.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                datalist.appendChild(opt);
+            });
+        }
         document.body.appendChild(datalist);
 
         ['order_ref', 'supplier', 'pallets_count', 'default_loc'].forEach(fieldId => {
@@ -1531,7 +1720,13 @@
 
         loadDraftFromStorage();
         renderItems();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initReceptionApp);
+    } else {
+        initReceptionApp();
+    }
 
     function closeStep2PrinterModal() {
         const modal = document.getElementById('step2PrinterModal');

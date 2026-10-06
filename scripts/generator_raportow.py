@@ -1,12 +1,15 @@
 import pandas as pd
 import os
+import mysql.connector
 from pathlib import Path
 from datetime import datetime
 from app.db import get_db_connection, get_table_name
 from scripts.raporty import fix_mojibake
+import threading
 import logging
 
 logger = logging.getLogger(__name__)
+_REPORT_GENERATION_LOCK = threading.Lock()
 
 def clean_dataframe_strings(df: pd.DataFrame) -> pd.DataFrame:
     """Sanitizes string columns in DataFrame from mojibake and encoding anomalies."""
@@ -24,16 +27,35 @@ def db_query_to_df(sql: str, conn, params=None, columns=None) -> pd.DataFrame:
     """
     cursor = None
     try:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(dictionary=True, buffered=True)
         cursor.execute(sql, params or ())
         rows = cursor.fetchall() or []
-        df = pd.DataFrame(rows)
-        if df.empty and columns:
-            return pd.DataFrame(columns=columns)
+        if not rows:
+            return pd.DataFrame(columns=columns) if columns else pd.DataFrame()
+        
+        # Sanitize rows to prevent numpy / pandas C-extension issues with raw byte types
+        from decimal import Decimal
+        clean_rows = []
+        for r in rows:
+            clean_r = {}
+            for k, v in r.items():
+                if isinstance(v, (bytearray, bytes)):
+                    try:
+                        clean_r[k] = v.decode('utf-8', errors='replace')
+                    except Exception:
+                        clean_r[k] = str(v)
+                elif isinstance(v, Decimal):
+                    clean_r[k] = float(v)
+                else:
+                    clean_r[k] = v
+            clean_rows.append(clean_r)
+
+        # dtype=object bypasses pandas datetime inference (native crash on Python 3.13 + pandas 2.2.x)
+        df = pd.DataFrame(clean_rows, dtype=object)
         return df
     except Exception as e:
         logger.error(f"[GENERATOR] Query execution failed: {e}", exc_info=True)
-        print(f"[GENERATOR] Query execution failed: {e}")
+        print(f"[GENERATOR] Query execution failed: {e}", flush=True)
         return pd.DataFrame(columns=columns) if columns else pd.DataFrame()
     finally:
         if cursor:
@@ -43,30 +65,52 @@ def db_query_to_df(sql: str, conn, params=None, columns=None) -> pd.DataFrame:
                 pass
 
 def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PSD'):
+    with _REPORT_GENERATION_LOCK:
+        return _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name=lider_name, linia=linia)
+
+def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', linia='PSD'):
     uwagi_lidera = fix_mojibake(uwagi_lidera or '')
     lider_name = fix_mojibake(lider_name or '')
     logger.info(f"[GENERATOR] Starting report generation for {data_raportu} line {linia}")
     logger.info(f"[GENERATOR] Lider: {lider_name}, Uwagi length: {len(uwagi_lidera)}")
-    print(f"[GENERATOR] ===== REPORT GENERATION START =====")
-    print(f"[GENERATOR] Data: {data_raportu}")
-    print(f"[GENERATOR] Lider: {lider_name}")
-    print(f"[GENERATOR] Uwagi length: {len(uwagi_lidera)}")
+    print(f"[GENERATOR] ===== REPORT GENERATION START =====", flush=True)
+    print(f"[GENERATOR] Data: {data_raportu}", flush=True)
+    print(f"[GENERATOR] Lider: {lider_name}", flush=True)
+    print(f"[GENERATOR] Uwagi length: {len(uwagi_lidera)}", flush=True)
     try:
-        conn = get_db_connection()
-        logger.info(f"[GENERATOR] Database connection established")
-        print(f"[GENERATOR] OK Database connection OK")
+        from app.config import DB_CONFIG
+        conn_cfg = dict(DB_CONFIG)
+        conn_cfg['use_pure'] = True
+        conn_cfg['buffered'] = True
+        conn = mysql.connector.connect(**conn_cfg)
+        logger.info(f"[GENERATOR] Database connection established (dedicated pure-Python)")
+        print(f"[GENERATOR] OK Database connection OK", flush=True)
     except Exception as e:
-        logger.error(f"[GENERATOR] Failed to get DB connection: {e}", exc_info=True)
-        print(f"[GENERATOR] ERROR Failed to get DB connection: {e}")
-        raise
+        logger.warning(f"[GENERATOR] Dedicated connection fallback to pool: {e}")
+        print(f"[GENERATOR] Dedicated connection failed ({type(e).__name__}: {e}), using pool", flush=True)
+        try:
+            conn = get_db_connection()
+            print(f"[GENERATOR] OK Database connection OK (pool fallback)", flush=True)
+        except Exception as e_pool:
+            logger.error(f"[GENERATOR] Failed to get DB connection: {e_pool}", exc_info=True)
+            print(f"[GENERATOR] ERROR Failed to get DB connection: {e_pool}", flush=True)
+            raise
     
     # Pobieranie danych
     logger.info(f"[GENERATOR] Fetching production data for {data_raportu}")
-    print(f"[GENERATOR] Fetching production data...")
+    print(f"[GENERATOR] Fetching production data...", flush=True)
     table_plan = get_table_name('plan_produkcji', linia)
     table_szarze = 'szarze_agro' if linia == 'AGRO' else 'szarze'
     table_dosypki = 'dosypki_agro' if linia == 'AGRO' else 'dosypki'
     table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
+
+    has_pal_confirm = (str(linia).strip().upper() == 'AGRO')
+    if has_pal_confirm:
+        pal_date_expr = "(DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s)"
+        pal_params_single = (data_raportu, data_raportu)
+    else:
+        pal_date_expr = "DATE(pal.data_dodania) = %s"
+        pal_params_single = (data_raportu,)
 
     sql_plan = f"""
         SELECT 
@@ -93,7 +137,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                 ELSE (
                     SELECT COALESCE(SUM(pal.waga), 0) 
                     FROM {table_palety} pal 
-                    WHERE pal.plan_id = p.id AND (DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s)
+                    WHERE pal.plan_id = p.id AND {pal_date_expr}
                 )
             END as tonaz_rzeczywisty,
             p.real_start, 
@@ -105,17 +149,26 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
                SELECT sz.plan_id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s
            )
            OR p.id IN (
-               SELECT pal.plan_id FROM {table_palety} pal WHERE DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s
+               SELECT pal.plan_id FROM {table_palety} pal WHERE {pal_date_expr}
            )
         ORDER BY p.kolejnosc, p.id
     """
+    plan_params = (
+        data_raportu,
+        data_raportu,
+        data_raportu,
+        *pal_params_single,
+        data_raportu,
+        data_raportu,
+        *pal_params_single
+    )
     df_plan = db_query_to_df(
         sql_plan, conn,
-        params=(data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu, data_raportu),
+        params=plan_params,
         columns=['id', 'sekcja', 'produkt', 'tonaz', 'tonaz_rzeczywisty', 'real_start', 'real_stop', 'nazwa_zlecenia']
     )
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
-    print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
+    print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}", flush=True)
     
     # Awarie i przestoje: pobieramy z DowntimeRepository (przestoje_zasyp + przestoje_produkcyjne)
     try:
@@ -125,7 +178,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         # Dla linii PSD bezwzględnie filtrujemy wszelkie wpisy pochodzące ze zgłoszeń w "Robaczku"
         if str(linia).strip().upper() == 'PSD':
             try:
-                c_bugs = conn.cursor()
+                c_bugs = conn.cursor(buffered=True)
                 c_bugs.execute("SELECT opis FROM zgloszenia_bledow WHERE DATE(timestamp) = %s", (data_raportu,))
                 bug_rows = c_bugs.fetchall() or []
                 c_bugs.close()
@@ -191,7 +244,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     # Lider Zmiany — jeśli nie podano lub nieznany, pobierz z obsada_liderzy dla danej linii
     if not lider_name or str(lider_name).strip().lower() in ('nieznany', 'none', ''):
         try:
-            cursor_lider = conn.cursor()
+            cursor_lider = conn.cursor(buffered=True)
             col_lider = 'lider_psd_id' if str(linia).strip().upper() == 'PSD' else 'lider_agro_id'
             cursor_lider.execute(f"SELECT p.imie_nazwisko FROM obsada_liderzy ol JOIN pracownicy p ON ol.{col_lider} = p.id WHERE ol.data_wpisu = %s", (data_raportu,))
             row_l = cursor_lider.fetchone()
@@ -442,16 +495,23 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
         try:
             table_palety = get_table_name('palety_workowanie', linia)
             typ_opak_col = "MAX(COALESCE(p.typ_opakowania, 'worki')) as typ_opakowania" if str(linia).upper() != 'AGRO' else "'worki' as typ_opakowania"
+            if str(linia).upper() == 'AGRO':
+                pal_where = "(DATE(pw.data_dodania) = %s OR DATE(pw.data_potwierdzenia) = %s)"
+                pal_params = (data_raportu, data_raportu)
+            else:
+                pal_where = "DATE(pw.data_dodania) = %s"
+                pal_params = (data_raportu,)
+
             sql_palety = f"""
                 SELECT p.id as plan_id, p.nazwa_zlecenia, p.produkt, COUNT(pw.id) as ilosc_palet, SUM(pw.waga) as laczna_waga,
                        {typ_opak_col}
                 FROM {table_palety} pw
                 JOIN {table_plan} p ON pw.plan_id = p.id
-                WHERE DATE(pw.data_dodania) = %s
+                WHERE {pal_where}
                 GROUP BY p.id, p.nazwa_zlecenia, p.produkt
                 ORDER BY MIN(pw.id) ASC
             """
-            df_palety = db_query_to_df(sql_palety, conn, params=(data_raportu,))
+            df_palety = db_query_to_df(sql_palety, conn, params=pal_params)
             palety_rows = []
             for _, r in df_palety.iterrows():
                 zlec = r.get('nazwa_zlecenia')
@@ -527,11 +587,11 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
 
     logger.info(f"[GENERATOR] Report generation completed for {data_raportu}")
     logger.info(f"[GENERATOR] Files: xls={xls_path}, txt={txt_path}, pdf={pdf_path}")
-    print(f"[GENERATOR] ===== REPORT GENERATION COMPLETE =====")
-    print(f"[GENERATOR] Returning: xls={xls_path}, txt={txt_path}, pdf={pdf_path}")
-    print(f"[GENERATOR] XLS exists: {os.path.exists(xls_path) if xls_path else False}")
-    print(f"[GENERATOR] TXT exists: {os.path.exists(txt_path) if txt_path else False}")
-    print(f"[GENERATOR] PDF exists: {os.path.exists(pdf_path) if pdf_path else False}")
+    print(f"[GENERATOR] ===== REPORT GENERATION COMPLETE =====", flush=True)
+    print(f"[GENERATOR] Returning: xls={xls_path}, txt={txt_path}, pdf={pdf_path}", flush=True)
+    print(f"[GENERATOR] XLS exists: {os.path.exists(xls_path) if xls_path else False}", flush=True)
+    print(f"[GENERATOR] TXT exists: {os.path.exists(txt_path) if txt_path else False}", flush=True)
+    print(f"[GENERATOR] PDF exists: {os.path.exists(pdf_path) if pdf_path else False}", flush=True)
     return xls_path, txt_path, pdf_path
 
 

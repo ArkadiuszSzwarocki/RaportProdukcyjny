@@ -79,7 +79,12 @@ class UserEmailSettingsRepository:
             row = cursor.fetchone()
             if row:
                 raw_pwd = row.get('smtp_password')
-                decrypted_pwd = decrypt_secret(raw_pwd) if raw_pwd else ''
+                try:
+                    decrypted_pwd = decrypt_secret(raw_pwd) if raw_pwd else ''
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning("[USER_EMAIL_SETTINGS] Could not decrypt SMTP password for user_id=%s: %s", user_id, exc)
+                    decrypted_pwd = ''
                 return UserEmailSettingsModel(
                     id=row['id'],
                     user_id=row['user_id'],

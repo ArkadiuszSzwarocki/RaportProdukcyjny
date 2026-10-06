@@ -1,7 +1,7 @@
 from app.db import create_notifications
 
 
-EMPLOYEE_NOTIFICATION_ROLES = ('pracownik', 'produkcja', 'lider')
+EMPLOYEE_NOTIFICATION_ROLES = ('pracownik', 'produkcja', 'lider', 'operator', 'operator_agro', 'operator_psd')
 LAB_NOTIFICATION_ROLES = ('laborant',)
 
 
@@ -10,10 +10,14 @@ def _display_name(raw_name):
     return name or 'Użytkownik'
 
 
-def build_section_link(data_planu, sekcja='Zasyp'):
+def build_section_link(data_planu, sekcja='Zasyp', linia='PSD'):
     section = str(sekcja or 'Zasyp').strip() or 'Zasyp'
     data_str = str(data_planu or '')
-    return f'/?sekcja={section}&data={data_str}' if data_str else f'/?sekcja={section}'
+    linia_str = str(linia or 'PSD').strip().upper()
+    link = f'/?linia={linia_str}&sekcja={section}'
+    if data_str:
+        link += f'&data={data_str}'
+    return link
 
 
 def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
@@ -33,7 +37,7 @@ def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_n
         tytul=tytul,
         tresc=tresc,
         recipient_roles=EMPLOYEE_NOTIFICATION_ROLES,
-        link_url=build_section_link(data_planu, 'Zasyp'),
+        link_url=build_section_link(data_planu, 'Zasyp', linia=linia),
         plan_id=plan_context.get('id'),
         created_by_user_id=created_by_user_id,
         conn=conn,
@@ -55,7 +59,7 @@ def notify_laboratory_about_zasyp(plan_context, weight_kg, author_name, conn=Non
         tytul=tytul,
         tresc=tresc,
         recipient_roles=LAB_NOTIFICATION_ROLES,
-        link_url=build_section_link(data_planu, 'Zasyp'),
+        link_url=build_section_link(data_planu, 'Zasyp', linia=linia),
         plan_id=plan_context.get('id'),
         created_by_user_id=created_by_user_id,
         conn=conn,
@@ -80,18 +84,26 @@ def notify_workers_about_plan_change(plan_context, action_label, author_name, co
     if not plan_context:
         return []
 
+    is_agro = str(linia or '').strip().upper() == 'AGRO'
     produkt = plan_context.get('produkt') or 'Zlecenie'
     sekcja = plan_context.get('sekcja') or 'Zasyp'
     data_planu = plan_context.get('data_planu')
-    tytul = f'Plan {action_label.lower()}: {produkt}'
-    tresc = f'{_display_name(author_name)} {action_label.lower()} plan w sekcji {sekcja} dla {produkt}.'
+
+    if is_agro:
+        typ = 'plan_agro'
+        tytul = f'🌱 Plan AGRO {action_label.lower()}: {produkt}'
+        tresc = f'{_display_name(author_name)} {action_label.lower()} plan produkcyjny AGRO w sekcji {sekcja} dla {produkt}.'
+    else:
+        typ = 'plan'
+        tytul = f'Plan {action_label.lower()}: {produkt}'
+        tresc = f'{_display_name(author_name)} {action_label.lower()} plan w sekcji {sekcja} dla {produkt}.'
 
     return create_notifications(
-        typ='plan',
+        typ=typ,
         tytul=tytul,
         tresc=tresc,
         recipient_roles=EMPLOYEE_NOTIFICATION_ROLES,
-        link_url=build_section_link(data_planu, sekcja),
+        link_url=build_section_link(data_planu, sekcja, linia=linia),
         plan_id=plan_context.get('id'),
         created_by_user_id=created_by_user_id,
         conn=conn,
@@ -103,15 +115,22 @@ def notify_workers_about_plan_batch(data_planu, plans_count, author_name, sekcja
     if plans_count <= 0:
         return []
 
-    tytul = 'Nowe pozycje w planie produkcyjnym'
-    tresc = f'{_display_name(author_name)} dodał {plans_count} pozycji do planu produkcyjnego na {data_planu}.'
+    is_agro = str(linia or '').strip().upper() == 'AGRO'
+    if is_agro:
+        typ = 'plan_batch_agro'
+        tytul = f'🌱 Nowe pozycje w planie AGRO ({plans_count} poz.)'
+        tresc = f'{_display_name(author_name)} dodał {plans_count} pozycji do planu produkcyjnego AGRO na {data_planu}.'
+    else:
+        typ = 'plan_batch'
+        tytul = 'Nowe pozycje w planie produkcyjnym'
+        tresc = f'{_display_name(author_name)} dodał {plans_count} pozycji do planu produkcyjnego na {data_planu}.'
 
     return create_notifications(
-        typ='plan_batch',
+        typ=typ,
         tytul=tytul,
         tresc=tresc,
         recipient_roles=EMPLOYEE_NOTIFICATION_ROLES,
-        link_url=build_section_link(data_planu, sekcja),
+        link_url=build_section_link(data_planu, sekcja, linia=linia),
         created_by_user_id=created_by_user_id,
         conn=conn,
         cursor=cursor,
