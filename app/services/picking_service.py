@@ -627,21 +627,38 @@ class PickingService:
             if is_blocked:
                 return False
 
+            expected_src = str(source_location).strip().upper() if source_location else None
+            if expected_src and curr_loc != expected_src:
+                return False
+
             from app.utils.location_validator import is_production_tank_code
             if curr_loc == 'MP01' or is_production_tank_code(curr_loc) or curr_qty == 0:
                 return True
 
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE magazyn_surowce
-                SET lokalizacja = 'MP01'
-                WHERE id = %s
-                  AND stan_magazynowy > 0
-                  AND COALESCE(is_blocked, 0) = 0
-                """,
-                (paleta_id,)
-            )
+            if expected_src:
+                cursor.execute(
+                    """
+                    UPDATE magazyn_surowce
+                    SET lokalizacja = 'MP01'
+                    WHERE id = %s
+                      AND stan_magazynowy > 0
+                      AND COALESCE(is_blocked, 0) = 0
+                      AND UPPER(lokalizacja) = %s
+                    """,
+                    (paleta_id, expected_src)
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE magazyn_surowce
+                    SET lokalizacja = 'MP01'
+                    WHERE id = %s
+                      AND stan_magazynowy > 0
+                      AND COALESCE(is_blocked, 0) = 0
+                    """,
+                    (paleta_id,)
+                )
             if cursor.rowcount < 1:
                 conn.rollback()
                 return False

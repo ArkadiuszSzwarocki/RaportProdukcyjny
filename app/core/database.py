@@ -141,7 +141,12 @@ def get_db_connection(retries=2):
     try:
         pool = _get_or_create_pool()
         if pool:
-            return pool.get_connection()
+            conn = pool.get_connection()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return conn
     except Exception:
         pass
 

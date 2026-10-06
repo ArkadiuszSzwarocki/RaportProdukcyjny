@@ -221,6 +221,13 @@ def test_start_picking_stops_when_advisory_lock_is_busy():
 def test_move_pallet_to_mp01_returns_false_when_current_state_changed():
     service = PickingService()
     cursor = MagicMock()
+    cursor.fetchone.return_value = {
+        'id': 55,
+        'nr_palety': 'PAL-55',
+        'lokalizacja': 'R010101',
+        'stan_magazynowy': 100.0,
+        'is_blocked': 0,
+    }
     cursor.rowcount = 0
     connection = MagicMock()
     connection.cursor.return_value = cursor
