@@ -70,7 +70,7 @@ def _resolve_smtp_target(host, port, security):
         if result[0] not in {socket.AF_INET, socket.AF_INET6} or result[4][1] != port:
             raise ValueError('Nieprawidłowy adres serwera SMTP.')
         if (
-            address.is_private
+            not address.is_global
             or address.is_loopback
             or address.is_link_local
             or address.is_multicast

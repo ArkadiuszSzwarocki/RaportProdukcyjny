@@ -38,6 +38,7 @@ def test_rebinding_cannot_change_dialed_address(monkeypatch):
 
 
 @pytest.mark.parametrize('addresses', [[], [address('127.0.0.1')],
+                                      [address('100.64.0.1')],
                                       [address(), address('10.0.0.1')]])
 def test_invalid_or_mixed_dns_fails_before_socket(monkeypatch, addresses):
     monkeypatch.setattr(net.socket, 'getaddrinfo', lambda *a, **k: addresses)
@@ -82,4 +83,17 @@ def test_tls_failure_closes_socket(monkeypatch):
     monkeypatch.setattr(net._PinnedSMTP, 'connect', fake_greeting)
     with pytest.raises(ssl.SSLError):
         net.secure_smtp_connection('mail.example.com', 465, 'SSL', context=context)
+    connection.close.assert_called_once()
+
+
+def test_starttls_refusal_never_returns_a_plaintext_client(monkeypatch):
+    connection = MagicMock()
+    monkeypatch.setattr(net.socket, 'getaddrinfo', lambda *a, **k: [address(port=587)])
+    monkeypatch.setattr(net.socket, 'socket', MagicMock(return_value=connection))
+    monkeypatch.setattr(net._PinnedSMTP, 'connect', fake_greeting)
+    monkeypatch.setattr(net._PinnedSMTP, 'ehlo', MagicMock())
+    monkeypatch.setattr(net._PinnedSMTP, 'starttls', MagicMock(
+        side_effect=net.smtplib.SMTPNotSupportedError('TLS unavailable')))
+    with pytest.raises(net.smtplib.SMTPNotSupportedError):
+        net.secure_smtp_connection('mail.example.com', 587, 'tls')
     connection.close.assert_called_once()
