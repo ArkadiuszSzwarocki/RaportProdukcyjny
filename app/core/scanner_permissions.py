@@ -26,7 +26,7 @@ def enforce_scanner_permissions():
     if payload.get('linia') and request.args.get('linia') and str(request.args['linia']).upper() != line:
         return jsonify(success=False, error='hall_mismatch'), 400
     read_only = request.method in {'GET', 'HEAD', 'OPTIONS'} or endpoint in {
-        'scanner.lookup', 'scanner.validate_station',
+        'scanner.lookup', 'scanner.validate_station', 'scanner.pallet_suggestions',
     }
     section = 'zasyp' if endpoint == 'scanner.dispatch' else 'magazyn'
     if not _page_allowed(line, section, write=not read_only):

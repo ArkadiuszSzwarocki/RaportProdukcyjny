@@ -73,7 +73,7 @@ class ScannerLookupService:
         sql = (
             f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
             f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-            f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
+            f"data_produkcji, data_przydatnosci, COALESCE(NULLIF(linia, ''), '{linia}') AS linia "
             f"FROM {table_name} WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT 1"
         )
         try:
@@ -101,7 +101,7 @@ class ScannerLookupService:
                 sql_unbound = (
                     f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
                     f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
+                    f"data_produkcji, data_przydatnosci, COALESCE(NULLIF(linia, ''), '{linia}') AS linia "
                     f"FROM {table_name} WHERE {' AND '.join(where_unbound)} ORDER BY id DESC LIMIT 1"
                 )
                 try:

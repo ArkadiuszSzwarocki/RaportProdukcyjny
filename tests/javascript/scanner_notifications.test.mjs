@@ -46,3 +46,18 @@ test('empty toast text always receives a visible fallback', () => {
     assert.equal(notices[0].textContent, 'Nie udało się wykonać operacji. Spróbuj ponownie.');
     assert.equal(context.scannerResponseMessage({ message: 'constructor' }), 'constructor');
 });
+
+test('move uses the stored pallet hall and displays the warehouse boundary block', async () => {
+    const { context, notices } = setup({});
+    context.LINIA = 'AGRO';
+    vm.runInContext("currentPallet.linia = 'PSD'", context);
+    let payload;
+    const message = 'Przeniesienie z MS01 do MP01 / regałów wymaga zlecenia przesunięcia magazynowego.';
+    context.fetch = async (_url, options) => {
+        payload = JSON.parse(options.body);
+        return {json: async () => ({success: false, message})};
+    };
+    await context.doMoveFromMainInput('MP01');
+    assert.equal(payload.linia, 'PSD');
+    assert.equal(notices[0].textContent, message);
+});

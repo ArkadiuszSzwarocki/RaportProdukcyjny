@@ -85,7 +85,7 @@
     <!-- Pole tekstowe - pełna szerokość z wbudowaną ikoną usuwania i klawiatury -->
     <div style="position: relative; width: 100%;">
       <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
-             placeholder="Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)" autofocus
+             placeholder="Zeskanuj kod lub wpisz ostatnie 6 cyfr numeru palety" autofocus
              style="width: 100%; padding-right: 38px; box-sizing: border-box;">
       <button type="button" id="btnResetScannerInput" onclick="resetScanner()" title="Wyczyść pole skanowania"
               class="input-clear-btn"
@@ -622,6 +622,7 @@
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=static_version) }}"></script>
 {% endblock %}

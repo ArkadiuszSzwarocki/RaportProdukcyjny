@@ -46,6 +46,18 @@ def _worker():
 # Lookup
 # ─────────────────────────────────────────────────────────────────────────────
 
+@scanner_bp.route('/pallet-suggestions', methods=['GET'])
+def pallet_suggestions():
+    import re
+    from app.core.scanner_permissions import scanner_resource_read_allowed
+    from app.services.scanner.scanner_suggestions_service import find_pallet_suggestions
+    digits = request.args.get('digits', '').strip()
+    if not re.fullmatch(r'[0-9]{6}', digits):
+        return jsonify(success=False, message='Wpisz ostatnie 6 cyfr numeru palety.'), 400
+    results = [row for row in find_pallet_suggestions(digits) if scanner_resource_read_allowed(row)]
+    return jsonify(success=True, pallets=results[:30])
+
+
 @scanner_bp.route('/lookup', methods=['POST'])
 def lookup():
     data = request.get_json(silent=True) or {}

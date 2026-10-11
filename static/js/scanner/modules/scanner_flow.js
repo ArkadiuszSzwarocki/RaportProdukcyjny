@@ -50,6 +50,7 @@ function resetScanner() {
 
   hidePallet();
   hideStation();
+  if (typeof clearPalletSuggestions === 'function') clearPalletSuggestions();
   resetLocationInputDetection();
 
   const scanInput = getScanInput();
@@ -57,7 +58,7 @@ function resetScanner() {
     scanInput.value = '';
     scanInput.style.borderColor = '';
     scanInput.style.borderWidth = '';
-    scanInput.placeholder = 'Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)';
+    scanInput.placeholder = 'Zeskanuj kod lub wpisz ostatnie 6 cyfr numeru palety';
     scanInput.disabled = false;
     scanInput.focus();
   }
@@ -111,6 +112,11 @@ function triggerScan() {
   const code = extractSSCCFromScan(rawCode);
   if (code !== rawCode) {
     scanInput.value = code;
+  }
+
+  if (/^[0-9]{6}$/.test(code) && typeof requestPalletSuggestions === 'function') {
+    requestPalletSuggestions(code);
+    return;
   }
 
   if (!code) {
@@ -394,7 +400,7 @@ async function doMoveFromMainInput(loc) {
           nr_palety: currentPallet.nr_palety || currentPallet.sscc,
           type: currentPallet.inventory_type,
           lokalizacja: loc,
-          linia: (typeof LINIA !== 'undefined' ? LINIA : 'AGRO'),
+          linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO'),
           amount_to_move: null
         }),
         signal: controller.signal
@@ -602,6 +608,7 @@ function initScanInputListeners() {
     clearTimeout(scanTimeout);
 
     const code = (this.value || '').trim();
+    if (typeof schedulePalletSuggestions === 'function') schedulePalletSuggestions(code);
     if (!code) {
       previousInputLength = 0;
       fastInputIntervals = 0;
@@ -628,7 +635,7 @@ function initScanInputListeners() {
       scanTimeout = setTimeout(() => {
         const currInput = getScanInput();
         const currVal = (currInput ? currInput.value : '').trim();
-        if (currVal.length >= 3 && !isProcessingScan) {
+        if (currVal.length >= 3 && !/^[0-9]{6}$/.test(currVal) && !isProcessingScan) {
           triggerScan();
         }
       }, 150);
