@@ -393,6 +393,12 @@
                                 class="btn-action btn-stop"
                                 {% if pending_batch_dosypki and (etap.etap == 2 or (etap.etap|string).startswith('4')) %}disabled title="Najpierw potwierdź dosypki przypisane do tego zasypu"{% endif %}
                                 style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center;">⏹ Stop</button>
+                        {% if pending_batch_dosypki and (etap.etap == 2 or (etap.etap|string).startswith('4')) %}
+                        <div class="small" style="max-width:240px; margin-top:6px; color:#b45309;">
+                            STOP zablokowany: potwierdź dosypki do zasypu {{ cur_szarza }} ({{ pending_batch_dosypki }}).
+                            <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" data-slide>Otwórz dosypki</a>
+                        </div>
+                        {% endif %}
                     </form>
                         {% endif %}
                     {% endif %}

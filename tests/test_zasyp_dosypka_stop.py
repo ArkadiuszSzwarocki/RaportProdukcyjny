@@ -95,4 +95,5 @@ def test_mixing_stop_button_uses_pending_count_for_its_batch(app, pending, disab
     import re
     button = re.search(r'<button[^>]*class="btn-action btn-stop"[^>]*>', html)
     assert button and ('disabled' in button.group()) == disabled
+    assert ('STOP zablokowany: potwierdź dosypki do zasypu 3' in html) == disabled
     assert 'data-automatic-dosypka="1"' in html

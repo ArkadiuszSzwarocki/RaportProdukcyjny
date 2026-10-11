@@ -311,7 +311,10 @@
                 await fetchDosypki(container);
                 showConfirmMessage(container, data.message || 'Potwierdzono dosypkę.', true);
                 if (typeof window.performPartialReload === 'function') {
-                    window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
+                    await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
+                }
+                if (window.dashboardAgroBanners && typeof window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+                    window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
                 }
             } else {
                 btn.disabled = false;
