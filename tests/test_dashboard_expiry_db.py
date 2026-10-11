@@ -1,3 +1,4 @@
+# cspell:words executemany
 """Verify expiry warnings against MySQL DATE columns in strict mode."""
 
 from datetime import date, timedelta

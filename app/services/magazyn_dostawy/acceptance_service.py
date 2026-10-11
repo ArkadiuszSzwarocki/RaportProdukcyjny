@@ -25,6 +25,21 @@ class AcceptanceResult(tuple):
 class AcceptanceService:
 
     @staticmethod
+    def _get_internal_receipt_stock(cursor, table, number):
+        """Resolve and lock active stock without reviving an empty history row."""
+        cursor.execute(
+            f"SELECT id, stan_magazynowy FROM {table} "
+            "WHERE nr_palety = %s AND stan_magazynowy > 0 FOR UPDATE",
+            (number,),
+        )
+        rows = cursor.fetchall()
+        if len(rows) > 1:
+            raise ValueError(f"Niejednoznaczna paleta {number}: wiele aktywnych rekordów magazynowych")
+        if not rows:
+            raise ValueError(f"Paleta {number} nie istnieje w magazynie lub ma stan 0. Nie można jej przyjąć jako przesunięcia.")
+        return rows[0]
+
+    @staticmethod
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False):
             def _clean_date(d_str):
                 if not d_str: return None
@@ -234,8 +249,12 @@ class AcceptanceService:
                     return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
 
                 if is_opk_pkg:
-                    cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                    exist_opk = cursor.fetchone()
+                    if not is_external:
+                        exist_opk = AcceptanceService._get_internal_receipt_stock(cursor, table_opk, nr_palety)
+                        source_pallet_id = exist_opk['id']
+                    else:
+                        cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_opk = cursor.fetchone()
                     if not exist_opk and is_external and source_pallet_id:
                         cursor.execute(f"SELECT id FROM {table_opk} WHERE id = %s LIMIT 1", (source_pallet_id,))
                         exist_opk = cursor.fetchone()
@@ -291,8 +310,12 @@ class AcceptanceService:
                     if not is_valid_surowiec(product_name):
                         return False, f"Surowiec '{product_name}' nie występuje w słowniku surowców. Nie można go przyjąć.", None
                     # Sprawdź, czy rekord palety już istnieje (np. utworzony w OCZEKUJĄCYCH lub podczas zwrotu)
-                    cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                    exist_sur = cursor.fetchone()
+                    if not is_external:
+                        exist_sur = AcceptanceService._get_internal_receipt_stock(cursor, table_sur, nr_palety)
+                        source_pallet_id = exist_sur['id']
+                    else:
+                        cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_sur = cursor.fetchone()
                     if not exist_sur and is_external and source_pallet_id:
                         cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE id = %s LIMIT 1", (source_pallet_id,))
                         exist_sur = cursor.fetchone()

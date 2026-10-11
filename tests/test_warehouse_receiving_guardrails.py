@@ -25,6 +25,63 @@ def authorized_stock_operator(app):
     yield
 
 
+@pytest.mark.parametrize('table,kind', [
+    ('magazyn_surowce', 'surowiec'),
+    ('magazyn_opakowania', 'opakowanie'),
+])
+@pytest.mark.parametrize('historical_quantity', [0, 100])
+def test_internal_receipt_preserves_empty_copy_and_refuses_active_duplicates(
+    app, authorized_stock_operator, monkeypatch, table, kind, historical_quantity,
+):
+    code = 'TEST-RECEIPT-COPY-' + uuid.uuid4().hex
+    document = uuid.uuid4().hex
+    monkeypatch.setattr('app.utils.surowiec_validator.is_valid_surowiec', lambda *_: True)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            f"INSERT INTO {table} (nr_palety,nazwa,stan_magazynowy,lokalizacja) "
+            "VALUES (%s,'Old copy',%s,'RAMPA')", (code, historical_quantity),
+        )
+        old_id = cursor.lastrowid
+        cursor.execute(
+            f"INSERT INTO {table} (nr_palety,nazwa,stan_magazynowy,lokalizacja,is_blocked) "
+            "VALUES (%s,'Test receipt',100,'RAMPA',1)", (code,),
+        )
+        active_id = cursor.lastrowid
+        item = dict(id='one', sourcePalletId=active_id, sourceTable=table,
+                    nr_palety=code, sourcePalletNo=code, sourceSpot='RAMPA',
+                    productName='Test receipt', quantity=100, scannedType=kind)
+        cursor.execute(
+            "INSERT INTO magazyn_dostawy (id,linia,status,items,lokalizacja_z,lokalizacja_do) "
+            "VALUES (%s,'ALL','OCZEKUJE',%s,'RAMPA','MS01')", (document, json.dumps([item])),
+        )
+        conn.commit()
+        result = AcceptanceService.accept_item(document, 'one', 'MS01', 'pytest')
+        # End the reader transaction so this connection sees the service commit.
+        conn.rollback()
+        cursor.execute(f'SELECT id,stan_magazynowy,lokalizacja FROM {table} WHERE nr_palety=%s', (code,))
+        stock = {row['id']: (row['stan_magazynowy'], row['lokalizacja']) for row in cursor.fetchall()}
+        cursor.execute('SELECT items FROM magazyn_dostawy WHERE id=%s', (document,))
+        stored = json.loads(cursor.fetchone()['items'])[0]
+        if historical_quantity:
+            assert not result[0]
+            assert stock == {old_id: (100, 'RAMPA'), active_id: (100, 'RAMPA')}
+            assert not stored.get('accepted')
+        else:
+            assert result[0], result[1]
+            assert stock == {old_id: (0, 'RAMPA'), active_id: (100, 'MS01')}
+            assert stored['accepted']
+            assert stored['sourcePalletId'] == active_id
+    finally:
+        conn.rollback()
+        cursor.execute('DELETE FROM magazyn_dostawy WHERE id=%s', (document,))
+        cursor.execute('DELETE FROM palety_historia WHERE nr_palety=%s', (code,))
+        cursor.execute(f'DELETE FROM {table} WHERE nr_palety=%s', (code,))
+        conn.commit()
+        conn.close()
+
+
 def test_internal_receipt_rejects_wrong_explicit_destination(app, pending_delivery):
     destination = 'MS01'
     document_id, code, item = pending_delivery
