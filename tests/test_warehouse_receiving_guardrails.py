@@ -17,6 +17,14 @@ from app.utils.location_validator import check_rack_location_availability
 pytestmark = pytest.mark.require_db
 
 
+@pytest.fixture
+def authorized_stock_operator(app):
+    """Business-service tests run with an explicit authorized stock operator."""
+    from flask import session
+    session.update(zalogowany=True, rola='masteradmin', grupa='ALL')
+    yield
+
+
 def test_internal_receipt_rejects_wrong_explicit_destination(app, pending_delivery):
     destination = 'MS01'
     document_id, code, item = pending_delivery
@@ -52,7 +60,7 @@ def test_cancellation_does_not_restore_into_occupied_rack(pending_delivery):
 
 
 @pytest.mark.parametrize('source,destination',[('RAMPA','MS01'),('MS01','MP01')])
-def test_live_movement_assigns_destination_during_receipt(app, pending_delivery, source, destination):
+def test_live_movement_assigns_destination_during_receipt(app, authorized_stock_operator, pending_delivery, source, destination):
     document_id, code, item = pending_delivery
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -129,7 +137,7 @@ def delivery_snapshot(document_id, code):
     return state, json.loads(items), stock
 
 
-def test_putaway_commits_metadata_and_stock_together(app, pending_delivery):
+def test_putaway_commits_metadata_and_stock_together(app, authorized_stock_operator, pending_delivery):
     document_id, code, _ = pending_delivery
     result = AcceptanceService.accept_item(document_id, 'one', 'MS01', 'pytest', expected_status='PUTAWAY_IN_PROGRESS')
     assert result[0], result[1]
@@ -324,7 +332,7 @@ def test_two_pallets_cannot_claim_one_rack_slot():
         conn.close()
 
 
-def test_reservation_ignores_empty_history_copy(app, pending_delivery):
+def test_reservation_ignores_empty_history_copy(app, authorized_stock_operator, pending_delivery):
     from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
     _, code, item = pending_delivery
     conn = get_db_connection()
@@ -345,7 +353,7 @@ def test_reservation_ignores_empty_history_copy(app, pending_delivery):
         conn.close()
 
 
-def test_reject_item_uses_sscc_even_when_source_id_is_wrong(app, pending_delivery):
+def test_reject_item_uses_sscc_even_when_source_id_is_wrong(app, authorized_stock_operator, pending_delivery):
     document_id, code, item = pending_delivery
     item.update(sourceSpot='RAMPA', originalSpot='MS01', sourcePalletId=-1)
     conn = get_db_connection()

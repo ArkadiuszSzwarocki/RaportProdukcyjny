@@ -114,7 +114,8 @@ def enforce_csrf_origin_check(app):
             parsed = urlparse(source)
             source_netloc = (parsed.netloc or '').lower()
             expected_host = (request.host or '').lower()
-            if not source_netloc or not expected_host or source_netloc != expected_host:
+            if (parsed.scheme not in {'http', 'https'} or parsed.scheme != request.scheme
+                    or not source_netloc or not expected_host or source_netloc != expected_host):
                 return _csrf_error(
                     app,
                     'Forbidden: Cross-origin request blocked.',

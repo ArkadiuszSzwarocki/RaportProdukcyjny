@@ -36,8 +36,9 @@ class PalletLockManager:
             for table in tables:
                 predicate = "UPPER(nr_palety) = %s" if pnr else "id = %s"
                 quantity_column = 'waga_netto' if table in ('magazyn_palety', 'magazyn_palety_agro') else 'stan_magazynowy'
+                hall_column = ', linia' if table in ('magazyn_palety', 'magazyn_palety_agro') else ''
                 try:
-                    cursor.execute(f"SELECT id, nr_palety FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
+                    cursor.execute(f"SELECT id, nr_palety{hall_column} FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
                                    (pnr if pnr else pid,))
                     matches.extend((table, row) for row in cursor.fetchall())
                 except Exception as exc:
@@ -64,6 +65,9 @@ class PalletLockManager:
                     raise ValueError(f"Nie znaleziono palety {pnr or pid} do zablokowania")
                 continue
             table, row = matches[0]
+            from app.core.logistics_permissions import logistics_stock_write_allowed
+            if not logistics_stock_write_allowed(table, row):
+                raise PermissionError('Brak uprawnień do hali wskazanej palety.')
             if not blocked_val and cls.has_protected_block(cursor, row.get('nr_palety'), exclude_delivery_id):
                 continue
             cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s",
@@ -122,6 +126,7 @@ class PalletLockManager:
             conn.commit()
             return True, "Draft pallets locked successfully"
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()
@@ -153,6 +158,7 @@ class PalletLockManager:
                 conn.commit()
             return True, "Draft pallets unlocked successfully"
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()

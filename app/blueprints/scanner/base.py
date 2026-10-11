@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify, session, render_template
 from datetime import datetime
 from app.services.scanner_service import ScannerService
 from app.services.warehouse_v2_service import WarehouseV2Service
-from app.services.print_server import get_printer
+from app.services.print_server import get_printer, _zpl_text
 from app.decorators import login_required_response
 
 scanner_bp = Blueprint('scanner', __name__, url_prefix='/agro/scanner')
@@ -22,7 +22,16 @@ scanner_bp = Blueprint('scanner', __name__, url_prefix='/agro/scanner')
 
 @scanner_bp.before_request
 def require_scanner_login():
-    return login_required_response()
+    denied = login_required_response()
+    if denied is not None:
+        return denied
+    if not session.get('zalogowany'):
+        # Header-only internal printing is limited to rendering labels.
+        if request.endpoint in {'scanner.label', 'scanner.label_location'} and request.method in {'GET', 'HEAD'}:
+            return None
+        return jsonify(success=False, error='unauthenticated'), 401
+    from app.core.scanner_permissions import enforce_scanner_permissions
+    return enforce_scanner_permissions()
 
 
 def _linia():
@@ -49,6 +58,10 @@ def lookup():
     pallet = ScannerService.lookup_by_location(code, linia=linia)
     if not pallet:
         return jsonify({'success': False, 'error': f'Nie znaleziono palety: {code}'}), 404
+
+    from app.core.scanner_permissions import scanner_resource_read_allowed
+    if not scanner_resource_read_allowed(pallet):
+        return jsonify(success=False, error='forbidden'), 403
 
     return jsonify({'success': True, 'pallet': pallet})
 
@@ -319,7 +332,11 @@ def label(identifier):
     
     label_data = ScannerService.get_label_data(identifier, linia=linia, pallet_type=pallet_type)
     if not label_data:
-        return f"Paleta {identifier} nie istnieje lub stan=0", 404
+        return jsonify(success=False, error=f"Paleta {identifier} nie istnieje lub stan=0"), 404
+
+    from app.core.scanner_permissions import scanner_resource_read_allowed
+    if not scanner_resource_read_allowed(label_data):
+        return jsonify(success=False, error='forbidden'), 403
 
     from app.services.print_server import get_printer
     from datetime import datetime
@@ -347,11 +364,12 @@ def label(identifier):
 @scanner_bp.route('/label_location')
 def label_location():
     loc = request.args.get('loc', 'BRAK')
+    safe_location = _zpl_text(loc, 60)
     linia = request.args.get('linia', 'AGRO')
     
     zpl = f"^XA^CI28^PW812^LL1214^FO20,20^GB772,1174,4^FS"
-    zpl += f"^FO60,100^A0N,100,100^FDREGAŁ: {loc}^FS"
-    zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{loc}^FS"
+    zpl += f"^FO60,100^A0N,100,100^FDREGAŁ: {safe_location}^FS"
+    zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{safe_location}^FS"
     zpl += "^XZ"
     
     return render_template(
@@ -387,6 +405,10 @@ def print_label():
     label_data = ScannerService.get_label_data(identifier, linia=linia, pallet_type=pallet_type)
     if not label_data:
         return jsonify({'success': False, 'error': f'Nie znaleziono palety: {identifier}'}), 404
+
+    from app.core.scanner_permissions import scanner_resource_read_allowed
+    if not scanner_resource_read_allowed(label_data):
+        return jsonify(success=False, error='forbidden'), 403
 
     # Try TCP printer first
     printer = get_printer()

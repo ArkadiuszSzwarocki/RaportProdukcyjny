@@ -79,6 +79,9 @@ class DraftPalletSyncService:
                     continue
 
                 if curr_row:
+                    from app.core.logistics_permissions import logistics_stock_write_allowed
+                    if not logistics_stock_write_allowed(found_tbl, curr_row):
+                        raise PermissionError('Brak uprawnień do hali wskazanej palety.')
                     old_loc = norm_loc(item_copy.get('sourceSpot') or item_copy.get('lokalizacja_z'))
                     new_loc = norm_loc(curr_row.get('lokalizacja'))
                     if new_loc and old_loc != new_loc:
@@ -108,6 +111,7 @@ class DraftPalletSyncService:
             conn.commit()
             return True, {"items": updated_items, "changes": changes}
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()

@@ -77,11 +77,11 @@
             tr.dataset.nazwa = (it.nazwa || '').toLowerCase();
             tr.dataset.lok = (it.lokalizacja || '').toLowerCase();
             tr.innerHTML = `
-                <td>${it.id}</td>
-                <td>${it.nazwa || ''}</td>
-                <td>${it.lokalizacja || '<span class="text-muted">—</span>'}</td>
-                <td class="font-bold">${it.stan_magazynowy}</td>
-                <td><input type="number" class="form-control bulk-inv-qty" data-id="${it.id}" step="0.1" value="${it.stan_magazynowy}" style="width:120px;"></td>
+                <td>${agroEscapeHtml(it.id)}</td>
+                <td>${agroEscapeHtml(it.nazwa || '')}</td>
+                <td>${agroEscapeHtml(it.lokalizacja || '—')}</td>
+                <td class="font-bold">${agroEscapeHtml(it.stan_magazynowy)}</td>
+                <td><input type="number" class="form-control bulk-inv-qty" data-id="${agroEscapeHtml(it.id)}" step="0.1" value="${agroEscapeHtml(it.stan_magazynowy)}" style="width:120px;"></td>
             `;
             body.appendChild(tr);
         });
@@ -116,16 +116,16 @@
 
             const planLabel = it.plan_name ? (it.plan_name + (it.plan_id ? ' (#' + it.plan_id + ')' : '')) : (it.plan_id ? ('#' + it.plan_id) : '—');
             tr.innerHTML = `
-                <td>#${it.ruch_id}</td>
-                <td>${it.zbiornik || '—'}</td>
-                <td>${it.strefa || 'INNE'}</td>
-                <td>${it.rodzaj || 'SUROWCE'}</td>
+                <td>#${agroEscapeHtml(it.ruch_id)}</td>
+                <td>${agroEscapeHtml(it.zbiornik || '—')}</td>
+                <td>${agroEscapeHtml(it.strefa || 'INNE')}</td>
+                <td>${agroEscapeHtml(it.rodzaj || 'SUROWCE')}</td>
                 <td>
-                    <div>${it.nazwa || ''}</div>
-                    <div class="text-muted small">Plan: ${planLabel}</div>
+                    <div>${agroEscapeHtml(it.nazwa || '')}</div>
+                    <div class="text-muted small">Plan: ${agroEscapeHtml(planLabel)}</div>
                 </td>
-                <td class="font-bold">${it.stan_systemowy}</td>
-                <td><input type="number" class="form-control prod-inv-qty" data-ruch-id="${it.ruch_id}" step="0.1" value="${it.stan_systemowy}" style="width:120px;"></td>
+                <td class="font-bold">${agroEscapeHtml(it.stan_systemowy)}</td>
+                <td><input type="number" class="form-control prod-inv-qty" data-ruch-id="${agroEscapeHtml(it.ruch_id)}" step="0.1" value="${agroEscapeHtml(it.stan_systemowy)}" style="width:120px;"></td>
             `;
             body.appendChild(tr);
         });

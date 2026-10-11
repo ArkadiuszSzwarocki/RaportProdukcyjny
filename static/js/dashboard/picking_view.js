@@ -7,6 +7,12 @@
 const PickingViewModule = (function () {
     'use strict';
 
+    function escapePickingText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
+    }
+
     const PICKING_DETAILS_API = '/warehouse-v2/api/orders/picking/';
     const PICKING_CONFIRM_API_SUFFIX = '/confirm';
     const PICKING_CANCEL_API_SUFFIX = '/cancel';
@@ -65,7 +71,7 @@ const PickingViewModule = (function () {
 
         const slotLabel = document.getElementById('picking-active-slot-label');
         if (slotLabel) {
-            slotLabel.innerHTML = 'P: <span>' + parsed.lvl + '</span> &bull; G: <span>' + parsed.col + '</span>';
+            slotLabel.innerHTML = 'P: <span>' + escapePickingText(parsed.lvl) + '</span> &bull; G: <span>' + escapePickingText(parsed.col) + '</span>';
         }
 
         const titleEl = document.getElementById('picking-active-item-title');
@@ -106,7 +112,7 @@ const PickingViewModule = (function () {
             .then(function (res) { return res.json(); })
             .then(function (data) {
                 if (!data.success) {
-                    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #ef4444;">' + (data.message || 'Błąd ładowania') + '</td></tr>';
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #ef4444;">' + escapePickingText((data.message || 'Błąd ładowania')) + '</td></tr>';
                     return;
                 }
 
@@ -145,7 +151,7 @@ const PickingViewModule = (function () {
             headerTr.style.cssText = 'background: linear-gradient(135deg, #1e293b, #334155); border: none;';
             headerTr.innerHTML = '<td colspan="7" style="padding: 10px 14px; font-weight: 700; font-size: 13px; color: #ffffff; letter-spacing: 0.3px;">' +
                 '<span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 6px; color: #60a5fa;">inventory_2</span>' +
-                nazwa + '</td>';
+                escapePickingText(nazwa) + '</td>';
             tbody.appendChild(headerTr);
 
             var pallets = grouped[nazwa] || [];
@@ -177,7 +183,7 @@ const PickingViewModule = (function () {
                     actionHtml = '<span style="color: #94a3b8; font-size: 12px;">—</span>';
                 } else if (p.status === 'POMINIETA' || p.is_blocked) {
                     rowBg = 'background: #fef2f2;';
-                    var reason = p.powod_blokady ? ' (' + p.powod_blokady + ')' : '';
+                    var reason = p.powod_blokady ? ' (' + escapePickingText(p.powod_blokady) + ')' : '';
                     statusBadge = '<span style="background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #fecaca;">⛔ BLOKADA' + reason + '</span>';
                     actionHtml = '<span style="color: #94a3b8; font-size: 12px;">pomiń</span>';
                 } else if (p.status === 'ANULOWANA') {
@@ -197,7 +203,7 @@ const PickingViewModule = (function () {
                     if (p.fifo_rank === 1) {
                         fifoBadge = '<span style="background: #2563eb; color: #fff; padding: 2px 7px; border-radius: 4px; font-weight: 800; font-size: 11px;">#1 WYDAJ</span>';
                     } else {
-                        fifoBadge = '<span style="background: #e0e7ff; color: #3730a3; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 11px;">#' + p.fifo_rank + '</span>';
+                        fifoBadge = '<span style="background: #e0e7ff; color: #3730a3; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 11px;">#' + Number(p.fifo_rank) + '</span>';
                     }
                 } else if (p.status === 'SKOMPLETOWANA') {
                     fifoBadge = '<span style="color: #16a34a; font-weight: bold;">✓</span>';
@@ -207,17 +213,17 @@ const PickingViewModule = (function () {
 
                 const parsed = parseLocationString(p.lokalizacja_zrodlowa);
                 const locCell = '<div class="loc-rack-tag">' +
-                    '<span class="loc-rack-num">' + (parsed.rackId || 'Regał —') + '</span>' +
-                    '<span class="loc-slot-detail">Poziom ' + parsed.lvl + ' &bull; Kolumna ' + parsed.col + '</span>' +
-                    '<span style="font-size: 10px; color: #94a3b8;">' + (p.lokalizacja_zrodlowa || '—') + '</span>' +
+                    '<span class="loc-rack-num">' + escapePickingText((parsed.rackId || 'Regał —')) + '</span>' +
+                    '<span class="loc-slot-detail">Poziom ' + escapePickingText(parsed.lvl) + ' &bull; Kolumna ' + escapePickingText(parsed.col) + '</span>' +
+                    '<span style="font-size: 10px; color: #94a3b8;">' + escapePickingText((p.lokalizacja_zrodlowa || '—')) + '</span>' +
                     '</div>';
 
                 tr.style.cssText = 'border-bottom: 1px solid #e2e8f0; ' + rowBg;
                 tr.innerHTML =
                     '<td style="padding: 8px 10px; text-align: center;">' + fifoBadge + '</td>' +
                     '<td style="padding: 8px 10px;">' + locCell + '</td>' +
-                    '<td style="padding: 8px 10px; font-family: monospace; font-weight: 600; font-size: 12px; color: #334155;">' + (p.nr_palety || '—') + '</td>' +
-                    '<td style="padding: 8px 10px; color: #475569; font-size: 12px;">' + (p.nr_partii || '—') + '</td>' +
+                    '<td style="padding: 8px 10px; font-family: monospace; font-weight: 600; font-size: 12px; color: #334155;">' + escapePickingText((p.nr_palety || '—')) + '</td>' +
+                    '<td style="padding: 8px 10px; color: #475569; font-size: 12px;">' + escapePickingText((p.nr_partii || '—')) + '</td>' +
                     '<td style="padding: 8px 10px; text-align: right; font-weight: 700; font-size: 12px; color: ' + (p.is_blocked ? '#94a3b8' : '#0f172a') + ';">' + parseFloat(p.ilosc_kg || 0).toFixed(1) + ' kg</td>' +
                     '<td style="padding: 8px 10px; text-align: center;">' + statusBadge + '</td>' +
                     '<td style="padding: 8px 10px; text-align: center;">' + actionHtml + '</td>';
@@ -288,7 +294,7 @@ const PickingViewModule = (function () {
 
                 if (data.success) {
                     if (statusEl) {
-                        statusEl.innerHTML = '<span style="color: #16a34a; font-weight: 700;">✅ ' + (data.message || 'Paleta potwierdzona!') + '</span>';
+                        statusEl.innerHTML = '<span style="color: #16a34a; font-weight: 700;">✅ ' + escapePickingText((data.message || 'Paleta potwierdzona!')) + '</span>';
                     }
                     highlightCompletedRow(data.data);
                     loadOrderDetails(_currentOrderRef);
@@ -298,7 +304,7 @@ const PickingViewModule = (function () {
                     }
                 } else {
                     if (statusEl) {
-                        statusEl.innerHTML = '<span style="color: #ef4444; font-weight: 700;">❌ ' + (data.message || 'Nie znaleziono palety.') + '</span>';
+                        statusEl.innerHTML = '<span style="color: #ef4444; font-weight: 700;">❌ ' + escapePickingText((data.message || 'Nie znaleziono palety.')) + '</span>';
                     }
                     if (typeof showToast === 'function') {
                         showToast('❌ ' + (data.message || 'Błąd skanowania'), 'error');
@@ -475,9 +481,9 @@ const PickingViewModule = (function () {
                 var fifoStr = p.fifo_rank ? '#' + p.fifo_rank : '—';
                 rowsHtml += '<tr>' +
                     '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold;">' + fifoStr + '</td>' +
-                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-weight: bold;">' + (p.lokalizacja_zrodlowa || '—') + '</td>' +
-                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-family: monospace;">' + (p.nr_palety || '—') + '</td>' +
-                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1;">' + (p.nr_partii || '—') + '</td>' +
+                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-weight: bold;">' + escapePickingText((p.lokalizacja_zrodlowa || '—')) + '</td>' +
+                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-family: monospace;">' + escapePickingText((p.nr_palety || '—')) + '</td>' +
+                    '<td style="padding: 6px 8px; border: 1px solid #cbd5e1;">' + escapePickingText((p.nr_partii || '—')) + '</td>' +
                     '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold;">' + parseFloat(p.ilosc_kg || 0).toFixed(2) + ' kg</td>' +
                     '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; text-align: center;">' + statusStr + '</td>' +
                     '<td style="padding: 6px 8px; border: 1px solid #cbd5e1; width: 120px;"></td>' +

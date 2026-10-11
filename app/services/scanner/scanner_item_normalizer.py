@@ -53,6 +53,7 @@ class ScannerItemNormalizer:
 
         return {
             'id': row['id'],
+            'linia': row.get('linia'),
             'nazwa': row.get('nazwa') or '',
             'stan_magazynowy': qty,
             'lokalizacja': location,

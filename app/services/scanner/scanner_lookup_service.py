@@ -136,9 +136,9 @@ class ScannerLookupService:
             f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
             f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
             f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci, "
-            f"COALESCE(m.is_blocked, 0) AS is_blocked, '{linia}' AS linia "
+            "COALESCE(m.is_blocked, 0) AS is_blocked, m.linia AS linia "
             f"FROM {table_name} m "
-            f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id "
+            f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id AND m.linia = '{linia}' "
         )
 
         if item_id is not None:

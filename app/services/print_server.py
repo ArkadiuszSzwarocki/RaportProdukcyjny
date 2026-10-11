@@ -90,6 +90,8 @@ class PrintServer:
         url = f'{self.bridge_url}{normalized_path}'
         headers = dict(kwargs.pop('headers', {}) or {})
         headers.update(self._bridge_headers())
+        # A redirect must never forward the bridge token to another host.
+        kwargs.pop('allow_redirects', None)
 
         try:
             response = requests.request(
@@ -97,6 +99,7 @@ class PrintServer:
                 url=url,
                 headers=headers,
                 verify=self.bridge_tls_verify,
+                allow_redirects=False,
                 **kwargs,
             )
             return response, self.bridge_url
@@ -110,6 +113,7 @@ class PrintServer:
                         url=url,
                         headers=headers,
                         verify=self.bridge_tls_verify,
+                        allow_redirects=False,
                         **kwargs,
                     )
                     return response, self.bridge_url

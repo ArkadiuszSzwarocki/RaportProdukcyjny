@@ -1,4 +1,5 @@
 from datetime import datetime
+from flask import g, has_request_context
 import math
 from app.db import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
 
@@ -60,7 +61,11 @@ class ScannerMovementService:
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
-            if not pallet and pallet_type != 'Dodatek':
+            verified = getattr(g, 'warehouse_resource', None) if has_request_context() else None
+            if verified and (verified['table'] != table_surowce or not pallet or
+                             str(pallet.get('nr_palety')) != str(verified.get('nr_palety'))):
+                return False, 'Paleta zmieniła się po sprawdzeniu uprawnień.', None
+            if not pallet and pallet_type != 'Dodatek' and not verified:
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 alt_table = get_table_name('magazyn_opakowania', alt_linia) if pallet_type == 'Opakowanie' else get_table_name('magazyn_surowce', alt_linia)
                 cur.execute(

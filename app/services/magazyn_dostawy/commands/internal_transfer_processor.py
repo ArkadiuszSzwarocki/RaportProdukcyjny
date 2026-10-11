@@ -45,7 +45,7 @@ class InternalTransferProcessor:
                 matches.append((res, 'dodatek', 'magazyn_dodatki'))
 
             cursor.execute(
-                f"SELECT id, nr_palety, waga_netto AS stan_magazynowy, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
+                f"SELECT id, linia, nr_palety, waga_netto AS stan_magazynowy, COALESCE(lokalizacja, 'MGW01') AS lokalizacja, "
                 f"produkt AS nazwa FROM {table_got} "
                 f"WHERE UPPER(COALESCE(nr_palety, '')) = %s AND waga_netto > 0 LIMIT 1",
                 (clean_nr,)
@@ -206,6 +206,10 @@ class InternalTransferProcessor:
 
             if not p_res:
                 return False, f"Paleta {p_nr or p_name or p_id} nie istnieje w bazie lub jej stan magazynowy wynosi 0 kg!"
+
+            from app.core.logistics_permissions import logistics_stock_write_allowed
+            if not logistics_stock_write_allowed(source_table, p_res):
+                return False, 'Brak uprawnień do hali wskazanej palety.'
 
             # Verify actual physical location from DB
             db_actual_spot = norm_loc(p_res.get('lokalizacja'))
