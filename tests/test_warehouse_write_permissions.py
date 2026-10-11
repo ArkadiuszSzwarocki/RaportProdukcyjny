@@ -243,13 +243,13 @@ def test_quality_lock_uses_verified_table_and_never_matches_unrelated_ids(app, e
     cursor.fetchone.return_value = {'id': 123, 'nr_palety': 'TEST-123', 'is_blocked': 0} if exists else None
     with app.test_request_context('/'), patch(
             'app.services.warehouse_v2.pallet_status_service.get_db_connection', return_value=connection):
-        g.warehouse_resource = {'table': 'magazyn_palety_agro', 'id': 123, 'nr_palety': 'TEST-123'}
+        g.warehouse_resource = {'table': 'magazyn_palety', 'id': 123, 'nr_palety': 'TEST-123'}
         success, _ = PalletStatusService.toggle_block(123, 'Wyrób Gotowy', 'test', linia='AGRO')
     assert success is exists
     selects = [call.args[0] for call in cursor.execute.call_args_list if call.args[0].startswith('SELECT')]
-    assert len(selects) == 1 and 'FROM magazyn_palety_agro ' in selects[0]
+    assert len(selects) == 1 and 'FROM magazyn_palety ' in selects[0]
     updates = [call for call in cursor.execute.call_args_list if call.args[0].startswith('UPDATE')]
-    assert len(updates) == (7 if exists else 0)
+    assert len(updates) == (8 if exists else 0)
     assert all('WHERE nr_palety = %s' in call.args[0] and call.args[1] == (1, 'TEST-123') for call in updates)
     if not exists:
         connection.commit.assert_not_called()
@@ -267,7 +267,7 @@ def test_removed_verified_pallet_cannot_fall_back_to_foreign_stock(app, module, 
     cursor = connection.cursor.return_value
     cursor.fetchone.return_value = None
     with app.test_request_context('/'), patch(module + '.get_db_connection', return_value=connection):
-        g.warehouse_resource = {'table': 'magazyn_palety_agro', 'id': 123, 'nr_palety': 'TEST-123'}
+        g.warehouse_resource = {'table': 'magazyn_palety', 'id': 123, 'nr_palety': 'TEST-123'}
         if operation == 'move_pallet':
             result = service.move_pallet(123, 'Wyrób Gotowy', 'MGW02', 'test', linia='AGRO')
         else:
@@ -276,5 +276,5 @@ def test_removed_verified_pallet_cannot_fall_back_to_foreign_stock(app, module, 
     queries = [call.args[0] for call in cursor.execute.call_args_list]
     stock_queries = [query for query in queries if 'magazyn_dozwolone_lokalizacje' not in query]
     assert all(query.startswith('SELECT') for query in queries)
-    assert stock_queries and all('FROM magazyn_palety_agro ' in query for query in stock_queries)
+    assert stock_queries and all('FROM magazyn_palety ' in query for query in stock_queries)
     connection.commit.assert_not_called()

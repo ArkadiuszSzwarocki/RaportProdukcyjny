@@ -1384,6 +1384,7 @@ def _migrate_columns(cursor):
 
     # magazyn_palety columns & index unification
     _add_column_if_missing(cursor, "magazyn_palety", "linia", "VARCHAR(20) NOT NULL DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do magazyn_palety")
+    _add_column_if_missing(cursor, "magazyn_palety", "is_loaded", "TINYINT(1) DEFAULT 0", "Dodawanie kolumny 'is_loaded' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety")
 

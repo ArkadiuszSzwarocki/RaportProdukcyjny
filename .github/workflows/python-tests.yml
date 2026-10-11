@@ -22,7 +22,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: test_db
+          MYSQL_DATABASE: rp_pr17_pytest_ci
           MYSQL_USER: testuser
           MYSQL_PASSWORD: testpass
         options: >-
@@ -61,7 +61,7 @@ jobs:
           DB_PORT: 3306
           DB_USER: testuser
           DB_PASSWORD: testpass
-          DB_NAME: test_db
+          DB_NAME: rp_pr17_pytest_ci
           FLASK_ENV: testing
           SECRET_KEY: ci-test-secret-key
           ENCRYPTION_KEY: T0Y3M09VNkY2bmt3YXpBS2dCSjVaQlE5cWpsd1JGcVZrbmZ0SEZXVT0=
