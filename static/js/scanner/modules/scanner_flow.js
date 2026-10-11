@@ -131,6 +131,11 @@ function triggerScan() {
   lastScannedCode = code;
   lastScannedTime = now;
 
+  if (!navigator.onLine) {
+    void saveOfflineLookup(code);
+    return;
+  }
+
   if (currentPallet) {
     if (isPalletCode(code)) {
       lookupPallet(code);
@@ -478,10 +483,43 @@ function closeDispatchModal() {
   }
 }
 
+async function saveOfflineLookup(code) {
+  setProcessingState(true);
+  hidePallet();
+  hideStation();
+  try {
+    const store = window.RPOfflineStore;
+    const buffer = window.offlineScanBuffer;
+    if (!store || !store.ownerUserId || !buffer) {
+      throw new Error('Brak bezpiecznego magazynu lokalnego');
+    }
+    const event = buffer.enqueueScan(code, 'LOOKUP');
+    await buffer.persistQueue();
+    const saved = await store.getQueue('rp_offline_scan_buffer');
+    if (!saved.some(item => item.client_uuid === event.client_uuid)) {
+      throw new Error('Nie potwierdzono zapisu lokalnego');
+    }
+    showToast('Brak sieci. Kod zapisany do synchronizacji. Przyjęcie lub przesunięcie wymaga ponownego skanu online.', 'warn');
+    const input = getScanInput();
+    if (input) input.value = '';
+  } catch (error) {
+    showToast('Nie udało się zapisać kodu offline. Zachowaj kod i spróbuj po odzyskaniu połączenia.', 'danger');
+  } finally {
+    setProcessingState(false);
+    const input = getScanInput();
+    if (input) input.focus();
+  }
+}
+
 async function lookupPallet(code) {
   if (!code) return;
   code = String(code).trim();
   if (!code) return;
+
+  if (!navigator.onLine) {
+    await saveOfflineLookup(code);
+    return;
+  }
 
   setProcessingState(true);
 
