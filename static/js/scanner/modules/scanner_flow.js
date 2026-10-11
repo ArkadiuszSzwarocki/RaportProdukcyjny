@@ -230,7 +230,7 @@ async function doMoveFromMainInput(loc) {
       clearTimeout(timeoutId);
 
       const d = await res.json();
-      showToast(d.message || d.error || (d.success ? 'Pozycja przyjęta.' : 'Błąd operacji.'), d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       if (d.success) {
         hidePallet();
         refreshSidebarBadgesSilently();
@@ -287,7 +287,7 @@ async function doMoveFromMainInput(loc) {
       });
       clearTimeout(timeoutId);
       const d = await res.json();
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       if (d.success) {
         hidePallet();
         refreshSidebarBadgesSilently();
@@ -401,7 +401,7 @@ async function doMoveFromMainInput(loc) {
       });
       clearTimeout(timeoutId);
       const d = await res.json();
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
 
       if (d.success) {
         const isPkg = currentPallet && (
@@ -459,7 +459,7 @@ function doFinalDispatch() {
   })
   .then(r => r.json())
   .then(d => {
-    showToast(d.message, d.success ? 'success' : 'danger');
+    showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
     if (d.success) {
       closeDispatchModal();
       hidePallet();

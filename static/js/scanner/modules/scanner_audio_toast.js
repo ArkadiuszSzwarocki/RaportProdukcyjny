@@ -45,7 +45,25 @@ let lastToastMsg = '';
 let lastToastType = '';
 let lastToastTime = 0;
 
+function scannerResponseMessage(data) {
+  const response = data || {};
+  const message = typeof response.message === 'string' ? response.message.trim() : '';
+  const error = typeof response.error === 'string' ? response.error.trim() : '';
+  const text = message || error;
+  const errors = {
+    unauthenticated: 'Sesja wygasła. Zaloguj się ponownie.',
+    forbidden: 'Brak uprawnień do wykonania tej operacji na wskazanej palecie.',
+    hall_mismatch: 'Wybrana hala nie odpowiada hali operacji. Sprawdź wybór hali.',
+    invalid_payload: 'Nieprawidłowe dane operacji. Zeskanuj ponownie paletę i lokalizację.',
+    document_not_found: 'Nie znaleziono zlecenia. Odśwież listę zleceń.',
+    authorization_unavailable: 'Nie udało się sprawdzić uprawnień. Spróbuj ponownie.',
+  };
+  return Object.hasOwn(errors, text) ? errors[text] : (text || (response.success ? 'Operacja wykonana.' : 'Nie udało się wykonać operacji. Spróbuj ponownie.'));
+}
+
 function showToast(msg, type) {
+  msg = typeof msg === 'string' ? msg.trim() : '';
+  if (!msg) msg = type === 'success' ? 'Operacja wykonana.' : 'Nie udało się wykonać operacji. Spróbuj ponownie.';
   const now = Date.now();
   if (msg === lastToastMsg && type === lastToastType && (now - lastToastTime) < 1800) {
     return;

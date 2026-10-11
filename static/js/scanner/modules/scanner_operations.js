@@ -104,7 +104,7 @@ function submitLP01Modal() {
     })
     .then(r => r.json())
     .then(d => {
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       closeLP01Modal();
       if (d.success) {
         if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
