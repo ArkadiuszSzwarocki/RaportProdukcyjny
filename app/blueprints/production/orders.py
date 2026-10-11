@@ -39,6 +39,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         conn = get_db_connection()
         try:
             role_lc = str(session.get('rola') or '').strip().lower()
+            override_start_rule = request.form.get('override_start_rule') == '1'
+            if override_start_rule and role_lc != 'masteradmin':
+                return jsonify(success=False, message='Pominięcie blokady jest dostępne tylko dla MasterAdmina.'), 403
             if role_lc in ['laborant', 'laboratorium']:
                 flash('❌ Brak uprawnień: laborant nie może uruchamiać zleceń.', 'warning')
                 return redirect(bezpieczny_powrot())
@@ -83,8 +86,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     typ_opakowania = ''
 
                 is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+                if override_start_rule and sekcja not in ('Zasyp', 'Workowanie'):
+                    return jsonify(success=False, message='Pominięcie blokady jest dostępne na Zasypie i Workowaniu.'), 400
                 from app.services.planning.start_guard import guard_section_start
-                blocked = guard_section_start(cursor, table_plan, id, sekcja)
+                blocked = guard_section_start(cursor, table_plan, id, sekcja, override=override_start_rule)
                 if blocked:
                     flash(blocked, 'error')
                     return redirect(bezpieczny_powrot())
@@ -275,7 +280,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                 pass
 
                     # Ensure only one active plan per section in this hall
-                    cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
+                    if not override_start_rule:
+                        cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         operator_login = str(session.get('login') or '').strip()
                         cursor.execute(
@@ -320,6 +326,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
 
                     audit_details = f'ID={id}, produkt={produkt}, sekcja={sekcja}'
+                    if override_start_rule:
+                        audit_details += ', pominięto blokadę jednego aktywnego zlecenia (MasterAdmin)'
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         audit_details += (
                             f', operator={session.get("login")}, checklist=OK, nr_partii={nr_partii_cleaned}'

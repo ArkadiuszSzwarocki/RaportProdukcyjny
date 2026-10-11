@@ -10,8 +10,13 @@ def get_unfinished_section_orders(cursor, table, section, *, lock=False):
     return cursor.fetchall()
 
 
-def guard_section_start(cursor, table, plan_id, section):
+def guard_section_start(cursor, table, plan_id, section, *, override=False):
     orders = get_unfinished_section_orders(cursor, table, section, lock=True)
+    if override:
+        from flask import has_request_context, session
+        if not has_request_context() or str(session.get('rola') or '').strip().lower() != 'masteradmin' or section not in ('Zasyp', 'Workowanie'):
+            raise ValueError('Pominięcie blokady jest dostępne tylko dla MasterAdmina na Zasypie i Workowaniu.')
+        return None
     is_resume = any(int(order_id) == int(plan_id) and status in ('zawieszone', 'wstrzymane')
                     for order_id, _product, status in orders)
     for other_id, product, status in orders:

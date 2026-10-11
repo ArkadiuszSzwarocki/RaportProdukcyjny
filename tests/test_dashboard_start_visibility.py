@@ -1,4 +1,5 @@
 from datetime import date
+import re
 from unittest.mock import Mock
 
 import pytest
@@ -35,7 +36,8 @@ def test_start_hidden_for_unfinished_order_even_for_masteradmin(app, template, b
         unfinished_section_orders=[(258, 'Inny produkt', blocker_status)] if blocker_status else [],
         dzisiaj=date(2026, 10, 11), ns=env.globals['namespace'](is_active=False, active_plan_id=None),
     )
-    assert ('/action/production.start_zlecenie' in html) == (blocker_status is None or order_status == 'zawieszone')
+    normal_forms = [form for form in re.findall(r'<form\b.*?</form>', html, re.S) if 'override_start_rule' not in form]
+    assert any('/action/production.start_zlecenie' in form for form in normal_forms) == (blocker_status is None or order_status == 'zawieszone')
 
 
 @pytest.mark.require_db

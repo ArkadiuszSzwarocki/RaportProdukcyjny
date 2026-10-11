@@ -120,6 +120,7 @@
             {% endif %}
 
             {# Other Actions #}
+            {% include 'dashboard/_masteradmin_start_override.html' %}
             {% if role_lc in ['admin', 'masteradmin', 'planista'] %}
                 {# Usuwanie/Edycja przeniesiona do panelu planisty #}
             {% endif %}
