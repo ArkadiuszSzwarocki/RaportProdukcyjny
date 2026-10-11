@@ -7,17 +7,6 @@
 <div class="bulk-page-container">
   <h2 class="bulk-page-title" id="bulkPageTitle">📥 Dodawanie wielu zleceń dla produkcji {% if domyslna_sekcja == 'Agro' %}AGRO{% else %}PSD{% endif %}</h2>
 
-  <!-- Banner Informacyjny o Ulepszeniach -->
-  <div id="planningInfoBanner" class="planning-info-banner" style="display: none;">
-    <div class="planning-info-banner-content">
-      <div class="planning-info-banner-icon">🚀</div>
-      <div class="planning-info-banner-text">
-        <strong>Aktualizacja systemu planowania!</strong> Zobacz najnowsze ulepszenia i ułatwienia w module planisty.
-      </div>
-    </div>
-    <button type="button" id="btnOpenPlanningInfo" class="btn-planning-info-open">🔍 Zobacz zmiany</button>
-  </div>
-
   <!-- Header Card -->
   <div class="bulk-header-card">
     <div class="bulk-header-controls">
@@ -255,58 +244,6 @@
   </form>
 </div>
 
-<!-- Modal for planning changes info -->
-<div class="modal-backdrop" id="infoModalBackdrop"></div>
-<div class="info-details-modal" id="infoModal">
-  <h3>🚀 Ulepszenia w systemie planowania</h3>
-  <div class="info-details-grid">
-    
-    <div class="info-detail-card">
-      <div class="info-detail-icon">⚡</div>
-      <div class="info-detail-body">
-        <div class="info-detail-title">Zreorganizowane akcje (PSD & Agro)</div>
-        <div class="info-detail-desc">Przenieśliśmy strzałki zmiany kolejności (góra-dół) na lewą stronę, tuż przed nazwę produktu. Pozostałe akcje zebraliśmy w jednym, czytelnym menu rozwijanym.</div>
-      </div>
-    </div>
-    
-    <div class="info-detail-card">
-      <div class="info-detail-icon">📋</div>
-      <div class="info-detail-body">
-        <div class="info-detail-title">Intuicyjny formularz AGRO</div>
-        <div class="info-detail-desc">Zaprojektowaliśmy przejrzysty, wieloliniowy układ pól: Produkt i Waga na samej górze, Nr receptury i Typ pod spodem, a Domyślne opakowanie i Etykieta w trzeciej linii z wyraźnymi czerwonymi gwiazdkami dla pól wymaganych.</div>
-      </div>
-    </div>
-    
-    <div class="info-detail-card">
-      <div class="info-detail-icon">🔎</div>
-      <div class="info-detail-body">
-        <div class="info-detail-title">Nowoczesne zarządzanie produktami</div>
-        <div class="info-detail-desc">Całkowicie przeprojektowaliśmy i powiększyliśmy okno zarządzania produktami. Dodaliśmy szybką wyszukiwarkę na żywo wspierającą polskie znaki diakrytyczne.</div>
-      </div>
-    </div>
-    
-    <div class="info-detail-card">
-      <div class="info-detail-icon">🏷️</div>
-      <div class="info-detail-body">
-        <div class="info-detail-title">Wizualne kolory etykiet</div>
-        <div class="info-detail-desc">Etykiety w oknie zarządzania produktami oraz na liście planowania posiadają teraz barwne oznaczenia (paski) odpowiadające rzeczywistym kolorom na workach (żółty, fioletowy, brązowy, biały).</div>
-      </div>
-    </div>
-    
-    <div class="info-detail-card">
-      <div class="info-detail-icon">💾</div>
-      <div class="info-detail-body">
-        <div class="info-detail-title">Automatyczne wczytywanie opakowań</div>
-        <div class="info-detail-desc">Podczas edycji produktu możesz zapisać domyślny worek oraz etykietę. Przy wyborze tego produktu w formularzu planowania, system automatycznie uzupełni te dane!</div>
-      </div>
-    </div>
-    
-  </div>
-  <div class="info-details-footer">
-    <button type="button" id="btnDismissInfo" class="btn-info-dismiss">Przeczytałem – nie pokazuj więcej</button>
-  </div>
-</div>
-
 <!-- Modal for managing products -->
 <div class="modal-backdrop" id="manageModalBackdrop"></div>
 <div class="manage-modal" id="manageModal">
@@ -334,7 +271,6 @@
         },
         data: {
             wybranaData: "{{ wybrana_data }}",
-            userLogin: "{{ session.get('login') or 'anonymous' }}",
             opakowania: [
                 {% for o in opakowania %}
                 { id: {{ o.id }}, nazwa: {{ o.nazwa|tojson|safe }}, typ_opakowania: {{ o.typ_opakowania|tojson|safe }} }{% if not loop.last %},{% endif %}
@@ -348,6 +284,6 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/planista_bulk.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='js/planista_bulk.js') }}?v=3"></script>
 
 {% endblock %}
