@@ -75,6 +75,24 @@ def test_socket_io_cdn_tag_receives_subresource_integrity():
     assert 'crossorigin="anonymous"' in html
 
 
+def test_camera_scanner_is_allowed_only_on_own_origin_in_both_header_layers():
+    from app.core.middleware import add_security_headers
+
+    app = _build_test_app()
+    # Factory registration runs both layers; neither may block camera scanning.
+    app.after_request(add_security_headers(app))
+    for path in ('/audit-html', '/static/audit.js'):
+        response = app.test_client().get(path, base_url='https://warehouse.company.invalid')
+        directives = dict(item.strip().split('=', 1)
+                          for item in response.headers['Permissions-Policy'].split(','))
+        assert directives['camera'] == '(self)'
+        for feature in ('microphone', 'geolocation', 'payment', 'usb'):
+            assert directives[feature] == '()'
+    # Check the fallback layer independently as well.
+    response = _build_test_app().test_client().get('/audit-html')
+    assert response.headers['Permissions-Policy'].startswith('camera=(self),')
+
+
 def test_dynamic_responses_are_non_cacheable_but_identify_offline_owner():
     app = _build_test_app()
     client = app.test_client()

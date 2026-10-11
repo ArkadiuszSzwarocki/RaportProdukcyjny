@@ -194,7 +194,10 @@ def add_security_headers(app):
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-            response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+            # Camera scanning still requires browser consent on our own origin.
+            response.headers['Permissions-Policy'] = (
+                'camera=(self), microphone=(), geolocation=(), payment=(), usb=()'
+            )
             response.headers['Content-Security-Policy'] = (
                 "default-src 'self'; "
                 "script-src 'self' 'unsafe-inline' https://cdn.socket.io https://cdn.jsdelivr.net; "

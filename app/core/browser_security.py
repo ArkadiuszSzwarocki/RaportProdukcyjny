@@ -110,7 +110,7 @@ def register_browser_security_headers(app) -> None:
         response.headers.setdefault('Referrer-Policy', 'same-origin')
         response.headers.setdefault(
             'Permissions-Policy',
-            'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+            'camera=(self), microphone=(), geolocation=(), payment=(), usb=()',
         )
         response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
         response.headers.setdefault(
