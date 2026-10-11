@@ -74,6 +74,24 @@ def test_concurrent_consumption_keeps_total_weight(mother_stock,operation):
     assert sum(quantities) == 100
 
 
+def test_returning_connection_releases_uncommitted_stock_locks(mother_stock):
+    token, _ = mother_stock
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE magazyn_surowce SET stan_magazynowy=99 WHERE nr_palety=%s', (token,))
+    conn.close()
+
+    other = get_db_connection()
+    try:
+        cursor = other.cursor()
+        cursor.execute('SET SESSION innodb_lock_wait_timeout=2')
+        cursor.execute('SELECT stan_magazynowy FROM magazyn_surowce WHERE nr_palety=%s FOR UPDATE', (token,))
+        assert cursor.fetchone()[0] == 100
+    finally:
+        other.rollback()
+        other.close()
+
+
 @pytest.mark.parametrize('operation',['split','mix'])
 def test_lab_hold_blocks_stock_mutation(mother_stock,operation):
     token,pallet_id = mother_stock

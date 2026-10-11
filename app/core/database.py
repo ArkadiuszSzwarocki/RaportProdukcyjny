@@ -132,7 +132,7 @@ def _get_or_create_pool():
                     pool = pooling.MySQLConnectionPool(
                         pool_name="app_db_pool",
                         pool_size=32,
-                        pool_reset_session=False,
+                        pool_reset_session=True,
                         connection_class=MySQLConnection,
                         **pool_config
                     )
@@ -140,7 +140,7 @@ def _get_or_create_pool():
                     pool = pooling.MySQLConnectionPool(
                         pool_name="app_db_pool",
                         pool_size=32,
-                        pool_reset_session=False,
+                        pool_reset_session=True,
                         **pool_config
                     )
                 pool._pool_database = target_db
