@@ -194,3 +194,28 @@
     color: var(--logistyka-primary);
     border-bottom-color: var(--logistyka-primary);
 }
+
+/* FLATPICKR CALENDAR RESETS */
+.flatpickr-calendar svg,
+.flatpickr-calendar .flatpickr-prev-month svg,
+.flatpickr-calendar .flatpickr-next-month svg {
+    width: 14px !important;
+    height: 14px !important;
+    max-width: 14px !important;
+    max-height: 14px !important;
+    box-sizing: content-box !important;
+    vertical-align: middle !important;
+}
+.flatpickr-calendar .flatpickr-prev-month,
+.flatpickr-calendar .flatpickr-next-month {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 6px !important;
+}
+.flatpickr-calendar .numInputWrapper span svg {
+    width: 10px !important;
+    height: 10px !important;
+    max-width: 10px !important;
+    max-height: 10px !important;
+}
+

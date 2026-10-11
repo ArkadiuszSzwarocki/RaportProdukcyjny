@@ -69,6 +69,18 @@ def test_stock_lock_uses_number_and_never_colliding_ids():
     assert updates == [('UPDATE magazyn_surowce SET is_blocked = %s WHERE id = %s', (1, 7))]
 
 
+def test_agro_raw_material_can_be_locked_by_its_resolved_table():
+    cursor = MagicMock()
+    cursor.fetchall.return_value = [{'id': 17, 'nr_palety': 'AGR-RAW-17'}]
+    PalletLockManager.set_pallets_blocked(cursor, [{
+        'sourceTable': 'magazyn_agro_surowce',
+        'sourcePalletId': 17,
+        'nr_palety': 'AGR-RAW-17',
+    }])
+    updates = [call.args for call in cursor.execute.call_args_list if call.args[0].startswith('UPDATE')]
+    assert updates == [('UPDATE magazyn_agro_surowce SET is_blocked = %s WHERE id = %s', (1, 17))]
+
+
 def test_id_without_table_cannot_block_unrelated_pallets():
     cursor = MagicMock()
     with pytest.raises(ValueError):

@@ -348,13 +348,15 @@
         if (hasBlockingOverlayOpen()) return true;
         if (hasActiveSearch()) return true;
 
-        // Wyłącz auto-refresh na stronach z formularzami oraz widokach 3D WebGL
+        // Wyłącz auto-refresh na stronach z formularzami, skanerami oraz widokach 3D WebGL
         try {
+            if (window.location.pathname.includes('/scanner')) return true;
             if (document.getElementById('wh3dCanvasStage') || document.querySelector('.wh3d-root')) return true;
+            if (document.getElementById('scanInput')) return true;
             if (document.querySelector('[data-no-autorefresh]')) return true;
             if (document.querySelector('#receptionForm')) return true;
             const main = document.getElementById('mainContent');
-            if (main && (main.querySelector('[data-no-autorefresh]') || main.querySelector('#wh3dCanvasStage'))) return true;
+            if (main && (main.querySelector('[data-no-autorefresh]') || main.querySelector('#wh3dCanvasStage') || main.querySelector('#scanInput'))) return true;
         } catch (e) {}
         return false;
     }
@@ -428,8 +430,12 @@
                 );
 
                 if (changed) {
-                    if (window.location.pathname.startsWith('/maszyny') || document.getElementById('telemetryAppRoot') || document.querySelector('[data-no-autorefresh]')) {
-                        console.info('[SmartPolling] Change detected, but skipping reload on telemetry/no-autorefresh view');
+                    if (window.location.pathname.startsWith('/maszyny') || 
+                        window.location.pathname.includes('/scanner') || 
+                        document.getElementById('scanInput') || 
+                        document.getElementById('telemetryAppRoot') || 
+                        document.querySelector('[data-no-autorefresh]')) {
+                        console.info('[SmartPolling] Change detected, but skipping reload on telemetry/scanner/no-autorefresh view');
                     } else {
                         console.info('[SmartPolling] Change detected, reloading...', newState);
                         performPartialReload({ source: 'smart-polling' });
@@ -607,15 +613,17 @@
     async function performPartialReload(options) {
         options = options || {};
         try {
-            // Guard: Never perform partial DOM replacement on dedicated 3D WebGL scenes or telemetry dashboards
+            // Guard: Never perform partial DOM replacement on dedicated 3D WebGL scenes, scanners or telemetry dashboards
             if (document.getElementById('wh3dCanvasStage') || 
                 document.querySelector('.wh3d-root') || 
-                document.getElementById('telemetryAppRoot') ||
-                document.getElementById('pallet3dCanvasContainer') ||
-                document.querySelector('.cyber-container') ||
-                window.location.pathname.startsWith('/maszyny') ||
+                document.getElementById('telemetryAppRoot') || 
+                document.getElementById('pallet3dCanvasContainer') || 
+                document.querySelector('.cyber-container') || 
+                document.getElementById('scanInput') || 
+                window.location.pathname.startsWith('/maszyny') || 
+                window.location.pathname.includes('/scanner') || 
                 document.querySelector('[data-no-autorefresh]')) {
-                console.info('[partialReload] Skipped on 3D / telemetry / no-autorefresh view');
+                console.info('[partialReload] Skipped on 3D / telemetry / scanner / no-autorefresh view');
                 return;
             }
 

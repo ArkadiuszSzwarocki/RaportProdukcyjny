@@ -7,7 +7,7 @@ import vm from 'node:vm';
 function setup() {
   let time = 0;
   const listeners = {}, timers = new Map(), submitted = [];
-  const input = { value: '', addEventListener(name, callback) { listeners[name] = callback; } };
+  const input = { value: '', dataset: {}, addEventListener(name, callback) { listeners[name] = callback; } };
   let timerId = 0;
   const context = vm.createContext({
     document: { getElementById: id => id === 'scanInput' ? input : null },

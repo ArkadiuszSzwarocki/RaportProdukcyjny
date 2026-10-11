@@ -1,9 +1,15 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="picking-page" style="max-width: 1100px; margin: 0 auto; padding: 20px 16px;">
+<!-- 3D DIGITAL TWIN DEDICATED STYLESHEET & THREE.JS ENGINE -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/warehouse_3d.css') }}">
+<script src="{{ url_for('static', filename='vendor/three/three.min.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='vendor/three/OrbitControls.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
 
-    <!-- TOP HEADER -->
+<div class="picking-page" style="max-width: 1100px; margin: 0 auto; padding: 20px 16px; transition: max-width 0.3s ease;">
+
+    <!-- TOP HEADER WITH VIEW SWITCHER -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
         <div style="display: flex; align-items: center; gap: 14px;">
             <div style="width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);">
@@ -17,7 +23,24 @@
                     Pobieranie i odstawianie palet surowcowych na strefę MP01 wg ścisłej kolejki FIFO
                 </p>
             </div>
-        </div>        <div style="display: flex; align-items: center; gap: 10px;">
+        </div>
+
+        <!-- MAIN VIEW SWITCHER -->
+        <div style="display: inline-flex; align-items: center; background: #0f172a; padding: 5px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25); gap: 6px;">
+            <button type="button" id="btnModeList" onclick="switchPickingViewMode('list')" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45);">
+                <span class="material-icons" style="font-size: 18px;">view_list</span>
+                Lista Dyspozycji
+                <span id="badgeActiveListCount" style="padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 800; background: rgba(255, 255, 255, 0.25);">0</span>
+            </button>
+            <button type="button" id="btnMode3D" onclick="switchPickingViewMode('3d')" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; background: transparent; color: #94a3b8; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.25s;">
+                <span class="material-icons" style="font-size: 18px; color: #f59e0b;">view_in_ar</span>
+                Widok 3D Regałów
+                <span style="padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 800; background: rgba(245, 158, 11, 0.2); color: #f59e0b;">3D</span>
+            </button>
+        </div>
+    </div>    <!-- LIST VIEW WRAPPER -->
+    <div id="pickingListViewSection">
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px; gap: 10px;">
             <div style="background: #f1f5f9; padding: 4px; border-radius: 10px; display: flex; gap: 4px; border: 1px solid #cbd5e1;">
                 <button type="button" id="tab-active" onclick="switchPickingTab('active')" style="background: #0284c7; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
                     <span class="material-icons" style="font-size: 18px;">pending_actions</span> Aktywne (<span id="tab-active-count">0</span>)
@@ -30,10 +53,9 @@
                 <span class="material-icons" style="font-size: 18px;">refresh</span> Odśwież
             </button>
         </div>
-    </div>
 
-    <!-- ORDERS CONTAINER -->
-    <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); margin-bottom: 24px;">
+        <!-- ORDERS CONTAINER -->
+        <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 14px;">
             <h2 id="picking-section-title" style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons" style="color: #0284c7; font-size: 22px;">pending_actions</span>
@@ -51,6 +73,10 @@
             </div>
         </div>
     </div>
+    </div>
+
+    <!-- 3D DIGITAL TWIN STAGE (IDENTICAL TO RACKS 3D) -->
+    {% include 'warehouse_v2/_picking_3d_stage.html' %}
 
 </div>
 
@@ -68,7 +94,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') loadCurrentPickingTab();
     });
-    window.addEventListener('ordersChanged', loadCurrentPickingTab);
+    window.addEventListener('ordersChanged', function() {
+        loadCurrentPickingTab();
+        refreshPickingOrderSelect();
+    });
+    refreshPickingOrderSelect();
 
     var initRef = "{{ initial_order_ref or '' }}";
     if (initRef && typeof PickingViewModule !== 'undefined') {
@@ -124,8 +154,59 @@ function loadCurrentPickingTab() {
     }
 }
 
+function completePickingOrder(orderRef, btnElement) {
+    if (!orderRef) return;
+
+    var choiceAll = confirm('Zakończenie dyspozycji kompletacji ' + orderRef + ':\n\n' +
+        'Czy WSZYSTKIE surowce z tego zlecenia zostały fizycznie pobrane/zużyte na produkcji?\n\n' +
+        '• Kliknij [OK] -> Oznacz WSZYSTKIE pozycje jako SKOMPLETOWANE (100% zrealizowane)\n' +
+        '• Kliknij [Anuluj] -> Zakończ zlecenie i ZWOLNIJ niepobrane palety do magazynu');
+
+    var selectedMode = 'release_unpicked';
+    if (choiceAll) {
+        selectedMode = 'all_completed';
+    } else {
+        var choiceRelease = confirm('Czy na pewno chcesz zakończyć zlecenie i ZWOLNIĆ niepobrane palety z powrotem do magazynu?\n\n(Pobrane dotąd palety pozostaną zaliczone jako skompletowane).');
+        if (!choiceRelease) {
+            return;
+        }
+        selectedMode = 'release_unpicked';
+    }
+
+    if (btnElement) btnElement.disabled = true;
+
+    fetch('/warehouse-v2/api/orders/picking/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ref: orderRef, mode: selectedMode, operator: 'SYSTEM' })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data && data.success) {
+            if (typeof showToast === 'function') {
+                showToast(data.message || 'Dyspozycja zakończona pomyślnie.', 'success');
+            } else {
+                alert(data.message || 'Dyspozycja zakończona pomyślnie.');
+            }
+            loadCurrentPickingTab();
+            window.dispatchEvent(new CustomEvent('ordersChanged'));
+            if (typeof window.refreshSidebarBadges === 'function') {
+                window.refreshSidebarBadges();
+            }
+        } else {
+            alert(data ? data.message : 'Błąd podczas kończenia dyspozycji.');
+            if (btnElement) btnElement.disabled = false;
+        }
+    })
+    .catch(function(err) {
+        console.error('Błąd zamykania zlecenia:', err);
+        alert('Błąd połączenia z serwerem.');
+        if (btnElement) btnElement.disabled = false;
+    });
+}
+
 function cancelPickingOrder(orderRef, btnElement) {
-    if (!confirm('Czy na pewno chcesz ANULOWAĆ dyspozycję kompletacji ' + orderRef + '?\nWszystkie oczekujące palety zostaną zwolnione.')) {
+    if (!confirm('Czy na pewno chcesz anulować OCZEKUJĄCE pozycje dyspozycji ' + orderRef + '?\n\nZarezerwowane niepobrane palety zostaną natychmiast zwolnione do magazynu.\nPozycje już skompletowane pozostaną bez zmian.')) {
         return;
     }
 
@@ -140,9 +221,9 @@ function cancelPickingOrder(orderRef, btnElement) {
     .then(function(data) {
         if (data && data.success) {
             if (typeof showToast === 'function') {
-                showToast(data.message || 'Dyspozycja anulowana.', 'info');
+                showToast(data.message || 'Oczekujące pozycje anulowane, palety zwolnione.', 'info');
             } else {
-                alert(data.message || 'Dyspozycja anulowana.');
+                alert(data.message || 'Oczekujące pozycje anulowane, palety zwolnione.');
             }
             loadCurrentPickingTab();
             window.dispatchEvent(new CustomEvent('ordersChanged'));
@@ -236,12 +317,19 @@ function renderOrdersList(orders, isActiveView) {
             statusBadge = '<span style="background: #fef3c7; color: #b45309; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">W TOKU</span>';
         }
 
+        var finishBtnHtml = '';
         var cancelBtnHtml = '';
         if (pending > 0) {
+            finishBtnHtml = `
+                <button type="button" onclick="completePickingOrder('${o.order_ref}', this)" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';" onmouseout="this.style.transform='none';" title="Zakończ zlecenie i zwolnij niepobrane palety lub oznacz jako zrealizowane">
+                    <span class="material-icons" style="font-size: 18px;">task_alt</span>
+                    Zakończ
+                </button>
+            `;
             cancelBtnHtml = `
-                <button type="button" onclick="cancelPickingOrder('${o.order_ref}', this)" style="background: #fff7ed; color: #ea580c; border: 1.5px solid #fed7aa; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#ea580c'; this.style.color='#ffffff';" onmouseout="this.style.background='#fff7ed'; this.style.color='#ea580c';" title="Anuluj oczekujące pozycje">
+                <button type="button" onclick="cancelPickingOrder('${o.order_ref}', this)" style="background: #fff7ed; color: #ea580c; border: 1.5px solid #fed7aa; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#ea580c'; this.style.color='#ffffff';" onmouseout="this.style.background='#fff7ed'; this.style.color='#ea580c';" title="Anuluje tylko oczekujące pozycje i zwalnia zarezerwowane palety (pobrane palety pozostają bez zmian)">
                     <span class="material-icons" style="font-size: 18px;">cancel</span>
-                    Anuluj
+                    Anuluj oczekujące
                 </button>
             `;
         }
@@ -280,10 +368,15 @@ function renderOrdersList(orders, isActiveView) {
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" onclick="showPickingOrderOn3D('${o.order_ref}')" style="background: #0f172a; color: #f59e0b; border: 1.5px solid #f59e0b; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#f59e0b'; this.style.color='#0f172a';" onmouseout="this.style.background='#0f172a'; this.style.color='#f59e0b';" title="Wskaż miejsca z tego zlecenia na regale 3D">
+                        <span class="material-icons" style="font-size: 18px;">view_in_ar</span>
+                        Pokaż na 3D
+                    </button>
                     <button type="button" onclick="PickingViewModule.openPickingModal('${o.order_ref}')" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';" onmouseout="this.style.transform='none';">
                         <span class="material-icons" style="font-size: 18px;">qr_code_scanner</span>
                         Otwórz & Skanuj
                     </button>
+                    ${finishBtnHtml}
                     ${cancelBtnHtml}
                     ${deleteBtnHtml}
                 </div>
@@ -301,6 +394,8 @@ function loadActivePickingOrders() {
             var orders = (data && data.success) ? (data.data || data.orders || []) : [];
             var countEl = document.getElementById('tab-active-count');
             if (countEl) countEl.textContent = orders.length;
+            var badgeList = document.getElementById('badgeActiveListCount');
+            if (badgeList) badgeList.textContent = orders.length;
 
             if (_currentTab === 'active') {
                 renderOrdersList(orders, true);
@@ -324,5 +419,136 @@ function loadAllPickingOrders() {
             console.error('Błąd ładowania historii zleceń:', err);
         });
 }
+
+function refreshPickingOrderSelect(preferredRef) {
+    const select = document.getElementById('selectPickingOrderFilter');
+    if (!select) return;
+
+    fetch('/warehouse-v2/api/orders/picking/active')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            const activeOrders = (data && data.success) ? (data.data || data.orders || []) : [];
+            const curVal = preferredRef !== undefined ? preferredRef : select.value;
+
+            let html = '';
+            if (activeOrders.length > 0) {
+                html += '<optgroup label="Aktywne zlecenia (do pobrania)">';
+                activeOrders.forEach(function(ao) {
+                    const sel = (ao.order_ref === curVal) ? 'selected' : '';
+                    html += `<option value="${ao.order_ref}" ${sel}>📦 ${ao.order_ref} (${ao.pending_items} do pobrania)</option>`;
+                });
+                html += '</optgroup>';
+            }
+
+            const isActive = activeOrders.some(function(ao) { return ao.order_ref === curVal; });
+            if (curVal && !isActive) {
+                html += `<optgroup label="Zrealizowane zlecenie">`;
+                html += `<option value="${curVal}" selected>✅ ${curVal} (Zrealizowane 100%)</option>`;
+                html += `</optgroup>`;
+            }
+
+            if (!html) {
+                html = '<option value="">(Brak aktywnych zleceń do pobrania)</option>';
+            }
+
+            select.innerHTML = html;
+        })
+        .catch(function(err) {
+            console.error('Błąd pobierania listy zleceń dla 3D:', err);
+        });
+}
+
+function switchPickingViewMode(mode, targetOrderRef) {
+    const listSec = document.getElementById('pickingListViewSection');
+    const stageSec = document.getElementById('picking3dViewSection');
+    const btnList = document.getElementById('btnModeList');
+    const btn3D = document.getElementById('btnMode3D');
+    const pageEl = document.querySelector('.picking-page');
+
+    if (mode === 'list') {
+        if (listSec) listSec.style.display = 'block';
+        if (stageSec) stageSec.style.display = 'none';
+        if (btnList) {
+            btnList.style.background = 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)';
+            btnList.style.color = '#ffffff';
+            btnList.style.boxShadow = '0 4px 14px rgba(2, 132, 199, 0.45)';
+        }
+        if (btn3D) {
+            btn3D.style.background = 'transparent';
+            btn3D.style.color = '#94a3b8';
+            btn3D.style.boxShadow = 'none';
+        }
+        if (pageEl) {
+            pageEl.style.maxWidth = '1100px';
+            pageEl.style.padding = '20px 16px';
+        }
+    } else {
+        if (listSec) listSec.style.display = 'none';
+        if (stageSec) stageSec.style.display = 'block';
+        if (btnList) {
+            btnList.style.background = 'transparent';
+            btnList.style.color = '#94a3b8';
+            btnList.style.boxShadow = 'none';
+        }
+        if (btn3D) {
+            btn3D.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+            btn3D.style.color = '#0f172a';
+            btn3D.style.boxShadow = '0 4px 14px rgba(245, 158, 11, 0.45)';
+        }
+        if (pageEl) {
+            pageEl.style.maxWidth = '100%';
+            pageEl.style.padding = '16px 20px';
+        }
+
+        const orderSelect = document.getElementById('selectPickingOrderFilter');
+        if (targetOrderRef && orderSelect) {
+            orderSelect.value = targetOrderRef;
+            refreshPickingOrderSelect(targetOrderRef);
+        } else {
+            refreshPickingOrderSelect();
+        }
+        const effectiveOrderRef = targetOrderRef || (orderSelect ? orderSelect.value : '');
+
+        if (typeof init3DStage === 'function') {
+            init3DStage();
+        }
+        if (typeof selectRackQuick === 'function') {
+            selectRackQuick('ALL', effectiveOrderRef);
+        } else if (typeof loadWarehouseData === 'function') {
+            loadWarehouseData(true, false, effectiveOrderRef);
+        }
+
+        const triggerResize = function() {
+            if (typeof window.onWindowResize === 'function') {
+                window.onWindowResize();
+            } else if (typeof onWindowResize === 'function') {
+                onWindowResize();
+            }
+        };
+
+        requestAnimationFrame(triggerResize);
+        setTimeout(triggerResize, 80);
+        setTimeout(triggerResize, 200);
+        setTimeout(triggerResize, 450);
+    }
+}
+
+function showPickingOrderOn3D(orderRef) {
+    switchPickingViewMode('3d', orderRef);
+}
+
+function onPickingOrderFilterChanged(orderRef) {
+    if (typeof selectRackQuick === 'function') {
+        selectRackQuick('ALL', orderRef);
+    } else if (typeof loadWarehouseData === 'function') {
+        loadWarehouseData(true, false, orderRef);
+    }
+}
 </script>
+
+<!-- MODULAR 3D SCRIPTS (IDENTICAL TO RACKS_3D) -->
+<script src="{{ url_for('static', filename='js/warehouse_3d/textures.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/models.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/interaction.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_3d/scene.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -29,13 +29,23 @@ async function cancelTransferForm(event) {
     window.location.href = window.EdycjaConfig.urlListaDostaw;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const linkedDraft = getStoredDraftState();
     if (!window.EdycjaConfig.dostawaId && linkedDraft && linkedDraft.dostawa_id) {
-        const linkedUrl = new URL(window.location.href);
-        linkedUrl.searchParams.set('id', linkedDraft.dostawa_id);
-        window.location.replace(linkedUrl.href);
-        return;
+        let closed = false;
+        try {
+            const response = await fetch('/magazyn-dostawy/api/live-transfer/status/' + encodeURIComponent(linkedDraft.dostawa_id));
+            const data = await response.json();
+            closed = data.success && data.result && ['COMPLETED','CANCELLED'].includes(data.result.status);
+        } catch (_) { /* Offline: preserve the linked draft. */ }
+        if (closed) {
+            clearDraftState(linkedDraft.dostawa_id);
+        } else {
+            const linkedUrl = new URL(window.location.href);
+            linkedUrl.searchParams.set('id', linkedDraft.dostawa_id);
+            window.location.replace(linkedUrl.href);
+            return;
+        }
     }
     // Strip 'draft' query parameter from URL so Back button or refresh never re-executes mode
     try {

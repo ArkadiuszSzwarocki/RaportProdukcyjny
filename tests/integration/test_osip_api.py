@@ -26,9 +26,10 @@ def test_osip_warehouse_view_unauthenticated(client):
 
 def test_osip_warehouse_view_authenticated(osip_logged_client):
     """Zalogowany użytkownik wchodzący na /osip/warehouse zostaje przekierowany do ujednoliconego widoku warehouse_v2 (zakladka=OSIP)."""
-    response = osip_logged_client.get('/osip/warehouse', follow_redirects=True)
-    assert response.status_code == 200
-    assert "Wszystkie Magazyny" in response.get_data(as_text=True) or "OSIP" in response.get_data(as_text=True)
+    response = osip_logged_client.get('/osip/warehouse')
+    assert response.status_code == 302
+    assert '/warehouse-v2/' in response.location
+    assert 'zakladka=OSIP' in response.location
 
 
 def test_osip_inventory_api(osip_logged_client):

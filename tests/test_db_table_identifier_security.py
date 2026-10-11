@@ -13,6 +13,7 @@ def test_known_table_names_resolve_for_psd_and_agro():
 def test_osip_can_only_use_shared_tables():
     assert resolve_table_name('magazyn_surowce', 'OSIP') == 'magazyn_surowce'
     assert resolve_table_name('magazyn_dodatki', 'OSIP') == 'magazyn_dodatki'
+    assert resolve_table_name('magazyn_palety', 'OSIP') == 'magazyn_palety'
     with pytest.raises(ValueError):
         resolve_table_name('plan_produkcji', 'OSIP')
 

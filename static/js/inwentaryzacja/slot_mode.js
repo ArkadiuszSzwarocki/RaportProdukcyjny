@@ -388,13 +388,18 @@ async function markEmpty(locId) {
                     body: JSON.stringify({
                         sesja_id: window.INVENTORY_CONFIG.sesjaId,
                         paleta_id: p.id,
+                        nr_palety: p.nr_palety || null,
                         typ_palety: p.typ_palety,
                         nazwa: p.nazwa,
                         lokalizacja: locId,
                         nr_partii: p.nr_partii || '-',
                         waga_systemowa: p.stan_magazynowy || 0,
                         waga_faktyczna: 0,
-                        linia: p.linia || 'PSD'
+                        linia: p.linia || 'PSD',
+                        data_produkcji: p.data_produkcji || null,
+                        data_przydatnosci: p.data_przydatnosci || null,
+                        typ_opakowania: p.typ_opakowania || 'brak',
+                        jednostka: p.jednostka || 'kg'
                     })
                 });
             }

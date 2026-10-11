@@ -1,9 +1,9 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<!-- Three.js r128 + OrbitControls (same CDN used in maszyny_dashboard) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- Three.js r128 + OrbitControls (local vendor) -->
+<script src="{{ url_for('static', filename='vendor/three/three.min.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='vendor/three/OrbitControls.js') }}?v={{ static_version }}"></script>
 
 <style>
   .ll-shell { max-width: 1500px; margin: 0 auto; display: grid; gap: 14px; }

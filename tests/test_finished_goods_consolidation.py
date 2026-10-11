@@ -1,4 +1,5 @@
 from app.services.finished_goods_consolidation import FinishedGoodsConsolidation
+from app.db_tables import resolve_table_name
 
 
 def copy(table, id, sscc, quantity, location='MGW01', **extra):
@@ -29,3 +30,8 @@ def test_different_weights_do_not_become_available_stock():
     assert record['row']['waga_netto'] == 0
     assert record['row']['is_blocked'] == 1
     assert 'different_quantity' in record['reasons']
+
+
+def test_psd_and_agro_finished_goods_resolve_to_one_physical_register():
+    assert resolve_table_name('magazyn_palety', 'PSD') == 'magazyn_palety'
+    assert resolve_table_name('magazyn_palety', 'AGRO') == 'magazyn_palety'

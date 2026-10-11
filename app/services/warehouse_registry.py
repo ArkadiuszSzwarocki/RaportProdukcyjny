@@ -22,7 +22,7 @@ class WarehouseRegistry:
     @staticmethod
     def assert_copy(cursor):
         cursor.execute('SELECT DATABASE() AS name')
-        if not str(cursor.fetchone()['name']).startswith(('rp_pr17_unified_', 'rp_pr17_pytest_')):
+        if not str(cursor.fetchone()['name']).startswith(('rp_pr17_unified_', 'rp_pr17_pytest_', 'rp_pr17_lifecycle_')):
             raise ValueError('Migracja jest dozwolona wyłącznie na osobnej kopii testowej.')
 
     @classmethod

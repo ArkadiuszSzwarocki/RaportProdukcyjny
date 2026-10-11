@@ -197,6 +197,8 @@ function updateSaveButtonState() {
     }
 
 function renderItems() {
+        const countInput = document.getElementById('pallet_count');
+        if (countInput) countInput.value = String(items.length);
         const tbody = document.querySelector('#itemsTable tbody');
         const noItems = document.getElementById('noItemsMsg');
         const disabledAttr = READ_ONLY_MODE ? 'disabled' : '';
@@ -231,9 +233,10 @@ function renderItems() {
         items.forEach((item, index) => {
             const row = document.createElement('tr');
             const isAccepted = Boolean(item && (item.accepted || item.lokalizacja_przyjecia));
-            const itemDisabledAttr = (READ_ONLY_MODE || isAccepted) ? 'disabled' : '';
+            const isRejected = Boolean(item && item.rejected);
+            const itemDisabledAttr = (READ_ONLY_MODE || isAccepted || isRejected) ? 'disabled' : '';
 
-            row.style.background = isAccepted ? '#f0fdf4' : (item.is_manual ? '#f8fafc' : (index % 2 === 0 ? '#fff' : '#fcfcfc'));
+            row.style.background = isRejected ? '#fef2f2' : (isAccepted ? '#f0fdf4' : (item.is_manual ? '#f8fafc' : (index % 2 === 0 ? '#fff' : '#fcfcfc')));
             row.style.borderBottom = '2px solid #e2e8f0';
 
             const quantityValue = getItemQuantity(item);
@@ -260,6 +263,7 @@ function renderItems() {
             row.innerHTML = `
                 <td style="padding: 10px 20px; font-size: 13px; color: #64748b; vertical-align: middle; font-weight: 800; white-space: nowrap;">
                     ${index + 1}
+                    ${isRejected ? '<div style="color:#b91c1c;font-weight:800;font-size:10px;">ODRZUCONA</div>' : ''}
                     ${isAccepted ? `<div style="margin-top: 4px;"><span style="display:inline-flex; align-items:center; gap:2px; font-size: 9px; font-weight: 800; color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 4px; padding: 2px 5px;"><span class="material-icons" style="font-size:10px;">check_circle</span> PRZYJĘTA (${escapeAttr(item.lokalizacja_przyjecia || item.sourceSpot || '')})</span></div>` : ''}
                 </td>
                 <td style="padding: 8px 10px; border: none; position: relative;">

@@ -616,13 +616,13 @@
     {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js') }}?v=20260918_02"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=static_version) }}"></script>
 {% endblock %}
 

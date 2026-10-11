@@ -18,6 +18,7 @@ AGRO_TABLE_MAP = {
 # line.  They are nevertheless kept on an explicit allowlist because MySQL
 # identifiers cannot be passed as query parameters.
 _SHARED_ALLOWED_TABLES = {
+    'magazyn_palety',
     'magazyn_surowce',
     'magazyn_opakowania',
     'magazyn_dodatki',

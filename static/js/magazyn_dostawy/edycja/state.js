@@ -72,6 +72,17 @@ function saveDraftState() {
                 return;
             }
 
+            // One open document can have an old "new" key and an edit key.
+            // Retain the current snapshot, without touching unrelated drafts.
+            if (draft.dostawa_id) {
+                for (let index = window.localStorage.length - 1; index >= 0; index--) {
+                    const key = window.localStorage.key(index);
+                    if (key === FORM_DRAFT_KEY || !key || !key.startsWith('magazyn_dostawy_draft_')) continue;
+                    try {
+                        if (JSON.parse(window.localStorage.getItem(key)).dostawa_id === draft.dostawa_id) window.localStorage.removeItem(key);
+                    } catch (_) {}
+                }
+            }
             window.localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
             try {
                 window.dispatchEvent(new CustomEvent('draftStateChanged', { detail: { key: FORM_DRAFT_KEY, hasDraft: true } }));
@@ -129,9 +140,9 @@ function restoreDraftState(draftOverride = null, options = {}) {
         }
     }
 
-function clearDraftState() {
+function clearDraftState(documentId = null) {
         try {
-            const activeId = window.EdycjaConfig.dostawaId;
+            const activeId = documentId || window.EdycjaConfig.dostawaId;
             if (activeId) {
                 for (let index = window.localStorage.length - 1; index >= 0; index--) {
                     const key = window.localStorage.key(index);

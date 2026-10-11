@@ -10,7 +10,19 @@ let processingSafetyTimer = null;
 let lastScannedCode = '';
 let lastScannedTime = 0;
 
-const scanInput = document.getElementById('scanInput');
+function getScanInput() {
+  return document.getElementById('scanInput');
+}
+
+// Global accessor so any module referencing scanInput always gets the live DOM element
+try {
+  Object.defineProperty(window, 'scanInput', {
+    get: function() {
+      return document.getElementById('scanInput');
+    },
+    configurable: true
+  });
+} catch (_) {}
 
 function refreshSidebarBadgesSilently() {
   if (typeof window.refreshSidebarBadges === 'function') {
@@ -40,6 +52,7 @@ function resetScanner() {
   hideStation();
   resetLocationInputDetection();
 
+  const scanInput = getScanInput();
   if (scanInput) {
     scanInput.value = '';
     scanInput.style.borderColor = '';
@@ -74,6 +87,7 @@ function setProcessingState(processing) {
       if (isProcessingScan) {
         console.warn('Scanner processing safety timeout reached - unlocking.');
         isProcessingScan = false;
+        const scanInput = getScanInput();
         if (scanInput) {
           scanInput.focus();
         }
@@ -85,7 +99,13 @@ function setProcessingState(processing) {
 function triggerScan() {
   clearTimeout(scanTimeout);
   scanTimeout = null;
+  const scanInput = getScanInput();
   if (!scanInput) return;
+
+  if (isProcessingScan) {
+    console.warn('Skaner jest w trakcie przetwarzania, pomijam duplikat.');
+    return;
+  }
 
   const rawCode = scanInput.value.trim();
   const code = extractSSCCFromScan(rawCode);
@@ -104,8 +124,8 @@ function triggerScan() {
   }
 
   const now = Date.now();
-  // Prevent duplicate execution within 150ms for identical code
-  if (code === lastScannedCode && (now - lastScannedTime) < 150) {
+  // Prevent duplicate execution within 200ms for identical code
+  if (code === lastScannedCode && (now - lastScannedTime) < 200) {
     return;
   }
   lastScannedCode = code;
@@ -136,6 +156,7 @@ async function doMoveFromMainInput(loc) {
   }
   setProcessingState(true);
 
+  const scanInput = getScanInput();
   if (scanInput) {
     scanInput.value = '';
     scanInput.focus();
@@ -289,7 +310,7 @@ async function doMoveFromMainInput(loc) {
     return;
   }
 
-  const isProduction = (loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('CZ') || loc.startsWith('KO') || loc.startsWith('PSD') || loc.startsWith('MIX')) && !loc.startsWith('BF_') && !loc.startsWith('BF');
+  const isProduction = (loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('WZ') || loc.startsWith('LINIA') || loc.startsWith('Z') || loc.startsWith('KO') || (/^K\d+/i.test(loc)) || loc.startsWith('PSD') || loc.startsWith('MIX')) && !loc.startsWith('BF_') && !loc.startsWith('BF');
   
   if (isProduction) {
     if (currentPallet.inventory_type === 'Wyrób Gotowy') {
@@ -333,6 +354,9 @@ async function doMoveFromMainInput(loc) {
           scanInput.focus();
         }
         return;
+      }
+      if (vData.normalized_station) {
+        loc = vData.normalized_station;
       }
     } catch (err) {
       console.error('Błąd walidacji stacji:', err);
@@ -494,19 +518,28 @@ async function lookupPallet(code) {
       hidePallet();
       hideStation();
       showToast('❌ ' + (d.error || 'Nie znaleziono pozycji'), 'danger');
+      const input = getScanInput();
+      if (input) {
+        input.focus();
+        input.select();
+      }
     }
   } catch (e) {
     showToast('Błąd połączenia: ' + (e.name === 'AbortError' ? 'Przekroczono limit czasu' : e), 'danger');
+    const input = getScanInput();
+    if (input) {
+      input.focus();
+      input.select();
+    }
   } finally {
     setProcessingState(false);
-    if (scanInput) {
-      scanInput.value = '';
-      scanInput.focus();
-    }
   }
 }
 
-if (scanInput) {
+function initScanInputListeners() {
+  const scanInput = getScanInput();
+  if (!scanInput || scanInput.dataset.scannerAttached === 'true') return;
+  scanInput.dataset.scannerAttached = 'true';
   let previousInputTime = 0;
   let previousInputLength = 0;
   let fastInputIntervals = 0;
@@ -555,7 +588,8 @@ if (scanInput) {
 
     if (code.length >= 3 && fastInputIntervals >= 2 && !manualInput) {
       scanTimeout = setTimeout(() => {
-        const currVal = (scanInput ? scanInput.value : '').trim();
+        const currInput = getScanInput();
+        const currVal = (currInput ? currInput.value : '').trim();
         if (currVal.length >= 3 && !isProcessingScan) {
           triggerScan();
         }
@@ -583,6 +617,7 @@ window.addEventListener('keydown', function(e) {
     activeEl.isContentEditable
   );
 
+  const scanInput = getScanInput();
   if (!isInputActive && scanInput && !scanInput.disabled) {
     // Only capture printable ASCII characters
     if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -599,6 +634,7 @@ window.addEventListener('click', function(e) {
 });
 
 // Initial boot
+initScanInputListeners();
 checkPrinter();
 hidePallet();
 hideStation();

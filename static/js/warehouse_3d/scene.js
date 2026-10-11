@@ -10,15 +10,37 @@ let isAutoRotating = false;
 let activeWarehouseState = null;
 let searchDebounceTimer = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+function startWarehouse3D() {
     init3DStage();
     loadWarehouseData(true);
     makeDrawerDraggable();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startWarehouse3D);
+} else {
+    startWarehouse3D();
+}
 
 function init3DStage() {
     const container = document.getElementById('wh3dCanvasStage');
-    if (!container || typeof THREE === 'undefined') return;
+    if (!container) return false;
+
+    if (typeof THREE === 'undefined') {
+        console.warn('[Warehouse3D] THREE is not loaded yet. Scheduling retry...');
+        if (!window._wh3dInitRetries) window._wh3dInitRetries = 0;
+        if (window._wh3dInitRetries < 30) {
+            window._wh3dInitRetries++;
+            setTimeout(init3DStage, 100);
+        } else {
+            console.error('[Warehouse3D] Failed to initialize 3D: THREE.js library is missing.');
+        }
+        return false;
+    }
+
+    if (renderer && scene && warehouseGroup) {
+        return true;
+    }
 
     // Suppress global SmartPolling and partial DOM reloads on the 3D twin page
     if (typeof stopSmartPolling === 'function') {
@@ -29,8 +51,9 @@ function init3DStage() {
         mainEl.setAttribute('data-no-autorefresh', 'true');
     }
 
-    const width = container.clientWidth || 900;
-    const height = container.clientHeight || 600;
+    const parentCard = document.getElementById('wh3dViewportCard');
+    const width = container.clientWidth || (parentCard ? parentCard.clientWidth : 0) || window.innerWidth || 1200;
+    const height = container.clientHeight || (parentCard ? parentCard.clientHeight : 0) || 650;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1120);
@@ -40,13 +63,25 @@ function init3DStage() {
     camera.position.set(-18, 14, 22);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setSize(width, height);
+    renderer.setSize(width, height, true);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     container.innerHTML = '';
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     container.appendChild(renderer.domElement);
+
+    // Auto-detect container resizing (e.g. tab switches, mode changes, window resize)
+    if (window.ResizeObserver && !container._wh3dResizeObserved) {
+        container._wh3dResizeObserved = true;
+        const ro = new ResizeObserver(() => {
+            onWindowResize();
+        });
+        ro.observe(container);
+        if (parentCard) ro.observe(parentCard);
+    }
 
     if (typeof THREE.OrbitControls !== 'undefined') {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -107,19 +142,32 @@ function init3DStage() {
         renderer.render(scene, camera);
     }
     renderLoop();
+
+    if (activeWarehouseState && activeWarehouseState.racks) {
+        const rackId = (document.getElementById('selectRackFilter') || {}).value || 'ALL';
+        buildWarehouseScene(activeWarehouseState.racks, rackId, false);
+    }
+    return true;
 }
 
 function onWindowResize() {
     const container = document.getElementById('wh3dCanvasStage');
+    const parentCard = document.getElementById('wh3dViewportCard');
     if (!container || !camera || !renderer) return;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || (parentCard ? parentCard.clientWidth : 0);
+    const height = container.clientHeight || (parentCard ? parentCard.clientHeight : 0);
+    if (!width || !height) return;
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
+    renderer.setSize(width, height, true);
+    if (renderer.domElement) {
+        renderer.domElement.style.width = '100%';
+        renderer.domElement.style.height = '100%';
+    }
 }
+window.onWindowResize = onWindowResize;
 
-async function loadWarehouseData(showMask = false, preserveCamera = false) {
+async function loadWarehouseData(showMask = false, preserveCamera = false, overrideOrderRef = null) {
     const loader = document.getElementById('wh3dLoadingMask');
     if (showMask && loader) {
         loader.style.display = 'flex';
@@ -133,30 +181,92 @@ async function loadWarehouseData(showMask = false, preserveCamera = false) {
 
     const linia = (document.getElementById('selectLineFilter') || {}).value || 'ALL';
     const rackId = (document.getElementById('selectRackFilter') || {}).value || 'ALL';
+    const orderSelect = document.getElementById('selectPickingOrderFilter');
+    const orderRef = overrideOrderRef !== null ? overrideOrderRef : (orderSelect ? orderSelect.value : '');
 
     try {
-        const url = `/api/warehouse/3d/state?linia=${encodeURIComponent(linia)}&rack_id=${encodeURIComponent(rackId)}`;
+        let url = `/api/warehouse/3d/state?linia=${encodeURIComponent(linia)}&rack_id=${encodeURIComponent(rackId)}`;
+        if (orderRef) {
+            url += `&order_ref=${encodeURIComponent(orderRef)}`;
+        }
         const res = await fetch(url);
         const data = await res.json();
+
+        const emptyOverlay = document.getElementById('wh3dEmptyOrderOverlay');
+        if (emptyOverlay) emptyOverlay.style.display = 'none';
 
         if (data && data.success && data.racks && data.racks.length > 0) {
             activeWarehouseState = data;
             updateMetricsHUD(data.summary);
+
+            // Dynamic visibility of rack chips: only show tabs for racks that have items from the order!
+            const activeRackIds = new Set(data.racks.map(r => r.rack_id));
+            document.querySelectorAll('.wh3d-rack-chips .wh3d-chip').forEach(chip => {
+                const rId = chip.getAttribute('data-rack-id') || chip.innerText.trim();
+                if (rId.startsWith('R') || rId === 'MP01' || rId === 'BFMP01') {
+                    chip.style.display = activeRackIds.has(rId) ? 'inline-flex' : 'none';
+                } else {
+                    chip.style.display = 'inline-flex';
+                }
+            });
+
             buildWarehouseScene(data.racks, rackId, preserveCamera);
+        } else if (orderRef && data && data.success && (!data.racks || data.racks.length === 0)) {
+            // Picking order is fully completed / has 0 pending pallets to pick on racks
+            activeWarehouseState = data;
+            updateMetricsHUD(data.summary || {
+                total_slots_count: 0,
+                total_occupied_count: 0,
+                total_free_count: 0,
+                total_fifo_count: 0,
+                total_expiring_count: 0,
+                total_big_bags_count: 0,
+                total_bags_count: 0,
+                total_blocked_count: 0,
+                global_occupancy_percent: 0
+            });
+
+            // Hide individual rack chips since no racks have pending items for this order
+            document.querySelectorAll('.wh3d-rack-chips .wh3d-chip').forEach(chip => {
+                const rId = chip.innerText.trim();
+                if (rId.startsWith('R')) {
+                    chip.style.display = 'none';
+                }
+            });
+
+            // Clear 3D racks & pallets from scene so stale pallets NEVER remain
+            buildWarehouseScene([], 'ALL', false);
+
+            if (emptyOverlay) {
+                const titleEl = document.getElementById('wh3dEmptyOrderTitle');
+                const msgEl = document.getElementById('wh3dEmptyOrderMsg');
+                if (titleEl) titleEl.innerText = `Zlecenie ${orderRef} jest w 100% zrealizowane`;
+                if (msgEl) msgEl.innerText = `Wszystkie palety z tego zlecenia zostały już skompletowane i pobrane z regałów magazynowych na strefę MP01 / produkcję. Na regałach nie ma oczekujących pozycji do zdjęcia.`;
+                emptyOverlay.style.display = 'flex';
+            }
         } else if (rackId !== 'ALL') {
             console.warn('[Warehouse3D] Rack filter returned 0 racks, falling back to ALL');
-            const fallbackUrl = `/api/warehouse/3d/state?linia=${encodeURIComponent(linia)}&rack_id=ALL`;
+            let fallbackUrl = `/api/warehouse/3d/state?linia=${encodeURIComponent(linia)}&rack_id=ALL`;
+            if (orderRef) {
+                fallbackUrl += `&order_ref=${encodeURIComponent(orderRef)}`;
+            }
             const fbRes = await fetch(fallbackUrl);
             const fbData = await fbRes.json();
             if (fbData && fbData.success && fbData.racks && fbData.racks.length > 0) {
                 activeWarehouseState = fbData;
                 updateMetricsHUD(fbData.summary);
                 buildWarehouseScene(fbData.racks, 'ALL', false);
+            } else {
+                buildWarehouseScene([], 'ALL', false);
+                if (orderRef && emptyOverlay) emptyOverlay.style.display = 'flex';
             }
         } else {
-            console.error('[Warehouse3D] API error or empty state:', data);
-            if (typeof showToast === 'function') {
-                showToast('Błąd pobierania danych 3D: ' + (data ? data.error : 'Brak odpowiedzi'), 'error');
+            console.error('[Warehouse3D] API empty state:', data);
+            buildWarehouseScene([], 'ALL', false);
+            if (orderRef && emptyOverlay) {
+                emptyOverlay.style.display = 'flex';
+            } else if (typeof showToast === 'function') {
+                showToast('Brak danych magazynowych dla wybranego filtru.', 'info');
             }
         }
     } catch (err) {
@@ -185,7 +295,7 @@ function updateMetricsHUD(summary) {
     document.getElementById('statOccupancyPct').innerText = `${summary.global_occupancy_percent}%`;
 }
 
-function selectRackQuick(rackId) {
+function selectRackQuick(rackId, overrideOrderRef = null) {
     resetRelocateMode();
     document.querySelectorAll('.wh3d-chip').forEach(c => c.classList.remove('active'));
     const select = document.getElementById('selectRackFilter');
@@ -193,11 +303,12 @@ function selectRackQuick(rackId) {
     
     const chips = document.querySelectorAll('.wh3d-chip');
     chips.forEach(c => {
-        if (c.innerText.trim() === rackId || (rackId === 'ALL' && c.innerText.includes('HALA'))) {
+        const cRackId = c.getAttribute('data-rack-id') || c.innerText.trim();
+        if (cRackId === rackId || (rackId === 'ALL' && (cRackId === 'ALL' || c.innerText.includes('HALA')))) {
             c.classList.add('active');
         }
     });
-    loadWarehouseData(false, false);
+    loadWarehouseData(false, false, overrideOrderRef);
 }
 
 function onRackFilterChanged(rackId) {
@@ -217,13 +328,52 @@ function onFilterCriteriaChanged() {
 }
 
 function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
-    if (!warehouseGroup) return;
+    if (!warehouseGroup) {
+        const ready = init3DStage();
+        if (!ready || !warehouseGroup) {
+            console.warn('[Warehouse3D] warehouseGroup not ready, deferring buildWarehouseScene...');
+            setTimeout(() => {
+                if (activeWarehouseState && activeWarehouseState.racks) {
+                    buildWarehouseScene(activeWarehouseState.racks, focusedRackId, preserveCamera);
+                }
+            }, 120);
+            return;
+        }
+    }
     warehouseGroup.clear();
     interactiveSlotMeshes = [];
     closeInspectDrawer();
 
     const payloadFilter = document.getElementById('selectPayloadFilter').value;
     const searchTerm = (document.getElementById('whSearchInput').value || '').trim().toLowerCase();
+    const orderSelect = document.getElementById('selectPickingOrderFilter');
+    const isOrderFilterActive = Boolean(orderSelect && orderSelect.value && orderSelect.value !== '');
+
+    // Filter out racks with 0 items when viewing entire hall or an active picking order
+    let racksToRender = racks;
+    if (focusedRackId === 'ALL' || isOrderFilterActive) {
+        const nonEmptyRacks = racks.filter(rack => {
+            if (focusedRackId !== 'ALL' && rack.rack_id === focusedRackId && !isOrderFilterActive) {
+                return true; // user explicitly clicked a single rack tab in general inventory mode
+            }
+            if (rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.is_floor_zone) {
+                return true; // Always display permanent floor zones in warehouse overview
+            }
+            const occ = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
+                ? rack.occupied_slots
+                : (rack.slots ? rack.slots.filter(s => s.is_occupied || (s.pallets && s.pallets.length > 0)).length : 0);
+            return occ > 0;
+        });
+
+        if (nonEmptyRacks.length > 0) {
+            racksToRender = nonEmptyRacks;
+        }
+    } else if (focusedRackId && focusedRackId !== 'ALL') {
+        const single = racks.filter(r => r.rack_id === focusedRackId);
+        if (single.length > 0) {
+            racksToRender = single;
+        }
+    }
 
     let focusCenter = new THREE.Vector3(0, 3, 0);
     let foundFocus = false;
@@ -237,7 +387,7 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
     let filteredFifo = 0;
     let filteredExpiring = 0;
 
-    racks.forEach((rack) => {
+    racksToRender.forEach((rack) => {
         const rx = rack.position_x;
         const rz = rack.position_z;
         const cols = rack.columns;
@@ -245,18 +395,150 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
         const bayW = rack.bay_width_m;
         const lvlH = rack.level_height_m;
         const depth = rack.depth_m;
+        const isFloorZone = Boolean(rack.is_floor_zone || rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'MP01' || rack.rack_id === 'BFMP01');
 
         if (rack.rack_id === focusedRackId) {
-            focusCenter.set(rx + (cols * bayW) / 2, (lvls * lvlH) / 2, rz);
+            if (isFloorZone) {
+                focusCenter.set(rx + (cols * bayW) / 2, 1.2, rz + (lvls * depth) / 2);
+            } else {
+                focusCenter.set(rx + (cols * bayW) / 2, (lvls * lvlH) / 2, rz);
+            }
             foundFocus = true;
         }
 
         const rackGroup = new THREE.Group();
         rackGroup.position.set(rx, 0, rz);
 
+        // ----------------------------------------------------
+        // Prominent 3D Large Overhead Rack / Zone Sign (Smart billboard)
+        // ----------------------------------------------------
+        const rackOccCount = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
+            ? rack.occupied_slots
+            : (rack.slots ? rack.slots.filter(s => s.is_occupied || (s.pallets && s.pallets.length > 0)).length : 0);
+
+        if (typeof getLargeRackHeaderTexture === 'function') {
+            const signTex = getLargeRackHeaderTexture(
+                rack.rack_id, 
+                rackOccCount, 
+                rack.total_slots || (cols * lvls), 
+                isOrderFilterActive
+            );
+            
+            const signGroup = new THREE.Group();
+            const signCenterX = (cols * bayW) / 2;
+            const signTopY = isFloorZone ? 4.2 : (lvls * lvlH + 1.25);
+            const signCenterZ = isFloorZone ? -0.4 : 0;
+            signGroup.position.set(signCenterX, signTopY, signCenterZ);
+
+            if (isFloorZone) {
+                // Tall entrance portal support pillars down to floor
+                const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 4.2, 12);
+                const poleMat = sharedMats.shelfSteel || sharedMats.steel;
+                
+                const poleLeft = new THREE.Mesh(poleGeo, poleMat);
+                poleLeft.position.set(-2.2, -2.1, 0);
+                signGroup.add(poleLeft);
+
+                const poleRight = new THREE.Mesh(poleGeo, poleMat);
+                poleRight.position.set(2.2, -2.1, 0);
+                signGroup.add(poleRight);
+            } else {
+                // Two support uprights down to top beam
+                const poleGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.2, 8);
+                const poleMat = sharedMats.steel || new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.2 });
+                
+                const poleLeft = new THREE.Mesh(poleGeo, poleMat);
+                poleLeft.position.set(-1.4, -0.6, 0);
+                signGroup.add(poleLeft);
+
+                const poleRight = new THREE.Mesh(poleGeo, poleMat);
+                poleRight.position.set(1.4, -0.6, 0);
+                signGroup.add(poleRight);
+            }
+
+            // High-visibility Sprite billboard that always faces camera
+            const signSpriteMat = new THREE.SpriteMaterial({ 
+                map: signTex, 
+                depthTest: false, 
+                transparent: true 
+            });
+            const signSprite = new THREE.Sprite(signSpriteMat);
+            signSprite.scale.set(4.6, 1.44, 1);
+            signSprite.renderOrder = 999;
+            signGroup.add(signSprite);
+
+            // Clickable hit mesh for quick jumping to this rack
+            const signHitGeo = new THREE.BoxGeometry(4.8, 1.5, 0.8);
+            const signHitMat = new THREE.MeshBasicMaterial({ visible: false });
+            const signHitMesh = new THREE.Mesh(signHitGeo, signHitMat);
+            signHitMesh.userData = { rackId: rack.rack_id, isRackHeader: true };
+            signGroup.add(signHitMesh);
+            interactiveSlotMeshes.push(signHitMesh);
+
+            rackGroup.add(signGroup);
+        }
+
         const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09');
 
-        if (isShelving) {
+        if (isFloorZone) {
+            // Strefa Składowania Posadzkowego / Bufor Produkcji (MP01 / BFMP01)
+            const zoneW = cols * bayW;
+            const zoneD = lvls * depth;
+
+            // 1. Concrete floor foundation pad
+            const padGeo = new THREE.BoxGeometry(zoneW + 0.2, 0.018, zoneD + 0.2);
+            const padMat = sharedMats.concretePad || new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.1 });
+            const padMesh = new THREE.Mesh(padGeo, padMat);
+            padMesh.position.set(zoneW / 2, 0.009, zoneD / 2);
+            padMesh.receiveShadow = true;
+            rackGroup.add(padMesh);
+
+            // 2. Yellow/Black Hazard Border Stripes along perimeter
+            if (typeof getHazardBorderTexture === 'function') {
+                const hazardTex = getHazardBorderTexture();
+                const stripeMat = new THREE.MeshBasicMaterial({ map: hazardTex, transparent: false });
+                const borderH = 0.14;
+
+                // Front border (Z = 0)
+                const frontStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneW, borderH), stripeMat);
+                frontStripe.rotation.x = -Math.PI / 2;
+                frontStripe.position.set(zoneW / 2, 0.019, 0.07);
+                rackGroup.add(frontStripe);
+
+                // Back border (Z = zoneD)
+                const backStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneW, borderH), stripeMat);
+                backStripe.rotation.x = -Math.PI / 2;
+                backStripe.position.set(zoneW / 2, 0.019, zoneD - 0.07);
+                rackGroup.add(backStripe);
+
+                // Left border (X = 0)
+                const leftStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneD, borderH), stripeMat);
+                leftStripe.rotation.x = -Math.PI / 2;
+                leftStripe.rotation.z = Math.PI / 2;
+                leftStripe.position.set(0.07, 0.019, zoneD / 2);
+                rackGroup.add(leftStripe);
+
+                // Right border (X = zoneW)
+                const rightStripe = new THREE.Mesh(new THREE.PlaneGeometry(zoneD, borderH), stripeMat);
+                rightStripe.rotation.x = -Math.PI / 2;
+                rightStripe.rotation.z = Math.PI / 2;
+                rightStripe.position.set(zoneW - 0.07, 0.019, zoneD / 2);
+                rackGroup.add(rightStripe);
+            }
+
+            // 3. 4 Corner Safety Bollards
+            if (typeof createSafetyBollard === 'function') {
+                const bollardFL = createSafetyBollard();
+                bollardFL.position.set(0.05, 0, 0.05);
+                const bollardFR = createSafetyBollard();
+                bollardFR.position.set(zoneW - 0.05, 0, 0.05);
+                const bollardBL = createSafetyBollard();
+                bollardBL.position.set(0.05, 0, zoneD - 0.05);
+                const bollardBR = createSafetyBollard();
+                bollardBR.position.set(zoneW - 0.05, 0, zoneD - 0.05);
+                rackGroup.add(bollardFL, bollardFR, bollardBL, bollardBR);
+            }
+        } else if (isShelving) {
             // Shelving rack structure (Regał Półkowy - smukłe profile, lite półki na każdym poziomie)
             const shelfPostGeo = new THREE.BoxGeometry(0.045, lvls * lvlH + 0.05, 0.045);
             const shelfPostMat = sharedMats.shelfSteel || sharedMats.steel;
@@ -392,9 +674,9 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
             const col = slot.column_index || slot.column;
             const lvl = slot.level_index || slot.level;
             const slotX = (col - 0.5) * bayW;
-            // Levels count from floor up: Level 1 on floor (0m), Level 2 on beam 1 (lvlH), Level 3 on beam 2 (2*lvlH), etc.
-            const slotY = (lvl - 1) * lvlH;
-            const slotZ = 0;
+            // Floor zones sit on the ground (slotY = 0.01) with rows spaced along depth (slotZ)
+            const slotY = isFloorZone ? 0.01 : ((lvl - 1) * lvlH);
+            const slotZ = isFloorZone ? ((lvl - 0.5) * depth) : 0;
 
             const slotPallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
 
@@ -450,7 +732,22 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
 
             const slotGroup = new THREE.Group();
             slotGroup.position.set(slotX, slotY, slotZ);
-            slotGroup.userData = { slot: slot, rack: rack, isShelving: isShelving };
+            slotGroup.userData = { slot: slot, rack: rack, isShelving: isShelving, isFloorZone: isFloorZone };
+
+            // Floor Bay Markings / Boundary Decal for floor storage zones
+            if (isFloorZone && typeof getFloorBayTexture === 'function') {
+                const bayTex = getFloorBayTexture(
+                    slot.location_code || `${rack.rack_id}-${String(col).padStart(2, '0')}.${String(lvl).padStart(2, '0')}`,
+                    slot.is_occupied,
+                    slot.is_blocked
+                );
+                const bayGeo = new THREE.PlaneGeometry(bayW * 0.94, depth * 0.94);
+                const bayMat = new THREE.MeshBasicMaterial({ map: bayTex, transparent: true, depthWrite: false });
+                const bayMesh = new THREE.Mesh(bayGeo, bayMat);
+                bayMesh.rotation.x = -Math.PI / 2;
+                bayMesh.position.set(0, 0.012, 0);
+                slotGroup.add(bayMesh);
+            }
 
             if (slot.is_occupied) {
                 if (isShelving) {
@@ -458,14 +755,22 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     const shelfAssortment = createRealisticShelfAssortmentGroup(slotPallets, bayW, depth, lvlH);
                     slotGroup.add(shelfAssortment);
 
-                    const pStatus = slotPallets.find(p => p.is_first_fifo || p.is_expired || p.is_expiring_soon);
+                    const pStatus = slotPallets.find(p => p.is_picking_target || p.is_first_fifo || p.is_expired || p.is_expiring_soon);
                     if (pStatus) {
-                        const badgeTex = getPalletStatusBadgeTexture(pStatus.is_first_fifo, pStatus.fifo_rank, pStatus.is_expired, pStatus.is_expiring_soon, pStatus.days_to_exp);
+                        const badgeTex = getPalletStatusBadgeTexture(
+                            pStatus.is_first_fifo, 
+                            pStatus.fifo_rank, 
+                            pStatus.is_expired, 
+                            pStatus.is_expiring_soon, 
+                            pStatus.days_to_exp,
+                            Boolean(pStatus.is_picking_target),
+                            pStatus.order_ref || ''
+                        );
                         const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
                         const badgeSprite = new THREE.Sprite(badgeMat);
                         const spriteY = (slotPallets.length > 1) ? Math.min(lvlH * 0.95, 0.72) : Math.min(lvlH * 0.78, 0.55);
                         badgeSprite.position.set(0, spriteY, 0);
-                        badgeSprite.scale.set(0.68, 0.18, 1);
+                        badgeSprite.scale.set(0.72, 0.20, 1);
                         badgeSprite.renderOrder = 999;
                         slotGroup.add(badgeSprite);
                     }
@@ -524,16 +829,36 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     }
 
                     const p = slotPallets[0];
-                    if (p && (p.is_first_fifo || p.is_expired || p.is_expiring_soon)) {
-                        const badgeTex = getPalletStatusBadgeTexture(p.is_first_fifo, p.fifo_rank, p.is_expired, p.is_expiring_soon, p.days_to_exp);
+                    if (p && (p.is_picking_target || p.is_first_fifo || p.is_expired || p.is_expiring_soon)) {
+                        const badgeTex = getPalletStatusBadgeTexture(
+                            p.is_first_fifo, 
+                            p.fifo_rank, 
+                            p.is_expired, 
+                            p.is_expiring_soon, 
+                            p.days_to_exp,
+                            Boolean(p.is_picking_target),
+                            p.order_ref || ''
+                        );
                         const badgeMat = new THREE.SpriteMaterial({ map: badgeTex, depthTest: false, transparent: true });
                         const badgeSprite = new THREE.Sprite(badgeMat);
                         const baseSpriteY = (slot.payload_type === 'BIG_BAG') ? 1.48 : 1.28;
                         const spriteY = (slotPallets.length > 1) ? baseSpriteY + 0.85 : baseSpriteY;
                         badgeSprite.position.set(0, spriteY, 0);
-                        badgeSprite.scale.set(0.72, 0.22, 1);
+                        badgeSprite.scale.set(0.76, 0.23, 1);
                         badgeSprite.renderOrder = 999;
                         slotGroup.add(badgeSprite);
+
+                        if (p.is_picking_target) {
+                            // High-visibility downwards pointing target beacon cone
+                            const coneGeo = new THREE.ConeGeometry(0.16, 0.36, 4);
+                            const coneMat = new THREE.MeshBasicMaterial({ 
+                                color: (p.fifo_rank === 1) ? 0xf59e0b : 0x38bdf8 
+                            });
+                            const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+                            coneMesh.rotation.x = Math.PI;
+                            coneMesh.position.set(0, spriteY + 0.32, 0);
+                            slotGroup.add(coneMesh);
+                        }
                     }
 
                     if (slot.is_blocked) {
@@ -550,17 +875,18 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
                     const emptyShelfMesh = new THREE.Mesh(new THREE.BoxGeometry(bayW * 0.88, 0.005, depth * 0.85), sharedMats.emptySlot);
                     emptyShelfMesh.position.set(0, 0.015, 0);
                     slotGroup.add(emptyShelfMesh);
-                } else {
+                } else if (!isFloorZone) {
                     const emptyMesh = new THREE.Mesh(sharedGeos.palletBase, sharedMats.emptySlot);
                     emptyMesh.position.set(0, 0.07, 0);
                     slotGroup.add(emptyMesh);
                 }
             }
 
-            const hitGeo = new THREE.BoxGeometry(bayW * 0.92, lvlH * 0.90, depth * 0.95);
+            const hitH = isFloorZone ? 1.6 : (lvlH * 0.90);
+            const hitGeo = new THREE.BoxGeometry(bayW * 0.92, hitH, depth * 0.95);
             const hitMat = new THREE.MeshBasicMaterial({ visible: false });
             const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-            hitMesh.position.set(0, (lvlH * 0.90) / 2, 0);
+            hitMesh.position.set(0, hitH / 2, 0);
             hitMesh.userData = { slot: slot, rack: rack, parentGroup: slotGroup };
             slotGroup.add(hitMesh);
 
@@ -590,11 +916,47 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
 
     if (controls && !preserveCamera) {
         if (focusedRackId === 'ALL') {
-            controls.target.set(0, 4, 0);
-            camera.position.set(-25, 20, 32);
+            let minX = Infinity, maxX = -Infinity;
+            let minZ = Infinity, maxZ = -Infinity;
+            let maxTopY = 4;
+
+            racksToRender.forEach(r => {
+                const rx = r.position_x;
+                const rz = r.position_z;
+                const rw = r.columns * r.bay_width_m;
+                const isFloor = Boolean(r.is_floor_zone || r.rack_type === 'FLOOR_ZONE' || r.rack_type === 'BUFFER_ZONE' || r.rack_id === 'MP01' || r.rack_id === 'BFMP01');
+                const rh = isFloor ? 2.5 : (r.levels * r.level_height_m);
+                const rDepthSpan = isFloor ? (r.levels * r.depth_m) : (r.depth_m * 2);
+                minX = Math.min(minX, rx);
+                maxX = Math.max(maxX, rx + rw);
+                minZ = Math.min(minZ, rz - 1.5);
+                maxZ = Math.max(maxZ, rz + rDepthSpan + 1.5);
+                maxTopY = Math.max(maxTopY, rh);
+            });
+
+            if (minX !== Infinity && isFinite(minX)) {
+                const midX = (minX + maxX) / 2;
+                const midZ = (minZ + maxZ) / 2;
+                const spanX = Math.max(maxX - minX, 12);
+                const spanZ = Math.max(maxZ - minZ, 12);
+                const maxSpan = Math.max(spanX, spanZ);
+
+                controls.target.set(midX, maxTopY * 0.45, midZ);
+                camera.position.set(midX - maxSpan * 0.45, maxTopY + maxSpan * 0.85, midZ + maxSpan * 1.15);
+            } else {
+                controls.target.set(0, 4, 0);
+                camera.position.set(-25, 20, 32);
+            }
         } else if (foundFocus) {
             controls.target.copy(focusCenter);
-            camera.position.set(focusCenter.x, focusCenter.y + 6, focusCenter.z + 12);
+            const targetRack = racksToRender.find(r => r.rack_id === focusedRackId);
+            const isFloor = targetRack && Boolean(targetRack.is_floor_zone || targetRack.rack_type === 'FLOOR_ZONE' || targetRack.rack_type === 'BUFFER_ZONE' || targetRack.rack_id === 'MP01' || targetRack.rack_id === 'BFMP01');
+            if (isFloor && targetRack) {
+                const span = Math.max(targetRack.columns * targetRack.bay_width_m, targetRack.levels * targetRack.depth_m);
+                camera.position.set(focusCenter.x - span * 0.35, span * 0.95 + 4, focusCenter.z + span * 0.85 + 4);
+            } else {
+                camera.position.set(focusCenter.x, focusCenter.y + 6, focusCenter.z + 12);
+            }
         }
         controls.update();
     }

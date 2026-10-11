@@ -20,16 +20,17 @@ class FinishedGoodsReceipt:
         if not valid:
             raise ValueError(error)
         cursor = connection.cursor(dictionary=True)
-        # The production row must already be locked by the caller. No commit here.
-        for table in ('magazyn_palety', 'magazyn_palety_agro'):
-            cursor.execute(f'SELECT id FROM {table} WHERE UPPER(nr_palety)=%s AND waga_netto>0 FOR UPDATE', (code,))
-            if cursor.fetchall():
-                raise ValueError(f'Paleta {code} ma już dodatni stan magazynowy; sprawdź wcześniejsze przyjęcie.')
+        # The production row must already be locked by the caller. Finished
+        # goods have one physical register, regardless of the production line.
+        # Do not query the historical AGRO view: it exposes the same records.
+        table = get_table_name('magazyn_palety', line)
+        cursor.execute(f'SELECT id FROM {table} WHERE UPPER(nr_palety)=%s AND waga_netto>0 FOR UPDATE', (code,))
+        if cursor.fetchall():
+            raise ValueError(f'Paleta {code} ma już dodatni stan magazynowy; sprawdź wcześniejsze przyjęcie.')
         from app.utils.location_validator import check_rack_location_availability
         available, error = check_rack_location_availability(location,current_nr_palety=code,product_name=product,cursor=cursor)
         if not available:
             raise ValueError(error)
-        table = get_table_name('magazyn_palety',line)
         values = dict(paleta_workowanie_id=production_id,plan_id=plan_id,data_planu=plan_date,
                       produkt=product,waga_netto=quantity,waga_brutto=gross,tara=tare,
                       lokalizacja=location,user_login=login,nr_palety=code,linia=line,

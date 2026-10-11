@@ -424,8 +424,10 @@ async function pollLiveTransferStatus() {
                         (remoteItem.id && i.id === remoteItem.id)
                     );
                     if (localItem) {
-                        if (remoteItem.accepted !== localItem.accepted || remoteItem.lokalizacja_przyjecia !== localItem.lokalizacja_przyjecia) {
+                        if (remoteItem.accepted !== localItem.accepted || remoteItem.rejected !== localItem.rejected || remoteItem.lokalizacja_przyjecia !== localItem.lokalizacja_przyjecia) {
                             localItem.accepted = remoteItem.accepted;
+                            localItem.rejected = remoteItem.rejected;
+                            localItem.rejected_reason = remoteItem.rejected_reason;
                             localItem.lokalizacja_przyjecia = remoteItem.lokalizacja_przyjecia;
                             updated = true;
                         }

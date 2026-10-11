@@ -33,12 +33,15 @@ def _get_decryption_fernets():
             except (ValueError, UnicodeEncodeError) as exc:
                 raise RuntimeError('ENCRYPTION_KEY_PREVIOUS zawiera niepoprawny klucz Fernet.') from exc
     # One-time compatibility path for ciphertext created before ENCRYPTION_KEY
-    # existed. It is enabled only when an operator explicitly supplies the old
-    # session secret; there is intentionally no built-in default value.
-    legacy_secret = (os.getenv('LEGACY_SECRET_KEY') or '').strip()
-    if legacy_secret:
-        legacy_key = base64.urlsafe_b64encode(hashlib.sha256(legacy_secret.encode('utf-8')).digest())
-        keys.append(Fernet(legacy_key))
+    # existed. Supports both explicit LEGACY_SECRET_KEY and standard SECRET_KEY.
+    for candidate_name in ('LEGACY_SECRET_KEY', 'SECRET_KEY'):
+        legacy_secret = (os.getenv(candidate_name) or '').strip()
+        if legacy_secret:
+            try:
+                legacy_key = base64.urlsafe_b64encode(hashlib.sha256(legacy_secret.encode('utf-8')).digest())
+                keys.append(Fernet(legacy_key))
+            except Exception:
+                pass
     return keys
 
 

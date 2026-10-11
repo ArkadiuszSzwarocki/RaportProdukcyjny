@@ -200,6 +200,8 @@ def register_api_runtime_routes(api_bp):
         result = []
         for item in notifications:
             created_at = item.get('created_at')
+            typ_val = str(item.get('typ') or '').lower()
+            is_agro_plan = (typ_val in ('plan_agro', 'plan_batch_agro')) or ('agro' in typ_val and 'plan' in typ_val)
             result.append(
                 {
                     'id': item.get('id'),
@@ -210,6 +212,7 @@ def register_api_runtime_routes(api_bp):
                     'plan_id': item.get('plan_id'),
                     'created_at': created_at.strftime('%Y-%m-%d %H:%M:%S') if created_at else '',
                     'recipient_role': item.get('odbiorca_rola'),
+                    'is_sticky': is_agro_plan,
                 }
             )
 

@@ -19,7 +19,7 @@ class PalletStatusService:
             elif 'dodat' in p_type_norm:
                 tables_to_check = ['magazyn_dodatki']
             else:
-                tables_to_check = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro']
+                tables_to_check = ['magazyn_palety', 'palety_workowanie', 'palety_agro']
 
             found_row = None
             verified = getattr(g, 'warehouse_resource', None) if has_request_context() else None
@@ -43,7 +43,12 @@ class PalletStatusService:
                         raise
 
             if not found_row and not verified:
-                all_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
+                all_tables = [
+                    'magazyn_palety', 'palety_workowanie', 'palety_agro',
+                    'magazyn_surowce', 'magazyn_agro_surowce',
+                    'magazyn_opakowania', 'magazyn_agro_opakowania',
+                    'magazyn_dodatki',
+                ]
                 for tbl in all_tables:
                     try:
                         cursor.execute(
@@ -77,7 +82,12 @@ class PalletStatusService:
                 new_status = int(PalletLockManager.has_protected_block(cursor, nr_p))
 
             # Update ALL tables where this pallet (by nr_palety or id) exists to keep them in sync
-            synced_tables = ['magazyn_palety', 'magazyn_palety_agro', 'palety_workowanie', 'palety_agro', 'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki']
+            synced_tables = [
+                'magazyn_palety', 'palety_workowanie', 'palety_agro',
+                'magazyn_surowce', 'magazyn_agro_surowce',
+                'magazyn_opakowania', 'magazyn_agro_opakowania',
+                'magazyn_dodatki',
+            ]
             for tbl in synced_tables:
                 try:
                     if found_row.get('nr_palety'):

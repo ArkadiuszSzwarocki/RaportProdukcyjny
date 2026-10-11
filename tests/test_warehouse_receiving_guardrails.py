@@ -51,16 +51,19 @@ def test_cancellation_does_not_restore_into_occupied_rack(pending_delivery):
         conn.close()
 
 
-def test_live_movement_assigns_destination_during_receipt(app, pending_delivery):
+@pytest.mark.parametrize('source,destination',[('RAMPA','MS01'),('MS01','MP01')])
+def test_live_movement_assigns_destination_during_receipt(app, pending_delivery, source, destination):
     document_id, code, item = pending_delivery
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE magazyn_dostawy SET supplier=NULL,status='OCZEKUJE',lokalizacja_z='RAMPA',lokalizacja_do='',items=%s WHERE id=%s", (json.dumps([item]), document_id))
+    item['sourceSpot']=source
+    cursor.execute('UPDATE magazyn_opakowania SET lokalizacja=%s WHERE nr_palety=%s',(source,code))
+    cursor.execute("UPDATE magazyn_dostawy SET supplier=NULL,status='OCZEKUJE',lokalizacja_z=%s,lokalizacja_do='',items=%s WHERE id=%s", (source,json.dumps([item]), document_id))
     conn.commit()
     conn.close()
-    result = AcceptanceService.accept_item(document_id, 'one', 'MS01', 'pytest')
+    result = AcceptanceService.accept_item(document_id, 'one', destination, 'pytest')
     assert result[0], result[1]
-    assert delivery_snapshot(document_id, code)[2] == ('MS01', 100)
+    assert delivery_snapshot(document_id, code)[2] == (destination, 100)
     assert delivery_snapshot(document_id, code)[0] == 'OCZEKUJE'
     from app.services.magazyn_dostawy.commands.live_transfer_service import LiveTransferService
     assert LiveTransferService.close_live_transfer(document_id, 'pytest')[0]
@@ -272,6 +275,9 @@ def test_suspended_order_blocks_same_section_only():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Isolate this section from pre-existing suspended orders in a copied
+        # database. The finally rollback restores every original status.
+        cursor.execute("UPDATE plan_produkcji_agro SET status='zakończone' WHERE sekcja='Zasyp'")
         cursor.execute("INSERT INTO plan_produkcji_agro (data_planu,sekcja,produkt,tonaz,status) VALUES (CURRENT_DATE,'Zasyp','Test suspended',100,'zawieszone')")
         suspended_id = cursor.lastrowid
         assert guard_section_start(cursor, 'plan_produkcji_agro', suspended_id, 'Zasyp') is None

@@ -25,6 +25,7 @@ DB_CONFIG = {
     'connection_timeout': int(os.getenv('DB_CONNECTION_TIMEOUT', 20)),
     'ssl_disabled': os.getenv('DB_SSL_DISABLED', 'false').strip().lower() in ('1', 'true', 'yes'),
     'autocommit': False,
+    'use_pure': True,
 }
 
 EMAIL_RECIPIENTS = os.getenv(

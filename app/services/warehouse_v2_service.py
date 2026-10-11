@@ -219,8 +219,18 @@ class WarehouseV2Service:
 
             # SPRAWDZENIE CZY REGAŁ NIE JEST ZAJĘTY PRZEZ INNĄ PALETĘ
             if new_location and str(old_loc).strip().upper() != str(new_location).strip().upper():
-                from app.utils.location_validator import check_rack_location_availability, validate_centrala_osip_move
+                from app.utils.location_validator import check_rack_location_availability, validate_centrala_osip_move, validate_inter_warehouse_move
                 
+                # Blokada bezpośrednich przesunięć między Magazynem MS01 a MP01 / regałami (wymagany transfer)
+                is_inter_valid, inter_err_msg = validate_inter_warehouse_move(
+                    source_location=old_loc,
+                    target_location=new_location,
+                    pallet_id=actual_pallet_id,
+                    nr_palety=nr_palety
+                )
+                if not is_inter_valid:
+                    return False, inter_err_msg
+
                 # Blokada bezpośrednich przesunięć Centrala <-> OSIP (wymagany transfer)
                 is_trf_valid, trf_err_msg = validate_centrala_osip_move(
                     source_location=old_loc,
@@ -400,6 +410,14 @@ class WarehouseV2Service:
                     OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login, external_conn=conn)
             except Exception as osip_e:
                 raise RuntimeError("Błąd potwierdzenia transferu OSIP") from osip_e
+
+            # --- AUTO-KOMPLETACJA PRZY PRZESUNIĘCIU NA MP01 LUB PRODUKCJĘ ---
+            from app.utils.location_validator import is_production_tank_code
+            if not is_split and (new_location == 'MP01' or is_production_tank_code(new_location)):
+                from app.repositories.picking_repository import PickingRepository
+                PickingRepository.auto_complete_pallet_if_pending(
+                    pallet_id=actual_pallet_id, nr_palety=target_pallet_sscc or nr_palety,
+                    user_login=worker_login, external_conn=conn)
             
             split_info = {
                 'is_split': bool(is_split),

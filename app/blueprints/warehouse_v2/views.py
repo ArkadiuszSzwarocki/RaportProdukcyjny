@@ -87,16 +87,30 @@ def production_status():
 
 @warehouse_v2_bp.route('/zamowienia')
 def zamowienia():
-    """Strona zamówień surowców z magazynu (lista)."""
-    linia = request.args.get('linia', 'PSD').upper()
-    return render_template('warehouse_v2/zamowienia.html', linia=linia)
+    """Strona zamówień surowców z magazynu (lista i widok 3D)."""
+    from app.blueprints.warehouse_v2.controllers.warehouse_page_controller import WarehousePageController
+    return WarehousePageController.render_orders()
 
 @warehouse_v2_bp.route('/kompletacja')
 def kompletacja():
     """Strona dyspozycji kompletacji zamówień (FIFO Picking)."""
     linia = request.args.get('linia', 'PSD').upper()
     order_ref = request.args.get('order_ref', '')
-    return render_template('warehouse_v2/kompletacja.html', linia=linia, initial_order_ref=order_ref)
+    active_rack = request.args.get('rack_id', 'ALL')
+    from app.services.warehouse_3d_service import Warehouse3dService
+    racks_config = Warehouse3dService.get_rack_configurations()
+    from app.services.picking_service import PickingService
+    active_orders = PickingService().get_active_orders()
+    if not order_ref and active_orders:
+        order_ref = active_orders[0].get('order_ref', '')
+    return render_template(
+        'warehouse_v2/kompletacja.html',
+        linia=linia,
+        initial_order_ref=order_ref,
+        active_rack=active_rack,
+        racks_config=racks_config,
+        active_orders=active_orders,
+    )
 
 @warehouse_v2_bp.route('/zamowienia/nowe')
 def zamowienie_nowe():

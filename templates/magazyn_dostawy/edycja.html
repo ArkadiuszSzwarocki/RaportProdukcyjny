@@ -285,7 +285,7 @@
 <script>
     // Konfiguracja globalna (przekazana z serwera)
     window.EdycjaConfig = {
-        READ_ONLY_MODE: false,
+        READ_ONLY_MODE: {{ 'true' if dostawa and dostawa.status in ['COMPLETED','CANCELLED'] else 'false' }},
         IS_NEW_TRANSFER_FORM: {{ 'true' if not dostawa else 'false' }},
         FORM_DRAFT_KEY: "magazyn_dostawy_draft_{{ linia }}_{{ dostawa.id if dostawa else 'new' }}",
         KNOWN_SOURCE_LOCATIONS_SET: {{ lokalizacje|tojson|safe }} || [],
@@ -300,13 +300,13 @@
         items: {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }}
     };
 </script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/config.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/state.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/utils.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/render.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/api.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/palletPicker.js') }}?v=20260905_1000"></script>
-<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/events.js') }}?v=20260905_1000"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/config.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/state.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/utils.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/render.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/api.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/palletPicker.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/magazyn_dostawy/edycja/events.js', v=static_version) }}"></script>
 
 <script>
 window.confirmWarehouseOrder = function(orderId) {

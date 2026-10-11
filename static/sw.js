@@ -192,6 +192,9 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/warehouse-v2/api/') ||
+        url.pathname.includes('/raport/podglad_pdf') || url.pathname.includes('/raport/pobierz_pdf') ||
+        url.pathname.includes('/stream') || url.pathname.endsWith('.pdf')) return;
 
     const isNavigation = request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html');
     if (isNavigation) {

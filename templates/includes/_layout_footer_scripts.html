@@ -10,6 +10,7 @@
 <script src="{{ url_for('static', filename='js/maluchy/maluchy_zasyp_integration.js') }}?v={{ static_version }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/dashboard/zasyp_calculator.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard/picking_3d_rack_view.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard/picking_view.js') }}?v={{ static_version }}"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/dashboard/machine-stats-v2.js') }}?v=2"></script>
@@ -648,6 +649,13 @@
                     }
                     
                     const notifications = Array.isArray(d.notifications) ? d.notifications : [];
+                    const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
+                    const isOperator = ['operator', 'operatoragro', 'operatorpsd', 'pracownik', 'produkcja', 'lider'].includes(userRole);
+                    function checkIsSticky(item) {
+                        const isAgro = Boolean(item.is_sticky || item.type === 'plan_agro' || item.type === 'plan_batch_agro' || (item.title && item.title.toLowerCase().includes('agro')));
+                        return (userRole === 'laborant' || userRole === 'laboratorium') || (isAgro && isOperator) || isAgro;
+                    }
+
                     if (state.initialized) {
                         notifications.forEach(function(item) {
                             if (item.id > maxNotifId && !state.shownIds.has(item.id)) {
@@ -660,11 +668,12 @@
                                 }
                                 
                                 if (typeof showToast === 'function') {
-                                    const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
-                                    const isSticky = (userRole === 'laborant' || userRole === 'laboratorium');
+                                    const isSticky = checkIsSticky(item);
+                                    const isAgro = Boolean(item.is_sticky || item.type === 'plan_agro' || item.type === 'plan_batch_agro' || (item.title && item.title.toLowerCase().includes('agro')));
                                     const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
                                     const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');
-                                    showToast(toastMsg, 'info', isSticky, function() {
+                                    const toastType = isAgro ? 'warning' : 'info';
+                                    showToast(toastMsg, toastType, isSticky, function() {
                                         markRead(item.id).then(() => {
                                             state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
                                             render();
@@ -679,6 +688,20 @@
                             state.shownIds.add(item.id);
                             if (item.id > maxIdInBatch) {
                                 maxIdInBatch = item.id;
+                            }
+                            
+                            const isSticky = checkIsSticky(item);
+                            if (isSticky && typeof showToast === 'function') {
+                                const isAgro = Boolean(item.is_sticky || item.type === 'plan_agro' || item.type === 'plan_batch_agro' || (item.title && item.title.toLowerCase().includes('agro')));
+                                const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                                const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');
+                                const toastType = isAgro ? 'warning' : 'info';
+                                showToast(toastMsg, toastType, true, function() {
+                                    markRead(item.id).then(() => {
+                                        state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
+                                        render();
+                                    });
+                                });
                             }
                         });
                         if (maxIdInBatch > maxNotifId) {

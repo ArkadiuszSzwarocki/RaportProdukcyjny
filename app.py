@@ -7,6 +7,12 @@ and Flask dev server only when debug mode is explicitly requested.
 
 import os
 import sys
+import faulthandler
+
+os.makedirs('logs', exist_ok=True)
+_crash_trace_file = open(os.path.join('logs', 'crash_trace.log'), 'a', buffering=1)
+faulthandler.enable(file=_crash_trace_file, all_threads=True)
+
 from app.core.factory import create_app
 
 # Create and configure Flask application instance

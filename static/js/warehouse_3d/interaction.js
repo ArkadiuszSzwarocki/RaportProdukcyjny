@@ -102,7 +102,13 @@ function onDocumentPointerDown(event) {
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
+        if (hit.userData && hit.userData.isRackHeader && hit.userData.rackId) {
+            selectRackQuick(hit.userData.rackId);
+            return;
+        }
+
         const slot = hit.userData.slot;
+        if (!slot) return;
         const rack = hit.userData.rack;
         const slotGroup = hit.userData.parentGroup;
 
@@ -296,6 +302,13 @@ async function executePallet3DMove(pallet, newLocation) {
     const linia = pallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
     const pCode = pallet.nr_palety || pallet.display_id || `#${palletId}`;
 
+    let targetLocation = newLocation;
+    if (targetLocation && (targetLocation.startsWith('MP01') || targetLocation.startsWith('MP-01'))) {
+        targetLocation = 'MP01';
+    } else if (targetLocation && (targetLocation.startsWith('BFMP01') || targetLocation.startsWith('BF_MP01') || targetLocation.startsWith('BF-MP01'))) {
+        targetLocation = 'BF_MP01';
+    }
+
     try {
         const res = await fetch('/warehouse-v2/api/pallet/move', {
             method: 'POST',
@@ -303,14 +316,14 @@ async function executePallet3DMove(pallet, newLocation) {
             body: JSON.stringify({
                 id: palletId,
                 type: palletType,
-                location: newLocation,
+                location: targetLocation,
                 linia: linia
             })
         });
 
         const data = await res.json();
         if (data && data.success) {
-            notifyUser(`✅ Paleta ${pCode} została pomyślnie przeniesiona na lokalizację: ${newLocation}`, 'success');
+            notifyUser(`✅ Paleta ${pCode} została pomyślnie przeniesiona na lokalizację: ${targetLocation}`, 'success');
             await loadWarehouseData(false, true);
         } else {
             notifyUser(`Błąd relokacji: ${data ? (data.error || 'Nie udało się przenieść palety') : 'Błąd serwera'}`, 'error');
@@ -351,10 +364,18 @@ function openInspectDrawer(slot, rack) {
     if (!drawer || !locBadge || !content) return;
 
     const isShelving = Boolean(rack.is_shelving || rack.rack_type === 'SHELVING' || rack.rack_id === 'R09' || slot.is_shelf);
+    const isFloorZone = Boolean(rack.is_floor_zone || rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'MP01' || rack.rack_id === 'BFMP01');
 
-    locBadge.innerHTML = isShelving 
-        ? `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">table_rows</span> PÓŁKA ${slot.location_code}</span>`
-        : slot.location_code;
+    if (isFloorZone) {
+        const isBuffer = (rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'BFMP01');
+        const icon = isBuffer ? 'published_with_changes' : 'factory';
+        const label = isBuffer ? 'BUFOR' : 'STREFA PRODUKCYJNA';
+        locBadge.innerHTML = `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">${icon}</span> ${label} • ${slot.location_code}</span>`;
+    } else if (isShelving) {
+        locBadge.innerHTML = `<span style="display:flex; align-items:center; gap:6px;"><span class="material-icons" style="font-size:16px;">table_rows</span> PÓŁKA ${slot.location_code}</span>`;
+    } else {
+        locBadge.innerHTML = slot.location_code;
+    }
 
     const pallets = (slot.pallets && slot.pallets.length > 0) ? slot.pallets : (slot.pallet ? [slot.pallet] : []);
 
@@ -371,6 +392,12 @@ function openInspectDrawer(slot, rack) {
                 REGAŁ PÓŁKOWY (1 POZYCJA ASORTYMENTOWA)
             </div>`;
         }
+    } else if (isFloorZone) {
+        const isBuffer = (rack.rack_type === 'BUFFER_ZONE' || rack.rack_id === 'BFMP01');
+        shelfBadgeHtml = `<div style="margin: 8px 0; padding: 6px 10px; background: ${isBuffer ? 'rgba(245, 158, 11, 0.15)' : 'rgba(14, 116, 144, 0.25)'}; border: 1px solid ${isBuffer ? '#f59e0b' : '#38bdf8'}; border-radius: 8px; font-size: 11px; font-weight: 800; color: ${isBuffer ? '#fbbf24' : '#38bdf8'}; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 16px;">${isBuffer ? 'published_with_changes' : 'factory'}</span>
+            ${isBuffer ? 'POLE BUFORA PRODUKCJI (BFMP01)' : 'POLE POSADZKOWE PRODUKCJI (MP01)'}
+        </div>`;
     }
 
     let qrDrawerCardHtml = '';
@@ -398,15 +425,15 @@ function openInspectDrawer(slot, rack) {
     let html = `
         ${qrDrawerCardHtml}
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Regał / Sektor:</span>
+            <span class="wh3d-row-lbl">${isFloorZone ? 'Strefa / Sektor:' : 'Regał / Sektor:'}</span>
             <span class="wh3d-row-val">${rack.name}</span>
         </div>
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Kolumna / Poziom:</span>
-            <span class="wh3d-row-val">K${slot.column_index} • P${slot.level_index}</span>
+            <span class="wh3d-row-lbl">${isFloorZone ? 'Pole / Rząd:' : 'Kolumna / Poziom:'}</span>
+            <span class="wh3d-row-val">${isFloorZone ? `Pole ${slot.column_index || slot.column} • Rząd ${slot.level_index || slot.level}` : `K${slot.column_index} • P${slot.level_index}`}</span>
         </div>
         <div class="wh3d-row">
-            <span class="wh3d-row-lbl">Status ${isShelving ? 'Półki' : 'Slotu'}:</span>
+            <span class="wh3d-row-lbl">Status ${isFloorZone ? 'Pola' : (isShelving ? 'Półki' : 'Slotu')}:</span>
             <span class="wh3d-row-val" style="color: ${slot.is_occupied ? '#10b981' : '#94a3b8'}">
                 ${slot.is_occupied ? (isShelving ? `● ZAJĘTA (${pallets.length} poz.)` : '● ZAJĘTY') : '○ WOLNY'}
             </span>
@@ -444,17 +471,38 @@ function openInspectDrawer(slot, rack) {
                 expPill = `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 10px; padding: 2px 6px; border-radius: 6px;">✅ Ważna (${p.days_to_exp} dni)</span>`;
             }
 
+            let pickingTargetBanner = '';
+            if (p.is_picking_target) {
+                pickingTargetBanner = `
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.15)); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 12px; font-weight: 900; color: #fef08a; display: flex; align-items: center; gap: 4px;">
+                                <span class="material-icons" style="font-size: 16px; color: #f59e0b;">bolt</span>
+                                POZYCJA DO WYDANIA (FIFO #${p.fifo_rank || 1})
+                            </span>
+                            <span style="font-size: 11px; font-weight: 700; color: #38bdf8;">${p.picking_status || 'OCZEKUJE'}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #cbd5e1;">Zlecenie: <strong style="color: #ffffff;">${p.order_ref || ''}</strong></div>
+                        <button type="button" onclick="if (typeof PickingViewModule !== 'undefined') PickingViewModule.openPickingModal('${p.order_ref || ''}')" style="margin-top: 8px; width: 100%; background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: none; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35);">
+                            <span class="material-icons" style="font-size: 16px;">qr_code_scanner</span>
+                            Otwórz Skaner / Wydaj Paletę
+                        </button>
+                    </div>
+                `;
+            }
+
             const safePalletJson = JSON.stringify(p).replace(/"/g, '&quot;');
 
             html += `
                 <div class="wh3d-pallet-card ${isBlocked ? 'blocked' : ''}" style="margin-top: 12px; border-left: 3px solid ${itemAccent};">
+                    ${pickingTargetBanner}
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <div>
                             ${pallets.length > 1 ? `<span style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-right: 4px;">#${idx + 1}</span>` : ''}
                             <strong style="color: ${itemAccent}; font-size: 14px; font-family: monospace;">${pNum}</strong>
                         </div>
                         <span class="status-pill ${isBlocked ? 'praca' : 'ready'}" style="font-size: 10px; padding: 2px 8px;">
-                            ${isBlocked ? '⛔ KWARANTANNA' : 'DOSTĘPNA'}
+                            ${isBlocked ? '⛔ KWARANTANNA' : (p.is_picking_target ? 'DO WYDANIA' : 'DOSTĘPNA')}
                         </span>
                     </div>
 

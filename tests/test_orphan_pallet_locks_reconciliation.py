@@ -19,9 +19,10 @@ def test_reconcile_orphan_transfer_locks_leaves_commit_to_caller():
         [],  # manual blocked history
         [{'id': 999, 'nr_palety': 'PSD000001790079009978'}],  # magazyn_surowce
         [],  # other active reservations
+        [],  # magazyn_agro_surowce
         [],  # magazyn_opakowania
+        [],  # magazyn_agro_opakowania
         [],  # magazyn_palety
-        [],  # magazyn_palety_agro
         [],  # magazyn_dodatki
         [],  # palety_workowanie
         [],  # palety_agro
@@ -32,6 +33,20 @@ def test_reconcile_orphan_transfer_locks_leaves_commit_to_caller():
     assert unblocked == 1
     mock_cursor.execute.assert_any_call("UPDATE magazyn_surowce SET is_blocked = 0 WHERE id = %s", (999,))
     mock_conn.commit.assert_not_called()
+
+
+def test_reconcile_never_releases_quarantined_sscc_conflict():
+    cursor = MagicMock()
+    cursor.fetchone.return_value = None
+    cursor.fetchall.side_effect = [
+        [], [], [], [], [], [],
+        [{'id': 999, 'nr_palety': 'CONFLICT-SSCC', 'lokalizacja': 'KOREKTA_SSCC'}],
+        [], [], [],
+    ]
+
+    assert PalletLockManager.reconcile_orphan_transfer_locks(cursor) == 0
+    updates = [call.args[0] for call in cursor.execute.call_args_list if call.args[0].startswith('UPDATE ')]
+    assert updates == []
 
 
 def test_agro_workowanie_bigbag_auto_reconcile_orphan_lock():

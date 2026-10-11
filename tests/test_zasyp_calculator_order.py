@@ -218,6 +218,22 @@ def test_start_picking_stops_when_advisory_lock_is_busy():
     assert 'rezerwowany' in message
 
 
+def test_move_pallet_to_mp01_commits_successful_move():
+    service = PickingService()
+    cursor = MagicMock()
+    cursor.rowcount = 1
+    connection = MagicMock()
+    connection.cursor.return_value = cursor
+
+    with patch('app.services.picking_service.get_db_connection', return_value=connection):
+        result = service._move_pallet_to_mp01(55, 'R010101', 'magazynier')
+
+    assert result is True
+    assert "SET lokalizacja = 'MP01'" in cursor.execute.call_args_list[0].args[0]
+    connection.commit.assert_called_once()
+    connection.rollback.assert_not_called()
+
+
 def test_move_pallet_to_mp01_returns_false_when_current_state_changed():
     service = PickingService()
     cursor = MagicMock()

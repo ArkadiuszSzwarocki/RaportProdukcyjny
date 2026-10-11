@@ -113,17 +113,23 @@ class InwentaryzacjaService:
 
             # 4. Wyroby gotowe (PSD i AGRO)
             if not found_row:
-                if extracted_id is not None:
-                    cursor.execute(
-                        "SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, 'PSD') as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_palety WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
-                        (extracted_id, raw_code, clean_code)
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, 'PSD') as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM magazyn_palety WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
-                        (raw_code, clean_code)
-                    )
-                found_row = cursor.fetchone()
+                wg_tables = ['magazyn_palety_agro', 'magazyn_palety'] if clean_code.startswith('AGR') else ['magazyn_palety', 'magazyn_palety_agro']
+                for table in wg_tables:
+                    line_default = 'AGRO' if table == 'magazyn_palety_agro' else 'PSD'
+                    if extracted_id is not None:
+                        cursor.execute(
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, %s) as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {table} WHERE id = %s OR UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            (line_default, extracted_id, raw_code, clean_code)
+                        )
+                    else:
+                        cursor.execute(
+                            f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as waga, lokalizacja, 'Wyrób gotowy' as typ, COALESCE(linia, %s) as linia, 'kg' as jednostka, data_produkcji, data_przydatnosci, typ_opakowania FROM {table} WHERE UPPER(nr_palety) = %s OR UPPER(nr_palety) = %s ORDER BY (lokalizacja NOT LIKE '%%OCZEK%%') DESC, (waga_netto > 0) DESC, id DESC LIMIT 1",
+                            (line_default, raw_code, clean_code)
+                        )
+                    found_row = cursor.fetchone()
+                    if found_row:
+                        break
+
 
 
             # 5. Sprawdź czy paleta została już zeskanowana w bieżącej sesji
@@ -238,15 +244,27 @@ class InwentaryzacjaService:
 
             matched_keys = set()
             # Helper to add items to map
-            def add_to_map(rows):
+            def add_to_map(rows, source_table=None):
                 for r in rows:
-                    key = f"{r['typ_palety']}_{r['id']}"
+                    if source_table:
+                        r['source_table'] = source_table
+                    clean_sscc = str(r.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+                    t_norm = (r.get('typ_palety') or '').lower()
+                    key = f"{t_norm}_{r['id']}"
+                    
+                    matched_entry = None
                     if key in counted_map:
-                        raw_loc = counted_map[key]['lokalizacja']
-                        r['counted'] = True
-                        r['waga_faktyczna'] = counted_map[key]['waga_faktyczna']
-                        r['jednostka'] = counted_map[key]['jednostka'] or 'kg'
+                        matched_entry = counted_map[key]
                         matched_keys.add(key)
+                    elif clean_sscc and clean_sscc in counted_map:
+                        matched_entry = counted_map[clean_sscc]
+                        matched_keys.add(clean_sscc)
+                        
+                    if matched_entry:
+                        raw_loc = matched_entry['lokalizacja']
+                        r['counted'] = True
+                        r['waga_faktyczna'] = matched_entry['waga_faktyczna']
+                        r['jednostka'] = matched_entry['jednostka'] or 'kg'
                     else:
                         raw_loc = r['lokalizacja']
                         r['counted'] = False
@@ -263,6 +281,20 @@ class InwentaryzacjaService:
                         r.get('nr_palety')
                     )
                     
+                    # Deduplicate in this location by SSCC
+                    if clean_sscc:
+                        existing_idx = next((i for i, it in enumerate(all_items[loc]) if str(it.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper() == clean_sscc), None)
+                        if existing_idx is not None:
+                            existing = all_items[loc][existing_idx]
+                            p_is_agro = str(r.get('linia') or '').upper() == 'AGRO' or clean_sscc.startswith('AGR')
+                            if (p_is_agro and source_table == 'magazyn_palety_agro') or (not existing.get('counted') and r.get('counted')):
+                                if existing.get('counted'):
+                                    r['counted'] = True
+                                    r['waga_faktyczna'] = existing.get('waga_faktyczna')
+                                    r['jednostka'] = existing.get('jednostka') or r.get('jednostka')
+                                all_items[loc][existing_idx] = r
+                            continue
+                    
                     all_items[loc].append(r)
 
 
@@ -273,21 +305,21 @@ class InwentaryzacjaService:
                 f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
-            add_to_map(cursor.fetchall())
+            add_to_map(cursor.fetchall(), source_table='magazyn_surowce')
             
             # 2. Opakowania
             cursor.execute(
                 f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
-            add_to_map(cursor.fetchall())
+            add_to_map(cursor.fetchall(), source_table='magazyn_opakowania')
 
             # 2.5 Dodatki
             cursor.execute(
                 f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
-            add_to_map(cursor.fetchall())
+            add_to_map(cursor.fetchall(), source_table='magazyn_dodatki')
 
             # 3. Wyroby Gotowe
             for hall in hall_contexts:
@@ -296,7 +328,7 @@ class InwentaryzacjaService:
                     f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE {like_clause} AND waga_netto > 0", 
                     params
                 )
-                add_to_map(cursor.fetchall())
+                add_to_map(cursor.fetchall(), source_table=table)
             
             # 4. Add newly created items (paleta_id is None)
             for new_p in new_items_list:
@@ -381,6 +413,10 @@ class InwentaryzacjaService:
                     f"{r_no}{c_no}{ro_no}",
                     f"{r_no}-{c_no}-{ro_no}"
                 ])
+            if norm_loc in ('LP01', 'MASZYNA'):
+                loc_variants_set.update(['LP01', 'MASZYNA'])
+            if norm_loc in ('MP01', 'MPO1'):
+                loc_variants_set.update(['MP01', 'MPO1'])
             loc_variants = tuple(loc_variants_set)
             in_placeholders = ', '.join(['%s'] * len(loc_variants))
             in_clause = f"UPPER(TRIM(lokalizacja)) IN ({in_placeholders})"
@@ -404,7 +440,9 @@ class InwentaryzacjaService:
             matched_counted_ids = set()
 
             # Helper to process pallets
-            def process_pallet(p):
+            def process_pallet(p, source_table=None):
+                if source_table:
+                    p['source_table'] = source_table
                 clean_sscc = str(p.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
                 t_norm = (p.get('typ_palety') or '').lower()
                 id_key = f"{t_norm}_{p['id']}"
@@ -433,6 +471,48 @@ class InwentaryzacjaService:
                 )
                 return p
 
+            unique_pallets = {}
+            order_keys = []
+
+            def add_pallet_dedup(p):
+                if not p:
+                    return
+                clean_sscc = str(p.get('nr_palety') or '').replace('(00)', '').replace(']C1', '').strip().upper()
+                t_norm = (p.get('typ_palety') or '').lower()
+                
+                if clean_sscc:
+                    key = f"SSCC:{clean_sscc}"
+                elif p.get('id'):
+                    key = f"ID:{t_norm}_{p['id']}"
+                else:
+                    key = f"NAME:{t_norm}_{p.get('nazwa')}_{p.get('stan_magazynowy')}"
+
+                if key not in unique_pallets:
+                    unique_pallets[key] = p
+                    order_keys.append(key)
+                else:
+                    existing = unique_pallets[key]
+                    p_is_agro = str(p.get('linia') or '').upper() == 'AGRO' or clean_sscc.startswith('AGR')
+                    p_from_agro_tbl = p.get('source_table') == 'magazyn_palety_agro'
+                    
+                    should_replace = False
+                    if p_is_agro and p_from_agro_tbl:
+                        should_replace = True
+                    elif not existing.get('counted') and p.get('counted'):
+                        should_replace = True
+                    
+                    if should_replace:
+                        if existing.get('counted') and not p.get('counted'):
+                            p['counted'] = True
+                            p['waga_faktyczna'] = existing.get('waga_faktyczna')
+                            p['jednostka'] = existing.get('jednostka') or p.get('jednostka')
+                        unique_pallets[key] = p
+                    else:
+                        if p.get('counted') and not existing.get('counted'):
+                            existing['counted'] = True
+                            existing['waga_faktyczna'] = p.get('waga_faktyczna')
+                            existing['jednostka'] = p.get('jednostka') or existing.get('jednostka')
+
             # 1. Surowce
             table_sur = 'magazyn_surowce'
             cursor.execute(
@@ -440,8 +520,7 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                res = process_pallet(p)
-                if res: all_pallets.append(res)
+                add_pallet_dedup(process_pallet(p, source_table=table_sur))
             
             # 2. Opakowania
             table_opk = 'magazyn_opakowania'
@@ -450,8 +529,7 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                res = process_pallet(p)
-                if res: all_pallets.append(res)
+                add_pallet_dedup(process_pallet(p, source_table=table_opk))
 
             # 2.5 Dodatki
             cursor.execute(
@@ -459,8 +537,7 @@ class InwentaryzacjaService:
                 loc_variants
             )
             for p in cursor.fetchall():
-                res = process_pallet(p)
-                if res: all_pallets.append(res)
+                add_pallet_dedup(process_pallet(p, source_table='magazyn_dodatki'))
 
             # 3. Wyroby Gotowe
             for hall in hall_contexts:
@@ -471,8 +548,7 @@ class InwentaryzacjaService:
                 )
                 for p in cursor.fetchall():
                     if not p.get('linia'): p['linia'] = hall
-                    res = process_pallet(p)
-                    if res: all_pallets.append(res)
+                    add_pallet_dedup(process_pallet(p, source_table=table))
             
             # 4. Append counted items that were added or moved here and didn't match any existing system pallet
             for row in all_counted_rows:
@@ -494,9 +570,9 @@ class InwentaryzacjaService:
                         "waga_faktyczna": row['waga_faktyczna'],
                         "jednostka": row['jednostka'] or 'kg'
                     }
-                    all_pallets.append(synthetic)
+                    add_pallet_dedup(synthetic)
                     
-            return all_pallets
+            return [unique_pallets[k] for k in order_keys]
         except Exception as e:
             print(f"Error in get_pallets_at_location: {e}")
             return []
@@ -577,6 +653,20 @@ class InwentaryzacjaService:
                 except Exception:
                     pass
 
+            # If nr_palety is missing or empty, but paleta_id is given, resolve nr_palety (SSCC) from DB
+            if (not nr_palety or not str(nr_palety).strip()) and paleta_id:
+                try:
+                    t_tbl = 'magazyn_surowce'
+                    if typ_palety == 'opakowanie': t_tbl = 'magazyn_opakowania'
+                    elif typ_palety == 'dodatek': t_tbl = 'magazyn_dodatki'
+                    elif typ_palety == 'wyrób gotowy': t_tbl = 'magazyn_palety'
+                    cursor.execute(f"SELECT nr_palety FROM {t_tbl} WHERE id = %s", (paleta_id,))
+                    _nr_row = cursor.fetchone()
+                    if _nr_row and _nr_row[0]:
+                        nr_palety = str(_nr_row[0]).strip()
+                except Exception:
+                    pass
+
             # Check if entry already exists for this item in this session
             existing = None
             if nr_palety and str(nr_palety).strip():
@@ -605,8 +695,8 @@ class InwentaryzacjaService:
 
             if existing:
                 cursor.execute(
-                    "UPDATE magazyn_inwentaryzacja_wpisy SET waga_faktyczna = %s, lokalizacja = %s, data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s, data_wpisu = NOW(), user_login = %s, jednostka = %s WHERE id = %s",
-                    (waga_faktyczna, lokalizacja, d_prod, d_przyd, typ_opakowania, user_login, jednostka, existing[0])
+                    "UPDATE magazyn_inwentaryzacja_wpisy SET nr_palety = COALESCE(nr_palety, %s), waga_faktyczna = %s, lokalizacja = %s, data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s, data_wpisu = NOW(), user_login = %s, jednostka = %s WHERE id = %s",
+                    (nr_palety, waga_faktyczna, lokalizacja, d_prod, d_przyd, typ_opakowania, user_login, jednostka, existing[0])
                 )
 
             else:

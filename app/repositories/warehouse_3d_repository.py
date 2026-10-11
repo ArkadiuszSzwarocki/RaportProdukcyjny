@@ -125,3 +125,59 @@ class Warehouse3dRepository:
 
         return items
 
+    @staticmethod
+    def fetch_picking_order_stock(order_ref: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Fetches stock items specifically associated with a picking order (magazyn_kompletacja).
+        Filters locations to only return places required by the specified order (or all active if 'ALL_ACTIVE').
+        Only pending items (status = 'OCZEKUJE' and paleta_id > 0) are returned so only pallets from the order are shown.
+        """
+        conn = get_db_connection()
+        items: List[Dict[str, Any]] = []
+        try:
+            cursor = conn.cursor(dictionary=True)
+            norm_ref = str(order_ref or '').strip()
+            if norm_ref and norm_ref.upper() not in ('ALL', 'ACTIVE', 'ALL_ACTIVE'):
+                cursor.execute("""
+                    SELECT k.id, k.order_ref, k.paleta_id, k.nr_palety, k.surowiec_nazwa as productName,
+                           k.lokalizacja_zrodlowa as location, k.ilosc_kg as amount, 'Surowiec' as pallet_type,
+                           k.nr_partii, k.is_blocked, 
+                           COALESCE(p.typ_opakowania, 'big_bag') as typ_opakowania, 
+                           k.created_at, 'PSD' as linia,
+                           k.fifo_rank, k.status as picking_status,
+                           p.data_przydatnosci, p.data_produkcji
+                    FROM magazyn_kompletacja k
+                    LEFT JOIN magazyn_palety p ON k.paleta_id = p.id
+                    WHERE k.order_ref = %s 
+                      AND k.status = 'OCZEKUJE' 
+                      AND k.paleta_id > 0 
+                      AND k.lokalizacja_zrodlowa IS NOT NULL 
+                      AND k.lokalizacja_zrodlowa <> ''
+                    ORDER BY k.fifo_rank ASC, k.id ASC
+                """, (norm_ref,))
+            else:
+                cursor.execute("""
+                    SELECT k.id, k.order_ref, k.paleta_id, k.nr_palety, k.surowiec_nazwa as productName,
+                           k.lokalizacja_zrodlowa as location, k.ilosc_kg as amount, 'Surowiec' as pallet_type,
+                           k.nr_partii, k.is_blocked, 
+                           COALESCE(p.typ_opakowania, 'big_bag') as typ_opakowania, 
+                           k.created_at, 'PSD' as linia,
+                           k.fifo_rank, k.status as picking_status,
+                           p.data_przydatnosci, p.data_produkcji
+                    FROM magazyn_kompletacja k
+                    LEFT JOIN magazyn_palety p ON k.paleta_id = p.id
+                    WHERE k.status = 'OCZEKUJE' 
+                      AND k.paleta_id > 0 
+                      AND k.lokalizacja_zrodlowa IS NOT NULL 
+                      AND k.lokalizacja_zrodlowa <> ''
+                    ORDER BY k.order_ref ASC, k.fifo_rank ASC, k.id ASC
+                """)
+            items = cursor.fetchall() or []
+            cursor.close()
+        except Exception as e:
+            print(f"[Warehouse3dRepository] Error fetching picking order stock: {e}")
+        finally:
+            conn.close()
+
+        return items
+

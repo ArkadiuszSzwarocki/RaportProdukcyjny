@@ -138,9 +138,13 @@ def validate_station():
             'error': f'❌ Stacja {norm_zbiornik or raw_zbiornik} została wycofana/usunięta z systemu!'
         }), 400
 
-    if not is_production_tank_code(raw_zbiornik) and not is_production_tank_code(norm_zbiornik):
-        # Nie jest to stacja produkcyjna (np. regał magazynowy)
-        return jsonify({'success': True, 'is_production': False})
+    is_tank_ok, norm_zbiornik, tank_err = validate_production_tank(raw_zbiornik)
+    if not is_tank_ok:
+        return jsonify({
+            'success': False,
+            'is_production': True,
+            'error': tank_err
+        }), 400
 
     # Do stacji produkcyjnych nie wolno wydawać wyrobów gotowych ani opakowań
     if pallet_type == 'Wyrób Gotowy':

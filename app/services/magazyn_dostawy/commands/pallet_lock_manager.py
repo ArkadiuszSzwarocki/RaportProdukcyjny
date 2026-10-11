@@ -17,7 +17,8 @@ class PalletLockManager:
             return
 
         allowed_tables = {
-            'magazyn_surowce', 'magazyn_opakowania', 'magazyn_agro_opakowania',
+            'magazyn_surowce', 'magazyn_agro_surowce',
+            'magazyn_opakowania', 'magazyn_agro_opakowania',
             'magazyn_palety', 'magazyn_palety_agro', 'magazyn_dodatki',
         }
         for it in items:
@@ -230,9 +231,10 @@ class PalletLockManager:
             # 3. Scan all warehouse stock and buffer tables for is_blocked = 1
             all_tables = [
                 'magazyn_surowce',
+                'magazyn_agro_surowce',
                 'magazyn_opakowania',
+                'magazyn_agro_opakowania',
                 'magazyn_palety',
-                'magazyn_palety_agro',
                 'magazyn_dodatki',
                 'palety_workowanie',
                 'palety_agro'
@@ -240,7 +242,7 @@ class PalletLockManager:
 
             for tbl in all_tables:
                 try:
-                    cursor.execute(f"SELECT id, nr_palety FROM {tbl} WHERE is_blocked = 1")
+                    cursor.execute(f"SELECT id, nr_palety, lokalizacja FROM {tbl} WHERE is_blocked = 1")
                     blocked_items = cursor.fetchall()
                     for b_item in blocked_items:
                         b_id = str(b_item.get('id') or '')
@@ -252,6 +254,12 @@ class PalletLockManager:
 
                         # Check if manually blocked
                         if (b_nr and b_nr in manual_blocked_nrs) or (b_id and b_id in manual_blocked_ids):
+                            continue
+
+                        # SSCC conflicts are intentionally quarantined during
+                        # registry consolidation.  They are not transfer locks
+                        # and therefore must never be released by cleanup.
+                        if str(b_item.get('lokalizacja') or '').strip().upper() == 'KOREKTA_SSCC':
                             continue
 
                         if cls.has_protected_block(cursor, b_nr):

@@ -260,7 +260,7 @@ class DeliveryQueries:
                 print(f"Warning during orphan lock reconciliation: {rec_err}")
 
             # 2. Upewnij się, że pozycje w aktywnych transferach mają status zablokowany
-            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')")
+            cursor.execute("SELECT id, items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS') FOR UPDATE")
             rows = cursor.fetchall()
             for r in rows:
                 raw_items = r.get('items')
@@ -272,27 +272,14 @@ class DeliveryQueries:
                     continue
                 if not isinstance(items, list):
                     continue
-                for it in items:
-                    if not isinstance(it, dict) or it.get('accepted') or it.get('rejected'):
-                        continue
-                    pid = it.get('sourcePalletId')
-                    pnr = it.get('nr_palety') or it.get('sourcePalletNo')
-                    for l_code in ['PSD', 'AGRO']:
-                        for tbl in [get_table_name('magazyn_surowce', l_code), get_table_name('magazyn_opakowania', l_code), get_table_name('magazyn_palety', l_code)]:
-                            if pid:
-                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE id = %s", (pid,))
-                                except Exception: pass
-                            if pnr:
-                                try: cursor.execute(f"UPDATE {tbl} SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE', is_loaded = 0 WHERE nr_palety = %s", (pnr,))
-                                except Exception: pass
-                        if pid:
-                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE id = %s", (pid,))
-                            except Exception: pass
-                        if pnr:
-                            try: cursor.execute("UPDATE magazyn_dodatki SET is_blocked = 1, lokalizacja = 'OCZEKUJĄCE' WHERE nr_palety = %s", (pnr,))
-                            except Exception: pass
+                pending = [it for it in items if isinstance(it, dict) and not (
+                    it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at'))]
+                # Reserving a document is not a physical movement. SSCC identifies
+                # the pallet; numeric IDs can collide across stock tables.
+                PalletLockManager.set_pallets_blocked(cursor, pending, 1)
             conn.commit()
         except Exception as e:
+            conn.rollback()
             print(f"Error syncing pending transfers blocked state: {e}")
         finally:
             conn.close()

@@ -38,10 +38,16 @@ class AutoReportActivityDetector:
                 return True
 
             # 2. Sprawdź spakowane palety workowania
-            cursor.execute(
-                f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s LIMIT 1",
-                (date_str, date_str)
-            )
+            if str(linia).strip().upper() == 'AGRO':
+                cursor.execute(
+                    f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s LIMIT 1",
+                    (date_str, date_str)
+                )
+            else:
+                cursor.execute(
+                    f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s LIMIT 1",
+                    (date_str,)
+                )
             if cursor.fetchone():
                 cursor.close()
                 return True

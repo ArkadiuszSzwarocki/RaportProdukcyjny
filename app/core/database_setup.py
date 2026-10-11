@@ -91,7 +91,8 @@ def _create_tables(cursor):
             typ_zlecenia VARCHAR(50) DEFAULT '',
             wyjasnienie_rozbieznosci TEXT,
             data_produkcji DATE DEFAULT NULL,
-            rodzaj_palety VARCHAR(50) DEFAULT 'krajowa'
+            rodzaj_palety VARCHAR(50) DEFAULT 'krajowa',
+            nr_partii VARCHAR(100) DEFAULT NULL
         )
     """)
 
@@ -842,10 +843,6 @@ def _create_tables(cursor):
             'MP01', 'MS01', 'BF_MS01', 'BF_MP01', 
             'MGW01', 'MGW02', 'MOP01', 'MDO01'
         ]
-        # Dodajemy K001 do K050
-        for i in range(1, 51):
-            default_locs.append(f"K{i:03d}")
-            
         for loc in default_locs:
             cursor.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa) VALUES (%s)", (loc,))
     else:
@@ -1529,6 +1526,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'start_checklist_quality_login' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_at", "DATETIME NULL", "Dodawanie kolumny 'start_checklist_quality_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "nr_partii", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_partii' - numer partii produkcji (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji", "nr_partii", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_partii' - numer partii produkcji (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji", "termin_przydatnosci", "VARCHAR(50) DEFAULT NULL", "Dodawanie kolumny 'termin_przydatnosci' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "termin_przydatnosci", "VARCHAR(50) DEFAULT NULL", "Dodawanie kolumny 'termin_przydatnosci' (AGRO)")
 

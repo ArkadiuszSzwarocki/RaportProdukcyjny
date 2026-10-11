@@ -21,7 +21,47 @@ function initSharedResources() {
     sharedMats.shelfSteel = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.75 });
     sharedMats.cartonBody = new THREE.MeshStandardMaterial({ color: 0xbfa175, roughness: 0.85, metalness: 0.05 });
 
+    // Dedicated materials for floor storage zones (MP01 / BFMP01)
+    sharedMats.concretePad = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.1 });
+    sharedMats.bollardYellow = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.3 });
+    sharedMats.bollardBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45, metalness: 0.3 });
+
     sharedGeos.palletBase = new THREE.BoxGeometry(1.2, 0.14, 0.8);
+}
+
+function createSafetyBollard() {
+    const group = new THREE.Group();
+    const yellowMat = sharedMats.bollardYellow || new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.3 });
+    const blackMat = sharedMats.bollardBlack || new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45, metalness: 0.3 });
+
+    // Main post: height 0.88m, radius 0.08m
+    const postGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.88, 16);
+    const post = new THREE.Mesh(postGeo, yellowMat);
+    post.position.y = 0.44;
+    post.castShadow = true;
+    group.add(post);
+
+    // Rounded top dome
+    const capGeo = new THREE.SphereGeometry(0.08, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const cap = new THREE.Mesh(capGeo, yellowMat);
+    cap.position.y = 0.88;
+    group.add(cap);
+
+    // Base flange plate
+    const baseGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.02, 16);
+    const base = new THREE.Mesh(baseGeo, blackMat);
+    base.position.y = 0.01;
+    group.add(base);
+
+    // Black safety rings (2 stripes)
+    const ringGeo = new THREE.CylinderGeometry(0.082, 0.082, 0.10, 16);
+    const ring1 = new THREE.Mesh(ringGeo, blackMat);
+    ring1.position.y = 0.68;
+    const ring2 = new THREE.Mesh(ringGeo, blackMat);
+    ring2.position.y = 0.46;
+    group.add(ring1, ring2);
+
+    return group;
 }
 
 function createPillowSackGeometry(w, h, l) {

@@ -140,6 +140,10 @@ function updateProgressIndicators(data) {
 
     if (processedEl) processedEl.textContent = `${processed} / ${total}`;
     if (pendingEl) pendingEl.textContent = `Do rozliczenia: ${pending}`;
+    const pendingMessage = document.getElementById('receiptPendingMessage');
+    if (pendingMessage) pendingMessage.textContent = pending > 0
+        ? `Do rozliczenia pozostało jeszcze ${pending} pozycji z ${total}.`
+        : 'Wszystkie pozycje zostały rozliczone.';
     if (progressFillEl) {
         const pct = total > 0 ? Math.min(100, Math.max(0, (processed / total) * 100)) : 0;
         progressFillEl.style.width = pct.toFixed(2) + '%';
@@ -152,7 +156,7 @@ function markRowAsProcessed(idx, mode, reason) {
     const rejectBtn = document.getElementById(`reject_btn_${idx}`);
     if (!row) return;
 
-    row.classList.add('done');
+    row.classList.add(mode === 'rejected' ? 'rejected' : 'done');
     row.querySelectorAll('input').forEach(el => el.disabled = true);
 
     if (btn) {

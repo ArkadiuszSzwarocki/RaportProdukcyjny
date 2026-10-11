@@ -97,3 +97,28 @@ def test_agro_view_is_one_physical_pallet_not_ambiguous_duplicate(stock_document
         cursor.execute("DELETE FROM magazyn_palety WHERE nr_palety=%s", (code,))
         conn.commit()
         conn.close()
+
+
+def test_opening_pending_view_never_moves_stock_or_same_id_neighbour(stock_document):
+    from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+    doc,numbers=stock_document
+    conn=get_db_connection()
+    cursor=conn.cursor()
+    cursor.execute('SELECT id FROM magazyn_surowce WHERE nr_palety=%s',(numbers[0],))
+    pallet_id=cursor.fetchone()[0]
+    neighbour='TEST-NEIGHBOUR-'+uuid.uuid4().hex[:16]
+    cursor.execute("INSERT INTO magazyn_palety(id,nr_palety,produkt,waga_netto,lokalizacja,linia,is_loaded) VALUES(%s,%s,'Neighbour',50,'MP01','PSD',1)",(pallet_id,neighbour))
+    cursor.execute('UPDATE magazyn_dostawy SET items=%s WHERE id=%s',
+                   (json.dumps([dict(id='ONE',sourcePalletId=pallet_id,nr_palety=numbers[0],sourceSpot='MS01')]),doc))
+    conn.commit()
+    try:
+        DeliveryQueries.sync_pending_transfers_blocked_state()
+        cursor.execute('SELECT lokalizacja,stan_magazynowy,is_blocked FROM magazyn_surowce WHERE nr_palety=%s',(numbers[0],))
+        assert cursor.fetchone()==('MS01',100,1)
+        cursor.execute('SELECT lokalizacja,waga_netto,is_blocked,is_loaded FROM magazyn_palety WHERE nr_palety=%s',(neighbour,))
+        assert cursor.fetchone()==('MP01',50,0,1)
+    finally:
+        conn.rollback()
+        cursor.execute('DELETE FROM magazyn_palety WHERE nr_palety=%s',(neighbour,))
+        conn.commit()
+        conn.close()

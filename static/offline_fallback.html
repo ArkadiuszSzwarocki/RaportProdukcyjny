@@ -365,16 +365,20 @@
             }
         }
 
-        // Live countdown timer every second
-        setInterval(() => {
-            if (isReconnecting) return;
-            retrySecondsLeft--;
-            if (retrySecondsLeft <= 0) {
-                checkServerAndReload();
-            } else if (countdownEl) {
-                countdownEl.innerText = `za ${retrySecondsLeft} s (próba #${retryAttempt})`;
-            }
-        }, 1000);
+        // Live countdown timer every second (only in top-level window, avoid iframe reload loop)
+        if (window.self === window.top) {
+            setInterval(() => {
+                if (isReconnecting) return;
+                retrySecondsLeft--;
+                if (retrySecondsLeft <= 0) {
+                    checkServerAndReload();
+                } else if (countdownEl) {
+                    countdownEl.innerText = `za ${retrySecondsLeft} s (próba #${retryAttempt})`;
+                }
+            }, 1000);
+        } else if (countdownEl) {
+            countdownEl.innerText = 'Podgląd wstrzymany';
+        }
     </script>
 </body>
 </html>

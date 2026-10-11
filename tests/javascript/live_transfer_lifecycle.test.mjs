@@ -34,3 +34,17 @@ test('canceling an open form cancels its server order before clearing the draft'
     assert.deepEqual(calls, ['/magazyn-dostawy/api/anuluj/one-order', 'clear']);
     assert.equal(context.window.location.href, '/list');
 });
+
+test('live polling preserves a server rejection in the local draft', async () => {
+    const items=[{id:'ONE',nr_palety:'SSCC',accepted:false}];
+    let saved=0;
+    const context=vm.createContext({window:{EdycjaConfig:{dostawaId:'ORDER'}},items,
+        console,saveDraftState(){saved++;},renderItems(){},updateSaveButtonState(){},
+        fetch:async()=>({json:async()=>({success:true,result:{status:'OCZEKUJE',items:[
+            {id:'ONE',nr_palety:'SSCC',accepted:false,rejected:true,rejected_reason:'Missing'}]}})})});
+    vm.runInContext(readFileSync('static/js/magazyn_dostawy/edycja/api.js','utf8'),context);
+    await context.pollLiveTransferStatus();
+    assert.equal(items[0].rejected,true);
+    assert.equal(items[0].rejected_reason,'Missing');
+    assert.equal(saved,1);
+});

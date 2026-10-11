@@ -51,6 +51,9 @@
             {% else %}
             <strong>Punkt Kontrolny Zasypu {{ cur_szarza }}:</strong>
             {% endif %}
+            {% if p|length > 30 and p[30] %}
+            <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700; font-size:0.75em; padding:2px 8px; border-radius:6px;" title="Numer receptury dla produktu">📋 Receptura: #{{ p[30] }}</span>
+            {% endif %}
             {% if sesja.is_current %}
             <span class="badge-warning" style="font-size:0.72em; padding:2px 6px;">AKTUALNA</span>
             {% else %}
@@ -77,7 +80,7 @@
                     onclick="openRecepturaModal('{{ p[0] }}', '{{ p[1]|e }}', '{{ plan_nr_receptury|e }}')"
                     style="padding: 4px 10px; font-size: 0.82em; background:#1abc9c; color:#fff; font-weight:700;"
                     title="Przeglądaj / edytuj recepturę dla tego produktu">
-                📋 RECEPTURA
+                📋 RECEPTURA {% if plan_nr_receptury %}#{{ plan_nr_receptury }}{% endif %}
             </button>
             {% endif %}
             {% if rola != 'laborant' and sesja.is_current and p[3] == 'w toku' and not is_readonly %}
@@ -450,7 +453,7 @@
         <div style="background:linear-gradient(135deg,#1abc9c,#16a085); color:#fff; padding:18px 22px;
                     border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
             <div>
-                <div style="font-size:1.1em; font-weight:700;">📋 Receptura</div>
+                <div style="font-size:1.1em; font-weight:700;">📋 Receptura <span id="receptura-header-nr" style="color:#d1fae5; margin-left:6px; font-weight:700;"></span></div>
                 <div id="receptura-produkt-label" style="font-size:0.85em; opacity:0.85; margin-top:2px;"></div>
             </div>
             <button onclick="closeRecepturaModal()"
@@ -524,6 +527,11 @@
     window.openRecepturaModal = function (planId, nazwaProdukt, nrReceptury) {
         _recepturaNrReceptury = nrReceptury || '';
         _recepturaNazwaProdukt = nazwaProdukt || '';
+
+        const headerNrEl = document.getElementById('receptura-header-nr');
+        if (headerNrEl) {
+            headerNrEl.textContent = nrReceptury ? '#' + nrReceptury : '';
+        }
 
         document.getElementById('receptura-produkt-label').textContent = nazwaProdukt;
         document.getElementById('receptura-nr-info').textContent =

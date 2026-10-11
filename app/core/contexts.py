@@ -63,9 +63,13 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
             os.path.join(current_app.static_folder, 'js', 'pwa_init.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'api.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'state.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'render.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'events.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'przyjecie_ruchu.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'wg_acceptance.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'scanner_logic.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'transfers_logic.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_modals.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_ui.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_flow.js'),
@@ -79,6 +83,8 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_view.js'),
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'operations_history.js'),
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'orders.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_3d_rack_view.js'),
+            os.path.join(current_app.static_folder, 'css', 'picking_3d.css'),
         ]
         mtimes = []
         for p in candidates:
