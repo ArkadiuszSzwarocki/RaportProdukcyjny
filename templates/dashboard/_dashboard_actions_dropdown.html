@@ -5,7 +5,7 @@
             type="button" 
             id="dashboardActionsDropdownBtn" 
             onclick="window.toggleDashboardActionsDropdown(event)"
-            aria-label="Więcej akcji" title="Więcej akcji"
+            aria-expanded="false" aria-controls="dashboardActionsDropdownMenu" aria-label="Więcej akcji" title="Więcej akcji"
             style="border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #ffffff; width: 48px; height: 38px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); font-size: 1.45rem; font-weight: 800; cursor: pointer; outline: none;">
         <span style="pointer-events: none; font-weight: 900; line-height: 1;">⋮</span>
     </button>
@@ -18,7 +18,7 @@
 
     <!-- Actions Window (Positioned directly under the button) -->
     <div id="dashboardActionsDropdownMenu"
-         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; min-width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 1045; text-align: left;">
+         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 1045; text-align: left;">
         
         <!-- Header with Close Button -->
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 10px 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 6px; text-align: left;">
@@ -152,27 +152,12 @@
 
 <script>
 window.toggleDashboardActionsDropdown = function(e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-    var menu = document.getElementById('dashboardActionsDropdownMenu');
-    var backdrop = document.getElementById('dashboardActionsBackdrop');
-    if (menu && backdrop) {
-        var isVisible = (menu.style.display === 'block');
-        if (isVisible) {
-            menu.style.display = 'none';
-            backdrop.style.display = 'none';
-        } else {
-            menu.style.display = 'block';
-            backdrop.style.display = 'block';
-        }
-    }
+    window.dashboardPopover.toggle('dashboardActionsDropdownMenu', 'dashboardActionsDropdownBtn', 'dashboardActionsBackdrop', e);
 };
 
 window.closeDashboardActionsDropdown = function(e) {
-    if (e) { e.stopPropagation(); }
-    var menu = document.getElementById('dashboardActionsDropdownMenu');
-    var backdrop = document.getElementById('dashboardActionsBackdrop');
-    if (menu) { menu.style.display = 'none'; }
-    if (backdrop) { backdrop.style.display = 'none'; }
+    if (e) e.stopPropagation();
+    window.dashboardPopover.close();
 };
 
 window.triggerRecepturaFromMenu = function(e) {

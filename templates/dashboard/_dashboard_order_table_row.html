@@ -64,7 +64,7 @@
         {% endif %}
         <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
             {# Start/Stop buttons #}
-            {% if p[3] == 'zaplanowane' and not is_readonly %}
+            {% if p[3] == 'zaplanowane' and not is_readonly and not unfinished_section_orders|default([]) %}
                 {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
                 {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
                 {% if not can_start_role %}

@@ -107,7 +107,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const updateCleaningCount = function () {
-            const count = document.querySelectorAll('#cleaningNotifications button').length;
+            const count = document.querySelectorAll('#cleaningNotificationsPanel button').length;
             const badge = document.getElementById('cleaningNotificationCount');
             if (badge) badge.textContent = String(count);
         };

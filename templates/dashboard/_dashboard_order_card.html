@@ -62,7 +62,7 @@
                style="background: #dc2626; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border: none; box-shadow: 0 2px 5px rgba(220,38,38,0.25); white-space: nowrap; line-height: 1.2;"
                title="Zgłoś przestój maszyny / {{ sekcja|lower }}">⚠️ Przestój</a>
             {% endif %}
-            {% if p[3] == 'zaplanowane' and not is_readonly %}
+            {% if p[3] == 'zaplanowane' and not is_readonly and not unfinished_section_orders|default([]) %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
             {% if not can_start_role %}

@@ -223,6 +223,7 @@ def index():
             'buffer_map': main_h_data.get('buffer_queue'),
             'global_active': main_h_data.get('global_active'),
             'active_products': main_h_data.get('active_products'),
+            'unfinished_section_orders': main_h_data.get('unfinished_section_orders', []),
             'zasyp_has_active': main_h_data.get('zasyp_has_active'),
             'work_first_map': main_h_data.get('work_first_map'),
             'zasyp_product_order': main_h_data.get('zasyp_product_order'),
