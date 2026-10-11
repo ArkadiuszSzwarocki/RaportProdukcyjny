@@ -177,6 +177,11 @@ def get_user_redirect_target(role, group):
 
     if normalized_group == 'OSIP':
         return '/osip/transfers'
+    if normalized_role == 'laborant':
+        # The dashboard selects a section allowed by the user's page permissions.
+        # Scanner access requires warehouse grants which laboratory users may lack.
+        line = normalized_group if normalized_group in {'PSD', 'AGRO'} else 'AGRO'
+        return '/?linia=' + line
     if normalized_role == 'planista':
         return '/planista'
     return '/agro/scanner/ui'
