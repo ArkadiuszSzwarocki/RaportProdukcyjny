@@ -609,6 +609,7 @@ function initScanInputListeners() {
 // If the user scans with a barcode reader while scanInput is accidentally unfocused
 // (e.g. after tapping the screen or clicking outside inputs), redirect focus and typing to scanInput.
 window.addEventListener('keydown', function(e) {
+  if (document.body.classList.contains('sidebar-open')) return;
   const activeEl = document.activeElement;
   const isInputActive = activeEl && (
     activeEl.tagName === 'INPUT' || 

@@ -6,12 +6,12 @@ import vm from 'node:vm';
 
 function setup() {
   let time = 0;
-  const listeners = {}, timers = new Map(), submitted = [];
+  const listeners = {}, globalListeners = {}, timers = new Map(), submitted = [];
   const input = { value: '', dataset: {}, addEventListener(name, callback) { listeners[name] = callback; } };
   let timerId = 0;
   const context = vm.createContext({
-    document: { getElementById: id => id === 'scanInput' ? input : null },
-    window: { addEventListener() {} }, performance: { now: () => time },
+    document: { body: { classList: { contains: () => false } }, activeElement: { tagName: 'BUTTON' }, getElementById: id => id === 'scanInput' ? input : null },
+    window: { addEventListener(name, callback) { globalListeners[name] = callback; } }, performance: { now: () => time },
     checkPrinter() {}, hidePallet() {}, hideStation() {}, extractSSCCFromScan: value => value,
     setTimeout(callback) { timers.set(++timerId, callback); return timerId; },
     clearTimeout(id) { timers.delete(id); },
@@ -19,7 +19,7 @@ function setup() {
   vm.runInContext(readFileSync(new URL('../../static/js/scanner/modules/scanner_flow.js', import.meta.url), 'utf8'), context);
   context.triggerScan = () => submitted.push(input.value);
   return {
-    input, submitted, listeners,
+    input, submitted, listeners, globalListeners, context,
     type(text, interval) { for (const character of text) { time += interval; input.value += character; listeners.input.call(input); } },
     settle() { for (const callback of [...timers.values()]) callback(); timers.clear(); },
   };
@@ -47,4 +47,16 @@ test('paste waits for confirmation', () => {
   const scanner = setup(); scanner.listeners.paste(); scanner.input.value = 'MP01';
   scanner.listeners.input.call(scanner.input); scanner.settle();
   assert.deepEqual(scanner.submitted, []);
+});
+
+test('open menu keeps keyboard focus, scanner capture resumes after closing', () => {
+  const scanner = setup();
+  let focusCount = 0;
+  scanner.input.focus = () => { focusCount++; };
+  scanner.context.document.body.classList.contains = () => true;
+  scanner.globalListeners.keydown({ key: 'A' });
+  assert.equal(focusCount, 0);
+  scanner.context.document.body.classList.contains = () => false;
+  scanner.globalListeners.keydown({ key: 'A' });
+  assert.equal(focusCount, 1);
 });

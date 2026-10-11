@@ -1,3 +1,4 @@
+<script src="{{ url_for('static', filename='js/common/touch-scroll.js') }}?v={{ static_version }}"></script>
 <script>
     /** Suppress verbose client console logging to speed up page rendering */
     if (!window.DEBUG_LOGS && localStorage.getItem('debug_logs') !== '1') {
@@ -20,28 +21,6 @@
         } catch(e) {}
         return false;
     };
-
-    /** Prevent pull-to-refresh on mobile / PWA */
-    (function() {
-        var touchStartY = 0;
-        document.addEventListener('touchstart', function(e) {
-            if (e.touches && e.touches.length === 1) {
-                touchStartY = e.touches[0].clientY;
-            }
-        }, { passive: true });
-
-        document.addEventListener('touchmove', function(e) {
-            if (e.touches && e.touches.length === 1) {
-                var touchY = e.touches[0].clientY;
-                var touchDiff = touchY - touchStartY;
-                if ((window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) <= 0 && touchDiff > 0) {
-                    if (e.cancelable) {
-                        e.preventDefault();
-                    }
-                }
-            }
-        }, { passive: false });
-    })();
 
     /** Polyfill for Element.prototype.closest for older browsers (Zebra handhelds) */
     if (!Element.prototype.matches) {

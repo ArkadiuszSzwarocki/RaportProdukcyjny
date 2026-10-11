@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/planista_mobile.css') }}?v={{ static_version }}">
 {% set can_manage_plans = (session.get('rola') or '')|lower in ['planista', 'admin', 'masteradmin', 'zarzad'] %}
 
 <!-- Sortable.js for drag-and-drop reordering -->
@@ -9,7 +10,7 @@
 <div class="planista-viewport">
 
 <div class="section-header">
-    <div class="d-flex align-center flex-wrap gap-15" style="width: 100%;">
+    <div class="planner-controls d-flex align-center flex-wrap gap-15" style="width: 100%;">
         <div>
             <h2 class="header-title">📅 {{ _('panel_panel_planisty') if _('panel_panel_planisty') != 'panel_panel_planisty' else 'Panel Planisty' }}</h2>
             <p class="text-muted" style="margin-bottom: 0;">{{ _('zarzadzanie_produkcja') }}</p>
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
     </div>
     {% endif %}
-    <table class="modern-table planista-main-table">
+    <table class="modern-table no-mobile-cards planista-main-table">
         <thead>
             <tr>
                 <th>Lp.</th>
@@ -143,8 +144,8 @@ document.addEventListener('DOMContentLoaded', function () {
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
             <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
-                <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td class="text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;">
+                <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
+                <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
                     {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                     <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
@@ -152,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Produkt" class="planner-product">
                     <strong class="text-primary">{{ p.produkt }}</strong>
                     {% if p.get('rodzaj_palety') == 'eksportowa' %}
                     <span class="badge-plan-eksport" title="To zlecenie wymaga palet eksportowych">🚢 EKSPORT</span>
@@ -178,25 +179,25 @@ document.addEventListener('DOMContentLoaded', function () {
                     {% endif %}
                     {% endif %}
                 </td>
-                <td><span class="badge-sekcja">{{ (p.typ_produkcji or '-')|upper }}</span></td>
-                <td><strong class="text-success">{{ p.tonaz|int }} kg</strong></td>
-                <td><span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span></td>
-                <td>
+                <td data-label="Typ"><span class="badge-sekcja">{{ (p.typ_produkcji or '-')|upper }}</span></td>
+                <td data-label="Plan"><strong class="text-success">{{ p.tonaz|int }} kg</strong></td>
+                <td data-label="Czas"><span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span></td>
+                <td data-label="Wykonano">
                     {% if (p.tonaz_rzeczywisty|default(0, true)) > 0 %}
                     <strong class="text-success">{{ p.tonaz_rzeczywisty|int }} kg</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Uszkodzone">
                     {% if (p.uszkodzone_worki|default(0, true)|int) > 0 %}
                     <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
                     {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
                 </td>
-                <td class="text-right">
+                <td class="planner-actions text-right" data-label="">
                     {% if can_manage_plans %}
                     <div class="actions-dropdown">
                         <button type="button" class="actions-dropdown-btn" aria-label="Więcej opcji" title="Więcej opcji">
@@ -336,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
     {% endif %}
 
-    <table class="modern-table planista-main-table">
+    <table class="modern-table no-mobile-cards planista-main-table">
         <thead>
             <tr>
                 <th>Lp.</th>
@@ -355,8 +356,8 @@ document.addEventListener('DOMContentLoaded', function () {
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
             <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
-                <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td class="text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;">
+                <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
+                <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
                     {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                     <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
@@ -364,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Produkt" class="planner-product">
                     <strong class="text-primary">{{ p.produkt }}</strong>
                     {% if p.get('rodzaj_palety') == 'eksportowa' %}
                     <span class="badge-plan-eksport" title="To zlecenie wymaga palet eksportowych">🚢 EKSPORT</span>
@@ -376,39 +377,39 @@ document.addEventListener('DOMContentLoaded', function () {
                     {% endif %}
                     {% endif %}
                 </td>
-                <td><span class="badge-sekcja">{{ (p.typ_produkcji or '')|upper }}</span></td>
-                <td>
+                <td data-label="Typ"><span class="badge-sekcja">{{ (p.typ_produkcji or '')|upper }}</span></td>
+                <td data-label="Plan">
                     <strong class="text-success">{{ p.tonaz|int }} kg</strong>
                     {% if p.linked_workowanie_id is defined and p.linked_workowanie_id and p.linked_workowanie_tonaz is defined %}
                     <br><span style="display:inline-block;background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8;border-radius:8px;padding:1px 6px;font-size:0.76em;font-weight:600;margin-top:2px;">📦 worki{% if p.przeniesiony_z %} z {{ p.przeniesiony_z }}{% endif %}: {{ p.linked_workowanie_tonaz|int }} kg</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Czas">
                     <span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span>
                 </td>
-                <td>
+                <td data-label="Wykonano">
                     {% if (p.tonaz_rzeczywisty|default(0, true)) > 0 %}
                     <strong class="text-success">{{ p.tonaz_rzeczywisty|int }} kg</strong>
                     {% if p.wyjasnienie_rozbieznosci %}<br><span class="small text-danger-color">⚠️ {{ p.wyjasnienie_rozbieznosci }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Palety">
                     {% if palety_mapa[p.id] %}
                     <button type="button" data-action="toggle-details" data-plan-id="{{ p.id }}" class="btn-toggle">📦
                         {{ palety_mapa[p.id]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Uszkodzone">
                     {% if (p.uszkodzone_worki|default(0, true)|int) > 0 %}
                     <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
                     {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
                 </td>
-                <td class="text-right">
+                <td class="planner-actions text-right" data-label="">
                     <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
                         {# Compute remaining explicitly to avoid type issues #}
                         {% set plan_kg = (p.tonaz or 0) | float %}
@@ -515,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <h3 class="m-0">📊 Rozliczenie</h3>
         <div class="small text-muted">Dane: {{ wybrana_data }} — zawiera bufor</div>
     </div>
-    <table class="modern-table">
+    <table class="modern-table no-mobile-cards planner-summary-table">
         <thead>
             <tr>
                 <th>📦 Produkt</th>
@@ -534,13 +535,13 @@ document.addEventListener('DOMContentLoaded', function () {
             <tr
                 class="{% if r.status == 'w toku' %}bg-success-light{% elif r.status == 'zakonczone' %}bg-dark-light{% elif r.status == 'zaplanowane' %}bg-warning-light{% endif %}">
                 <td><strong class="text-primary">{{ r.produkt }}</strong></td>
-                <td>{{ r.planowany_zasyp|float }} kg</td>
-                <td>{{ r.zasyp_kg|float }} kg</td>
-                <td>{{ r.plan_workowanie|float }} kg</td>
-                <td>{{ r.spakowano_palety|float }} kg</td>
-                <td>{{ r.bufor_spakowano|float }} kg</td>
-                <td>{{ r.diff_no_buf }} kg</td>
-                <td>{{ r.diff_with_buf }} kg</td>
+                <td data-label="Plan zasypu">{{ r.planowany_zasyp|float }} kg</td>
+                <td data-label="Zasypano">{{ r.zasyp_kg|float }} kg</td>
+                <td data-label="Plan workowania">{{ r.plan_workowanie|float }} kg</td>
+                <td data-label="Spakowano">{{ r.spakowano_palety|float }} kg</td>
+                <td data-label="Bufor">{{ r.bufor_spakowano|float }} kg</td>
+                <td data-label="Różnica bez bufora">{{ r.diff_no_buf }} kg</td>
+                <td data-label="Różnica z buforem">{{ r.diff_with_buf }} kg</td>
             </tr>
             {% endfor %}
             {% else %}
