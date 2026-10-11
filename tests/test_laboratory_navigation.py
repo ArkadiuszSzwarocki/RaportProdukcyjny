@@ -43,3 +43,23 @@ def test_laboratory_header_and_quick_actions_hide_downtime_and_cleaning_bell(app
             suma_plan=0, suma_wykonanie=0)
     assert ('/action/production.zglos_przestoj_page' in html) == (role == 'masteradmin')
     assert ('id="cleaningNotificationsBtn"' in html) == (role == 'masteradmin')
+
+
+@pytest.mark.parametrize('role', ['laborant', 'laboratorium', 'masteradmin'])
+def test_laboratory_quick_actions_keep_recipe_date_and_focus_without_marked_actions(app, role):
+    env = app.jinja_env.overlay(undefined=ChainableUndefined)
+    env.globals = dict(env.globals, url_for=lambda endpoint, **kw: '/action/' + endpoint,
+                       _=lambda text: text)
+    with app.test_request_context('/'):
+        html = env.get_template('dashboard/_dashboard_actions_dropdown.html').render(
+            rola=role, sekcja='Zasyp', linia='AGRO', dzisiaj=date(2026, 10, 11),
+            plan=[(323, 'Produkt', 400, 'w toku')], agro_focus_mode=True,
+            kgph_stats_mapa={323: {'real_work': 346.7, 'timeline': 346.7}})
+    # Only inspect rendered controls, not the shared JavaScript helpers below them.
+    controls = html.split('<script>')[0]
+    for label in ('Rejestr Przestojów', 'Wydajność', 'Surowce w produkcji',
+                  'Kalkulator Zapotrzebowania', 'Zgłoś czyszczenie magnesu',
+                  'Zgłoś czyszczenie separatora'):
+        assert (label in controls) == (role == 'masteradmin')
+    for label in ('Receptura / Składniki', 'current-date-iso', 'Pokaż ukryte zlecenia'):
+        assert label in controls
