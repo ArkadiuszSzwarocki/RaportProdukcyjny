@@ -54,7 +54,7 @@ class ScannerSyncService:
         Processes a batch of offline-buffered scan events.
         Each event item is expected to have:
           - client_uuid (str): Unique client-generated UUID
-          - scan_action (str): Action type (e.g. 'LOOKUP', 'RELOCATE', 'VERIFY')
+          - scan_action (str): LOOKUP only; stock mutations require online confirmation
           - scanned_code (str): Barcode / QR / SSCC code
           - timestamp (str): Client scan timestamp
         """
@@ -75,6 +75,21 @@ class ScannerSyncService:
                 })
                 continue
 
+            if scan_action != 'LOOKUP':
+                results.append({
+                    'client_uuid': client_uuid,
+                    'status': 'INVALID',
+                    'message': 'Ta operacja wymaga potwierdzenia online; nie została wykonana.'
+                })
+                continue
+            if len(client_uuid) > 100 or len(scanned_code) > 255:
+                results.append({
+                    'client_uuid': client_uuid,
+                    'status': 'INVALID',
+                    'message': 'Identyfikator lub kod przekracza dopuszczalną długość.'
+                })
+                continue
+
             # Idempotency check
             if ScannerSyncService.is_event_already_processed(client_uuid):
                 skipped_duplicates += 1
@@ -85,7 +100,7 @@ class ScannerSyncService:
                 })
                 continue
 
-            # Execute lookup or dispatch verification
+            # Record a lookup only; never acknowledge a stock mutation here
             lookup_res = ScannerService.lookup_scanned_code(scanned_code)
             
             ScannerSyncService.record_synced_event(
