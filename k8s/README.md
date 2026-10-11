@@ -136,3 +136,13 @@ kubectl -n raportprodukcyjny create secret generic app-secrets \
 ```
 
 Po rotacji sekretów wykonaj kontrolowany restart odpowiednich Deploymentów.
+
+## Kontrola przed wdrożeniem poprawki bezpieczeństwa
+
+Uruchom `python scripts/security_preflight.py` we właściwym środowisku wdrożeniowym, z tymi samymi zmiennymi co aplikacja. Kontrola nie łączy się z bazą, pocztą ani drukarką i nie wyświetla wartości sekretów. Kod wyjścia 1 wskazuje konfigurację wymagającą poprawy; wynik lokalnego środowiska testowego nie potwierdza konfiguracji QNAP.
+
+Ustaw `TRUSTED_HOSTS` na rzeczywiste nazwy serwera. Dla MySQL zamontuj zaufany certyfikat CA w kontenerach `app` oraz `app-daemons` i ustaw `DB_SSL_CA` na jego ścieżkę. Serwer MySQL musi używać certyfikatu podpisanego przez tę CA, z nazwą zgodną z `DB_HOST`. Samo `DB_SSL_DISABLED=false` nie dowodzi poprawnej weryfikacji tożsamości serwera. Po podaniu CA aplikacja wymusza weryfikację certyfikatu i nazwy.
+
+Historia Git zawierała klucze `certs/key.pem` i `localhost+3-key.pem`. Traktuj je jako ujawnione. Nie kopiuj ich do sekretów wdrożenia ani nie wystawiaj nowego certyfikatu z tym samym kluczem. Wygeneruj nową parę klucz–certyfikat poza repozytorium, wymień ją w miejscu zakończenia HTTPS i sprawdź certyfikat udostępniany klientom. Aplikacja oraz konfiguracja Gunicorn odrzucają ujawnione klucze na podstawie odcisku części publicznej, również po zmianie nazwy pliku. Ta blokada nie zabezpiecza automatycznie zewnętrznego proxy QNAP.
+
+Skrypt kontroli sprawdza konfigurację zadeklarowaną w środowisku; nie zastępuje sprawdzenia praw konta MySQL, faktycznych reguł sieci ani certyfikatu Ingress/QNAP. Nie przepisuj historii współdzielonego repozytorium zamiast rotacji klucza — istniejące klony nadal mogą go zawierać.

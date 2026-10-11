@@ -129,7 +129,12 @@ def _configure_sessions(app):
     if cookie_secure_raw is not None:
         app.config['SESSION_COOKIE_SECURE'] = _env_bool('SESSION_COOKIE_SECURE')
     else:
-        app.config['SESSION_COOKIE_SECURE'] = _env_bool('USE_SSL', False)
+        app.config['SESSION_COOKIE_SECURE'] = _is_production() or _env_bool('USE_SSL', False)
+    if _is_production() and not app.config['SESSION_COOKIE_SECURE']:
+        raise RuntimeError('Production requires SESSION_COOKIE_SECURE=true and HTTPS.')
+    trusted_hosts = os.environ.get('TRUSTED_HOSTS', '')
+    if trusted_hosts.strip():
+        app.config['TRUSTED_HOSTS'] = [host.strip() for host in trusted_hosts.split(',') if host.strip()]
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)

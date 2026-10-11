@@ -1,6 +1,12 @@
 // cspell:words naważanie
 /* ─── Scanner UI Card Views (Pallet Card & Station Card) ─────── */
 
+function scannerEscapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 function showStation(station) {
   hidePallet();
   const stationCard = document.getElementById('stationCard');
@@ -19,11 +25,11 @@ function showStation(station) {
       itemEl.onclick = () => showPallet(item);
       
       itemEl.innerHTML = `
-        <div class="station-item-name">${item.nazwa}</div>
+        <div class="station-item-name">${scannerEscapeHtml(item.nazwa)}</div>
         <div class="station-item-details">
           <span><strong>Ilość:</strong> ${parseFloat(item.stan_magazynowy).toFixed(1)} kg</span>
-          <span><strong>ID:</strong> ${item.inventory_code}</span>
-          ${item.nr_partii ? `<span><strong>Partia:</strong> ${item.nr_partii}</span>` : ''}
+          <span><strong>ID:</strong> ${scannerEscapeHtml(item.inventory_code)}</span>
+          ${item.nr_partii ? `<span><strong>Partia:</strong> ${scannerEscapeHtml(item.nr_partii)}</span>` : ''}
         </div>
       `;
       itemsListEl.appendChild(itemEl);
@@ -66,7 +72,7 @@ function showPallet(p) {
   const palletLocEl = document.getElementById('palletLoc');
   if (palletLocEl) {
     if (p.lokalizacja === 'OCZEKUJĄCE' && p.source_location) {
-      palletLocEl.innerHTML = `<span style="color: #d97706; font-weight: bold;">OCZEKUJĄCE</span> <span style="font-size: 11px; font-weight: normal; color: #64748b;">(z: ${p.source_location})</span>`;
+      palletLocEl.innerHTML = `<span style="color: #d97706; font-weight: bold;">OCZEKUJĄCE</span> <span style="font-size: 11px; font-weight: normal; color: #64748b;">(z: ${scannerEscapeHtml(p.source_location)})</span>`;
     } else {
       palletLocEl.textContent = p.lokalizacja || '—';
     }
@@ -84,13 +90,13 @@ function showPallet(p) {
   const qtyContainer = document.querySelector('.pallet-qty');
   if (qtyContainer) {
     if (p.is_bucket) {
-      qtyContainer.innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${p.jednostka || 'składniki'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${scannerEscapeHtml(p.jednostka || 'składniki')}`;
     } else if (p.unit === 'szt.' || p.unit === 'szt' || p.inventory_type === 'Opakowanie' || p.is_pkg) {
       const rawVal = parseFloat(p.stan_magazynowy || 0);
       const qtyFormatted = Number.isInteger(rawVal) ? String(parseInt(rawVal, 10)) : rawVal.toFixed(1);
-      qtyContainer.innerHTML = `<span id="palletQty">${qtyFormatted}</span> ${p.unit || 'szt.'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${qtyFormatted}</span> ${scannerEscapeHtml(p.unit || 'szt.')}`;
     } else {
-      qtyContainer.innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${p.unit || 'kg'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${scannerEscapeHtml(p.unit || 'kg')}`;
     }
   }
   

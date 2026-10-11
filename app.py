@@ -108,6 +108,8 @@ if __name__ == '__main__':
     if use_ssl and (not cert_path or not key_path or not os.path.isfile(cert_path) or not os.path.isfile(key_path)):
         raise RuntimeError('USE_SSL=true wymaga poprawnych TLS_CERT_FILE i TLS_KEY_FILE poza repozytorium.')
     if use_ssl:
+        from scripts.tls_security import validate_tls_files
+        validate_tls_files(cert_path, key_path)
         ssl_context = (cert_path, key_path)
         protocol = "https"
         app.config['PREFERRED_URL_SCHEME'] = 'https'

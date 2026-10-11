@@ -27,6 +27,12 @@ DB_CONFIG = {
     'autocommit': False,
     'use_pure': True,
 }
+if os.getenv('DB_SSL_CA', '').strip():
+    DB_CONFIG.update({
+        'ssl_ca': os.environ['DB_SSL_CA'],
+        'ssl_verify_cert': True,
+        'ssl_verify_identity': True,
+    })
 
 EMAIL_RECIPIENTS = os.getenv(
     'EMAIL_RECIPIENTS',

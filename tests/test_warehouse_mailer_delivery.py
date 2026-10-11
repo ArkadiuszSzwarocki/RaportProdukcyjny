@@ -12,7 +12,7 @@ def transport():
     server = MagicMock()
     server.sendmail.return_value = {}
     with patch('app.services.warehouse_reports.warehouse_report_mailer.smtp_target_allowed', return_value=(True, '')), patch(
-            'app.services.warehouse_reports.warehouse_report_mailer.smtplib.SMTP_SSL', return_value=server) as connect:
+            'app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection', return_value=server) as connect:
         yield config, server, connect
 
 
@@ -55,11 +55,12 @@ def test_lowercase_tls_configuration_still_encrypts_transport(transport):
     config, server, ssl_connect = transport
     config.smtp_security = 'tls'
     config.smtp_port = 587
-    with patch('app.services.warehouse_reports.warehouse_report_mailer.smtplib.SMTP', return_value=server):
+    with patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection', return_value=server) as tls_connect:
         assert send(config)[0] is True
     ssl_connect.assert_not_called()
-    server.starttls.assert_called_once()
-    assert server.starttls.call_args.kwargs['context'].check_hostname is True
+    assert tls_connect.call_args.args[2] == 'TLS'
+    # TLS negotiation is enforced by the shared transport, before returning the client.
+    server.starttls.assert_not_called()
 
 
 def test_blocked_destination_does_not_connect(transport):

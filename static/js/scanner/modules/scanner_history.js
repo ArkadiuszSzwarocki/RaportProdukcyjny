@@ -80,7 +80,7 @@ function fetchScannerHistory() {
         emptyEl.style.display = 'block';
         emptyEl.innerHTML = `
           <span class="material-icons" style="font-size:32px; color:#ef4444;">error_outline</span>
-          <div style="font-size:13px; font-weight:600; color:#ef4444; margin-top:8px;">Błąd pobierania historii: ${err.message || err}</div>
+          <div style="font-size:13px; font-weight:600; color:#ef4444; margin-top:8px;">Błąd pobierania historii: ${scannerEscapeHtml(err.message || err)}</div>
         `;
       }
     });
@@ -123,9 +123,9 @@ function renderHistoryTimeline(items) {
     if (item.lokalizacja_zrodlowa || item.lokalizacja_docelowa) {
       routeHtml = `
         <div style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:4px; margin-top:4px;">
-          <span>${item.lokalizacja_zrodlowa || '—'}</span>
+          <span>${scannerEscapeHtml(item.lokalizacja_zrodlowa || '—')}</span>
           <span class="material-icons" style="font-size:12px;">arrow_forward</span>
-          <span>${item.lokalizacja_docelowa || '—'}</span>
+          <span>${scannerEscapeHtml(item.lokalizacja_docelowa || '—')}</span>
         </div>
       `;
     }
@@ -138,17 +138,17 @@ function renderHistoryTimeline(items) {
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
             <div style="display:inline-flex; align-items:center; gap:4px; background:${cfg.bg}; color:${cfg.text}; border:1px solid ${cfg.border}; border-radius:4px; padding:2px 6px; font-size:11px; font-weight:800;">
               <span class="material-icons" style="font-size:13px;">${cfg.icon}</span>
-              <span>${cfg.label}</span>
+              <span>${scannerEscapeHtml(cfg.label)}</span>
             </div>
             <div style="font-size:11px; color:#64748b; font-weight:600;">
-              <span>${dateStr}</span>
-              ${userStr ? `<span style="color:#0f172a; margin-left:4px;">(${userStr})</span>` : ''}
+              <span>${scannerEscapeHtml(dateStr)}</span>
+              ${userStr ? `<span style="color:#0f172a; margin-left:4px;">(${scannerEscapeHtml(userStr)})</span>` : ''}
             </div>
           </div>
           
           ${routeHtml}
           
-          ${commentStr ? `<div style="font-size:12px; color:#334155; margin-top:5px; line-height:1.4; word-break:break-word;">${commentStr}</div>` : ''}
+          ${commentStr ? `<div style="font-size:12px; color:#334155; margin-top:5px; line-height:1.4; word-break:break-word;">${scannerEscapeHtml(commentStr)}</div>` : ''}
         </div>
       </div>
     `;

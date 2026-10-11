@@ -12,7 +12,7 @@ from email.utils import formataddr
 from email import encoders
 from typing import List, Optional, Tuple, Dict, Any
 
-from app.core.network_security import smtp_target_allowed
+from app.core.network_security import smtp_target_allowed, secure_smtp_connection
 from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
 
 
@@ -47,13 +47,9 @@ class EmailService:
                 return False, f"❌ {reason}"
 
             if smtp_security == 'SSL' or smtp_port == 465:
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12, context=ssl.create_default_context())
+                server = secure_smtp_connection(smtp_server, smtp_port, 'SSL', timeout=12, context=ssl.create_default_context())
             else:
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=12)
-                server.ehlo()
-                if smtp_security == 'TLS' or smtp_port == 587:
-                    server.starttls(context=ssl.create_default_context())
-                    server.ehlo()
+                server = secure_smtp_connection(smtp_server, smtp_port, smtp_security, timeout=12)
 
             server.login(smtp_username, smtp_password)
             server.quit()
@@ -168,13 +164,9 @@ class EmailService:
                         return False, "Brak wybranego załącznika raportu. Wygeneruj raport ponownie."
 
             if config['security'] == 'SSL' or config['port'] == 465:
-                server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=15, context=ssl.create_default_context())
+                server = secure_smtp_connection(config['server'], config['port'], 'SSL', timeout=15, context=ssl.create_default_context())
             else:
-                server = smtplib.SMTP(config['server'], config['port'], timeout=15)
-                server.ehlo()
-                if config['security'] == 'TLS' or config['port'] == 587:
-                    server.starttls(context=ssl.create_default_context())
-                    server.ehlo()
+                server = secure_smtp_connection(config['server'], config['port'], config['security'], timeout=15)
 
             server.login(config['username'], config['password'])
             refused = server.sendmail(config['username'], to_emails, msg.as_string())

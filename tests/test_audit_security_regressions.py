@@ -100,6 +100,7 @@ def test_printer_bridge_pdf_rejects_unconfigured_local_printer(monkeypatch):
 
 def test_production_factory_never_registers_debug_url_map(monkeypatch):
     monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('SESSION_COOKIE_SECURE', 'true')
     monkeypatch.setenv('ENV', 'production')
     monkeypatch.setenv('SECRET_KEY', 'S' * 64)
     monkeypatch.setenv('ENCRYPTION_KEY', Fernet.generate_key().decode('ascii'))

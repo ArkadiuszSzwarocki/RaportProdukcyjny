@@ -309,7 +309,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
         return repo
 
     @patch('app.services.osip_report_email_service.get_db_connection')
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_transfer_report_sends_for_standard_transfer(self, mock_smtp_ssl, mock_connection):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -332,7 +332,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
     @patch('app.services.osip_report_email_service.get_db_connection')
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_transfer_report_sends_when_movement_to_osip(self, mock_smtp_ssl, mock_connection):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -366,13 +366,13 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             success, msg = service.send_osip_transfer_report(11)
             assert success is True
             assert "Raport przyjęcia wysłany pomyślnie" in msg
-            assert mock_smtp_ssl.call_args.args == ("smtp.custom-osip.pl", 465)
+            assert mock_smtp_ssl.call_args.args == ("smtp.custom-osip.pl", 465, "SSL")
             assert mock_smtp_ssl.call_args.kwargs["context"].check_hostname is True
             mock_server_instance.login.assert_called_once_with("osip_nadawca@custom-osip.pl", "safe_password")
             mock_server_instance.sendmail.assert_called_once()
 
     @patch('app.services.osip_report_email_service.get_db_connection')
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_transfer_report_sends_when_movement_from_osip(self, mock_smtp_ssl, mock_connection):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -407,7 +407,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert success is True
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_delivery_report_sends_for_standard_transfer(self, mock_smtp_ssl):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -431,7 +431,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert success is True
             assert "Raport przyjęcia wysłany pomyślnie" in msg
 
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_delivery_report_sends_for_osip_target(self, mock_smtp_ssl):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -459,7 +459,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert "Raport przyjęcia wysłany pomyślnie" in msg
             mock_server_instance.sendmail.assert_called_once()
 
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_delivery_report_skips_when_already_sent(self, mock_smtp_ssl):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 
@@ -481,7 +481,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             assert "został już wcześniej wysłany" in msg
             mock_smtp_ssl.assert_not_called()
 
-    @patch('smtplib.SMTP_SSL')
+    @patch('app.services.warehouse_reports.warehouse_report_mailer.secure_smtp_connection')
     def test_transfer_report_skips_when_already_sent(self, mock_smtp_ssl):
         service = OsipReportEmailService(settings_repo=self._get_mock_settings_repo())
 

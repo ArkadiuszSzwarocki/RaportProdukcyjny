@@ -50,3 +50,41 @@ test('picking renderer treats stock names, batches and block reasons as text', (
     }
     assert.ok(rows[1].innerHTML.includes('10.0 kg'));
 });
+
+test('scanner station and history escape stored product and movement text', () => {
+    const rows = [];
+    const context = vm.createContext({
+        hidePallet() {},
+        document: {
+            getElementById: id => id === 'stationItemsList' ? {appendChild: row => rows.push(row)} : null,
+            createElement: () => ({style: {}}),
+        },
+    });
+    for (const file of ['scanner_ui.js', 'scanner_history.js']) {
+        vm.runInContext(readFileSync(new URL(`../../static/js/scanner/modules/${file}`, import.meta.url), 'utf8'), context);
+    }
+    context.hidePallet = () => {};
+    const attack = '<img src=x onerror="alert(1)">';
+    context.showStation({station_code: 'LP01', items: [{nazwa: attack, inventory_code: attack,
+                         nr_partii: attack, stan_magazynowy: 1000}]});
+    assert.equal(rows.length, 1);
+    assert.ok(!rows[0].innerHTML.includes('<img'));
+    assert.ok(rows[0].innerHTML.includes('&lt;img'));
+    const html = context.renderHistoryTimeline([{typ_ruchu: attack, autor_data: attack,
+        autor_login: attack, komentarz: attack, lokalizacja_zrodlowa: attack, lokalizacja_docelowa: attack}]);
+    assert.ok(!html.includes('<img'));
+    assert.ok(html.includes('&lt;img'));
+});
+
+test('scanner notifications display server messages as text', () => {
+    const notifications = [];
+    const context = vm.createContext({window: {}, setTimeout() {},
+        document: {getElementById: () => ({appendChild: element => notifications.push(element)}),
+                   createElement: () => ({style: {}})},
+    });
+    vm.runInContext(readFileSync(new URL('../../static/js/scanner/modules/scanner_audio_toast.js', import.meta.url), 'utf8'), context);
+    const attack = '<img src=x onerror="alert(1)">';
+    context.showToast(attack, 'danger');
+    assert.equal(notifications[0].textContent, attack);
+    assert.equal(notifications[0].innerHTML, undefined);
+});

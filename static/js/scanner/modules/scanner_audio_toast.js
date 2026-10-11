@@ -63,7 +63,7 @@ function showToast(msg, type) {
   
   const colors = {success:'#166534', warn:'#92400e', danger:'#991b1b', info:'#0284c7'};
   el.style.background = colors[type] || '#0f172a';
-  el.innerHTML = msg;
+  el.textContent = msg;
 
   container.appendChild(el);
 

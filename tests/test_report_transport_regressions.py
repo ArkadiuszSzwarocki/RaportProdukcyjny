@@ -13,7 +13,7 @@ def transport():
     server.sendmail.return_value = {}
     with patch.object(service, 'get_smtp_config_for_user', return_value=config), patch(
             'app.services.email_service.smtp_target_allowed', return_value=(True, '')), patch(
-            'app.services.email_service.smtplib.SMTP_SSL', return_value=server), patch(
+            'app.services.email_service.secure_smtp_connection', return_value=server), patch(
             'app.services.email_log_service.EmailLogService.log_email_attempt'):
         yield service, server
 

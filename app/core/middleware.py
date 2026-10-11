@@ -202,7 +202,7 @@ def add_security_headers(app):
                 "img-src 'self' data: blob:; "
                 "font-src 'self' data: https://fonts.gstatic.com; "
                 "connect-src 'self' wss: https:; "
-                "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+                "object-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
             )
             if request.is_secure or current_app.config.get('PREFERRED_URL_SCHEME') == 'https':
                 response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'

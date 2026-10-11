@@ -3,9 +3,8 @@ Moduł odpowiedzialny za bezpieczną wysyłkę e-mail SMTP z załącznikami PDF.
 """
 from typing import Tuple, List, Optional
 import os
-import smtplib
 import ssl
-from app.core.network_security import smtp_target_allowed
+from app.core.network_security import smtp_target_allowed, secure_smtp_connection
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -69,11 +68,9 @@ class WarehouseReportMailer:
 
             server = None
             if use_ssl:
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=15, context=ssl.create_default_context())
+                server = secure_smtp_connection(smtp_server, smtp_port, 'SSL', timeout=15, context=ssl.create_default_context())
             else:
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
-                if use_tls:
-                    server.starttls(context=ssl.create_default_context())
+                server = secure_smtp_connection(smtp_server, smtp_port, 'TLS' if use_tls else 'NONE', timeout=15)
 
             if smtp_user and smtp_password:
                 server.login(smtp_user, smtp_password)
@@ -107,11 +104,9 @@ class WarehouseReportMailer:
             use_ssl = (smtp_security == 'SSL')
             use_tls = (smtp_security == 'TLS')
             if use_ssl:
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10, context=ssl.create_default_context())
+                server = secure_smtp_connection(smtp_server, smtp_port, 'SSL', timeout=10, context=ssl.create_default_context())
             else:
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-                if use_tls:
-                    server.starttls(context=ssl.create_default_context())
+                server = secure_smtp_connection(smtp_server, smtp_port, 'TLS' if use_tls else 'NONE', timeout=10)
             if smtp_username and smtp_password:
                 server.login(smtp_username, smtp_password)
             return True, "Połączenie z serwerem SMTP powiodło się."
