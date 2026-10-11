@@ -612,6 +612,16 @@
 .machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
 
 /* Modal Enhancements */
+[data-dashboard-submit="zasyp-stop"] .btn-stop:disabled {
+    background: #cbd5e1 !important;
+    color: #475569 !important;
+    border-color: #cbd5e1 !important;
+    cursor: not-allowed;
+    opacity: 0.65;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
 .quick-popup.open:not(.qp-wide):not(.qp-dosypka-full):not(:has(.dosypka-popup-container)) {
     max-width: min(700px, 95vw);
     max-height: 90vh;
