@@ -1,3 +1,4 @@
+# cspell:words delenv EJUS
 """Adversarial authorization and transport regression tests without external writes."""
 from unittest.mock import MagicMock, patch
 import ssl

@@ -190,12 +190,14 @@ def test_dostawa_fallback_redirect(authenticated_client):
 
     mock_cursor.fetchone.return_value = {
         'id': '563d2bcb-955e-4d51-b007-665aa35a9d60',
+        'linia': 'PSD',
         'status': 'OCZEKUJE',
         'supplier': '',
         'lokalizacja_z': 'MP01'
     }
 
-    with patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn):
+    with patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn), patch(
+            'app.core.logistics_permissions.get_db_connection', return_value=mock_conn):
         res = authenticated_client.get('/magazyn-dostawy/563d2bcb-955e-4d51-b007-665aa35a9d60?linia=ALL')
     
     assert res.status_code == 302
