@@ -11,7 +11,7 @@ def test_edytuj_palete_magazyn_success():
     mock_conn.cursor.return_value = mock_cursor
 
     # Setup magazyn row: (id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara)
-    mock_cursor.fetchone.return_value = (755, 768, 287, 1.0, 'AGR000001789365664871', 25.0)
+    mock_cursor.fetchone.return_value = (755, 768, 287, 1.0, 'AGR000001789365664871', 25.0, 'AGRO')
 
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'test'
@@ -35,7 +35,8 @@ def test_edytuj_palete_magazyn_success():
 
     # Verify executed statements
     executed_sqls = [str(call[0][0]) for call in mock_cursor.execute.call_args_list]
-    assert any('UPDATE magazyn_palety_agro SET waga_netto=%s, waga_brutto=%s WHERE id=%s' in sql for sql in executed_sqls)
+    assert any('UPDATE magazyn_palety SET waga_netto=%s, waga_brutto=%s WHERE id=%s' in sql for sql in executed_sqls)
+    assert not any('magazyn_palety_agro' in sql for sql in executed_sqls)
     assert any('UPDATE palety_agro SET waga_potwierdzona=%s, waga=%s WHERE id=%s' in sql for sql in executed_sqls)
     assert any('UPDATE plan_produkcji_agro' in sql for sql in executed_sqls)
     assert any('INSERT INTO palety_historia' in sql for sql in executed_sqls)
@@ -53,11 +54,8 @@ def test_edytuj_palete_cross_line_fallback():
     def fake_fetchone():
         if mock_cursor.execute.call_args:
             sql = str(mock_cursor.execute.call_args[0][0])
-            if 'magazyn_palety ' in sql or 'palety_workowanie' in sql:
-                # PSD table: not found
-                return None
-            if 'magazyn_palety_agro' in sql:
-                return (755, 768, 287, 1.0, 'AGR000001789365664871', 25.0)
+            if sql.startswith('SELECT id, paleta_workowanie_id'):
+                return (755, 768, 287, 1.0, 'AGR000001789365664871', 25.0, 'AGRO')
         return None
 
     mock_cursor.execute.side_effect = fake_execute
@@ -81,6 +79,12 @@ def test_edytuj_palete_cross_line_fallback():
     assert status_code == 200
     assert result['success'] is True
     assert mock_conn.commit.called
+
+    executed_sqls = [str(call[0][0]) for call in mock_cursor.execute.call_args_list]
+    assert any('UPDATE palety_agro SET' in sql for sql in executed_sqls)
+    assert not any('UPDATE palety_workowanie SET' in sql for sql in executed_sqls)
+    plan_updates = [call for call in mock_cursor.execute.call_args_list if 'UPDATE plan_produkcji_agro pp' in call[0][0]]
+    assert plan_updates[0][0][1] == ('AGRO', 287)
 
 
 def test_edytuj_palete_unconfirmed_buffer():

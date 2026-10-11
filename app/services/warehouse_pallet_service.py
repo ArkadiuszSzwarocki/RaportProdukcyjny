@@ -508,12 +508,15 @@ class WarehousePalletService:
 
                 # 1. Check if paleta_id matches magazyn_palety by primary key ID (e.g. from warehouse table)
                 cursor.execute(
-                    f"SELECT id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara FROM {table_mag} WHERE id=%s LIMIT 1",
+                    f"SELECT id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara, linia FROM {table_mag} WHERE id=%s LIMIT 1",
                     (paleta_id,)
                 )
                 mag_row = cursor.fetchone()
                 if mag_row:
-                    mag_id, work_id, plan_id, old_netto, nr_palety, tara = mag_row
+                    mag_id, work_id, plan_id, old_netto, nr_palety, tara, stored_line = mag_row
+                    line = str(stored_line or line).upper()
+                    table_pal = get_table_name('palety_workowanie', line)
+                    table_plan = get_table_name('plan_produkcji', line)
                     tara_val = float(tara or 0.0)
                     new_brutto = float(waga) + tara_val
 
@@ -538,11 +541,11 @@ class WarehousePalletService:
                             SET tonaz_rzeczywisty = (
                                 SELECT COALESCE(SUM(mp.waga_netto), 0)
                                 FROM {table_mag} mp
-                                WHERE mp.plan_id = pp.id
+                                WHERE mp.plan_id = pp.id AND mp.linia = %s
                             )
                             WHERE pp.id = %s
                             """,
-                            (plan_id,)
+                            (line, plan_id)
                         )
 
                     target_found = True
@@ -585,8 +588,8 @@ class WarehousePalletService:
                         tara_val = float(p_tara or 0.0)
                         new_brutto = float(waga) + tara_val
                         cursor.execute(
-                            f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s",
-                            (waga, new_brutto, p_id)
+                            f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s AND linia=%s AND nr_palety=%s",
+                            (waga, new_brutto, p_id, line, nr_palety)
                         )
                     else:
                         cursor.execute(
@@ -603,11 +606,11 @@ class WarehousePalletService:
                                 SET tonaz_rzeczywisty = (
                                     SELECT COALESCE(SUM(mp.waga_netto), 0)
                                     FROM {table_mag} mp
-                                    WHERE mp.plan_id = pp.id
+                                    WHERE mp.plan_id = pp.id AND mp.linia = %s
                                 )
                                 WHERE pp.id = %s
                                 """,
-                                (plan_id,)
+                                (line, plan_id)
                             )
                         else:
                             cursor.execute(
