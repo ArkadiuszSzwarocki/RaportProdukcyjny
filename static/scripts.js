@@ -812,8 +812,10 @@
                     } catch (err) {}
                 }
                 
-                if (json && json.success === false) {
-                    alert(json.message || 'Błąd operacji');
+                if (!response.ok || (json && json.success === false)) {
+                    const message = (json && json.message) || 'Błąd operacji';
+                    if (typeof window.showToast === 'function') window.showToast(message, 'danger');
+                    else alert(message);
                     submitBtns.forEach(btn => btn.disabled = false);
                     return;
                 }
@@ -822,7 +824,7 @@
                 await performPartialReload({ force: true, preserveScroll: true, source: 'form-ajax' });
                 
                 if (typeof window.showToast === 'function') {
-                    window.showToast('Zapisano!', 'success');
+                    window.showToast((json && json.message) || 'Zapisano!', 'success');
                 }
             })
             .catch(function (error) {
@@ -2051,7 +2053,7 @@
                             const refreshTarget = innerForm.dataset.refreshTarget;
                             const refreshUrl = innerForm.dataset.refreshUrl;
 
-                            function finalizeSuccess() {
+                            function finalizeSuccess(payload) {
                                 if (stayOpen && refreshTarget && refreshUrl) {
                                     fetch(refreshUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                                         .then(r => r.text())
@@ -2066,7 +2068,11 @@
                                     });
                                     return;
                                 }
-                                remove(); performPartialReload();
+                                if (innerForm.dataset.successNavigate === 'true' && payload && payload.redirect_url) {
+                                    const target = new URL(payload.redirect_url, window.location.origin);
+                                    if (target.origin === window.location.origin) { window.location.href = target.href; return; }
+                                }
+                                remove(); performPartialReload({ force: true, preserveScroll: true, source: 'popup-submit' });
                             }
 
                             if (resp.status === 401) { window.location.href = '/login'; return; }
@@ -2083,7 +2089,7 @@
                                 }
                                 if (j && j.success) {
                                     if (typeof showToast === 'function' && j.message) showToast(j.message, 'success');
-                                    finalizeSuccess();
+                                    finalizeSuccess(j);
                                 }
                                 else {
                                     if (typeof showToast === 'function') showToast(j && j.message ? j.message : 'Błąd', 'warning');

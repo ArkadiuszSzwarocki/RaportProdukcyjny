@@ -59,6 +59,7 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'css', 'sidebar.css'),
             os.path.join(current_app.static_folder, 'css', 'planista_mobile.css'),
             os.path.join(current_app.static_folder, 'js', 'common', 'touch-scroll.js'),
+            os.path.join(current_app.static_folder, 'js', 'common', 'order-resume.js'),
             os.path.join(current_app.static_folder, 'js', 'scanner', 'keyboard-blocker.js'),
             os.path.join(current_app.static_folder, 'css', 'inline-styles.css'),
             os.path.join(current_app.static_folder, 'css', 'dashboard.css'),

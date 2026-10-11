@@ -61,8 +61,11 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
 
         current_app.logger.info('[REANIMATE] id=%s linia=%s sekcja=%s data=%s user=%s role=%s', id, linia, sekcja, data_planu, session.get('login'), session.get('rola'))
         success, message = PlanningStatusService.resume_plan(id, linia=linia)
+        return_url = _build_context_return_url(linia, sekcja, data_planu)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=success, message=message, redirect_url=return_url), 200 if success else 409
         flash(message, 'success' if success else 'warning')
-        return redirect(_build_context_return_url(linia, sekcja, data_planu))
+        return redirect(return_url)
 
     @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
     @roles_required('planista', 'admin', 'zarzad', 'lider')
