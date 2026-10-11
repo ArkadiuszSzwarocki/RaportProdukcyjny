@@ -321,28 +321,31 @@ def register_production_notification_routes(
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
                 f"""
-                SELECT d.plan_id, COUNT(*)
+                SELECT d.plan_id, d.szarza_id, COUNT(*)
                 FROM {table_dosypki} d
                 JOIN {table_plan} p ON d.plan_id = p.id
                 WHERE d.potwierdzone = 0
                   AND COALESCE(d.anulowana, 0) = 0
                   AND p.sekcja = 'Zasyp'
                   AND (DATE(p.data_planu) = %s OR p.status = 'w toku')
-                GROUP BY d.plan_id
+                GROUP BY d.plan_id, d.szarza_id
                 """,
                 (target_day,),
             )
 
             counts = {}
-            for plan_id, pending_count in cursor.fetchall() or []:
+            batch_counts = {}
+            for plan_id, batch_id, pending_count in cursor.fetchall() or []:
                 try:
                     pid_s = str(int(plan_id))
-                    counts[pid_s] = int(pending_count or 0)
+                    counts[pid_s] = counts.get(pid_s, 0) + int(pending_count or 0)
+                    if batch_id is not None:
+                        batch_counts.setdefault(pid_s, {})[str(int(batch_id))] = int(pending_count or 0)
                 except Exception:
                     continue
 
             current_app.logger.info(f'[BADGE-DEBUG] role={role}, linia={linia}, target_day={target_day}, counts={counts}')
-            return jsonify({"success": True, "counts": counts, "timestamp": time.time()})
+            return jsonify({"success": True, "counts": counts, "batch_counts": batch_counts, "timestamp": time.time()})
         except Exception:
             current_app.logger.exception('Failed to load pending dosypki badge counts')
             return jsonify({"success": False, "counts": {}, "timestamp": time.time()})

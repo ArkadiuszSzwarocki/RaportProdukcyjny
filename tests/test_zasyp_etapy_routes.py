@@ -16,6 +16,24 @@ def authorized_zasyp_resource():
         yield
 
 
+def test_confirmed_batch_addition_starts_dosypka_instead_of_emptying(client):
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.return_value = ('Zasyp', 'w toku', date(2026, 10, 11), 'Produkt', 'NORMAL')
+    with client.session_transaction() as state:
+        state.update(zalogowany=True, login='test', rola='pracownik', grupa='AGRO')
+    with patch('app.blueprints.routes_production.get_db_connection', return_value=connection), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.stop_etap', return_value=(True, 'OK')), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.get_etapy', return_value={
+            'etapy': [{'etap': 3, 'exists': True, 'czas_start': None}]}), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.start_etap', return_value=(True, 'OK')) as start, patch(
+        'app.blueprints.routes_production.audit_log'), patch('app.blueprints.routes_production.generate_tts_async'):
+        response = client.post('/zasyp_etap_stop', data={
+            'plan_id': 323, 'szarza_nr': 3, 'etap': 2, 'linia': 'AGRO', 'next_action': 'oprozniamy'})
+    assert response.status_code == 302
+    assert start.call_args.kwargs['etap'] == 3
+    assert int(start.call_args.kwargs['szarza_nr']) == 3
+
+
 @pytest.mark.usefixtures("app")
 class TestZasypEtapStartRoute:
     @patch('app.blueprints.routes_production.generate_tts_async')

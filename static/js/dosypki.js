@@ -54,7 +54,7 @@
     function updateDosypkiBadge(planId, delta) {
         if (!planId) return;
         debugLog('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
-        const triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+        const triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]:not([data-szarza-id])');
         if (!triggers || triggers.length === 0) {
             debugWarn('[dosypki.badge] Trigger button not found for plan:', planId);
             return;

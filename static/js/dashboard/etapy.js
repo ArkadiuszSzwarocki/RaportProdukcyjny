@@ -249,6 +249,14 @@
             (linia === 'AGRO' && etap === '5') ||
             (linia !== 'AGRO' && etap === '6');
 
+        if (isAgroDecisionStop && Number(form.dataset.pendingDosypki || 0) > 0) {
+            if (typeof global.showToast === 'function') global.showToast('Najpierw potwierdź dosypki przypisane do tego zasypu.', 'danger');
+            return false;
+        }
+        if (isAgroDecisionStop && form.dataset.automaticDosypka === '1') {
+            isAgroDecisionStop = false;
+        }
+
         if (!isAgroDecisionStop && !isFinalEmptyStop) {
             var etapIdRaw = parseInt(etap, 10);
             var isOvertime = _isEtapOvertime(form.closest('.etap-card'), etapIdRaw);

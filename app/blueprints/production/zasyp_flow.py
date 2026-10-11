@@ -311,7 +311,12 @@ def register_production_zasyp_flow_routes(
                 if etap == 1:
                     next_etap = 2
                 elif etap == 2 or etap == 4 or str(etap).startswith('4'):
-                    if next_action not in ('add_pair', 'oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
+                    stage_state = ZasypEtapyService.get_etapy(plan_id, linia, szarza_nr=szarza_nr_raw)
+                    pending_stage = next((item['etap'] for item in stage_state.get('etapy', [])
+                                          if item.get('exists') and str(item['etap']).startswith('3') and not item.get('czas_start')), None)
+                    if pending_stage is not None:
+                        next_etap = pending_stage
+                    elif next_action not in ('add_pair', 'oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
                         msg = f"{msg}; brak wyboru w oknie decyzji - nie uruchomiono kolejnego etapu"
                     elif next_action in ('oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
                         next_etap = 5

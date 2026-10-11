@@ -16,6 +16,7 @@
 {% endfor %}
 {% if p[3] == 'w toku' or has_real.val %}
 {% set cur_szarza = sesja.szarza_nr|default(1) %}
+{% set pending_batch_dosypki = dosypki_oczekujace_mapa.get(('nr', p[0], cur_szarza), 0) if dosypki_oczekujace_mapa is defined else 0 %}
 {% set etapy = sesja.etapy|default([]) %}
 {% set sesja_running = namespace(etap=None, label='') %}
 {% for etap_info in etapy %}
@@ -369,9 +370,15 @@
                     </form>
                         {% elif etap.is_running %}
                         {% if rola not in ['laborant', 'laboratorium'] %}
+                                                {% set auto_dosypka = namespace(value=false) %}
+                                                {% for addition in (dosypki_mapa|default({})).get(p[0], []) %}
+                                                {% if addition.szarza_nr == cur_szarza and (etap.etap == 2 or (addition.potwierdzono_dt and etap.czas_start and addition.potwierdzono_dt >= etap.czas_start)) %}{% set auto_dosypka.value = true %}{% endif %}
+                                                {% endfor %}
                                                 <form action="{{ url_for('production.zasyp_etap_stop') }}"
                                                             method="POST" style="margin:0;"
                                                             data-dashboard-submit="zasyp-stop"
+                                                            data-automatic-dosypka="{{ '1' if auto_dosypka.value else '0' }}"
+                                                            data-pending-dosypki="{{ pending_batch_dosypki }}"
                                                             data-etap="{{ etap.etap }}"
                                                             data-linia="{{ linia }}"
                                                             >
@@ -384,6 +391,7 @@
                         <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
                         <button type="submit"
                                 class="btn-action btn-stop"
+                                {% if pending_batch_dosypki and (etap.etap == 2 or (etap.etap|string).startswith('4')) %}disabled title="Najpierw potwierdź dosypki przypisane do tego zasypu"{% endif %}
                                 style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center;">⏹ Stop</button>
                     </form>
                         {% endif %}

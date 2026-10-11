@@ -63,12 +63,13 @@
                             {% set is_admin_or_zarzad = current_role in ['admin', 'masteradmin', 'master_admin', 'zarzad', 'zarząd'] %}
                             {% set is_szarza_emptied = (pal[9] if pal|length > 9 else false) %}
                             {% set is_order_closed = (p[3] != 'w toku') %}
-                            {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
+                            {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get((p[0], szarza_id), 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                             {% set can_add_dosypka = is_admin_or_zarzad or (not is_order_closed and not is_szarza_emptied and (current_role in ['laborant', 'laboratorium'] or (current_role == 'lider' and linia != 'AGRO'))) %}
                             {% if can_add_dosypka %}
                             <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
                                class="btn-action btn-blue btn-with-badge"
                                data-plan-id="{{ p[0] }}"
+                               data-szarza-id="{{ szarza_id }}"
                                data-slide
                                title="Dodaj dosypkę do tego zasypu">+ DOSYPKA{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                             {% elif is_szarza_emptied and not is_admin_or_zarzad and current_role in ['laborant', 'laboratorium'] %}
