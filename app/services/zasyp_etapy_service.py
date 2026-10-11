@@ -794,9 +794,9 @@ class ZasypEtapyService:
                     existing = {int(item[0]) for item in stages}
                     waiting = any(str(item[0]).startswith('3') and not item[1] for item in stages)
                     if not waiting:
-                        suffix = 0
-                        while (3 if suffix == 0 else int('3' + str(suffix))) in existing or (4 if suffix == 0 else int('4' + str(suffix))) in existing:
-                            suffix += 1
+                        previous_suffixes = [_agro_suffix_for_etap(item) for item in existing]
+                        previous_suffixes = [item for item in previous_suffixes if item is not None]
+                        suffix = max(previous_suffixes, default=0) + 1 if existing.intersection({3, 4}) or previous_suffixes else 0
                         pair = (3, 4) if suffix == 0 else (int('3' + str(suffix)), int('4' + str(suffix)))
                         stage_date = next((item[3] for item in stages if int(item[0]) == etap_nr), date.today())
                         for new_stage in pair:

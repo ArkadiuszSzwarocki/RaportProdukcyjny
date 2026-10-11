@@ -111,7 +111,7 @@
                 {% set e_nr = e.etap %}
                 {% set e_str = e_nr|string %}
                 {% set is_main = e_nr in [1, 2, 5, 6] %}
-                {% set is_mixer = e_nr in [3, 4] or (e_nr > 30 and e_nr < 50) %}
+                {% set is_mixer = e_str.startswith('3') or e_str.startswith('4') %}
                 
                 {% if is_main or is_mixer %}
                     {% set hide_mixer_etap = is_mixer and not e.is_running and not e.czas_start and not e.czas_stop %}
@@ -137,9 +137,9 @@
                         {% if e_nr == 1 %}{% set label = 'Naważanie' %}
                         {% elif e_nr == 2 %}{% set label = 'Mieszanie (LAB)' %}
                         {% elif e_nr == 3 %}{% set label = 'Dosypka' %}
-                        {% elif 30 < e_nr < 40 %}{% set label = 'Dosypka 3' ~ ('abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ]) %}
+                        {% elif e_str.startswith('3') %}{% set label = 'Dosypka — cykl ' ~ (e_str[1:]|int + 1) %}
                         {% elif e_nr == 4 %}{% set label = 'Mieszanie II' %}
-                        {% elif 40 < e_nr < 50 %}{% set label = 'Mieszanie 4' ~ ('abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ]) %}
+                        {% elif e_str.startswith('4') %}{% set label = 'Mieszanie i oczekiwanie na LAB po dosypce — cykl ' ~ (e_str[1:]|int + 1) %}
                         {% elif e_nr in [5, 6] %}{% set label = 'Opróżnianie' %}
                         {% endif %}
 
@@ -297,9 +297,9 @@
                     {% if e_nr == 1 %}Naważanie
                     {% elif e_nr == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
                     {% elif e_nr == 3 %}Dosypka
-                    {% elif 30 < e_nr < 40 %}Dosypka 3{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                    {% elif (e_nr|string).startswith('3') %}Dosypka — cykl {{ (e_nr|string)[1:]|int + 1 }}
                     {% elif e_nr == 4 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB po dosypce{% else %}Dosypka{% endif %}
-                    {% elif 40 < e_nr < 50 %}Mieszanie 4{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                    {% elif (e_nr|string).startswith('4') %}Mieszanie i oczekiwanie na LAB po dosypce — cykl {{ (e_nr|string)[1:]|int + 1 }}
                     {% elif e_nr == 5 %}{% if linia == 'AGRO' %}Opróżnianie{% else %}Mieszanie{% endif %}
                     {% elif e_nr == 6 %}Opróżnianie
                     {% else %}Etap {{ e_nr }}{% endif %}
@@ -326,7 +326,7 @@
                 {% endif %}
                 {% if p[3] == 'w toku' and not is_readonly %}
                 <div class="d-flex gap-6 mt-6 flex-wrap" style="justify-content:center; align-items:center; min-height:32px;">
-                    {% set is_agro_pair_etap = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
+                    {% set is_agro_pair_etap = linia == 'AGRO' and ((etap.etap|string).startswith('3') or (etap.etap|string).startswith('4')) %}
                     {% set restart_plan_arg = request.args.get('restart_plan') %}
                     {% set restart_etap_arg = request.args.get('restart_etap') %}
                     {% set restart_szarza_arg = request.args.get('restart_szarza') %}

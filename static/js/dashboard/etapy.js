@@ -769,9 +769,9 @@
 
         if (num === 1 || String(etapNum) === '1') {
             limitMin = limits.nawazanie_min || limits.zasyp_min || limits.wydozowanie_min || 20;
-        } else if (num === 2 || num === 4 || (num > 40 && num < 50)) {
+        } else if (num === 2 || String(num).startsWith('4')) {
             limitMin = limits.mieszanie_min || 10;
-        } else if (num === 3 || (num > 30 && num < 40)) {
+        } else if (String(num).startsWith('3')) {
             limitMin = limits.dosypka_min || 5;
         } else if (num === 5 || num === 6) {
             limitMin = limits.oproznianie_min || 10;

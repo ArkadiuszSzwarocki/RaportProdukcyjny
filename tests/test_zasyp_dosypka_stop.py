@@ -12,6 +12,9 @@ from jinja2 import ChainableUndefined
     (2, [(1, datetime(2026, 10, 11, 10))], (3, 4)),
     (4, [(1, datetime(2026, 10, 11, 10))], None),
     (4, [(1, datetime(2026, 10, 11, 12))], (31, 41)),
+    (41, [(1, datetime(2026, 10, 11, 12))], (32, 42)),
+    (410, [(1, datetime(2026, 10, 11, 12))], (311, 411)),
+    (41, [(1, datetime(2026, 10, 11, 10))], None),
 ])
 def test_stop_mixing_creates_pair_only_for_new_confirmed_additions(stage, additions, expected_pair):
     connection = MagicMock()
@@ -19,7 +22,7 @@ def test_stop_mixing_creates_pair_only_for_new_confirmed_additions(stage, additi
     started = datetime(2026, 10, 11, 11)
     cursor.fetchone.return_value = (started, None)
     stages = [(stage, started, None, date(2026, 10, 11))]
-    if stage == 4:
+    if str(stage).startswith('4'):
         stages.append((3, started - timedelta(minutes=10), started, date(2026, 10, 11)))
     cursor.fetchall.side_effect = [additions, stages]
     with patch('app.services.zasyp_etapy_service.get_db_connection', return_value=connection), patch.object(
@@ -35,14 +38,15 @@ def test_stop_mixing_creates_pair_only_for_new_confirmed_additions(stage, additi
     assert lookup.args[1] == (323, 3)
 
 
-def test_pending_addition_rejects_stop_without_writes():
+@pytest.mark.parametrize('stage', [2, 4, 41, 410])
+def test_pending_addition_rejects_stop_without_writes(stage):
     connection = MagicMock()
     cursor = connection.cursor.return_value
     cursor.fetchone.return_value = (datetime(2026, 10, 11, 11), None)
     cursor.fetchall.return_value = [(0, None), (1, datetime(2026, 10, 11, 12))]
     with patch('app.services.zasyp_etapy_service.get_db_connection', return_value=connection), patch.object(
         ZasypEtapyService, '_resolve_szarza_nr', return_value=3):
-        ok, message = ZasypEtapyService.stop_etap(323, 'AGRO', 2, 'test', szarza_nr=3)
+        ok, message = ZasypEtapyService.stop_etap(323, 'AGRO', stage, 'test', szarza_nr=3)
     assert not ok
     assert 'Najpierw potwierdź' in message
     assert not any(call.args[0].lstrip().startswith(('UPDATE', 'INSERT')) for call in cursor.execute.call_args_list)
@@ -79,17 +83,18 @@ def test_batch_badge_is_rendered_only_on_assigned_batch(app):
 
 
 @pytest.mark.parametrize('pending,disabled', [(0, False), (1, True)])
-def test_mixing_stop_button_uses_pending_count_for_its_batch(app, pending, disabled):
+@pytest.mark.parametrize('mixing_stage', [2, 4, 41, 410])
+def test_mixing_stop_button_uses_pending_count_for_its_batch(app, pending, disabled, mixing_stage):
     env = app.jinja_env.overlay(undefined=ChainableUndefined)
     env.globals = dict(env.globals, url_for=lambda endpoint, **kw: '/action/' + endpoint,
                        role_is_readonly=lambda key: False)
     plan = [None] * 32
     plan[:4] = [323, 'Produkt', 400, 'w toku']
-    stage = {'etap': 2, 'exists': True, 'is_running': True, 'czas_start': datetime(2026, 10, 11, 11)}
+    stage = {'etap': mixing_stage, 'exists': True, 'is_running': True, 'czas_start': datetime(2026, 10, 11, 11)}
     with app.test_request_context('/'):
         html = env.get_template('dashboard/_dashboard_agro_stages.html').render(
             p=plan, linia='AGRO', sekcja='Zasyp', rola='masteradmin',
-            etapy_sesje_mapa={323: [{'szarza_nr': 3, 'etapy': [stage], 'is_current': True, 'active_etap': 2}]},
+            etapy_sesje_mapa={323: [{'szarza_nr': 3, 'etapy': [stage], 'is_current': True, 'active_etap': mixing_stage}]},
             dosypki_oczekujace_mapa={('nr', 323, 3): pending, ('nr', 323, 1): 9},
             dosypki_mapa={323: [{'szarza_nr': 3, 'potwierdzono_dt': datetime(2026, 10, 11, 12)}]})
     import re
