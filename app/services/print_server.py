@@ -53,6 +53,9 @@ class PrintServer:
             os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001')
         )
         self.bridge_token = str(os.getenv('PRINTER_BRIDGE_TOKEN') or '').strip()
+        self.bridge_auth_mode = str(os.getenv('PRINTER_BRIDGE_AUTH_MODE') or 'bearer').strip().lower()
+        if self.bridge_auth_mode not in {'bearer', 'legacy_api_token'}:
+            raise ValueError('Nieprawidłowy PRINTER_BRIDGE_AUTH_MODE')
         self.bridge_connect_timeout = _read_float_env('PRINTER_BRIDGE_CONNECT_TIMEOUT', 2.0, minimum=0.2)
         self.bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 35.0, minimum=1.0)
         self.bridge_start_timeout = _read_float_env('PRINTER_BRIDGE_START_TIMEOUT', 6.0, minimum=1.0)
@@ -82,6 +85,11 @@ class PrintServer:
     def _bridge_headers(self) -> dict:
         if not self.bridge_token:
             return {}
+        if self.bridge_auth_mode == 'legacy_api_token':
+            parsed = urlparse(self.bridge_url)
+            if parsed.scheme != 'https' and parsed.hostname not in {'localhost', '127.0.0.1', '::1'}:
+                raise ValueError('Starszy mostek wymaga HTTPS lub lokalnego tunelu.')
+            return {'X-API-TOKEN': self.bridge_token}
         return {'Authorization': f'Bearer {self.bridge_token}'}
 
     def _request_bridge(self, method: str, path: str, **kwargs):
