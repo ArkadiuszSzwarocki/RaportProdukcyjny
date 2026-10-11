@@ -199,12 +199,12 @@ async function loadWarehouseData(showMask = false, preserveCamera = false, overr
             activeWarehouseState = data;
             updateMetricsHUD(data.summary);
 
-            // Dynamic visibility of rack chips: only show tabs for racks that have items from the order!
+            // Only picking orders restrict navigation to their relevant racks.
             const activeRackIds = new Set(data.racks.map(r => r.rack_id));
             document.querySelectorAll('.wh3d-rack-chips .wh3d-chip').forEach(chip => {
                 const rId = chip.getAttribute('data-rack-id') || chip.innerText.trim();
                 if (rId.startsWith('R') || rId === 'MP01' || rId === 'BFMP01') {
-                    chip.style.display = activeRackIds.has(rId) ? 'inline-flex' : 'none';
+                    chip.style.display = !orderRef || activeRackIds.has(rId) ? 'inline-flex' : 'none';
                 } else {
                     chip.style.display = 'inline-flex';
                 }
@@ -327,6 +327,26 @@ function onFilterCriteriaChanged() {
     }
 }
 
+function getWarehouseRacksForView(racks, focusedRackId, isOrderFilterActive) {
+    if (isOrderFilterActive) {
+        const relevantRacks = racks.filter(rack => {
+            if (rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.is_floor_zone) {
+                return true;
+            }
+            const occupied = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
+                ? rack.occupied_slots
+                : (rack.slots ? rack.slots.filter(slot => slot.is_occupied || (slot.pallets && slot.pallets.length > 0)).length : 0);
+            return occupied > 0;
+        });
+        return relevantRacks.length > 0 ? relevantRacks : racks;
+    }
+    if (focusedRackId && focusedRackId !== 'ALL') {
+        const focused = racks.filter(rack => rack.rack_id === focusedRackId);
+        if (focused.length > 0) return focused;
+    }
+    return racks;
+}
+
 function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
     if (!warehouseGroup) {
         const ready = init3DStage();
@@ -349,31 +369,8 @@ function buildWarehouseScene(racks, focusedRackId, preserveCamera = false) {
     const orderSelect = document.getElementById('selectPickingOrderFilter');
     const isOrderFilterActive = Boolean(orderSelect && orderSelect.value && orderSelect.value !== '');
 
-    // Filter out racks with 0 items when viewing entire hall or an active picking order
-    let racksToRender = racks;
-    if (focusedRackId === 'ALL' || isOrderFilterActive) {
-        const nonEmptyRacks = racks.filter(rack => {
-            if (focusedRackId !== 'ALL' && rack.rack_id === focusedRackId && !isOrderFilterActive) {
-                return true; // user explicitly clicked a single rack tab in general inventory mode
-            }
-            if (rack.rack_type === 'FLOOR_ZONE' || rack.rack_type === 'BUFFER_ZONE' || rack.is_floor_zone) {
-                return true; // Always display permanent floor zones in warehouse overview
-            }
-            const occ = (rack.occupied_slots !== undefined && rack.occupied_slots !== null)
-                ? rack.occupied_slots
-                : (rack.slots ? rack.slots.filter(s => s.is_occupied || (s.pallets && s.pallets.length > 0)).length : 0);
-            return occ > 0;
-        });
-
-        if (nonEmptyRacks.length > 0) {
-            racksToRender = nonEmptyRacks;
-        }
-    } else if (focusedRackId && focusedRackId !== 'ALL') {
-        const single = racks.filter(r => r.rack_id === focusedRackId);
-        if (single.length > 0) {
-            racksToRender = single;
-        }
-    }
+    // The warehouse overview includes empty racks as well as occupied ones.
+    const racksToRender = getWarehouseRacksForView(racks, focusedRackId, isOrderFilterActive);
 
     let focusCenter = new THREE.Vector3(0, 3, 0);
     let foundFocus = false;

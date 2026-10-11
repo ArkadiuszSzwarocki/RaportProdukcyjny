@@ -77,7 +77,7 @@ class WarehousePageController:
     def render_racks_3d():
         """Interactive 3D Warehouse Rack visualization view."""
         linia = request.args.get('linia', 'ALL').upper()
-        active_rack = request.args.get('rack_id', 'R01')
+        active_rack = request.args.get('rack_id', 'ALL')
 
         from app.services.warehouse_3d_service import Warehouse3dService
         racks_config = Warehouse3dService.get_rack_configurations()
