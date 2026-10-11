@@ -173,20 +173,8 @@
 
         if (tileEl) {
             tileEl.addEventListener('click', function (e) {
+                e.stopPropagation();
                 openPicker();
-            });
-        }
-
-        if (inputEl) {
-            inputEl.addEventListener('change', function () {
-                if (this.value) {
-                    applyDateChange(pickerEl, this.value);
-                }
-            });
-            inputEl.addEventListener('input', function () {
-                if (this.value && this.value.length === 10) {
-                    applyDateChange(pickerEl, this.value);
-                }
             });
         }
 
@@ -218,6 +206,18 @@
     }
 
     // Global document-level click delegation as fallback
+    // Date inputs can be inserted or replaced after the initial page load.
+    function handleDateInput(event) {
+        const input = event.target;
+        if (!input.matches('input.unified-date-input, [data-date-input]')) return;
+        const picker = input.closest('.unified-date-picker, [data-unified-date-picker]');
+        if (!picker || !/^\d{4}-\d{2}-\d{2}$/.test(input.value)) return;
+        if (picker.getAttribute('data-current-date') === input.value) return;
+        applyDateChange(picker, input.value);
+    }
+    document.addEventListener('input', handleDateInput);
+    document.addEventListener('change', handleDateInput);
+
     document.addEventListener('click', function (e) {
         const prevBtn = e.target.closest('[data-date-action="prev"], .unified-date-prev');
         if (prevBtn) {
