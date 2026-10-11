@@ -217,7 +217,7 @@
                     <td data-label="Dodana" style="font-size:12px; color:#64748b;">{{ d.data_zlecenia }}</td>
                     <td data-label="Akcja" style="text-align: right;">
                         {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
-                        <button class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
+                        <button type="button" class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
                         {% endif %}
                     </td>
                 </tr>
