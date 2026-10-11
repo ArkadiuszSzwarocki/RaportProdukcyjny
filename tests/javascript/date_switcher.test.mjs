@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 function setup(initialized = false) {
-    const events = {}, tileEvents = {}, navigations = [];
+    const events = {}, tileEvents = {}, redirects = [];
     const attributes = {'data-current-date': '2026-09-28', 'data-date-mode': 'url', 'data-date-param': 'data'};
     const label = {textContent: '28.09.26'};
     let openings = 0;
@@ -16,10 +16,10 @@ function setup(initialized = false) {
     const document = {readyState: 'complete', querySelectorAll: () => initialized ? [picker] : [],
         addEventListener(name, fn) {events[name] = fn;}};
     const window = {scrollY: 50, location: {href: 'http://localhost:18084/?sekcja=Zasyp&linia=AGRO&data=2026-09-28&data_od=2026-09-01&data_do=2026-10-31',
-        assign: url => navigations.push(url)}};
+        assign: url => redirects.push(url)}};
     vm.runInNewContext(fs.readFileSync('static/js/common/date-switcher.js', 'utf8'), {window, document, URL, console,
         localStorage: {setItem() {}}});
-    return {input, label, events, tileEvents, navigations, openings: () => openings};
+    return {input, label, events, tileEvents, redirects, openings: () => openings};
 }
 
 test('selecting October 11 in a dynamically inserted picker changes dashboard date', () => {
@@ -27,7 +27,7 @@ test('selecting October 11 in a dynamically inserted picker changes dashboard da
     s.input.value = '2026-10-11';
     s.events.change({target: s.input});
     assert.equal(s.label.textContent, '11.10.26');
-    const url = new URL(s.navigations[0]);
+    const url = new URL(s.redirects[0]);
     assert.equal(url.searchParams.get('data'), '2026-10-11');
     assert.equal(url.searchParams.get('sekcja'), 'Zasyp');
     assert.equal(url.searchParams.get('linia'), 'AGRO');
@@ -40,7 +40,7 @@ test('input and change from one selection navigate only once', () => {
     s.input.value = '2026-10-11';
     s.events.input({target: s.input});
     s.events.change({target: s.input});
-    assert.equal(s.navigations.length, 1);
+    assert.equal(s.redirects.length, 1);
 });
 
 test('initialized picker opens calendar once and stops duplicate delegated click', () => {
