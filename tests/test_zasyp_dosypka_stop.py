@@ -7,6 +7,39 @@ from app.services.zasyp_etapy_service import ZasypEtapyService
 from jinja2 import ChainableUndefined
 
 
+@pytest.mark.parametrize('mixing_stage,next_stage', [(2, 3), (4, 31), (41, 32), (410, 311)])
+def test_last_confirmation_stops_mixing_and_starts_next_addition(mixing_stage, next_stage):
+    cursor = MagicMock()
+    cursor.fetchone.side_effect = [(4,), (0,)]
+    now = datetime(2026, 10, 11, 11)
+    cursor.fetchall.return_value = [(mixing_stage, now, None, date(2026, 10, 11))]
+    result = ZasypEtapyService.advance_after_confirmed_dosypka(cursor, 323, 558, 'test')
+    assert result == next_stage
+    queries = cursor.execute.call_args_list
+    updates = [call for call in queries if call.args[0].startswith('UPDATE')]
+    assert len(updates) == 2
+    assert 'czas_stop=NOW()' in updates[0].args[0]
+    assert updates[0].args[1] == ('test', 323, 4, mixing_stage)
+    assert 'czas_start=NOW()' in updates[1].args[0]
+    assert updates[1].args[1] == ('test', 323, 4, next_stage)
+    pending = next(call for call in queries if 'SELECT COUNT(*)' in call.args[0])
+    assert pending.args[1] == (323, 558)
+
+
+@pytest.mark.parametrize('batch,stages,pending', [
+    (None, [], 0),
+    ((4,), [(1, datetime(2026, 10, 11, 11), None, date(2026, 10, 11))], 0),
+    ((4,), [(2, datetime(2026, 10, 11, 11), None, date(2026, 10, 11))], 1),
+    ((4,), [(2, datetime(2026, 10, 11, 11), datetime(2026, 10, 11, 12), date(2026, 10, 11))], 0),
+])
+def test_confirmation_does_not_advance_inactive_batch_or_remaining_pending_additions(batch, stages, pending):
+    cursor = MagicMock()
+    cursor.fetchone.side_effect = [batch, (pending,)]
+    cursor.fetchall.return_value = stages
+    assert ZasypEtapyService.advance_after_confirmed_dosypka(cursor, 323, 558, 'test') is None
+    assert not any(call.args[0].startswith(('UPDATE', 'INSERT')) for call in cursor.execute.call_args_list)
+
+
 @pytest.mark.parametrize('stage,additions,expected_pair', [
     (2, [], None),
     (2, [(1, datetime(2026, 10, 11, 10))], (3, 4)),
