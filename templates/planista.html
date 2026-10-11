@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
-            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
+            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
                 <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
                 <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
                     {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
@@ -214,9 +214,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="actions-dropdown-divider"></div>
                             {% endif %}
                             
+                            {% if p.status != 'zakonczone' %}
                             <button type="button" class="actions-dropdown-item text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p.id }}">
                                 📝 Edytuj tonaż
                             </button>
+                            {% endif %}
                             
                             {% if p.status not in ['w toku', 'zakonczone'] %}
                             <div class="actions-dropdown-divider"></div>
@@ -355,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
-            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
+            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
                 <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
                     {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
@@ -973,6 +975,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function toggleTonazEdit(id, btn) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
+        if (tr && tr.getAttribute('data-plan-status') === 'zakonczone') {
+            safeAlert('Zlecenie zakończone', 'Nie można edytować tonażu zakończonego zlecenia.');
+            return;
+        }
         var tonaz;
         if (tr) {
             tonaz = tr.children[4].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
