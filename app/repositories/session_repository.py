@@ -295,6 +295,8 @@ def is_session_active(session_id):
         is_session_enabled, is_user_enabled = row[0], row[1]
         return bool(is_session_enabled == 1 and is_user_enabled == 1)
     except Exception as error:
+        # Security-sensitive validation must fail closed.  A temporary DB issue
+        # can require a fresh login, but must never grant access by default.
         try:
             import logging
             logging.getLogger('app.security').warning(
