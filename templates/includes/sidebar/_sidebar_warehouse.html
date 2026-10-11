@@ -76,11 +76,14 @@
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
+        {% if role not in ['laborant', 'laboratorium'] %}
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
+        {% endif %}
         
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
         
+        {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
             Zużycie w Produkcji
         </a>
@@ -119,10 +122,12 @@
                 {% endif %}
             </span>
         </a>
+        {% endif %}
     </div>
 </div>
 {% endif %}
 
+{% if role not in ['laborant', 'laboratorium'] %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
     {% set pending_osip = pending_map.get('OSIP', 0)|int %}
@@ -184,6 +189,7 @@
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
     </div>
 </div>
+{% endif %}
 
 {% if (role_has_access('magazyn.inventory') or can_open_prod_inventory) and effective_hall != 'OSIP' %}
 <div class="nav-item-group">

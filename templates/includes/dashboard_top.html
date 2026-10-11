@@ -64,7 +64,7 @@
             </a>
             {% endif %}
 
-            {% if sekcja in ['Workowanie', 'Zasyp'] %}
+            {% if sekcja in ['Workowanie', 'Zasyp'] and rola|lower not in ['laborant', 'laboratorium'] %}
             <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
                class="btn btn-danger px-3 py-2 fw-bold"
                title="Zgłoś przestój maszyny / linii dla sekcji {{ sekcja }} ({{ linia }})"
@@ -84,7 +84,7 @@
 
         <div class="d-flex align-center gap-12 header-stats">
             {% if sekcja == 'Zasyp' %}{% include 'dashboard/_agro_measurements.html' %}{% endif %}
-            {% include 'dashboard/_cleaning_notifications.html' %}
+            {% if rola|lower not in ['laborant', 'laboratorium'] %}{% include 'dashboard/_cleaning_notifications.html' %}{% endif %}
             {% if sekcja == 'Magazyn' %}
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>

@@ -82,6 +82,7 @@
         {% endif %}
         
         <!-- Zgłoś Przestój -->
+        {% if rola|lower not in ['laborant', 'laboratorium'] %}
         <div style="margin: 0; padding: 0;">
             <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
                style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #dc2626; font-weight: 700; box-sizing: border-box;"
@@ -89,6 +90,7 @@
                 Zgłoś Przestój ({{ sekcja }})
             </a>
         </div>
+        {% endif %}
 
         {% if sekcja == 'Zasyp' %}
         <!-- Kalkulator Zapotrzebowania -->
