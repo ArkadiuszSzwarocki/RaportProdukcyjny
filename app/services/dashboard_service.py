@@ -97,7 +97,6 @@ class DashboardService:
                 FROM {table_sur}
                 WHERE stan_magazynowy > 0
                   AND data_przydatnosci IS NOT NULL
-                  AND data_przydatnosci != ''
                   AND data_przydatnosci >= %s
                   AND data_przydatnosci <= DATE_ADD(%s, INTERVAL %s DAY)
                 ORDER BY data_przydatnosci ASC
