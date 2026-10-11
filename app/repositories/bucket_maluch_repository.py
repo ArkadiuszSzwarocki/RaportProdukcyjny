@@ -132,6 +132,11 @@ class BucketMaluchRepository:
                     LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
                     LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
                     WHERE b.kod_wiadra = %s AND b.linia = %s AND b.status IN ('w_trakcie_nawazania', 'skompletowane')
+                      AND (
+                          (b.linia = 'AGRO' AND pa.id IS NOT NULL AND LOWER(COALESCE(pa.status, '')) IN ('w toku', 'zaplanowane') AND COALESCE(pa.is_deleted, 0) = 0)
+                          OR
+                          (b.linia != 'AGRO' AND p.id IS NOT NULL AND LOWER(COALESCE(p.status, '')) IN ('w toku', 'zaplanowane') AND COALESCE(p.is_deleted, 0) = 0)
+                      )
                     ORDER BY b.id DESC LIMIT 1
                     """,
                     (kod_wiadra.strip().upper(), linia.upper()),
@@ -147,6 +152,11 @@ class BucketMaluchRepository:
                     LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
                     LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
                     WHERE b.kod_wiadra = %s AND b.status IN ('w_trakcie_nawazania', 'skompletowane')
+                      AND (
+                          (b.linia = 'AGRO' AND pa.id IS NOT NULL AND LOWER(COALESCE(pa.status, '')) IN ('w toku', 'zaplanowane') AND COALESCE(pa.is_deleted, 0) = 0)
+                          OR
+                          (b.linia != 'AGRO' AND p.id IS NOT NULL AND LOWER(COALESCE(p.status, '')) IN ('w toku', 'zaplanowane') AND COALESCE(p.is_deleted, 0) = 0)
+                      )
                     ORDER BY b.id DESC LIMIT 1
                     """,
                     (kod_wiadra.strip().upper(),),

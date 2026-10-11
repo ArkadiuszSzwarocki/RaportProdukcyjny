@@ -74,6 +74,10 @@ def test_plan_with_szarza():
     """)
     conn.commit()
 
+    # Clean up any leftover test buckets before running
+    cur.execute("DELETE FROM wiaderka_maluchy WHERE kod_wiadra IN ('04', '08', '09', 'W04', 'W08', 'W09')")
+    conn.commit()
+
     # 1. Create active Zasyp plan
     cur.execute(
         """
@@ -100,7 +104,7 @@ def test_plan_with_szarza():
     # Cleanup
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM wiaderka_maluchy WHERE plan_id = %s", (plan_id,))
+    cur.execute("DELETE FROM wiaderka_maluchy WHERE plan_id = %s OR kod_wiadra IN ('04', '08', '09', 'W04', 'W08', 'W09')", (plan_id,))
     cur.execute("DELETE FROM szarze WHERE plan_id = %s", (plan_id,))
     cur.execute("DELETE FROM plan_produkcji WHERE id = %s", (plan_id,))
     conn.commit()
