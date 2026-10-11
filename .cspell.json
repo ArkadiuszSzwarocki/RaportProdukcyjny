@@ -3,6 +3,10 @@
   "language": "en,pl,uk",
   "import": ["@cspell/dict-pl_pl/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
   "words": [
+    "SSCC", "regen", "Segoe", "dashboardu", "QNAP", "CEXT", "dedup",
+    "putaway", "BFMP", "BFMPO", "BFMS", "subslots", "Waliduje", "getpid",
+    "topbar", "flatpickr", "Lvls", "metalness", "glassmorphic", "forceescape",
+    "operatoragro", "operatorpsd", "drilldown", "autorefresh", "Bagi", "sqls",
     "ipomiar",
     "tzdata",
     "baga",

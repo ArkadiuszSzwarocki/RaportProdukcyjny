@@ -808,4 +808,9 @@ class AcceptanceService:
                 conn.rollback()
                 return False, str(e)
             finally:
-                conn.close()
+                # Release locks on early returns and any read transaction opened
+                # after commit before returning the connection to the pool.
+                try:
+                    conn.rollback()
+                finally:
+                    conn.close()
