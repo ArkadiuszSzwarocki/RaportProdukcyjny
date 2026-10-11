@@ -41,3 +41,25 @@ def test_confirmation_form_passes_guard_and_records_actual_weight(next_stage):
     assert any('tonaz_rzeczywisty' in call.args[0] for call in writes)
     action_connection.commit.assert_called_once()
     updated.assert_called_once_with('AGRO')
+
+
+@pytest.mark.parametrize('weight', ['0', '-1', 'nan', 'inf', '1e999', 'abc'])
+def test_confirmation_rejects_invalid_weight_without_writes(weight):
+    app = Flask(__name__)
+    app.secret_key = 'isolated-confirmation-test'
+    blueprint = Blueprint('production', __name__)
+    register_production_dosypki_routes(blueprint, lambda: '/', MagicMock(), MagicMock(), MagicMock())
+    app.register_blueprint(blueprint)
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(zalogowany=True, login='pytest', rola='masteradmin')
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.side_effect = [(323, 558), (323,), (91,)]
+    with patch('app.blueprints.production.dosypki.get_db_connection', return_value=connection):
+        response = client.post('/potwierdz_dosypke/91?linia=AGRO', data={'kg': weight},
+                               headers={'X-Requested-With': 'XMLHttpRequest'})
+    assert response.status_code == 400
+    assert response.get_json()['success'] is False
+    connection.commit.assert_not_called()
+    connection.rollback.assert_called_once()
+    assert not any(call.args[0].startswith('UPDATE') for call in connection.cursor.return_value.execute.call_args_list)

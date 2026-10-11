@@ -1,4 +1,5 @@
 from datetime import date
+import math
 
 from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -478,10 +479,17 @@ def register_production_dosypki_routes(
             if raw_kg is not None:
                 try:
                     val = float(str(raw_kg).replace(',', '.').strip())
-                    if val > 0:
+                    if math.isfinite(val) and val > 0:
                         actual_kg = val
                 except (ValueError, TypeError):
                     pass
+                if actual_kg is None:
+                    conn.rollback()
+                    message = 'Podaj poprawną, dodatnią wagę dosypki.'
+                    if is_ajax:
+                        return jsonify({'success': False, 'message': message}), 400
+                    flash(message, 'warning')
+                    return redirect(bezpieczny_powrot())
 
             if actual_kg is not None:
                 cursor.execute(

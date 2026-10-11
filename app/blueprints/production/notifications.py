@@ -296,16 +296,24 @@ def register_production_notification_routes(
         return jsonify({"new_update": False})
 
     @production_bp.route('/api/zasyp/pending_dosypki_badges', methods=['GET'])
+    @login_required
     def api_pending_dosypki_badges():
         """Return pending dosypki badge counts per plan_id for Zasyp dashboard (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
         allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'masteradmin', 'laborant', 'laboratorium'}
         if role not in allowed_roles:
-            return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
+            return jsonify({"success": False, "error": "forbidden"}), 403
 
         linia = request.args.get('linia', 'PSD').upper()
         if linia not in ['PSD', 'AGRO']:
             return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
+        from app.core.production_permissions import _page_allowed
+        try:
+            if not _page_allowed(linia, 'zasyp', write=False):
+                return jsonify({"success": False, "error": "forbidden"}), 403
+        except Exception:
+            current_app.logger.exception('Cannot verify dosypki badge read permission')
+            return jsonify({"success": False, "error": "permission_unavailable"}), 503
 
         date_raw = request.args.get('data') or ''
         try:
