@@ -129,10 +129,61 @@ def test_live_movement_assigns_destination_during_receipt(app, authorized_stock_
     result = AcceptanceService.accept_item(document_id, 'one', destination, 'pytest')
     assert result[0], result[1]
     assert delivery_snapshot(document_id, code)[2] == (destination, 100)
-    assert delivery_snapshot(document_id, code)[0] == 'OCZEKUJE'
+    assert delivery_snapshot(document_id, code)[0] == 'COMPLETED'
     from app.services.magazyn_dostawy.commands.live_transfer_service import LiveTransferService
     assert LiveTransferService.close_live_transfer(document_id, 'pytest')[0]
     assert delivery_snapshot(document_id, code)[0] == 'COMPLETED'
+
+
+@pytest.mark.parametrize('last_action', ['accept', 'move', 'reject'])
+def test_transfer_closes_only_after_last_item_is_processed(
+    app, authorized_stock_operator, pending_delivery, last_action,
+):
+    document_id, code, first = pending_delivery
+    second_code = 'TEST-LAST-' + uuid.uuid4().hex
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO magazyn_opakowania(nr_palety,nazwa,stan_magazynowy,lokalizacja,is_blocked) "
+            "VALUES(%s,'Test packaging',100,'RAMPA',1)", (second_code,),
+        )
+        second_id = cursor.lastrowid
+        first.update(sourceSpot='RAMPA', originalSpot='RAMPA')
+        second = dict(first, id='two', sourcePalletId=second_id,
+                      nr_palety=second_code, sourcePalletNo=second_code)
+        cursor.execute(
+            "UPDATE magazyn_dostawy SET supplier=NULL,status='OCZEKUJE',"
+            "lokalizacja_z='WIELE',lokalizacja_do='',items=%s WHERE id=%s",
+            (json.dumps([first, second]), document_id),
+        )
+        conn.commit()
+        result = AcceptanceService.accept_item(document_id, 'one', 'MS01', 'pytest')
+        assert result[0], result[1]
+        state, items, _ = delivery_snapshot(document_id, code)
+        assert state == 'OCZEKUJE'
+        assert items[0]['accepted'] and not items[1].get('accepted')
+        if last_action == 'move':
+            cursor.execute('UPDATE magazyn_opakowania SET lokalizacja=%s WHERE id=%s', ('MS01', second_id))
+            AcceptanceService.confirm_moved_pallet(cursor, conn, second_code, 'MS01', 'pytest')
+            conn.commit()
+        elif last_action == 'reject':
+            result = AcceptanceService.reject_item(document_id, 'two', 'Return to sender', 'pytest')
+            assert result[0], result[1]
+        else:
+            result = AcceptanceService.accept_item(document_id, 'two', 'MS01', 'pytest')
+            assert result[0], result[1]
+        state, items, _ = delivery_snapshot(document_id, code)
+        assert state == 'COMPLETED'
+        assert all(item.get('accepted') or item.get('rejected') for item in items)
+        from app.services.magazyn_dostawy.commands.live_transfer_service import LiveTransferService
+        assert not LiveTransferService.add_live_transfer_item(document_id, {'nr_palety': 'ANOTHER'})[0]
+    finally:
+        conn.rollback()
+        cursor.execute('DELETE FROM magazyn_opakowania WHERE nr_palety=%s', (second_code,))
+        cursor.execute('DELETE FROM palety_historia WHERE nr_palety=%s', (second_code,))
+        conn.commit()
+        conn.close()
 
 
 def test_history_quantity_uses_code_and_correct_warehouse(app):
@@ -421,7 +472,7 @@ def test_reject_item_uses_sscc_even_when_source_id_is_wrong(app, authorized_stoc
     result = AcceptanceService.reject_item(document_id, 'one', 'Return to sender', 'pytest')
     assert result[0], result[1]
     state, items, stock = delivery_snapshot(document_id, code)
-    assert state == 'OCZEKUJE'
+    assert state == 'COMPLETED'
     assert items[0]['rejected']
     assert stock == ('MS01', 100)
     conn = get_db_connection()
