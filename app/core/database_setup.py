@@ -1,3 +1,4 @@
+# cspell:words zarejestowana
 """
 Moduł inicjalizacyjny i migracyjny bazy danych.
 """
@@ -490,6 +491,24 @@ def _create_tables(cursor):
             status VARCHAR(20) DEFAULT 'zarejestowana',
             uwagi TEXT,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
+            FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    # AGRO batches belong to AGRO plans; the dashboard fallback queries this
+    # physical table even before any batch has been registered.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS szarze_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            waga FLOAT NOT NULL,
+            data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
+            godzina TIME,
+            pracownik_id INT,
+            status VARCHAR(20) DEFAULT 'zarejestowana',
+            uwagi TEXT,
+            nr_szarzy INT NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
         )
     """)
