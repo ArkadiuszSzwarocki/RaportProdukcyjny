@@ -38,7 +38,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: steps.validations.outputs.ready == 'true'
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -95,7 +95,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Gate publication on built image vulnerabilities
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: "image"
           image-ref: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-${{ github.event.workflow_run.head_sha }}
@@ -105,7 +105,7 @@ jobs:
           exit-code: "1"
 
       - name: Generate image component inventory
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: "image"
           image-ref: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-${{ github.event.workflow_run.head_sha }}

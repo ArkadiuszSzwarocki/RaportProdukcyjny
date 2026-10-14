@@ -15,7 +15,7 @@ def _text(relative_path):
 def test_trivy_action_is_immutable_and_gates_publish():
     workflow = _text('.github/workflows/deploy.yml')
     assert 'aquasecurity/trivy-action@master' not in workflow
-    assert 'aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2' in workflow
+    assert 'aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25' in workflow
     assert 'workflow_run:' in workflow
     assert "workflow_run.conclusion == 'success'" in workflow
     assert 'exit-code: "1"' in workflow
