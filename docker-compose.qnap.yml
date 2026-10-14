@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    image: ${APP_IMAGE:?APP_IMAGE must reference the tested digest image}
     container_name: raportprodukcyjny
     env_file:
       # This file is intentionally not part of the image. Copy the existing

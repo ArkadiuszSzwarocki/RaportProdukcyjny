@@ -1,17 +1,20 @@
-FROM python:3.11-slim AS builder
+# cspell:words setuptools ensurepip addgroup adduser libstdc
+FROM python:3.11-alpine@sha256:d9368b3a5ac59afea7b5d4f2e2aea0941dbf9fdee9c369c5bec00b98244bc929 AS builder
 WORKDIR /tmp
-COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+COPY requirements-build.lock requirements-linux.lock ./
+RUN pip install --require-hashes --no-cache-dir -r requirements-build.lock && \
+    pip install --user --require-hashes --no-build-isolation --no-cache-dir -r requirements-linux.lock && \
+    pip check
 
-FROM python:3.11-slim
+FROM python:3.11-alpine@sha256:d9368b3a5ac59afea7b5d4f2e2aea0941dbf9fdee9c369c5bec00b98244bc929
 WORKDIR /app
-RUN groupadd --gid 1000 appgroup && useradd --uid 1000 --gid appgroup --create-home appuser
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-mysql-client \
-    && rm -rf /var/lib/apt/lists/*
+RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
+RUN apk add --no-cache tzdata libstdc++
 
 COPY --from=builder /root/.local /home/appuser/.local
+# Installation tools and their bundled dependencies belong only in the builder.
+RUN python -m pip uninstall --yes pip setuptools wheel packaging && \
+    rm -rf /usr/local/lib/python3.11/ensurepip
 ENV PATH=/home/appuser/.local/bin:$PATH
 COPY --chown=appuser:appgroup . .
 

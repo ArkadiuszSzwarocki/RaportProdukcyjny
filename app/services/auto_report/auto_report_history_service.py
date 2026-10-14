@@ -105,8 +105,8 @@ class AutoReportHistoryService:
         Atomowo rezerwuje prawo do wykonania i wysyłki raportu.
         Gwarantuje jednorazową wysyłkę:
         - Jeśli status to 'SENT' lub 'SKIPPED_EMPTY', ZAWSZE zwraca False.
-        - Jeśli status to 'IN_PROGRESS', blokuje współbieżne wykonania.
-        - Jeśli status to 'FAILED', nie ponawia automatycznie co 10 minut w pętli.
+        - Każdy istniejący wpis blokuje kolejną próbę, również po restarcie.
+        - FAILED i IN_PROGRESS nigdy nie są automatycznie ponawiane.
         """
         conn = None
         try:
@@ -115,7 +115,7 @@ class AutoReportHistoryService:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
                 """
-                SELECT id, status, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
+                SELECT id, status
                 FROM auto_report_history
                 WHERE data_raportu = %s AND linia = %s AND typ_raportu = %s
                 ORDER BY CASE WHEN status IN ('SENT', 'SKIPPED_EMPTY') THEN 0 ELSE 1 END, id DESC
@@ -127,29 +127,10 @@ class AutoReportHistoryService:
             row = cursor.fetchone()
 
             if row:
-                st = str(row.get('status') or '').upper()
-                age_min = int(row.get('age_min') or 0)
-                if st in ('SENT', 'SKIPPED_EMPTY'):
-                    cursor.close()
-                    return False
-                if st == 'IN_PROGRESS' and age_min < 30:
-                    cursor.close()
-                    return False
-                if st == 'FAILED' and age_min < 15:
-                    cursor.close()
-                    return False
-
-                cursor.execute(
-                    """
-                    UPDATE auto_report_history
-                    SET status = 'IN_PROGRESS', created_at = NOW()
-                    WHERE id = %s AND status != 'SENT'
-                    """,
-                    (row['id'],)
-                )
-                conn.commit()
+                # Any prior reservation consumes the daily attempt, even after
+                # failure or process termination. Never automatically reclaim it.
                 cursor.close()
-                return True
+                return False
             else:
                 try:
                     cursor.execute(

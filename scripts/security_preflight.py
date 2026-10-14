@@ -31,6 +31,15 @@ def inspect_environment(environ=None):
           'Production session cookies must require HTTPS.')
     check('https_transport', flag('USE_SSL') or flag('TRUST_PROXY_HEADERS'),
           'Configure HTTPS or a network-restricted trusted HTTPS proxy; verify its live certificate separately.')
+    if flag('TRUST_PROXY_HEADERS'):
+        from app.core.security_hardening import trusted_proxy_networks
+        try:
+            trusted_proxy_networks(env.get('TRUSTED_PROXY_NETWORKS'))
+            valid_peers = True
+        except ValueError:
+            valid_peers = False
+        check('trusted_proxy_peers', valid_peers,
+              'Set TRUSTED_PROXY_NETWORKS to the verified immediate proxy IPs or restricted CIDRs.')
     if flag('USE_SSL'):
         try:
             from scripts.tls_security import validate_tls_files

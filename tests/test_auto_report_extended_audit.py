@@ -68,7 +68,7 @@ class TestAutoReportExtendedAudit:
             success, msg = AutoReportService.send_shift1_report_at_1500(linia=test_line, date_str=test_date, force=False)
 
             assert success is True
-            assert "już wysłany" in msg or "cooldown" in msg
+            assert "zapisaną próbę" in msg
             mock_send.assert_not_called()
 
     def test_only_active_recipients_receive_emails(self):

@@ -142,6 +142,7 @@ def test_trusted_proxy_sets_remote_addr_but_hides_raw_forwarded_header(monkeypat
 
     monkeypatch.setenv('TRUST_PROXY_HEADERS', 'true')
     monkeypatch.setenv('TRUSTED_PROXY_HOPS', '1')
+    monkeypatch.setenv('TRUSTED_PROXY_NETWORKS', '127.0.0.1/32')
 
     proxy_app = Flask(__name__)
 

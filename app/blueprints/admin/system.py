@@ -461,47 +461,8 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/api/printer-server/status')
     @dynamic_role_required('ustawienia.system')
     def admin_printer_server_status():
-        import os
-        import requests
-        import urllib3
-        from urllib.parse import urlparse
-
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-        base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001') or '').strip().rstrip('/')
-        if base_value.lower().endswith('/drukuj-zpl'):
-            base_value = base_value[:-11]
-        elif base_value.lower().endswith('/status'):
-            base_value = base_value[:-7]
-        if '://' not in base_value:
-            base_value = f'https://{base_value}'
-
-        candidates = []
-
-        def _append(candidate):
-            value = str(candidate or '').strip().rstrip('/')
-            if not value:
-                return
-            if value.lower() in {item.lower() for item in candidates}:
-                return
-            candidates.append(value)
-
-        _append(base_value)
-        parsed = urlparse(base_value)
-        scheme = (parsed.scheme or '').lower()
-        if scheme in ('http', 'https'):
-            alt_scheme = 'http' if scheme == 'https' else 'https'
-            _append(f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}")
-
-        for bridge_base in candidates:
-            try:
-                resp = requests.get(f'{bridge_base}/status', timeout=1.5, verify=False)
-                if resp.status_code == 200:
-                    return jsonify({'success': True, 'running': True, 'message': 'Serwer druku działa.'})
-            except Exception:
-                continue
-
-        return jsonify({'success': True, 'running': False, 'message': 'Serwer druku jest wyłączony.'})
+        from app.core.legacy_print_hardening import secure_admin_printer_server_status
+        return secure_admin_printer_server_status()
 
     @admin_bp.route('/admin/api/printer-server/start', methods=['POST'])
     @dynamic_role_required('ustawienia.system')

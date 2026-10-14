@@ -428,41 +428,8 @@ class AcceptanceService:
                 )
                 conn.commit()
                 
-                # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
-                if printer_ip and printer_name:
-                    try:
-                        import threading
-                        import requests
-                        import urllib3
-                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                        payload = {
-                            "drukarka": printer_name,
-                            "ip": printer_ip,
-                            "typ": p_type,
-                            "copies": 2,
-                            "dane": {
-                                "palletData": {
-                                    "nrPalety": nr_palety,
-                                    "productName": product_name,
-                                    "batchNumber": nr_partii or '---',
-                                    "productionDate": str(data_produkcji) if data_produkcji else '---',
-                                    "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
-                                    "currentWeight": qty,
-                                    "labNotes": "Dostawa Przyjęta",
-                                    "copies": 2
-                                }
-                            }
-                        }
-                        def run_print():
-                            url = "http://127.0.0.1:3001/drukuj-zpl"
-                            try:
-                                requests.post(url, json=payload, verify=False, timeout=5)
-                            except Exception:
-                                pass
-                        threading.Thread(target=run_print, daemon=True).start()
-                    except Exception as e:
-                        print(f"Błąd uruchomienia wątku drukowania: {e}")
-                # --- KONIEC AUTO DRUKU ---
+                # Label dispatch is handled by secure_accept_item after this transaction.
+
 
                 return True, "", {
                     "all_accepted": all_processed,

@@ -1,7 +1,19 @@
+# cspell:words Zakolejkowano
 import pytest
 import json
 from unittest.mock import patch, MagicMock
 from flask import Flask
+
+@pytest.fixture(autouse=True)
+def mock_print_boundary():
+    """No real printer, queue insertion or per-request worker may run."""
+    printer = MagicMock()
+    printer.build_pallet_label_zpl.return_value = 'test-zpl'
+    printer.queue_print_job.return_value = (True, 'queued')
+    label = {'nrPalety': 'SUR001', 'nazwa': 'DB product', 'ilosc': 1000.0, 'typ': 'SUROWIEC', 'linia': 'PSD'}
+    with patch('app.core.legacy_print_hardening.get_printer', return_value=printer), patch('app.core.legacy_print_hardening.prepare_pallet_label_data', return_value=label), patch('app.core.production_permissions._page_allowed', return_value=True), patch('socket.create_connection', side_effect=AssertionError('Physical printer connections forbidden in tests')):
+        yield printer
+
 
 @pytest.fixture
 def app_client():
@@ -26,7 +38,7 @@ def test_dodruk_etykiet_missing_params(app_client):
     data = res.get_json()
     assert data['success'] is False
 
-@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('app.core.legacy_print_hardening.get_db_connection')
 def test_dodruk_etykiet_printer_not_found(mock_db, app_client):
     """Test when printer ID is not found in database."""
     mock_conn = MagicMock()
@@ -45,9 +57,9 @@ def test_dodruk_etykiet_printer_not_found(mock_db, app_client):
     data = res.get_json()
     assert data['success'] is False
 
-@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('app.core.legacy_print_hardening.get_db_connection')
 @patch('threading.Thread')
-def test_dodruk_etykiet_success(mock_thread, mock_db, app_client):
+def test_dodruk_etykiet_success(mock_thread, mock_db, app_client, mock_print_boundary):
     """Test successful dodruk_etykiet dispatch."""
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
@@ -66,14 +78,16 @@ def test_dodruk_etykiet_success(mock_thread, mock_db, app_client):
         'p_type': 'surowiec'
     })
     assert res.status_code == 200
+    mock_print_boundary.queue_print_job.assert_called_once_with('test-zpl', override_ip='192.168.1.100', override_name='Zebra_Magazyn')
+    assert mock_print_boundary.build_pallet_label_zpl.call_args.args[0]['nazwa'] == 'DB product'
     data = res.get_json()
     assert data['success'] is True
-    assert 'Wysłano 2 etykiety do drukarki' in data['message']
-    assert mock_thread.called
+    assert 'Zakolejkowano 2 etykiet' in data['message']
+    mock_thread.assert_not_called()
 
-@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('app.core.legacy_print_hardening.get_db_connection')
 @patch('threading.Thread')
-def test_dodruk_etykiet_batch_success(mock_thread, mock_db, app_client):
+def test_dodruk_etykiet_batch_success(mock_thread, mock_db, app_client, mock_print_boundary):
     """Test successful batch dodruk_etykiet dispatch."""
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
@@ -89,12 +103,15 @@ def test_dodruk_etykiet_batch_success(mock_thread, mock_db, app_client):
             {'nr_palety': 'SUR002', 'product_name': 'Sól', 'qty': 500, 'p_type': 'surowiec'}
         ]
     })
-    assert mock_thread.called
+    assert res.status_code == 200
+    assert res.get_json()["count"] == 2
+    assert mock_print_boundary.queue_print_job.call_count == 2
+    mock_thread.assert_not_called()
 
-@patch('app.blueprints.magazyn_dostawy.routes.pallets.prepare_pallet_label_data')
-@patch('app.blueprints.magazyn_dostawy.routes.pallets.get_db_connection')
+@patch('app.core.legacy_print_hardening.prepare_pallet_label_data')
+@patch('app.core.legacy_print_hardening.get_db_connection')
 @patch('threading.Thread')
-def test_dodruk_etykiet_enriches_weight_from_db(mock_thread, mock_db, mock_prepare, app_client):
+def test_dodruk_etykiet_enriches_weight_from_db(mock_thread, mock_db, mock_prepare, app_client, mock_print_boundary):
     """Test that when qty is missing or 0, dodruk_etykiet enriches weight and attributes from DB."""
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
@@ -121,6 +138,11 @@ def test_dodruk_etykiet_enriches_weight_from_db(mock_thread, mock_db, mock_prepa
     data = res.get_json()
     assert data['success'] is True
     assert mock_prepare.called
+    args = mock_print_boundary.build_pallet_label_zpl.call_args
+    assert args.args[0]['ilosc'] == 1000.0
+    assert args.args[0]['nazwa'] == 'Makuch Lniany'
+    mock_print_boundary.queue_print_job.assert_called_once()
+    mock_thread.assert_not_called()
 
 def test_prepare_pallet_label_data_sur_material():
     """Test that prepare_pallet_label_data correctly retrieves raw material with 1000kg from mock cursor."""

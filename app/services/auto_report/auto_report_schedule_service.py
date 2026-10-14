@@ -65,7 +65,7 @@ class AutoReportScheduleService:
                     'data_dnia': date_str,
                     'linia': linia,
                     'scheduled_time': st_str,
-                    'scheduled_time_full': f"{st_str}:00",
+                    'scheduled_time_full': f'{st_str}:00',
                     'is_paused': is_paused,
                     'postponed_by': row.get('postponed_by'),
                     'is_custom': (st_str != '15:00' or is_paused)
@@ -104,6 +104,9 @@ class AutoReportScheduleService:
             h = int(parts[0])
             m = int(parts[1]) if len(parts) > 1 else 0
             formatted_time = f"{h:02d}:{m:02d}:00"
+
+            if not (0 <= h <= 23 and 0 <= m <= 59):
+                return False, 'Podaj poprawną godzinę wysyłki (HH:MM).'
 
             target_lines = ['AGRO', 'PSD', 'ALL'] if str(linia).upper() in ('ALL', 'WSZYSTKO', 'NONE', '') else [str(linia).upper()]
             if str(linia).upper() in ('ALL', 'WSZYSTKO') and 'ALL' not in target_lines:
@@ -174,6 +177,8 @@ class AutoReportScheduleService:
             now_dt = datetime.now()
             base_dt = now_dt if (now_dt.strftime('%Y-%m-%d') == date_str and now_dt > curr_dt) else curr_dt
             new_dt = base_dt + timedelta(minutes=int(add_minutes))
+            if new_dt.date() != curr_dt.date():
+                return False, 'Nie można odroczyć raportu poza wybrany dzień. Wyślij go ręcznie.', curr_sched
             new_time_str = new_dt.strftime('%H:%M:00')
 
             ok, msg = cls.set_schedule(linia, date_str, new_time_str, is_paused=False, user_name=user_name)

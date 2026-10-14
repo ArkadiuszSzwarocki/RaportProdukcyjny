@@ -71,7 +71,7 @@ class AutoReportDispatcherService:
             return False, msg
 
         if not AutoReportHistoryService.claim_report_execution(linia, date_str, '15:00'):
-            msg = f"Raport o 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
+            msg = f"Raport o 15:00 dla {linia} w dniu {date_str} ma już zapisaną próbę wysyłki. Automatyczne ponawianie jest wyłączone."
             logger.info("[AUTO_REPORT_DISPATCHER] %s", msg)
             return True, msg
 
@@ -160,7 +160,7 @@ class AutoReportDispatcherService:
             return True, msg
 
         if not AutoReportHistoryService.claim_report_execution(linia, date_str, 'po_15:00'):
-            return True, f"Raport po 15:00 dla {linia} w dniu {date_str} jest już wysłany, w trakcie wysyłki lub w okresie cooldownu."
+            return True, f"Raport po 15:00 dla {linia} w dniu {date_str} ma już zapisaną próbę wysyłki. Automatyczne ponawianie jest wyłączone."
 
         try:
             from app.services.shift_close_service import _load_shift_notes, _generate_report_files

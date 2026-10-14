@@ -11,8 +11,11 @@ from app.core.database import get_db_connection
 class LoginRateLimiterService:
     """Rate limiter shared across Gunicorn workers through the application DB."""
 
-    def __init__(self, max_attempts: int = 5, window_seconds: int = 300, lockout_seconds: int = 300):
+    def __init__(self, max_attempts: int = 5, window_seconds: int = 300, lockout_seconds: int = 300,
+                 account_max_attempts: int = 20, ip_max_attempts: int = 50):
         self._max_attempts = int(max_attempts)
+        self._account_max_attempts = int(account_max_attempts)
+        self._ip_max_attempts = int(ip_max_attempts)
         self._window_seconds = int(window_seconds)
         self._lockout_seconds = int(lockout_seconds)
         self._lock = threading.Lock()
@@ -25,6 +28,13 @@ class LoginRateLimiterService:
         raw = f"{(ip_address or '').strip().lower()}:{(username or '').strip().lower()}"
         # Hashing keeps potentially sensitive usernames/IPs out of the rate-limit table.
         return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+    def _buckets(self, ip_address, username):
+        # Separate namespaces prevent aggregate counters colliding with pairs.
+        account = hashlib.sha256(('account:' + (username or '').strip().lower()).encode()).hexdigest()
+        address = hashlib.sha256(('address:' + (ip_address or '').strip().lower()).encode()).hexdigest()
+        return ((self._get_key(ip_address, username), self._max_attempts),
+                (account, self._account_max_attempts), (address, self._ip_max_attempts))
 
     def _ensure_table(self, cursor) -> None:
         """Create the limiter table once per process instead of on every login."""
@@ -47,7 +57,7 @@ class LoginRateLimiterService:
             )
             self._schema_ready = True
 
-    def _memory_is_limited(self, key: str, now: float) -> Tuple[bool, int]:
+    def _memory_is_limited(self, key: str, now: float, limit: int) -> Tuple[bool, int]:
         with self._lock:
             lockout_expiry = self._lockouts.get(key, 0)
             if now < lockout_expiry:
@@ -55,23 +65,29 @@ class LoginRateLimiterService:
             self._lockouts.pop(key, None)
             history = [t for t in self._attempts.get(key, []) if now - t < self._window_seconds]
             self._attempts[key] = history
-            if len(history) >= self._max_attempts:
+            if len(history) >= limit:
                 self._lockouts[key] = now + self._lockout_seconds
                 return True, self._lockout_seconds
             return False, 0
 
-    def _memory_record_failure(self, key: str, now: float) -> Tuple[bool, int]:
+    def _memory_record_failure(self, key: str, now: float, limit: int) -> Tuple[bool, int]:
         with self._lock:
+            expiry = self._lockouts.get(key, 0)
+            if now < expiry:
+                return True, int(expiry - now) + 1
             history = [t for t in self._attempts.get(key, []) if now - t < self._window_seconds]
             history.append(now)
             self._attempts[key] = history
-            if len(history) >= self._max_attempts:
+            if len(history) >= limit:
                 self._lockouts[key] = now + self._lockout_seconds
                 return True, self._lockout_seconds
             return False, 0
 
     def is_rate_limited(self, ip_address: str, username: str) -> Tuple[bool, int]:
-        key = self._get_key(ip_address, username)
+        results = [self._is_key_limited(key, limit) for key, limit in self._buckets(ip_address, username)]
+        return any(limited for limited, _ in results), max(seconds for _, seconds in results)
+
+    def _is_key_limited(self, key: str, limit: int) -> Tuple[bool, int]:
         now = time.time()
         conn = None
         cursor = None
@@ -105,7 +121,7 @@ class LoginRateLimiterService:
                 conn.commit()
                 return False, 0
 
-            if count >= self._max_attempts:
+            if count >= limit:
                 expiry = now + self._lockout_seconds
                 cursor.execute(
                     "UPDATE login_rate_limits SET lockout_until = %s WHERE rate_key = %s",
@@ -123,7 +139,7 @@ class LoginRateLimiterService:
                 except Exception:
                     pass
             # Database failures must not completely remove brute-force protection.
-            return self._memory_is_limited(key, now)
+            return self._memory_is_limited(key, now, limit)
         finally:
             if cursor:
                 try:
@@ -137,7 +153,10 @@ class LoginRateLimiterService:
                     pass
 
     def record_failed_attempt(self, ip_address: str, username: str) -> Tuple[bool, int]:
-        key = self._get_key(ip_address, username)
+        results = [self._record_key_failure(key, limit) for key, limit in self._buckets(ip_address, username)]
+        return any(limited for limited, _ in results), max(seconds for _, seconds in results)
+
+    def _record_key_failure(self, key: str, limit: int) -> Tuple[bool, int]:
         now = time.time()
         conn = None
         cursor = None
@@ -175,7 +194,7 @@ class LoginRateLimiterService:
             else:
                 count = old_count + 1
 
-            lockout_until = now + self._lockout_seconds if count >= self._max_attempts else 0
+            lockout_until = now + self._lockout_seconds if count >= limit else 0
             cursor.execute(
                 "UPDATE login_rate_limits SET attempt_count = %s, window_started_at = %s, "
                 "lockout_until = %s WHERE rate_key = %s",
@@ -191,7 +210,7 @@ class LoginRateLimiterService:
                     conn.rollback()
                 except Exception:
                     pass
-            return self._memory_record_failure(key, now)
+            return self._memory_record_failure(key, now, limit)
         finally:
             if cursor:
                 try:
@@ -205,6 +224,8 @@ class LoginRateLimiterService:
                     pass
 
     def reset_attempts(self, ip_address: str, username: str) -> None:
+        # A successful login clears its pair only. It must not erase failures
+        # against other users or distributed failures against this account.
         key = self._get_key(ip_address, username)
         conn = None
         cursor = None

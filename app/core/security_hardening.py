@@ -1,7 +1,9 @@
+# cspell:words prefixlen
 """Central security hardening that applies consistently across blueprints."""
 
 import os
 import time
+import ipaddress
 
 from flask import jsonify, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -31,6 +33,32 @@ class StripForwardedHeadersMiddleware:
         return self.app(environ, start_response)
 
 
+class TrustedProxyPeerMiddleware:
+    """Apply ProxyFix only to allowlisted immediate socket peers."""
+
+    def __init__(self, trusted_app, direct_app, networks):
+        self.trusted_app = trusted_app
+        self.direct_app = direct_app
+        self.networks = networks
+
+    def __call__(self, environ, start_response):
+        try:
+            peer = ipaddress.ip_address(environ.get('REMOTE_ADDR', ''))
+        except ValueError:
+            return self.direct_app(environ, start_response)
+        allowed = any(peer in network for network in self.networks)
+        return (self.trusted_app if allowed else self.direct_app)(environ, start_response)
+
+
+def trusted_proxy_networks(value):
+    """Require explicit peers; a catch-all network would undo the protection."""
+    networks = [ipaddress.ip_network(item.strip(), strict=False)
+                for item in str(value or '').split(',') if item.strip()]
+    if not networks or any(network.prefixlen == 0 for network in networks):
+        raise ValueError('TRUSTED_PROXY_NETWORKS requires explicit proxy IPs or restricted CIDRs')
+    return networks
+
+
 def _env_bool(name, default=False):
     value = os.environ.get(name)
     if value is None:
@@ -42,14 +70,16 @@ def apply_proxy_policy(app):
     """Trust a configured proxy, then remove raw spoofable forwarding headers."""
     stripped_app = StripForwardedHeadersMiddleware(app.wsgi_app)
     if _env_bool('TRUST_PROXY_HEADERS', False):
+        networks = trusted_proxy_networks(os.environ.get('TRUSTED_PROXY_NETWORKS'))
         hops = max(1, int(os.environ.get('TRUSTED_PROXY_HOPS', '1')))
-        app.wsgi_app = ProxyFix(
+        trusted_app = ProxyFix(
             stripped_app,
             x_for=hops,
             x_proto=hops,
             x_host=hops,
             x_prefix=hops,
         )
+        app.wsgi_app = TrustedProxyPeerMiddleware(trusted_app, stripped_app, networks)
     else:
         app.wsgi_app = stripped_app
 

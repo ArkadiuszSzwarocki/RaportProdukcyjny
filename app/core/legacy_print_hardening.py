@@ -260,7 +260,7 @@ def secure_accept_item(
     expected_status=None,
     strict_putaway=False,
 ):
-    """Run legacy acceptance without its insecure HTTP thread, then queue safely."""
+    """Run acceptance and then queue labels through the authenticated client."""
     if _ORIGINAL_ACCEPT_ITEM is None:
         raise RuntimeError('AcceptanceService hardening was not initialized.')
 
@@ -366,9 +366,8 @@ def register_legacy_print_hardening(app):
             'Could not install bounded pallet creation print workers.'
         ) from exc
 
-    # AcceptanceService historically opened an unauthenticated localhost HTTP
-    # request with verify=False in a new thread. Preserve its warehouse logic,
-    # suppress that legacy print block, then queue the label through PrintServer.
+    # Preserve warehouse acceptance and queue labels through PrintServer only
+    # after a successful transaction. No raw legacy HTTP dispatch remains.
     global _ORIGINAL_ACCEPT_ITEM
     try:
         from app.services.magazyn_dostawy.acceptance_service import AcceptanceService

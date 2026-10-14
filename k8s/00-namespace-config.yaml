@@ -21,6 +21,9 @@ data:
   SESSION_COOKIE_SECURE: "true"
   TRUST_PROXY_HEADERS: "true"
   TRUSTED_PROXY_HOPS: "1"
+  # Set to the verified ingress peer CIDRs in the deployment overlay.
+  # Empty fails startup instead of trusting arbitrary forwarding headers.
+  TRUSTED_PROXY_NETWORKS: ""
   ENABLE_BACKGROUND_DAEMONS: "false"
   # Optional integrations must be injected by the deployment environment.
   WATCHDOG_URL: ""

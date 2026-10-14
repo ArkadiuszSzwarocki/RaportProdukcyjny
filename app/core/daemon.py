@@ -1051,10 +1051,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start AGRO pallet auto-register thread')
 
-    # Start 15:00 / Dynamic Auto-Report Daemon Thread
+    # Start scheduled auto-report daemon (one attempt per day)
     try:
         def _auto_report_scheduler_loop():
-            _safe_log_info('Auto-report daemon loop started (target: dynamic shift 1 scheduled time)')
+            _safe_log_info('Auto-report daemon loop started (scheduled minute Europe/Warsaw, no retries)')
             leader_lock_name = 'auto_report_daemon_leader'
             leader_lock_conn = None
             next_lock_retry_at = 0.0
@@ -1082,53 +1082,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
                             time.sleep(2.0)
                             continue
 
-                    now = datetime.now()
-                    today_str = now.strftime('%Y-%m-%d')
-                    now_time_str = now.strftime('%H:%M:%S')
-
-                    from app.services.auto_report_service import AutoReportService
-                    from datetime import timedelta
-
-                    global_cfg = AutoReportService.get_global_config()
-                    enabled_lines = global_cfg.get('enabled_lines', ['AGRO'])
-
-                    # 1. Sprawdzanie bieżącego dnia (podstawowe okno wysyłki o 15:00 lub wg harmonogramu - tylko linia AGRO)
-                    is_standard_report_day = AutoReportService.is_report_day(today_str)
-                    for linia in ['AGRO']:
-                        if linia not in enabled_lines:
-                            continue
-
-                        sched = AutoReportService.get_schedule(linia, today_str)
-                        # Dzień jest aktywny, jeśli to standardowy dzień roboczy LUB lider ustawił indywidualny czas na dziś
-                        if not is_standard_report_day and not sched.get('is_custom'):
-                            continue
-
-                        if not AutoReportService.is_1500_report_sent(linia, today_str):
-                            if not sched.get('is_paused'):
-                                sched_time = sched.get('scheduled_time_full') or '15:00:00'
-                                if now_time_str >= sched_time:
-                                    _safe_log_info(f'[AUTO_REPORT] Triggering report for {linia} on {today_str} (sched: {sched_time}, now: {now_time_str})')
-                                    with app.app_context():
-                                        success, msg = AutoReportService.send_shift1_report_at_1500(linia=linia, date_str=today_str)
-                                        _safe_log_info(f'[AUTO_REPORT] Result for {linia} on {today_str}: success={success}, msg={msg}')
-
-                    # 2. Sprawdzanie dziennego raportu zbiorczego z dostaw i przesunięć magazynowych
-                    try:
-                        from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
-                        wh_cfg = OsipEmailSettingsRepository().get_settings()
-                        if wh_cfg.is_active and wh_cfg.daily_report_enabled:
-                            wh_sched_time = (wh_cfg.daily_report_time or '15:00').strip()
-                            if len(wh_sched_time) == 5:
-                                wh_sched_time += ':00'
-                            
-                            if now_time_str >= wh_sched_time and wh_cfg.last_daily_report_date != today_str:
-                                _safe_log_info(f'[WAREHOUSE_DAILY_REPORT] Triggering daily report for {today_str} (sched: {wh_sched_time}, now: {now_time_str})')
-                                with app.app_context():
-                                    from app.services.osip_report_email_service import OsipReportEmailService
-                                    success, msg = OsipReportEmailService().send_daily_warehouse_summary_report(date_str=today_str, force=False)
-                                    _safe_log_info(f'[WAREHOUSE_DAILY_REPORT] Result for {today_str}: success={success}, msg={msg}')
-                    except Exception as _whe:
-                        _safe_log_exception(f'Error checking warehouse daily report: {_whe}')
+                    from zoneinfo import ZoneInfo
+                    from app.services.daily_report_scheduler import run_daily_reports
+                    with app.app_context():
+                        run_daily_reports(datetime.now(ZoneInfo('Europe/Warsaw')))
 
                 except Exception as _e:
                     _safe_log_exception(f'Error in auto-report scheduler loop: {_e}')

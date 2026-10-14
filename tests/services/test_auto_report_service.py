@@ -123,7 +123,7 @@ class TestAutoReportServiceLockingAndHistory:
             
             success, msg = AutoReportService.send_shift1_report_at_1500(linia="AGRO", date_str="2026-08-25", force=False)
             assert success is True
-            assert "w trakcie wysyłki lub w okresie cooldownu" in msg
+            assert "Automatyczne ponawianie jest wyłączone" in msg
 
     def test_is_1500_report_sent_only_for_sent_status(self):
         mock_conn = MagicMock()

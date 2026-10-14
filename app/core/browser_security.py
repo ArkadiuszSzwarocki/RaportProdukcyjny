@@ -1,5 +1,7 @@
 """Browser-facing response security headers and frontend response hardening."""
 
+import os
+
 from flask import request, session
 
 SOCKET_IO_CDN_TAG = '<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>'
@@ -117,6 +119,17 @@ def register_browser_security_headers(app) -> None:
             'Content-Security-Policy',
             "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
         )
+        if os.environ.get('CSP_STRICT_REPORT_ONLY', 'true').lower() in {'true', '1', 'yes', 'on'}:
+            # Deliberately omit report-sample: violations must not expose inline
+            # script contents or user data. Browser consoles show violations.
+            response.headers['Content-Security-Policy-Report-Only'] = (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.socket.io https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; "
+                "connect-src 'self' wss: https:; object-src 'none'; "
+                "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+            )
 
         path = str(getattr(request, 'path', '') or '')
         is_dynamic = not path.startswith('/static/') and path not in {'/sw.js', '/favicon.ico'}

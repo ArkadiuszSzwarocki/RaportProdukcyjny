@@ -49,12 +49,14 @@ W produkcji preferowany jest zewnętrzny system sekretów, np. External Secrets 
 
 Aplikacja WWW ma:
 
-- `TRUST_PROXY_HEADERS=true` i ufa jednemu hopowi Ingress;
+- `TRUST_PROXY_HEADERS=true` i ufa jednemu hopowi Ingress wyłącznie wtedy, gdy bezpośredni adres nadawcy należy do `TRUSTED_PROXY_NETWORKS`;
 - `SESSION_COOKIE_SECURE=true` dla HTTPS zakończonego na Ingress;
 - `DB_SSL_DISABLED=false`, więc TLS do MySQL nie jest sterowany ustawieniem TLS serwera WWW;
 - `ENABLE_BACKGROUND_DAEMONS=false`, aby każdy worker Gunicorn nie uruchamiał osobnych pętli tła.
 
 Osobny Deployment `app-daemons` uruchamia dokładnie jeden proces `scripts/run_daemons.py`.
+
+Przed uruchomieniem ustaw `TRUSTED_PROXY_NETWORKS` w konfiguracji środowiska na zweryfikowane adresy lub zakresy kontrolera Ingress. Pusta lista przy włączonym `TRUST_PROXY_HEADERS` zatrzymuje start aplikacji. Nie stosuj zakresów obejmujących wszystkie adresy ani sieci współdzielonej z niezaufanymi kontenerami. Nagłówki przekazane przez nadawcę spoza tej listy są ignorowane.
 
 ### Mostek drukowania
 

@@ -1,3 +1,4 @@
+# cspell:words addgroup appuser
 """Second-pass audit regression tests for findings 39-44."""
 
 from pathlib import Path
@@ -44,8 +45,12 @@ def test_k8s_and_image_use_consistent_non_root_identity_and_seccomp():
         assert security['seccompProfile']['type'] == 'RuntimeDefault'
         assert security['allowPrivilegeEscalation'] is False
         assert security['capabilities']['drop'] == ['ALL']
-    assert 'groupadd --gid 1000 appgroup' in dockerfile
-    assert 'useradd --uid 1000 --gid appgroup --create-home appuser' in dockerfile
+    if 'FROM python:3.11-alpine@sha256:' in dockerfile:
+        assert 'addgroup -g 1000 appgroup' in dockerfile
+        assert 'adduser -D -u 1000 -G appgroup appuser' in dockerfile
+    else:
+        assert 'groupadd --gid 1000 appgroup' in dockerfile
+        assert 'useradd --uid 1000 --gid appgroup --create-home appuser' in dockerfile
     assert 'USER appuser' in dockerfile
 
 
