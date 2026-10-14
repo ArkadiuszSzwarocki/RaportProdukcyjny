@@ -1,3 +1,4 @@
+# cspell:words calkowita
 # cspell:words pytestmark
 # These integration checks create and remove rows in a real test database.
 import pytest
@@ -218,9 +219,12 @@ def test_maluchy_api(app, test_plan_with_szarza):
     assert len(resp_item.get_json()['bucket']['pozycje']) == 1
 
     # Complete bucket via API
-    resp_comp = client.post('/maluchy/api/complete', json={'bucket_id': bucket_id})
+    missing_weight = client.post('/maluchy/api/complete', json={'bucket_id': bucket_id})
+    assert missing_weight.status_code == 400
+    resp_comp = client.post('/maluchy/api/complete', json={'bucket_id': bucket_id, 'waga_calkowita': 12.5})
     assert resp_comp.status_code == 200
     assert resp_comp.get_json()['bucket']['status'] == 'skompletowane'
+    assert float(resp_comp.get_json()['bucket']['waga_calkowita']) == 12.5
 
     # Dump bucket to mixer MI01 via API
     resp_dump = client.post('/maluchy/api/dump-to-mixer', json={

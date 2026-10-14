@@ -1,3 +1,4 @@
+# cspell:words calkowita
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from app.db import get_db_connection

@@ -1,3 +1,4 @@
+# cspell:words BOCZKMAR Szwar calkowita
 """Regressions for supervisor authorization and station warehouse lookup."""
 from pathlib import Path
 from unittest.mock import MagicMock, patch

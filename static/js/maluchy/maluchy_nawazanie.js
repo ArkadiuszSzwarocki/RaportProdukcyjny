@@ -1,3 +1,4 @@
+// cspell:words calkowita
 /**
  * Ultra-fast scanner controller for Maluchy weighing module.
  * Automatic raw material resolution, instant item addition, autoenter on bucket scan,

@@ -1,3 +1,4 @@
+# cspell:words TINYINT calkowita zapauzowanego zapauzowany
 from __future__ import annotations
 
 import logging
@@ -511,7 +512,7 @@ class ZasypEtapyService:
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                 f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id=%s), 0) + "
                 f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id=%s AND potwierdzone=1 AND COALESCE(anulowana, 0)=0), 0) + "
-                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id=%s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id=%s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0) "
                 "WHERE id=%s",
                 (int(plan_id), int(plan_id), int(plan_id), int(plan_id)),
             )

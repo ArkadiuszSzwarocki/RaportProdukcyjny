@@ -1,3 +1,4 @@
+# cspell:words anulowal calkowita
 """
 Automatycznie wydzielone production_repository.
 """
@@ -468,7 +469,7 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None, linia='PSD'):
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                 f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
                 f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
-                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0) "
                 f"WHERE id = %s",
                 (plan_id, plan_id, plan_id, plan_id)
             )
@@ -521,7 +522,7 @@ def cancel_confirmed_dosypka(dosypka_id: int, cancelled_by_login: str, linia: st
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                 f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
                 f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
-                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0) "
                 f"WHERE id = %s",
                 (plan_id, plan_id, plan_id, plan_id),
             )

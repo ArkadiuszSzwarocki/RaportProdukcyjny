@@ -17,7 +17,7 @@ def authorized_zasyp_resource():
 
 
 @pytest.mark.parametrize('mixing_stage,next_stage', [(2, 3), (4, 31), (41, 32), (410, 311)])
-def test_confirmed_batch_addition_starts_dosypka_instead_of_emptying(client, mixing_stage, next_stage):
+def test_explicit_emptying_choice_after_mixing_is_preserved(client, mixing_stage, next_stage):
     connection = MagicMock()
     connection.cursor.return_value.fetchone.return_value = ('Zasyp', 'w toku', date(2026, 10, 11), 'Produkt', 'NORMAL')
     with client.session_transaction() as state:
@@ -31,7 +31,7 @@ def test_confirmed_batch_addition_starts_dosypka_instead_of_emptying(client, mix
         response = client.post('/zasyp_etap_stop', data={
             'plan_id': 323, 'szarza_nr': 3, 'etap': mixing_stage, 'linia': 'AGRO', 'next_action': 'oprozniamy'})
     assert response.status_code == 302
-    assert start.call_args.kwargs['etap'] == next_stage
+    assert start.call_args.kwargs['etap'] == 5
     assert int(start.call_args.kwargs['szarza_nr']) == 3
 
 

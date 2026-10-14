@@ -187,3 +187,6 @@ scratch/
 backup_before_stash_restore/
 certs_backup/
 db-init/
+
+# Local JavaScript tooling dependencies
+node_modules/

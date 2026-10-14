@@ -1,3 +1,4 @@
+# cspell:words calkowita zasypal
 # cspell:words naważanie nawazania
 import random
 import re
@@ -410,10 +411,10 @@ class BucketMaluchService:
             cur.execute(
                 """
                 SELECT id, kod_wiadra, data_zasypania FROM wiaderka_maluchy 
-                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s
+                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s AND UPPER(linia) = %s AND plan_id = %s
                 LIMIT 1
                 """,
-                (szarza_id, bucket['id'])
+                (szarza_id, bucket['id'], str(linia).upper(), plan_id)
             )
             existing_dumped = cur.fetchone()
             if existing_dumped:
@@ -459,7 +460,7 @@ class BucketMaluchService:
                     UPDATE {table_plan} SET tonaz_rzeczywisty = 
                         COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + 
                         COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) +
-                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0)
+                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0)
                     WHERE id = %s
                     """,
                     (plan_id, plan_id, plan_id, plan_id)
@@ -587,10 +588,10 @@ class BucketMaluchService:
             cur.execute(
                 """
                 SELECT id, kod_wiadra, data_zasypania FROM wiaderka_maluchy 
-                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s
+                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s AND UPPER(linia) = %s AND plan_id = %s
                 LIMIT 1
                 """,
-                (target_szarza_id, bucket_id)
+                (target_szarza_id, bucket_id, linia_norm, effective_plan_id)
             )
             existing_dumped = cur.fetchone()
             if existing_dumped:
@@ -656,7 +657,7 @@ class BucketMaluchService:
                     UPDATE {table_plan} SET tonaz_rzeczywisty = 
                         COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + 
                         COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) +
-                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0)
+                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0)
                     WHERE id = %s
                     """,
                     (effective_plan_id, effective_plan_id, effective_plan_id, effective_plan_id)
