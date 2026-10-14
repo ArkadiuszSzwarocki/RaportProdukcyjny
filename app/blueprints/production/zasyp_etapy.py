@@ -29,7 +29,7 @@ def register_production_zasyp_etapy_routes(
 
     @production_bp.route('/zasyp_etap_manual_set', methods=['POST'])
     @login_required
-    @roles_required('lider', 'admin', 'zarzad')
+    @roles_required('lider', 'admin', 'zarzad', 'masteradmin', 'pracownik', 'magazynier', 'produkcja')
     def zasyp_etap_manual_set():
         """Ręczny zapis czasu START/STOP etapu (HH:MM) dla zlecenia Zasyp."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -64,8 +64,8 @@ def register_production_zasyp_etapy_routes(
             if sekcja != 'Zasyp':
                 flash('❌ To nie jest zlecenie Zasyp', 'danger')
                 return redirect(bezpieczny_powrot())
-            if status not in ('w toku', 'zakonczone'):
-                flash('❌ Zlecenie musi być W TOKU lub ZAKOŃCZONE', 'danger')
+            if status not in ('w toku', 'zakonczone', 'zamkniete'):
+                flash('❌ Zlecenie musi być W TOKU, ZAKOŃCZONE lub ZAMKNIĘTE', 'danger')
                 return redirect(bezpieczny_powrot())
             data_planu_date = coerce_date(data_planu)
         except Exception as e:
@@ -148,7 +148,8 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etap_delete', methods=['POST'])
-    @masteradmin_required
+    @login_required
+    @roles_required('lider', 'admin', 'masteradmin', 'zarzad')
     def zasyp_etap_delete():
         """Całkowite usunięcie rekordu etapu (dla sub-etapów AGRO)."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -333,7 +334,8 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_usun_ostatnia_pare_dosypki/<int:plan_id>', methods=['POST'])
-    @roles_required('masteradmin', 'laborant', 'laboratorium')
+    @login_required
+    @roles_required('lider', 'admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium')
     def zasyp_usun_ostatnia_pare_dosypki(plan_id):
         """Usuwa ostatnio dodaną parę AGRO (39/49..31/41, a na końcu 3/4) dla bieżącej szarży."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -379,7 +381,8 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_usun_punkt_kontrolny_page/<int:plan_id>', methods=['GET'])
-    @masteradmin_required
+    @login_required
+    @roles_required('lider', 'admin', 'masteradmin', 'zarzad')
     def zasyp_usun_punkt_kontrolny_page(plan_id):
         """Render 2-step confirmation before removing a control point (szarza session)."""
         linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -396,7 +399,8 @@ def register_production_zasyp_etapy_routes(
         )
 
     @production_bp.route('/zasyp_usun_punkt_kontrolny/<int:plan_id>', methods=['POST'])
-    @masteradmin_required
+    @login_required
+    @roles_required('lider', 'admin', 'masteradmin', 'zarzad')
     def zasyp_usun_punkt_kontrolny(plan_id):
         """Usuwa cały punkt kontrolny (całą sesję szarży) dla wskazanego planu."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'

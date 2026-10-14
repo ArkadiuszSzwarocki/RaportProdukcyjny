@@ -236,7 +236,7 @@ def create_app(config_secret_key=None, init_db=True):
     register_error_handlers(app)
     app.jinja_env.add_extension('jinja2.ext.do')
     app.jinja_env.cache = None
-    app.config['TEMPLATES_AUTO_RELOAD'] = not _is_production()
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
 
     register_legacy_secret_rejection(app)
     register_middleware(app)

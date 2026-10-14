@@ -533,6 +533,18 @@
                     </table>
                 </div>
 
+                <!-- Waga calego zasypu wiadra -->
+                <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+                    <label for="inputBucketTotalWeight" style="display: block; font-size: 12px; font-weight: 800; color: #1e293b; margin-bottom: 6px; text-transform: uppercase;">
+                        ⚖️ Waga całego zasypu wiadra (kg):
+                    </label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="number" id="inputBucketTotalWeight" step="0.01" min="0.01" max="999.99" placeholder="np. 15.50" style="flex: 1; padding: 10px 12px; font-size: 16px; font-weight: 800; border: 2px solid #3b82f6; border-radius: 8px; color: #1e3a8a; background: #ffffff;" required />
+                        <span style="font-weight: 800; color: #475569; font-size: 15px;">kg</span>
+                    </div>
+                    <small style="display: block; color: #64748b; font-size: 11px; margin-top: 4px;">Operator musi podać łączną zważoną masę zasypu wiadra przed zakończeniem kompletacji.</small>
+                </div>
+
                 <div style="display: flex; gap: 10px;">
                     <button type="button" id="btnCompleteBucket" class="m-btn-primary" style="flex: 2; background: #1e3a8a;">
                         📦 ZAKOŃCZ KOMPLETACJĘ WIADRA
@@ -613,5 +625,5 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/maluchy/maluchy_nawazanie.js') }}"></script>
+<script src="{{ url_for('static', filename='js/maluchy/maluchy_nawazanie.js') }}?v={{ static_version or '2.0.1' }}"></script>
 {% endblock %}

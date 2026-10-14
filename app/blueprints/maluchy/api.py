@@ -1,6 +1,7 @@
 from flask import jsonify, request, session
 from app.blueprints.maluchy.blueprint import maluchy_bp
 from app.decorators import login_required
+from app.blueprints.maluchy.permissions import can_emergency_dump_bucket
 from app.services.bucket_maluch_service import BucketMaluchService
 
 
@@ -100,6 +101,7 @@ def api_remove_item():
 def api_complete_bucket():
     data = request.get_json(silent=True) or request.form
     bucket_id = data.get('bucket_id')
+    waga_calkowita = data.get('waga_calkowita')
     operator_login = session.get('login') or session.get('imie_nazwisko') or 'operator'
 
     if not bucket_id:
@@ -110,7 +112,18 @@ def api_complete_bucket():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Nieprawidłowe ID wiadra'}), 400
 
-    success, msg, bucket = BucketMaluchService.complete_bucket(bucket_id, operator_login)
+    waga_float = 0.0
+    if waga_calkowita is not None and str(waga_calkowita).strip() != '':
+        try:
+            waga_float = float(str(waga_calkowita).replace(',', '.'))
+            if waga_float <= 0:
+                return jsonify({'success': False, 'message': 'Waga wiadra musi być większa od zera'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Nieprawidłowy format wagi wiadra'}), 400
+    else:
+        return jsonify({'success': False, 'message': 'Operator musi podać łączną wagę zasypu wiadra'}), 400
+
+    success, msg, bucket = BucketMaluchService.complete_bucket(bucket_id, operator_login, waga_calkowita=waga_float)
     status_code = 200 if success else 400
     return jsonify({'success': success, 'message': msg, 'bucket': bucket}), status_code
 
@@ -203,4 +216,58 @@ def api_get_buckets_history():
 
     buckets = BucketMaluchService.get_all_buckets_history(linia=linia, active_only=active_only, limit=limit)
     return jsonify({'success': True, 'buckets': buckets})
+
+
+@maluchy_bp.route('/api/emergency-dump', methods=['POST'])
+@login_required
+def api_emergency_dump():
+    """Emergency dump of a bucket into a zasyp by MasterAdmin / zarząd / SzwarArk / BoczkMar."""
+    login = str(session.get('login') or '').strip().lower()
+
+    can_emergency_dump = can_emergency_dump_bucket()
+    if not can_emergency_dump:
+        return jsonify({
+            'success': False,
+            'message': 'Brak uprawnień do awaryjnego przypisania wiadra.'
+        }), 403
+
+    data = request.get_json(silent=True) or request.form
+    bucket_id = data.get('bucket_id')
+    szarza_id = data.get('szarza_id')
+    plan_id = data.get('plan_id')
+    linia = data.get('linia') or session.get('selected_hall_view') or 'PSD'
+    operator_login = login or session.get('imie_nazwisko') or 'MasterAdmin'
+    waga_calkowita = data.get('waga_calkowita')
+
+    if not bucket_id:
+        return jsonify({'success': False, 'message': 'Brak ID wiaderka'}), 400
+    if not szarza_id:
+        return jsonify({'success': False, 'message': 'Brak identyfikatora zasypu (szarży)'}), 400
+
+    try:
+        bucket_id = int(bucket_id)
+        szarza_id = int(szarza_id)
+        plan_id = int(plan_id) if plan_id else 0
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Nieprawidłowe identyfikatory'}), 400
+
+    waga_float = None
+    if waga_calkowita is not None and str(waga_calkowita).strip() != '':
+        try:
+            waga_float = float(str(waga_calkowita).replace(',', '.'))
+            if waga_float <= 0:
+                return jsonify({'success': False, 'message': 'Waga wiadra musi być większa od zera'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Nieprawidłowy format wagi wiadra'}), 400
+
+    success, msg, bucket = BucketMaluchService.emergency_dump_to_szarza(
+        bucket_id=bucket_id,
+        szarza_id=szarza_id,
+        plan_id=plan_id,
+        operator_login=operator_login,
+        linia=linia,
+        waga_calkowita=waga_float
+    )
+    status_code = 200 if success else 400
+    return jsonify({'success': success, 'message': msg, 'bucket': bucket}), status_code
 

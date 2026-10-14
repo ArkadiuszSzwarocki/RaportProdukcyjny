@@ -63,6 +63,15 @@ class ScannerService:
         """Alias resolving scanned barcode or SSCC."""
         return ScannerResolutionService.lookup_by_location(scanned_code, linia=linia)
 
+    @staticmethod
+    def get_station_warehouse_materials(station_code: str, linia: str = 'Agro') -> dict:
+        """Get warehouse pallets available for materials associated with a production station."""
+        from app.services.scanner.station_warehouse_material_service import StationWarehouseMaterialService
+        return StationWarehouseMaterialService.get_available_warehouse_materials_for_station(
+            station_code=station_code,
+            linia=linia
+        )
+
     # Movement & Dispatch delegates
     @staticmethod
     def dispatch_to_production(

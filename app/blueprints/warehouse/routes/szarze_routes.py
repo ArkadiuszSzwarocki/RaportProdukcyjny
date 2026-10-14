@@ -104,24 +104,59 @@ def register_szarze_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(f"SELECT plan_id FROM {table_zasypy} WHERE id=%s", (id,))
+            cursor.execute(f"SELECT plan_id, nr_szarzy FROM {table_zasypy} WHERE id=%s", (id,))
             res = cursor.fetchone()
             if res:
                 plan_id = res[0]
+                nr_szarzy = res[1] if len(res) > 1 else None
+                user_login = session.get('login') or 'system'
+
+                # 1. Cancel additions belonging to this deleted batch so they do not remain orphaned
+                cursor.execute(
+                    f"UPDATE {table_dosypki} SET anulowana = 1, data_anulowania = NOW(), anulowal_login = %s "
+                    f"WHERE szarza_id = %s AND COALESCE(anulowana, 0) = 0",
+                    (f"{user_login} (usunięcie zasypu)", id),
+                )
+
+                # 2. Release any dumped bucket in wiaderka_maluchy attached to this batch back to skompletowane
+                cursor.execute(
+                    """
+                    UPDATE wiaderka_maluchy 
+                    SET szarza_id = NULL, 
+                        status = 'skompletowane', 
+                        data_zasypania = NULL, 
+                        operator_zasypal_login = NULL 
+                    WHERE szarza_id = %s
+                    """,
+                    (id,),
+                )
+
+                # 3. Delete the szarza itself
                 cursor.execute(f"DELETE FROM {table_zasypy} WHERE id=%s", (id,))
+
+                # 4. Update actual plan tonnage
                 cursor.execute(
                     f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                     f"COALESCE((SELECT SUM(waga) FROM {table_zasypy} WHERE plan_id = %s), 0) + "
-                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                    f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
                     "WHERE id = %s",
-                    (plan_id, plan_id, plan_id),
+                    (plan_id, plan_id, plan_id, plan_id),
                 )
                 conn.commit()
+
+                try:
+                    audit_log(
+                        'Usunięcie zasypu',
+                        f"zasyp_id={id}, nr_szarzy={nr_szarzy}, plan_id={plan_id}, linia={linia}, user={user_login}"
+                    )
+                except Exception:
+                    pass
         finally:
             conn.close()
-    
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True, 'message': 'Zasyp usunięty'}), 200
-    
+
         return redirect(safe_return())
 

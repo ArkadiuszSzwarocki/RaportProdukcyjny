@@ -7,6 +7,7 @@ from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name, list_unconfirmed_dosypki, sync_dosypka_notifications
 from app.decorators import roles_required
 from app.services.zasyp_etapy_service import ZasypEtapyService
+from app.repositories.production_repository import cancel_confirmed_dosypka
 
 
 def register_production_dosypki_routes(
@@ -33,6 +34,11 @@ def register_production_dosypki_routes(
     def _is_admin_or_zarzad_user():
         role_lc = (session.get('rola') or '').strip().lower()
         return role_lc in ['admin', 'masteradmin', 'master_admin', 'zarzad', 'zarząd']
+
+    def _is_masteradmin_or_super():
+        role = str(session.get('rola') or '').strip().lower().replace(' ', '_').replace('-', '_')
+        login = str(session.get('login') or '').strip()
+        return role == 'masteradmin' or login in ('SzwarArk', 'BoczkMar')
 
     def _check_szarza_emptied(cursor, linia, plan_id, szarza_nr):
         if not szarza_nr:
@@ -506,9 +512,10 @@ def register_production_dosypki_routes(
                 cursor.execute(
                     f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                     f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
-                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                    f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
                     f"WHERE id = %s",
-                    (plan_id, plan_id, plan_id),
+                    (plan_id, plan_id, plan_id, plan_id),
                 )
                 sync_dosypka_notifications(
                     plan_id=plan_id,
@@ -610,6 +617,52 @@ def register_production_dosypki_routes(
                 pass
 
         return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/usun_zatwierdzona_dosypke/<int:dosypka_id>', methods=['POST'])
+    def usun_zatwierdzona_dosypke(dosypka_id):
+        """MasterAdmin (or SzwarArk/BoczkMar) cancels an already confirmed dosypka."""
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
+        if not _is_masteradmin_or_super():
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': 'Brak uprawnień. Tylko Master Admin / SzwarArk / BoczkMar mogą usuwać zatwierdzone dosypki.'
+                }), 403
+            flash('Brak uprawnień do usunięcia zatwierdzonej dosypki.', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'MasterAdmin'
+
+        success, msg, plan_id = cancel_confirmed_dosypka(dosypka_id, anulowal_login, linia=linia)
+        if not success:
+            if is_ajax:
+                return jsonify({'success': False, 'message': msg}), 400
+            flash(msg, 'warning')
+            return redirect(bezpieczny_powrot())
+
+        mark_dosypki_updated(linia)
+        if plan_id:
+            try:
+                sync_dosypka_notifications(
+                    plan_id=plan_id,
+                    author_name=anulowal_login,
+                    created_by_user_id=session.get('user_id'),
+                    linia=linia,
+                )
+            except Exception:
+                current_app.logger.debug('sync_dosypka_notifications failed', exc_info=True)
+
+        try:
+            audit_log('Usunął zatwierdzoną dosypkę (MasterAdmin)', f'id={dosypka_id}, plan_id={plan_id}, user={anulowal_login}')
+        except Exception:
+            current_app.logger.debug('audit_log failed for confirmed dosypka deletion', exc_info=True)
+
+        if is_ajax:
+            return jsonify({'success': True, 'message': msg, 'plan_id': plan_id, 'anulowal_login': anulowal_login})
+        flash(msg, 'success')
+        return redirect(bezpieczny_powrot())
+
 
     @production_bp.route('/api/dosypki', methods=['GET'])
     @roles_required('laborant', 'laboratorium', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad')

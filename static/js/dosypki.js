@@ -111,11 +111,15 @@
     }
 
     function renderActionCell(d, role, initialDisabled = false) {
+        var out = '';
         if (role === 'masteradmin' || role === 'operator' || role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin' || role === 'zarzad') {
             const disabledAttr = initialDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : '';
-            return '<button type="button" class="dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm" ' + disabledAttr + '>✓ Potwierdź</button>';
+            out += '<button type="button" class="dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm" ' + disabledAttr + '>✓ Potwierdź</button>';
         }
-        return '';
+        if (role === 'masteradmin' || role === 'admin' || role === 'lider' || role === 'laborant' || role === 'laboratorium') {
+            out += ' <button type="button" class="dosypka-cancel-btn btn-action btn-danger btn-sm" data-id="' + d.id + '" title="Anuluj dosypkę" style="padding: 6px 10px; font-weight:700; border-radius:8px; margin-left:6px; cursor:pointer; background:#ef4444; color:#fff; border:none;">✕ Anuluj</button>';
+        }
+        return out;
     }
 
     function buildRowHtml(d, idx, role) {
@@ -385,6 +389,50 @@
             // Directly confirm dosypka without blocking browser confirm dialog
             // (removed native confirm per UX request)
             confirmDosypka(id, btn);
+        });
+
+        // delegate click for cancel/delete buttons
+        container.addEventListener('click', async function (ev) {
+            const cancelBtn = ev.target.closest && ev.target.closest('button.dosypka-cancel-btn[data-id]');
+            if (!cancelBtn) return;
+            if (cancelBtn.disabled) return;
+            ev.preventDefault();
+            const id = cancelBtn.getAttribute('data-id');
+            if (!id) return;
+            if (!confirm('Czy na pewno chcesz anulować tę dosypkę?')) return;
+
+            const p15 = cancelBtn.closest && cancelBtn.closest('.p-15');
+            const linia = getCurrentLinia(p15 || cancelBtn);
+            cancelBtn.disabled = true;
+            try {
+                const res = await fetch('/anuluj_dosypke/' + id + '?linia=' + encodeURIComponent(linia), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success) {
+                    showConfirmMessage(container, data.message || 'Dosypka została anulowana.', true);
+                    const row = cancelBtn.closest('tr');
+                    const planId = row ? row.getAttribute('data-plan-id') : null;
+                    if (planId) {
+                        updateDosypkiBadge(planId, -1);
+                    }
+                    await fetchDosypki(container);
+                    if (typeof window.performPartialReload === 'function') {
+                        await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-cancel' });
+                    }
+                } else {
+                    alert(data.message || 'Nie udało się anulować dosypki.');
+                    cancelBtn.disabled = false;
+                }
+            } catch (e) {
+                alert('Błąd sieci: ' + e.message);
+                cancelBtn.disabled = false;
+            }
         });
 
         // initial load

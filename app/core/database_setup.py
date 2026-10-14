@@ -245,6 +245,19 @@ def _create_tables(cursor):
             except Exception:
                 pass
 
+    for col, col_def in [
+        ('is_paused', 'TINYINT(1) NOT NULL DEFAULT 0'),
+        ('pauza_start', 'DATETIME NULL DEFAULT NULL'),
+        ('pauza_sekundy', 'INT NOT NULL DEFAULT 0'),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN IF NOT EXISTS {col} {col_def}")
+        except Exception:
+            try:
+                cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN {col} {col_def}")
+            except Exception:
+                pass
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS magazyn_palety (
             id INT AUTO_INCREMENT PRIMARY KEY,

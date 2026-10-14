@@ -21,6 +21,7 @@ from app.services.warehouse_reports.warehouse_activity_query_service import Ware
 from app.services.warehouse_reports.warehouse_pdf_report_builder import WarehousePdfReportBuilder
 from app.services.warehouse_reports.warehouse_email_template_builder import WarehouseEmailTemplateBuilder
 from app.services.warehouse_reports.warehouse_report_mailer import WarehouseReportMailer
+from app.services.warehouse_reports.warehouse_system_sender_resolver import WarehouseSystemSenderResolver
 
 
 class OsipReportEmailService:
@@ -316,11 +317,11 @@ class OsipReportEmailService:
             self._active_dispatches.add(dispatch_key)
 
         try:
-            config = self.settings_repo.get_settings()
+            config = WarehouseSystemSenderResolver().resolve(self.settings_repo.get_settings())
             if not config.is_active:
                 return False, "Moduł powiadomień magazynowych jest wyłączony w ustawieniach."
             if not config.is_configured:
-                return False, "Serwer SMTP nie został jeszcze poprawnie skonfigurowany."
+                return False, "Konto systemowe e-mail nie ma kompletnej konfiguracji SMTP (serwer, login, hasło) — uzupełnij je w Ustawieniach E-mail."
 
             recipients = [recipient_override.strip()] if recipient_override else config.recipients_list
             if not recipients:

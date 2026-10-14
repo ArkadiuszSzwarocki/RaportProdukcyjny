@@ -191,3 +191,6 @@ class EtapRow:
     czas_stop: Optional[datetime]
     start_login: Optional[str]
     stop_login: Optional[str]
+    is_paused: bool = False
+    pauza_start: Optional[datetime] = None
+    pauza_sekundy: int = 0

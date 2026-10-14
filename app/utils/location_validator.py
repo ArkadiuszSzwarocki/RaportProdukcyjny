@@ -525,11 +525,12 @@ def validate_inter_warehouse_move(source_location: str, target_location: str, pa
     return True, None
 
 
-def validate_reception_warehouse_destination(source_location: str, planned_destination: str, putaway_location: str, is_external: bool = False) -> tuple[bool, str | None]:
+def validate_reception_warehouse_destination(source_location: str, planned_destination: str, putaway_location: str, is_external: bool = False, is_transfer: bool = False) -> tuple[bool, str | None]:
     """
     Waliduje odstawienie palety podczas przyjęcia/realizacji zlecenia (przyjęcie surowców / dostawy / transferu).
-    Gwarantuje, że paleta pochodząca z Magazynu MS01 lub zadeklarowana do Magazynu MS01
-    nie zostanie odstawiona do Magazynu MP01 (na regały R...) poza zatwierdzonym przesunięciem magazynowym.
+    Dla zleceń przesunięć magazynowych (zlecenie ślepe / otwarte):
+    Magazynier tworzący zlecenie nie decyduje sztywno o miejscu odłożenia — drugi magazynier
+    odbierający decyduje, gdzie paleta ma być odstawiona (np. regały MP01 lub strefa MS01/PSD).
     """
     if not putaway_location:
         return True, None
@@ -538,38 +539,23 @@ def validate_reception_warehouse_destination(source_location: str, planned_desti
     src_zone = get_warehouse_zone(source_location)
     plan_zone = get_warehouse_zone(planned_destination)
 
-    # 1. Towar z Magazynu MS01 trafiający do Magazynu MP01 (na regały)
-    if src_zone == 'MS01' and put_zone == 'MP01':
-        # Dozwolone wyłącznie gdy samo zlecenie przesunięcia zostało wystawione z celem w Magazynie MP01
-        if plan_zone != 'MP01':
-            return False, (
-                f"BŁĄD: Paleta pochodzi z Magazynu MS01 ({source_location}), a to zlecenie "
-                f"nie jest przesunięciem do Magazynu MP01 (cel w zleceniu: {planned_destination or 'MS01'}). "
-                f"Odstawienie do Magazynu MP01 / na regały ({putaway_location}) jest zablokowane! "
-                f"Wymagane jest formalne zlecenie przesunięcia magazynowego do Magazynu MP01."
-            )
+    # Przesunięcia magazynowe są otwarte/ślepe — drugi magazynier ma prawo odłożyć towar do MP01 lub MS01
+    if is_transfer or not is_external:
+        return True, None
 
-    # 2. Towar z Magazynu MP01 trafiający do Magazynu MS01
-    if src_zone == 'MP01' and put_zone == 'MS01':
-        if plan_zone != 'MS01':
-            return False, (
-                f"BŁĄD: Paleta pochodzi z Magazynu MP01 ({source_location}), a to zlecenie "
-                f"nie jest przesunięciem do Magazynu MS01 (cel w zleceniu: {planned_destination or 'MP01'}). "
-                f"Odstawienie do Magazynu MS01 ({putaway_location}) jest zablokowane!"
-            )
-
-    # 3. Dostawa zewnętrzna zadeklarowana do Magazynu MS01 nie może być bezpośrednio odłożona na MP01 / regały
+    # Dostawa zewnętrzna (od dostawcy zewnętrznego):
+    # 1. Zewnętrzna dostawa zadeklarowana do Magazynu MS01 nie może być bezpośrednio odłożona na MP01 / regały
     if is_external and plan_zone == 'MS01' and put_zone == 'MP01':
         return False, (
-            f"BŁĄD: Dostawa została zadeklarowana do Magazynu MS01 ({planned_destination}). "
+            f"BŁĄD: Dostawa zewnętrzna została zadeklarowana do Magazynu MS01 ({planned_destination}). "
             f"Bezpośrednie przyjęcie na regały / do Magazynu MP01 ({putaway_location}) jest zablokowane! "
             f"Przyjmij towar do Magazynu MS01, a następnie wykonaj formalne przesunięcie magazynowe do MP01."
         )
 
-    # 4. Dostawa zewnętrzna zadeklarowana do Magazynu MP01 nie może być odłożona na MS01
+    # 2. Zewnętrzna dostawa zadeklarowana do Magazynu MP01 nie może być odłożona na MS01
     if is_external and plan_zone == 'MP01' and put_zone == 'MS01':
         return False, (
-            f"BŁĄD: Dostawa została zadeklarowana do Magazynu MP01 ({planned_destination}). "
+            f"BŁĄD: Dostawa zewnętrzna została zadeklarowana do Magazynu MP01 ({planned_destination}). "
             f"Bezpośrednie przyjęcie do Magazynu MS01 ({putaway_location}) jest zablokowane!"
         )
 

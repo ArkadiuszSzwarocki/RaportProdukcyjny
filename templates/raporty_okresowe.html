@@ -232,8 +232,15 @@
                   {% endif %}
                 </td>
                 <td style="padding: 14px 18px; max-width: 320px;">
-                  <div class="text-truncate" title="{{ rep.odbiorcy }}" style="color: #0369a1; font-weight: 500; font-family: monospace; font-size: 0.84rem;">
-                    📬 {{ rep.odbiorcy }}
+                  {% if rep.status == 'FAILED' %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 me-1">❌ Nie wysłano</span>
+                  {% elif rep.status == 'SKIPPED_EMPTY' %}
+                    <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1 me-1">⏭️ Pominięto</span>
+                  {% elif rep.status == 'IN_PROGRESS' %}
+                    <span class="badge bg-info-subtle text-dark border border-info-subtle px-2 py-1 me-1">⏳ W toku</span>
+                  {% endif %}
+                  <div class="text-truncate" title="{{ rep.odbiorcy }}" style="color: {% if rep.status == 'FAILED' %}#b91c1c{% else %}#0369a1{% endif %}; font-weight: 500; font-family: monospace; font-size: 0.84rem;">
+                    {% if rep.status == 'FAILED' or rep.status == 'SKIPPED_EMPTY' %}ℹ️{% else %}📬{% endif %} {{ rep.odbiorcy }}
                   </div>
                 </td>
                 <td style="padding: 14px 18px; color: #64748b; font-size: 0.85rem; white-space: nowrap;">

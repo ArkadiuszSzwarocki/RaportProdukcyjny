@@ -1,6 +1,7 @@
-from flask import render_template, request, session
+from flask import render_template, request, session, make_response
 from app.blueprints.maluchy.blueprint import maluchy_bp
 from app.decorators import login_required
+from app.blueprints.maluchy.permissions import can_emergency_dump_bucket
 from app.db import get_db_connection, get_table_name
 from app.services.bucket_maluch_service import BucketMaluchService
 from app.repositories.bucket_maluch_repository import BucketMaluchRepository
@@ -84,3 +85,85 @@ def index():
         )
     finally:
         conn.close()
+
+
+@maluchy_bp.route('/zasyp_wiaderka/<int:plan_id>/<int:szarza_id>', methods=['GET'])
+@login_required
+def zasyp_wiaderka_page(plan_id: int, szarza_id: int):
+    """Render sliding popup with list of buckets for this production plan with emergency dump action."""
+    linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+    summary = BucketMaluchService.get_plan_maluchy_summary(plan_id, linia)
+
+    # The API and view share the same supervisor authorization.
+
+    can_emergency_dump = can_emergency_dump_bucket()
+
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_szarze = get_table_name('szarze', linia)
+    conn = get_db_connection()
+    plan_info = None
+    szarza_info = None
+    szarze_list = []
+    default_free_szarza_id = szarza_id
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(f"SELECT id, produkt, nr_receptury, tonaz FROM {table_plan} WHERE id = %s", (plan_id,))
+        plan_info = cur.fetchone()
+        if not plan_info:
+            alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
+            alt_table_plan = get_table_name('plan_produkcji', alt_linia)
+            alt_table_szarze = get_table_name('szarze', alt_linia)
+            cur.execute(f"SELECT id, produkt, nr_receptury, tonaz FROM {alt_table_plan} WHERE id = %s", (plan_id,))
+            alt_plan = cur.fetchone()
+            if alt_plan:
+                plan_info = alt_plan
+                linia = alt_linia
+                table_szarze = alt_table_szarze
+
+        cur.execute(f"SELECT id, nr_szarzy, waga FROM {table_szarze} WHERE id = %s", (szarza_id,))
+        szarza_info = cur.fetchone()
+
+        # Query all szarze for this plan with assigned dumped bucket if any
+        cur.execute(
+            f"""
+            SELECT s.id, s.nr_szarzy, s.waga, s.godzina,
+                   (SELECT w.id FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_id,
+                   (SELECT w.kod_wiadra FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_code
+            FROM {table_szarze} s
+            WHERE s.plan_id = %s
+            ORDER BY s.nr_szarzy ASC, s.id ASC
+            """,
+            (plan_id,)
+        )
+        szarze_list = cur.fetchall() or []
+
+        # Find first free szarza if current active szarza already has an assigned bucket
+        current_occupied = any(sz['id'] == szarza_id and sz.get('bucket_id') for sz in szarze_list)
+        if current_occupied:
+            first_free = next((sz['id'] for sz in szarze_list if not sz.get('bucket_id')), None)
+            if first_free:
+                default_free_szarza_id = first_free
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    response = make_response(render_template(
+        'maluchy/popups/zasyp_wiaderka.html',
+        plan_id=plan_id,
+        szarza_id=szarza_id,
+        linia=linia,
+        summary=summary,
+        can_emergency_dump=can_emergency_dump,
+        plan_info=plan_info,
+        szarza_info=szarza_info,
+        szarze_list=szarze_list,
+        default_free_szarza_id=default_free_szarza_id,
+    ))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

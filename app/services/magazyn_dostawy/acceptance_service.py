@@ -113,8 +113,10 @@ class AcceptanceService:
                     fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
-                supplier = str(dostawa.get('supplier') or '').strip()
-                is_external = bool(supplier) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
+                # Zlecenie jest transferem wewnętrznym (przesunięciem), jeśli nie ma zewnętrznego dostawcy
+                # lub supplier wskazuje na transfer wewnętrzny / przesunięcie.
+                is_transfer = not bool(supplier) or 'PRZESUNI' in supplier.upper() or 'TRANSFER' in supplier.upper()
+                is_external = (bool(supplier) and not is_transfer) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
                 if not is_external:
                     destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
@@ -129,7 +131,8 @@ class AcceptanceService:
                     source_location=source_spot,
                     planned_destination=(dostawa.get('lokalizacja_do') or '') if is_external else (destination or lokalizacja),
                     putaway_location=lokalizacja,
-                    is_external=is_external
+                    is_external=is_external,
+                    is_transfer=is_transfer
                 )
                 if not is_dest_valid:
                     return False, dest_err_msg, None

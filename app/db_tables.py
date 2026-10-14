@@ -44,7 +44,8 @@ def resolve_table_name(base_table, linia='PSD'):
     if normalized_base not in _ALLOWED_BASE_TABLES:
         raise ValueError(f'Niedozwolona logiczna nazwa tabeli: {normalized_base!r}')
 
-    normalized_line = str(linia or 'PSD').strip().upper()
+    raw_line = str(linia or 'PSD').strip().upper()
+    normalized_line = 'PSD' if raw_line in ('', 'NONE', 'NULL') else raw_line
 
     if normalized_base in _SHARED_ALLOWED_TABLES:
         if normalized_line in _SHARED_LINE_CONTEXTS:

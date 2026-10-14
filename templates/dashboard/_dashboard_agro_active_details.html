@@ -51,7 +51,8 @@
                         {% set disp_status = 'W_MAGAZYNIE' if raw_status in ['PRZYJETA', 'PRZYJĘTA'] else raw_status %}
                         <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em; margin-inline:2px;">{{ disp_status }}</span>
                         {% endif %}
-                        <strong class="text-primary" style="white-space: nowrap;">{{ pal[0]|int }} kg</strong>
+                        {% set disp_waga = ("%.2f"|format(pal[0])) if (pal[0] % 1 != 0) else (pal[0]|int) %}
+                        <strong class="text-primary" style="white-space: nowrap;">{{ disp_waga }} kg</strong>
                         {% if pal|length > 5 %}
                         <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
                         {% endif %}
@@ -82,6 +83,15 @@
                                data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
                                title="Dodaj/edytuj notatkę do zasypu">
                                 <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
+                            </a>
+                            {% endif %}
+                            {% if pal[2] and pal[2]|int > 0 %}
+                            <a href="{{ url_for('maluchy.zasyp_wiaderka_page', plan_id=p[0], szarza_id=pal[2], linia=linia, _v=static_version) }}"
+                               class="btn-action btn-outline-secondary szarza-bucket-btn"
+                               data-slide
+                               title="Lista wiader (Maluchy) — Zlecenie #{{ p[0] }}, Zasyp #{{ pal[2] }}"
+                               style="font-size: 14px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+                                🪣
                             </a>
                             {% endif %}
                             {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin', 'masteradmin'] %}
@@ -138,8 +148,14 @@
                     </div>
                     {% for wiaderko in pal[7] %}
                     <div style="margin-bottom:6px; font-size:12px;">
-                        <div style="display:flex; justify-content:space-between; font-weight:700; color:#1e293b;">
-                            <span>Wiadro <strong>{{ wiaderko.kod }}</strong> {% if wiaderko.mieszalnik %}<span style="color:#059669; font-weight:800;">({{ wiaderko.mieszalnik }})</span>{% endif %}</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-weight:700; color:#1e293b;">
+                            <span>
+                                Wiadro <strong>{{ wiaderko.kod }}</strong>
+                                {% if wiaderko.waga %}
+                                <span style="color:#2563eb; font-weight:800; background:#dbeafe; padding:1px 6px; border-radius:4px; margin-left:4px;" title="Waga wiadra Maluchów">+{{ ("%.2f"|format(wiaderko.waga)) if (wiaderko.waga % 1 != 0) else (wiaderko.waga|int) }} kg</span>
+                                {% endif %}
+                                {% if wiaderko.mieszalnik %}<span style="color:#059669; font-weight:800; margin-left:2px;">({{ wiaderko.mieszalnik }})</span>{% endif %}
+                            </span>
                             <span style="font-size:11px; color:#64748b;">{{ wiaderko.godzina }}</span>
                         </div>
                         {% if wiaderko.pozycje %}

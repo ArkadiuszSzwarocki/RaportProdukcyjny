@@ -247,7 +247,7 @@ class BucketMaluchService:
         return True, "Usunięto pozycję z wiadra", updated
 
     @classmethod
-    def complete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    def complete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None, waga_calkowita: Optional[float] = None) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Marks the bucket as fully completed and ready to be dumped into mixer."""
         bucket = BucketMaluchRepository.find_by_id(bucket_id)
         if not bucket:
@@ -255,13 +255,14 @@ class BucketMaluchService:
         if not bucket.get('pozycje'):
             return False, "Nie można skompletować pustego wiadra! Dodaj przynajmniej jeden składnik ze stacji KO.", None
 
-        BucketMaluchRepository.complete_bucket(bucket_id)
+        BucketMaluchRepository.complete_bucket(bucket_id, waga_calkowita=waga_calkowita)
         updated = BucketMaluchRepository.find_by_id(bucket_id)
         
         # Log to palety_historia for warehouse audit trail
         try:
             conn = get_db_connection()
             cur = conn.cursor()
+            w_str = f", waga: {updated.get('waga_calkowita')} kg" if updated.get('waga_calkowita') else ""
             cur.execute(
                 """
                 INSERT INTO palety_historia 
@@ -272,7 +273,7 @@ class BucketMaluchService:
                     updated.get('nr_sscc') or f"WIADRO_{updated.get('kod_wiadra')}",
                     updated.get('linia') or 'AGRO',
                     f"Wiadro {updated.get('kod_wiadra')}",
-                    f"Skompletowano wiadro {updated.get('kod_wiadra')} (zlecenie #{updated.get('plan_id')}, {len(updated.get('pozycje') or [])} składników)",
+                    f"Skompletowano wiadro {updated.get('kod_wiadra')} (zlecenie #{updated.get('plan_id')}, {len(updated.get('pozycje') or [])} składników{w_str})",
                     operator_login or updated.get('operator_nawazyl_login') or 'operator'
                 )
             )
@@ -281,7 +282,7 @@ class BucketMaluchService:
         except Exception:
             pass
 
-        return True, f"Wiadro {updated['kod_wiadra']} skompletowane!", updated
+        return True, f"Wiadro {updated['kod_wiadra']} skompletowane ({updated.get('waga_calkowita')} kg)!", updated
 
     @classmethod
     def delete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
@@ -428,7 +429,7 @@ class BucketMaluchService:
             updated = BucketMaluchRepository.find_by_id(bucket['id'])
             nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"
 
-            # Log to palety_historia
+                # Log to palety_historia
             try:
                 cur.execute(
                     """
@@ -444,6 +445,24 @@ class BucketMaluchService:
                         f"Wsypano wiadro {norm_code} do mieszalnika {norm_mixer} (szarża {nr_sz_str}, zlecenie #{plan_id})",
                         operator_login or 'operator'
                     )
+                )
+                conn.commit()
+            except Exception:
+                pass
+
+            # Recalculate plan tonaz_rzeczywisty to include dumped bucket weight
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                table_dosypki = get_table_name('dosypki', linia)
+                cur.execute(
+                    f"""
+                    UPDATE {table_plan} SET tonaz_rzeczywisty = 
+                        COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + 
+                        COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) +
+                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0)
+                    WHERE id = %s
+                    """,
+                    (plan_id, plan_id, plan_id, plan_id)
                 )
                 conn.commit()
             except Exception:
@@ -485,4 +504,177 @@ class BucketMaluchService:
     def get_all_buckets_history(cls, linia: Optional[str] = None, active_only: bool = False, limit: int = 200) -> List[Dict[str, Any]]:
         """Zwraca globalną historię lub aktualnie oczekujące wiaderka dla całej linii / systemu."""
         return BucketMaluchRepository.get_all_buckets(linia=linia, active_only=active_only, limit=limit)
+
+    @classmethod
+    def emergency_dump_to_szarza(
+        cls,
+        bucket_id: int,
+        szarza_id: int,
+        plan_id: int,
+        operator_login: str,
+        linia: str = 'PSD',
+        waga_calkowita: Optional[float] = None
+    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """
+        Emergency dump of a bucket to a specific szarża (zasyp) by authorized supervisor.
+        Bypasses standard mixer barcode scanning and records full audit trail.
+        """
+        bucket = BucketMaluchRepository.find_by_id(bucket_id)
+        if not bucket:
+            return False, f"Wiaderko o ID {bucket_id} nie zostało odnalezione.", None
+
+        kod_wiadra = bucket.get('kod_wiadra') or f"W_{bucket_id}"
+
+        # 1. Do not allow assigning an already dumped bucket
+        if bucket.get('status') == 'wrzucone_do_mieszalnika':
+            sz_assigned = bucket.get('szarza_id') or 'nieznany'
+            return False, f"Wiadro {kod_wiadra} zostało już wcześniej przypisane i wsypane do zasypu #{sz_assigned}! Nie można przypisać już zużytego wiadra.", None
+
+        # 2. Check plan matching
+        try:
+            target_plan_id = int(plan_id)
+            bucket_plan_id = int(bucket.get('plan_id') or 0)
+            if target_plan_id and bucket_plan_id and target_plan_id != bucket_plan_id:
+                return False, f"Wiadro {kod_wiadra} należy do zlecenia #{bucket_plan_id}, a nie #{target_plan_id}!", None
+        except (ValueError, TypeError):
+            pass
+
+        linia_norm = (bucket.get('linia') or linia or 'PSD').upper()
+        table_szarze = get_table_name('szarze', linia_norm)
+
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            # 3. Check szarza exists for this plan (accepting either primary key id or nr_szarzy)
+            effective_plan_id = bucket.get('plan_id') or plan_id
+            cur.execute(
+                f"SELECT id, nr_szarzy, plan_id FROM {table_szarze} WHERE id = %s AND plan_id = %s",
+                (szarza_id, effective_plan_id)
+            )
+            sz_row = cur.fetchone()
+            if not sz_row:
+                cur.execute(
+                    f"SELECT id, nr_szarzy, plan_id FROM {table_szarze} WHERE nr_szarzy = %s AND plan_id = %s",
+                    (szarza_id, effective_plan_id)
+                )
+                sz_row = cur.fetchone()
+
+            if not sz_row:
+                alt_linia = 'AGRO' if linia_norm == 'PSD' else 'PSD'
+                alt_table_szarze = get_table_name('szarze', alt_linia)
+                cur.execute(
+                    f"SELECT id, nr_szarzy, plan_id FROM {alt_table_szarze} WHERE id = %s AND plan_id = %s",
+                    (szarza_id, effective_plan_id)
+                )
+                sz_row = cur.fetchone()
+                if not sz_row:
+                    cur.execute(
+                        f"SELECT id, nr_szarzy, plan_id FROM {alt_table_szarze} WHERE nr_szarzy = %s AND plan_id = %s",
+                        (szarza_id, effective_plan_id)
+                    )
+                    sz_row = cur.fetchone()
+                if sz_row:
+                    linia_norm = alt_linia
+                    table_szarze = alt_table_szarze
+
+            if not sz_row:
+                return False, f"Zasyp #{szarza_id} nie istnieje w zleceniu #{effective_plan_id}!", None
+
+            target_szarza_id = int(sz_row['id'])
+            nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {target_szarza_id}"
+
+            # 4. Check if target szarża already has a bucket assigned/dumped
+            cur.execute(
+                """
+                SELECT id, kod_wiadra, data_zasypania FROM wiaderka_maluchy 
+                WHERE szarza_id = %s AND status = 'wrzucone_do_mieszalnika' AND id != %s
+                LIMIT 1
+                """,
+                (target_szarza_id, bucket_id)
+            )
+            existing_dumped = cur.fetchone()
+            if existing_dumped:
+                czas = existing_dumped.get('data_zasypania')
+                czas_str = f" (o {czas.strftime('%H:%M')})" if hasattr(czas, 'strftime') and czas else ""
+                return False, f"Do zasypu {nr_sz_str} jest już przypisane wiadro {existing_dumped['kod_wiadra']}{czas_str}! Do jednego zasypu można przypisać tylko jedno wiadro.", None
+
+            # If weight is explicitly provided or bucket has no weight, update waga_calkowita
+            if waga_calkowita is not None and float(waga_calkowita) > 0:
+                cur.execute(
+                    "UPDATE wiaderka_maluchy SET waga_calkowita = %s WHERE id = %s",
+                    (float(waga_calkowita), bucket_id)
+                )
+                conn.commit()
+
+            # If bucket is in progress, mark it completed first so totals are final
+            if bucket.get('status') == 'w_trakcie_nawazania':
+                BucketMaluchRepository.complete_bucket(bucket_id, waga_calkowita=waga_calkowita)
+
+            # Dump bucket to mixer
+            success = BucketMaluchRepository.dump_bucket_to_mixer(
+                bucket_id=bucket_id,
+                szarza_id=target_szarza_id,
+                operator_login=f"{operator_login} (Awaryjnie)",
+                mieszalnik_kod='MI01'
+            )
+            if not success:
+                cur.execute("SELECT status, szarza_id, operator_zasypal_login FROM wiaderka_maluchy WHERE id = %s", (bucket_id,))
+                current_state = cur.fetchone()
+                if current_state and current_state.get('status') == 'wrzucone_do_mieszalnika':
+                    return False, f"Wiadro {kod_wiadra} zostało już wcześniej wsypane do zasypu #{current_state.get('szarza_id')}!", None
+                return False, f"Nie udało się przypisać wiadra {kod_wiadra} do zasypu.", None
+
+            updated = BucketMaluchRepository.find_by_id(bucket_id)
+
+            # Log to palety_historia
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO palety_historia 
+                    (nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login, data_ruchu)
+                    VALUES (%s, %s, 'WIADERKO', 'AWARYJNY_ZASYP_MALUCHY', %s, %s, %s, %s, NOW())
+                    """,
+                    (
+                        bucket.get('nr_sscc') or f"WIADRO_{kod_wiadra}",
+                        linia_norm,
+                        f"Wiadro {kod_wiadra}",
+                        'MI01',
+                        f"AWARYJNY ZASYP: Wiadro {kod_wiadra} ({updated.get('waga_calkowita')} kg) dodane do zasypu {nr_sz_str} (zlecenie #{effective_plan_id}) przez {operator_login}",
+                        operator_login
+                    )
+                )
+                conn.commit()
+            except Exception:
+                pass
+
+            # Recalculate plan tonaz_rzeczywisty to include dumped bucket weight
+            try:
+                table_plan = get_table_name('plan_produkcji', linia_norm)
+                table_dosypki = get_table_name('dosypki', linia_norm)
+                cur.execute(
+                    f"""
+                    UPDATE {table_plan} SET tonaz_rzeczywisty = 
+                        COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + 
+                        COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) +
+                        COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0)
+                    WHERE id = %s
+                    """,
+                    (effective_plan_id, effective_plan_id, effective_plan_id, effective_plan_id)
+                )
+                conn.commit()
+            except Exception:
+                pass
+
+            try:
+                from app.core.audit import audit_log
+                audit_log(
+                    'Awaryjny zasyp wiadra (Maluchy)',
+                    f"bucket_id={bucket_id}, kod={kod_wiadra}, szarza_id={target_szarza_id}, plan_id={effective_plan_id}, waga={updated.get('waga_calkowita')}, user={operator_login}"
+                )
+            except Exception:
+                pass
+
+            return True, f"Wiadro {kod_wiadra} ({updated.get('waga_calkowita')} kg) zostało awaryjnie przypisane i wsypane do zasypu {nr_sz_str}!", updated
+        finally:
+            conn.close()
 

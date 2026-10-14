@@ -1,5 +1,6 @@
 // cspell:words naważanie
 /* ─── Scanner UI Card Views (Pallet Card & Station Card) ─────── */
+let currentStationReturnPallet = null;
 
 function scannerEscapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -18,17 +19,44 @@ function showStation(station) {
   if (stationCodeEl) stationCodeEl.textContent = station.station_code;
   if (itemsListEl) itemsListEl.innerHTML = '';
 
-  if (station.items && station.items.length > 0) {
+  const assignedCard = document.getElementById('stationAssignedMaterialCard');
+  const assignedNameEl = document.getElementById('stationAssignedName');
+  const assignedSSCCEl = document.getElementById('stationAssignedSSCC');
+  const assignedDateEl = document.getElementById('stationAssignedDate');
+  const assignedQtyEl = document.getElementById('stationAssignedQty');
+
+  const stock = station.warehouse_stock || {};
+  const assigned = stock.assigned_material || {};
+  const stationReturnButton = document.getElementById('stationReturnBtnContainer');
+  currentStationReturnPallet = null;
+  if (stationReturnButton) stationReturnButton.style.display = 'none';
+
+  if (station.is_production_station && assigned && assigned.has_active_assignment) {
+    if (assignedCard) assignedCard.style.display = 'flex';
+    if (assignedNameEl) assignedNameEl.textContent = assigned.name;
+    if (assignedSSCCEl) assignedSSCCEl.textContent = assigned.sscc || '—';
+    if (assignedDateEl) assignedDateEl.textContent = assigned.wstawiono || 'Bieżący zasyp';
+    if (assignedQtyEl) assignedQtyEl.textContent = parseFloat(assigned.stan_stacji || 0).toFixed(1);
+    if (Number(assigned.surowiec_id) > 0 && Number(assigned.ruch_id) > 0 && Number(assigned.stan_stacji) > 0) {
+      currentStationReturnPallet = {
+        id: assigned.surowiec_id, ruch_produkcja_id: assigned.ruch_id, plan_id: assigned.plan_id,
+        lokalizacja: station.station_code, stan_magazynowy: Number(assigned.stan_stacji),
+        nr_palety: assigned.sscc, nazwa: assigned.name
+      };
+      if (stationReturnButton) stationReturnButton.style.display = 'block';
+    }
+    if (noStationMsg) noStationMsg.style.display = 'none';
+  } else if (station.items && station.items.length > 0) {
+    if (assignedCard) assignedCard.style.display = 'none';
     station.items.forEach(item => {
       const itemEl = document.createElement('div');
       itemEl.className = 'station-item';
       itemEl.onclick = () => showPallet(item);
-      
       itemEl.innerHTML = `
         <div class="station-item-name">${scannerEscapeHtml(item.nazwa)}</div>
         <div class="station-item-details">
           <span><strong>Ilość:</strong> ${parseFloat(item.stan_magazynowy).toFixed(1)} kg</span>
-          <span><strong>ID:</strong> ${scannerEscapeHtml(item.inventory_code)}</span>
+          <span><strong>ID:</strong> ${scannerEscapeHtml(item.inventory_code || '')}</span>
           ${item.nr_partii ? `<span><strong>Partia:</strong> ${scannerEscapeHtml(item.nr_partii)}</span>` : ''}
         </div>
       `;
@@ -36,10 +64,12 @@ function showStation(station) {
     });
     if (noStationMsg) noStationMsg.style.display = 'none';
   } else {
+    if (assignedCard) assignedCard.style.display = 'none';
     if (noStationMsg) noStationMsg.style.display = 'block';
   }
 
   if (stationCard) stationCard.style.display = 'block';
+  renderStationWarehouseStock(station);
   if (scanInput) {
     scanInput.value = '';
     scanInput.focus();
@@ -47,9 +77,152 @@ function showStation(station) {
 }
 
 function hideStation() {
+  currentStationReturnPallet = null;
   const stationCard = document.getElementById('stationCard');
   if (stationCard) {
     stationCard.style.display = 'none';
+  }
+  hideStationWarehouseStock();
+}
+
+function openStationReturnModal() {
+  if (currentStationReturnPallet) openScannerReturnModal(currentStationReturnPallet);
+}
+
+function toggleStationWarehouseStock() {
+  const btn = document.getElementById('stationWarehouseStockToggleBtn');
+  const content = document.getElementById('stationWarehouseStockContent');
+  if (!content) return;
+  const isHidden = content.style.display === 'none';
+  content.style.display = isHidden ? 'block' : 'none';
+  if (btn) {
+    if (isHidden) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  }
+}
+
+function hideStationWarehouseStock() {
+  const wrap = document.getElementById('stationWarehouseStockWrap');
+  const content = document.getElementById('stationWarehouseStockContent');
+  const btn = document.getElementById('stationWarehouseStockToggleBtn');
+  const assignedCard = document.getElementById('stationAssignedMaterialCard');
+  if (assignedCard) assignedCard.style.display = 'none';
+  if (wrap) wrap.style.display = 'none';
+  if (content) content.style.display = 'none';
+  if (btn) btn.classList.remove('active');
+}
+
+function escapeStationHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderStationWarehouseStock(station) {
+  const wrap = document.getElementById('stationWarehouseStockWrap');
+  const badge = document.getElementById('stationWarehouseStockBadge');
+  const targetInfo = document.getElementById('stationWarehouseStockTargetInfo');
+  const listEl = document.getElementById('stationWarehouseStockList');
+  const emptyEl = document.getElementById('stationWarehouseStockEmpty');
+  const content = document.getElementById('stationWarehouseStockContent');
+  const btn = document.getElementById('stationWarehouseStockToggleBtn');
+
+  if (!wrap) return;
+
+  // Only show for production stations as requested
+  if (!station || !station.is_production_station) {
+    wrap.style.display = 'none';
+    return;
+  }
+
+  wrap.style.display = 'block';
+  // Collapsed by default as expandable option
+  if (content) content.style.display = 'none';
+  if (btn) btn.classList.remove('active');
+
+  const stock = station.warehouse_stock || {};
+  const totalPallets = stock.total_pallets || 0;
+  const totalWeight = stock.total_weight || 0;
+  const targetMaterial = stock.target_material || (stock.assigned_material && stock.assigned_material.name) || '';
+  const pallets = stock.pallets || [];
+
+  if (badge) {
+    badge.textContent = `${totalPallets} ${totalPallets === 1 ? 'paleta' : (totalPallets >= 2 && totalPallets <= 4 ? 'palety' : 'palet')}`;
+    if (totalWeight > 0) {
+      badge.textContent += ` (${parseFloat(totalWeight).toFixed(1)} kg)`;
+    }
+  }
+
+  if (targetInfo) {
+    if (targetMaterial) {
+      targetInfo.innerHTML = `<span>Dostępne palety tylko dla surowca:</span> <span class="station-wh-target-pill">${escapeStationHtml(targetMaterial)}</span>`;
+      targetInfo.style.display = 'block';
+    } else {
+      targetInfo.style.display = 'none';
+    }
+  }
+
+  if (listEl) listEl.innerHTML = '';
+
+  if (totalPallets > 0 && pallets.length > 0) {
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    pallets.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'station-wh-pallet-card';
+      card.title = `Kliknij, aby wybrać paletę ${p.nr_palety} w skanerze`;
+      card.onclick = () => {
+        if (typeof lookupPallet === 'function') {
+          lookupPallet(p.nr_palety);
+        } else if (typeof showPallet === 'function') {
+          showPallet(p);
+        }
+      };
+
+      const loc = String(p.lokalizacja || '').trim().toUpperCase();
+      let locClass = 'loc-default';
+      let locIcon = 'place';
+      if (loc === 'MP01') {
+        locClass = 'loc-mp01';
+        locIcon = 'warehouse';
+      } else if (loc.startsWith('R')) {
+        locClass = 'loc-rack';
+        locIcon = 'shelves';
+      } else if (loc.startsWith('BF')) {
+        locClass = 'loc-buffer';
+        locIcon = 'layers';
+      }
+
+      const qtyFormatted = parseFloat(p.stan_magazynowy || 0).toFixed(1);
+
+      card.innerHTML = `
+        <div class="station-wh-pallet-card-left">
+          <div class="station-wh-mat-name">${escapeStationHtml(p.nazwa)}</div>
+          <div class="station-wh-pallet-sub">
+            <span><strong>SSCC:</strong> ${escapeStationHtml(p.nr_palety)}</span>
+            ${p.nr_partii ? `<span><strong>Partia:</strong> ${escapeStationHtml(p.nr_partii)}</span>` : ''}
+            ${p.data_przydatnosci ? `<span><strong>Ważność:</strong> ${escapeStationHtml(p.data_przydatnosci)}</span>` : ''}
+          </div>
+        </div>
+        <div class="station-wh-pallet-card-right">
+          <div class="station-wh-qty">${qtyFormatted} ${escapeStationHtml(p.jednostka || 'kg')}</div>
+          <span class="station-wh-loc-badge ${locClass}">
+            <span class="material-icons" style="font-size:14px;">${locIcon}</span>
+            <span>${escapeStationHtml(loc)}</span>
+          </span>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+  } else {
+    if (emptyEl) emptyEl.style.display = 'block';
   }
 }
 
@@ -69,6 +242,9 @@ function showPallet(p) {
     return;
   }
   currentPallet = p;
+  hideStation();
+  const palletInfo = document.getElementById('palletInfoCard');
+  if (palletInfo) palletInfo.style.display = 'block';
   const palletLocEl = document.getElementById('palletLoc');
   if (palletLocEl) {
     if (p.lokalizacja === 'OCZEKUJĄCE' && p.source_location) {
@@ -288,6 +464,8 @@ function hidePallet() {
   }
   window.hideAfterLoad = false;
   currentPallet = null;
+  const palletInfo = document.getElementById('palletInfoCard');
+  if (palletInfo) palletInfo.style.display = 'none';
   const palletCard = document.getElementById('palletCard');
   if (palletCard) palletCard.classList.remove('visible');
 

@@ -1058,6 +1058,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
             leader_lock_name = 'auto_report_daemon_leader'
             leader_lock_conn = None
             next_lock_retry_at = 0.0
+            warehouse_report_dispatcher = None
 
             while True:
                 try:

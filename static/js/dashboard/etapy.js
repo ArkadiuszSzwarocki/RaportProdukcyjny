@@ -131,6 +131,181 @@
         return document.getElementById('stop-decision-modal');
     }
 
+    function playOproznianieChime() {
+        try {
+            var AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            var ctx = new AudioContext();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+        } catch (e) {}
+    }
+
+    function ensureOproznianiePromptModal() {
+        var existingModal = document.getElementById('oproznianie-prompt-modal');
+        if (existingModal) {
+            return existingModal;
+        }
+
+        if (!document.getElementById('dashboard-oproznianie-prompt-style')) {
+            var style = document.createElement('style');
+            style.id = 'dashboard-oproznianie-prompt-style';
+            style.textContent = '' +
+                '#oproznianie-prompt-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(15,23,42,0.65); z-index:10001; backdrop-filter:blur(4px); }' +
+                '#oproznianie-prompt-modal.open { display:flex !important; }' +
+                '#oproznianie-prompt-modal .modal-card { background:#fff; border-radius:16px; padding:26px 28px; width:480px; max-width:92vw; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); border:1.5px solid #e2e8f0; text-align:center; animation:modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }' +
+                '@keyframes modalPopIn { 0% { transform:scale(0.92); opacity:0; } 100% { transform:scale(1); opacity:1; } }' +
+                '#oproznianie-prompt-modal .prompt-icon { width:64px; height:64px; margin:0 auto 14px; background:#eff6ff; border:2px solid #bfdbfe; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:32px; color:#2563eb; }' +
+                '#oproznianie-prompt-modal h3 { margin:0 0 8px 0; font-size:1.3em; font-weight:800; color:#0f172a; }' +
+                '#oproznianie-prompt-modal .prompt-desc { color:#475569; font-size:0.95em; line-height:1.5; margin-bottom:20px; }' +
+                '#oproznianie-prompt-modal .timer-badge { display:inline-block; background:#dbeafe; color:#1e40af; font-weight:800; padding:4px 12px; border-radius:8px; font-size:1.2em; letter-spacing:0.04em; margin:6px 0; }' +
+                '#oproznianie-prompt-modal .btn-actions { display:flex; flex-direction:column; gap:10px; }' +
+                '#oproznianie-prompt-modal .btn-stop-confirm { background:linear-gradient(135deg, #16a34a 0%, #15803d 100%); color:#fff; border:none; padding:14px; border-radius:10px; font-weight:800; font-size:1.02em; cursor:pointer; box-shadow:0 4px 10px rgba(22,163,74,0.3); transition:all 0.15s; }' +
+                '#oproznianie-prompt-modal .btn-stop-confirm:hover { background:linear-gradient(135deg, #15803d 0%, #166534 100%); transform:translateY(-1px); }' +
+                '#oproznianie-prompt-modal .btn-stop-end { background:#334155; color:#fff; border:none; padding:12px; border-radius:10px; font-weight:700; font-size:0.95em; cursor:pointer; transition:all 0.15s; }' +
+                '#oproznianie-prompt-modal .btn-stop-end:hover { background:#1e293b; transform:translateY(-1px); }' +
+                '#oproznianie-prompt-modal .btn-continue-emptying { background:#f8fafc; color:#334155; border:1.5px solid #cbd5e1; padding:12px; border-radius:10px; font-weight:700; font-size:0.92em; cursor:pointer; transition:all 0.15s; }' +
+                '#oproznianie-prompt-modal .btn-continue-emptying:hover { background:#f1f5f9; border-color:#94a3b8; }';
+            document.head.appendChild(style);
+        }
+
+        var html = '' +
+            '<div id="oproznianie-prompt-modal" role="dialog" aria-modal="true">' +
+            '  <div class="modal-card">' +
+            '    <div class="prompt-icon">⏱</div>' +
+            '    <h3>Czy zatrzymujemy opróżnianie?</h3>' +
+            '    <div class="prompt-desc">' +
+            '      Upłynął zalecany czas opróżniania mieszalnika (3 minuty).<br>' +
+            '      Aktualny czas etapu: <div class="timer-badge" id="oproznianie-current-time">03:00</div>' +
+            '    </div>' +
+            '    <div class="btn-actions">' +
+            '      <button type="button" id="oproznianie-btn-new-point" class="btn-stop-confirm">⏹ OK — Dodaj nowy punkt (kolejny zasyp)</button>' +
+            '      <button type="button" id="oproznianie-btn-end-today" class="btn-stop-end">⏹ OK — Zakończ pracę na dziś</button>' +
+            '      <button type="button" id="oproznianie-btn-stop" class="btn-stop-confirm" style="display:none;">⏹ OK — Zatrzymaj opróżnianie</button>' +
+            '      <button type="button" id="oproznianie-btn-continue" class="btn-continue-emptying">▶ Kontynuuj opróżnianie (+3 min)</button>' +
+            '    </div>' +
+            '  </div>' +
+            '</div>';
+
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        var modal = document.getElementById('oproznianie-prompt-modal');
+        var newPointBtn = document.getElementById('oproznianie-btn-new-point');
+        var endTodayBtn = document.getElementById('oproznianie-btn-end-today');
+        var stopBtn = document.getElementById('oproznianie-btn-stop');
+        var continueBtn = document.getElementById('oproznianie-btn-continue');
+
+        function _executeOproznianieStop(action) {
+            var targetForm = modal._targetForm;
+            var container = modal._targetContainer;
+            if (container) {
+                container._stopRequested = true;
+                container._lastOproznianieCycle = 999999;
+                try {
+                    var planInput = container.querySelector('input[name="plan_id"]');
+                    var szarzaInput = container.querySelector('input[name="szarza_nr"]');
+                    var etapNr = container.dataset.etapNr || '5';
+                    var pId = planInput ? planInput.value : '';
+                    var szNr = szarzaInput ? szarzaInput.value : '';
+                    sessionStorage.setItem('oproznianie_cycle_' + pId + '_' + szNr + '_' + etapNr, '999999');
+                } catch (e) {}
+            }
+            closeOproznianiePromptModal();
+            if (!targetForm) return;
+
+            if (Number(targetForm.dataset.pendingDosypki || 0) > 0) {
+                if (typeof global.showToast === 'function') {
+                    global.showToast('Najpierw potwierdź dosypki przypisane do tego zasypu przed zakończeniem opróżniania.', 'danger');
+                }
+                return;
+            }
+
+            if (action) {
+                pendingStopForm = targetForm;
+                stopDecisionChoose(action);
+            } else {
+                handleEtapStopForm(targetForm);
+            }
+        }
+
+        if (newPointBtn) {
+            newPointBtn.addEventListener('click', function () {
+                _executeOproznianieStop('new_point');
+            });
+        }
+
+        if (endTodayBtn) {
+            endTodayBtn.addEventListener('click', function () {
+                _executeOproznianieStop('end_today');
+            });
+        }
+
+        if (stopBtn) {
+            stopBtn.addEventListener('click', function () {
+                _executeOproznianieStop('new_point');
+            });
+        }
+
+        if (continueBtn) {
+            continueBtn.addEventListener('click', function () {
+                if (modal._onContinue) {
+                    modal._onContinue();
+                }
+                closeOproznianiePromptModal();
+            });
+        }
+
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                if (modal._onContinue) {
+                    modal._onContinue();
+                }
+                closeOproznianiePromptModal();
+            }
+        });
+
+        return modal;
+    }
+
+    function openOproznianiePromptModal(container, currentSeconds, onContinue) {
+        var modal = ensureOproznianiePromptModal();
+        if (!modal) {
+            return;
+        }
+
+        var stopForm = container.querySelector('form[data-dashboard-submit="zasyp-stop"]');
+        modal._targetContainer = container;
+        modal._targetForm = stopForm;
+        modal._onContinue = onContinue;
+
+        var timeBadge = document.getElementById('oproznianie-current-time');
+        if (timeBadge) {
+            timeBadge.textContent = formatMmSs(currentSeconds);
+        }
+
+        modal.classList.add('open');
+        playOproznianieChime();
+    }
+
+    function closeOproznianiePromptModal() {
+        var modal = document.getElementById('oproznianie-prompt-modal');
+        if (modal) {
+            modal.classList.remove('open');
+            modal._targetContainer = null;
+            modal._targetForm = null;
+            modal._onContinue = null;
+        }
+    }
+
     function _setFormSubmitButtonsLoading(form, isLoading) {
         if (!form) {
             return;
@@ -249,12 +424,20 @@
             (linia === 'AGRO' && etap === '5') ||
             (linia !== 'AGRO' && etap === '6');
 
-        if (isAgroDecisionStop && Number(form.dataset.pendingDosypki || 0) > 0) {
-            if (typeof global.showToast === 'function') global.showToast('Najpierw potwierdź dosypki przypisane do tego zasypu.', 'danger');
-            return false;
+        if (isFinalEmptyStop) {
+            closeOproznianiePromptModal();
+            var card = form.closest('.etap-card');
+            if (card) {
+                card._stopRequested = true;
+                card._lastOproznianieCycle = 999999;
+            }
         }
-        if (isAgroDecisionStop && form.dataset.automaticDosypka === '1') {
-            isAgroDecisionStop = false;
+
+        if (isFinalEmptyStop && Number(form.dataset.pendingDosypki || 0) > 0) {
+            if (typeof global.showToast === 'function') {
+                global.showToast('Najpierw potwierdź dosypki przypisane do tego zasypu przed zakończeniem opróżniania.', 'danger');
+            }
+            return false;
         }
 
         if (!isAgroDecisionStop && !isFinalEmptyStop) {
@@ -291,6 +474,45 @@
         return false;
     }
 
+    function handlePauseResumeForm(form, submitKind) {
+        _setFormSubmitButtonsLoading(form, true);
+        var url = form.action || window.location.href;
+        var formData = new FormData(form);
+
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function (response) {
+            return response.json().catch(function () { return { success: response.ok }; });
+        })
+        .then(function (data) {
+            if (data && data.success === false) {
+                global.alert(data.message || 'Błąd operacji');
+                _setFormSubmitButtonsLoading(form, false);
+                return;
+            }
+            if (typeof global.performPartialReload === 'function') {
+                global.performPartialReload({ force: true, preserveScroll: true, source: 'zasyp-' + submitKind });
+            } else if (typeof window !== 'undefined' && typeof window.performPartialReload === 'function') {
+                window.performPartialReload({ force: true, preserveScroll: true, source: 'zasyp-' + submitKind });
+            } else {
+                window.location.reload();
+            }
+        })
+        .catch(function (error) {
+            console.error('Pause/Resume submit failed', error);
+            _setFormSubmitButtonsLoading(form, false);
+            if (typeof window !== 'undefined' && typeof window.performPartialReload === 'function') {
+                window.performPartialReload({ force: true, preserveScroll: true, source: 'zasyp-' + submitKind });
+            }
+        });
+    }
+
     function handleSubmit(event) {
         var form = event.target;
         if (!form || !form.getAttribute) {
@@ -305,8 +527,17 @@
             return;
         }
 
-        if (submitKind === 'zasyp-stop' && !handleEtapStopForm(form)) {
+        if (submitKind === 'zasyp-stop') {
+            if (!handleEtapStopForm(form)) {
+                event.preventDefault();
+            }
+            return;
+        }
+
+        if (submitKind === 'zasyp-pause' || submitKind === 'zasyp-resume') {
             event.preventDefault();
+            handlePauseResumeForm(form, submitKind);
+            return;
         }
     }
 
@@ -398,9 +629,9 @@
 
     function applyNowMaxToTimeInputs(root) {
         var scope = root || document;
-        var maxVal = currentHhMm();
+        // Do not force max on time input, as editing past/closed stages should not be blocked by current hour
         scope.querySelectorAll('input.manual-time-input[type="time"]').forEach(function (input) {
-            input.max = maxVal;
+            input.removeAttribute('max');
         });
     }
 
@@ -418,19 +649,23 @@
     }
 
     function startEtapyTimers() {
-        var etapTimers = Array.from(document.querySelectorAll('.etap-live-timer'));
-        var totalTimers = Array.from(document.querySelectorAll('.etapy-total-live-timer'));
-        if (!etapTimers.length && !totalTimers.length) {
-            return;
-        }
-
         function tick() {
+            var now = Date.now();
+            var etapTimers = Array.from(document.querySelectorAll('.etap-live-timer'));
+            var totalTimers = Array.from(document.querySelectorAll('.etapy-total-live-timer'));
+
             etapTimers.forEach(function (element) {
                 var running = String(element.dataset.running || '0') === '1';
-                var seconds = Number(element.dataset.seconds || '0');
+                var serverSec = Number(element.dataset.seconds || '0');
+                if (element._baseSec === undefined || element._lastAssignedSec !== serverSec) {
+                    element._baseSec = serverSec;
+                    element._baseTime = now;
+                }
+                var currentSeconds = element._baseSec;
                 if (running) {
-                    seconds += 1;
-                    element.dataset.seconds = String(seconds);
+                    currentSeconds = element._baseSec + Math.max(0, Math.floor((now - element._baseTime) / 1000));
+                    element.dataset.seconds = String(currentSeconds);
+                    element._lastAssignedSec = currentSeconds;
                     
                     var container = element.closest('.etap-card');
                     if (container) {
@@ -442,25 +677,106 @@
                         else if (etapNum === 3 || (etapNum > 30 && etapNum < 40)) limitMin = limits.dosypka_min || 5;
                         else if (etapNum === 5 || etapNum === 6) limitMin = limits.oproznianie_min || 10;
                         
-                        if (limitMin > 0 && seconds > limitMin * 60) {
+                        if (limitMin > 0 && currentSeconds > limitMin * 60) {
                             container.classList.remove('alert-warning', 'alert-success', 'alert-info');
                             container.classList.add('alert-danger');
                             container.dataset.isOvertime = '1';
                         }
-                    }
 
+                        // Opróżnianie 3-minute cycle logic
+                        var isOproznianie = (container.dataset.isOproznianie === '1') ||
+                            ((etapNum === 5 || etapNum === 6) && (container.textContent.indexOf('Opróżnianie') !== -1 || (container.querySelector('strong') && container.querySelector('strong').textContent.indexOf('Opróżnianie') !== -1)));
+
+                        if (isOproznianie) {
+                            var cycleDuration = 180; // 3 minutes = 180 seconds
+                            var currentCycle = Math.floor(currentSeconds / cycleDuration);
+
+                            var planInput = container.querySelector('input[name="plan_id"]');
+                            var szarzaInput = container.querySelector('input[name="szarza_nr"]');
+                            var planId = planInput ? planInput.value : '';
+                            var szarzaNr = szarzaInput ? szarzaInput.value : '';
+                            var storageKey = 'oproznianie_cycle_' + planId + '_' + szarzaNr + '_' + etapNum;
+                            var storedCycle = Number(sessionStorage.getItem(storageKey) || '0');
+                            var lastCycle = Math.max(container._lastOproznianieCycle || 0, storedCycle);
+
+                            // Live countdown badge for next 3-minute check
+                            var countdownEl = container.querySelector('.oproznianie-countdown-info');
+                            if (!countdownEl) {
+                                countdownEl = document.createElement('div');
+                                countdownEl.className = 'small oproznianie-countdown-info';
+                                countdownEl.style.cssText = 'color:#2563eb; font-weight:700; margin-top:3px; font-size:0.75em; display:flex; align-items:center; gap:4px;';
+                                var timerContainer = element.parentElement;
+                                if (timerContainer) {
+                                    timerContainer.appendChild(countdownEl);
+                                }
+                            }
+                            var secInCycle = currentSeconds % cycleDuration;
+                            var remainingInCycle = cycleDuration - secInCycle;
+                            if (remainingInCycle === cycleDuration && currentSeconds > 0) {
+                                remainingInCycle = 0;
+                            }
+                            countdownEl.textContent = '⏱ Cykl 3 min (do zapytania: ' + formatMmSs(remainingInCycle) + ')';
+
+                            // Prompt every 3 minutes (180s, 360s, 540s...) until confirmed stop
+                            var activeModal = document.getElementById('oproznianie-prompt-modal');
+                            var isModalOpen = activeModal && activeModal.classList.contains('open');
+                            var stopDecisionModal = document.getElementById('stop-decision-modal');
+                            var isDecisionOpen = stopDecisionModal && stopDecisionModal.classList.contains('open');
+
+                            if (container._stopRequested || pendingStopForm || isDecisionOpen) {
+                                // Waiting for stop completion or decision modal, do not re-prompt
+                            } else if (currentSeconds >= cycleDuration && currentCycle > lastCycle) {
+                                if (!isModalOpen) {
+                                    openOproznianiePromptModal(container, currentSeconds, function () {
+                                        container._lastOproznianieCycle = currentCycle;
+                                        try {
+                                            sessionStorage.setItem(storageKey, String(currentCycle));
+                                        } catch (e) {}
+                                    });
+                                }
+                            }
+
+                            // Keep live timer updated inside modal if currently shown
+                            var activeModal = document.getElementById('oproznianie-prompt-modal');
+                            if (activeModal && activeModal.classList.contains('open') && activeModal._targetContainer === container) {
+                                var badge = document.getElementById('oproznianie-current-time');
+                                if (badge) {
+                                    badge.textContent = formatMmSs(currentSeconds);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    var container = element.closest('.etap-card');
+                    if (container) {
+                        var etapNum = parseInt(container.dataset.etapNr || '0', 10);
+                        var isOproznianie = (container.dataset.isOproznianie === '1') ||
+                            ((etapNum === 5 || etapNum === 6) && (container.textContent.indexOf('Opróżnianie') !== -1 || (container.querySelector('strong') && container.querySelector('strong').textContent.indexOf('Opróżnianie') !== -1)));
+                        if (isOproznianie) {
+                            var countdownEl = container.querySelector('.oproznianie-countdown-info');
+                            if (countdownEl) {
+                                countdownEl.remove();
+                            }
+                        }
+                    }
                 }
-                element.textContent = formatMmSs(seconds);
+                element.textContent = formatMmSs(currentSeconds);
             });
 
             totalTimers.forEach(function (element) {
                 var running = String(element.dataset.running || '0') === '1';
-                var seconds = Number(element.dataset.seconds || '0');
-                if (running) {
-                    seconds += 1;
-                    element.dataset.seconds = String(seconds);
+                var serverSec = Number(element.dataset.seconds || '0');
+                if (element._baseSec === undefined || element._lastAssignedSec !== serverSec) {
+                    element._baseSec = serverSec;
+                    element._baseTime = now;
                 }
-                element.textContent = formatMmSs(seconds);
+                var currentSeconds = element._baseSec;
+                if (running) {
+                    currentSeconds = element._baseSec + Math.max(0, Math.floor((now - element._baseTime) / 1000));
+                    element.dataset.seconds = String(currentSeconds);
+                    element._lastAssignedSec = currentSeconds;
+                }
+                element.textContent = formatMmSs(currentSeconds);
             });
         }
 
@@ -597,6 +913,28 @@
         }
     }
 
+    function _cancelStopDecision() {
+        if (pendingStopForm) {
+            var card = pendingStopForm.closest('.etap-card');
+            if (card) {
+                card._stopRequested = false;
+                var cycleDuration = 180;
+                var timer = card.querySelector('.etap-live-timer');
+                var sec = timer ? Number(timer.dataset.seconds || '0') : 0;
+                var curCyc = Math.floor(sec / cycleDuration);
+                card._lastOproznianieCycle = curCyc;
+                try {
+                    var pIn = card.querySelector('input[name="plan_id"]');
+                    var szIn = card.querySelector('input[name="szarza_nr"]');
+                    var eNr = card.dataset.etapNr || '5';
+                    sessionStorage.setItem('oproznianie_cycle_' + (pIn ? pIn.value : '') + '_' + (szIn ? szIn.value : '') + '_' + eNr, String(curCyc));
+                } catch (e) {}
+            }
+        }
+        pendingStopForm = null;
+        closeStopDecisionModal();
+    }
+
     function stopDecisionChoose(action) {
         var form = pendingStopForm;
         closeStopDecisionModal();
@@ -629,6 +967,14 @@
                 hidden.value = action;
                 pendingStopForm = null;
                 try {
+                    var pIn = form.querySelector('input[name="plan_id"]');
+                    var szIn = form.querySelector('input[name="szarza_nr"]');
+                    var eNr = form.dataset.etap || '';
+                    if (pIn && szIn && eNr) {
+                        sessionStorage.removeItem('oproznianie_cycle_' + pIn.value + '_' + szIn.value + '_' + eNr);
+                    }
+                } catch (e) {}
+                try {
                     _setFormSubmitButtonsLoading(form, true);
                     HTMLFormElement.prototype.submit.call(form);
                 } catch (error) {
@@ -648,6 +994,14 @@
 
         hidden.value = action;
         pendingStopForm = null;
+        try {
+            var pIn = form.querySelector('input[name="plan_id"]');
+            var szIn = form.querySelector('input[name="szarza_nr"]');
+            var eNr = form.dataset.etap || '';
+            if (pIn && szIn && eNr) {
+                sessionStorage.removeItem('oproznianie_cycle_' + pIn.value + '_' + szIn.value + '_' + eNr);
+            }
+        } catch (e) {}
         try {
             _setFormSubmitButtonsLoading(form, true);
             HTMLFormElement.prototype.submit.call(form);
@@ -726,8 +1080,7 @@
         }
         if (stopCancel) {
             stopCancel.addEventListener('click', function () {
-                pendingStopForm = null;
-                closeStopDecisionModal();
+                _cancelStopDecision();
             });
         }
 
@@ -735,8 +1088,7 @@
             if (event.target !== stopDecisionModal) {
                 return;
             }
-            pendingStopForm = null;
-            closeStopDecisionModal();
+            _cancelStopDecision();
         });
 
         document.addEventListener('keydown', function (event) {
@@ -748,8 +1100,14 @@
                 _szarzaModalCancel();
             }
             if (stopDecisionModal.classList.contains('open')) {
-                pendingStopForm = null;
-                closeStopDecisionModal();
+                _cancelStopDecision();
+            }
+            var oproznianieModal = document.getElementById('oproznianie-prompt-modal');
+            if (oproznianieModal && oproznianieModal.classList.contains('open')) {
+                if (oproznianieModal._onContinue) {
+                    oproznianieModal._onContinue();
+                }
+                closeOproznianiePromptModal();
             }
         });
     }
@@ -806,6 +1164,9 @@
         toggleManualEtapForm: toggleManualEtapForm,
         openStopDecisionModal: openStopDecisionModal,
         closeStopDecisionModal: closeStopDecisionModal,
+        ensureOproznianiePromptModal: ensureOproznianiePromptModal,
+        openOproznianiePromptModal: openOproznianiePromptModal,
+        closeOproznianiePromptModal: closeOproznianiePromptModal,
     };
 
     ready(init);

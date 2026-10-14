@@ -55,10 +55,18 @@
             });
         }
 
-        if (title) {
+        var popupTitle = title;
+        if (!popupTitle && body) {
+            var titledElem = body.querySelector('[data-popup-title]');
+            if (titledElem) {
+                popupTitle = titledElem.getAttribute('data-popup-title');
+            }
+        }
+
+        if (popupTitle) {
             var titleElem = popup.querySelector('.header-title');
             if (titleElem) {
-                titleElem.textContent = title;
+                titleElem.textContent = popupTitle;
             }
         }
 
@@ -179,8 +187,10 @@
                 }
             }
 
-            var title = link.getAttribute('title') || ((link.textContent && link.textContent.trim()) ? link.textContent.trim() : '') || 'Szybki popup';
-            fetch(href, {
+            var title = (link.getAttribute && (link.getAttribute('data-title') || link.getAttribute('title'))) || '';
+            var cacheBuster = (href.indexOf('?') === -1 ? '?' : '&') + '_t=' + Date.now();
+            fetch(href + cacheBuster, {
+                cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
             })

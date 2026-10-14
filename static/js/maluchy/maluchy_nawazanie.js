@@ -24,6 +24,7 @@
     const btnCompleteBucket = document.getElementById('btnCompleteBucket');
     const btnDeleteActiveBucket = document.getElementById('btnDeleteActiveBucket');
     const inputStacjaKod = document.getElementById('inputStacjaKod');
+    const inputBucketTotalWeight = document.getElementById('inputBucketTotalWeight');
     const planBucketsList = document.getElementById('planBucketsList');
 
     // Tab navigation & lists
@@ -264,9 +265,22 @@
             return;
         }
 
+        const weightInput = document.getElementById('inputBucketTotalWeight');
+        const weightRaw = weightInput ? weightInput.value.trim().replace(',', '.') : '';
+        const weightVal = parseFloat(weightRaw);
+
+        if (!weightRaw || isNaN(weightVal) || weightVal <= 0) {
+            showToast('Podaj wagę całego zasypu wiadra (musi być większa od 0 kg)!', 'error');
+            if (weightInput) {
+                weightInput.focus();
+                weightInput.select();
+            }
+            return;
+        }
+
         const confirmed = await showConfirm(
             'Zakończenie kompletacji',
-            `Czy na pewno zakończyć kompletację wiadra ${currentBucket.kod_wiadra} (${count} składników)?`
+            `Czy na pewno zakończyć kompletację wiadra ${currentBucket.kod_wiadra} (${count} składników, waga: ${weightVal.toFixed(2)} kg)?`
         );
         if (!confirmed) return;
 
@@ -277,15 +291,16 @@
             const res = await fetch('/maluchy/api/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ bucket_id: currentBucket.id })
+                body: JSON.stringify({ bucket_id: currentBucket.id, waga_calkowita: weightVal })
             });
             const data = await res.json();
 
             if (res.ok && data.success) {
-                showToast(`Wiadro ${data.bucket.kod_wiadra} zostało skompletowane! Można je wsypać na Zasypie.`, 'success');
+                showToast(`Wiadro ${data.bucket.kod_wiadra} (${weightVal.toFixed(2)} kg) zostało skompletowane! Można je wsypać na Zasypie.`, 'success');
                 currentBucket = null;
                 cardNawazanie.style.display = 'none';
                 cardBucketDetails.style.display = 'none';
+                if (weightInput) weightInput.value = '';
                 inputKodWiadra.value = '';
                 inputKodWiadra.focus();
                 loadPlanBuckets(selectPlanId.value);
@@ -369,6 +384,11 @@
         const items = bucket.pozycje || [];
         if (detailsItemsCount) {
             detailsItemsCount.textContent = `${items.length} pozycji`;
+        }
+
+        if (inputBucketTotalWeight) {
+            const curWeight = parseFloat(bucket.waga_calkowita || 0);
+            inputBucketTotalWeight.value = curWeight > 0 ? curWeight : '';
         }
 
         if (items.length === 0) {
@@ -494,6 +514,9 @@
                     <div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="m-bucket-pill" style="font-size: 14px;">Wiadro ${escapeBucketText(b.kod_wiadra)}</span>
+                            ${(b.waga_calkowita && parseFloat(b.waga_calkowita) > 0)
+                                ? `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">⚖️ ${escapeBucketText(parseFloat(b.waga_calkowita).toFixed(2))} kg</span>`
+                                : ''}
                             <span style="background: ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#eff6ff' : '#f0fdf4')}; color: ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#1d4ed8' : '#15803d')}; border: 1px solid ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#bfdbfe' : '#bbf7d0')}; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">${escapeBucketText(b.linia || linia)}</span>
                             <span style="font-weight: 700; font-size: 13px; color: #1e293b;">${escapeBucketText(itemsCount)} składników</span>
                             <span style="font-size: 12px; color: #2563eb; font-weight: 700;" class="m-toggle-indicator">▾ zawartość</span>

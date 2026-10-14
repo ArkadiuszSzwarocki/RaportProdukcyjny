@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import current_app, flash, redirect, request, session
+from flask import current_app, flash, jsonify, redirect, request, session
 
 from app.decorators import login_required
 
@@ -192,9 +192,10 @@ def register_production_zasyp_flow_routes(
                         auto_cursor.execute(
                             f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                             f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
-                            f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                            f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                            f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
                             f"WHERE id = %s",
-                            (plan_id, plan_id, plan_id),
+                            (plan_id, plan_id, plan_id, plan_id),
                         )
 
                         auto_conn.commit()
@@ -237,6 +238,126 @@ def register_production_zasyp_flow_routes(
                 )
             except Exception:
                 current_app.logger.exception('Failed post-start zasyp notification')
+        return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/zasyp_etap_pause', methods=['POST'])
+    @login_required
+    def zasyp_etap_pause():
+        """Pauza etapu dla zlecenia Zasyp."""
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        linia = str(linia_input).upper()
+        plan_id_raw = request.form.get('plan_id')
+        etap_raw = request.form.get('etap')
+        szarza_nr_raw = _read_zasyp_nr()
+
+        try:
+            plan_id = int(plan_id_raw)
+            etap = int(etap_raw)
+        except Exception:
+            flash('❌ Nieprawidłowe dane pauzowania etapu', 'danger')
+            return redirect(bezpieczny_powrot())
+
+        conn = get_db_connection()
+        try:
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT sekcja, status, produkt FROM {table_plan} WHERE id=%s",
+                (plan_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                flash('❌ Zlecenie nie znalezione', 'danger')
+                return redirect(bezpieczny_powrot())
+            sekcja, status, produkt = row[0], row[1], row[2]
+            if sekcja != 'Zasyp':
+                flash('❌ To nie jest zlecenie Zasyp', 'danger')
+                return redirect(bezpieczny_powrot())
+            if status != 'w toku':
+                flash('❌ Zlecenie musi być W TOKU', 'danger')
+                return redirect(bezpieczny_powrot())
+        except Exception as e:
+            current_app.logger.error('zasyp_etap_pause failed: %s', e, exc_info=True)
+            flash('❌ Błąd pauzowania etapu', 'danger')
+            return redirect(bezpieczny_powrot())
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        ok, msg = ZasypEtapyService.pause_etap(
+            plan_id=plan_id,
+            linia=linia,
+            etap=etap,
+            user_login=session.get('login') or '',
+            szarza_nr=szarza_nr_raw,
+        )
+        _flash_zasyp_result(ok, msg)
+        if ok:
+            audit_log('PAUZA etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': ok, 'message': msg})
+        return redirect(bezpieczny_powrot())
+
+    @production_bp.route('/zasyp_etap_resume', methods=['POST'])
+    @login_required
+    def zasyp_etap_resume():
+        """Wznowienie etapu dla zlecenia Zasyp."""
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        linia = str(linia_input).upper()
+        plan_id_raw = request.form.get('plan_id')
+        etap_raw = request.form.get('etap')
+        szarza_nr_raw = _read_zasyp_nr()
+
+        try:
+            plan_id = int(plan_id_raw)
+            etap = int(etap_raw)
+        except Exception:
+            flash('❌ Nieprawidłowe dane wznawiania etapu', 'danger')
+            return redirect(bezpieczny_powrot())
+
+        conn = get_db_connection()
+        try:
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT sekcja, status, produkt FROM {table_plan} WHERE id=%s",
+                (plan_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                flash('❌ Zlecenie nie znalezione', 'danger')
+                return redirect(bezpieczny_powrot())
+            sekcja, status, produkt = row[0], row[1], row[2]
+            if sekcja != 'Zasyp':
+                flash('❌ To nie jest zlecenie Zasyp', 'danger')
+                return redirect(bezpieczny_powrot())
+            if status != 'w toku':
+                flash('❌ Zlecenie musi być W TOKU', 'danger')
+                return redirect(bezpieczny_powrot())
+        except Exception as e:
+            current_app.logger.error('zasyp_etap_resume failed: %s', e, exc_info=True)
+            flash('❌ Błąd wznawiania etapu', 'danger')
+            return redirect(bezpieczny_powrot())
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        ok, msg = ZasypEtapyService.resume_etap(
+            plan_id=plan_id,
+            linia=linia,
+            etap=etap,
+            user_login=session.get('login') or '',
+            szarza_nr=szarza_nr_raw,
+        )
+        _flash_zasyp_result(ok, msg)
+        if ok:
+            audit_log('WZNIEWIENIE etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': ok, 'message': msg})
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etap_stop', methods=['POST'])
@@ -311,14 +432,7 @@ def register_production_zasyp_flow_routes(
                 if etap == 1:
                     next_etap = 2
                 elif etap == 2 or etap == 4 or str(etap).startswith('4'):
-                    stage_state = ZasypEtapyService.get_etapy(plan_id, linia, szarza_nr=szarza_nr_raw)
-                    pending_stage = next((item['etap'] for item in stage_state.get('etapy', [])
-                                          if item.get('exists') and str(item['etap']).startswith('3') and not item.get('czas_start')), None)
-                    if pending_stage is not None:
-                        next_etap = pending_stage
-                    elif next_action not in ('add_pair', 'oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
-                        msg = f"{msg}; brak wyboru w oknie decyzji - nie uruchomiono kolejnego etapu"
-                    elif next_action in ('oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
+                    if next_action in ('oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
                         next_etap = 5
                         wants_new_point_after_empty = next_action == 'oprozniamy_new_point'
                     elif next_action == 'add_pair':
@@ -486,9 +600,10 @@ def register_production_zasyp_flow_routes(
                                                     auto_cursor.execute(
                                                         f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                                                         f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
-                                                        f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                                                        f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                                                        f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
                                                         f"WHERE id = %s",
-                                                        (plan_id, plan_id, plan_id),
+                                                        (plan_id, plan_id, plan_id, plan_id),
                                                     )
 
                                                     auto_conn.commit()

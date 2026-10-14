@@ -1,7 +1,7 @@
 {% extends "includes/scanner_layout.html" %}
 
 {% block scanner_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v=20260822_2135">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/scanner.css') }}?v=20261014_1848">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/scanner/high_bay_camera_scanner.css') }}?v=20260822_2135">
 <style>
     :root {
@@ -118,7 +118,7 @@
   </div>
 
   <!-- PALLET INFO -->
-  <div class="scan-card">
+  <div class="scan-card" id="palletInfoCard" style="display:none;">
     <div class="scan-title" style="display: flex; align-items: center; justify-content: space-between;">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span class="material-icons" style="color:#16a34a;">inventory_2</span>
@@ -187,19 +187,67 @@
         </button>
       </div>
     </div>
+    </div>
     <div id="nopalletMsg" class="text-muted small italic" style="display:none;">Zeskanuj kod żeby zobaczyć dane.</div>
   </div>
 
   <!-- STATION (SILLO) INFO -->
   <div class="scan-card" id="stationCard" style="display:none;">
-    <div class="scan-title">
-      <span class="material-icons" style="color:#f97316;">warehouse</span>
-      Zawartość stacji <span id="stationCode" style="font-weight: bold;"></span>
+    <div class="scan-title" style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="color:#f97316;">warehouse</span>
+        <span>Stacja produkcyjna: <strong id="stationCode"></strong></span>
+      </div>
+      <button type="button" onclick="resetScanner()" title="Zeskanuj inną stację" class="station-refresh-btn">
+        <span class="material-icons" style="font-size: 14px;">refresh</span>
+        <span>Inny skan</span>
+      </button>
     </div>
+
+    <!-- KAFELEK: AKTUALNIE PRZYPISANY SUROWIEC (wg widoku 'Surowce w Produkcji') -->
+    <div id="stationAssignedMaterialCard" class="station-assigned-card" style="display:none;">
+      <div class="station-assigned-header">
+        <span class="station-assigned-tag">Aktualnie przypisany surowiec</span>
+      </div>
+      <div class="station-assigned-name" id="stationAssignedName">—</div>
+      <div class="station-assigned-details">
+        <span id="stationAssignedSSCCWrap">SSCC: <strong id="stationAssignedSSCC">—</strong></span>
+        <span id="stationAssignedDateWrap">Wstawiono: <strong id="stationAssignedDate">—</strong></span>
+      </div>
+      <div class="station-assigned-qty-badge">
+        <span id="stationAssignedQty">0.0</span> kg
+      </div>
+      <div id="stationReturnBtnContainer" style="display:none; width:100%; margin-top:12px;">
+        <button type="button" class="btn btn-green" onclick="openStationReturnModal()" style="width:100%;">
+          <span class="material-icons">keyboard_return</span> Zwróć na magazyn
+        </button>
+      </div>
+    </div>
+
     <div id="stationItemsList" class="station-items-list">
       <!-- Items will be injected here by JS -->
     </div>
-    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Brak surowców na tej stacji.</div>
+    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Brak zarejestrowanego zasypu w tej stacji.</div>
+
+    <!-- ROZWIJANA OPCJA: DOSTĘPNE SUROWCE NA MAGAZYNIE (MP01, REGAŁY, BUFORY) -->
+    <div id="stationWarehouseStockWrap" class="station-wh-stock-wrap" style="display:none;">
+      <button type="button" id="stationWarehouseStockToggleBtn" class="station-wh-stock-toggle" onclick="toggleStationWarehouseStock()">
+        <div class="station-wh-stock-toggle-left">
+          <span class="material-icons station-wh-icon">inventory</span>
+          <span class="station-wh-title">Dostępne: MP01, regały, BFMP01, MDO01</span>
+          <span id="stationWarehouseStockBadge" class="station-wh-badge">0 palet</span>
+        </div>
+        <span id="stationWarehouseStockChevron" class="material-icons station-wh-chevron">expand_more</span>
+      </button>
+
+      <div id="stationWarehouseStockContent" class="station-wh-stock-content" style="display:none;">
+        <div id="stationWarehouseStockTargetInfo" class="station-wh-target-info"></div>
+        <div id="stationWarehouseStockList" class="station-wh-stock-list"></div>
+        <div id="stationWarehouseStockEmpty" class="station-wh-stock-empty" style="display:none;">
+          Brak dostępnych palet na magazynie dla surowców tej stacji.
+        </div>
+      </div>
+    </div>
   </div>
 
   
@@ -621,7 +669,7 @@
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ static_version }}&bucket=20261014-wxx"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=static_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=static_version) }}"></script>

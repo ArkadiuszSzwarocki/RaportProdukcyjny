@@ -185,7 +185,7 @@ def index():
         # Build final context
         from app.services.ipomiar_service import read_dashboard
         context = {
-            'agro_measurements': read_dashboard(dzisiaj) if aktywna_linia == 'AGRO' and aktywna_sekcja.lower() in ('zasyp', 'dashboard') else [],
+            'agro_measurements': read_dashboard(dzisiaj) if (aktywna_linia == 'AGRO' or aktywna_sekcja.lower() in ('zasyp', 'dashboard')) else [],
             'halls_data': halls_data,
             'halls_to_fetch': halls_to_fetch,
             'sekcja': aktywna_sekcja,

@@ -19,23 +19,35 @@ def settings():
     }
 
 
+DEFAULT_IPOMIAR_DEVICES = [
+    {'device': 'agro', 'name': 'Agro', 'temperature': 'Temperature', 'humidity': 'Humidity'},
+    {'device': 'magazyn-namiot', 'name': 'Magazyn Namiot', 'temperature': 'Temperature', 'humidity': 'Humidity'},
+    {'device': 'psd', 'name': 'PSD', 'temperature': 'Temperature', 'humidity': 'Humidity'},
+]
+
+
 def devices():
     """Device keys and field mappings belong to private runtime configuration."""
     config = settings()
     filename = os.getenv('IPOMIAR_CONFIG_FILE')
-    if not filename:
-        return [config] if config['device'] else []
-    try:
-        payload = json.loads(Path(filename).read_text(encoding='utf-8'))
-        result = []
-        for device in payload['devices'][:20]:
-            entry = {**config, **device}
-            entry['directory'] = config['directory']
-            archive_path(date.today(), entry)
-            result.append(entry)
-        return result
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return []
+    if filename:
+        try:
+            payload = json.loads(Path(filename).read_text(encoding='utf-8'))
+            result = []
+            for device in payload.get('devices', [])[:20]:
+                entry = {**config, **device}
+                entry['directory'] = config['directory']
+                result.append(entry)
+            if result:
+                return result
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+    if config['device']:
+        return [config]
+    return [
+        {**config, **dev, 'directory': config['directory']}
+        for dev in DEFAULT_IPOMIAR_DEVICES
+    ]
 
 
 def read_all(day):
@@ -48,14 +60,18 @@ def read_dashboard(day):
     result = []
     for config in devices():
         data = read_day(day, config=config)
-        if not data['latest'] and day == datetime.now(ZONE).date().isoformat():
-            directory = archive_path(day, config).parent
-            for path in sorted(directory.glob('????-??-??.json'), reverse=True):
-                if path.stem > day:
-                    continue
-                data = read_day(path.stem, config=config)
-                if data['latest']:
-                    break
+        if not data['latest'] and day == datetime.now(ZONE).date().isoformat() and config.get('device'):
+            try:
+                directory = archive_path(day, config).parent
+                if directory.exists():
+                    for path in sorted(directory.glob('????-??-??.json'), reverse=True):
+                        if path.stem > day:
+                            continue
+                        data = read_day(path.stem, config=config)
+                        if data['latest']:
+                            break
+            except Exception:
+                pass
         result.append(data)
     return result
 

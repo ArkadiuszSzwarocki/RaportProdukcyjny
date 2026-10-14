@@ -139,7 +139,8 @@ class ScannerResolutionService:
 
                 prefix_match = bool(expected_inv_key is not None and (item_key == expected_inv_key or (expected_inv_key == 'WYROB_GOTOWY' and item_key in ('PAL', 'WYROB_GOTOWY'))))
 
-                return (prefix_match, not is_used_up, has_qty, not_oczek, is_warehouse, qty > 0, item_id)
+                is_station = bool(item.get('is_station'))
+                return (is_station, prefix_match, not is_used_up, has_qty, not_oczek, is_warehouse, qty > 0, item_id)
                 
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]

@@ -183,10 +183,27 @@ class ScannerLocationQueryService:
                 except Exception:
                     pass
 
+                from app.utils.location_validator import is_production_tank_code
+                is_prod = is_production_tank_code(location_code)
+                warehouse_stock = None
+                if is_prod:
+                    try:
+                        from app.services.scanner.station_warehouse_material_service import StationWarehouseMaterialService
+                        mat_names = [it['nazwa'] for it in items if it.get('nazwa')]
+                        warehouse_stock = StationWarehouseMaterialService.get_available_warehouse_materials_for_station(
+                            station_code=location_code,
+                            active_materials=mat_names,
+                            linia=linia
+                        )
+                    except Exception:
+                        pass
+
                 return [{
                     'is_station': True,
+                    'is_production_station': is_prod,
                     'station_code': location_code,
-                    'items': items
+                    'items': items,
+                    'warehouse_stock': warehouse_stock
                 }]
 
             finally:

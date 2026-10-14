@@ -682,6 +682,13 @@
                                 <span class="ds-badge ds-badge-cancelled">Anulowana</span>
                             {% elif item.potwierdzone %}
                                 <span class="ds-badge ds-badge-confirmed">Potwierdzona</span>
+                                {% if session.get('rola') in ['masteradmin', 'master_admin'] or session.get('login') in ['SzwarArk', 'BoczkMar'] %}
+                                <button type="button" class="ds-btn-cancel-item js-delete-confirmed-dosypka"
+                                    data-id="{{ item.id }}" title="Usuń zatwierdzoną dosypkę (MasterAdmin)"
+                                    style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5; margin-left:6px;">
+                                    🗑️ Usuń zatwierdzoną
+                                </button>
+                                {% endif %}
                             {% else %}
                                 <span class="ds-badge ds-badge-pending">Oczekuje</span>
                                 <button type="button" class="ds-btn-cancel-item js-cancel-dosypka"
@@ -1002,6 +1009,46 @@
                         .catch(function() {
                             btn.disabled = false;
                             btn.textContent = '✕ Anuluj';
+                            alert('Błąd sieci');
+                        });
+                    }
+                );
+        document.querySelectorAll('.js-delete-confirmed-dosypka').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = btn.getAttribute('data-id');
+                if (!id) return;
+                dsCustomConfirm(
+                    'Usuń zatwierdzoną dosypkę',
+                    'Czy na pewno chcesz usunąć tę ZATWIERDZONĄ dosypkę? Nastąpi korekta tonażu zlecenia oraz wpis audytowy w historii.',
+                    'Tak, usuń zatwierdzoną',
+                    'danger',
+                    function() {
+                        var linia = {{ (linia or 'PSD') | tojson }};
+                        btn.disabled = true;
+                        btn.textContent = '⏳...';
+                        fetch('/usun_zatwierdzona_dosypke/' + id + '?linia=' + encodeURIComponent(linia), {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                        })
+                        .then(function(r) { return r.json().catch(function() { return {}; }); })
+                        .then(function(d) {
+                            if (d && d.success) {
+                                var item = btn.closest('.ds-hist-item');
+                                if (item) {
+                                    item.classList.add('is-cancelled');
+                                    item.querySelector('.ds-hist-actions').innerHTML =
+                                        '<span class="ds-badge ds-badge-cancelled">Anulowana (MasterAdmin)</span>';
+                                }
+                            } else {
+                                btn.disabled = false;
+                                btn.textContent = '🗑️ Usuń zatwierdzoną';
+                                alert((d && d.message) || 'Błąd usuwania zatwierdzonej dosypki');
+                            }
+                        })
+                        .catch(function() {
+                            btn.disabled = false;
+                            btn.textContent = '🗑️ Usuń zatwierdzoną';
                             alert('Błąd sieci');
                         });
                     }

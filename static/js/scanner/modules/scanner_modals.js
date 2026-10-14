@@ -134,10 +134,12 @@ function submitWgAccept() {
 }
 
 /* ─── Scanner Return to Warehouse Modal ───────────────────── */
-function openScannerReturnModal() {
-  if (!currentPallet) return;
-  const loc = currentPallet.lokalizacja || 'Nieznana stacja';
-  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+let scannerReturnPallet = null;
+function openScannerReturnModal(pallet = currentPallet) {
+  if (!pallet) return;
+  scannerReturnPallet = { ...pallet };
+  const loc = pallet.lokalizacja || 'Nieznana stacja';
+  const maxQty = parseFloat(pallet.stan_magazynowy) || 0;
   
   document.getElementById('scannerReturnLoc').textContent = loc;
   document.getElementById('scannerReturnQty').value = maxQty > 0 ? maxQty : '';
@@ -148,6 +150,7 @@ function openScannerReturnModal() {
 }
 
 function closeScannerReturnModal() {
+  scannerReturnPallet = null;
   document.getElementById('scannerReturnOverlay').style.display = 'none';
   const scanInput = document.getElementById('scanInput');
   if (scanInput) {
@@ -157,10 +160,11 @@ function closeScannerReturnModal() {
 }
 
 function submitScannerReturn() {
-  if (!currentPallet) return;
+  const pallet = scannerReturnPallet;
+  if (!pallet) return;
   const qtyInput = document.getElementById('scannerReturnQty');
   const qty = parseFloat(qtyInput.value);
-  const maxQty = parseFloat(currentPallet.stan_magazynowy) || 0;
+  const maxQty = parseFloat(pallet.stan_magazynowy) || 0;
   
   if (isNaN(qty) || qty <= 0) {
     showToast('Podaj prawidłową ilość większą od 0', 'warn');
@@ -175,10 +179,11 @@ function submitScannerReturn() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      surowiec_id: currentPallet.id,
+      surowiec_id: pallet.id,
       ilosc: qty,
-      ruch_produkcja_id: null,
-      komentarz: `Zwrot przez skaner ze stacji ${currentPallet.lokalizacja}`,
+      ruch_produkcja_id: pallet.ruch_produkcja_id || null,
+      plan_id: pallet.plan_id || null,
+      komentarz: `Zwrot przez skaner ze stacji ${pallet.lokalizacja}`,
       linia: LINIA,
       lokalizacja: 'ZWROT'
     })
@@ -190,6 +195,7 @@ function submitScannerReturn() {
       showToast(`Pomyślnie zwrócono ${qty} kg${ssccMsg}. Paleta trafiła do Oczekujących.`, 'success');
       closeScannerReturnModal();
       hidePallet();
+      hideStation();
     } else {
       showToast('Błąd: ' + (d.error || 'Nieznany błąd'), 'danger');
     }

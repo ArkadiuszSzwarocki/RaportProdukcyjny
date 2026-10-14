@@ -326,8 +326,9 @@ def raporty_okresowe():
         for h in raw_hist:
             d_str = str(h.get('data_raportu') or '')
             lin = h.get('linia') or 'AGRO'
-            pdf_name = f"Raport_{lin}_{d_str}.pdf"
-            xls_name = f"Raport_{lin}_{d_str}.xlsx"
+            is_production_line = lin in ('AGRO', 'PSD')
+            pdf_name = f"Raport_{lin}_{d_str}.pdf" if is_production_line else None
+            xls_name = f"Raport_{lin}_{d_str}.xlsx" if is_production_line else None
             
             created_dt = h.get('created_at')
             created_str = created_dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(created_dt, 'strftime') else str(created_dt)
@@ -338,6 +339,7 @@ def raporty_okresowe():
                 'linia': lin,
                 'typ_raportu': h.get('typ_raportu') or 'Zmianowy',
                 'odbiorcy': h.get('odbiorcy') or '-',
+                'status': h.get('status') or 'SENT',
                 'created_at': created_str,
                 'pdf_filename': pdf_name,
                 'xls_filename': xls_name

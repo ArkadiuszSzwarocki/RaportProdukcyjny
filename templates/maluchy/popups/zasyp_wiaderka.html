@@ -1,0 +1,503 @@
+<div class="p-15 maluchy-zasyp-popup" data-popup-title="🪣 Wiaderka (Maluchy) — Zlecenie #{{ plan_id }}">
+    <style>
+        .maluchy-zasyp-popup {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e293b;
+        }
+        .mzp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .mzp-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0 0 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mzp-subtitle {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        .mzp-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .mzp-stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        .mzp-stat-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.05em;
+        }
+        .mzp-stat-val {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .mzp-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 65vh;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .mzp-bucket-card {
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: border-color 0.15s ease;
+        }
+        .mzp-bucket-card.is-dumped {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+        .mzp-bucket-header {
+            padding: 10px 14px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mzp-bucket-card.is-dumped .mzp-bucket-header {
+            background: #dcfce7;
+            border-bottom-color: #bbf7d0;
+        }
+        .mzp-bucket-name {
+            font-weight: 800;
+            font-size: 1rem;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mzp-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .mzp-badge-dumped { background: #15803d; color: #ffffff; }
+        .mzp-badge-completed { background: #2563eb; color: #ffffff; }
+        .mzp-badge-in-progress { background: #f59e0b; color: #ffffff; }
+
+        .mzp-action-section {
+            padding: 10px 14px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .mzp-action-section.is-dumped-banner {
+            background: #ecfdf5;
+            color: #15803d;
+            font-weight: 700;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mzp-action-section.is-assign-panel {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+        }
+        .mzp-assign-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .mzp-assign-title {
+            color: #1e40af;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mzp-assign-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .mzp-szarza-select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1.5px solid #94a3b8;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: #ffffff;
+            color: #0f172a;
+        }
+        .mzp-btn-emergency {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 6px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mzp-btn-emergency:hover {
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            transform: translateY(-1px);
+        }
+        .mzp-btn-emergency:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .mzp-items-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .mzp-items-table th {
+            text-align: left;
+            padding: 6px 12px;
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        .mzp-items-table td {
+            padding: 6px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+        }
+        .mzp-empty {
+            text-align: center;
+            padding: 30px 15px;
+            color: #64748b;
+        }
+        .mzp-empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+        }
+    </style>
+
+    <div class="mzp-header">
+        <div>
+            <h3 class="mzp-title">🪣 Wiaderka (Maluchy) — Zlecenie #{{ plan_id }}</h3>
+            <div class="mzp-subtitle">
+                <strong>{{ plan_info.produkt if plan_info and plan_info.produkt else 'Zlecenie #' ~ plan_id }}</strong>
+                &bull; Aktywny zasyp: <strong>#{% if szarza_info and szarza_info.nr_szarzy %}{{ szarza_info.nr_szarzy }}{% else %}{{ szarza_id }}{% endif %}</strong>
+                (ID: {{ szarza_id }})
+            </div>
+        </div>
+        <button type="button" class="btn-action btn-outline" data-action="close-popup" style="padding: 4px 10px;">✕ Zamknij</button>
+    </div>
+
+    <!-- Metrics -->
+    <div class="mzp-stats">
+        <div class="mzp-stat-card">
+            <span class="mzp-stat-label">Wszystkie wiadra</span>
+            <span class="mzp-stat-val">{{ summary.all_buckets|length }}</span>
+        </div>
+        <div class="mzp-stat-card">
+            <span class="mzp-stat-label">Wsypane</span>
+            <span class="mzp-stat-val" style="color: #15803d;">{{ summary.wrzucone|length }} ({{ summary.total_dumped_kg|round(2) }} kg)</span>
+        </div>
+        <div class="mzp-stat-card">
+            <span class="mzp-stat-label">Skompletowane</span>
+            <span class="mzp-stat-val" style="color: #2563eb;">{{ summary.skompletowane|length }} ({{ summary.total_ready_kg|round(2) }} kg)</span>
+        </div>
+        <div class="mzp-stat-card">
+            <span class="mzp-stat-label">W trakcie</span>
+            <span class="mzp-stat-val" style="color: #d97706;">{{ summary.w_trakcie|length }}</span>
+        </div>
+    </div>
+
+    <!-- Buckets List -->
+    <div class="mzp-list" id="mzp-buckets-list">
+        {% if summary.all_buckets %}
+            {% for b in summary.all_buckets %}
+            <div class="mzp-bucket-card{% if b.status == 'wrzucone_do_mieszalnika' %} is-dumped{% endif %}" id="mzp-bucket-{{ b.id }}">
+                <div class="mzp-bucket-header">
+                    <div class="mzp-bucket-name">
+                        <span>🪣 {{ b.kod_wiadra }}</span>
+                        {% if b.status == 'wrzucone_do_mieszalnika' %}
+                            <span class="mzp-badge mzp-badge-dumped">Wsypane</span>
+                        {% elif b.status == 'skompletowane' %}
+                            <span class="mzp-badge mzp-badge-completed">Skompletowane</span>
+                        {% else %}
+                            <span class="mzp-badge mzp-badge-in-progress">W trakcie</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">
+                        {{ (b.waga_calkowita or 0.0)|round(3) }} kg
+                    </div>
+                </div>
+
+                <!-- Assignment Action Bar / Dump Status right under header -->
+                {% if b.status == 'wrzucone_do_mieszalnika' %}
+                    <div class="mzp-action-section is-dumped-banner">
+                        <span>✓ Wsypano do zasypu #{% if b.szarza_nr %}{{ b.szarza_nr }}{% else %}{{ b.szarza_id or szarza_id }}{% endif %}</span>
+                        {% if b.data_zasypania %}<span>({{ b.data_zasypania }})</span>{% endif %}
+                        {% if b.operator_zasypal_login %}<span>&bull; przez: <strong>{{ b.operator_zasypal_login }}</strong></span>{% endif %}
+                    </div>
+                {% elif can_emergency_dump %}
+                    <div class="mzp-action-section is-assign-panel mzp-emergency-panel">
+                        <div class="mzp-assign-row">
+                            <div class="mzp-assign-title">
+                                <span>⚡ Przypisanie do mieszalnika MI01:</span>
+                            </div>
+                            <div class="mzp-assign-controls">
+                                <label for="szarza-select-{{ b.id }}" style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">Zasyp:</label>
+                                <select id="szarza-select-{{ b.id }}" class="mzp-szarza-select js-szarza-select">
+                                    {% if szarze_list %}
+                                        {% for sz in szarze_list %}
+                                            {% if sz.bucket_id %}
+                                                <option value="{{ sz.id }}" disabled style="color: #94a3b8; background: #f1f5f9;">
+                                                    Zasyp #{{ sz.nr_szarzy }} (zajęty przez wiadro {{ sz.bucket_code }}) 🚫
+                                                </option>
+                                            {% else %}
+                                                <option value="{{ sz.id }}" data-nr="{{ sz.nr_szarzy }}" {% if sz.id == default_free_szarza_id %}selected{% endif %}>
+                                                    Zasyp #{{ sz.nr_szarzy }} ({{ (sz.waga or 0)|round(0) }} kg) — wolny ✓
+                                                </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <option value="{{ szarza_id }}" data-nr="{{ szarza_info.nr_szarzy if szarza_info else szarza_id }}">
+                                            Zasyp #{% if szarza_info and szarza_info.nr_szarzy %}{{ szarza_info.nr_szarzy }}{% else %}{{ szarza_id }}{% endif %}
+                                        </option>
+                                    {% endif %}
+                                </select>
+                                {% if (b.waga_calkowita or 0) <= 0 %}
+                                <div style="display: inline-flex; align-items: center; gap: 4px; background: #fff1f2; border: 1.5px solid #fecdd3; padding: 2px 8px; border-radius: 6px;">
+                                    <label for="szarza-weight-{{ b.id }}" style="font-size: 0.78rem; font-weight: 800; color: #be123c;">WAGA (KG):</label>
+                                    <input type="number" id="szarza-weight-{{ b.id }}" step="0.01" min="0.01" placeholder="np. 15.0" class="js-mzp-weight-input" style="width: 75px; padding: 4px 6px; border: 1.5px solid #f43f5e; border-radius: 4px; font-weight: 800; font-size: 0.85rem;" required />
+                                </div>
+                                {% endif %}
+                                <button type="button" 
+                                        class="mzp-btn-emergency js-emergency-dump-btn"
+                                        data-bucket-id="{{ b.id }}"
+                                        data-bucket-code="{{ b.kod_wiadra }}"
+                                        data-plan-id="{{ plan_id }}"
+                                        data-linia="{{ linia }}">
+                                    ⚡ Przypisz do MI01 i wsyp
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Ingredients -->
+                {% if b.pozycje %}
+                <table class="mzp-items-table">
+                    <thead>
+                        <tr>
+                            <th>Surowiec</th>
+                            <th style="width: 70px;">Stacja</th>
+                            <th style="width: 80px; text-align: right;">Waga</th>
+                            <th style="width: 90px;">Operator</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pos in b.pozycje %}
+                        <tr>
+                            <td><strong>{{ pos.surowiec_nazwa }}</strong></td>
+                            <td><span style="font-family: monospace; font-weight: 700; color: #475569;">{{ pos.stacja_kod }}</span></td>
+                            <td style="text-align: right; font-weight: 700;">{{ (pos.waga_faktyczna or 0)|round(3) }} kg</td>
+                            <td style="color: #64748b; font-size: 0.8rem;">{{ pos.operator_login or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding: 10px 14px; font-size: 0.82rem; color: #64748b; font-style: italic;">
+                    Brak przypisanych składników.
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="mzp-empty">
+                <div class="mzp-empty-icon">🪣</div>
+                <div style="font-size: 1rem; font-weight: 700; color: #334155;">Brak utworzonych wiader dla tego zlecenia</div>
+                <div style="font-size: 0.85rem; margin-top: 4px;">Wiaderka z mikroskładnikami naważane są w osobnym module „Maluchy”.</div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+    (function() {
+        async function handleEmergencyDump(btn) {
+            var bucketId = btn.getAttribute('data-bucket-id');
+            var bucketCode = btn.getAttribute('data-bucket-code');
+            var planId = btn.getAttribute('data-plan-id');
+            var linia = btn.getAttribute('data-linia') || 'PSD';
+
+            var card = btn.closest('.mzp-bucket-card') || btn.closest('.mzp-emergency-panel') || btn.parentElement;
+            var select = card ? card.querySelector('.js-szarza-select') : null;
+            var szarzaId = select ? select.value : btn.getAttribute('data-szarza-id');
+            var selectedOpt = select ? select.options[select.selectedIndex] : null;
+            var szarzaNr = (selectedOpt && selectedOpt.getAttribute('data-nr')) ? selectedOpt.getAttribute('data-nr') : szarzaId;
+
+            if (!bucketId || !szarzaId) {
+                alert('Proszę wybrać zasyp (szarżę) z listy.');
+                return;
+            }
+
+            if (selectedOpt && selectedOpt.disabled) {
+                alert('Wybrany zasyp #' + szarzaNr + ' ma już przypisane wiadro! Wybierz wolny zasyp.');
+                return;
+            }
+
+            var weightInput = card ? card.querySelector('.js-mzp-weight-input') : null;
+            var wagaVal = null;
+            if (weightInput) {
+                var rawW = weightInput.value.trim().replace(',', '.');
+                wagaVal = parseFloat(rawW);
+                if (!rawW || isNaN(wagaVal) || wagaVal <= 0) {
+                    alert('Proszę podać wagę zasypu wiadra (kg) przed wsypaniem!');
+                    weightInput.focus();
+                    return;
+                }
+            }
+
+            var confirmMsg = 'AWARYJNY ZASYP WIADRA DO MIESZALNIKA MI01:\n\n' +
+                             'Czy na pewno chcesz awaryjnie przypisać wiadro ' + bucketCode + 
+                             (wagaVal ? ' (waga: ' + wagaVal.toFixed(2) + ' kg)' : '') +
+                             ' do Zasypu #' + szarzaNr + ' (zlecenie #' + planId + ')?\n\n' +
+                             'Wiaderko zostanie przypisane do mieszalnika MI01 i zarejestrowane w systemie dokładnie tak samo, jak po zeskanowaniu ze skanera głównego.\n\n' +
+                             'Akcja zostanie zarejestrowana w historii i logu audytowym z Twoim loginem.';
+            if (!confirm(confirmMsg)) return;
+
+            var origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Wsypywanie...';
+
+            try {
+                var payload = {
+                    bucket_id: bucketId,
+                    szarza_id: szarzaId,
+                    plan_id: planId,
+                    linia: linia
+                };
+                if (wagaVal !== null) {
+                    payload.waga_calkowita = wagaVal;
+                }
+
+                var res = await fetch('/maluchy/api/emergency-dump', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                var data = await res.json().catch(function() { return {}; });
+                if (!res.ok || !data.success) {
+                    btn.disabled = false;
+                    btn.innerHTML = origText;
+                    var errMsg = data.message || 'Wystąpił błąd podczas awaryjnego zasypu.';
+                    if (typeof showToast === 'function') {
+                        showToast(errMsg, 'error');
+                    } else if (typeof window.showToast === 'function') {
+                        window.showToast(errMsg, 'error');
+                    } else {
+                        alert(errMsg);
+                    }
+                    return;
+                }
+
+                // Cichy toast informacyjny (bez blokowania ekranu)
+                var successMsg = data.message || ('Wiadro ' + bucketCode + ' zostało wsypane do zasypu #' + szarzaNr + '!');
+                if (typeof showToast === 'function') {
+                    showToast(successMsg, 'success');
+                } else if (typeof window.showToast === 'function') {
+                    window.showToast(successMsg, 'success');
+                } else if (typeof parent !== 'undefined' && typeof parent.showToast === 'function') {
+                    parent.showToast(successMsg, 'success');
+                }
+
+                // 1. Ciche odświeżenie dashboardu w tle (lista szarż, waga, wiaderka)
+                var pReload = window.performPartialReload || (typeof parent !== 'undefined' && parent.performPartialReload);
+                if (typeof pReload === 'function') {
+                    try {
+                        pReload({ force: true, preserveScroll: true, source: 'wiaderko-dumped' });
+                    } catch(e) {
+                        console.warn('performPartialReload error:', e);
+                    }
+                }
+
+                // 2. Ciche odświeżenie samej zawartości popupu
+                var refreshUrl = '/maluchy/zasyp_wiaderka/' + encodeURIComponent(planId) + '/' + encodeURIComponent(szarzaId) + '?linia=' + encodeURIComponent(linia) + '&_t=' + Date.now();
+                fetch(refreshUrl, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                    if (typeof window.openQuickPopup === 'function') {
+                        window.openQuickPopup(html);
+                    } else {
+                        var body = document.getElementById('quickPopupBody');
+                        if (body) {
+                            body.innerHTML = html;
+                            var scripts = body.querySelectorAll('script');
+                            scripts.forEach(function (oldScript) {
+                                var newScript = document.createElement('script');
+                                Array.from(oldScript.attributes).forEach(function (attr) {
+                                    newScript.setAttribute(attr.name, attr.value);
+                                });
+                                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                                oldScript.parentNode.replaceChild(newScript, oldScript);
+                            });
+                        }
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Błąd cichego odświeżania popupu:', err);
+                });
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+                if (typeof showToast === 'function') {
+                    showToast('Błąd sieci: ' + err.message, 'error');
+                } else {
+                    alert('Błąd sieci: ' + err.message);
+                }
+            }
+        }
+
+        // Attach direct handlers
+        document.querySelectorAll('.js-emergency-dump-btn').forEach(function(btn) {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                handleEmergencyDump(btn);
+            };
+        });
+    })();
+    </script>
+</div>

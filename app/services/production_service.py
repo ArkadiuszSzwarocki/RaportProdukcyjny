@@ -464,8 +464,9 @@ class ProductionService:
                     nr_sz = row[7] if len(row) > 7 and row[7] is not None else None
                     is_emptied = bool((pid, nr_sz) in emptied_zasypy) if nr_sz else False
 
-                    # Dla widoku szarży łączna waga: zasyp + dosypki (wiaderka to info bez dodawania wagi)
-                    waga_laczna = baza_waga + suma_dosypki
+                    # Łączna waga szarży: zasyp + dosypki + wiaderka maluchów
+                    suma_wiaderka = sum(float(w.get('waga') or 0.0) for w in wiaderka_by_szarza.get(szarza_id, []))
+                    waga_laczna = baza_waga + suma_dosypki + suma_wiaderka
 
                     if pid not in palety_mapa:
                         palety_mapa[pid] = []

@@ -467,9 +467,10 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None, linia='PSD'):
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                 f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
-                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
                 f"WHERE id = %s",
-                (plan_id, plan_id, plan_id)
+                (plan_id, plan_id, plan_id, plan_id)
             )
         
         conn.commit()
@@ -486,4 +487,58 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None, linia='PSD'):
         except Exception:
             pass
         return False
+
+
+def cancel_confirmed_dosypka(dosypka_id: int, cancelled_by_login: str, linia: str = 'PSD') -> tuple:
+    """MasterAdmin cancels an already confirmed dosypka, recording audit trail in dosypki and recalculating plan tonaz_rzeczywisty."""
+    conn = get_db_connection()
+    try:
+        table_dosypki = get_table_name('dosypki', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_szarze = get_table_name('szarze', linia)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            f"SELECT id, plan_id, nazwa, kg, potwierdzone, COALESCE(anulowana, 0) FROM {table_dosypki} WHERE id=%s",
+            (dosypka_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False, 'Pozycja dosypki nie istnieje', None
+
+        dos_id, plan_id, nazwa, kg, potwierdzone, anulowana = row
+        if anulowana == 1:
+            return False, 'Dosypka została już wcześniej anulowana', plan_id
+
+        audit_note = f"{cancelled_by_login} (MasterAdmin - usunięto zatwierdzoną)"
+        cursor.execute(
+            f"UPDATE {table_dosypki} SET potwierdzone=0, anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
+            (audit_note, dosypka_id),
+        )
+
+        if plan_id:
+            cursor.execute(
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
+                f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                f"WHERE id = %s",
+                (plan_id, plan_id, plan_id, plan_id),
+            )
+
+        conn.commit()
+        cursor.close()
+        return True, 'Zatwierdzona dosypka została usunięta (anulowana).', plan_id
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False, f'Błąd podczas usuwania zatwierdzonej dosypki: {e}', None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 

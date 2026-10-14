@@ -265,18 +265,30 @@ class BucketMaluchRepository:
             conn.close()
 
     @staticmethod
-    def complete_bucket(bucket_id: int) -> bool:
+    def complete_bucket(bucket_id: int, waga_calkowita: Optional[float] = None) -> bool:
         conn = get_db_connection()
         try:
             cur = conn.cursor()
-            cur.execute(
-                """
-                UPDATE wiaderka_maluchy 
-                SET status = 'skompletowane', data_skompletowania = NOW()
-                WHERE id = %s AND status = 'w_trakcie_nawazania'
-                """,
-                (bucket_id,),
-            )
+            if waga_calkowita is not None:
+                cur.execute(
+                    """
+                    UPDATE wiaderka_maluchy 
+                    SET status = 'skompletowane', 
+                        waga_calkowita = %s,
+                        data_skompletowania = NOW()
+                    WHERE id = %s AND status IN ('w_trakcie_nawazania', 'skompletowane')
+                    """,
+                    (float(waga_calkowita), bucket_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE wiaderka_maluchy 
+                    SET status = 'skompletowane', data_skompletowania = NOW()
+                    WHERE id = %s AND status IN ('w_trakcie_nawazania', 'skompletowane')
+                    """,
+                    (bucket_id,),
+                )
             conn.commit()
             return cur.rowcount > 0
         finally:
@@ -332,10 +344,13 @@ class BucketMaluchRepository:
                 SELECT b.*, 
                        CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.produkt, '—') ELSE COALESCE(p.produkt, '—') END as plan_produkt,
                        CASE WHEN b.linia = 'AGRO' THEN COALESCE(pa.nr_receptury, '') ELSE COALESCE(p.nr_receptury, '') END as plan_nr_receptury,
-                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data
+                       CASE WHEN b.linia = 'AGRO' THEN pa.data_planu ELSE p.data_planu END as plan_data,
+                       CASE WHEN b.linia = 'AGRO' THEN s_a.nr_szarzy ELSE s_p.nr_szarzy END as szarza_nr
                 FROM wiaderka_maluchy b
                 LEFT JOIN plan_produkcji p ON b.plan_id = p.id AND b.linia = 'PSD'
                 LEFT JOIN plan_produkcji_agro pa ON b.plan_id = pa.id AND b.linia = 'AGRO'
+                LEFT JOIN szarze_agro s_a ON b.szarza_id = s_a.id AND b.linia = 'AGRO'
+                LEFT JOIN szarze s_p ON b.szarza_id = s_p.id AND b.linia = 'PSD'
                 WHERE b.plan_id = %s AND b.linia = %s
                 ORDER BY b.id DESC
                 """,

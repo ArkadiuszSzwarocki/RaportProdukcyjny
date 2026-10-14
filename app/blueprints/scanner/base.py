@@ -78,6 +78,21 @@ def lookup():
     return jsonify({'success': True, 'pallet': pallet})
 
 
+@scanner_bp.route('/station-stock', methods=['GET'])
+def get_station_stock():
+    station_code = request.args.get('station', '').strip()
+    linia = request.args.get('linia') or _linia()
+    if not station_code:
+        return jsonify({'success': False, 'error': 'Brak kodu stacji'}), 400
+
+    from app.services.scanner.station_warehouse_material_service import StationWarehouseMaterialService
+    data = StationWarehouseMaterialService.get_available_warehouse_materials_for_station(
+        station_code=station_code,
+        linia=linia
+    )
+    return jsonify({'success': True, 'data': data})
+
+
 @scanner_bp.route('/pallet/history', methods=['GET'])
 def get_pallet_history():
     pallet_id = request.args.get('id')
