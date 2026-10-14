@@ -22,6 +22,11 @@ def test_cancel_addition_counts_only_buckets_from_the_same_line(line):
     plan_id = None
     buckets = []
     try:
+        # CI starts with a minimal PSD schema; this test also exercises AGRO.
+        if line == 'AGRO':
+            cursor.execute(f'CREATE TABLE IF NOT EXISTS {addition_table} LIKE dosypki')
+            batch_table = get_table_name('szarze', line)
+            cursor.execute(f'CREATE TABLE IF NOT EXISTS {batch_table} LIKE szarze')
         cursor.execute(f"INSERT INTO {plan_table} (produkt, data_planu, sekcja, status, tonaz) "
                        "VALUES (%s, CURDATE(), 'Zasyp', 'w toku', 100)", ('Line isolation ' + marker,))
         plan_id = cursor.lastrowid
