@@ -13,6 +13,21 @@ import uuid
 from app.db_tables import resolve_table_name
 from app.core.database import get_db_connection, get_table_name, set_active_database_name
 
+def _ensure_zasyp_pause_columns(cursor):
+    """Add pause metadata without replacing existing production rows."""
+    for col, col_def in [
+        ('is_paused', 'TINYINT(1) NOT NULL DEFAULT 0'),
+        ('pauza_start', 'DATETIME NULL DEFAULT NULL'),
+        ('pauza_sekundy', 'INT NOT NULL DEFAULT 0'),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN IF NOT EXISTS {col} {col_def}")
+        except Exception:
+            try:
+                cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN {col} {col_def}")
+            except Exception:
+                pass
+
 def _create_tables(cursor):
     """Create all base tables if they don't exist."""
     cursor.execute("CREATE TABLE IF NOT EXISTS uzytkownicy (id INT AUTO_INCREMENT PRIMARY KEY, login VARCHAR(50) UNIQUE, haslo VARCHAR(255), rola VARCHAR(20))")
@@ -242,19 +257,6 @@ def _create_tables(cursor):
         except Exception:
             try:
                 cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN is_blocked TINYINT(1) DEFAULT 0")
-            except Exception:
-                pass
-
-    for col, col_def in [
-        ('is_paused', 'TINYINT(1) NOT NULL DEFAULT 0'),
-        ('pauza_start', 'DATETIME NULL DEFAULT NULL'),
-        ('pauza_sekundy', 'INT NOT NULL DEFAULT 0'),
-    ]:
-        try:
-            cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN IF NOT EXISTS {col} {col_def}")
-        except Exception:
-            try:
-                cursor.execute(f"ALTER TABLE zasyp_etapy ADD COLUMN {col} {col_def}")
             except Exception:
                 pass
 
@@ -568,6 +570,8 @@ def _create_tables(cursor):
             INDEX idx_zasyp_etapy_linia_plan (linia, plan_id)
         )
     """)
+
+    _ensure_zasyp_pause_columns(cursor)
 
     # Zasyp — parametry per zlecenie (np. wielkość szarży do liczenia wydajności)
     cursor.execute("""

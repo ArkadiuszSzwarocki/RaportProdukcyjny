@@ -425,12 +425,12 @@
         </div>
         <div class="m-header-right">
             <div style="display: inline-flex; background: rgba(255,255,255,0.12); padding: 3px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); gap: 4px;">
-                <a href="{{ url_for('maluchy.index', linia='AGRO') }}" 
+                <a href="{{ url_for('maluchy.index', linia='AGRO') }}"
                    style="padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 800; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; {% if linia == 'AGRO' %}background: #2563eb; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);{% else %}color: #cbd5e1;{% endif %}">
                     <span>AGRO</span>
                     <span style="font-size: 11px; padding: 1px 6px; border-radius: 10px; {% if linia == 'AGRO' %}background: rgba(255,255,255,0.25); color: #fff;{% else %}background: rgba(255,255,255,0.1); color: #94a3b8;{% endif %}">{{ agro_bucket_count }}</span>
                 </a>
-                <a href="{{ url_for('maluchy.index', linia='PSD') }}" 
+                <a href="{{ url_for('maluchy.index', linia='PSD') }}"
                    style="padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 800; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; {% if linia == 'PSD' %}background: #2563eb; color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);{% else %}color: #cbd5e1;{% endif %}">
                     <span>PSD</span>
                     <span style="font-size: 11px; padding: 1px 6px; border-radius: 10px; {% if linia == 'PSD' %}background: rgba(255,255,255,0.25); color: #fff;{% else %}background: rgba(255,255,255,0.1); color: #94a3b8;{% endif %}">{{ psd_bucket_count }}</span>
@@ -454,7 +454,7 @@
                 <div class="m-form-row">
                     <div>
                         <label class="m-label" for="inputKodWiadra">Kod Wiadra (01–99 / Skaner)</label>
-                        <input type="text" id="inputKodWiadra" class="m-input" placeholder="np. 04, 12 (Enter)" 
+                        <input type="text" id="inputKodWiadra" class="m-input" placeholder="np. 04, 12 (Enter)"
                                style="text-transform: uppercase; font-weight: 800; font-size: 16px;" autofocus />
                     </div>
                     <div>
@@ -486,7 +486,7 @@
                     <label class="m-label" for="inputStacjaKod" style="color: #2563eb; font-size: 13px;">
                         🎯 Zeskanuj Kod Zbiornika / Stacji KO (Enter dodaje automatycznie):
                     </label>
-                    <input type="text" id="inputStacjaKod" class="m-input" placeholder="np. KO04, 04, KO12 (Skaner)" 
+                    <input type="text" id="inputStacjaKod" class="m-input" placeholder="np. KO04, 04, KO12 (Skaner)"
                            style="text-transform: uppercase; font-weight: 800; font-size: 16px; border: 2px solid #2563eb;" />
                 </div>
 
@@ -533,7 +533,7 @@
                     </table>
                 </div>
 
-                <!-- Waga calego zasypu wiadra -->
+                <!-- Waga całego zasypu wiadra -->
                 <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
                     <label for="inputBucketTotalWeight" style="display: block; font-size: 12px; font-weight: 800; color: #1e293b; margin-bottom: 6px; text-transform: uppercase;">
                         ⚖️ Waga całego zasypu wiadra (kg):

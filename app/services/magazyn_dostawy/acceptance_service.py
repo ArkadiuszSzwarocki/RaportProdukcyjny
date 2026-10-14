@@ -1,3 +1,4 @@
+# cspell:words PRZESUNI
 # cspell:words putaway sscc
 from app.db import get_db_connection, get_table_name
 import json
@@ -113,6 +114,7 @@ class AcceptanceService:
                     fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
+                supplier = str(dostawa.get('supplier') or '').strip()
                 # Zlecenie jest transferem wewnętrznym (przesunięciem), jeśli nie ma zewnętrznego dostawcy
                 # lub supplier wskazuje na transfer wewnętrzny / przesunięcie.
                 is_transfer = not bool(supplier) or 'PRZESUNI' in supplier.upper() or 'TRANSFER' in supplier.upper()

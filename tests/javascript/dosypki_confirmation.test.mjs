@@ -14,13 +14,13 @@ function setup(response, offline = false) {
         querySelector: selector => selector === '#dosypki-status' ? status : selector === '.dosypki-confirm-message' ? feedback : null,
         querySelectorAll: () => [],
         appendChild: node => {feedback = node;},
-        addEventListener: (name, fn) => {clicks[name] = fn;}
+        addEventListener: (name, fn) => {(clicks[name] ||= []).push(fn);}
     };
     const input = {value: '45', focus() {}};
     const row = {style: {}, getAttribute: () => '323', querySelector: () => input,
         parentNode: {removeChild() {removed = true;}}};
     const btn = {disabled: false, style: {}, textContent: '✓ Potwierdź',
-        getAttribute: () => '91', closest: selector => selector === 'tr' ? row : selector === '.p-15' ? root : btn};
+        getAttribute: () => '91', closest: selector => selector === 'tr' ? row : selector === '.p-15' ? root : selector === 'button.dosypka-confirm-btn[data-id]' ? btn : null};
     const document = {documentElement: {}, querySelectorAll: () => [],
         addEventListener: (name, fn) => {events[name] = fn;}, getElementById: () => status,
         createElement: () => ({style: {}, setAttribute() {}})};
@@ -40,7 +40,7 @@ function setup(response, offline = false) {
     });
     events.DOMContentLoaded();
     return {btn, input, requests, notices, removed: () => removed,
-        click: () => clicks.click({target: btn, preventDefault() {}})};
+        click: () => clicks.click.forEach(handler => handler({target: btn, preventDefault() {}}))};
 }
 
 async function settle() {await new Promise(resolve => setImmediate(resolve));}

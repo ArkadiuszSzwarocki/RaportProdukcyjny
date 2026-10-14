@@ -75,7 +75,7 @@ def test_daily_report_generation_failure_does_not_send_or_mark_sent():
     settings = MagicMock()
     settings.get_settings.return_value = SimpleNamespace(is_active=True, is_configured=True, recipients_list=['receiver@example.com'])
     activity = {'has_activity': True, 'all_documents': [{'raw_dostawa': {'id': 1}}]}
-    with patch('app.services.osip_report_email_service.WarehouseActivityQueryService.get_daily_warehouse_activity', return_value=activity), patch(
+    with patch('app.services.osip_report_email_service.WarehouseSystemSenderResolver.resolve', return_value=settings.get_settings.return_value), patch('app.services.osip_report_email_service.WarehouseActivityQueryService.get_daily_warehouse_activity', return_value=activity), patch(
             'app.services.osip_report_email_service.WarehouseEmailTemplateBuilder.build_daily_summary_report_html', return_value='Test'), patch(
             'app.services.osip_report_email_service.WarehousePdfReportBuilder.generate_delivery_pdf', return_value=None), patch(
             'app.services.osip_report_email_service.WarehouseReportMailer.send_raw_email') as send_email:

@@ -1,3 +1,4 @@
+# cspell:words boczkmar szwarark
 """Shared authorization for emergency bucket assignment."""
 from flask import session
 

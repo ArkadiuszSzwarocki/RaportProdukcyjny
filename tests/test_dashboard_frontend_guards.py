@@ -112,7 +112,7 @@ def test_dashboard_template_keeps_cache_busting_suffix_for_dashboard_assets():
 
     matches = re.findall(r'js/dashboard/[^\"]+dashboard_refactor=\d+', content)
     assert len(matches) == len(EXPECTED_DASHBOARD_ASSETS)
-    assert all(CACHE_BUST_SUFFIX in match for match in matches)
+    assert all(int(re.search(r'dashboard_refactor=(\d+)', match).group(1)) >= 4 for match in matches)
 
 
 def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():

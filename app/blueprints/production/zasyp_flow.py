@@ -1,3 +1,4 @@
+# cspell:words calkowita
 from datetime import datetime
 
 from flask import current_app, flash, jsonify, redirect, request, session
@@ -108,7 +109,7 @@ def register_production_zasyp_flow_routes(
                 kg_for_auto = kg
 
         restart_intent = str(request.form.get('restart_intent') or '0').strip().lower() in ['1', 'true', 'yes', 'on']
-        
+
         current_app.logger.info(f'[START-ETAP-RESTART] plan_id={plan_id}, etap={etap}, szarza={szarza_nr_raw}, linia={linia}, allow_restart={restart_intent}')
 
         ok, msg = ZasypEtapyService.start_etap(
@@ -120,7 +121,7 @@ def register_production_zasyp_flow_routes(
             szarza_nr=szarza_nr_raw,
             allow_restart=restart_intent,
         )
-        
+
         if restart_intent:
             current_app.logger.info(f'[START-ETAP-RESTART-RESULT] ok={ok}, msg={msg}')
 
@@ -193,7 +194,7 @@ def register_production_zasyp_flow_routes(
                             f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                             f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
                             f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
-                            f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                            f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0) "
                             f"WHERE id = %s",
                             (plan_id, plan_id, plan_id, plan_id),
                         )
@@ -355,7 +356,7 @@ def register_production_zasyp_flow_routes(
         )
         _flash_zasyp_result(ok, msg)
         if ok:
-            audit_log('WZNIEWIENIE etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+            audit_log('WZNOWIENIE etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': ok, 'message': msg})
         return redirect(bezpieczny_powrot())
@@ -601,7 +602,7 @@ def register_production_zasyp_flow_routes(
                                                         f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
                                                         f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
                                                         f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) + "
-                                                        f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND status = 'wrzucone_do_mieszalnika'), 0) "
+                                                        f"COALESCE((SELECT SUM(waga_calkowita) FROM wiaderka_maluchy WHERE plan_id = %s AND UPPER(linia) = '{'AGRO' if table_plan.endswith('_agro') else 'PSD'}' AND status = 'wrzucone_do_mieszalnika'), 0) "
                                                         f"WHERE id = %s",
                                                         (plan_id, plan_id, plan_id, plan_id),
                                                     )

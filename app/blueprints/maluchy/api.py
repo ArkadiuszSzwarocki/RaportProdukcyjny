@@ -1,3 +1,4 @@
+# cspell:words Boczk Szwar calkowita
 from flask import jsonify, request, session
 from app.blueprints.maluchy.blueprint import maluchy_bp
 from app.decorators import login_required

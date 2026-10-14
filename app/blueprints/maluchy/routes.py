@@ -127,8 +127,8 @@ def zasyp_wiaderka_page(plan_id: int, szarza_id: int):
         cur.execute(
             f"""
             SELECT s.id, s.nr_szarzy, s.waga, s.godzina,
-                   (SELECT w.id FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_id,
-                   (SELECT w.kod_wiadra FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_code
+                   (SELECT w.id FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.plan_id = s.plan_id AND UPPER(w.linia) = '{'AGRO' if table_szarze.endswith('_agro') else 'PSD'}' AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_id,
+                   (SELECT w.kod_wiadra FROM wiaderka_maluchy w WHERE w.szarza_id = s.id AND w.plan_id = s.plan_id AND UPPER(w.linia) = '{'AGRO' if table_szarze.endswith('_agro') else 'PSD'}' AND w.status = 'wrzucone_do_mieszalnika' LIMIT 1) AS bucket_code
             FROM {table_szarze} s
             WHERE s.plan_id = %s
             ORDER BY s.nr_szarzy ASC, s.id ASC
