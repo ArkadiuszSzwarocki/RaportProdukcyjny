@@ -1,3 +1,4 @@
+# cspell:words calkowita CURDATE lastrowid
 """A shared bucket table must not mix PSD and AGRO plan identifiers."""
 import uuid
 
